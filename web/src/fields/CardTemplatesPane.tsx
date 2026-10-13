@@ -9,7 +9,7 @@ import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { FieldPicker } from './FieldPicker';
 import { displayPattern, patternParts, storedPattern, usedFields } from './card-patterns';
 import { isStableReference, textTokens } from '../document/text-tokens';
-import { referenceLabel } from '../outline/BlockText';
+import { referenceLabel } from '../outline/names';
 import './card-templates.css';
 
 interface Props {
@@ -218,7 +218,7 @@ function TemplateEditor(props: { template: CardTemplateInfo; fields: readonly Fi
 
 /** A member's text as a title: references read as their targets, type tags dropped. */
 function memberTitle(text: string, lookup: NotebookClient['lookup']): string {
-  return textTokens(text).filter(token => token.kind !== 'tag').map(token => isStableReference(token) ? referenceLabel(token, lookup(token.id!)()) : token.value).join('').replace(/\s+/g, ' ').trim();
+  return textTokens(text).filter(token => token.kind !== 'tag').map(token => isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup) : token.value).join('').replace(/\s+/g, ' ').trim();
 }
 
 function LoadChart(props: { load: { date: string; due: number; added: number }[] }) {

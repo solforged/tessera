@@ -6,6 +6,7 @@ import { BlockText } from '../outline/BlockText';
 import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
 import { exactRepeats } from './criteria';
+import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
 
 export function CriteriaMatrix(props: {
   rows: PositionRow[]; allRows: PositionRow[]; criteria: string[]; questions: PositionQuestion[]; notebook: NotebookClient;
@@ -15,6 +16,7 @@ export function CriteriaMatrix(props: {
 }) {
   const [editing, setEditing] = createSignal<{ position: string; field: string; value: string | null; text: string } | null>(null);
   const [error, setError] = createSignal('');
+  const [saving, setSaving] = createSignal(false);
   const cells = createMemo(() => new Map(props.rows.map(row => {
     const doc = props.docs.get(row.block.page.id);
     doc?.outline.version(); doc?.archivedVersion();
@@ -28,20 +30,26 @@ export function CriteriaMatrix(props: {
   const repeats = createMemo(() => exactRepeats(props.criteria, props.rows.map(row => row.block.block.id), (id, field) => cells().get(id)?.get(field)?.map(value => value.text).join('\n') ?? ''));
   async function commit() {
     const current = editing();
-    if (!current) return;
+    if (!current || saving()) return;
     const row = props.rows.find(row => row.block.block.id === current.position);
     const doc = row && props.docs.get(row.block.page.id);
     if (!doc || doc.status() !== 'ready') { setError('The position is still loading.'); return; }
-    if (current.value && doc.block(current.value)?.text === current.text || !current.value && !current.text.trim()) { setEditing(null); return; }
+    if (!current.value && !current.text.trim()) { setEditing(null); return; }
+    setSaving(true);
+    let text: string;
+    try { text = withLinkedTitles(current.text, await titleTargets(props.notebook, typedTitles(current.text))); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); setSaving(false); return; }
+    if (editing() !== current) { setSaving(false); return; }
+    if (current.value && doc.block(current.value)?.text === text) { setEditing(null); setSaving(false); return; }
     const entry = doc.outline.children(current.position).find(id => !doc.isArchived(id) && fieldEntryId(doc.block(id)?.text ?? '') === current.field);
-    const result = doc.edit(current.value ? { kind: 'text', id: current.value, text: current.text }
-      : entry ? { kind: 'insert', parentId: entry, after: doc.outline.children(entry).at(-1) ?? null, text: current.text }
-      : { kind: 'addFieldEntries', parentId: current.position, after: doc.outline.children(current.position).at(-1) ?? null, entries: [{ fieldId: current.field, value: current.text }] });
-    if (!result.ok) { setError(result.reason); return; }
+    const result = doc.edit(current.value ? { kind: 'text', id: current.value, text }
+      : entry ? { kind: 'insert', parentId: entry, after: doc.outline.children(entry).at(-1) ?? null, text }
+      : { kind: 'addFieldEntries', parentId: current.position, after: doc.outline.children(current.position).at(-1) ?? null, entries: [{ fieldId: current.field, value: text }] });
+    if (!result.ok) { setError(result.reason); setSaving(false); return; }
     const focusedCell = document.activeElement?.closest<HTMLElement>('.criteria-cell');
     setEditing(null); setError(''); props.onEdited(doc);
     queueMicrotask(() => focusedCell?.focus());
-    try { await doc.flush(); } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
+    try { await doc.flush(); } catch (error) { setError(error instanceof Error ? error.message : String(error)); } finally { setSaving(false); }
   }
   function start(row: PositionRow, field: string, value: { id: string; text: string } | undefined) {
     setEditing({ position: row.block.block.id, field, value: value?.id ?? null, text: value?.text ?? '' });
@@ -66,7 +74,7 @@ export function CriteriaMatrix(props: {
               <For each={values()}>{value => <button type="button" class="criteria-value" onClick={() => start(row, field, value)}><BlockText text={value.text} notebook={props.notebook} interactive={false} /></button>}</For>
             </Show>}>{edit => <>
               <For each={values().filter(value => value.id !== edit().value)}>{value => <div class="criteria-value"><BlockText text={value.text} notebook={props.notebook} interactive={false} /></div>}</For>
-              <textarea class="criteria-input" aria-label={`Edit ${props.fieldName(field)} · ${props.holder(row)}`} value={edit().text} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => setEditing(current => current ? { ...current, text: event.currentTarget.value } : null)} onBlur={() => void commit()} onKeyDown={event => {
+              <textarea class="criteria-input" aria-label={`Edit ${props.fieldName(field)} · ${props.holder(row)}`} disabled={saving()} value={edit().text} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => setEditing(current => current ? { ...current, text: event.currentTarget.value } : null)} onBlur={() => void commit()} onKeyDown={event => {
                 if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); void commit(); }
                 else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(null); }
               }} />

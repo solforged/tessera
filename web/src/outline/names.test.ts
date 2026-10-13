@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { Block, NameMatch } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
-import { chooseName, foldName, resolveName, resolvedReferenceText } from './names';
+import { chooseName, completeNames, foldName, plainText, referenceValue, resolveName, resolvedReferenceText } from './names';
 
 const page = (id: string, text: string): Block => ({ id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 });
 const match: NameMatch = { page: page('target', 'Cicero'), alias: 'Tully' };
@@ -34,6 +34,35 @@ describe('page names', () => {
     await expect(resolveName(notebook, 'Tully')).rejects.toThrow('Offline');
     expect(await resolveName(notebook, 'Tully')).toEqual([match]);
     expect(calls).toBe(2);
+  });
+
+  test('alias completion keeps allowed identities and never offers duplicate creation for an exact alias', async () => {
+    const person = page('person', 'Ibn Khaldun'), source = page('source', 'ʿAbd al-Raḥmān');
+    const alias = { page: person, alias: 'ʿAbd al-Raḥmān' };
+    const notebook = { changeSequence: () => 0, roots: () => [person, source], api: {
+      resolveName: async () => [alias, { page: source, alias: null }],
+      complete: async () => [{ ...source, alias: null }, { ...person, alias: alias.alias }],
+    } } as unknown as NotebookClient;
+    expect(await completeNames(notebook, 'ʿabd al-rahman', [person])).toEqual({ rows: [alias], canCreate: false });
+    expect(await completeNames(notebook, 'ʿabd al-rahman', [])).toEqual({ rows: [], canCreate: true });
+  });
+
+  test('nested position and quote labels render holder names and bound reference cycles', () => {
+    const personId = '01ARZ3NDEKTSV4RRFFQ69G5FAV', positionId = '01ARZ3NDEKTSV4RRFFQ69G5FAW';
+    const blocks = new Map([[personId, page(personId, 'Plato')], [positionId, page(positionId, `[[${personId}|Plato]]`)]]);
+    const lookup = (id: string) => () => blocks.get(id) ?? null;
+    expect(plainText(`See [[${positionId}]]`, lookup)).toBe('See Plato');
+    expect(plainText(`((${positionId}))`, lookup)).toBe('“Plato”');
+    blocks.set(personId, page(personId, `[[${positionId}]]`));
+    blocks.set(positionId, page(positionId, `[[${personId}]]`));
+    expect(plainText(`[[${positionId}]]`, lookup)).toBe('Circular reference');
+  });
+
+  test('bracketed creator names never masquerade as canonical IDs', () => {
+    expect(referenceValue('[[Arnold J. Toynbee]]')).toEqual({ id: null, name: 'Arnold J. Toynbee' });
+    expect(referenceValue('[[Arnold Toynbee|A. J. Toynbee]]')).toEqual({ id: null, name: 'A. J. Toynbee' });
+    expect(referenceValue('[[01ARZ3NDEKTSV4RRFFQ69G5FAV|Toynbee]]')).toEqual({ id: '01ARZ3NDEKTSV4RRFFQ69G5FAV', name: 'Toynbee' });
+    expect(referenceValue('Plain name')).toEqual({ id: null, name: 'Plain name' });
   });
 
   test('choosing a candidate changes only the selected occurrence and preserves its wording', () => {

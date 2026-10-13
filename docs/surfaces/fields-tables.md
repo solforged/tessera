@@ -57,7 +57,7 @@ Instance definitions show **Links to** below Kind, both on their page and in the
 
 Library Author, Editor and Translator start with Person and Group targets. Import and the one-time notebook backfill file untyped creator pages as Person without changing pages already filed elsewhere.
 
-Metadata suggestions, field-slot pickers and value pickers for such a field show members of the target types. A query that names none of them exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together.
+Metadata suggestions, field-slot pickers and value pickers for such a field show members of the target types. Titles and aliases match with the notebook's name folding; an exact alias match does not offer duplicate creation. A query that names none of them exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together.
 
 ## Type page template
 

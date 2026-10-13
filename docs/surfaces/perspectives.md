@@ -47,6 +47,8 @@ Each column heads with the siglum in mono, the holder in 18 px Piazzolla and the
 
 Cells are the positions' own values. Enter or a click edits one in place, an empty cell offers Add on hover or focus, and both are undoable edits of the position's page.
 
+Saving a cell resolves hand-typed `[[Title]]` references by title or alias, retaining the authored spelling, as in the outline. Shared names stay unlinked rather than choosing a page.
+
 Two or more cells in a row with exactly the same text get a numbered `≡ 1 · exact repeat` mark and a footnote naming the sigla; nothing else is marked.
 
 ### Questions and criteria editing

@@ -2,6 +2,7 @@ import type { Citation, HighlightRow, IngestJob, LibraryQuery, LibraryRow, Opera
 import type { LibraryGroup, LibraryViewState } from '../shell/contract';
 import { formatSourceValue } from '../outline/source';
 import type { HighlightSection } from './highlights';
+import { referenceValue } from '../outline/names';
 
 export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters' | 'collection'>): LibraryQuery {
   return {
@@ -27,8 +28,9 @@ export function groupSources(rows: readonly LibraryRow[], group: Exclude<Library
   const groups = new Map<string, SourceGroup & { order: string | number }>();
   for (const row of rows) {
     const person = row.people.find(value => value.role === 'author') ?? row.people.find(value => value.role === 'editor');
+    const name = person && referenceValue(person.name).name;
     const year = Number(row.published?.slice(0, 4));
-    const value = group === 'author' ? person && { key: person.id ?? `name:${person.name}`, label: person.name, personId: person.id, order: (person.name.includes(',') ? person.name.split(',')[0]! : person.name.split(/\s+/).at(-1)!) + ' ' + person.name }
+    const value = group === 'author' ? person && name && { key: person.id ?? `name:${name}`, label: name, personId: person.id, order: (name.includes(',') ? name.split(',')[0]! : name.split(/\s+/).at(-1)!) + ' ' + name }
       : group === 'decade' ? (year > 0 ? { key: String(year - year % 10), label: `${year - year % 10}s`, personId: null, order: -(year - year % 10) } : undefined)
         : group === 'publisher' ? row.publisher && { key: row.publisher, label: row.publisher, personId: null, order: row.publisher }
           : row.language && { key: row.language, label: formatSourceValue('language', row.language), personId: null, order: formatSourceValue('language', row.language) };
@@ -53,7 +55,7 @@ export function sourceStateOperation(row: LibraryRow, state: ReadingState): Oper
 }
 
 export function sourceByline(row: Pick<LibraryRow, 'creators' | 'site' | 'published'>): string {
-  return row.creators.join(', ') || row.site || '';
+  return row.creators.map(value => referenceValue(value).name).join(', ') || row.site || '';
 }
 
 /** Whole percent, rounded down so a source never reads 100% before its last passage; a started source never reads as 0%. */

@@ -15,7 +15,7 @@ A mono rubric line reads `Add to today` in gilt and `Sun 11 · end of journal` i
 - ⌘Enter or the glyph switches between a note and a task.
 - `[] ` or `[ ] ` at the start of the line also makes it a task and disappears, as in the outline. Backspace on an empty task line returns to a note; a pasted or restored prefix saves as a task too.
 - Card syntax shows the index-card mark in the glyph slot unless the line is a task.
-- `[[` completes pages (with Create page) and `#` types (with Create type) in a picker under the line. A hand-typed `[[Title]]` links as it would on leaving a block.
+- `[[` completes pages (with Create page) and `#` pages used as types (with Create type), matching titles and aliases in a picker under the line. Type results never include matching note bodies. A hand-typed `[[Title]]` links as it would on leaving a block.
 - An `@date` plans the line and so makes it a task, with the [same preview as Add a task](tasks-agenda.md#add-a-task). A plain-word date suffix plans only a task.
 
 ### Adding and saving

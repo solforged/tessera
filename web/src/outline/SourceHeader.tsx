@@ -13,7 +13,8 @@ import { downloadBlob } from '../ui/download';
 import { ResourceImage } from '../library/ResourceImage';
 import { formatProgress } from '../library/query';
 import { shortSourceTitle } from './source';
-import { saveDetails, sourceEntries, sourceMetadata } from '../library/details';
+import { saveDetails, sourceEntries, sourceFieldValue, sourceMetadata } from '../library/details';
+import type { SourceCreator } from '../library/details';
 import { publicationReading } from '../library/publication';
 import { CollectionPicker, SourceCollections, createCollectionActions } from '../library/Collections';
 import { changeCollectionMembers, collectionPages, sourceCollections } from '../document/collections';
@@ -42,6 +43,7 @@ export function SourceHeader(props: {
   const snapshot = createMemo(() => source()?.snapshots.find(snapshot => snapshot.id === source()?.source.current_snapshot_id));
   const metadata = createMemo(() => sourceMetadata(props.doc, props.notebook, props.fields));
   const authored = createMemo(() => sourceEntries(props.doc, props.fields));
+  const creators = createMemo(() => sourceFieldValue(props.doc, props.notebook, props.fields, 'creators') as SourceCreator[]);
   const cover = createMemo(() => metadata().cover ?? (authored().has('cover') ? null : snapshot()?.metadata.cover));
   const description = createMemo(() => metadata().description ?? (authored().has('description') ? null : snapshot()?.metadata.description));
   const [loadedCover, setLoadedCover] = createSignal<string>();
@@ -156,7 +158,7 @@ export function SourceHeader(props: {
       <div class="outline-source-info">
         <Show when={metadata().subtitle && !props.doc.root()?.text.includes(metadata().subtitle!)}><p class="outline-source-subtitle">{metadata().subtitle}</p></Show>
         <div class="outline-source-summary">
-          <For each={metadata().creators}>{creator => <Show when={props.notebook.roots().find(page => page.text === creator.name && !page.archived)} fallback={<span class="outline-source-creator">{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</span>}>{page => <Button class="outline-source-creator" onClick={event => props.onOpen({ kind: 'page', pageId: page().id }, event.shiftKey)}>{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</Button>}</Show>}</For>
+          <For each={creators()}>{creator => <Show when={creator.id} fallback={<span class="outline-source-creator">{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</span>}>{id => <Button class="outline-source-creator" onClick={event => props.onOpen({ kind: 'page', pageId: id() }, event.shiftKey)}>{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</Button>}</Show>}</For>
           <span>{imprint()}</span>
         </div>
       </div>

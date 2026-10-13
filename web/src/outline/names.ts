@@ -1,7 +1,7 @@
-import type { NameMatch } from '../api/types';
+import type { Block, NameMatch } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import type { Token } from '../document/text-tokens';
-import { textTokens } from '../document/text-tokens';
+import { isStableReference, quoteTarget, textTokens } from '../document/text-tokens';
 import type { MenuItem } from '../ui/Menu';
 import { documentReady } from './source-fields';
 
@@ -29,6 +29,48 @@ export function resolveName(notebook: NotebookClient, name: string): Promise<Nam
   const names = cache.names;
   void request.catch(() => { if (names.get(key) === request) names.delete(key); });
   return request;
+}
+
+/** Completion and exact identity share the same folding and aliases, within the caller's allowed pages. */
+export async function completeNames(notebook: NotebookClient, query: string, pages: readonly Block[]): Promise<{ rows: NameMatch[]; canCreate: boolean }> {
+  const title = query.trim();
+  const allowed = new Map(pages.filter(page => page.kind === 'page' && !page.archived).map(page => [page.id, page]));
+  if (!title) return { rows: [...allowed.values()].map(page => ({ page, alias: null })), canCreate: false };
+  const [completed, exact] = await Promise.all([
+    notebook.api.complete(title, Math.max(20, notebook.roots().length)),
+    resolveName(notebook, title),
+  ]);
+  const rows = new Map<string, NameMatch>();
+  for (const match of [...exact, ...completed.map(page => ({ page, alias: page.alias }))]) {
+    const page = allowed.get(match.page.id);
+    if (page && !rows.has(page.id)) rows.set(page.id, { page, alias: match.alias });
+  }
+  return { rows: [...rows.values()], canCreate: !exact.some(match => allowed.has(match.page.id)) };
+}
+
+/** A linked identity needs a canonical ID; bracketed names are names, never navigation targets. */
+export function referenceValue(text: string): { id: string | null; name: string } {
+  const value = text.trim();
+  const tokens = textTokens(value);
+  const token = tokens.length === 1 && tokens[0]?.kind === 'reference' ? tokens[0] : undefined;
+  return token ? { id: isStableReference(token) ? token.id! : null, name: token.alias ?? token.id!.trim() } : { id: null, name: value };
+}
+
+/** References to reference-bearing blocks read their live labels, with cycles bounded by target identity. */
+export function referenceLabel(token: Token, target: Block | null | undefined, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set()): string {
+  if (!isStableReference(token)) return token.value;
+  if (target === undefined) return token.alias || 'Loading reference…';
+  if (target === null) return `Unresolved ${token.id}`;
+  if (token.alias) return token.alias;
+  if (seen.has(target.id)) return 'Circular reference';
+  return plainText(target.text, lookup, new Set([...seen, target.id])) || 'Empty block';
+}
+
+/** The shared live display pipeline used by reference labels, breadcrumbs and field previews. */
+export function plainText(text: string, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set()): string {
+  const quoted = quoteTarget(text);
+  if (quoted) return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)(), lookup, seen)}”`;
+  return textTokens(text).map(token => isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen) : token.kind === 'tag' ? `#${token.value}` : token.value).join('');
 }
 
 /** Only the selected occurrence changes; a concurrently edited token is never overwritten. */

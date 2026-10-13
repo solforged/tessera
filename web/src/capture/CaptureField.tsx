@@ -2,10 +2,10 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, on, 
 import type { JSX } from 'solid-js';
 import type { TaskState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { completeReferences, openReferenceRange } from '../outline/completion';
-import { foldName } from '../outline/names';
+import { openReferenceRange } from '../outline/completion';
+import { completeNames, foldName } from '../outline/names';
 import type { TitleTargets } from '../outline/link-titles';
-import { typeSpelling, typeTokenAt } from '../outline/type-completion';
+import { completeTypes, typeSpelling, typeTokenAt } from '../outline/type-completion';
 import { parseCardText } from '../review/card-text';
 import { captureDateToken, dateSuggestions, insideProtectedSyntax, newTask, planDateToken } from '../tasks/quick-date';
 import { relativeDate } from '../tasks/task-labels';
@@ -79,13 +79,13 @@ export function CaptureField(props: CaptureFieldProps) {
   const [choices] = createResource(() => token() && `${token()!.kind}:${token()!.query}`, async (key): Promise<Choice[]> => {
     const kind = key.slice(0, key.indexOf(':')), query = key.slice(key.indexOf(':') + 1);
     if (kind === 'type') {
-      const result = await completeReferences(props.notebook, query, []);
+      const result = await completeTypes(props.notebook, query);
       return [...result.rows.map(block => ({ title: block.text, id: block.id })), ...result.canCreate ? [{ title: query.trim(), create: true }] : []];
     }
-    const rows: Choice[] = (await props.notebook.api.complete(query, 20)).filter(block => block.kind !== 'block').map(block => ({ title: block.text, id: block.id }));
+    const result = await completeNames(props.notebook, query, props.notebook.roots());
+    const rows: Choice[] = result.rows.map(({ page }) => ({ title: page.text, id: page.id }));
     const title = query.trim();
-    const exact = rows.some(row => foldName(row.title) === foldName(title));
-    return title && !exact && !/^\d{4}-\d{2}-\d{2}$/.test(title) ? [...rows, { title, create: true }] : rows;
+    return title && result.canCreate && !/^\d{4}-\d{2}-\d{2}$/.test(title) ? [...rows, { title, create: true }] : rows;
   });
   createEffect(on(() => token()?.query, () => setIndex(0)));
   const open = () => !!token() && !!choices()?.length;

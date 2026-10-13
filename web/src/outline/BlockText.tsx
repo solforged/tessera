@@ -5,7 +5,7 @@ import type { OpenTarget } from '../shell/contract';
 import { Icon } from '../ui/Icon';
 import { TypePill } from './references';
 import { Menu } from '../ui/Menu';
-import { foldName, nameMenuItems, resolveName } from './names';
+import { foldName, nameMenuItems, plainText, referenceLabel, resolveName } from './names';
 import type { NameMatch } from '../api/types';
 import { cardMarks } from '../review/card-text';
 import type { CardMark } from '../review/card-text';
@@ -27,18 +27,6 @@ interface Props {
   cards?: boolean;
 }
 
-export function referenceLabel(token: Token, target: Block | null | undefined): string {
-  if (!isStableReference(token)) return token.value;
-  if (target === undefined) return token.alias || 'Loading reference…';
-  if (target === null) return `Unresolved ${token.id}`;
-  return token.alias || target.text || 'Empty block';
-}
-/** One line of display text: references read as their targets and tags keep their `#`, for breadcrumbs and labels. */
-export function plainText(text: string, lookup: NotebookClient['lookup']): string {
-  const quoted = quoteTarget(text);
-  if (quoted) return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)())}”`;
-  return textTokens(text).map(token => isStableReference(token) ? referenceLabel(token, lookup(token.id!)()) : token.kind === 'tag' ? `#${token.value}` : token.value).join('');
-}
 interface DisplayToken extends Token { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean; matches?: NameMatch[] }
 interface TokenGroup { mark?: CardMark; tokens: Token[] }
 const operators = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' }, '>>>': { label: 'child answer', text: '↓' }, '>>1.': { label: 'list answer', text: '↓1.' }, ';;': { label: 'descriptor', text: '›' } };
@@ -81,7 +69,7 @@ function TokenText(props: Props) {
       const literal = group.mark?.kind !== 'operator' && (token.kind === 'text' || token.kind === 'reference' && !isStableReference(token) && !ambiguous);
       const target = isStableReference(token) ? props.notebook.lookup(token.id!)() : undefined;
       const field = props.field?.id === token.id ? props.field : undefined;
-      const label = ambiguous ? token.alias || token.id! : group.mark?.kind === 'operator' || literal || token.kind === 'url' ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target);
+      const label = ambiguous ? token.alias || token.id! : group.mark?.kind === 'operator' || literal || token.kind === 'url' ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id));
       const result: DisplayToken = { ...token, label, target, literal, visibleStart, matches: ambiguous ? resolved : undefined };
       visibleStart += label.length;
       return result;

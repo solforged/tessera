@@ -2,6 +2,7 @@ import { createEffect, createMemo, createResource, createRoot, createSignal, on,
 import type { Block, ChangeEvent, FieldDefinition, SourceFormat } from '../api/types';
 import type { IconName } from '../ui/Icon';
 import type { BlockState, NotebookClient } from '../document/contract';
+import { plainText, referenceValue } from './names';
 import { textTokens } from '../document/text-tokens';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 
@@ -21,7 +22,11 @@ export function formatSourceValue(name: string, value: string): string {
 }
 
 export function valueLabel(text: string, lookup: NotebookClient['lookup']): string {
-  return textTokens(text).map(token => token.kind === 'reference' ? token.alias ?? lookup(token.id!)()?.text ?? token.id : token.value).join('');
+  return textTokens(text).map(token => {
+    if (token.kind !== 'reference') return token.value;
+    const reference = referenceValue(token.value);
+    return reference.id ? plainText(token.value, lookup) : reference.name;
+  }).join('');
 }
 
 /** Reset extracted positions without discarding authored extra values. */

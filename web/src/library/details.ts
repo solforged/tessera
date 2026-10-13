@@ -4,6 +4,7 @@ import { sourceState } from '../document/types';
 import { addFieldOption, documentReady } from '../outline/source-fields';
 import { sourceFieldName, valueLabel } from '../outline/source';
 import { createInstance } from '../fields/instances';
+import { referenceValue, resolveName } from '../outline/names';
 
 export type SourceField = 'title' | 'subtitle' | 'creators' | 'firstPublished' | 'originalLanguage' | 'published' | 'publisher' | 'edition' | 'series' | 'number' | 'pages' | 'volume' | 'issue' | 'pageRange' | 'language' | 'identifiers' | 'url' | 'site' | 'description' | 'cover' | 'siglum' | 'citationKey' | 'state' | 'started' | 'finished' | 'tags';
 export interface SourceCreator { id: string | null; name: string; role: 'author' | 'editor' | 'translator' }
@@ -70,8 +71,8 @@ export function sourceFieldValue(doc: PageDocument, notebook: NotebookClient, de
     return block && !block.archived && block.text.trim() ? [block.text] : [];
   });
   if (field === 'creators') return roles.flatMap(role => values(role).map(text => {
-    const id = /^\[\[([^\]|]+)(?:\|[^\]]*)?\]\]$/.exec(text.trim())?.[1] ?? null;
-    return { id, name: valueLabel(text, id => notebook.lookup(id)), role };
+    const reference = referenceValue(text);
+    return { id: reference.id, name: reference.id ? valueLabel(text, id => notebook.lookup(id)) : reference.name, role };
   }));
   const found = values(fields[field][0]).map(text => valueLabel(text, id => notebook.lookup(id)));
   return field === 'identifiers' ? found : found[0] ?? '';
@@ -174,9 +175,18 @@ async function prepareField(notebook: NotebookClient, context: FieldPreparation,
     values = await Promise.all(values.map(async (value, index) => {
       if (creators?.[index]?.create_page === false) return value;
       const entityType = creators?.[index]?.kind === 'organisation' ? 'Group' : 'Person';
-      const reference = /^\[\[[^\]|]+\]\]$/.test(value) ? value.slice(2, -2) : undefined;
-      const name = value.includes(',') ? value.split(',').reverse().map(part => part.trim()).join(' ') : value;
-      let id = reference ?? await notebook.pageByTitle(value, false) ?? await notebook.pageByTitle(name, false);
+      const reference = referenceValue(value);
+      const name = reference.name.includes(',') ? reference.name.split(',').reverse().map(part => part.trim()).join(' ') : reference.name;
+      let id = reference.id;
+      if (!id) {
+        const matches = await resolveName(notebook, name);
+        const eligible = (await Promise.all(matches.map(async match => {
+          const kinds = await notebook.api.noteKinds(match.page.id);
+          return kinds.some(kind => ['person', 'group', 'unfiled'].includes(kind.key)) ? match.page.id : null;
+        }))).filter((id): id is string => id !== null);
+        if (eligible.length > 1) return `[[${name}]]`;
+        id = eligible[0] ?? null;
+      }
       if (!id) id = (await createInstance(notebook, name, entityType)).id;
       else {
         const kinds = await notebook.api.noteKinds(id);

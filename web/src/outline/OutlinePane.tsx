@@ -23,7 +23,8 @@ import { TaskStatusButton } from '../tasks/TaskControls';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
-import { BlockText, plainText } from './BlockText';
+import { BlockText } from './BlockText';
+import { plainText } from './names';
 import { isStableReference, textTokens } from '../document/text-tokens';
 import { PaneEditor } from './editor';
 import { createOutlineCapabilities } from './capabilities';
@@ -1141,7 +1142,7 @@ function Pane(props: OutlinePaneProps) {
     editor = new PaneEditor({
       key: editorKey,
       input: referenceInput,
-      label: id => /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(id) ? props.notebook.lookup(id)()?.text : undefined,
+      label: id => { const target = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(id) ? props.notebook.lookup(id)() : undefined; return target ? plainText(target.text, reference => props.notebook.lookup(reference)) : undefined; },
       nameMatches: name => editingNames.error ? undefined : editingNames()?.get(foldName(name)),
       referenceMenu: (token, anchor) => {
         const matches = editingNames.error ? undefined : editingNames()?.get(foldName(token.id!));

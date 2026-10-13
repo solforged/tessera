@@ -16,12 +16,12 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { completeReferences, completionPickKey, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { completionPickKey, isJournalReference, isQuoteCompletion, openReferenceRange, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { rankSlash, slashTokenAt } from './slash';
 import { insertCard } from './card-insert';
 import type { InsertCardKind } from './card-insert';
 import type { SlashEntry, SlashToken } from './slash';
-import { typeSpelling, typeTokenAt } from './type-completion';
+import { completeTypes, typeSpelling, typeTokenAt } from './type-completion';
 import type { OutlineContext } from './context';
 import { createPageIcon } from './source';
 import { emptyExtraValuePrevious } from './keyboard';
@@ -306,7 +306,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   const [matches] = createResource(completionKey, async key => {
     const mode = key.slice(0, key.indexOf(':'));
     const query = key.slice(key.indexOf(':') + 1);
-    if (mode === 'types') return completeReferences(props.notebook, query, []);
+    if (mode === 'types') return completeTypes(props.notebook, query);
     if (mode === 'blocks') return { rows: query.trim() ? (await api.search(query, 20)).map(hit => hit.block).filter(block => block.kind === 'block') : [], canCreate: false };
     return { rows: await api.complete(query), canCreate: false };
   });

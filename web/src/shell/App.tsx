@@ -5,7 +5,7 @@ import type { Block, NoteKind, NotebookInfo, Type, View } from '../api/types';
 import { createNotebookClient, type Notebook } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
-import { plainText } from '../outline/BlockText';
+import { plainText } from '../outline/names';
 import { ReferencePreviews } from '../outline/ReferencePreview';
 import { createPageIcon } from '../outline/source';
 import { PageMergePicker, pageMergeDisabledReason } from '../outline/PageMerge';

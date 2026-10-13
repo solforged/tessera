@@ -1,3 +1,6 @@
+import type { Block } from '../api/types';
+import type { NotebookClient } from '../document/contract';
+import { completeNames } from './names';
 import { cardMarks, parseCardText } from '../review/card-text';
 import { matchFieldEntry } from '../table/query';
 import { insideProtectedSyntax } from '../tasks/quick-date';
@@ -28,6 +31,13 @@ export function typeTokenAt(text: string, caret: number): TypeToken | null {
   if (cardMarks(text).some(mark => mark.kind === 'operator' || from >= mark.start && from < mark.end)) return null;
   if (parseCardText(text).problems.some(problem => from >= problem.start && from < problem.end)) return null;
   return { from, to, query: text.slice(from + 1, to) };
+}
+
+/** Only pages used as types belong in a type picker; prose matches can never become tag spellings. */
+export async function completeTypes(notebook: NotebookClient, query: string): Promise<{ rows: (Block & { alias: string | null })[]; canCreate: boolean }> {
+  const pages = (await notebook.api.types()).map(type => type.page);
+  const result = await completeNames(notebook, query, pages);
+  return { rows: result.rows.map(({ page, alias }) => ({ ...page, alias })), canCreate: result.canCreate };
 }
 
 /** Match the inline tag grammar; titles containing spaces or punctuation use the bracketed spelling. */

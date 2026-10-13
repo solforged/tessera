@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { typeSpelling, typeTokenAt } from './type-completion';
+import { completeTypes, typeSpelling, typeTokenAt } from './type-completion';
+import type { NotebookClient } from '../document/contract';
+import type { Block } from '../api/types';
 
 const atEnd = (text: string) => typeTokenAt(text, text.length);
 
@@ -51,6 +53,17 @@ describe('type completion tokens', () => {
     expect(atEnd('{{c1::answer}} #bo')?.query).toBe('bo');
     expect(typeTokenAt('#bo >> back', 3)).toBeNull();
   });
+});
+
+test('type completion excludes note bodies and matches registered type aliases', async () => {
+  const type = { id: 'type', kind: 'page', text: 'idea', archived: false } as Block;
+  const prose = { id: 'prose', kind: 'block', text: '[[person|Plato]] describes an ideal city', archived: false } as Block;
+  const notebook = { roots: () => [type], changeSequence: () => 0, api: {
+    types: async () => [{ page: type }],
+    complete: async () => [{ ...type, alias: 'idéa' }, { ...prose, alias: null }],
+    resolveName: async () => [{ page: type, alias: 'idéa' }],
+  } } as unknown as NotebookClient;
+  expect(await completeTypes(notebook, 'idéa')).toEqual({ rows: [{ ...type, alias: 'idéa' }], canCreate: false });
 });
 
 describe('type spelling', () => {

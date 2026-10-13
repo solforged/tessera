@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, on, 
 import type { FieldDetail, FieldKind, FieldOwner, FieldValueUse } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
-import { plainText } from '../outline/BlockText';
+import { plainText } from '../outline/names';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -162,7 +162,7 @@ export function FieldDetails(props: FieldDetailsProps) {
     <Button type="submit" disabled={!ready()}>Save</Button><Button onClick={() => setEditing(null)}>Cancel</Button>
   </form></Show>;
   const ledger = (items: FieldValueUse[], after: boolean) => <table class="field-ledger"><thead><tr><th scope="col">Written value</th><th scope="col">Owner</th><th scope="col">{after ? 'After applying' : 'Problem'}</th></tr></thead><tbody>
-    <For each={items}>{item => <tr><td classList={{ 'field-rubric': !item.value.reading.ok }}>{plainText(item.value.text, id => props.notebook.lookup(id))}</td><td><Button onClick={event => ownerLink(item.owner, event.shiftKey)}>{item.owner.text}</Button></td><td class="field-apparatus">{item.value.reading.ok ? String(item.value.reading.value) : item.value.reading.problem}</td></tr>}</For>
+    <For each={items}>{item => <tr><td classList={{ 'field-rubric': !item.value.reading.ok }}>{plainText(item.value.text, id => props.notebook.lookup(id))}</td><td><Button onClick={event => ownerLink(item.owner, event.shiftKey)}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button></td><td class="field-apparatus">{item.value.reading.ok ? String(item.value.reading.value) : item.value.reading.problem}</td></tr>}</For>
   </tbody></table>;
   const templates = (value: FieldDetail, title: string) => <section class="field-section">
     <SectionHead number={!props.inspector && !preview() ? '02' : undefined} title={title} count={`${value.templates.length} ${value.templates.length === 1 ? 'template' : 'templates'}`} />
@@ -195,7 +195,7 @@ export function FieldDetails(props: FieldDetailsProps) {
         </section></Show>
         <Show when={!props.inspector}>{templates(value(), 'In templates')}</Show>
         <Show when={props.inspector && value().kind === 'date'}><section class="field-section"><SectionHead title="Reading" /><Show when={dateExample()} fallback={<p class="field-note">Accepts bare years from 1 to 9999. No day is added.</p>}>{example => <p class="field-apparatus">{plainText(example().value.text, id => props.notebook.lookup(id))} → {(() => { const reading = example().value.reading; if (!reading.ok) return ''; const text = String(reading.value); return /^\d{1,4}$/.test(text) ? `year ${Number(text)}` : text; })()}</p>}</Show></section></Show>
-        <section class="field-section"><SectionHead number={props.inspector ? undefined : '03'} title="Used by" count={`${value().owners_total} owners`} /><div class="field-owners"><For each={value().owners} fallback={<p class="field-note">No owners yet.</p>}>{item => <div class="field-owner"><Button onClick={event => ownerLink(item.owner, event.shiftKey)}>{item.owner.text}</Button><div class="field-owner-values"><For each={item.values} fallback={<span class="field-apparatus">Empty</span>}>{fieldValue => <span classList={{ 'field-apparatus': true, 'field-rubric': !fieldValue.reading.ok }}>{fieldValue.reading.ok ? String(fieldValue.reading.value) : plainText(fieldValue.text, id => props.notebook.lookup(id))}</span>}</For></div></div>}</For></div>
+        <section class="field-section"><SectionHead number={props.inspector ? undefined : '03'} title="Used by" count={`${value().owners_total} owners`} /><div class="field-owners"><For each={value().owners} fallback={<p class="field-note">No owners yet.</p>}>{item => <div class="field-owner"><Button onClick={event => ownerLink(item.owner, event.shiftKey)}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button><div class="field-owner-values"><For each={item.values} fallback={<span class="field-apparatus">Empty</span>}>{fieldValue => <span classList={{ 'field-apparatus': true, 'field-rubric': !fieldValue.reading.ok }}>{fieldValue.reading.ok ? String(fieldValue.reading.value) : plainText(fieldValue.text, id => props.notebook.lookup(id))}</span>}</For></div></div>}</For></div>
           <Show when={value().owners_total}><Button class="field-view-all" onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: props.fieldId, op: 'present', value: null }], sort: [], limit: null } }, event.shiftKey)}>View all {value().owners_total} owners →</Button></Show>
         </section>
         <Show when={props.inspector}>{templates(value(), 'In templates')}</Show>

@@ -56,9 +56,15 @@ test('source state edits preserve authored identifiers and use the owning revisi
 test('bylines retain creators or site separately from the year column', () => {
   expect(sourceByline({ creators: ['A. Author', 'B. Editor'], site: 'Journal', published: '2026-10-04' })).toBe('A. Author, B. Editor');
   expect(sourceByline({ creators: ['A. Author'], site: null, published: null })).toBe('A. Author');
+  expect(sourceByline({ creators: ['[[Arnold J. Toynbee]]'], site: null, published: null })).toBe('Arnold J. Toynbee');
   expect(sourceByline({ creators: [], site: 'karpathy.github.io', published: '2015-05-21' })).toBe('karpathy.github.io');
   expect(sourceByline({ creators: [], site: null, published: '1999' })).toBe('');
   expect(sourceByline({ creators: [], site: null, published: null })).toBe('');
+});
+
+test('unlinked bracketed creator names stay readable and non-navigable in author groups', () => {
+  const row = { page: { id: 'book' }, people: [{ id: null, name: '[[Arnold J. Toynbee]]', role: 'author' }], published: null } as unknown as LibraryRow;
+  expect(groupSources([row], 'author').map(({ label, personId }) => ({ label, personId }))).toEqual([{ label: 'Arnold J. Toynbee', personId: null }]);
 });
 
 test('jobs retain unfinished work at any age and completed work for one day', () => {

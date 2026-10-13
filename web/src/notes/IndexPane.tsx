@@ -3,7 +3,7 @@ import { ulid } from 'ulid';
 import type { KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
-import { plainText } from '../outline/BlockText';
+import { plainText } from '../outline/names';
 import { PageMergePicker } from '../outline/PageMerge';
 import { documentReady } from '../outline/source-fields';
 import { typeQuery } from '../table/query';

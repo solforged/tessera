@@ -355,6 +355,8 @@ If another pane deletes the zoom target, the pane resolves to its nearest surviv
 
 Text is the block body. References render inline in the accent without an underline, which appears on hover; wrapped references align left. While a block is edited a reference stays one label: clicking or tapping it puts the caret at its nearer end, so the row keeps its shape and the ID never shows.
 
+References to blocks that contain references use the same live display pipeline: the outer label reads the inner labels, not stored IDs. Quote summaries, breadcrumbs and field-kind previews use that pipeline too.
+
 Type pills follow the text at meta size. Clicking a pill opens a menu: open the table, open the type page, remove a manual membership. A text membership says so instead of offering removal.
 
 ### Field entries
