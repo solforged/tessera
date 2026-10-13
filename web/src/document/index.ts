@@ -506,6 +506,80 @@ export class Notebook implements NotebookClient, DocumentHost {
       } finally { for (const doc of docs) doc.release(); }
     });
   }
+  async promoteToProject(id: string, title: string): Promise<{ pageId: string; change: DocumentChange }> {
+    return this.serializeSourceChange(async () => {
+      const name = title.trim();
+      if (!name) throw new Error('Name the project before making it one.');
+      const source = await this.api.block(id);
+      const journal = this.open(source.page_id) as Document;
+      try {
+        if (journal.status() === 'loading') await journal.reload(false);
+        await journal.flush();
+        if (journal.root()?.kind !== 'journal' || source.kind !== 'block') throw new Error('Promote a block from a journal day.');
+        const row = await this.api.block(id);
+        if (row.page_id !== source.page_id) throw new Error('The block moved while making it a project.');
+        const children = [...journal.outline.children(id)];
+        const found = await this.pageByTitle(name, false);
+        const existing = found ? await this.api.block(found) : null;
+        if (existing && existing.kind !== 'page') throw new Error(`“${name}” names a journal day.`);
+        const pageId = existing?.id ?? ulid();
+        const wasProject = !!existing && (await this.api.projects()).some(project => project.block_id === pageId);
+        const originalText = row.text;
+        const linkText = `[[${pageId}]]`;
+        const pages = [source.page_id, pageId];
+        const created = !existing;
+        let applied = false, deletionId: string | undefined, pageRevision = 0;
+        const travel = async (forward: boolean) => {
+          if (applied === forward) return;
+          const operations: Operation[] = [];
+          const current = await this.api.block(id);
+          if (forward) {
+            if (current.text !== originalText) throw new Error('The journal block changed since this change. Its current text was kept.');
+            if (created) operations.push(deletionId
+              ? { op: 'restore', id: pageId, deletion_id: deletionId, revision: pageRevision }
+              : { op: 'create_page', id: pageId, title: name });
+            if (!wasProject && !deletionId) operations.push({ op: 'set_project', id: pageId, base_revision: created ? 1 : (await this.api.block(pageId)).revision, project: { status: 'active', outcome: '', deadline: null } });
+            if (originalText !== linkText) operations.push({ op: 'edit_text', id, base_revision: current.revision, text: linkText });
+            // A page this change made holds only the moved rows; an existing one keeps its own writing first.
+            let after = created ? null : (await this.api.page(pageId)).rows.filter(row => row.depth === 0 && !children.includes(row.block.id)).at(-1)?.block.id ?? null;
+            for (const child of children) {
+              const block = await this.api.block(child);
+              if (block.parent_id !== id) throw new Error('The project row’s children changed. Their current place was kept.');
+              operations.push({ op: 'move', id: child, base_revision: block.revision, parent_id: pageId, after });
+              after = child;
+            }
+          } else {
+            if (current.text !== linkText && originalText !== linkText) throw new Error('The journal link changed. Its current text was kept.');
+            let after: string | null = null;
+            for (const child of children) {
+              const block = await this.api.block(child);
+              if (block.parent_id !== pageId) throw new Error('The project page changed since this change. Its current outline was kept.');
+              operations.push({ op: 'move', id: child, base_revision: block.revision, parent_id: id, after });
+              after = child;
+            }
+            if (originalText !== linkText) operations.push({ op: 'edit_text', id, base_revision: current.revision, text: originalText });
+            const page = await this.api.page(pageId);
+            if (created) {
+              if (page.rows.some(row => !children.includes(row.block.id) && row.depth === 0)) throw new Error('The project page has new writing. It was kept.');
+              operations.push({ op: 'delete', id: pageId, base_revision: page.root.revision });
+            } else if (!wasProject) operations.push({ op: 'set_project', id: pageId, base_revision: page.root.revision, project: null });
+          }
+          const receipt = await this.commitOperations(operations, forward ? 'Make project page' : 'Undo project page', pages, false);
+          pageRevision = receipt.revisions.find(value => value.id === pageId)?.revision ?? pageRevision;
+          if (!forward && created) deletionId = receipt.deletions[0];
+          applied = forward;
+        };
+        await travel(true);
+        return {
+          pageId,
+          change: {
+            undo: () => this.serializeSourceChange(() => travel(false)),
+            redo: () => this.serializeSourceChange(() => travel(true)),
+          },
+        };
+      } finally { journal.release(); }
+    });
+  }
   private async commitSourceActions(parts: readonly SourceCommandPart[]): Promise<SourceCommandPart[]> {
     const docs = parts.map(part => this.open(part.pageId) as Document);
     try {

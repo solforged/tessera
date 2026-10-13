@@ -201,7 +201,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'add-card', title: 'Add card', section: 'Editing', keys: ['Space c c', '>>'], run: () => selected() && addCard(selected()!) },
     { id: 'make-cloze', title: 'Make cloze', section: 'Editing', keys: ['⌘⇧C'], run: makeCloze },
     { id: 'leader', title: 'Show leader keys', section: 'Editing', keys: ['Space'], run: () => selected() && leaderMenu(selected()!) },
-    { id: 'make-project', title: 'Make project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'project', id: selected()!, value: { status: 'active', outcome: '', deadline: null } })) },
+    { id: 'make-project', title: 'Make project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && openProject(selected()!) },
     { id: 'make-perspective', title: 'Make perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : doc.block(selected()!)?.relation ? 'Remove the relation first.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
     { id: 'remove-perspective', title: 'Remove perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : !doc.block(selected()!)?.position ? 'Select a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })) },
     { id: 'change-holder', title: 'Change holder…', section: 'Block', disabledReason: () => context.positionReason(selected() ?? ''), run: () => selected() && context.openRelation(selected()!, 'holder') },
@@ -304,7 +304,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ...(entry?.project ? [
         { label: 'Project', section: 'Project', action: () => capabilities.open(id, 'project', anchor) },
         { label: 'Show actions', action: () => capabilities.showActions(id) },
-      ] : [{ label: 'Make project', section: 'Project', action: () => capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } })) }]),
+      ] : [{ label: 'Make project', section: 'Project', action: () => openProject(id) }]),
       item(entry?.position ? 'remove-perspective' : 'make-perspective', { section: 'Perspective' }),
       ...(entry?.position ? [item('change-holder'), item('file-under'), item('use-place')] : []),
       ...investigationItems(id).map((item, index) => ({ ...item, section: index === 0 ? 'Question and answer' : undefined })),
@@ -359,9 +359,25 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     capabilities.ensureTask(id);
     capabilities.open(id, kind);
   }
+  /**
+   * A project made on a journal day gets its own page, named by the row, so it is filed under Projects and
+   * collects tasks from later days; the row becomes its link. Elsewhere the block itself becomes the project.
+   */
   function openProject(id: string) {
-    if (!doc.block(id)?.project) capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } }));
+    const block = doc.block(id);
+    if (!block) return;
+    if (!block.project && block.kind === 'block' && doc.root()?.kind === 'journal') { void promoteToProject(id); return; }
+    if (!block.project) capabilities.invoke(capabilities.edit(id, { kind: 'project', id, value: { status: 'active', outcome: '', deadline: null } }));
     capabilities.open(id, 'project');
+  }
+  async function promoteToProject(id: string) {
+    const title = plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)).trim();
+    if (!title) { setMessage('Write the project’s name in the block, then make it a project.'); return; }
+    rowFocus(id);
+    await capabilities.run(id, async () => {
+      const { change } = await props.notebook.promoteToProject(id, title);
+      context.showNotice(`Made project page ${title}.`, change.undo);
+    }).catch(() => {});
   }
   function addCard(id: string, kind: InsertCardKind = 'forward') {
     const next = insertCard(doc.block(id)?.text ?? '', kind, caret()?.id === id ? caret()!.offset : undefined);

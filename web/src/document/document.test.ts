@@ -213,6 +213,55 @@ describe('real notebook operations and recovery', () => {
     doc.release(); destination.doc.release();
   });
 
+  test('a journal block becomes a project page with its children, a link back, and atomic undo/redo', async () => {
+    const instance = await client();
+    const journalId = await instance.journal('2026-10-14');
+    const journal = instance.open(journalId);
+    await eventually(() => journal.status() === 'ready', 'Journal did not load.');
+    const title = `Build the shed ${++serial}`;
+    const row = success(journal.edit({ kind: 'insert', parentId: journalId, after: journal.outline.children(journalId).at(-1) ?? null, text: title })).created[0]!;
+    const first = success(journal.edit({ kind: 'insert', parentId: row, after: null, text: 'Buy timber' })).created[0]!;
+    const second = success(journal.edit({ kind: 'insert', parentId: row, after: first, text: 'Pour the base' })).created[0]!;
+    await instance.flush();
+    const { pageId, change } = await instance.promoteToProject(row, title);
+    const projectIds = async () => (await api.projects()).map(project => project.block_id);
+    expect(await projectIds()).toContain(pageId);
+    expect((await api.block(pageId)).text).toBe(title);
+    expect((await api.page(pageId)).rows.filter(entry => entry.depth === 0).map(entry => entry.block.id)).toEqual([first, second]);
+    expect(journal.block(row)?.text).toBe(`[[${pageId}]]`);
+    await change.undo();
+    expect(journal.block(row)?.text).toBe(title);
+    expect(journal.outline.children(row)).toEqual([first, second]);
+    expect(await projectIds()).not.toContain(pageId);
+    expect(await instance.pageByTitle(title, false)).toBeNull();
+    await change.redo();
+    expect(await projectIds()).toContain(pageId);
+    expect((await api.page(pageId)).rows.filter(entry => entry.depth === 0).map(entry => entry.block.id)).toEqual([first, second]);
+    expect(journal.block(row)?.text).toBe(`[[${pageId}]]`);
+    journal.release();
+  });
+
+  test('promoting reuses an existing page of that title and keeps its writing first', async () => {
+    const instance = await client();
+    const existing = await page(instance, 'Earlier notes');
+    const title = (await api.block(existing.id)).text;
+    const journalId = await instance.journal('2026-10-15');
+    const journal = instance.open(journalId);
+    await eventually(() => journal.status() === 'ready', 'Journal did not load.');
+    const row = success(journal.edit({ kind: 'insert', parentId: journalId, after: null, text: title })).created[0]!;
+    const child = success(journal.edit({ kind: 'insert', parentId: row, after: null, text: 'A new task' })).created[0]!;
+    await instance.flush();
+    const { pageId, change } = await instance.promoteToProject(row, title);
+    expect(pageId).toBe(existing.id);
+    expect((await api.page(pageId)).rows.filter(entry => entry.depth === 0).map(entry => entry.block.id)).toEqual([existing.first, child]);
+    expect((await api.projects()).map(project => project.block_id)).toContain(pageId);
+    await change.undo();
+    expect((await api.projects()).map(project => project.block_id)).not.toContain(pageId);
+    expect((await api.block(pageId)).text).toBe(title);
+    expect(journal.outline.children(row)).toEqual([child]);
+    journal.release(); existing.doc.release();
+  });
+
   test('acknowledged notebook creation publishes canonical roots before opening', async () => {
     const instance = await client();
     const id = ulid(), typeId = ulid(), title = `Cache type ${++serial}`;
