@@ -1,4 +1,4 @@
-import { For } from 'solid-js';
+import { createUniqueId, For } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
@@ -20,6 +20,7 @@ export interface MenuItem {
   action(event?: MouseEvent | KeyboardEvent): void;
 }
 export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuItem[]; header?: JSX.Element; placement?: PopupPlacement; class?: string; onDismiss(): void }) {
+  const reasonId = createUniqueId();
   const iconed = () => props.items.some(item => item.icon);
   return <Popup anchor={props.anchor} onDismiss={props.onDismiss} role="menu" label={props.label} placement={props.placement} class={`menu ${props.class ?? ''}`}>
     <div onKeyDown={event => {
@@ -36,8 +37,8 @@ export function Menu(props: { anchor: PopupAnchor; label: string; items: MenuIte
       buttons[next]?.focus(); event.preventDefault();
     }}>
       {props.header}
-      <For each={props.items}>{(item, index) => <>{item.section && item.section !== props.items[index() - 1]?.section && <div class="menu-section">{item.section}</div>}<button type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} class={`menu-item ${item.danger ? 'danger' : ''}`} disabled={!!item.disabledReason} title={item.disabledReason} onClick={event => { props.onDismiss(); item.action(event); }}>
-        {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}{item.checked && <Icon name="check" class="menu-check" />}
+      <For each={props.items}>{(item, index) => <>{item.section && item.section !== props.items[index() - 1]?.section && <div class="menu-section">{item.section}</div>}<button type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} class={`menu-item ${item.danger ? 'danger' : ''}`} aria-disabled={!!item.disabledReason} aria-describedby={item.disabledReason ? `${reasonId}-${index()}` : undefined} title={item.disabledReason} onClick={event => { if (item.disabledReason) return; props.onDismiss(); item.action(event); }}>
+        {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}{item.disabledReason && <span class="menu-disabled-reason" id={`${reasonId}-${index()}`}>{item.disabledReason}</span>}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}{item.checked && <Icon name="check" class="menu-check" />}
       </button></>}</For>
     </div>
   </Popup>;

@@ -14,6 +14,7 @@ Status: applied to the shell, the outline and the table. The permanent global ra
 6. **Calm by night and day.** A midnight shell frames the ink-blue canvas, or a vellum one by day. Gilt marks focus and primary actions. Only floating layers cast shadows.
 7. **Built for long sessions.** 28 px rows, 15 px writing, a 760 px measure. Apparatus is 11.5 px; other labels start at 12 px.
 8. **Keyboard and pointer parity.** Menus show shortcuts beside actions. Vim is optional.
+   Unavailable menu items remain in the arrow-key order. Focus or hover shows their reason, also exposed as an accessible description; activation leaves the menu open without running the action.
 
 ## Tokens
 
