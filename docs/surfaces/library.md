@@ -275,6 +275,8 @@ Fill missing details is a fresh lookup that writes only empty fields; without an
 
 Edit details… keeps the source page open and shows the Library's 460 px catalogue card beside it. While the card is open the page column takes the remaining width, down to 540 px; a narrower pane shows the card as a bottom sheet. × or Escape closes it, and edits update the header at once.
 
+The remaining page column keeps field labels, block controls and highlight chapter headings inside its inset, rather than hanging their gutter outside the pane.
+
 The header and catalogue card own the catalogue fields: Subtitle, creators, dates, publisher, edition, series, number, pages, languages, identifiers, URL, site, description, cover, siglum, reading dates and Collections. Their entries stay out of the outline until Show metadata fields, and the page offers no slots for them; Add field neither lists nor creates them there. Every other field is the note's own and shows in the [field area](../design.md#field-area) under the header, with its slots and Add field, like any page. The snapshot's description is clamped to three lines with More. The page has no Table button; ⌘⇧T and the palette still open the table.
 
 Show and Hide metadata fields are saved with the pane's view across reloads and history. A remembered caret in the note's own fields does not reveal catalogue fields.
