@@ -301,7 +301,7 @@ A protected-source `merge` or cross-block range replacement that would merge awa
 - With history: "This task has completion or work history; delete it or keep it separate."
 - Otherwise: "Cannot merge away an active task, project, or reviewed card."
 
-Task-start Backspace avoids this guard: `boundaryDeletion` deletes an empty childless todo, or removes task state from a non-empty one first. Forward Delete can reach it when the next row is an active task.
+Task- and project-start Backspace avoids this guard: `boundaryDeletion` deletes an empty childless todo or project, or removes the task or project state from a non-empty one first. Forward Delete can reach it when the next row is an active task or project.
 
 Code: `web/src/document/page-document.ts` (`merge`, `replace`); `web/src/document/outline-mechanics.ts` (`boundaryDeletion`); `web/src/outline/OutlinePane.tsx` (`backspace`).
 

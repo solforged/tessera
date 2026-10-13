@@ -101,6 +101,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Creating a field never reuses a blank row on the Fields page.
 - Stopping work no longer throws the Work sessions popup into the window's corner.
 - Typing after `/project` no longer lands in the block while its popup waits for the project to save.
+- Backspace at the start of a project row ends the project, and on an empty project row deletes it, as on a todo, instead of refusing to merge.
 - Library no longer flashes empty or stale rows: Back shows its rows and scroll at once, a tab's rows fade in when they arrive, Shelf no longer starts as List, and Reading cards keep their height while their maps load.
 - Choosing another source keeps the catalog card on screen until the next one is ready, without a "Loading source details…" flash or its groups jumping.
 - Adding a source to a collection shows one Undo notice, which leaves after 10 seconds. Covers fade in once instead of popping, and shelf spines hyphenate instead of splitting words.

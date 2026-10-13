@@ -12,9 +12,10 @@ export function boundaryDeletion(doc: PageDocument, id: string, direction: 'back
   }
   // The first inline value sits beside the field label, which Backspace must not delete into; later values merge into the value above.
   if (inlineFields?.has(doc.outline.parentOf(id)) && (!previousVisible || doc.outline.parentOf(previousVisible) !== doc.outline.parentOf(id))) return null;
-  if (block.task) return !block.text && !doc.outline.children(id).length
+  // Backspace at a task's or project's start drops that capability, as merging would lose it; an empty leaf goes entirely.
+  if (block.task || block.project) return !block.text && !doc.outline.children(id).length
     ? { kind: 'delete', ids: [id] }
-    : { kind: 'task', id, value: null };
+    : block.task ? { kind: 'task', id, value: null } : { kind: 'project', id, value: null };
   if (block.heading) return { kind: 'heading', id, level: null };
   if (siblings.indexOf(id) > 0) return previousVisible ? { kind: 'merge', sourceId: id, destinationId: previousVisible } : null;
   return doc.outline.depth(id) > 0 ? { kind: 'outdent', ids: [id] } : null;

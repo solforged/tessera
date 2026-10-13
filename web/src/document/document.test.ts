@@ -2455,6 +2455,34 @@ describe('durable Action and Learning document commands', () => {
     await doc.flush();
   });
 
+  test('Backspace removes a project before merging, deletes an empty one, and undo restores it', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Journal day');
+    success(doc.edit({ kind: 'text', id: first, text: 'Notes' }));
+    const build = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'Build Tessera' })).created[0]!;
+    const project = { outcome: 'Ship it', deadline: null, status: 'active' as const };
+    success(doc.edit({ kind: 'project', id: build, value: project }));
+    await doc.flush();
+    expect(doc.edit({ kind: 'merge', sourceId: build, destinationId: first }).ok).toBe(false);
+    const remove = boundaryDeletion(doc, build, 'backward', first);
+    expect(remove).toEqual({ kind: 'project', id: build, value: null });
+    success(doc.edit(remove!, { id: build, offset: 0 }));
+    expect(boundaryDeletion(doc, build, 'backward', first)).toEqual({ kind: 'merge', sourceId: build, destinationId: first });
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(build)?.project).toEqual(project);
+    success(doc.edit({ kind: 'text', id: build, text: '' }));
+    const drop = boundaryDeletion(doc, build, 'backward', first);
+    expect(drop).toEqual({ kind: 'delete', ids: [build] });
+    success(doc.edit(drop!, { id: build, offset: 0 }));
+    expect(doc.block(build)).toBeUndefined();
+    await doc.flush();
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(build)?.project).toEqual(project);
+    expect((await api.capabilities(build)).project).toEqual(project);
+  });
+
   test('Shift+Tab takes an empty continued todo out of its list only below a plain line', async () => {
     const instance = await client();
     const { doc, first } = await page(instance, 'Reader');

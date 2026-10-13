@@ -512,12 +512,13 @@ Each split and its new task, or exit from a field value, is one undo step. Empty
 
 At the start, Backspace merges into the previous visible row (a sibling's last unfolded descendant, never a folded hidden row); the merged block's children follow it. A first child with no previous sibling outdents instead.
 
-On a task it acts first on the checkbox:
+On a task or project it acts first on that capability:
 
-| Task state | Result |
+| Row | Result |
 |---|---|
-| Empty, childless todo | Deleted; caret moves to the end of the previous row |
+| Empty, childless todo or project | Deleted; caret moves to the end of the previous row |
 | Todo with text | Loses its task state; next Backspace follows the plain rules |
+| Project with text or children | Stops being a project; next Backspace follows the plain rules |
 
 Headings likewise drop their style first. Backspace straight after a reference, or Delete straight before one, removes the whole token; undo restores the original caret. Inside a `[[query]]` still being typed, both delete one character.
 
