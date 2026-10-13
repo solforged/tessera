@@ -299,9 +299,9 @@ The browser maps the sidecar to `BlockState.mergeProtected` and retains `history
 A protected-source `merge` or cross-block range replacement that would merge away its last endpoint is refused:
 
 - With history: "This task has completion or work history; delete it or keep it separate."
-- Otherwise: "Cannot merge away an active task, project, or reviewed card."
+- Otherwise: "Cannot merge away an active task, project, perspective, relation, question, answer, or reviewed card."
 
-Task- and project-start Backspace avoids this guard: `boundaryDeletion` deletes an empty childless todo or project, or removes the task or project state from a non-empty one first. Forward Delete can reach it when the next row is an active task or project.
+Row-start Backspace avoids this guard: `boundaryDeletion` deletes an empty childless protected row, or first removes a non-empty row's task, project, relation, position, spread, question or assessment, in that order, one per keystroke. Forward Delete can reach it when the next row is protected.
 
 Code: `web/src/document/page-document.ts` (`merge`, `replace`); `web/src/document/outline-mechanics.ts` (`boundaryDeletion`); `web/src/outline/OutlinePane.tsx` (`backspace`).
 

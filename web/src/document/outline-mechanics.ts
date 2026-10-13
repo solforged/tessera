@@ -1,4 +1,16 @@
-import type { Edit, PageDocument } from './contract';
+import type { BlockState, Edit, PageDocument } from './contract';
+
+/** The edit that drops a block's capability, one per Backspace, so a protected row can then merge as plain text. */
+function capabilityRemoval({ id, task, project, relation, position, spread, question, assessment }: BlockState): Edit | null {
+  if (task) return { kind: 'task', id, value: null };
+  if (project) return { kind: 'project', id, value: null };
+  if (relation) return { kind: 'relation', id, value: null };
+  if (position) return { kind: 'position', id, value: false };
+  if (spread) return { kind: 'spread', id, value: false };
+  if (question) return { kind: 'question', id, value: null };
+  if (assessment) return { kind: 'assessment', id, value: null };
+  return null;
+}
 
 /** Plan a row-boundary deletion using the pane's visible rows and inline fields. */
 export function boundaryDeletion(doc: PageDocument, id: string, direction: 'backward' | 'forward', previousVisible: string | null = null, inlineFields?: ReadonlySet<string>, zoomRoot?: string | null): Edit | null {
@@ -12,10 +24,10 @@ export function boundaryDeletion(doc: PageDocument, id: string, direction: 'back
   }
   // The first inline value sits beside the field label, which Backspace must not delete into; later values merge into the value above.
   if (inlineFields?.has(doc.outline.parentOf(id)) && (!previousVisible || doc.outline.parentOf(previousVisible) !== doc.outline.parentOf(id))) return null;
-  // Backspace at a task's or project's start drops that capability, as merging would lose it; an empty leaf goes entirely.
-  if (block.task || block.project) return !block.text && !doc.outline.children(id).length
-    ? { kind: 'delete', ids: [id] }
-    : block.task ? { kind: 'task', id, value: null } : { kind: 'project', id, value: null };
+  // Merging would lose a capability or its history, so Backspace deletes an empty protected leaf and otherwise drops the capability first.
+  const removal = capabilityRemoval(block);
+  if ((removal || block.mergeProtected) && !block.text && !doc.outline.children(id).length) return { kind: 'delete', ids: [id] };
+  if (removal) return removal;
   if (block.heading) return { kind: 'heading', id, level: null };
   if (siblings.indexOf(id) > 0) return previousVisible ? { kind: 'merge', sourceId: id, destinationId: previousVisible } : null;
   return doc.outline.depth(id) > 0 ? { kind: 'outdent', ids: [id] } : null;

@@ -514,13 +514,15 @@ Each split and its new task, or exit from a field value, is one undo step. Empty
 
 At the start, Backspace merges into the previous visible row (a sibling's last unfolded descendant, never a folded hidden row); the merged block's children follow it. A first child with no previous sibling outdents instead.
 
-On a task or project it acts first on that capability:
+On a row that merging would strip of a capability or its history, it acts on that first:
 
 | Row | Result |
 |---|---|
-| Empty, childless todo or project | Deleted; caret moves to the end of the previous row |
+| Empty and childless | Deleted; caret moves to the end of the previous row |
 | Todo with text | Loses its task state; next Backspace follows the plain rules |
-| Project with text or children | Stops being a project; next Backspace follows the plain rules |
+| Project, relation, perspective, question or assessment with text or children | Loses that capability, one per Backspace, as its Remove action would; undo restores it, with any acceptance the removal cleared |
+
+Rows whose only protection is history, such as reviewed cards, still refuse to merge while they have text.
 
 Headings likewise drop their style first. Backspace straight after a reference, or Delete straight before one, removes the whole token; undo restores the original caret. Inside a `[[query]]` still being typed, both delete one character.
 

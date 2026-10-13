@@ -2483,6 +2483,40 @@ describe('durable Action and Learning document commands', () => {
     expect((await api.capabilities(build)).project).toEqual(project);
   });
 
+  test('Backspace drops a relation, perspective, assessment or question one at a time, and undo restores acceptance', async () => {
+    const instance = await client();
+    const holder = await instance.createPage(`Backspace holder ${++serial}`);
+    const target = await instance.createPage(`Backspace target ${++serial}`);
+    const { doc, first, id } = await page(instance, `[[${holder}]]`);
+    success(doc.edit({ kind: 'position', id: first, value: true }));
+    const note = success(doc.edit({ kind: 'insert', parentId: first, after: null, text: 'A plain note' })).created[0]!;
+    const edge = success(doc.edit({ kind: 'insert', parentId: first, after: note, text: `Disputes [[${target}]]` })).created[0]!;
+    await doc.flush();
+    success(doc.edit({ kind: 'relation', id: edge, value: 'disputes' }));
+    const question = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'Why?' })).created[0]!;
+    success(doc.edit({ kind: 'question', id: question, value: { unsettled: false, parked: false, accepted: null, review_on: null } }));
+    await doc.flush();
+    const answer = success(doc.edit({ kind: 'writeAssessment', parentId: question, assessedOn: '2026-10-13' })).created[0]!;
+    success(doc.edit({ kind: 'text', id: answer, text: 'Because' }));
+    await doc.flush();
+    success(doc.edit({ kind: 'question', id: question, value: currentReading(doc.block(question)!.question!.state, answer, '2026-10-13') }));
+    await doc.flush();
+
+    expect(boundaryDeletion(doc, edge, 'backward', note)).toEqual({ kind: 'relation', id: edge, value: null });
+    expect(boundaryDeletion(doc, first, 'backward')).toEqual({ kind: 'position', id: first, value: false });
+    expect(boundaryDeletion(doc, question, 'backward', edge)).toEqual({ kind: 'question', id: question, value: null });
+    const drop = boundaryDeletion(doc, answer, 'backward', question);
+    expect(drop).toEqual({ kind: 'assessment', id: answer, value: null });
+    success(doc.edit(drop!, { id: answer, offset: 0 }));
+    expect(doc.block(question)?.question?.state.accepted).toBeNull();
+    expect(boundaryDeletion(doc, answer, 'backward', question)).toEqual({ kind: 'outdent', ids: [answer] });
+    await doc.flush();
+    doc.undo(); await doc.flush();
+    expect(doc.block(answer)?.assessment).not.toBeNull();
+    expect((await api.capabilities(question)).question?.state.accepted).toBe(answer);
+    doc.release();
+  });
+
   test('Shift+Tab takes an empty continued todo out of its list only below a plain line', async () => {
     const instance = await client();
     const { doc, first } = await page(instance, 'Reader');
