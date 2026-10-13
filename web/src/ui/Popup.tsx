@@ -101,6 +101,8 @@ export function Popup(props: PopupProps) {
   let frame = 0;
   let disposed = false;
   let size: { width: number; height: number } | undefined;
+  // A menu keeps the side of its trigger it first opened on, so drilling in or out never jumps it across the row.
+  let side: 'above' | 'below' | undefined;
   const place = () => {
     if (disposed || props.ready === false) return;
     const viewport = popupBounds(visualViewportBounds(), props.placement === undefined || props.placement === 'anchor' ? props.bounds?.() : null);
@@ -139,7 +141,9 @@ export function Popup(props: PopupProps) {
     // scrollHeight leaves out the border that max-height includes; without it a short menu scrolls by 2 px and WebKit shows a scrollbar.
     } else contentHeight = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
     if (props.fixedSize && size?.width !== width) size = { width, height: contentHeight };
-    setPosition(anchoredPopupPosition(rect, viewport, width, contentHeight, props.role === 'menu' ? Infinity : 560));
+    const placed = anchoredPopupPosition(rect, viewport, width, contentHeight, props.role === 'menu' ? Infinity : 560, props.role === 'menu' ? side : undefined);
+    if (props.role === 'menu') side ??= placed.side;
+    setPosition(placed);
   };
   const reposition = () => { if (!disposed) { cancelAnimationFrame(frame); frame = requestAnimationFrame(place); } };
   createEffect(() => { if (props.ready === true) reposition(); });

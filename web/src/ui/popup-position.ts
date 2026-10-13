@@ -15,8 +15,9 @@ export function popupBounds(viewport: PopupBounds, pane?: PopupBounds | null): P
   return { left, top, right, bottom, width: right - left, height: bottom - top };
 }
 
-/** Prefer below the link, then the larger side, keeping the trigger uncovered. */
-export function anchoredPopupPosition(rect: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>, bounds: PopupBounds, width: number, contentHeight: number, maxHeight = Infinity) {
+/** Prefer below the link, then the larger side, keeping the trigger uncovered. A `prefer`red side that still fits wins, so a
+ * menu that drills in keeps hanging from the same edge of its trigger. */
+export function anchoredPopupPosition(rect: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>, bounds: PopupBounds, width: number, contentHeight: number, maxHeight = Infinity, prefer?: 'above' | 'below') {
   const belowTop = Math.max(bounds.top + 8, Math.min(bounds.bottom - 8, rect.bottom + 4));
   const aboveBottom = Math.max(bounds.top + 8, Math.min(bounds.bottom - 8, rect.top - 4));
   const below = Math.max(0, bounds.bottom - belowTop - 8);
@@ -24,7 +25,7 @@ export function anchoredPopupPosition(rect: Pick<DOMRect, 'left' | 'right' | 'to
   const needed = Math.min(contentHeight, maxHeight);
   const start = rect.left > bounds.left + bounds.width / 2 ? rect.right - width : rect.left;
   const left = Math.max(bounds.left + 8, Math.min(start, bounds.right - width - 8));
-  const flip = below < needed && above > below;
+  const flip = prefer && (prefer === 'above' ? above : below) >= needed ? prefer === 'above' : below < needed && above > below;
   const height = Math.min(needed, flip ? above : below);
-  return { left, top: flip ? aboveBottom - height : belowTop, height, visible: true, clipped: contentHeight > height };
+  return { left, top: flip ? aboveBottom - height : belowTop, height, visible: true, clipped: contentHeight > height, side: flip ? 'above' as const : 'below' as const };
 }

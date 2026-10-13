@@ -1,4 +1,4 @@
-import { createSignal, createUniqueId, For, Show } from 'solid-js';
+import { createSignal, createUniqueId, Index, onMount, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Icon } from './Icon';
 import type { IconName } from './Icon';
@@ -53,22 +53,26 @@ export function Menu(props: {
     const rows = Array.from(body.querySelectorAll<HTMLButtonElement>('.menu-item'));
     (rows[index] && rows[index].getAttribute('aria-disabled') !== 'true' ? rows[index] : rows.find(row => row.getAttribute('aria-disabled') !== 'true'))?.focus();
   });
-  const open = (item: MenuItem, index: number) => { setPages(stack => [...stack, { page: item.submenu!(), from: index }]); focusRow(0); };
-  const back = () => { const from = pages().at(-1)?.from ?? 0; setPages(stack => stack.slice(0, -1)); focusRow(from); };
+  // Focus follows the keyboard; a tap or click that drills in leaves no ring on a row the finger never chose.
+  const open = (item: MenuItem, index: number, focus: boolean) => { setPages(stack => [...stack, { page: item.submenu!(), from: index }]); if (focus) focusRow(0); };
+  const back = (focus: boolean) => { const from = pages().at(-1)?.from ?? 0; setPages(stack => stack.slice(0, -1)); if (focus) focusRow(from); };
   const run = (item: MenuItem, index: number, event?: MouseEvent | KeyboardEvent) => {
     if (item.disabledReason) return;
-    if (item.submenu) { open(item, index); return; }
+    if (item.submenu) { open(item, index, !(event instanceof MouseEvent) || event.detail === 0); return; }
     props.onDismiss(); item.action?.(event);
   };
-  return <Popup anchor={props.anchor} onDismiss={props.onDismiss} role="menu" label={page()?.title ?? props.label} placement={sheet() ? 'sheet' : props.placement} class={`menu ${sheet() ? 'menu-sheet' : ''} ${props.class ?? ''}`}>
+  // A titled menu's head may carry controls (Copy ID); keyboard focus still starts on the first row. Touch screens start
+  // with none, so the sheet doesn't open with a row already lit.
+  onMount(() => { if (props.title !== undefined && !window.matchMedia('(hover: none)').matches) focusRow(0); });
+  return <Popup anchor={props.anchor} onDismiss={props.onDismiss} role="menu" label={page()?.title ?? props.label} autofocus={props.title === undefined} placement={sheet() ? 'sheet' : props.placement} class={`menu ${sheet() ? 'menu-sheet' : ''} ${props.class ?? ''}`}>
     <div ref={body} onKeyDown={event => {
       if (event.isComposing) return;
       const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
-      if (pages().length && plain && (event.key === 'ArrowLeft' || event.key === 'Backspace')) { event.preventDefault(); event.stopPropagation(); back(); return; }
+      if (pages().length && plain && (event.key === 'ArrowLeft' || event.key === 'Backspace')) { event.preventDefault(); event.stopPropagation(); back(true); return; }
       if (plain && event.key === 'ArrowRight' && document.activeElement instanceof HTMLButtonElement) {
         const index = Array.from(body.querySelectorAll('.menu-item')).indexOf(document.activeElement);
         const item = items()[index];
-        if (item?.submenu && !item.disabledReason) { event.preventDefault(); event.stopPropagation(); open(item, index); return; }
+        if (item?.submenu && !item.disabledReason) { event.preventDefault(); event.stopPropagation(); open(item, index, true); return; }
       }
       const mnemonicIndex = plain ? items().findIndex(item => item.key === event.key && !item.disabledReason) : -1;
       const mnemonic = items()[mnemonicIndex];
@@ -86,19 +90,20 @@ export function Menu(props: {
         <header class="menu-head">
           <h2>{page()?.title ?? props.title}</h2>
           <Show when={pages().length} fallback={<button type="button" class="menu-head-control" tabIndex={-1} onClick={() => props.onDismiss()}>Close</button>}>
-            <button type="button" class="menu-head-control" tabIndex={-1} onClick={back}><Icon name="left" />Back</button>
+            <button type="button" class="menu-head-control" tabIndex={-1} onClick={event => back(event.detail === 0)}><Icon name="left" />Back</button>
           </Show>
           <Show when={props.context}><div class="menu-context">{props.context}</div></Show>
         </header>
       </Show>
       <Show when={!pages().length}>{props.header}</Show>
-      <For each={items()}>{(item, index) => <>
-        {item.section && item.section !== items()[index() - 1]?.section && <div class="menu-section">{item.section}</div>}
-        {item.divider && index() > 0 && <hr class="menu-divider" />}
-        <button type="button" role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} aria-haspopup={item.submenu ? 'menu' : undefined} class={`menu-item ${item.danger ? 'danger' : ''}`} aria-disabled={!!item.disabledReason} aria-describedby={item.disabledReason ? `${reasonId}-${index()}` : undefined} title={item.disabledReason} onClick={event => run(item, index(), event)}>
-          {item.icon ? <Icon name={item.icon} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item.label}{(item.disabledReason || item.secondary) && <span class="menu-disabled-reason" id={`${reasonId}-${index()}`}>{item.disabledReason || item.secondary}</span>}</span>{item.shortcut && <kbd>{item.shortcut}</kbd>}{item.checked && <Icon name="check" class="menu-check" />}{item.submenu && <Icon name="right" class="menu-drill" />}
+      {/* Rows are keyed by position: callers rebuild their item objects as page state settles, and a recreated button would drop keyboard focus. */}
+      <Index each={items()}>{(item, index) => <>
+        {item().section && item().section !== items()[index - 1]?.section && <div class="menu-section">{item().section}</div>}
+        {item().divider && index > 0 && <hr class="menu-divider" />}
+        <button type="button" role={item().checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item().checked} aria-haspopup={item().submenu ? 'menu' : undefined} class={`menu-item ${item().danger ? 'danger' : ''}`} aria-disabled={!!item().disabledReason} aria-describedby={item().disabledReason ? `${reasonId}-${index}` : undefined} title={item().disabledReason} onClick={event => run(item(), index, event)}>
+          {item().icon ? <Icon name={item().icon!} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item().label}{(item().disabledReason || item().secondary) && <span class="menu-disabled-reason" id={`${reasonId}-${index}`}>{item().disabledReason || item().secondary}</span>}</span>{item().shortcut && <kbd>{item().shortcut}</kbd>}{item().checked && <Icon name="check" class="menu-check" />}{item().submenu && <Icon name="right" class="menu-drill" />}
         </button>
-      </>}</For>
+      </>}</Index>
       <Show when={page()?.note}>{note => <p class="menu-note">{note()}</p>}</Show>
     </div>
   </Popup>;

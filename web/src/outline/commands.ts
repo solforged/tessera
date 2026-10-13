@@ -354,14 +354,15 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ...(sourceItems.length ? [group('Citation…', 'Citation', () => sourceItems)] : []),
     ];
     const makeItems: MenuItem[] = [
-      { label: 'Type…', icon: 'tag', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
+      { label: 'Type…', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
       ...(!entry.task ? [item('make-task', 'Task')] : []),
       ...(!entry.project ? [item('make-project', 'Project')] : []),
       ...(!entry.position ? [item('make-perspective', 'Perspective')] : []),
       ...(!entry.question && !entry.assessment ? [makeInvestigation('question'), makeInvestigation('assessment')].filter((item): item is MenuItem => !!item) : []),
-      ...(!entry.relation ? [{
+      // Perspectives, questions and assessments add relations from their own manager.
+      ...(!entry.relation && !entry.position && !entry.question && !entry.assessment ? [{
         ...group('Relation…', 'Relation', () => relationKinds.map(kind => item(`relation-${kind}`, relationLabels[kind]))),
-        disabledReason: entry.position || entry.question || entry.assessment ? 'Add a relation from its existing feature.' : relationReason(entry),
+        disabledReason: relationReason(entry),
       }] : []),
       ...(!hasCards ? [group('Card…', 'Cards', () => cardItems(id))] : []),
     ];
@@ -375,10 +376,10 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       { ...item('copy-reference', 'Copy reference'), divider: true },
       item('open-beside', 'Open beside'),
       ...managers.map((item, index) => ({ ...item, divider: index === 0 })),
-      { label: 'Add field…', divider: !managers.length, icon: 'plus', action: () => pickField(id, anchor) },
+      { label: 'Add field…', divider: !managers.length, action: () => pickField(id, anchor) },
       { label: 'Make…', submenu: () => ({ title: 'Make', items: makeItems, note: 'Each adds to this note and keeps its text.' }) },
-      { ...item('archive', entry.archived ? 'Unarchive' : 'Archive'), divider: true, icon: 'archive' },
-      { ...item('delete', 'Delete…'), icon: 'trash', danger: true },
+      { ...item('archive', entry.archived ? 'Unarchive' : 'Archive'), divider: true },
+      { ...item('delete', 'Delete…'), danger: true },
     ] });
   }
   /** Keyboard menus hand focus back to the row or editor that opened them before their action runs. */

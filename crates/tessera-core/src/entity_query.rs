@@ -26,7 +26,7 @@ pub(crate) fn attributes(source: QuerySource) -> Vec<QueryAttribute> {
             ("@parent", "Parent", Instance),
             ("@program", "Program", Instance),
             ("@readings", "Perspectives", Number),
-            ("@current", "Current reading", Text),
+            ("@current", "Current answer", Text),
             ("@last_assessed", "Last assessed", Date),
             ("@revisit", "Revisit", Date),
             ("@inline", "Inline", Checkbox),

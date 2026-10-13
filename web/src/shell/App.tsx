@@ -986,7 +986,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
   const titled = () => root()?.kind !== 'journal';
   const stream = createMemo(() => root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'));
   const makeItems = (): MenuItem[] => [
-    ...(!root()?.task ? [{ label: 'Task', icon: 'check', disabledReason: outlineCommand('task-root')?.disabledReason?.(), action: () => rootCapability('task') } satisfies MenuItem] : []),
+    ...(!root()?.task ? [{ label: 'Task', icon: 'select', disabledReason: outlineCommand('task-root')?.disabledReason?.(), action: () => rootCapability('task') } satisfies MenuItem] : []),
     ...(!root()?.project ? [{ label: 'Project', icon: 'flag', disabledReason: outlineCommand('project-root')?.disabledReason?.(), action: () => rootCapability('project') } satisfies MenuItem] : []),
     ...(titled() && !stream() ? [{ label: 'Stream', icon: 'link', disabledReason: outlineCommand('stream-root')?.disabledReason?.(), action: () => outlineCommand('stream-root')?.run() } satisfies MenuItem] : []),
     ...(titled() && !root()?.question ? [{ label: 'Question', icon: 'question-open', disabledReason: root() ? undefined : 'Page is still loading', action: () => {
@@ -1008,7 +1008,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     ] }) } satisfies MenuItem] : []),
     { label: 'Add field…', icon: 'field', divider: !titled(), disabledReason: outlineCommand('add-field-root')?.disabledReason?.(), action: () => outlineCommand('add-field-root')?.run() },
     ...(makeItems().length ? [{ label: 'Make…', icon: 'plus', submenu: () => ({ title: 'Make', items: makeItems(), note: 'Each adds to this note and keeps its text.' }) } satisfies MenuItem] : []),
-    ...(root()?.task ? [{ label: 'Task…', icon: 'check', disabledReason: outlineCommand('task-root')?.disabledReason?.(), action: () => rootCapability('task') } satisfies MenuItem] : []),
+    ...(root()?.task ? [{ label: 'Task…', icon: 'select', disabledReason: outlineCommand('task-root')?.disabledReason?.(), action: () => rootCapability('task') } satisfies MenuItem] : []),
     ...(root()?.project ? [{ label: 'Project…', icon: 'flag', disabledReason: outlineCommand('project-root')?.disabledReason?.(), action: () => rootCapability('project') } satisfies MenuItem] : []),
     ...(root()?.question ? [{ label: 'Question…', icon: 'question-open', disabledReason: outlineCommand('question-root')?.disabledReason?.(), action: () => outlineCommand('question-root')?.run() } satisfies MenuItem] : []),
     ...(stream() ? [{ label: 'Stream…', icon: 'link', submenu: () => ({ title: 'Stream', items: [

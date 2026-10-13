@@ -25,7 +25,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Compare focuses a disagreement on the perspectives it names, and criterion cells use the outline's editor, with references, quotes and one undo history.
 - Zooming into a perspective opens its dossier: holder, Gist, Work and what links to that perspective, without the page's backlinks.
 - Holder pages open into the perspectives they hold, grouped by subject.
-- Questions as research programs: branches show their state, perspectives, current reading and revisit date; Write assessment, Accept current reading and Withdraw current reading keep every dated assessment; verbs say which state they lead to.
+- Questions as research programs: branches show their state, perspectives, current answer and revisit date; Write assessment, Accept current answer and Withdraw current answer keep every dated assessment; verbs say which state they lead to.
 - The Questions index groups questions by program, includes inline questions, and has Active, Recurrent, Due, Answered and Parked tabs.
 - Revisits: notes and questions with a revisit date come back in Review's Questions and notes queue and in Today, with Revisited, Later, Resolve and Keep recurrent.
 - `GET /api/revisits`, `GET /api/questions` state and inline filters, and the MCP tools `tessera_revisits` and `tessera_revisit`.
@@ -71,6 +71,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Tables and saved views on phones show six or seven compact rows instead of one or two cards. The header scrolls away, a bar at the bottom holds Find and Query, and Query opens a sheet with the full query, Save and Revert; group headings stay in view.
 - The note header no longer shows a shortened ID. The page menu opens with the full ID, the creation date and Copy ID, and Copy reference copies a `[[id]]` link.
 - With two panes open, clicking a source in the Library opens it in the other pane, so the list stays put; Shift opens it in the Library's pane.
+- Block, page, note, source and field menus are short: routine actions first, one Make… chooser that only lists what a note doesn't have yet, and a named menu (Task…, Question…, Perspective…) for each thing it has. Rarer choices drill in under Move…, Description…, Appearance…, Collections…, Export… or Definition… with a Back in the menu's head. A paragraph's menu went from 12 rows to 9, a question block's Add or change list from 20 rows to 6 under Make…, and a concept page's menu from 17 to 10.
+- On a phone those menus open as a bottom sheet with 44 px rows and Close or Back at the top.
+- Zoom and Select left the block menu, and Undo, Redo and Compare left the page menu; their keys, gestures, tabs and palette commands stay. With nothing typed, the palette's Page section lists only what applies to the page.
+- A question's accepted assessment is its current answer: Accept current answer, Withdraw current answer and No current answer replace the "current reading" wording, and the Questions table column is Current answer.
 
 ### Fixed
 
