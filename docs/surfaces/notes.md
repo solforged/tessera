@@ -78,7 +78,7 @@ The sidebar's Questions menu opens the [research desk](desk.md), which links que
 An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, then one sentence on how pages arrive:
 
 - Type kinds are filed from Unfiled.
-- Questions and Projects use Make question or Make project in the page menu.
+- Questions and Projects use Make… → Question or Project in the page menu.
 - Sources arrive through the [Library](library.md).
 
 Every built-in kind except Sources offers New person…, New question… and so on, in the empty state or beside the populated finding aid's tally. Creation files the page as one acknowledged batch, creating the kind's type page too when it is missing, then opens the page; Shift-Enter opens it beside. A title that an existing page already has files that page instead, or opens it when it is already of the kind, and the form says so before you submit. The type's own title is refused.
@@ -91,7 +91,7 @@ Unfiled is a filing queue grouped into With text and Blank, with All, With text 
 
 Opening a blank note does not add stored blocks. Add a block starts writing only when chosen.
 
-Each row has File and a menu containing Open, File under a type…, Rename…, Merge into… and Delete…. Desktop and unfolded layouts pair the list with a selected-note inspector, a short excerpt from its first three visible prose blocks (separate from the gloss), and links to its referring pages. The excerpt is bounded to eight display lines. The touch cover uses a filing sheet above navigation.
+Each row has File and a titled Note actions menu containing Open, File under…, Rename…, Delete… and More…. More holds Merge into… and Copy reference, which copies `[[id]]`. The existing title and apparatus header stays above the root rows; Back returns from More, and Close, Escape or clicking outside dismisses the menu. Desktop and unfolded layouts pair the list with a selected-note inspector, a short excerpt from its first three visible prose blocks (separate from the gloss), and links to its referring pages. The excerpt is bounded to eight display lines. The touch cover uses a filing sheet above navigation.
 
 The shared one-step type picker serves row File, the inspector and bulk filing. Clicking a type or pressing Enter files immediately; Create type “X” and file creates and files in the same acknowledged batch. Escape or clicking away cancels. The list reserves at least three full rows (or all choices when fewer), scrolls internally and flips above the trigger when there is more room there. After filing, focus moves to the next remaining row's File button, or the previous row when the queue ends.
 
@@ -99,7 +99,7 @@ Checkboxes appear at each row's left on hover or keyboard focus and stay visible
 
 ## Streams
 
-A stream is a running page such as Reading inbox or Japanese practice. Make stream, in the page menu after Make project, adds the `Stream` type, so streams get their own Index entry; Remove stream takes it off.
+A stream is a running page such as Reading inbox or Japanese practice. Make… → Stream in the page menu adds the `Stream` type, so streams get their own Index entry; Stream… → Remove stream takes it off.
 
 Notes are written in the journal, under a line that links the stream. On a stream or project page, Arrivals sits between the outline and Backlinks: the direct children of those journal lines, grouped by day with the newest first, each with a mono nested count and Add. Field entries under the line are not arrivals.
 
@@ -131,7 +131,11 @@ A note with aliases shows them under the title: `ALSO` in faint mono, then the a
 
 Unfiled notes show no kinds. Sources keep their own header; journal days and the Fields page have none.
 
-The page menu opens with the full ID in mono, its Created date and Copy ID. Copy ID leaves the menu open and confirms with Copied; Copy reference, after Open page beside, copies `[[id]]`, as the block menu does. Clipboard failures are reported without claiming success. The menu stays within the available viewport above touch navigation and scrolls on shorter screens.
+The titled Page actions menu names the page (or journal date), then shows the full ID in mono, its Created date and Copy ID. Copy ID leaves the menu open and confirms with Copied; Copy reference is the first action and copies `[[id]]`, as the block menu does. Clipboard failures are reported without claiming success.
+
+Rename, Merge into…, Pin or Unpin and Open beside stay at the top. Description… holds Gloss and Add alias; Add field… stays direct. Make… offers only absent Task, Project, Stream and Question features, with Task and Project only on journal days. Existing features have named Task…, Project…, Stream… and Question… managers. Appearance… holds bullets in Outline and archived visibility; Delete page… is last.
+
+Compare remains a projection tab and palette command, and Undo and Redo remain palette commands and shortcuts rather than menu rows. On coarse phones the menu becomes a bottom sheet with Close, 44 px rows and Back for drill-ins; it scrolls on shorter screens.
 
 The Revisit menu sets a date with Revisit in a week, Revisit in a month, Revisit in three months, a calendar date or No revisit date. Resolve clears the date and marks the note resolved; Reopen returns it to working. Editing alone never reopens it. The latest action offers Undo revisit, then Redo revisit after undo.
 
@@ -145,7 +149,7 @@ Pinning with ⌘ or Pin expands the slip to its perspectives and permits scrolli
 
 ## Aliases
 
-Add alias, in the page menu after Gloss and in the palette, adds the Aliases field after the gloss and starts a new value with keyboard focus, ready for the first typed character. `[[` completion and Find name the alias a result was found through as `via Tully`, in faint mono at the row's end.
+Add alias, under Description… in the page menu and in the palette, adds the Aliases field after the gloss and starts a new value with keyboard focus, ready for the first typed character. `[[` completion and Find name the alias a result was found through as `via Tully`, in faint mono at the row's end.
 
 An inline link can display different wording without changing its target: `[[Target|alias]]`. While `[[` completion is open, type `|` to accept the highlighted target and begin the alias inside the paired `]]`; if no match or Create page is highlighted, the typed target stays as written without creating a page. Alias text never filters or reopens completion. To add an alias to an existing link, place the caret just before `]]` and type `|alias`. Enter and Tab still accept a completion and continue after the link; Escape still dismisses it without accepting a target.
 

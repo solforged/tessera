@@ -977,37 +977,48 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     const state = saveState();
     return state === 'conflict' ? 'Conflict · Both versions kept' : state === 'error' ? 'Couldn’t save · Local changes kept' : state === 'offline' ? 'Offline' : 'Saving…';
   };
-  const undo = (redo: boolean) => {
-    const caret = redo ? doc()?.redo() : doc()?.undo(); if (caret) props.onRestoreView({ ...outlineView(), caret });
-  };
-  const rootCapability = (kind: 'task' | 'project' | 'question') => props.commands.list().find(command => command.id === `outline.${props.pane}.${kind}-root`)?.run();
+  const rootCapability = (kind: 'task' | 'project') => outlineCommand(`${kind}-root`)?.run();
   const outlineCommand = (id: string) => props.commands.list().find(command => command.id === `outline.${props.pane}.${id}`);
   const depth = (): Depth => outlineView().depth ?? 'full';
   // The dial shows on titled pages at their top level; a zoomed page always shows in full.
   const showDial = () => root()?.kind === 'page' && !outlineView().zoom && projection() === 'outline';
-  // Journal days leave out what only titled pages can do (rename, gloss, compare, question) rather than listing it disabled.
+  // Journal days leave out description and the titled-page-only choices.
   const titled = () => root()?.kind !== 'journal';
+  const stream = createMemo(() => root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'));
+  const makeItems = (): MenuItem[] => [
+    ...(!root()?.task ? [{ label: 'Task', icon: 'check', disabledReason: outlineCommand('task-root')?.disabledReason?.(), action: () => rootCapability('task') } satisfies MenuItem] : []),
+    ...(!root()?.project ? [{ label: 'Project', icon: 'flag', disabledReason: outlineCommand('project-root')?.disabledReason?.(), action: () => rootCapability('project') } satisfies MenuItem] : []),
+    ...(titled() && !stream() ? [{ label: 'Stream', icon: 'link', disabledReason: outlineCommand('stream-root')?.disabledReason?.(), action: () => outlineCommand('stream-root')?.run() } satisfies MenuItem] : []),
+    ...(titled() && !root()?.question ? [{ label: 'Question', icon: 'question-open', disabledReason: root() ? undefined : 'Page is still loading', action: () => {
+      const result = doc()?.edit({ kind: 'question', id: pageId()!, value: { unsettled: false, parked: false, accepted: null, review_on: null } });
+      if (result && !result.ok) setCopyMessage(result.reason);
+    } } satisfies MenuItem] : []),
+  ];
   const items = (): MenuItem[] => [
-    ...(titled() ? [{ label: 'Rename', icon: 'edit', action: props.onRename } satisfies MenuItem] : []),
-    ...(titled() ? [{ label: 'Merge into…', icon: 'merge', disabledReason: pageMergeDisabledReason(root()), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } } satisfies MenuItem] : []),
-    { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: props.onPin },
-    { label: 'Open page beside', icon: 'panes', action: props.onPageBeside },
     { label: 'Copy reference', icon: 'link', action: () => { void copyPage(true); } },
-    ...(projection() === 'outline' ? [{ label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }) } satisfies MenuItem] : []),
-    { label: 'Add field…', icon: 'field', disabledReason: outlineCommand('add-field-root')?.disabledReason?.(), action: () => outlineCommand('add-field-root')?.run() },
     ...(titled() ? [
-      { label: 'Gloss', icon: 'edit', disabledReason: root() ? undefined : 'Page is still loading', action: () => outlineCommand('gloss')?.run() },
-      { label: 'Add alias', icon: 'edit', disabledReason: root() ? undefined : 'Page is still loading', action: () => outlineCommand('alias')?.run() },
-      { label: 'Compare perspectives', icon: 'compare', disabledReason: compareReason(), action: () => setProjection('compare') },
+      { label: 'Rename', icon: 'edit', divider: true, action: props.onRename },
+      { label: 'Merge into…', icon: 'merge', disabledReason: pageMergeDisabledReason(root()), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } },
     ] satisfies MenuItem[] : []),
-    { label: root()?.task ? 'Task' : 'Make task', icon: 'check', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('task') },
-    { label: root()?.project ? 'Project' : 'Make project', icon: 'flag', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('project') },
-    ...(titled() ? [{ label: root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream') ? 'Remove stream' : 'Make stream', icon: 'link', disabledReason: outlineCommand('stream-root')?.disabledReason?.(), action: () => outlineCommand('stream-root')?.run() } satisfies MenuItem] : []),
-    ...(titled() ? [{ label: root()?.question ? 'Question' : 'Make question', icon: 'question-open', disabledReason: root() ? undefined : 'Page is still loading', action: () => rootCapability('question') } satisfies MenuItem] : []),
-    { label: 'Undo', icon: 'undo', shortcut: '⌘Z', disabledReason: !doc()?.canUndo() ? 'Nothing to undo' : undefined, action: () => undo(false) },
-    { label: 'Redo', icon: 'redo', shortcut: '⌘⇧Z', disabledReason: !doc()?.canRedo() ? 'Nothing to redo' : undefined, action: () => undo(true) },
-    { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
-    { label: 'Delete', icon: 'trash', danger: true, action: () => props.onDelete(menuButton) },
+    { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', divider: !titled(), action: props.onPin },
+    { label: 'Open beside', icon: 'panes', action: props.onPageBeside },
+    ...(titled() ? [{ label: 'Description…', icon: 'edit', divider: true, submenu: () => ({ title: 'Description', items: [
+      { label: 'Gloss', icon: 'edit', disabledReason: outlineCommand('gloss')?.disabledReason?.(), action: () => outlineCommand('gloss')?.run() },
+      { label: 'Add alias', icon: 'edit', disabledReason: outlineCommand('alias')?.disabledReason?.(), action: () => outlineCommand('alias')?.run() },
+    ] }) } satisfies MenuItem] : []),
+    { label: 'Add field…', icon: 'field', divider: !titled(), disabledReason: outlineCommand('add-field-root')?.disabledReason?.(), action: () => outlineCommand('add-field-root')?.run() },
+    ...(makeItems().length ? [{ label: 'Make…', icon: 'plus', submenu: () => ({ title: 'Make', items: makeItems(), note: 'Each adds to this note and keeps its text.' }) } satisfies MenuItem] : []),
+    ...(root()?.task ? [{ label: 'Task…', icon: 'check', disabledReason: outlineCommand('task-root')?.disabledReason?.(), action: () => rootCapability('task') } satisfies MenuItem] : []),
+    ...(root()?.project ? [{ label: 'Project…', icon: 'flag', disabledReason: outlineCommand('project-root')?.disabledReason?.(), action: () => rootCapability('project') } satisfies MenuItem] : []),
+    ...(root()?.question ? [{ label: 'Question…', icon: 'question-open', disabledReason: outlineCommand('question-root')?.disabledReason?.(), action: () => outlineCommand('question-root')?.run() } satisfies MenuItem] : []),
+    ...(stream() ? [{ label: 'Stream…', icon: 'link', submenu: () => ({ title: 'Stream', items: [
+      { label: 'Remove stream', icon: 'trash', danger: true, disabledReason: outlineCommand('stream-root')?.disabledReason?.(), action: () => outlineCommand('stream-root')?.run() },
+    ] }) } satisfies MenuItem] : []),
+    { label: 'Appearance…', icon: 'bullet', divider: true, submenu: () => ({ title: 'Appearance', items: [
+      ...(projection() === 'outline' ? [{ label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }) } satisfies MenuItem] : []),
+      { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
+    ] }) },
+    { label: 'Delete page…', icon: 'trash', divider: true, danger: true, action: () => props.onDelete(menuButton) },
   ];
   // The place or kind the pane shows, in the same glyphs the sidebar uses.
   const kindIcon = (): IconName => {
@@ -1083,7 +1094,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} immersive={props.immersive} onImmersive={props.onImmersive} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }}
         onBack={() => { if (props.session().index > 0) props.onTravel(-1); else props.onOpen({ kind: 'page', pageId: (current().target as Extract<OpenTarget, { kind: 'reader' }>).sourceId }, false); }} /></Match>
     </Switch>}</Show></div>
-    <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Page actions" items={items()} onDismiss={() => setMenu(null)} header={
+    <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Page actions" title="Page actions" context={root()?.text} items={items()} onDismiss={() => setMenu(null)} header={
       <Show when={props.notebook.roots().find(page => page.id === pageId())}>{page => <div class="page-menu-info">
         <b>{page().id}</b>
         <Button class="bordered" onClick={() => { void copyPage(false); }}>{copyMessage() === 'Copied ID' ? 'Copied' : 'Copy ID'}</Button>

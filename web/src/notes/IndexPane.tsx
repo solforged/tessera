@@ -388,13 +388,15 @@ function KindIndexPane(props: IndexPaneProps) {
       </form>
     </Popup>}</Show>
     <Show keyed when={popup()}>{state => <Switch>
-      <Match when={state.kind === 'menu'}><Menu anchor={state.anchor} label={`Actions for ${state.note.title}`} onDismiss={() => setPopup(undefined)} header={<div class="index-action-header"><p class="index-eyebrow">Note actions</p><h2>{state.note.title}</h2><p class="index-apparatus">{apparatus(summary(state.note))}</p><Show when={!summary(state.note)?.text_blocks}><p class="muted">{summary(state.note)?.referenced_from.length ? `Referenced by ${summary(state.note)!.referenced_from.map(page => page.title).join(' · ')}` : 'No text yet'}</p></Show></div>} items={[
+      <Match when={state.kind === 'menu'}><Menu anchor={state.anchor} label={`Actions for ${state.note.title}`} title="Note actions" onDismiss={() => setPopup(undefined)} header={<div class="index-action-header"><p class="index-eyebrow">Note actions</p><h2>{state.note.title}</h2><p class="index-apparatus">{apparatus(summary(state.note))}</p><Show when={!summary(state.note)?.text_blocks}><p class="muted">{summary(state.note)?.referenced_from.length ? `Referenced by ${summary(state.note)!.referenced_from.map(page => page.title).join(' · ')}` : 'No text yet'}</p></Show></div>} items={[
         { label: 'Open', action: () => props.onOpen({ kind: 'page', pageId: state.note.id }, window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches) },
-        { label: 'File under a type…', action: () => showPopup('file', state.note, state.anchor) },
+        { label: 'File under…', action: () => showPopup('file', state.note, state.anchor) },
         { label: 'Rename…', action: () => showPopup('rename', state.note, state.anchor) },
-        { label: 'Merge into…', icon: 'merge', action: () => showPopup('merge', state.note, state.anchor) },
         { label: 'Delete…', danger: true, action: () => showPopup('delete', state.note, state.anchor) },
-        { label: 'Cancel', action: () => setPopup(undefined) },
+        { label: 'More…', divider: true, submenu: () => ({ title: 'More', items: [
+          { label: 'Merge into…', icon: 'merge', action: () => showPopup('merge', state.note, state.anchor) },
+          { label: 'Copy reference', icon: 'link', action: () => { void navigator.clipboard.writeText(`[[${state.note.id}]]`).catch(reason => setError(`Couldn't copy: ${String(reason)}`)); } },
+        ] }) },
       ]} /></Match>
       <Match when={state.kind === 'file'}><FilingPicker notebook={props.notebook} notes={state.notes ?? [state.note]} anchor={state.anchor} onDismiss={() => setPopup(undefined)} onFiled={change => didFile(state.notes ?? [state.note], change)} /></Match>
       <Match when={state.kind === 'rename'}><RenameNote notebook={props.notebook} note={state.note} anchor={state.anchor} onDismiss={() => setPopup(undefined)} /></Match>
@@ -403,6 +405,7 @@ function KindIndexPane(props: IndexPaneProps) {
         <p>Delete “{state.note.title}” and all its blocks?</p><p class="muted">You can undo this deletion.</p><Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button disabled={busy()} onClick={() => setPopup(undefined)}>Cancel</Button><Button class="danger bordered" disabled={busy() || !props.onDeletePages} onClick={() => void deleteNote(state.note)}>Delete page</Button></div>
       </Popup></Match>
     </Switch>}</Show>
+    <Show when={error() && !popup()}><p class="error" role="alert">{error()}</p></Show>
   </div>;
 }
 

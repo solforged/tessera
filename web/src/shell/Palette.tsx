@@ -105,7 +105,8 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const [scopedPage] = createResource(() => scope()?.matching ? undefined : scope()?.page.id, id => api.page(id));
   const commands = createMemo(() => {
     const search = text().toLocaleLowerCase();
-    return orderedCommands.filter(command => `${command.title} ${command.section}`.toLocaleLowerCase().includes(search));
+    return orderedCommands.filter(command => (search || command.section !== 'Page' || !command.disabledReason?.())
+      && `${command.title} ${command.section}`.toLocaleLowerCase().includes(search));
   });
   const entries = createMemo((): Entry[] => {
     if (mode() === 'commands') return commands().map(command => ({ kind: 'command', command }));

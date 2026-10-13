@@ -219,7 +219,7 @@ Up to two, split equally. Each has a header, in this order:
 
 A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. Breadcrumbs reserve at least twelve mono characters for the current title and ellipsize its ending; ancestors may shrink. Below 840 px of pane width, the depth dial collapses to its current iris and unavailable projection tabs and the Vim tag step aside. Below 600 px of pane width, ancestors, the kind glyph and unavailable history buttons step aside too. If the remaining controls cannot share a line with the title's minimum, they wrap instead of erasing the title.
 
-On journal days the page menu leaves out what only titled pages can do (Rename, Gloss, Compare perspectives, Make question) rather than listing it disabled. Saved shows as a 4 px dot with a hidden label; slow saves, offline and errors speak in sans, errors in `--danger`.
+On journal days the page menu leaves out what only titled pages can do (Rename, Merge into…, Description, Stream and Question) rather than listing it disabled. Saved shows as a 4 px dot with a hidden label; slow saves, offline and errors speak in sans, errors in `--danger`.
 
 The Vim mode shows only in the active pane, as a hairline-boxed mono tag of fixed width:
 
@@ -291,6 +291,8 @@ On the touch cover Find and Commands occupy the keyboard-resized visual viewport
 
 Command mode starts with Go to: [Highlights, Unfiled, Sources](surfaces/library.md), [Agenda week, Agenda tasks](surfaces/tasks-agenda.md), [This week, This month, This quarter and This year](surfaces/journal.md), followed by each notebook type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. Shift opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, Page, View and Editing retain their existing commands and shortcut hints below.
 
+With no command query, Page lists only applicable actions; searching retains the full catalog, including unavailable actions with their reasons. Copy page reference copies the active page's notebook link. Undo and Redo remain in Commands with ⌘Z and ⌘⇧Z, and Compare perspectives remains searchable alongside the visible Compare projection tab.
+
 Renaming a titled page to an existing title offers **Merge into “Title”**; the page menu's **Merge into…** uses the page picker. A confirmation explains that the merge is permanent.
 
 The surviving page keeps its title and receives the duplicate's blocks, with matching field entries appending their values. References, aliased references, tags and memberships redirect to the survivor, so its backlinks include both pages' former incoming links. Journal days, the Fields page and library sources cannot be merged; source-details title collisions remain errors.
@@ -335,11 +337,11 @@ The bullet is a filled dot in `--faint`, 24 px target, gilt on hover and selecti
 
 [Journal days](surfaces/journal.md) show bullets; [titled pages](surfaces/notes.md) read as prose. On a prose page the bullet rests hidden and returns on hover or selection, where it still zooms and drags, and a collapsed block keeps its ringed bullet. Depth shows as 1 px `--line` threads under each ancestor's bullet column.
 
-Show bullets and Hide bullets in the page menu override a page's default; overrides are stored per notebook with the pins. Editing, keys and export are the same in both.
+Show bullets and Hide bullets under Appearance… in the page menu override a page's default; overrides are stored per notebook with the pins. Appearance also holds Show archived or Hide archived. Editing, keys and export are the same in both.
 
 ### Gloss and depth
 
-A titled page's gloss is an entry for the built-in Gloss field among its top-level blocks, added or edited from Gloss in the page menu or the palette, which create the field and put the entry first. Adding the entry and its empty value is one undo step.
+A titled page's gloss is an entry for the built-in Gloss field among its top-level blocks, added or edited from Description… → Gloss in the page menu or the palette, which create the field and put the entry first. Adding the entry and its empty value is one undo step.
 
 The definition's standfirst role sets it at `--text-gloss` in Plex, muted, on the text edge, with no field label. The same role works on any definition, including one named Summary. Clicking edits its sentence, and an empty gloss says what to write. Reference preview cards show the page's first standfirst under the title and leave it out of their rows.
 
@@ -668,7 +670,9 @@ Escape closes the topmost one and returns focus to the editor or outline that ow
 | Leader, status and priority menus | Menu; leader letters at the right and pressed directly | Below the row |
 | Add filter | Picker in three steps: field, condition, value; Backspace on an empty query steps back | Below its trigger |
 | Block menu | Routine actions, Move drill-in, present-feature managers, Add field and Make chooser | Below the handle; bottom sheet on coarse phones |
-| Page, notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
+| Page actions | Titled Menu with page context, full ID, Copy ID and Created; Description, Make and Appearance drill in with Back | Below its trigger; bottom sheet with Close and 44 px rows on coarse phones |
+| Note actions | Titled Menu with the existing note header; Open, File under, Rename and Delete, then More for Merge and Copy reference | Below its trigger; bottom sheet on coarse phones |
+| Notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | New page, Delete page | Confirm | Below their trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
 | Block backlinks | Each referring block with its page breadcrumb, parent and children, Open beside; `--measure` wide | Below the row's reference count |
