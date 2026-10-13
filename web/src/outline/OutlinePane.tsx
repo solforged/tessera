@@ -1145,7 +1145,7 @@ function Pane(props: OutlinePaneProps) {
     openPlanning: (id, kind) => openPlanning(id, kind),
     priorityMenu: (id) => priorityMenu(id),
     openProject: (id) => openProject(id),
-    investigationItems: (id) => investigationItems(id),
+    investigationItems: (id, manager) => investigationItems(id, manager),
     markRelation: (id, kind, text) => markRelation(id, kind, text),
     relationMenu: (id, add, text) => relationMenu(id, add, text),
     apply,
@@ -1647,7 +1647,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={relatedError() || related()?.tagged.length}><Related title="Tagged blocks" rows={relatedError() ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show when={doc.status() === 'ready' && zoom()}><div class="related-sections"><Backlinks /></div></Show>
-    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>
+    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>
     <Show keyed when={mergeTarget()}>{target => <PageMergeConfirmation anchor={target.anchor} notebook={props.notebook} from={target.from} into={target.page} onDismiss={() => setMergeTarget(undefined)} onMerged={id => { setMergeTarget(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
     <CapabilityPopups />
     <CompletionPopups />

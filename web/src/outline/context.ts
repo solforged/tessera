@@ -12,7 +12,7 @@ import type { PopupAnchor } from '../ui/Popup';
 import type { Completion } from './completions';
 
 export interface RowRange { anchor: string; head: string }
-export interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string; header?: JSX.Element }
+export interface MenuState { anchor: HTMLElement; items: MenuItem[]; label: string; title?: string; context?: JSX.Element; header?: JSX.Element }
 
 /** Operations consumed by outline controls; the capability factory owns their state. */
 export interface OutlineCapabilityActions {
@@ -73,7 +73,7 @@ export interface OutlineContext {
   openPlanning: (id: string, kind: 'schedule' | 'deadline' | 'repeat') => void;
   priorityMenu: (id: string) => void;
   openProject: (id: string) => void;
-  investigationItems: (id: string) => MenuItem[];
+  investigationItems: (id: string, manager?: boolean) => MenuItem[];
   markRelation: (id: string, kind: RelationKind | null, text?: string) => void;
   relationMenu: (id: string, add?: boolean, text?: string) => void;
   apply: (intent: Edit, keepEditing?: boolean) => EditResult | undefined;
