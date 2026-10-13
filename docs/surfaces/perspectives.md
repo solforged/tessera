@@ -14,13 +14,13 @@ Question pages and pages holding active perspectives about themselves or their i
 
 Read puts the title, Gloss and opening on one text edge. Piazzolla remains the prose voice while editing, so entering the editor never changes the measure or the rows below it. Links, completion and undo use the same editor as Outline. Structural edits return to Outline with the caret at the edited block.
 
-Perspectives puts the perspective and holder counts, Compare and Add perspective on the section heading's line, in mono: the counts faint, the actions muted until hovered. A pane narrower than 480 px moves them to their own line at the text edge. Each slip leads with the source siglum and holder in mono, then its standfirst as a Piazzolla headline at the gloss size and Work as one faint mono line that truncates. Account has its own quiet label, followed by authored argument relations. Prose-role fields take the full measure; authored non-field prose opens in place. Attributes and citation fields open under Facts, except criteria asked about under Where they disagree. Neither disclosure writes to the notebook. Open perspective ends the slip's last line.
+Perspectives puts the perspective and holder counts, Compare and Add perspective on the section heading's line, in mono: the counts faint, the actions muted until hovered. A page without an authored heading above its perspectives gets a Perspectives heading. A pane narrower than 480 px moves them to their own line at the text edge. Each slip leads with the source siglum and holder in mono, then its standfirst as a Piazzolla headline at the gloss size and Work as one faint mono line that truncates. A standfirst that repeats the page's Gloss word for word is not printed again. Account has its own quiet label, followed by authored argument relations. Prose-role fields take the full measure; authored non-field prose opens in place. Attributes and citation fields open under Facts, except criteria asked about under Where they disagree. Neither disclosure writes to the notebook. Open perspective ends the slip's last line.
 
-Slips sit in two columns when the pane is at least 620 px wide and stack otherwise, so a split unfolded Fold reads like a phone. A stored Work that points at a highlight takes its source's siglum.
+Slips sit in two columns when the pane is at least 620 px wide and stack otherwise, so a split unfolded Fold reads like a phone. A lone perspective takes the full measure. A stored Work that points at a highlight takes its source's siglum.
 
 The counts line appears on question pages and pages with active perspectives about themselves or their inline questions. Other notes keep Add perspective in Commands. A person's perspectives held elsewhere have their own list; they do not make the page a reading subject.
 
-Outside perspective slips, fields use the same presentation roles as Outline: standfirst sentences, an aligned attribute and citation bed, then full-width prose. A source's catalog fields stay in its source card, so Read never repeats them as loose values.
+Outside perspective slips, fields use the same presentation roles as Outline: standfirst sentences, an aligned attribute and citation bed, then full-width prose. A field whose values line up beside its label shows once, as in Outline. A source's catalog fields stay in its source card, so Read never repeats them as loose values.
 
 Open perspective on each slip zooms into that perspective's dossier. Shift opens the perspective beside the page. The Gist and criterion answers stay editable in place; adding fields and filling template slots stay in Outline.
 
@@ -28,7 +28,7 @@ On coarse pointers, Compare, Add perspective, Prose, Facts and Open perspective 
 
 Where they disagree appears only when stored questions name criteria. Each criterion leads with its questions, which link the criterion, then each perspective's answer: its siglum (or holder name when it has none) and its value for that criterion, in the slips' columns. Questions that all name holders show only those holders' answers; otherwise every perspective answers. A perspective without a value reads Not stated. Questions without a criterion stay in their authored place. No differences between field values are turned into questions.
 
-Compare switches the same pane to the existing perspective sheet and criteria matrix. Fewer than two perspectives leave Compare unavailable, with the reason visible in the register.
+Compare switches the same pane to the existing perspective sheet and criteria matrix. With fewer than two perspectives, the register and Outline's counts line leave Compare out; the count already says why.
 
 Compare shows the perspectives/holders count once in its header; Criteria's tool line gives criteria and question counts. Narrow panes keep Choose perspectives in one horizontally scrolling strip rather than wrapping holders above the perspectives. Criteria questions wrap within the visible matrix width and stay with the sticky criterion edge, including their scope and Open original action.
 

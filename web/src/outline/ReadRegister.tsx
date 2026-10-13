@@ -15,15 +15,15 @@ export function ReadRegister(props: { register: Register; doc: PageDocument; not
   return <div class="reading-register">
     <div class="reading-opening"><For each={props.register.opening}>{props.row}</For></div>
     <div class="reading-section-head">
-      <Show when={props.register.sectionId}>{id => props.row(id())}</Show>
-      <Show when={isReadingSubject(props.doc)}><div class="reading-register-actions"><span class="reading-counts">{readingCounts(props.register.slips)}</span><Button disabled={props.register.slips.length < 2} onClick={props.onCompare}>Compare</Button><Button onClick={event => props.onAddReading(event.currentTarget)}>Add perspective</Button><Show when={props.register.slips.length < 2}><span class="reading-counts">Compare needs two perspectives.</span></Show></div></Show>
+      <Show when={props.register.sectionId} fallback={<Show when={props.register.slips.length}><h2 class="reading-register-heading">Perspectives</h2></Show>}>{id => props.row(id())}</Show>
+      <Show when={isReadingSubject(props.doc)}><div class="reading-register-actions"><span class="reading-counts">{readingCounts(props.register.slips)}</span><Show when={props.register.slips.length > 1}><Button onClick={props.onCompare}>Compare</Button></Show><Button onClick={event => props.onAddReading(event.currentTarget)}>Add perspective</Button></div></Show>
     </div>
     <Show when={props.register.slips.length}>
       <div class="reading-slips"><For each={slipIds()}>{id => {
         const slip = () => slips().get(id)!;
         return <article class="reading-slip" data-reading-id={id}>
         <div class="reading-holder">{props.row(id)}</div>
-        <div class="reading-gist"><For each={values(slip().gist)}>{props.row}</For><Show when={!slip().gist.length}><span class="empty-state">No gist yet</span></Show></div>
+        <div class="reading-gist"><For each={values(slip().gist)}>{props.row}</For><Show when={!slip().gist.length && !slip().restatesGloss}><span class="empty-state">No gist yet</span></Show></div>
         <div class="reading-work"><For each={values(slip().work)}>{props.row}</For></div>
         <Show when={slip().account.length}><div class="reading-account"><span class="relation-label">Account</span><For each={values(slip().account)}>{props.row}</For></div></Show>
         <div class="reading-field-prose"><For each={values(slip().prose)}>{props.row}</For></div>

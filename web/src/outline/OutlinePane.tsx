@@ -381,10 +381,15 @@ function Pane(props: OutlinePaneProps) {
     }
     return result;
   }, undefined, { equals: (a, b) => a.size === b.size && [...a].every(id => b.has(id)) });
+  // Read lines inline field values up with their label as Outline does, so their entry rows drop out.
+  const readView = createMemo(() => {
+    const view = register(), inline = inlineFields();
+    return inline.size ? { ...view, opening: view.opening.filter(id => !inline.has(id)), remaining: view.remaining.filter(id => !inline.has(id)) } : view;
+  });
   // Inline entries only drop out of the unfolded list, so selection changes never re-walk the outline.
   const ids = createMemo(() => {
     if (reading()) {
-      const view = register();
+      const view = readView();
       return [...view.opening, ...(view.sectionId ? [view.sectionId] : []), ...view.slips.flatMap(slip => readingSlipRows(doc, slip, readDisclosures())), ...view.disagreements.flatMap(group => readingDisagreementRows(doc, group)), ...view.remaining];
     }
     const inline = inlineFields(), visible = unfoldedIds();
@@ -1550,7 +1555,7 @@ function Pane(props: OutlinePaneProps) {
         const value = doc.outline.children(entry).find(id => !doc.isArchived(id));
         if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
       }} /><NoteLine pageId={props.pageId} notebook={props.notebook}><Show when={doc.status() === 'ready' && !doc.root()?.question}><NoteRevisit id={props.pageId} notebook={props.notebook} /></Show></NoteLine></Show>
-      <Show when={isReadingSubject(doc) && !reading() && !zoom()}><div class="reading-register-actions"><span class="reading-counts">{readingCounts(register().slips)}</span><Button disabled={localPositions() < 2} onClick={() => props.onProjection?.('compare')}>Compare</Button><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add perspective</Button><Show when={localPositions() < 2}><span class="reading-counts">Compare needs two perspectives.</span></Show></div></Show>
+      <Show when={isReadingSubject(doc) && !reading() && !zoom()}><div class="reading-register-actions"><span class="reading-counts">{readingCounts(register().slips)}</span><Show when={localPositions() > 1}><Button onClick={() => props.onProjection?.('compare')}>Compare</Button></Show><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add perspective</Button></div></Show>
       <RowRelations id={zoom() ?? props.pageId} />
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
@@ -1608,7 +1613,7 @@ function Pane(props: OutlinePaneProps) {
         <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
       </div>
       </>}>
-        <ReadRegister register={register()} doc={doc} notebook={props.notebook} disclosures={readDisclosures()} onDisclosure={key => {
+        <ReadRegister register={readView()} doc={doc} notebook={props.notebook} disclosures={readDisclosures()} onDisclosure={key => {
           setReadDisclosures(previous => { const next = new Set(previous); next.has(key) ? next.delete(key) : next.add(key); return next; });
           scheduleReport(); requestAnimationFrame(scrolled);
         }} row={id => <Row id={id} natural />} onCompare={() => props.onProjection?.('compare')} onAddReading={anchor => openRelation(props.pageId, 'reading', anchor)}

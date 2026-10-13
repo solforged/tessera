@@ -10,7 +10,7 @@
 .held-siglum { grid-column: 1; grid-row: 1; color: var(--faint); font: var(--apparatus); }
 /* As on a reading slip, Work is one faint line under the gist rather than a gilt link. */
 .held-work { grid-column: 2; color: var(--faint); font: var(--apparatus); }
-.held-work .outline-reference { color: inherit; }
+.held-reading .held-work .outline-reference { color: inherit; }
 .held-reading .incoming-relations { margin-left: calc(var(--siglum-width) + var(--space-12)); }
 .outline-row:has(> .held-readings) { flex-wrap: wrap; }
 .outline-row > .held-readings { flex-basis: 100%; max-width: none; margin-top: 0; padding-left: calc(var(--gutter) + var(--target-size)); }

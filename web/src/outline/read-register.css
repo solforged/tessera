@@ -30,6 +30,8 @@
    then its disclosures with Open reading at the end. */
 .reading-slips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-24); margin-top: var(--space-8); }
 .reading-slip { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; border-top: var(--rule-width) solid var(--line); padding-top: var(--space-8); }
+/* A lone perspective takes the full measure rather than leaving the second column empty. */
+.reading-slip:only-child { grid-column: 1 / -1; }
 .outline-pane .reading-reveal, .related-block.reading-reveal { outline: var(--rule-width) solid var(--accent); }
 .related-block.reading-reveal { outline-offset: calc(-1 * var(--rule-width)); }
 .reading-holder .outline-row { padding: 0; min-height: var(--line-control); align-items: baseline; }
@@ -45,6 +47,8 @@
 /* The holder line already carries the siglum, and Work stays one quiet line rather than quoted prose. */
 .reading-register .reading-work .row-sigla { display: none; }
 .reading-register .reading-slip .reading-work .outline-source .static-text { min-height: var(--line-apparatus); overflow: hidden; font: var(--apparatus); color: var(--faint); white-space: nowrap; text-overflow: ellipsis; }
+.reading-register .reading-work .outline-reference { color: inherit; text-decoration-color: var(--line); }
+.reading-register .reading-work .outline-reference:is(:hover, :focus-visible) { color: var(--accent); text-decoration-color: var(--accent); }
 .reading-account { color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .reading-prose, .reading-facts { margin-top: var(--space-4); }
 .reading-relations:empty { display: none; }
@@ -54,7 +58,7 @@
 
 /* Each criterion leads with its question, which links the criterion; the readings answer beneath in the slips' columns. */
 .reading-disagreements { margin-top: var(--section-gap); }
-.reading-disagreements h2 { font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); margin: 0 0 var(--space-8); }
+:is(.reading-register-heading, .reading-disagreements h2) { font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); margin: 0 0 var(--space-8); }
 .reading-criterion { padding-block: var(--space-8) var(--space-12); border-top: var(--rule-width) solid var(--line); }
 .reading-disagreement .outline-row { min-height: 0; padding: 0; }
 .reading-disagreement .outline-capability-metadata { display: none; }
