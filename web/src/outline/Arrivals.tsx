@@ -5,16 +5,16 @@ import type { OpenTarget } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { createSettledChanges } from '../ui/loading';
 import { BlockText } from './BlockText';
-import { createFiledTargets, fileArrival, streamDay } from './streams';
+import { addArrival, createAddedTargets, streamDay } from './streams';
 import './streams.css';
 
 export function Arrivals(props: {
   doc: PageDocument;
   notebook: NotebookClient;
   onOpen(target: OpenTarget, beside: boolean): void;
-  onFiled(): void;
+  onAdded(): void;
 }) {
-  const filed = createFiledTargets(props.doc);
+  const added = createAddedTargets(props.doc);
   const settled = createSettledChanges(props.notebook);
   const [candidates, setCandidates] = createSignal<StreamArrival[]>([]);
   const [error, setError] = createSignal('');
@@ -25,12 +25,12 @@ export function Arrivals(props: {
     const current = request = new AbortController();
     const rows = await props.notebook.api.streamArrivals(props.doc.pageId, current.signal);
     if (current.signal.aborted) return;
-    // Keep locally filed candidates through acknowledgements, so undo restores
+    // Keep locally added candidates through acknowledgements, so undo restores
     // the arrival immediately rather than waiting for a server round trip.
-    const targets = untrack(filed);
+    const targets = untrack(added);
     setCandidates(previous => [...rows, ...previous.filter(row => targets.has(row.block.id) && !rows.some(next => next.block.id === row.block.id))]);
   });
-  const arrivals = createMemo(() => candidates().filter(row => !filed().has(row.block.id)));
+  const arrivals = createMemo(() => candidates().filter(row => !added().has(row.block.id)));
   const groups = createMemo(() => {
     const days = new Map<string, StreamArrival[]>();
     for (const row of arrivals()) {
@@ -47,7 +47,7 @@ export function Arrivals(props: {
     return <div class="stream-arrival" data-arrival-id={propsRow.row.block.id}>
       <div class="stream-arrival-text"><BlockText text={block()?.text ?? propsRow.row.block.text} blockId={propsRow.row.block.id} notebook={props.notebook} onOpen={props.onOpen} /></div>
       <Show when={children()}><span class="stream-fact">{children()}{tree.value()?.truncated ? '+' : ''} nested</span></Show>
-      <Button onClick={() => { const result = fileArrival(props.doc, propsRow.row.block.id); setError(result.ok ? '' : result.reason); if (result.ok) props.onFiled(); }}>File</Button>
+      <Button onClick={() => { const result = addArrival(props.doc, propsRow.row.block.id); setError(result.ok ? '' : result.reason); if (result.ok) props.onAdded(); }}>Add</Button>
       <Show when={tree.error()}><span role="alert">{tree.error()}</span></Show>
     </div>;
   }

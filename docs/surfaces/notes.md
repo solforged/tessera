@@ -92,9 +92,9 @@ Checkboxes appear at each row's left on hover or keyboard focus and stay visible
 
 A stream is a running page such as Reading inbox or Japanese practice. Make stream, in the page menu after Make project, adds the `Stream` type, so streams get their own Index entry; Remove stream takes it off.
 
-Notes are written in the journal, under a line that links the stream. On a stream or project page, Arrivals sits between the outline and Backlinks: the direct children of those journal lines, grouped by day with the newest first, each with a mono nested count and File. Field entries under the line are not arrivals.
+Notes are written in the journal, under a line that links the stream. On a stream or project page, Arrivals sits between the outline and Backlinks: the direct children of those journal lines, grouped by day with the newest first, each with a mono nested count and Add. Field entries under the line are not arrivals.
 
-File links rather than moves. It adds a whole-row `[[note]]` line at the end of the page, filling a trailing empty line first, in one undo step, and the note stays in its journal. The page outline is the stream's order, so the usual drag and ⌥⇧↑/↓ reorder it.
+Add links rather than moves. It adds a whole-row `[[note]]` line at the end of the page, filling a trailing empty line first, in one undo step, and the note stays in its journal. The page outline is the stream's order, so the usual drag and ⌥⇧↑/↓ reorder it.
 
 A whole-row link to a block, other than a field entry or value, shows that block live: its text, up to 12 nested lines and then `Show N more`, and a faint mono provenance (`Mon 12`, or the page title) that opens the source, Shift beside. Editing the note in its journal updates every stream that shows it.
 

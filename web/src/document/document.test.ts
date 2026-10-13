@@ -19,7 +19,7 @@ import { sourceReadingOrder } from '../library/source-order';
 import { clipboardText, parseBlockClipboard } from './clipboard';
 import { linkMentionEdit } from './link-mention';
 import { positionRelations, readingPassages } from '../outline/perspectives';
-import { embedTarget, fileArrival } from '../outline/streams';
+import { addArrival, embedTarget } from '../outline/streams';
 import { isReadingSubject, readingRegister } from '../outline/read-register';
 import { changeRevisit } from '../review/revisits';
 
@@ -3734,7 +3734,7 @@ test('removing an accepted answer and question undo restores both invariants', a
   doc.release();
 });
 
-test('filing a stream arrival is one outline edit and undo restores exclusion', async () => {
+test('adding a stream arrival is one outline edit and undo restores exclusion', async () => {
   const instance = await client();
   const { doc } = await page(instance, 'Existing outline');
   const journal = await instance.journal(instance.todayDate());
@@ -3745,9 +3745,9 @@ test('filing a stream arrival is one outline edit and undo restores exclusion', 
   ]);
   expect((await api.streamArrivals(doc.pageId)).map(row => row.block.id)).toContain(child);
   const before = ids(doc);
-  const filed = success(fileArrival(doc, child)).created[0]!;
-  expect(ids(doc)).toEqual([...before, filed]);
-  expect(embedTarget(doc.block(filed)!.text)).toBe(child);
+  const added = success(addArrival(doc, child)).created[0]!;
+  expect(ids(doc)).toEqual([...before, added]);
+  expect(embedTarget(doc.block(added)!.text)).toBe(child);
   await doc.flush();
   expect((await api.streamArrivals(doc.pageId)).map(row => row.block.id)).not.toContain(child);
   doc.undo();

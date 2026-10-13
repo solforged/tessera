@@ -79,8 +79,8 @@ impl Notebook {
     }
 
     /// Direct children of journal anchors linking this page, newest day first.
-    /// The date window and child count are hard bounded; filing is represented
-    /// solely by whole-row references anywhere in the destination outline.
+    /// The date window and child count are hard bounded; an added arrival is
+    /// represented solely by a whole-row reference anywhere in the destination outline.
     pub fn stream_arrivals(
         &self,
         id: &str,
