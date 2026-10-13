@@ -18,6 +18,7 @@ import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { createPaneMotion, paneTargetIdentity } from '../ui/pane-motion';
+import { createVisualViewport } from '../ui/visual-viewport';
 import { Calendar } from './Calendar';
 import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
@@ -150,16 +151,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     if (narrow()) setSidebar(value => !value);
     else setSidebarCollapsed(value => !value);
   };
-  // The bottom nav steps aside for the on-screen keyboard. The keyboard takes a third of the screen or more, and the
-  // page shrinks by its height (MainActivity pads the WebView; browsers shrink the visual viewport).
-  const keyboardUp = () => (window.visualViewport?.height ?? window.innerHeight) < screen.height * 0.7;
-  const [keyboard, setKeyboard] = createSignal(keyboardUp());
-  onMount(() => {
-    const update = () => setKeyboard(keyboardUp());
-    const target = window.visualViewport ?? window;
-    target.addEventListener('resize', update);
-    onCleanup(() => target.removeEventListener('resize', update));
-  });
+  // Android resizes the WebView; browsers can resize only the visual viewport.
+  const viewport = createVisualViewport();
+  const keyboard = () => viewport().height < screen.height * 0.7;
   // Long-pressing Library in the bottom nav lists the types in use, each opening its table.
   const [typesMenu, setTypesMenu] = createSignal<{ anchor: HTMLElement; types: Type[] } | null>(null);
   const showTypes = async (anchor: HTMLElement) => {
@@ -598,7 +592,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const shown = [...pinnedRoots().length || pinnedViewList().length ? ['pinned'] : [], ...index()?.kinds.length ? ['index'] : [], ...looseViews().length ? ['views'] : [], 'recent'];
     return String(shown.indexOf(section) + 1).padStart(2, '0');
   };
-  return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`} onPointerDown={() => { focusEpoch++; }}>
+  return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`} style={{ '--visual-viewport-height': `${viewport().height}px`, '--visual-viewport-top': `${viewport().top}px`, '--visual-viewport-bottom-gap': `${Math.max(0, window.innerHeight - viewport().bottom)}px` }} onPointerDown={() => { focusEpoch++; }}>
     <header class="global-rail" aria-label="Global navigation" data-tauri-drag-region="deep">
       <div class="rail-start">
         <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebarVisible()} onClick={toggleSidebar} />

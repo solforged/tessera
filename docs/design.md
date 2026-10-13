@@ -274,7 +274,7 @@ A block already shown as a highlight is not repeated among the note results. Oth
 
 At wide widths the finder has equal index and preview halves: page titles with their first lines, or a passage between its neighbours with highlight ranges and every search term marked.
 
-On the touch cover it occupies the keyboard-resized viewport, with results growing upward from the bottom field, the best match nearest the thumb, scope chips immediately above and Cancel at the right.
+On the touch cover Find and Commands occupy the keyboard-resized visual viewport, with results growing upward from the bottom field, the best match nearest the thumb and Cancel at the right. Find puts scope chips immediately above the field. The writing pane also fits this viewport and reveals the active caret; Agenda capture stays above the keyboard, and date pickers keep their actions visible while their body scrolls.
 
 - Enter opens or creates in the invoking pane; passages and highlights open at their place in the [reader](surfaces/reader.md), and Shift-Enter opens beside.
 - Arrows select and Escape closes. Creation errors keep the entered title intact.

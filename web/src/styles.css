@@ -316,16 +316,16 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 }
 /* The cover's finder occupies the IME-resized viewport; the best match is closest to the bottom field. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .palette-search { top: calc(var(--find-viewport-top, 0px) + var(--top-inset)) !important; left: 0 !important; width: 100% !important; max-width: none; height: calc(var(--find-viewport-height, 100dvh) - var(--bottom-inset) - var(--top-inset)); max-height: none !important; display: flex; flex-direction: column; border: 0; border-radius: 0; background: var(--canvas); }
-  .palette-search > .picker-list { order: 1; flex: 1; display: flex; flex-direction: column-reverse; min-height: 0; padding: var(--space-8); }
-  .palette-search .picker-group { display: flex; flex-direction: column-reverse; flex: none; }
-  .palette-search .picker-section { order: 1; border-top: 0; border-bottom: 1px solid var(--line); margin: var(--space-8) 0 var(--space-4); }
-  .palette-search .picker-row { flex: none; min-height: var(--target-size); padding-block: var(--space-12); }
-  .palette-search > .find-scopes { order: 2; flex: none; overflow-x: auto; padding-block: var(--space-8); }
-  .palette-search > .picker-query { order: 3; flex: none; border-top: 1px solid var(--line); border-bottom: 0; background: var(--raised); padding: var(--space-8) var(--space-12); gap: var(--space-8); }
-  .palette-search .picker-input { min-height: var(--target-size); border: 1px solid var(--accent); border-radius: var(--radius-popup); padding-inline: var(--space-12); }
-  .palette-search .find-cancel { display: inline-flex; color: var(--muted); }
-  .palette-search > .scope-bar { order: 2; }
+  .palette { top: calc(var(--visual-viewport-top, 0px) + var(--top-inset)) !important; left: 0 !important; width: 100% !important; max-width: none; height: calc(var(--visual-viewport-height, 100dvh) - var(--bottom-inset) - var(--top-inset)); max-height: none !important; display: flex; flex-direction: column; border: 0; border-radius: 0; background: var(--canvas); overflow: hidden; }
+  .palette > .picker-list { order: 1; flex: 1; display: flex; flex-direction: column-reverse; min-height: 0; padding: var(--space-8); }
+  .palette .picker-group { display: flex; flex-direction: column-reverse; flex: none; }
+  .palette .picker-section { order: 1; border-top: 0; border-bottom: 1px solid var(--line); margin: var(--space-8) 0 var(--space-4); }
+  .palette .picker-row { flex: none; min-height: var(--target-size); padding-block: var(--space-12); }
+  .palette > .find-scopes { order: 2; flex: none; overflow-x: auto; padding-block: var(--space-8); }
+  .palette > .picker-query { order: 3; position: static; flex: none; border-top: 1px solid var(--line); border-bottom: 0; background: var(--raised); padding: var(--space-8) var(--space-12); gap: var(--space-8); }
+  .palette .picker-input { min-height: var(--target-size); border: 1px solid var(--accent); border-radius: var(--radius-popup); padding-inline: var(--space-12); }
+  .palette .find-cancel { display: inline-flex; color: var(--muted); }
+  .palette > .scope-bar { order: 2; }
 }
 @media (max-width: 1047px) {
   .app { grid-template-columns: 0 minmax(0, 1fr); }
@@ -365,7 +365,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .bottom-nav, .pane-sidebar { display: none; }
 }
 @media (max-width: 599px) and (pointer: coarse) {
-  .app { --bottom-nav-height: 56px; grid-template-rows: minmax(0, 1fr) auto; }
+  .app { --bottom-nav-height: 56px; height: var(--visual-viewport-height, 100dvh); margin-top: var(--visual-viewport-top, 0px); grid-template-rows: minmax(0, 1fr) auto; }
   .app > .global-rail, .pane-breadcrumbs .breadcrumb-library, .breadcrumb-library + .breadcrumb-separator { display: none; }
   .workspace, .sidebar-collapsed .workspace { grid-row: 1; margin: var(--space-4) var(--space-4) 0; }
   .sidebar { top: var(--top-inset); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset)); }

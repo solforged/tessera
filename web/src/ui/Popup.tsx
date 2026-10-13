@@ -1,6 +1,7 @@
 import { createSignal, onCleanup, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
+import { visualViewportBounds } from './visual-viewport';
 
 export type PopupAnchor = HTMLElement | DOMRect | (() => DOMRect | null);
 /** `anchor` hangs the panel off its trigger; `top` centres it near the top of the viewport, for palettes; `sheet` rises
@@ -86,23 +87,25 @@ export function Popup(props: PopupProps) {
   let disposed = false;
   const place = () => {
     if (disposed) return;
+    const viewport = visualViewportBounds();
     if (props.placement === 'sheet') {
-      const height = Math.min(panel.scrollHeight + panel.offsetHeight - panel.clientHeight, Math.round(window.innerHeight * 0.85));
-      setPosition({ left: 0, top: window.innerHeight - height, height, visible: true });
+      const height = Math.min(panel.scrollHeight + panel.offsetHeight - panel.clientHeight, Math.round(viewport.height * 0.85));
+      setPosition({ left: viewport.left, top: viewport.bottom - height, height, visible: true, clipped: panel.scrollHeight > height });
       return;
     }
-    const width = Math.min(props.width ?? panel.offsetWidth, window.innerWidth - 16);
+    const width = Math.min(props.width ?? panel.offsetWidth, viewport.width - 16);
     if (props.placement === 'top') {
-      const top = Math.min(64, Math.round(window.innerHeight * 0.08));
-      const height = Math.min(panel.scrollHeight + panel.offsetHeight - panel.clientHeight, window.innerHeight - top - 16, 560);
-      setPosition({ left: Math.max(8, Math.round((window.innerWidth - width) / 2)), top, height, visible: true });
+      const top = viewport.top + Math.min(64, Math.round(viewport.height * 0.08));
+      const height = Math.min(panel.scrollHeight + panel.offsetHeight - panel.clientHeight, viewport.bottom - top - 16, 560);
+      setPosition({ left: Math.max(viewport.left + 8, Math.round(viewport.left + (viewport.width - width) / 2)), top, height, visible: true });
       return;
     }
     const rect = anchorRect();
     if (!rect) return;
-    const belowTop = Math.max(8, rect.bottom + 4), aboveBottom = Math.min(window.innerHeight - 8, rect.top - 4);
-    const below = Math.max(0, window.innerHeight - belowTop - 8);
-    const above = Math.max(0, aboveBottom - 8);
+    const belowTop = Math.max(viewport.top + 8, Math.min(viewport.bottom - 8, rect.bottom + 4));
+    const aboveBottom = Math.max(viewport.top + 8, Math.min(viewport.bottom - 8, rect.top - 4));
+    const below = Math.max(0, viewport.bottom - belowTop - 8);
+    const above = Math.max(0, aboveBottom - viewport.top - 8);
     let contentHeight: number;
     if (props.fitContent) {
       // Measure the full body without losing scroll positions when it temporarily expands.
@@ -118,8 +121,8 @@ export function Popup(props: PopupProps) {
     // scrollHeight leaves out the border that max-height includes; without it a short menu scrolls by 2 px and WebKit shows a scrollbar.
     } else contentHeight = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
     const needed = Math.min(contentHeight, 560);
-    const start = rect.left > window.innerWidth / 2 ? rect.right - width : rect.left;
-    const left = Math.max(8, Math.min(start, window.innerWidth - width - 8));
+    const start = rect.left > viewport.left + viewport.width / 2 ? rect.right - width : rect.left;
+    const left = Math.max(viewport.left + 8, Math.min(start, viewport.right - width - 8));
     // Keep the trigger visible. Prefer below, then the larger side with internal scrolling.
     const flip = below < needed && above > below;
     const height = Math.min(needed, flip ? above : below);
@@ -163,6 +166,8 @@ export function Popup(props: PopupProps) {
     document.addEventListener('keydown', keydown, true);
     document.addEventListener('pointerdown', outside, true);
     window.addEventListener('resize', reposition);
+    window.visualViewport?.addEventListener('resize', reposition);
+    window.visualViewport?.addEventListener('scroll', reposition);
     window.addEventListener('scroll', scroll, true);
     // Caret anchors move when the text around them reflows, without any scroll or resize.
     if (typeof props.anchor === 'function') { document.addEventListener('input', reposition, true); document.addEventListener('selectionchange', reposition); }
@@ -182,6 +187,8 @@ export function Popup(props: PopupProps) {
     document.removeEventListener('keydown', keydown, true);
     document.removeEventListener('pointerdown', outside, true);
     window.removeEventListener('resize', reposition);
+    window.visualViewport?.removeEventListener('resize', reposition);
+    window.visualViewport?.removeEventListener('scroll', reposition);
     window.removeEventListener('scroll', scroll, true);
     document.removeEventListener('input', reposition, true);
     document.removeEventListener('selectionchange', reposition);

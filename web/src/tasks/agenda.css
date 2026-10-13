@@ -296,6 +296,6 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .agenda-lookahead { display: none; }
   .pane.active .agenda-add { position: fixed; z-index: 20; left: calc(env(safe-area-inset-left) + var(--pane-inset)); right: calc(env(safe-area-inset-right) + var(--pane-inset)); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset) + var(--space-12)); margin: 0; padding: var(--space-4) var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); }
   .pane:not(.active) .agenda-add { display: none; }
-  .app.keyboard-open .agenda-add { bottom: calc(var(--bottom-inset) + var(--space-8)); }
+  .app.keyboard-open .agenda-add { bottom: calc(var(--visual-viewport-bottom-gap, 0px) + var(--bottom-inset) + var(--space-8)); }
   .agenda-add .capture-input { min-height: var(--target-size); border: 0; }
 }

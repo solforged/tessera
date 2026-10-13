@@ -23,6 +23,7 @@ import { TaskStatusButton } from '../tasks/TaskControls';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
+import { createVisualViewport } from '../ui/visual-viewport';
 import { BlockText } from './BlockText';
 import { plainText } from './names';
 import { isStableReference, textTokens } from '../document/text-tokens';
@@ -61,6 +62,7 @@ export function OutlinePane(props: OutlinePaneProps) {
 
 function Pane(props: OutlinePaneProps) {
   const doc: PageDocument = props.notebook.open(props.pageId);
+  const viewport = createVisualViewport();
   const initial = untrack(() => props.view);
   const journalPeriod = untrack(() => props.journalPeriod);
   const [zoomTarget, setZoom] = createSignal(initial.zoom);
@@ -524,6 +526,12 @@ function Pane(props: OutlinePaneProps) {
     if (scrollStable < 2) anchorFrame = requestAnimationFrame(settleScroll);
     else { cancelScroll(); scheduleReport(); }
   }
+  createEffect(on(viewport, () => {
+    const id = editing();
+    if (!id || !props.active || !editor?.view.hasFocus) return;
+    scrollReveal = { id, epoch: focusEpoch, caret: true };
+    scheduleScroll();
+  }, { defer: true }));
   function restoreAnchor(anchor: ViewState['scroll']) {
     if (!anchor || !indices().has(anchor.id) || disposed) return;
     setScrollAnchor({ ...anchor });
@@ -1181,6 +1189,8 @@ function Pane(props: OutlinePaneProps) {
         focusEpoch++;
         setCaret(at);
         setTextRange(previous => previous && previous.head.id === at.id ? { anchor: previous.anchor, head: at } : previous);
+        scrollReveal = { id: at.id, epoch: focusEpoch, caret: true };
+        scheduleScroll();
         if (editor) { const text = editor.view.state.doc.toString(); updateCompletion(text, at); updateTriggers(text, at); }
         scheduleReport();
       },

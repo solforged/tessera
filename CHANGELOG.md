@@ -3,6 +3,12 @@
 Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/releasing.md) is how a version is cut, published and rolled back.
 
 <!-- releases -->
+## Unreleased
+
+### Fixed
+
+- Kept cover-screen writing, capture, date pickers and commands above the browser keyboard.
+
 
 ## Unreleased
 

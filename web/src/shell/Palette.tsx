@@ -8,6 +8,7 @@ import { createPageIcon } from '../outline/source';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { Button } from '../ui/Button';
+import { createVisualViewport } from '../ui/visual-viewport';
 import type { Command, CommandRegistry, OpenTarget, PaneId } from './contract';
 import { findMatchSegments, paletteRows, type SearchEntry, type SearchHit } from './palette-rows';
 import { citationRange, passageSegments } from '../reader/passages';
@@ -48,13 +49,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const updateWidth = () => setWide(previewMedia.matches);
   previewMedia.addEventListener('change', updateWidth);
   onCleanup(() => previewMedia.removeEventListener('change', updateWidth));
-  const viewport = window.visualViewport;
-  const [viewportSize, setViewportSize] = createSignal({ height: viewport?.height ?? window.innerHeight, top: viewport?.offsetTop ?? 0 });
-  const updateViewport = () => setViewportSize({ height: viewport?.height ?? window.innerHeight, top: viewport?.offsetTop ?? 0 });
-  const viewportEvents = viewport ?? window;
-  viewportEvents.addEventListener('resize', updateViewport);
-  viewportEvents.addEventListener('scroll', updateViewport);
-  onCleanup(() => { viewportEvents.removeEventListener('resize', updateViewport); viewportEvents.removeEventListener('scroll', updateViewport); });
+  const viewportSize = createVisualViewport();
   const [passageHits, setPassageHits] = createSignal<PassageHit[]>([]);
   const [passagesLoading, setPassagesLoading] = createSignal(false);
   const [passagesError, setPassagesError] = createSignal('');
@@ -207,10 +202,10 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     return label ? `${label} · ${groupCounts()[label]}${entry.kind === 'passage' ? ' passages' : ''}` : undefined;
   };
   return <Picker<Entry> anchor={props.anchor} placement="top" width={mode() === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${mode() === 'search' ? 'palette-search' : ''}`} onDismiss={props.onDismiss}
-    style={{ '--find-viewport-height': `${viewportSize().height}px`, '--find-viewport-top': `${viewportSize().top}px` }}
+    style={{ '--visual-viewport-height': `${viewportSize().height}px`, '--visual-viewport-top': `${viewportSize().top}px` }}
     query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find in pages and books, or create a page' : 'Find a command'}
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
-    queryActions={<Show when={mode() === 'search'}><Button class="find-cancel" onClick={props.onDismiss}>Cancel</Button></Show>}
+    queryActions={<Button class="find-cancel" onClick={props.onDismiss}>Cancel</Button>}
     preview={<Show when={mode() === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
     onSelect={setSelectedEntry}
     status={<><Show when={mode() === 'search'}><div class="find-scopes" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); }}>{value}</Button>}</For></div></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
