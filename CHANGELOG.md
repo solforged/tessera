@@ -86,7 +86,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 - Returning to the Library from a source page carries the cover back into its card or shelf slot, instead of the leaf cutting short because the cards remounted under it. A Library refresh keeps unchanged cards and covers in place.
 - Opening the Library from the sidebar holds the previous page until its rows arrive, and other panes until they first render, instead of turning to an empty pane. Opening a book turns to the reader at once and fades its text in where it lands.
-- Switching Library tabs no longer shows the new rows at full strength and then dims them into the fade; the list fades in once its own rows arrive. Reading now cards no longer flash a spine on articles or change their chapter line after the tab returns, and the Library's list shows the article icon for saved web pages.
+- Reading now cards no longer flash a spine on articles or change their chapter line after the tab returns, and the Library's list shows the article icon for saved web pages.
 - Clicking a perspective's holder opens the holder's page instead of the Change holder picker, and a Work that points at a highlight shows its source's siglum.
 - Read shows a field such as Strand once beside its value, instead of a second label row above it, and a Work cited from a highlight stays faint on its slip.
 - Typing `|` in link completion picks the highlighted page and starts the alias, so `[[gen|memory boost]]` links Generation effect and reads "memory boost".
@@ -117,8 +117,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Stopping work no longer throws the Work sessions popup into the window's corner.
 - Typing after `/project` no longer lands in the block while its popup waits for the project to save.
 - Backspace at the start of a project, relation, perspective, question or assessment row ends that capability, and on an empty row deletes it, as on a todo, instead of refusing to merge.
-- Library no longer flashes empty or stale rows: Back shows its rows and scroll at once, a tab's rows fade in when they arrive, Shelf no longer starts as List, and Reading cards keep their height while their maps load.
-- Choosing another source keeps the catalog card on screen until the next one is ready, without a "Loading source details…" flash or its groups jumping.
+- Library no longer flashes, blinks or jumps: Back shows its rows and scroll at once, and a tab, Browse filter or sort cross-fades from the old rows to the new in one step instead of dimming the whole pane, with headings, Reading now and filter chips changing together. Filters and sorts load without waiting for a typing pause, and Shelf no longer starts as List.
+- The catalog card opens without an empty frame: the ledger glides aside as the card slides in, and back when it closes. Edit details… on a source page does the same. Choosing another source swaps the card's content in place, without a "Loading source details…" flash or its groups jumping.
 - Adding a source to a collection shows one Undo notice, which leaves after 10 seconds. Covers fade in once instead of popping, and shelf spines hyphenate instead of splitting words.
 
 ## 0.3.0, 2026-10-12

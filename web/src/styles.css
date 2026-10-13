@@ -327,6 +327,9 @@ span.pane-breadcrumbs { display: block; overflow: hidden; text-overflow: ellipsi
 /* A cover travels between the shelf and its source page above both leaves. */
 ::view-transition-group(source-cover) { z-index: 1; }
 ::view-transition-old(source-cover), ::view-transition-new(source-cover) { animation-duration: var(--motion-page); animation-timing-function: var(--motion-ease); }
+/* A panel swapping its content in place (crossfade in ui/pane-motion.ts) fades the old content out as the new fades in.
+   A toolbar row appearing above it carries it down in the same motion. */
+::view-transition-group(mode-panel) { animation-duration: var(--motion-ui); animation-timing-function: var(--motion-ease); }
 @keyframes leaf-in { from { opacity: 0; translate: var(--motion-leaf) 0; } }
 @keyframes leaf-in-back { from { opacity: 0; translate: calc(-1 * var(--motion-leaf)) 0; } }
 @keyframes leaf-out { to { opacity: 0; translate: calc(-.5 * var(--motion-leaf)) 0; } }

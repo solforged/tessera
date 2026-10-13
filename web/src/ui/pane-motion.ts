@@ -13,7 +13,8 @@ export function paneTargetIdentity(target: OpenTarget): string {
     case 'reader': return `reader:${target.sourceId}:${target.snapshotId ?? ''}`;
     case 'compare': return `compare:${target.subjectId}`;
     case 'index': return `index:${target.key}`;
-    case 'library': return `library:${target.tab ?? 'inbox'}`;
+    // A Library tab swaps the panel in place (crossfade); only arriving at the Library is a navigation.
+    case 'library': return 'library';
     case 'agenda': return `agenda:${target.mode ?? 'agenda'}:${target.date ?? ''}:${target.viewId ?? ''}`;
     case 'review': return `review:${target.deckId ?? ''}`;
     default: return target.kind;
@@ -102,13 +103,56 @@ export function navigatePane(pane: string, direction: 'forward' | 'back', apply:
   void transition.finished.then(finish, finish);
 }
 
+let swapping = false;
+const motionless = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.visibilityState !== 'visible';
+
+/**
+ * Replaces what `panel` shows in one step: the old content fades out as the new fades in over `--motion-ui`, with
+ * no blank or half-faded frame between them. `apply` must change the DOM synchronously; it runs a frame later,
+ * after the old content is captured. During a page turn or another swap it applies at once instead.
+ */
+export function crossfade(panel: HTMLElement, apply: () => void) {
+  const start = document.startViewTransition?.bind(document);
+  if (!start || navigation || swapping || motionless()) { apply(); return; }
+  swapping = true;
+  panel.style.setProperty('view-transition-name', 'mode-panel');
+  const transition = start(apply);
+  const finish = () => { swapping = false; panel.style.removeProperty('view-transition-name'); };
+  void transition.finished.then(finish, finish);
+}
+
+/**
+ * Moves `parts` from where they were to where `apply` lays them out, as one glide over `--motion-page`. `apply` may
+ * change state that renders later in the same task; positions are read again before the next paint.
+ */
+export function glide(parts: () => readonly HTMLElement[], apply: () => void) {
+  if (motionless()) { apply(); return; }
+  const before = new Map<HTMLElement, DOMRect>();
+  for (const part of parts()) before.set(part, part.getBoundingClientRect());
+  apply();
+  queueMicrotask(() => {
+    const style = getComputedStyle(document.documentElement);
+    const time = style.getPropertyValue('--motion-page').trim();
+    const duration = parseFloat(time) * (time.endsWith('ms') ? 1 : 1000);
+    if (!duration) return;
+    const easing = style.getPropertyValue('--motion-ease').trim();
+    for (const part of parts()) {
+      const was = before.get(part);
+      const now = part.getBoundingClientRect();
+      // A part that appears or disappears has nowhere to glide from.
+      if (!was || !was.width || !now.width) continue;
+      const x = was.left - now.left, y = was.top - now.top;
+      if (Math.abs(x) < 1 && Math.abs(y) < 1) continue;
+      part.animate([{ transform: `translate(${x}px, ${y}px)` }, { transform: 'none' }], { duration, easing });
+    }
+  });
+}
+
 /** Content enters on navigation; explicit mode panels fade in without remounting or delaying focus. */
 export function createPaneMotion(content: Accessor<HTMLElement>, identity: Accessor<string>) {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const animations = new Set<Animation>();
-  let waiting: (() => void) | null = null;
   const stop = () => {
-    waiting?.();
     for (const animation of animations) animation.cancel();
     animations.clear();
   };
@@ -155,8 +199,7 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
       stop();
     };
     // A mode switch fades the new panel in. The old one is gone already; cloning it for a cross-fade cost a deep copy of large lists on every click.
-    // A panel still showing the previous selection's rows marks itself aria-busy. It is held clear from the click and fades when its own rows
-    // land, so neither stale rows nor a first render shows at full strength and then dips into the fade. A slow load shows after `holdLimit`.
+
     const click = (event: MouseEvent) => {
       const button = (event.target as Element).closest<HTMLButtonElement>('.mode-tabs > button');
       const strip = button?.parentElement;
@@ -169,18 +212,7 @@ export function createPaneMotion(content: Accessor<HTMLElement>, identity: Acces
         if (!incoming) return;
         stop();
         pendingEntry = false;
-        const fade = animate(incoming, [{ opacity: 0 }, { opacity: 1 }], 'mode-enter');
-        if (!fade || incoming.getAttribute('aria-busy') !== 'true') return;
-        fade.pause();
-        const observer = new MutationObserver(() => { if (incoming.getAttribute('aria-busy') !== 'true') release(); });
-        const release = () => {
-          observer.disconnect(); clearTimeout(timer);
-          if (waiting === release) waiting = null;
-          if (fade.playState === 'paused') fade.play();
-        };
-        const timer = setTimeout(release, holdLimit);
-        waiting = release;
-        observer.observe(incoming, { attributes: true, attributeFilter: ['aria-busy'] });
+        animate(incoming, [{ opacity: 0 }, { opacity: 1 }], 'mode-enter');
       });
     };
     element.addEventListener('click', click, true);

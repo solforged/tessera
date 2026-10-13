@@ -12,7 +12,7 @@ The header starts with Reading, Inbox and Highlights with its unprocessed count,
 
 Under the tabs sit a 28 px search field, a sort menu (Added, Title, Author, Year, Last read, Progress, then Group and Save view…), the List and Shelf toggles, Browse, an Export menu (BibTeX, CSL JSON, Markdown) for the selection or the listed sources, and Add. Every tab keeps this row at one height and the same controls, Browse disabled where the tab has nothing to browse; Collections puts its heading and New collection in the same row. On wide panes the tab strip and the list keep the Browse rail's offset on every tab, so switching tabs never moves them sideways.
 
-Searching, filtering and sorting keep the current rows on screen until the new ones arrive and swap them in one step; a tab's new rows fade in as they land, not at the click. Loading… appears only when nothing of that kind is loaded and the load takes over 300 ms. Returning to the Library, by Back, the sidebar or in the other pane, shows its last rows, tab, layout and scroll in the first frame and refreshes them quietly.
+Tabs, Browse values, sorting and search answer at once in the toolbar, while the rows below keep showing the previous result until the new rows arrive. The panel then cross-fades to them in one step, together with its headings, Reading now and the filter chips. Typing waits for a short pause; a tab, filter or sort loads at once, and a tab already visited shows its last rows immediately and refreshes them quietly. Loading… appears only when nothing of that kind is loaded and the load takes over 300 ms. Returning to the Library, by Back, the sidebar or in the other pane, shows its last rows, tab, layout and scroll in the first frame and refreshes them quietly. Reading cards keep their last chapter, map and time left from earlier visits.
 
 | Context | Header behavior |
 | --- | --- |
@@ -150,9 +150,9 @@ The manual details form remains in Add only: labeled rows, Creator name fields w
 
 ### Opening and layout
 
-Selecting a source through its leading slot or checkbox opens a 460 px catalog-card inspector to the right of the Library ledger or shelf, sliding in 12 px from the right edge as it fades in. The title still opens the source page. Details is also available in each source's actions and the batch bar. Edit details… on a source page opens the same card beside the page, without leaving it.
+Selecting a source through its leading slot or checkbox opens a 460 px catalog-card inspector to the right of the Library ledger or shelf. The ledger keeps its layout until the card's details are ready; then Browse steps aside and the ledger and its toolbar glide left to make room while the card slides in 12 px from the right edge as it fades in. Closing glides them back. The title still opens the source page. Details is also available in each source's actions and the batch bar. Edit details… on a source page opens the same card beside the page, without leaving it, and the page glides aside the same way.
 
-Changing the selection keeps the current card on screen until the next source's details are loaded, then swaps its content in one step with a short fade. Loading source details… shows only when no card is shown yet and loading takes over 300 ms.
+Changing the selection keeps the current card on screen until the next source's details are loaded, then swaps its content in place. Loading source details… shows only when no card is shown yet and loading takes over 300 ms.
 
 Browse steps aside while inspecting and its named button brings it back. Closing details clears selection. An edit that moves a source outside the current Library filter leaves its card open. A selected shelf cover has a 2 px gilt ring.
 

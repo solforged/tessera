@@ -62,6 +62,8 @@ export function MetadataInspector(props: {
   backLabel?: string;
   onBack?(): void;
   onSaveState?(state: 'saved' | 'saving' | 'error', message?: string): void;
+  /** Whether the card has anything to show yet: a source's details, a slow-loading notice or an error. */
+  onShown?(shown: boolean): void;
 }): JSX.Element {
   let root!: HTMLDivElement;
   let coverInput!: HTMLInputElement;
@@ -86,7 +88,6 @@ export function MetadataInspector(props: {
   const [displayed, setDisplayed] = createSignal<InspectorContent>();
   const [requested, setRequested] = createSignal<InspectorSelection>();
   const docs = createMemo(() => displayed()?.selection.docs ?? []);
-  let motion: Animation | undefined;
   function release(selected: InspectorSelection) {
     if (selected.released) return;
     selected.released = true;
@@ -105,7 +106,6 @@ export function MetadataInspector(props: {
   const selection = createMemo(() => [...new Set(props.sourceIds)].join('\0'));
   createEffect(on(() => [props.notebook, selection()] as const, ([notebook, ids]) => {
     let cancelled = false;
-    motion?.cancel();
     const selected: InspectorSelection = { notebook, docs: ids ? ids.split('\0').map(id => notebook.open(id)) : [], released: false };
     setRequested(undefined); setLoading(true); setLoadError('');
     void Promise.all(selected.docs.map(documentReady)).then(() => {
@@ -147,20 +147,9 @@ export function MetadataInspector(props: {
   const fields = createMemo<readonly FieldDefinition[]>(() => displayed()?.fields ?? []);
   const ready = createMemo(() => displayed()?.selection === requested() && !!requested() && !loading() && !loadError() && !definitions.error && !loadedEvidence.error);
   const slowLoading = createSlowFlag(() => !displayed() && !loadError() && (loading() || definitions.loading || loadedEvidence.loading));
-  createEffect(on(() => displayed()?.selection, (selected, previous) => {
-    if (!selected || !root) return;
-    motion?.cancel();
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const style = getComputedStyle(root), time = style.getPropertyValue('--motion-ui').trim();
-    const duration = parseFloat(time) * (time.endsWith('ms') ? 1 : 1000);
-    if (!duration) return;
-    const sheet = !previous && props.phone ? root.closest<HTMLElement>('.library-inspector-sheet') : null;
-    const frames: Keyframe[] = previous ? [{ opacity: .4 }, { opacity: 1 }] : [
-      { opacity: 0, transform: sheet ? 'translateY(100%)' : `translateX(${style.getPropertyValue('--metadata-entry-x').trim()})` },
-      { opacity: 1, transform: 'translate(0)' },
-    ];
-    motion = (sheet ?? root).animate(frames, { duration, easing: style.getPropertyValue('--motion-ease').trim() });
-  }));
+  const visible = createMemo(() => !!displayed() || slowLoading() || !!loadError() || !!definitions.error || !!loadedEvidence.error);
+  createEffect(() => props.onShown?.(visible()));
+  onCleanup(() => props.onShown?.(false));
   const batch = createMemo(() => docs().length > 1);
   function extractedValue(doc: PageDocument, field: SourceField): SourceFieldValue | undefined {
     const item = evidence()?.get(doc.pageId);
@@ -256,7 +245,7 @@ export function MetadataInspector(props: {
     document.addEventListener('keydown', keydown, true);
     onCleanup(() => document.removeEventListener('keydown', keydown, true));
   });
-  onCleanup(() => { disposed = true; motion?.cancel(); const selected = displayed()?.selection; if (selected) release(selected); props.onSaveState?.('saved'); });
+  onCleanup(() => { disposed = true; const selected = displayed()?.selection; if (selected) release(selected); props.onSaveState?.('saved'); });
   function field(field: SourceField, selected: readonly PageDocument[] = docs(), extra: { hint?: JSX.Element; placeholder?: string } = {}) {
     const values = createMemo(() => selected.map(doc => current(doc, field)));
     const key = `${selected.map(doc => doc.pageId).join(',')}:${field}`;
@@ -303,7 +292,7 @@ export function MetadataInspector(props: {
     try { await perform('Missing details checked', selected.length, () => fillMissingSourceDetails(selected, props.notebook)); }
     catch (reason) { setActionError(reason instanceof Error ? reason.message : String(reason)); }
   }
-  return <div ref={root} class="metadata-inspector" classList={{ 'metadata-inspector-phone': !!props.phone, 'metadata-inspector-visible': !!displayed() || slowLoading() || !!loadError() || !!definitions.error || !!loadedEvidence.error }} data-pane-pending={!ready() && !loadError() && !definitions.error && !loadedEvidence.error ? '' : undefined} tabIndex={-1} aria-label="Source details">
+  return <div ref={root} class="metadata-inspector" classList={{ 'metadata-inspector-phone': !!props.phone, 'metadata-inspector-visible': visible() }} data-pane-pending={!ready() && !loadError() && !definitions.error && !loadedEvidence.error ? '' : undefined} tabIndex={-1} aria-label="Source details">
     <header class="metadata-inspector-head">
       <Show when={props.backLabel}><Button class="metadata-back" icon="left" onClick={() => (props.onBack ?? props.onClose)()}>{props.backLabel}</Button></Show>
       <div class="metadata-inspector-heading">
