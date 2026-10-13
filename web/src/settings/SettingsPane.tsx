@@ -14,10 +14,11 @@ import { backupLabel } from './backup';
 import { HubDevices, PhoneDevices } from './DevicesSection';
 import { BrowserBackups } from './BrowserBackups';
 import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, openNotebook } from './notebooks';
+import { AgentSettings } from '../agent/AgentSettings';
 import './settings.css';
 import './devices.css';
 
-export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; section?: 'devices'; deviceId?: string | null; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onViewChange(view: SettingsViewState): void }) {
+export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; section?: 'devices' | 'agent'; deviceId?: string | null; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onViewChange(view: SettingsViewState): void }) {
   const [error, setError] = createSignal('');
   const [info] = createResource(async () => {
     try { return await api.notebook(); }
@@ -95,6 +96,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     ...(DEMO && !ANDROID ? [{ key: 'backups', label: 'Backups', count: 0 }] : []),
     ...(EMBEDDED ? [] : [{ key: 'notebooks', label: 'Notebooks', count: knownNotebooks()?.notebooks.length ?? 0 }, { key: 'backups', label: 'Backups', count: backups()?.length ?? 0 }]),
     ...(devices ? [{ key: 'devices', label: 'Devices', count: deviceCount() }] : []),
+    ...(DEMO ? [] : [{ key: 'agent', label: 'Agent', count: 0 }]),
     { key: 'agent-changes', label: 'Agent changes', count: agentChanges()?.length ?? 0 },
     { key: 'about', label: 'About', count: 0 },
   ]);
@@ -272,6 +274,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
             <PhoneDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} notebook={props.notebook} deviceId={props.deviceId} onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)} />
           </Show>
         </section>}
+        {!DEMO && <AgentSettings id={sectionId('agent')} heading={heading(number('agent'), 'agent', 'Agent')} />}
         <section id={sectionId('agent-changes')} aria-labelledby={`${sectionId('agent-changes')}-heading`} aria-busy={undoing() !== null}>
           {heading(number('agent-changes'), 'agent-changes', 'Agent changes')}
           <Show when={agentChanges()}>{values => <Show when={values().length > 0} fallback={<p class="settings-empty">No agent changes yet. When an agent edits this notebook, each change appears here with its own Undo.</p>}>

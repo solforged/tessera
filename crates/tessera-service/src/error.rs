@@ -77,13 +77,14 @@ impl From<tessera_core::Error> for ApiError {
                     serde_json::json!({ "op_index": op_index, "id": id, "expected": expected, "found": found }),
                 ),
             },
-            tessera_core::Error::NotFound { op_index, .. } => Self {
+            // The operation index travels in details; the message stays a sentence a person can read.
+            tessera_core::Error::NotFound { id, op_index } => Self {
                 status: StatusCode::NOT_FOUND,
                 code: "not_found",
-                message,
+                message: format!("block {id} not found"),
                 details: op_index.map(|index| serde_json::json!({ "op_index": index })),
             },
-            tessera_core::Error::Validation { op_index, .. } => Self {
+            tessera_core::Error::Validation { message, op_index } => Self {
                 status: StatusCode::UNPROCESSABLE_ENTITY,
                 code: "validation",
                 message,

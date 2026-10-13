@@ -49,6 +49,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - The workspace is a row of up to four panes. Opening beside lands right of the pane it came from and never replaces that pane; panes the window cannot fit fold into numbered spines.
 - Dividers between panes drag, snap at a third, a half and two thirds, move with arrow keys and reset on double click. Widths persist with the row.
 - Holding ⌘ over a link shows where a click will open it: the pane it replaces, or a ghost of the new pane. Links, backlinks, sidebar pages, index entries and Library rows can be dragged onto a pane to replace it, or onto its edge to open a new pane there.
+- The agent dock: a column right of the panes where you talk to a model you connect yourself, hosted with your own key (Anthropic, OpenAI, OpenRouter) or local (Ollama, llama-server). It reads the pages in view and any links you drag in, and its changes land in the panes, marked, each with Show and Undo. ⌃⇧A shows and hides it; Settings › Agent holds the models, and keys never leave the machine.
+- `/api/agent/providers` and `/api/agent/turns` for the dock's models and conversations.
 
 ### Changed
 
@@ -84,6 +86,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- API error messages end at their sentence; the failing operation's index stays in `details` instead of trailing as `(operation None)`.
 - Returning to the Library from a source page carries the cover back into its card or shelf slot, instead of the leaf cutting short because the cards remounted under it. A Library refresh keeps unchanged cards and covers in place.
 - Opening the Library from the sidebar holds the previous page until its rows arrive, and other panes until they first render, instead of turning to an empty pane. Opening a book turns to the reader at once and fades its text in where it lands.
 - Reading now cards no longer flash a spine on articles or change their chapter line after the tab returns, and the Library's list shows the article icon for saved web pages.

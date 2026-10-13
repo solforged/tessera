@@ -1,0 +1,82 @@
+/* The agent dock is a third column right of the workspace, framed like it, so opening beside never pushes it away. */
+.app.has-dock { grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--dock-width); }
+.app.has-dock.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr) var(--dock-width); }
+.agent-dock { grid-column: 3; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0 var(--space-12) var(--space-12) 0; overflow: hidden; border: var(--rule-width) solid var(--line); background: var(--canvas); }
+.agent-dock.drop-target { box-shadow: inset 0 0 0 calc(2 * var(--rule-width)) var(--accent); }
+.app.is-immersive > .agent-dock { display: none; }
+.rail-end > .button[aria-pressed="true"] { color: var(--agent); }
+
+.agent-head { display: flex; align-items: center; gap: var(--space-8); flex: none; min-height: var(--pane-header-height); padding: var(--space-4) var(--space-4) var(--space-4) var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
+.agent-glyph { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); color: var(--agent); }
+.agent-head h2 { margin: 0; color: var(--text); font: var(--weight-control) var(--text-control)/var(--line-control) var(--font-body); }
+.agent-provider.button { min-width: 0; margin-left: auto; gap: var(--space-4); padding-inline: var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.agent-provider > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-provider > .icon { flex: none; width: var(--space-12); height: var(--space-12); }
+.agent-close.button { flex: none; margin-left: auto; }
+.agent-provider + .agent-close.button { margin-left: 0; }
+
+/* Context: one chip per page the agent reads; × leaves a pane's page out, and dropped links add their own. */
+.agent-context { display: flex; flex-wrap: wrap; gap: var(--space-4); flex: none; padding: var(--space-8) var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
+.agent-context-label { width: 100%; margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.agent-chip { display: inline-flex; align-items: center; max-width: 100%; padding-left: var(--space-8); border-radius: var(--radius-pill); background: var(--raised); color: var(--text); font-size: var(--text-meta); line-height: var(--line-meta); }
+.agent-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-chip > .button { flex: none; min-width: var(--target-size); min-height: var(--target-size); padding: 0; border: 0; background: transparent; color: var(--faint); }
+.agent-chip > .button > .icon { width: var(--space-12); height: var(--space-12); }
+.agent-chip > .button:hover { color: var(--text); }
+.agent-chip.excluded { color: var(--faint); text-decoration: line-through; }
+
+.agent-thread { display: flex; flex: 1; flex-direction: column; gap: var(--space-16); min-height: 0; overflow-y: auto; padding: var(--space-12); font-size: var(--text-control); line-height: var(--line-body); }
+.agent-empty { margin: auto 0; color: var(--muted); }
+.agent-empty h3 { margin: 0 0 var(--space-8); color: var(--text); font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); font-variation-settings: var(--optical-heading); }
+.agent-empty p { margin: 0 0 var(--space-12); }
+.agent-who { margin: 0 0 var(--space-2); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.agent-message-user .agent-body { padding: var(--space-8) var(--space-12); border-radius: var(--radius-popup); background: var(--raised); white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-text { margin: 0 0 var(--space-8); white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-tool, .agent-status { margin: 0 0 var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.agent-error { color: var(--danger); }
+/* Each change the agent made: its page in mono capitals, what it did, then Show and Undo. */
+.agent-edit { margin: 0 0 var(--space-8); padding: var(--space-8) var(--space-12); border: var(--rule-width) solid var(--line); border-left: calc(2 * var(--rule-width)) solid var(--agent); border-radius: var(--radius-control); }
+.agent-edit.undone { border-left-color: var(--line); color: var(--faint); }
+.agent-edit-page { margin: 0; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.agent-edit-summary { margin: var(--space-4) 0; }
+.agent-edit-actions { display: flex; align-items: center; gap: var(--space-12); }
+.agent-edit-undone { color: var(--faint); font: var(--apparatus); }
+.agent-edit-refusal { margin: var(--space-4) 0 0; color: var(--warning); font-size: var(--text-meta); line-height: var(--line-meta); }
+
+.agent-composer { flex: none; padding: var(--space-8) var(--space-12) var(--space-12); border-top: var(--rule-width) solid var(--line); }
+.agent-composer textarea { display: block; width: 100%; min-height: calc(3 * var(--line-body)); max-height: 40vh; resize: vertical; font: var(--weight-body) var(--text-control)/var(--line-body) var(--font-body); }
+.agent-composer-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-12); margin-top: var(--space-8); }
+.agent-composer-foot > .text-button { margin-right: auto; }
+.agent-send.button { padding-inline: var(--space-16); border-color: var(--accent); background: var(--accent); color: var(--surface); }
+.agent-send.button:disabled { border-color: var(--control-border); background: transparent; color: var(--faint); }
+
+/* A row the agent changed carries its steel bar at the left and the agent's glyph in the outside rail, above any count. */
+.outline-row:has(> .agent-mark) { box-shadow: inset calc(2 * var(--rule-width)) 0 var(--agent); }
+.agent-mark.button { position: absolute; inset-inline-start: 100%; top: var(--space-2); min-width: var(--space-16); min-height: var(--target-size); padding: 0; border: 0; background: transparent; color: var(--agent); }
+.agent-mark.button > .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+.agent-mark + .block-reference-count.button { top: calc(var(--space-2) + var(--target-size)); }
+/* Show brings a change into view and lights its row once. */
+.outline-row.agent-flash { animation: agent-flash 1.2s var(--motion-ease); }
+@keyframes agent-flash { 0%, 40% { background: color-mix(in srgb, var(--agent) 20%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .outline-row.agent-flash { animation: none; } }
+
+/* Settings › Agent: each model as a settings row, edited in place in a two-column form. */
+.agent-provider-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-4) var(--space-12); }
+.settings-pane .settings-label p.agent-provider-address { color: var(--faint); }
+.agent-provider-form { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; max-width: 36rem; gap: var(--space-8) var(--space-16); margin-top: var(--space-12); padding: var(--space-12) 0; border-block: var(--rule-width) solid var(--line); font-size: var(--text-control); line-height: var(--line-control); }
+.agent-provider-form > label { display: contents; }
+.agent-provider-form > label > span { color: var(--muted); }
+.agent-presets, .agent-form-actions, .agent-provider-form > .agent-clear-key { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+.agent-provider-form > .agent-clear-key { grid-column: 2; color: var(--muted); }
+.agent-presets > .button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.agent-form-actions { justify-content: flex-end; }
+.agent-add-model.button { margin-top: var(--space-12); }
+
+/* Narrower windows lay the dock over the panes, as the sidebar does; a phone gives it the whole screen. */
+@media (max-width: 1047px) {
+  .app.has-dock, .app.has-dock.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+  .agent-dock { position: fixed; top: calc(var(--rail-height) + var(--top-inset)); right: env(safe-area-inset-right); bottom: var(--bottom-inset); z-index: 30; width: min(var(--dock-width), 100vw); margin: 0; box-shadow: var(--popup-shadow); }
+}
+@media (max-width: 599px) {
+  .agent-dock { top: var(--top-inset); left: 0; width: auto; border: 0; }
+}

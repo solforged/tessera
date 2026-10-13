@@ -879,6 +879,7 @@ mod tests {
             replica: Arc::default(),
             sync_health: Arc::default(),
             switcher: None,
+            agent: Arc::new(crate::agent::Runtime::new(None).unwrap()),
         }
     }
     async fn response(app: &Router, method: &str, path: &str, body: Vec<u8>) -> Response {
@@ -1300,6 +1301,9 @@ mod resurface_tests {
             replica: Arc::default(),
             sync_health: Arc::default(),
             switcher: None,
+            agent: Arc::new(
+                crate::agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap(),
+            ),
         });
         let get = app
             .clone()

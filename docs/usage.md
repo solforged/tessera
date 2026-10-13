@@ -271,6 +271,12 @@ Agents without MCP use the same endpoints:
 | `POST /api/agent-changes` | Write a change, using a body like the example below. |
 | `GET /api/agent-changes` | List changes. |
 | `POST /api/agent-changes/{seq}/undo` | Undo a change, with `{"actor": …}`. |
+| `GET /api/agent/providers` | List configured providers without their keys. |
+| `PUT /api/agent/providers` | Save providers and the default provider. |
+| `POST /api/agent/providers/{id}/test` | Test a provider with a short request. |
+| `POST /api/agent/turns` | Start an agent turn with a prompt, conversation and context. |
+| `GET /api/agent/turns/{turn}/events?after=N` | Wait for events after event N, up to 25 seconds. |
+| `POST /api/agent/turns/{turn}/cancel` | Stop an agent turn. |
 
 ```json
 {"actor": {"kind": "agent", "name": "my-agent"}, "kind": "add_note", "target": {"kind": "page", "title": "Inbox"}, "blocks": [{"text": "A thought", "children": []}]}

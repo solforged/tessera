@@ -33,11 +33,11 @@ static HOST: OnceCell<Host> = OnceCell::const_new();
 
 async fn host(app: &AppHandle) -> Result<&'static Host, String> {
     HOST.get_or_try_init(|| async {
-        let dir = app
+        let data_dir = app
             .path()
             .app_data_dir()
-            .map_err(|error| format!("cannot find app storage: {error}"))?
-            .join("notebook");
+            .map_err(|error| format!("cannot find app storage: {error}"))?;
+        let dir = data_dir.join("notebook");
         let (notebook, ownership) = tokio::task::spawn_blocking(move || {
             let ownership =
                 NotebookOwnership::acquire(&dir, 0).map_err(|error| error.to_string())?;
@@ -47,7 +47,10 @@ async fn host(app: &AppHandle) -> Result<&'static Host, String> {
         })
         .await
         .map_err(|error| error.to_string())??;
-        let (router, handles) = tessera_service::embedded_router(notebook)?;
+        let (router, handles) = tessera_service::embedded_router_with_agent_path(
+            notebook,
+            data_dir.join("agent.json"),
+        )?;
         // A paired phone syncs at start, after its own edits and every few minutes; unpaired, it waits for a join.
         tessera_service::start_sync_runner(&handles);
         Ok(Host {

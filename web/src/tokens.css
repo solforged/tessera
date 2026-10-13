@@ -42,6 +42,7 @@
   --status-cancelled: var(--faint);
   --agree: #7f9de0;          /* blued steel: inquiry links and unsettled questions */
   --status-overdue: var(--danger);
+  --agent: var(--agree);     /* the agent's glyph and the rows it changed share inquiry's steel, never the gilt */
 
   /* Calendar planning marks distinguish dates without relying on hue alone. */
   --calendar-scheduled: #7f9de0;
@@ -96,6 +97,7 @@
   --work-cover-width: 72px;   /* covers in the Works shelf on a person's page */
   --reading-cover-width: 56px; /* covers on Reading now cards, leaving three cards across room for three-line titles */
   --sidebar-width: 208px;
+  --dock-width: 360px;       /* the agent dock right of the pane row */
   --rail-height: 48px;
   --window-controls-width: 84px; /* the macOS window buttons over the rail's left end in the desktop app */
   --pane-header-height: 36px;

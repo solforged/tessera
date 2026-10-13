@@ -1,6 +1,11 @@
-import { EMBEDDED } from '../demo/mode';
+import { DEMO, EMBEDDED } from '../demo/mode';
 import type {
   Actor,
+  AgentProviders,
+  SaveAgentProviders,
+  StartAgentTurn,
+  AgentTurnStarted,
+  AgentTurnEvents,
   ExtractedMetadata,
   LookupPreview,
   IngestPlan,
@@ -165,7 +170,7 @@ function notebookHeaders(base: string, headers: Record<string, string> = {}): Re
   return notebook ? { ...headers, 'X-Tessera-Notebook': notebook } : headers;
 }
 
-async function request<T>(base: string, method: 'GET' | 'POST' | 'DELETE', path: string, body?: unknown, signal?: AbortSignal, frozen?: string): Promise<T> {
+async function request<T>(base: string, method: 'GET' | 'PUT' | 'POST' | 'DELETE', path: string, body?: unknown, signal?: AbortSignal, frozen?: string): Promise<T> {
   const json = frozen ?? (body === undefined ? undefined : JSON.stringify(body));
   const headers = notebookHeaders(base, json === undefined ? {} : { 'Content-Type': 'application/json' });
   return send<T>(`${base}/api${path}`, { method, signal, headers, body: json });
@@ -229,6 +234,12 @@ export interface ApiClient {
   syncConflicts(signal?: AbortSignal): Promise<SyncConflicts>;
   agentChanges(limit?: number, signal?: AbortSignal): Promise<AgentChange[]>;
   undoAgentChange(seq: number, signal?: AbortSignal): Promise<UndoReceipt>;
+  agentProviders(signal?: AbortSignal): Promise<AgentProviders>;
+  saveAgentProviders(body: SaveAgentProviders, signal?: AbortSignal): Promise<AgentProviders>;
+  testAgentProvider(id: string, signal?: AbortSignal): Promise<{ ok: true }>;
+  startAgentTurn(body: StartAgentTurn, signal?: AbortSignal): Promise<AgentTurnStarted>;
+  agentTurnEvents(turn: string, after: number, signal?: AbortSignal): Promise<AgentTurnEvents>;
+  cancelAgentTurn(turn: string, signal?: AbortSignal): Promise<void>;
   settings(signal?: AbortSignal): Promise<SettingsView>;
   roots(signal?: AbortSignal): Promise<Block[]>;
   writtenJournalDates(from: string, to: string, signal?: AbortSignal): Promise<string[]>;
@@ -329,6 +340,9 @@ type NativeMethod = 'service' | 'backups' | 'createBackup' | 'deleteBackup' | 'p
 
 export function createApi(base = ''): ApiClient {
   const get = <T>(path: string, signal?: AbortSignal) => request<T>(base, 'GET', path, undefined, signal);
+  const agentRequest = <T>(method: 'GET' | 'PUT' | 'POST', path: string, body?: unknown, signal?: AbortSignal): Promise<T> =>
+    DEMO ? Promise.reject(new ApiError('The agent requires the Tessera app or local service.', 400, 'unsupported'))
+      : request<T>(base, method, path, body, signal);
   const resourceUrl = (snapshotId: string, href: string) => href.startsWith('/api/library/covers/') ? `${base}${href}` : `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`;
   return {
     notebook: (signal?: AbortSignal) => get<NotebookInfo>('/notebook', signal),
@@ -351,6 +365,12 @@ export function createApi(base = ''): ApiClient {
     } : {}),
     agentChanges: (limit = 50, signal?: AbortSignal) => get<AgentChange[]>(`/agent-changes${query({ limit })}`, signal),
     undoAgentChange: (seq: number, signal?: AbortSignal) => request<UndoReceipt>(base, 'POST', `/agent-changes/${seq}/undo`, { actor: { kind: 'person' } }, signal),
+    agentProviders: (signal?: AbortSignal) => agentRequest<AgentProviders>('GET', '/agent/providers', undefined, signal),
+    saveAgentProviders: (body: SaveAgentProviders, signal?: AbortSignal) => agentRequest<AgentProviders>('PUT', '/agent/providers', body, signal),
+    testAgentProvider: (id: string, signal?: AbortSignal) => agentRequest<{ ok: true }>('POST', `/agent/providers/${segment(id)}/test`, undefined, signal),
+    startAgentTurn: (body: StartAgentTurn, signal?: AbortSignal) => agentRequest<AgentTurnStarted>('POST', '/agent/turns', body, signal),
+    agentTurnEvents: (turn: string, after: number, signal?: AbortSignal) => agentRequest<AgentTurnEvents>('GET', `/agent/turns/${segment(turn)}/events${query({ after })}`, undefined, signal),
+    cancelAgentTurn: (turn: string, signal?: AbortSignal) => agentRequest<void>('POST', `/agent/turns/${segment(turn)}/cancel`, undefined, signal),
     settings: (signal?: AbortSignal) => get<SettingsView>('/settings', signal),
     syncState: (signal?: AbortSignal) => get<SyncState>('/sync/state', signal),
     runSync: (signal?: AbortSignal) => request<SyncState>(base, 'POST', '/sync/run', undefined, signal),

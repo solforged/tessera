@@ -33,6 +33,43 @@ export type Actor =
   | { kind: 'agent'; name: string }
   | { kind: 'client'; name: string };
 
+export interface ProviderView {
+  id: string;
+  name: string;
+  protocol: 'anthropic' | 'openai';
+  base_url: string;
+  model: string;
+  has_key: boolean;
+}
+
+export interface ProviderInput {
+  id?: string;
+  name: string;
+  protocol: 'anthropic' | 'openai';
+  base_url: string;
+  model: string;
+  api_key?: string | null;
+}
+
+export interface AgentProviders { providers: ProviderView[]; default: string | null }
+export interface SaveAgentProviders { providers: ProviderInput[]; default: string | null }
+export interface ThreadMessage { role: 'user' | 'assistant'; text: string }
+export interface ContextRef { page_id: string; block_id?: string }
+export interface StartAgentTurn {
+  provider: string;
+  prompt: string;
+  messages: ThreadMessage[];
+  context: ContextRef[];
+}
+export interface AgentTurnStarted { turn: string }
+export type TurnEvent =
+  | { n: number; kind: 'text'; delta: string }
+  | { n: number; kind: 'tool'; name: string; summary: string }
+  | { n: number; kind: 'edit'; seq: number; summary: string; page: string | null; blocks: string[] }
+  | { n: number; kind: 'error'; message: string }
+  | { n: number; kind: 'done'; stop: 'end' | 'cancelled' | 'limit' | 'error' };
+export interface AgentTurnEvents { events: TurnEvent[]; done: boolean }
+
 export type Operation =
   | { op: 'settle_sync_copy'; id: string; settled: boolean }
   | { op: 'settle_sync_rejection'; id: string; settled: boolean }

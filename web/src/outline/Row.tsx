@@ -31,6 +31,7 @@ import { Quote, createQuoteStatus } from './Quote';
 import { relationLabels } from './relations';
 import { AssessmentJournal, QuestionParent, questionLabels } from './Questions';
 import { Embed } from './Embed';
+import { AgentMark } from '../agent/AgentMark';
 import { embedTarget } from './streams';
 import { ViewEmbed, viewEmbedTarget } from './ViewEmbed';
 
@@ -271,6 +272,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
             <Show when={!editedConflicts().has(id())} fallback={<button type="button" onClick={() => doc.resolveConflict(id(), 'mine')}>Use edited text</button>}><button type="button" onClick={() => { setEditedConflicts(previous => new Set([...previous, id()])); editAt(id(), 0, true); }}>Edit merged text</button></Show></div>
         </div></Show>
       </div>
+      <AgentMark id={id()} />
       <ReferenceCount id={id()} />
       <sheet.FieldSlots id={id()} />
     </div>;

@@ -34,6 +34,7 @@ include_dir = { version = "0.7", optional = true }
 base64 = "0.22"
 getrandom = "0.4"
 qrcodegen = "1.8"
+ulid.workspace = true
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
 axum = { version = "0.8", default-features = false, features = ["json", "query", "matched-path", "original-uri"] }
@@ -46,6 +47,7 @@ tower.workspace = true
 tokio-tungstenite.workspace = true
 futures-util.workspace = true
 ulid.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
 
 [lints]
 workspace = true

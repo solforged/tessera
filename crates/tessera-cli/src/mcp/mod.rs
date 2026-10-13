@@ -9,7 +9,7 @@ mod notes;
 mod outline;
 mod query;
 mod relations;
-mod render;
+use tessera_service::agent_render as render;
 mod revisits;
 mod sync;
 mod tasks;
@@ -251,7 +251,7 @@ async fn body<T: DeserializeOwned>(response: reqwest::Response) -> anyhow::Resul
     let text = response.text().await?;
     let error: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
     match error["error"]["message"].as_str() {
-        Some(message) => anyhow::bail!("{}", message.trim_end_matches(" (operation None)")),
+        Some(message) => anyhow::bail!("{message}"),
         None => anyhow::bail!("Service returned {status}: {text}"),
     }
 }

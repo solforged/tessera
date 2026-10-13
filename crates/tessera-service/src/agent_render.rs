@@ -13,13 +13,13 @@ use tessera_core::{
 };
 
 /// The notebook's calendar: today and the zone timestamps are shown in.
-pub(super) struct Clock {
+pub struct Clock {
     zone: jiff::tz::TimeZone,
     pub today: String,
 }
 
 impl Clock {
-    pub(super) fn new(settings: &SettingsView) -> anyhow::Result<Self> {
+    pub fn new(settings: &SettingsView) -> anyhow::Result<Self> {
         Ok(Self {
             zone: jiff::tz::TimeZone::get(&settings.time_zone)
                 .with_context(|| format!("unknown time zone {}", settings.time_zone))?,
@@ -28,7 +28,7 @@ impl Clock {
     }
 
     /// The calendar date of a Unix millisecond timestamp in the notebook zone.
-    pub(super) fn date(&self, ms: i64) -> String {
+    pub fn date(&self, ms: i64) -> String {
         jiff::Timestamp::from_millisecond(ms)
             .map(|instant| instant.to_zoned(self.zone.clone()).date().to_string())
             .unwrap_or_else(|_| ms.to_string())
@@ -36,7 +36,7 @@ impl Clock {
 }
 
 /// What a page rendering needs beyond the page itself.
-pub(super) struct PageContext<'a> {
+pub struct PageContext<'a> {
     /// Field definition names by ID.
     pub fields: &'a HashMap<String, String>,
     /// Active cards whose source blocks are on the page.
@@ -49,7 +49,7 @@ pub(super) struct PageContext<'a> {
 /// capabilities, citations and cards. References to pages and journal days
 /// show their title so an agent can write them back as `[[Title]]`, and
 /// field entries show as `Name::`, the shorthand that writes them.
-pub(super) fn render(
+pub fn render(
     page: &PageView,
     context: &PageContext,
     subtree: Option<&str>,
@@ -227,7 +227,7 @@ fn field_entry(text: &str) -> Option<&str> {
 }
 
 /// The checkbox-style marker `outline` reads back as the same status.
-pub(super) fn marker(status: TaskStatus) -> &'static str {
+pub fn marker(status: TaskStatus) -> &'static str {
     match status {
         TaskStatus::Todo => "[ ] ",
         TaskStatus::Done => "[x] ",
@@ -238,7 +238,7 @@ pub(super) fn marker(status: TaskStatus) -> &'static str {
 }
 
 /// Planning details in the words `tessera_set_task` takes.
-pub(super) fn task_details(task: &TaskState) -> Vec<String> {
+pub fn task_details(task: &TaskState) -> Vec<String> {
     let mut parts = Vec::new();
     if let Some(day) = &task.scheduled {
         parts.push(match &task.scheduled_time {
@@ -273,7 +273,7 @@ pub(super) fn task_details(task: &TaskState) -> Vec<String> {
 }
 
 /// A repeat interval as `tessera_set_task` takes it: `1d`, `2w`, `1m`, `1y`.
-pub(super) fn repeat_text(repeat: &Repeater) -> String {
+pub fn repeat_text(repeat: &Repeater) -> String {
     let unit = match repeat.unit {
         RepeatUnit::Day => 'd',
         RepeatUnit::Week => 'w',
@@ -365,7 +365,7 @@ fn capability_details(caps: &BlockCapabilities) -> Vec<String> {
 }
 
 /// A card's ID, kind, template and scheduling state.
-pub(super) fn card_label(card: &CardUnit, clock: &Clock) -> String {
+pub fn card_label(card: &CardUnit, clock: &Clock) -> String {
     let mut label = format!("card {} {}", card.id, name(card.kind));
     if let Some(template) = &card.template {
         label.push_str(&format!(" from template {:?}", template.name));
@@ -376,7 +376,7 @@ pub(super) fn card_label(card: &CardUnit, clock: &Clock) -> String {
 }
 
 /// Held, new, or the date it is next due.
-pub(super) fn card_state(card: &CardUnit, clock: &Clock) -> String {
+pub fn card_state(card: &CardUnit, clock: &Clock) -> String {
     if card.held {
         "held".into()
     } else if card.schedule.last_reviewed_at.is_none() {
@@ -388,7 +388,7 @@ pub(super) fn card_state(card: &CardUnit, clock: &Clock) -> String {
 
 /// A card's answer: its back, or for child-answer cards, whose back is
 /// serialized data, their answer blocks.
-pub(super) fn card_answer(card: &CardUnit) -> String {
+pub fn card_answer(card: &CardUnit) -> String {
     if !matches!(card.kind, CardKind::Multiline | CardKind::List) {
         return one_line(&card.back);
     }
@@ -404,7 +404,7 @@ pub(super) fn card_answer(card: &CardUnit) -> String {
 }
 
 /// An enum's serialized name, such as `catch_up`.
-pub(super) fn name<T: Serialize>(value: T) -> String {
+pub fn name<T: Serialize>(value: T) -> String {
     match serde_json::to_value(value) {
         Ok(serde_json::Value::String(name)) => name,
         _ => String::new(),
@@ -412,7 +412,7 @@ pub(super) fn name<T: Serialize>(value: T) -> String {
 }
 
 /// Lines joined with ` / ` so a row stays one line.
-pub(super) fn one_line(text: &str) -> String {
+pub fn one_line(text: &str) -> String {
     text.lines()
         .map(str::trim)
         .filter(|line| !line.is_empty())
@@ -421,7 +421,7 @@ pub(super) fn one_line(text: &str) -> String {
 }
 
 /// The start of a text's first line.
-pub(super) fn snippet(text: &str) -> String {
+pub fn snippet(text: &str) -> String {
     let line = text.lines().next().unwrap_or_default().trim();
     match line.char_indices().nth(60) {
         Some((end, _)) => format!("{}…", line[..end].trim_end()),
@@ -429,7 +429,7 @@ pub(super) fn snippet(text: &str) -> String {
     }
 }
 
-pub(super) fn titled(text: &str, titles: &HashMap<&str, &str>) -> String {
+pub fn titled(text: &str, titles: &HashMap<&str, &str>) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find("[[") {
@@ -460,7 +460,7 @@ pub(super) fn titled(text: &str, titles: &HashMap<&str, &str>) -> String {
     out
 }
 
-pub(super) fn quoted(pages: &[Block]) -> String {
+pub fn quoted(pages: &[Block]) -> String {
     pages
         .iter()
         .map(|page| format!("{:?}", page.text))
@@ -468,7 +468,7 @@ pub(super) fn quoted(pages: &[Block]) -> String {
         .join(", ")
 }
 
-pub(super) fn age(ms: i64) -> String {
+pub fn age(ms: i64) -> String {
     let minutes = ms.max(0) / 60_000;
     match minutes {
         0 => "just now".into(),
@@ -478,7 +478,7 @@ pub(super) fn age(ms: i64) -> String {
     }
 }
 
-pub(super) fn kind_label(kind: BlockKind) -> &'static str {
+pub fn kind_label(kind: BlockKind) -> &'static str {
     match kind {
         BlockKind::Journal => "journal day",
         _ => "page",
@@ -486,7 +486,7 @@ pub(super) fn kind_label(kind: BlockKind) -> &'static str {
 }
 
 /// `on page "Title" (page ID)`, naming where a block lives.
-pub(super) fn location(page: &Block) -> String {
+pub fn location(page: &Block) -> String {
     format!(
         "on {} {:?} (page {})",
         kind_label(page.kind),

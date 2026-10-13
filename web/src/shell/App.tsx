@@ -42,6 +42,11 @@ import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncS
 import { NotebookMarker, NotebookOpening, knownNotebooks, registerNotebookCommands } from '../settings/notebooks';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 import { DEMO } from '../demo/mode';
+import { AgentDock } from '../agent/AgentDock';
+import type { ContextChip } from '../agent/AgentDock';
+import { AgentMarks } from '../agent/marks';
+import { createAgentSession } from '../agent/session';
+import type { ContextRef } from '../api/types';
 
 /** How long the deletion toast stays when nothing rests on it. */
 const UNDO_TOAST_MS = 8000;
@@ -600,6 +605,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.forward', title: 'Forward', section: 'Navigation', keys: ['⌃⇧L'], disabledReason: () => { const session = sessions()[active()]; return !session || session.index >= session.entries.length - 1 ? 'No later page in this pane' : undefined; }, run: () => travel(active(), 1) },
     { id: 'shell.page-beside', title: 'Open active view beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openPageBeside() },
     { id: 'shell.switch', title: 'Next pane', section: 'View', keys: ['⌃⇧]'], disabledReason: () => !split() ? 'Open a second pane first' : undefined, run: switchPane },
+    { id: 'shell.agent', title: 'Show or hide the agent', section: 'View', keys: ['⌃⇧A'], disabledReason: () => DEMO ? 'The agent needs the Tessera app' : undefined, run: () => toggleDock() },
     { id: 'shell.close', title: 'Close active pane', section: 'View', keys: ['⌃⇧X'], disabledReason: () => !split() ? 'Only one pane is open' : undefined, run: () => closePane(active()) },
     { id: 'shell.new', title: 'New page', section: 'Page', run: () => setPopup({ kind: 'new', anchor: searchButton, pane: active() }) },
     { id: 'shell.new-spread', title: 'New spread', section: 'Page', run: (beside = false) => open({ kind: 'spread', noteIds: [] }, beside) },
@@ -784,6 +790,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const endDrag = () => {
       drag = null;
       document.documentElement.classList.remove('pane-dragging');
+      document.querySelector('.agent-dock')?.classList.remove('drop-target');
       batch(() => { setGuide(null); setDragChip(null); });
     };
     const pointerdown = (event: PointerEvent) => {
@@ -802,18 +809,23 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         document.documentElement.classList.add('pane-dragging');
         getSelection()?.removeAllRanges();
       }
-      const zone = dropAt(event.clientX, event.clientY);
+      // Over the agent dock a drop adds the page to what the agent reads.
+      const overDock = !!document.elementFromPoint(event.clientX, event.clientY)?.closest('.agent-dock');
+      document.querySelector('.agent-dock')?.classList.toggle('drop-target', overDock);
+      const zone = overDock ? null : dropAt(event.clientX, event.clientY);
       batch(() => { setDragChip({ x: event.clientX, y: event.clientY, label: drag!.label }); setGuide(zone ? guideForDrop(zone) : null); });
     };
     const pointerup = (event: PointerEvent) => {
       if (!drag) return;
-      const moved = drag.moving, target = drag.target, zone = moved ? dropAt(event.clientX, event.clientY) : null;
+      const moved = drag.moving, target = drag.target, label = drag.label, zone = moved ? dropAt(event.clientX, event.clientY) : null;
+      const toDock = moved && !!document.elementFromPoint(event.clientX, event.clientY)?.closest('.agent-dock');
       endDrag();
       if (!moved) return;
       // The press that ends a drag is not also a click on whatever lies under it.
       const swallow = (click: MouseEvent) => { click.preventDefault(); click.stopPropagation(); };
       window.addEventListener('click', swallow, { capture: true, once: true });
       setTimeout(() => window.removeEventListener('click', swallow, { capture: true }));
+      if (toDock && target.kind === 'page') addDockContext({ page_id: target.pageId, ...(target.blockId ? { block_id: target.blockId } : {}) }, label);
       if (!zone) return;
       if ('replace' in zone) open(target, false, zone.replace);
       else open(target, false, active(), undefined, zone.insert);
@@ -840,7 +852,57 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       window.removeEventListener('click', click);
     });
   });
-  return <div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`} style={{ '--visual-viewport-height': `${viewport().height}px`, '--visual-viewport-top': `${viewport().top}px`, '--visual-viewport-bottom-gap': `${Math.max(0, window.innerHeight - viewport().bottom)}px` }} onPointerDown={() => { focusEpoch++; }}>
+  // The agent dock: its thread, the pages it reads (the panes in view, less any left out, plus dropped links) and
+  // the rows it changed, which outline rows mark through AgentMarks.
+  const agentSession = createAgentSession(() => navigationId() ?? undefined);
+  const agentMarks = { mark: (id: string) => agentSession.marks().get(id), undo: (seq: number) => agentSession.undo(seq) };
+  const [dock, setDock] = createSignal(!DEMO && localStorage.getItem('tessera.agent.dock') === 'open');
+  function toggleDock(show = !dock()) {
+    if (DEMO) return;
+    setDock(show);
+    try { localStorage.setItem('tessera.agent.dock', show ? 'open' : 'closed'); } catch { /* The dock keeps its state for this tab. */ }
+  }
+  const [dockExcluded, setDockExcluded] = createSignal<ReadonlySet<string>>(new Set());
+  const [dockExtra, setDockExtra] = createSignal<ContextChip[]>([]);
+  const contextKey = (ref: ContextRef) => `${ref.page_id}:${ref.block_id ?? ''}`;
+  function addDockContext(ref: ContextRef, title: string) {
+    const key = contextKey(ref);
+    setDockExtra(values => values.some(chip => chip.key === key) ? values : [...values, { key, ref, title, extra: true }]);
+    setDockExcluded(values => { const next = new Set(values); next.delete(key); return next; });
+  }
+  const dockChips = createMemo(() => {
+    const chips: ContextChip[] = [];
+    for (const pane of order()) {
+      if (tabbed() ? pane !== active() : !shown(pane)) continue;
+      const current = entry(pane); const target = current?.target;
+      const pageId = target?.kind === 'page' ? target.pageId : target?.kind === 'reader' ? target.sourceId : undefined;
+      if (!pageId || !current) continue;
+      const zoom = target?.kind === 'page' && 'zoom' in current.view ? current.view.zoom : null;
+      const ref: ContextRef = zoom ? { page_id: pageId, block_id: zoom } : { page_id: pageId };
+      chips.push({ key: contextKey(ref), ref, title: paneName(pane), extra: false });
+    }
+    return [...chips, ...dockExtra()].filter((chip, index, all) => all.findIndex(other => other.key === chip.key) === index);
+  });
+  /** Brings an agent change into view: the pane showing its page, scrolled to the block, or that page opened beside. */
+  function showAgentEdit(pageId: string, blockId?: string) {
+    const pane = order().find(value => pageIdOf(entry(value)) === pageId);
+    const at = blockId ? { scroll: { id: blockId, offset: 0 }, reveal: blockId } : {};
+    if (pane) {
+      const view = entry(pane)!.view as ViewState;
+      setActive(pane); reveal(pane);
+      if (blockId) changeView(pane, { ...view, ...at }, true);
+      focusPane(pane);
+    } else open({ kind: 'page', pageId }, true, active(), blockId ? { zoom: null, caret: null, folds: null, showArchived: false, ...at } as ViewState : undefined);
+    if (!blockId) return;
+    let frames = 0;
+    const flash = () => {
+      const row = document.querySelector<HTMLElement>(`.panes > .pane [data-block-id="${CSS.escape(blockId)}"]`);
+      if (!row) { if (++frames < 60) requestAnimationFrame(flash); return; }
+      row.classList.remove('agent-flash'); void row.offsetWidth; row.classList.add('agent-flash');
+    };
+    requestAnimationFrame(flash);
+  }
+  return <AgentMarks.Provider value={agentMarks}><div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${dock() ? 'has-dock' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`} style={{ '--visual-viewport-height': `${viewport().height}px`, '--visual-viewport-top': `${viewport().top}px`, '--visual-viewport-bottom-gap': `${Math.max(0, window.innerHeight - viewport().bottom)}px` }} onPointerDown={() => { focusEpoch++; }}>
     <header class="global-rail" aria-label="Global navigation" data-tauri-drag-region="deep">
       <div class="rail-start">
         <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebarVisible()} onClick={toggleSidebar} />
@@ -852,6 +914,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <Button class="global-commands" icon="command" label="Commands" shortcut="⌃⇧P" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'commands'} onClick={() => showPalette('commands')} />
       </div>
       <div class="rail-end">
+        <Show when={!DEMO}><Button icon="agent" label="Agent" shortcut="⌃⇧A" aria-pressed={dock()} onClick={() => toggleDock()} /></Show>
         <Button icon="panes" label="Layout" aria-haspopup="menu" aria-expanded={popup()?.kind === 'layout'} onClick={event => setPopup({ kind: 'layout', anchor: event.currentTarget, pane: active() })} />
       </div>
     </header>
@@ -949,6 +1012,13 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <Show when={!order().some(pane => entry(pane)) && !error()}><div class="startup-state">Opening today’s journal…</div></Show>
       <Show when={dragChip()}>{chip => <div class="pane-drag-chip" style={{ transform: `translate(${chip().x + 14}px, ${chip().y + 14}px)` }} aria-hidden="true">{chip().label}</div>}</Show>
     </main>
+    <Show when={dock()}>
+      <AgentDock notebook={notebook} session={agentSession} chips={dockChips()} excluded={dockExcluded()}
+        onToggleChip={key => setDockExcluded(values => { const next = new Set(values); if (!next.delete(key)) next.add(key); return next; })}
+        onRemoveChip={key => setDockExtra(values => values.filter(chip => chip.key !== key))}
+        onShow={showAgentEdit} onOpen={(target, beside) => open(target, beside)}
+        onSettings={() => open({ kind: 'settings', section: 'agent' }, true)} onClose={() => toggleDock(false)} />
+    </Show>
     <SyncLifecycle notebook={notebook} anchor={syncAnchor()} onClose={() => setSyncAnchor(null)} onDevices={deviceId => open({ kind: 'settings', section: 'devices', deviceId })} />
     <SyncCover open={!!syncAnchor()} onOpen={setSyncAnchor} />
     <nav class="bottom-nav" aria-label="Notebook">
@@ -1001,7 +1071,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     <ReferencePreviews notebook={notebook} navigationKey={`${active()}:${order().map(pane => sessions()[pane]?.generation ?? 0).join(':')}`} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
     <Show when={toastShown() && deleted()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setToastHeld(true)} onPointerLeave={() => setToastHeld(false)} onFocusIn={() => setToastHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastHeld(false); }}><Icon name="trash" /><span>{value().label} deleted</span><Button icon="undo" onClick={() => { void restorePage(); }}>Undo</Button><Button icon="close" label="Dismiss deletion notification" onClick={() => setToastShown(false)} /></div>}</Show>
     <NotebookOpening />
-  </div>;
+  </div></AgentMarks.Provider>;
 }
 
 function PageLinks(props: { roots: Block[]; sourceIcons?: boolean; notebook: NotebookClient; activeId?: string; onOpen(target: OpenTarget, beside?: boolean): void }) {

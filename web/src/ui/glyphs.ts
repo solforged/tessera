@@ -10,6 +10,8 @@ export const paths = {
   plus: 'M8 2v12 M2 8h12', close: 'm3 3 10 10 M13 3 3 13',
   more: 'M3 8h.01 M8 8h.01 M13 8h.01',
   sidebar: 'M2 2h12v12H2z M6 2v12', panes: 'M1 2h14v12H1z M8 2v12',
+  // The agent: a four-point star, a light that answers rather than a face.
+  agent: 'M8 1.5 9.6 6.4 14.5 8 9.6 9.6 8 14.5 6.4 9.6 1.5 8 6.4 6.4Z',
   expand: 'M2 6V2h4 M10 2h4v4 M14 10v4h-4 M6 14H2v-4', contract: 'M6 2v4H2 M10 2v4h4 M14 10h-4v4 M2 10h4v4',
   calendar: 'M2 4h12v10H2z M5 2v4 M11 2v4 M2 7h12',
   page: 'M3 1h7l3 3v11H3z M10 1v4h3',

@@ -249,9 +249,24 @@ The Vim mode shows only in the active pane, as a hairline-boxed mono tag of fixe
 
 Every label is six letters, so a mode change never shifts the header.
 
-[Journal headers](surfaces/journal.md) also hold their own previous-day, calendar and next-day controls; these always target the owning pane. Page errors stay under their owning header. Notebook recovery feedback appears once above both panes, so activating a pane cannot move a control between pointer-down and click.
+[Journal headers](surfaces/journal.md) also hold their own previous-day, calendar and next-day controls; these always target the owning pane. Page errors stay under their owning header. Notebook recovery feedback appears once above every pane, so activating a pane cannot move a control between pointer-down and click.
 
 Non-page panes (table, fields, settings, agenda, review, library, reader, index) share the workspace frame.
+
+### Agent dock
+
+The agent dock is a 360 px column right of the workspace, framed like it, so opening beside never pushes it away. The rail's agent glyph, a four-point star in `--agent` (inquiry's steel, never the gilt), or ⌃⇧A shows and hides it; the choice is kept per device. Below 1048 px it lies over the panes as the sidebar does, and below 600 px it takes the screen. It hides in reader full screen and does not exist in the browser demo.
+
+From the top:
+
+1. A header: the glyph, `Agent`, the model in use as a mono menu of the connected models with Agent settings…, and Hide.
+2. Context: a mono line, `Reads N pages · drag links here to add`, over one chip per page in a shown pane (a zoomed pane sends its block). × leaves a pane's page out and strikes its chip through; + takes it back. Links, rows and references dragged onto the dock add chips of their own, whose × removes them.
+3. The thread: `You` and `Agent` in mono over each turn. Your words sit on `--raised`. The agent's text renders references as links. Reading and searching show as faint mono lines (`Read Asabiyya`). Each change it makes is a card with a 2 px `--agent` bar: its page in mono capitals, what it did, then Show, which brings the row into view in its pane or opens the page beside and lights the row once, and Undo. An undone change reads Undone; a refused undo says why under the card.
+4. The composer: three lines, Enter sends and Shift-Enter starts a line; Send turns into Stop while the agent works, and Clear empties the thread when it rests.
+
+With no model connected the thread says `Connect a model` and offers Agent settings. Rows the agent changed carry a 2 px `--agent` bar at the left and the agent glyph in the outside rail, above any backlink count; the glyph opens the change with Undo. Marks last as long as the thread.
+
+Settings › Agent lists the models: name, then mono kind, model and whether a key is saved, and the address. Each has Test, Edit, Remove and Make default. Adding or editing opens a form in place: presets (Anthropic, OpenAI, OpenRouter, Ollama, llama-server) fill the name and address; Speaks chooses Anthropic or OpenAI-compatible; Model is typed as the provider names it; Key is write-only, with Forget the saved key. Models and keys stay on the machine, outside the notebook, its backups and sync.
 
 ### Narrow layouts
 

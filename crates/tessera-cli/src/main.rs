@@ -145,6 +145,7 @@ fn main() -> anyhow::Result<()> {
                 dev_origin: dev_origin.clone(),
                 registry,
                 follows_registry: !explicit_notebook,
+                agent_path: None,
             }))?;
             if let Some(restart) = restart {
                 return reopen(restart, explicit_notebook, assets, dev_origin);

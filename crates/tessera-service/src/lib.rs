@@ -7,6 +7,10 @@
 //! `/api/notebooks` lists known notebooks and switches the service to another one.
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+mod agent;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub mod agent_render;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod assets;
 mod capabilities;
 mod error;
@@ -122,6 +126,8 @@ pub struct Config {
     /// The notebook came from the registry rather than `--notebook`, so a switch also changes
     /// which notebook later starts open.
     pub follows_registry: bool,
+    /// Machine-local provider settings; defaults to the registry's sibling `agent.json`.
+    pub agent_path: Option<PathBuf>,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -155,6 +161,8 @@ pub(crate) struct AppState {
     sync_health: Arc<Mutex<std::collections::HashMap<String, sync::DeviceHealth>>>,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     switcher: Option<Arc<notebooks::Switcher>>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    agent: Arc<agent::Runtime>,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -169,7 +177,7 @@ pub fn router(
     let sync_port = port
         .checked_add(1)
         .ok_or("the sync port needs an explicit value")?;
-    Ok(routers(notebook, port, sync_port, assets, dev_origin, None)?.0)
+    Ok(routers(notebook, port, sync_port, assets, dev_origin, None, None)?.0)
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -180,6 +188,7 @@ fn routers(
     assets: Option<PathBuf>,
     dev_origin: Option<String>,
     switcher: Option<Arc<notebooks::Switcher>>,
+    agent_path: Option<PathBuf>,
 ) -> Result<(Router, Router), String> {
     let policy = security::RequestPolicy::new(port, dev_origin)?;
     let notebook = Arc::new(Mutex::new(notebook));
@@ -199,6 +208,7 @@ fn routers(
         replica: Arc::default(),
         sync_health: Arc::default(),
         switcher,
+        agent: Arc::new(agent::Runtime::new(agent_path)?),
     };
     replica::start(
         state.notebook.clone(),
@@ -243,6 +253,7 @@ fn routers(
         )
         .merge(pairing::editor_routes())
         .merge(notebooks::routes())
+        .merge(agent::routes())
         .layer(middleware::from_fn_with_state(state.clone(), same_notebook))
         .layer(middleware::from_fn_with_state(policy, security::protect))
         .with_state(state);
@@ -263,6 +274,26 @@ pub struct EmbeddedHandles {
 /// hosts deliver changes from [`EmbeddedHandles`]. Natively, call it inside a Tokio runtime.
 /// The browser worker ingests queued uploads before this returns.
 pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), String> {
+    embedded_router_inner(
+        notebook,
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        None,
+    )
+}
+
+/// Build a native embedded router with machine-local provider settings at an explicit path.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub fn embedded_router_with_agent_path(
+    notebook: Notebook,
+    agent_path: PathBuf,
+) -> Result<(Router, EmbeddedHandles), String> {
+    embedded_router_inner(notebook, Some(agent_path))
+}
+
+fn embedded_router_inner(
+    notebook: Notebook,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))] agent_path: Option<PathBuf>,
+) -> Result<(Router, EmbeddedHandles), String> {
     let notebook = Arc::new(Mutex::new(notebook));
     let changes = broadcast::channel(256).0;
     let library = library::Library::start(notebook.clone(), changes.clone(), library::extract)?;
@@ -296,13 +327,17 @@ pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), 
         sync_health: Arc::default(),
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         switcher: None,
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        agent: Arc::new(agent::Runtime::new(agent_path)?),
     };
     let router = notebook_routes()
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
         .fallback(|| async { ApiError::not_found() })
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
-        .merge(library::routes())
-        .with_state(state);
+        .merge(library::routes());
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    let router = router.merge(agent::routes());
+    let router = router.with_state(state);
     Ok((router, handles))
 }
 
@@ -434,6 +469,12 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
     let sync_port = sync_listener.local_addr()?.port();
     ownership.record(Some(port))?;
     let (switch, mut switched) = tokio::sync::watch::channel(None);
+    let agent_path = config.agent_path.or_else(|| {
+        config
+            .registry
+            .as_ref()
+            .map(|registry| registry.path.with_file_name("agent.json"))
+    });
     let switcher = config
         .registry
         .map(|registry| notebooks::Switcher::new(registry, config.follows_registry, switch));
@@ -444,6 +485,7 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
         config.assets,
         config.dev_origin,
         switcher,
+        agent_path,
     )
     .map_err(anyhow::Error::msg)?;
     tracing::info!(url = %format_args!("http://127.0.0.1:{port}"), "service listening");
@@ -1807,6 +1849,7 @@ mod tests {
                 replica: Arc::default(),
                 sync_health: Arc::default(),
                 switcher: None,
+                agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
             });
         let guard = backup.clone().try_lock_owned().unwrap();
         let response = app
@@ -1865,6 +1908,7 @@ mod tests {
                 replica: Arc::default(),
                 sync_health: Arc::default(),
                 switcher: None,
+                agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
             });
         for created_at in 1..=4 {
             let path = backup_directory(&info)

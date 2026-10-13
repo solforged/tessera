@@ -402,6 +402,7 @@ mod tests {
             replica: Arc::default(),
             sync_health: Arc::default(),
             switcher: None,
+            agent: Arc::new(crate::agent::Runtime::new(Some(dir.join("agent.json"))).unwrap()),
         };
         let app = crate::sync::routes()
             .layer(middleware::from_fn_with_state(
