@@ -160,6 +160,10 @@ export interface PageView {
   capabilities?: BlockCapabilities[];
 }
 
+export interface BatchSubtree { id: string; page: Block | null; rows: Row[]; truncated: boolean }
+export interface BatchSubtrees { trees: BatchSubtree[]; truncated: boolean }
+export interface StreamArrival { block: Block; page: Block; anchor_id: string }
+
 /** A block shown with its page: backlinks, search hits and type members. */
 export interface BlockInPage {
   block: Block;

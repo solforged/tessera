@@ -1,0 +1,15 @@
+.outline-embed { min-width: 0; }
+.stream-embed-line { display: flex; align-items: baseline; gap: var(--space-8); }
+.stream-embed-line > .static-text { flex: 1; min-width: 0; }
+.stream-provenance.button, .stream-more.button { flex: none; padding: 0; min-height: var(--target-size); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.stream-provenance.button { max-width: 40%; overflow-wrap: anywhere; text-align: end; }
+.stream-provenance.button:hover, .stream-more.button:hover { color: var(--accent); }
+.stream-embed-children { margin-block: var(--space-4); color: var(--muted); }
+.stream-fact { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; }
+.stream-section-heading { display: flex; align-items: center; gap: var(--space-8); width: 100%; min-height: var(--target-size); margin: 0; padding: 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.stream-day { padding-block: var(--space-8); }
+.stream-day + .stream-day { border-top: var(--rule-width) solid var(--line); }
+.stream-day-heading { margin: 0 0 var(--space-4); font: var(--apparatus); }
+.stream-day-heading > .button { padding: 0; color: var(--muted); font: inherit; }
+.stream-arrival { display: flex; align-items: baseline; gap: var(--space-8); }
+.stream-arrival-text { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }

@@ -149,6 +149,10 @@ Full-text search includes the current labels of canonical references. This index
 
 A page's backlinks cover references to its root and to every block on it, grouped by referring page. Sources on the same page are left out of that list but count towards each block's reference count. Unlinked mentions are blocks elsewhere that contain the page's title or an alias as a whole word, outside references, tags, URLs and code, and do not already link to the page.
 
+A page opts into a stream with the manual `Stream` type or a project capability. Its Arrivals list contains the direct children of journal blocks linking that page, newest journal day first, limited to the last 100 calendar days and 200 children. Filing appends a whole-row reference to the child's ID as one undoable outline edit; the source stays in its journal. Whole-row references anywhere on the stream page exclude those children from Arrivals. The page's ordinary outline order is the filed order.
+
+A whole-row `[[ID]]` reference to a live non-root block renders its current text and read-only descendants, with provenance opening the source. It initially shows 12 descendants and expands in place. Page links and missing targets keep inline-reference rendering. Batch subtree reads accept at most 256 IDs, return preorder rows capped at 200 per ID and 4096 in total, and flag each truncated subtree; these live reads do not change frozen quote semantics.
+
 ### Quotes
 
 A quote is frozen; a reference is live. A block whose whole text is `((ID))` is a quote row. It holds a snapshot of the target and its subtree (text, heading, revision and depth of each row), captured when the quote was made, and records one link to the target so the target's backlinks include it.

@@ -25,6 +25,8 @@ import type {
   QuoteState,
   QuoteStatus,
   Subtree,
+  BatchSubtrees,
+  StreamArrival,
   CardPreviews,
   CardQuery,
   CardQueryResult,
@@ -237,6 +239,8 @@ export interface ApiClient {
   journal(date: string, signal?: AbortSignal): Promise<Block>;
   block(id: string, signal?: AbortSignal): Promise<Block>;
   subtree(id: string, limit?: number, signal?: AbortSignal): Promise<Subtree>;
+  subtrees(ids: readonly string[], signal?: AbortSignal): Promise<BatchSubtrees>;
+  streamArrivals(id: string, signal?: AbortSignal): Promise<StreamArrival[]>;
   quoteSnapshot(id: string, signal?: AbortSignal): Promise<QuoteState>;
   quoteStatus(pageId: string, signal?: AbortSignal): Promise<QuoteStatus[]>;
   capabilities(id: string, signal?: AbortSignal): Promise<BlockCapabilities>;
@@ -358,6 +362,8 @@ export function createApi(base = ''): ApiClient {
     journal: (date: string, signal?: AbortSignal) => get<Block>(`/journal/${segment(date)}`, signal),
     block: (id: string, signal?: AbortSignal) => get<Block>(`/blocks/${segment(id)}`, signal),
     subtree: (id: string, limit = 200, signal?: AbortSignal) => get<Subtree>(`/blocks/${segment(id)}/subtree${query({ limit })}`, signal),
+    subtrees: (ids: readonly string[], signal?: AbortSignal) => request<BatchSubtrees>(base, 'POST', '/blocks/subtrees', { ids, per_id: Math.min(200, Math.floor(4096 / Math.max(1, ids.length))) }, signal),
+    streamArrivals: (id: string, signal?: AbortSignal) => get<StreamArrival[]>(`/pages/${segment(id)}/arrivals`, signal),
     quoteSnapshot: (id: string, signal?: AbortSignal) => get<QuoteState>(`/blocks/${segment(id)}/quote-snapshot`, signal),
     quoteStatus: (pageId: string, signal?: AbortSignal) => get<QuoteStatus[]>(`/pages/${segment(pageId)}/quote-status`, signal),
     capabilities: (id: string, signal?: AbortSignal) => get<BlockCapabilities>(`/blocks/${segment(id)}/capabilities`, signal),

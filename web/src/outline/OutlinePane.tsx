@@ -46,6 +46,7 @@ import { createOutlineInteractions } from './interactions';
 import { createOutlineRows } from './Row';
 import { createOutlineDrag } from './drag';
 import { createOutlineRelated } from './Related';
+import { Arrivals } from './Arrivals';
 import { createFieldSheet } from './field-sheet';
 import { createCapabilityPopups } from './CapabilityPopups';
 import { createRelationActions } from './RelationActions';
@@ -1422,6 +1423,7 @@ function Pane(props: OutlinePaneProps) {
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
     <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
+    <Show when={doc.status() === 'ready' && !zoom() && (doc.root()?.project || doc.root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'))}><Arrivals doc={doc} notebook={props.notebook} onOpen={props.onOpen} onFiled={restoreFocus} /></Show>
     <Show when={doc.status() === 'ready' && (mentionsAvailable() || relatedError() || (related()?.total ?? 0) + (related()?.tagged.length ?? 0) + (related()?.held.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
       <Show when={related()?.held.length}><Related title="Perspectives held" rows={related()?.held ?? []} relations /></Show>
       <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} relations /></Show>

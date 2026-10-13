@@ -323,6 +323,8 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/journal/{date}", get(journal))
         .route("/api/blocks/{id}", get(block))
         .route("/api/blocks/{id}/subtree", get(subtree))
+        .route("/api/blocks/subtrees", post(subtrees))
+        .route("/api/pages/{id}/arrivals", get(stream_arrivals))
         .route("/api/blocks/{id}/quote-snapshot", get(quote_snapshot))
         .route("/api/pages/{id}/quote-status", get(quote_status))
         .route("/api/blocks/{id}/backlinks", get(backlinks))
@@ -937,6 +939,45 @@ async fn subtree(
     run(&state, move |notebook| notebook.subtree(&id, query.limit))
         .await
         .map(Json)
+}
+
+#[derive(Deserialize)]
+struct SubtreesRead {
+    ids: Vec<String>,
+    #[serde(default = "subtree_rows")]
+    per_id: usize,
+    #[serde(default = "subtree_total")]
+    total: usize,
+}
+fn subtree_rows() -> usize {
+    200
+}
+fn subtree_total() -> usize {
+    4096
+}
+
+async fn subtrees(
+    State(state): State<AppState>,
+    body: Result<Json<SubtreesRead>, JsonRejection>,
+) -> Result<Json<tessera_core::BatchSubtrees>, ApiError> {
+    let Json(body) = body.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.subtrees(&body.ids, body.per_id, body.total)
+    })
+    .await
+    .map(Json)
+}
+
+async fn stream_arrivals(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<tessera_core::StreamArrival>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| {
+        notebook.stream_arrivals(&id, &notebook.today(tessera_core::now_ms())?, 100, 200)
+    })
+    .await
+    .map(Json)
 }
 
 async fn quote_snapshot(

@@ -12,6 +12,7 @@ import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
 import type { Action, Command, Compiled, NotebookCommand, PageCommand, Ticket } from './types';
 import { emptyCapabilities, isCapabilityAction, questionStatus, sameState, sourceState } from './types';
+import { SubtreeCache } from './subtrees';
 export type { NotebookClient, PageDocument, BlockState, Caret, Edit, EditResult, SaveState } from './contract';
 
 export interface NotebookOptions {
@@ -41,6 +42,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private warm: string[] = [];
   private cache = new Map<string, [Accessor<Block | null | undefined>, (value: Block | null | undefined) => Block | null | undefined]>();
   private failedLookups = new Set<string>();
+  private subtreeCache: SubtreeCache;
   private queue: Command[] = [];
   private tickets = new Map<string, Ticket>();
   private notebookId = '';
@@ -106,6 +108,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   canRedoSetting = () => { this.revision[0](); return !this.settingsBusy() && this.settingRedo.length > 0; };
   constructor(private options: NotebookOptions = {}) {
     this.api = createApi(options.baseUrl);
+    this.subtreeCache = new SubtreeCache(this.api, block => this.publish(block, block.id, false, true));
     const roots = createSignal<readonly Block[]>([]);
     this.roots = roots[0];
     this.setRoots = roots[1];
@@ -278,14 +281,20 @@ export class Notebook implements NotebookClient, DocumentHost {
     void this.outbox?.capabilities([view.root, ...view.rows.map(row => row.block)].map(block => capabilities.get(block.id) ?? emptyCapabilities(block.id)), this.snapshotSequence.get(view) ?? 0).catch(() => undefined);
     void this.outbox?.page(view, this.snapshotSequence.get(view) ?? 0, this.snapshotCursor.get(view)).catch(() => undefined);
   }
-  publish(block: Block | null, id = block?.id, force = false) {
+  publish(block: Block | null, id = block?.id, force = false, fromSubtree = false) {
     if (!id) return;
     if (block && block.kind !== 'block') {
       const doc = this.docs.get(id);
       const root = doc?.root();
       if (root?.pending && block.revision <= root.revision) block = doc!.snapshot(id);
     }
+    if (!fromSubtree) this.subtreeCache.changed(block, id);
     const entry = this.cache.get(id);
+    // A read started before a local edit/deletion must not replace that publication.
+    if (fromSubtree) {
+      const current = entry?.[0]();
+      if (current === null || current && block && current.revision >= block.revision) return;
+    }
     if (entry) {
       const current = entry[0]();
       if (force || !block || !current || block.revision >= current.revision) entry[1](block);
@@ -327,6 +336,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       else this.failedLookups.add(id);
     });
   }
+  watchSubtree(id: string) { return this.subtreeCache.watch(id); }
   private retryLookups() {
     for (const id of this.failedLookups) {
       this.failedLookups.delete(id);
@@ -1626,6 +1636,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   async dispose() {
     this.closed = true;
+    this.subtreeCache.dispose();
     clearTimeout(this.timer);
     clearTimeout(this.reconnectTimer);
     this.socket?.close();

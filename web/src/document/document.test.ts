@@ -19,6 +19,7 @@ import { sourceReadingOrder } from '../library/source-order';
 import { clipboardText, parseBlockClipboard } from './clipboard';
 import { linkMentionEdit } from './link-mention';
 import { positionRelations, readingPassages } from '../outline/perspectives';
+import { embedTarget, fileArrival } from '../outline/streams';
 
 const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -3310,5 +3311,32 @@ test('removing an accepted answer and question undo restores both invariants', a
   await doc.flush();
   expect((await api.capabilities(first)).question?.state.accepted).toBeNull();
   expect((await api.capabilities(answer)).assessment).toBeNull();
+  doc.release();
+});
+
+test('filing a stream arrival is one outline edit and undo restores exclusion', async () => {
+  const instance = await client();
+  const { doc } = await page(instance, 'Existing outline');
+  const journal = await instance.journal(instance.todayDate());
+  const anchor = ulid(), child = ulid();
+  await instance.commit([
+    { op: 'insert', id: anchor, parent_id: journal, after: null, text: `Notes for [[${doc.pageId}]]`, heading: null },
+    { op: 'insert', id: child, parent_id: anchor, after: null, text: 'Live arrival', heading: null },
+  ]);
+  expect((await api.streamArrivals(doc.pageId)).map(row => row.block.id)).toContain(child);
+  const before = ids(doc);
+  const filed = success(fileArrival(doc, child)).created[0]!;
+  expect(ids(doc)).toEqual([...before, filed]);
+  expect(embedTarget(doc.block(filed)!.text)).toBe(child);
+  await doc.flush();
+  expect((await api.streamArrivals(doc.pageId)).map(row => row.block.id)).not.toContain(child);
+  doc.undo();
+  expect(ids(doc)).toEqual(before);
+  await doc.flush();
+  expect((await api.streamArrivals(doc.pageId)).map(row => row.block.id)).toContain(child);
+  doc.redo();
+  await doc.flush();
+  expect((await api.streamArrivals(doc.pageId)).map(row => row.block.id)).not.toContain(child);
+  expect((await api.block(child)).parent_id).toBe(anchor);
   doc.release();
 });

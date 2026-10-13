@@ -26,6 +26,8 @@ import { quoteTarget, textTokens } from '../document/text-tokens';
 import { Quote, createQuoteStatus } from './Quote';
 import { relationLabels } from './relations';
 import { QuestionParent, questionLabels } from './Questions';
+import { Embed } from './Embed';
+import { embedTarget } from './streams';
 
 export function createOutlineRows(context: Pick<OutlineContext,
   | 'doc' | 'capabilities' | 'setMenu' | 'investigationItems' | 'definitionsById' | 'contextDate'
@@ -109,6 +111,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const block = () => doc.block(id());
     const children = () => doc.outline.children(id()).length > 0;
     const target = createMemo(() => quoteTarget(block()?.text ?? ''));
+    const embed = createMemo(() => embedTarget(block()?.text ?? ''));
     const field = createMemo(() => definitionsById().get(fieldEntryId(block()?.text ?? '') ?? ''));
     const parent = () => doc.outline.parentOf(id());
     const valueField = createMemo(() => definitionsById().get(fieldEntryId(doc.block(parent())?.text ?? '') ?? ''));
@@ -166,6 +169,9 @@ export function createOutlineRows(context: Pick<OutlineContext,
     let row!: HTMLDivElement;
     onMount(() => virtualizer.measureElement(row));
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
+    function StaticText() {
+      return <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceClick={(token, anchor) => { if (!block()?.position || token.id !== block()?.position?.holder_id || token.start !== textTokens(block()?.text ?? '').find(value => value.kind === 'reference')?.start) return false; context.openRelation(id(), 'holder', anchor); return true; }} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)} /></Show><Show when={!block()?.text && !inline() && ids().length === 1}><span class="empty-block">Start writing</span></Show></div>;
+    }
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.item().index} data-block-id={id()} role="treeitem" aria-level={depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
       class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
@@ -207,9 +213,8 @@ export function createOutlineRows(context: Pick<OutlineContext,
               <Show when={block()?.text}><BlockText text={displayText()} notebook={props.notebook} interactive={false} /></Show>
             </button></div>
           </Match>
-          <Match when>
-            <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} notebook={props.notebook} onOpen={props.onOpen} onReferenceClick={(token, anchor) => { if (!block()?.position || token.id !== block()?.position?.holder_id || token.start !== textTokens(block()?.text ?? '').find(value => value.kind === 'reference')?.start) return false; context.openRelation(id(), 'holder', anchor); return true; }} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)} /></Show><Show when={!block()?.text && !inline() && ids().length === 1}><span class="empty-block">Start writing</span></Show></div>
-          </Match>
+          <Match when={embed()}><Show keyed when={embed()}>{target => <Embed target={target} notebook={props.notebook} onOpen={props.onOpen} fallback={<StaticText />} />}</Show></Match>
+          <Match when><StaticText /></Match>
         </Switch></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRestoreFocus={restoreFocus} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         </div>

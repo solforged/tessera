@@ -22,6 +22,7 @@ import type { ApiClient } from '../api/client';
 import type { CardTemplate, CardTemplateState } from '../api/types';
 import type { BlockCapabilities } from '../api/types';
 
+import type { LiveSubtree } from './subtrees';
 /** A position in a block's text, in UTF-16 code units. */
 export interface Caret {
   id: string;
@@ -372,6 +373,8 @@ export interface NotebookClient {
    * null when it does not exist or is deleted. Follows local and remote edits.
    */
   lookup(id: string): Accessor<Block | null | undefined>;
+  /** A mounted live subtree; concurrent subscriptions share a bounded batch read. */
+  watchSubtree(id: string): LiveSubtree;
   /** Change stream state. */
   connection(): 'connecting' | 'live' | 'offline';
   /** Worst save state across open documents, plus outbox items for closed ones. */
