@@ -68,11 +68,13 @@ export interface ViewState {
   compare?: CompareViewState;
   /** Set only by an open that names `caretId`: the pane starts editing at the caret instead of selecting its row. Never reported back, so history does not re-enter editing. */
   edit?: boolean;
+  /** One-shot reveal highlight; caret and scroll retain the location after this is consumed. Never persisted. */
+  reveal?: string;
 }
 
 export type OpenTarget =
-  /** `blockId` zooms; `caretId` (default `blockId`) receives the caret at `caretOffset` (default 0). */
-  | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number; journalPeriod?: 'week' | 'month' | 'quarter' | 'year' }
+  /** `blockId` zooms; `caretId` (default `blockId`) receives the caret at `caretOffset` (default 0). `readAt` opens unzoomed in Read and reveals that reading without editing. */
+  | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number; readAt?: string; journalPeriod?: 'week' | 'month' | 'quarter' | 'year' }
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
   | { kind: 'agenda'; date?: string; mode?: AgendaViewState['mode']; viewId?: string; query?: TaskQuery }
   /** `blockId` starts a review of that block's cards. */
@@ -120,6 +122,7 @@ export interface OutlinePaneProps {
   view: ViewState;
   projection?: PageProjection;
   onProjection?(projection: PageProjection): void;
+  projectionReason?(projection: PageProjection): string | undefined;
   onViewChange(view: ViewState): void;
   onDelete?(anchor: HTMLElement): void;
   /** Open a page or block, here or in the other pane. */

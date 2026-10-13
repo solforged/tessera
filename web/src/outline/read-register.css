@@ -18,6 +18,7 @@
 .reading-register-actions .button, .reading-disclosures .button { font: inherit; padding: 0; min-height: var(--line-control); }
 .reading-slips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-8) var(--space-24); }
 .reading-slip { min-width: 0; border-top: var(--rule-width) solid var(--line); padding-top: var(--space-4); }
+.outline-pane .reading-reveal, .related-block.reading-reveal { outline: var(--rule-width) solid var(--accent); }
 .reading-holder .outline-row { padding: 0; min-height: var(--line-control); }
 .reading-holder .outline-source { font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
 .reading-register .reading-holder .outline-row > .row-sigla { position: static; flex-direction: row; margin-right: var(--space-8); }
@@ -47,6 +48,7 @@
 .reading-question-holders { display: flex; flex-wrap: wrap; gap: var(--space-8); color: var(--faint); font: var(--apparatus); }
 .page-projection-tabs { flex: none; margin: 0; }
 .page-projection-tabs button { padding-inline: var(--space-4); }
+.page-projection-reason { flex: none; margin: 0; padding: var(--space-4) var(--pane-inset); color: var(--muted); font: var(--apparatus); }
 .projection-compare { display: none; }
 .embedded-comparison { display: flex; flex: 1; min-height: 0; }
 .section-navigator { flex: none; height: var(--row-height); width: calc(100% - var(--pane-inset) * 2); max-width: var(--measure); margin-inline: auto; background: var(--canvas); }

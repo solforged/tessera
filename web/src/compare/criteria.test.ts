@@ -18,6 +18,13 @@ test('blank values do not repeat and internal whitespace remains authored', () =
   expect(exactRepeats(['field'], ['a', 'b'], id => id === 'a' ? 'rise\nand fall' : 'rise and fall')).toEqual([]);
 });
 
+test('reference repeats retain authored identity rather than matching their display labels', () => {
+  const values: Record<string, string> = { a: '[[option-one|circle]]', b: '[[option-one|circle]]', c: '[[option-two|circle]]' };
+  expect(exactRepeats(['shape'], Object.keys(values), id => values[id]!)).toEqual([
+    { number: 1, criterion: 'shape', text: '[[option-one|circle]]', positions: ['a', 'b'] },
+  ]);
+});
+
 test('question focus keeps all readings by named holders, not one column per holder', () => {
   const rows = [
     { holder_id: 'polybius', block: { block: { id: 'reading-one' } } },

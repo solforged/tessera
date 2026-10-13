@@ -4,7 +4,7 @@ A concept page holds several attributed readings. Questions and answers mark aut
 
 ## Page projections
 
-Titled pages share one document across Read, Outline and Compare. The pane header switches them in place; Commands offers Read, Outline and Compare readings. The choice is remembered for each page on this device. Switching does not create blocks or a navigation entry.
+Titled pages share one document across Read, Outline and Compare. The pane header switches them in place; Commands offers Read, Outline and Compare readings. The choice is remembered for each page on this device. At the page level, switching creates no blocks or navigation entry.
 
 Question pages and pages holding active readings about themselves or their inline questions open in Read. Other pages keep their ordinary outline. Outline keeps its Plex editor, depth dial and Show bullets option; `[` and `]` change depth only there.
 
@@ -104,7 +104,9 @@ Each column heads with the siglum in mono, the holder in 18 px Piazzolla and the
 
 Cells are the positions' own values. Enter or a click edits one in place, an empty cell offers Add on hover or focus, and both are undoable edits of the position's page.
 
-Cells use the outline's CodeMirror block editor, including paired references, completion, Unicode and composition. Enter commits, Shift-Enter adds a newline and Escape cancels. Saving resolves hand-typed `[[Title]]` references by title or alias, retaining the authored spelling, as in the outline. Shared names stay unlinked rather than choosing a page.
+Choice and Instance cells use the field bed's option and page pickers, writing references to the chosen targets. Readable and empty Date cells open the calendar; unreadable dates stay editable as written. Checkbox cells toggle with a click or Space.
+
+Span and other text cells use the outline's CodeMirror block editor, including paired references, completion, Unicode and composition. Spans keep their written historical notation. Enter commits, Shift-Enter adds a newline and Escape cancels. Saving resolves hand-typed `[[Title]]` references by title or alias, retaining the authored spelling, as in the outline. Shared names stay unlinked rather than choosing a page.
 
 A whole-cell `((` choice captures the same frozen quote as the outline, with `((ID))` text and dated Quote attribution. Inline `((` inserts a live reference. Quote text, snapshot and any missing field structure commit together; undo and redo preserve the snapshot.
 
@@ -112,7 +114,7 @@ Draft undo and redo remain inside the open cell until commit. A committed edit b
 
 Enter and Escape return focus to the same criterion cell. Reloading the joined position data keeps that cell's identity, so an immediate undo chord works without refocusing the sheet. Leaving by clicking another control keeps focus on that control.
 
-Two or more cells in a row with exactly the same text get a numbered `≡ 1 · exact repeat` mark and a footnote naming the sigla; nothing else is marked.
+Two or more cells in a row with exactly the same authored text get a numbered `≡ 1 · exact repeat` mark and a footnote naming the sigla; nothing else is marked. References in the footnote show their current labels. The comparison still uses the stored text and target identity.
 
 ### Questions and criteria editing
 
@@ -125,6 +127,10 @@ Derived criteria exclude Gist, Work and Account. Work attributes the primary wor
 ## Position dossier
 
 Zooming into a position replaces the concept's title with holder · Gist, then Work and an `on Subject` link. Only backlinks to that block and its incoming relations appear; page-level backlinks, unlinked mentions and the apparatus stay out of the dossier.
+
+Read in a position dossier opens its titled subject page without the zoom, brings the reading into view and briefly marks its slip. A reading filed elsewhere opens its subject's Perspectives filed elsewhere section instead. The resulting Read projection and location survive reload. Header and Commands use the same action.
+
+Other block zooms show Read unavailable with a visible reason and a way back to the full page. A reading whose subject is a journal explains that Read needs a titled subject, with File under as the way to choose one.
 
 Other block zooms also show only their own incoming links, under Linked to this block. Position reference previews lead with Gist and authored argument rather than field scaffolding.
 

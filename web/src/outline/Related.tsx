@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
 import type { Block, Mention, ReferenceGroup } from '../api/types';
 import { api } from '../api/client';
 import { loadWorks } from '../library/PersonWorks';
@@ -24,6 +24,15 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   let countRequest: AbortController | undefined;
   const relatedVersion = createSettledChanges(props.notebook);
   const version = () => `${props.pageId}:${relatedVersion()}:${props.notebook.connection() === 'live'}:${isVirtualJournal(doc.root())}:${!!doc.root()?.question}`;
+  const subjects = createMemo(() => {
+    doc.outline.version(); doc.archivedVersion();
+    const ids = [props.pageId];
+    for (let at = 0; at < doc.outline.size(); at++) {
+      const id = doc.outline.idAt(at);
+      if (doc.block(id)?.question && !doc.isArchived(id)) ids.push(id);
+    }
+    return ids.join(',');
+  });
   onCleanup(() => { relatedRequests?.abort(); countRequest?.abort(); });
   const [counts] = createResource(version, async () => {
     countRequest?.abort();
@@ -31,20 +40,21 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     return readJournalRelated(api.referenceCounts(props.pageId, countRequest.signal), doc.root(), []);
   });
   const countById = createMemo(() => new Map((counts.error ? [] : counts() ?? []).map(row => [row.block_id, row.count])));
-  const [relatedResource] = createResource(() => `${version()}:${limit()}:${!!doc.root()?.source}`, async () => {
+  const [relatedResource] = createResource(() => `${version()}:${limit()}:${!!doc.root()?.source}:${subjects()}`, async () => {
     relatedRequests?.abort();
     const requests = relatedRequests = new AbortController();
     const sourcePage = !!doc.root()?.source;
-    const [references, tagged, held, about, passages, branches] = await Promise.all([
+    const [references, tagged, held, aboutSubjects, passages, branches] = await Promise.all([
       readJournalRelated(api.pageReferences(props.pageId, sourcePage ? Number.MAX_SAFE_INTEGER : limit(), requests.signal), doc.root(), { total: 0, groups: [] }),
       api.members(props.pageId, undefined, requests.signal),
       api.positions({ holder: props.pageId }, requests.signal),
-      api.positions({ subject: props.pageId }, requests.signal),
+      Promise.all(subjects().split(',').map(subject => api.positions({ subject }, requests.signal))),
       sourcePage ? api.highlights({ source_id: props.pageId, limit: Number.MAX_SAFE_INTEGER }, requests.signal) : undefined,
       doc.root()?.question ? api.questions({ parent: props.pageId }, requests.signal) : Promise.resolve([]),
     ]);
+    const about = [...new Map(aboutSubjects.flatMap(result => result.rows).map(row => [row.block.block.id, row])).values()];
     // A position links its holder and often its subject, so it shows once, as a perspective, not again as a backlink.
-    const positions = new Set([...held.rows, ...about.rows].map(row => row.block.block.id));
+    const positions = new Set([...held.rows, ...about].map(row => row.block.block.id));
     const branchIds = new Set(branches.map(row => row.block.block.id));
     const rootLinks = references.groups.flatMap(group => group.sources.filter(row => row.targets.includes(props.pageId)).map(row => ({ source: row.source, page: group.page })));
     const works = await loadWorks(api, props.pageId, rootLinks, requests.signal);
@@ -84,13 +94,14 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       tagged,
       held: held.rows.map(row => row.block),
       heldReadings: held.rows,
-      // Perspectives on this page filed elsewhere, such as under a highlight on a source page.
-      about: about.rows.filter(row => row.block.page.id !== props.pageId).map(row => row.block),
-      aboutHolders: about.rows.filter(row => row.block.page.id !== props.pageId).map(row => row.holder_id),
+      // Readings filed under this page or its inline questions, but authored on another page.
+      about: about.filter(row => row.block.page.id !== props.pageId).map(row => row.block),
+      aboutHolders: about.filter(row => row.block.page.id !== props.pageId).map(row => row.holder_id),
     };
   });
   const related = createMemo(() => relatedResource.error ? undefined : relatedResource());
   const relatedError = createMemo(() => relatedResource.error);
+  const relatedLoading = createMemo(() => relatedResource.loading);
   /** Holders of the perspectives filed under this page, here or elsewhere, each once, in page order. */
   const holders = createMemo(() => {
     const seen: string[] = [];
@@ -219,14 +230,21 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       </Show>
     </details>;
   }
-  function Related(propsRelated: { title: string; rows: { block: Block; page: Block }[]; relations?: boolean }) {
+  function Related(propsRelated: { title: string; rows: { block: Block; page: Block }[]; relations?: boolean; revealId?: string; expanded?: boolean; onExpanded?(expanded: boolean): void }) {
     const [open, setOpen] = createSignal(false);
-    return <details class="related-section" onToggle={event => setOpen(event.currentTarget.open)}><summary>{propsRelated.title} <span>{relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span></summary>
-      <Show when={open()}>
+    const expanded = createMemo(() => propsRelated.expanded ?? open());
+    const revealId = createMemo(() => propsRelated.rows.some(row => row.block.id === propsRelated.revealId) ? propsRelated.revealId : undefined);
+    createEffect(() => { if (revealId()) { setOpen(true); propsRelated.onExpanded?.(true); } });
+    return <details class="related-section" open={expanded()} onToggle={event => {
+      const next = event.currentTarget.open;
+      setOpen(next);
+      if (next !== propsRelated.expanded) propsRelated.onExpanded?.(next);
+    }}><summary>{propsRelated.title} <span>{relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span></summary>
+      <Show when={expanded()}>
       <Show when={!relatedError()} fallback={<p role="alert">Couldn't load related blocks.</p>}>
       <For each={propsRelated.rows}>{result => {
         const live = props.notebook.lookup(result.block.id);
-        return <div class="related-block"><div class="related-open" role="link" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey)}>
+        return <div class="related-block" data-reading-id={propsRelated.relations ? result.block.id : undefined}><div class="related-open" role="link" tabIndex={0} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, event.shiftKey)}>
           <span class="related-breadcrumb"><BlockBreadcrumb block={result.block} notebook={props.notebook} /></span>
           <BlockText text={live()?.text ?? result.block.text} notebook={props.notebook} interactive={false} />
         </div><button type="button" class="text-button" onClick={() => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, true)}>Open beside</button><Show when={propsRelated.relations}><IncomingRelations target={result.block.id} version={relatedVersion()} notebook={props.notebook} onOpen={props.onOpen} /></Show></div>;
@@ -235,5 +253,5 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       </Show>
     </details>;
   }
-  return { related, relatedError, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations };
+  return { related, relatedError, relatedLoading, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations };
 }

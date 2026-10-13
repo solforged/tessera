@@ -181,6 +181,9 @@ function Pane(props: OutlinePaneProps) {
   let focusRestoresPending = 0;
   let reportingFrame = 0;
   let scrollSettle = 0;
+  const [pendingReadAnchor, setPendingReadAnchor] = createSignal<ViewState['scroll']>(null);
+  let revealTimer = 0;
+  let revealedReading: HTMLElement | null = null;
   let anchorFrame = 0;
   const [scrollAnchor, setScrollAnchor] = createSignal<ViewState['scroll']>(null);
   let scrollReveal: { id: string; epoch: number; caret: boolean } | null = null;
@@ -223,6 +226,7 @@ function Pane(props: OutlinePaneProps) {
 
   const contextDate = () => doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate();
   const rowAnchor = (id: string) => id === props.pageId ? heading ?? null : hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null;
+  const readingAnchor = (id: string) => scroll?.querySelector<HTMLElement>(`[data-reading-id="${CSS.escape(id)}"]`) ?? rowAnchor(id);
   const capabilities = createOutlineCapabilities({ doc, notebook: props.notebook, contextDate, caret, anchor: rowAnchor, onOpen: props.onOpen });
 
   const fieldConversion = createFieldEntryConversion({
@@ -514,16 +518,17 @@ function Pane(props: OutlinePaneProps) {
     if (!scroll || !list) return null;
     const viewport = scroll.getBoundingClientRect();
     let anchor: ViewState['scroll'] = null;
-    for (const candidate of list.querySelectorAll<HTMLElement>('[data-block-id]')) {
+    const rows = reading() ? scroll.querySelectorAll<HTMLElement>('[data-reading-id], [data-block-id]') : list.querySelectorAll<HTMLElement>('[data-block-id]');
+    for (const candidate of rows) {
       const rect = candidate.getBoundingClientRect();
       const offset = rect.top - viewport.top;
-      if (rect.bottom > viewport.top + 1 && (!anchor || offset < anchor.offset)) anchor = { id: candidate.dataset.blockId!, offset };
+      if (rect.bottom > viewport.top + 1 && (!anchor || offset < anchor.offset)) anchor = { id: candidate.dataset.readingId ?? candidate.dataset.blockId!, offset };
     }
     return anchor;
   }
   function report() {
-    if (restoring || disposed || props.projection === 'compare') return;
-    props.onViewChange({ ...props.view, zoom: zoom(), folds: [...folds()], showArchived: showArchived(), depth: depth(), sourceFieldsVisible: sourceFieldsVisible(), readDisclosures: [...readDisclosures()], caret: caret(), scroll: currentAnchor() });
+    if (restoring || disposed || props.projection === 'compare' || reading() && pendingReadAnchor()) return;
+    props.onViewChange({ ...props.view, reveal: undefined, zoom: zoom(), folds: [...folds()], showArchived: showArchived(), depth: depth(), sourceFieldsVisible: sourceFieldsVisible(), readDisclosures: [...readDisclosures()], caret: caret(), scroll: currentAnchor() });
   }
   function scheduleReport() {
     cancelAnimationFrame(reportingFrame);
@@ -583,7 +588,7 @@ function Pane(props: OutlinePaneProps) {
     measureRows();
     const bounds = scroll.getBoundingClientRect();
     const anchor = scrollAnchor();
-    const row = anchor && indices().has(anchor.id) ? rowAnchor(anchor.id) : null;
+    const row = anchor ? reading() ? readingAnchor(anchor.id) : rowAnchor(anchor.id) : null;
     const maximum = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
     let offset = Math.max(0, Math.min(maximum, before + (row && anchor ? row.getBoundingClientRect().top - bounds.top - anchor.offset : 0)));
     const request = scrollReveal;
@@ -616,9 +621,23 @@ function Pane(props: OutlinePaneProps) {
     scheduleScroll();
   }, { defer: true }));
   function restoreAnchor(anchor: ViewState['scroll']) {
-    if (!anchor || !indices().has(anchor.id) || disposed) return;
+    if (!anchor || disposed || !indices().has(anchor.id) && !(reading() && readingAnchor(anchor.id))) return;
     setScrollAnchor({ ...anchor });
     scheduleScroll();
+  }
+  function restoreInitialAnchor() {
+    if (reading()) setPendingReadAnchor(initial.scroll);
+    else restoreAnchor(initial.scroll);
+  }
+  function highlightReading(id: string) {
+    clearTimeout(revealTimer);
+    revealedReading?.classList.remove('reading-reveal');
+    revealedReading = readingAnchor(id);
+    revealedReading?.classList.add('reading-reveal');
+    revealTimer = window.setTimeout(() => {
+      revealedReading?.classList.remove('reading-reveal');
+      revealedReading = null;
+    }, 1500);
   }
   function anchored(change: () => void) {
     if (!scrollAnchor()) setScrollAnchor(currentAnchor());
@@ -1220,7 +1239,7 @@ function Pane(props: OutlinePaneProps) {
     reveal: owner => setRevealedFields(previous => { const next = new Set(previous); next.has(owner) ? next.delete(owner) : next.add(owner); return next; }),
   });
   const drag = createOutlineDrag(context);
-  const { related, relatedError, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations } = createOutlineRelated(context);
+  const { related, relatedError, relatedLoading, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations } = createOutlineRelated(context);
   const holderBoundary = createMemo(() => !zoom() && related()?.heldReadings.length
     ? ids().find(id => doc.outline.parentOf(id) === props.pageId && !!doc.block(id)?.heading) : undefined);
   const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, RowRelations, openValueEditor,
@@ -1228,6 +1247,7 @@ function Pane(props: OutlinePaneProps) {
   const { CapabilityPopups } = createCapabilityPopups(context);
   const projectSummary = createProjectSummary({ doc, notebook: props.notebook, date: contextDate, onOpen: props.onOpen, onEdit: anchor => capabilities.open(props.pageId, 'project', anchor) });
   createEffect(on(() => props.projection, () => {
+    if (props.projection !== 'read') setPendingReadAnchor(null);
     if (!scroll || restoring || props.projection === 'compare') return;
     const anchor = props.view.scroll;
     if (anchor) revealRow(anchor.id);
@@ -1345,15 +1365,16 @@ function Pane(props: OutlinePaneProps) {
         if (id && initial.edit) {
           editAt(id, saved!.offset, !props.vim, !initial.scroll, true);
           scheduleReport();
-          if (initial.scroll) restoreAnchor(initial.scroll);
+          if (initial.scroll) restoreInitialAnchor();
           return;
         }
         setEditing(null);
         setSelected(id);
-        setCaret(id ? { id, offset: id === saved?.id ? saved.offset : 0 } : null);
+        // A foreign reading is selected through Related, not mounted as an editor in this document.
+        setCaret(id ? { id, offset: id === saved?.id ? saved.offset : 0 } : reading() && saved && !doc.block(saved.id) ? saved : null);
         if (props.active) scroll.focus({ preventScroll: true });
         scheduleReport();
-        if (initial.scroll) restoreAnchor(initial.scroll);
+        if (initial.scroll) restoreInitialAnchor();
         return;
       }
       if (journalPeriod) {
@@ -1389,8 +1410,29 @@ function Pane(props: OutlinePaneProps) {
         if (props.active) scroll.focus({ preventScroll: true });
         scheduleReport();
       } else if (first) editAt(first.id, first.offset, !props.vim, !initial.scroll, false);
-      if (initial.scroll) restoreAnchor(initial.scroll);
+      if (initial.scroll) restoreInitialAnchor();
     }
+  });
+  createEffect(() => {
+    const anchor = pendingReadAnchor();
+    if (!anchor || !reading() || doc.status() !== 'ready' || !sourceReady() || fields.loading || positionQuestions.loading || relatedLoading()) return;
+    if (!doc.block(anchor.id) && !related() && !relatedError()) return;
+    untrack(() => revealRow(anchor.id));
+    // Related readings and register fields mount asynchronously. Keep the requested location until
+    // their existing presentation is ready, then hand the anchor to the common scroll settler.
+    const frame = requestAnimationFrame(() => {
+      if (disposed || !reading()) return;
+      if (readingAnchor(anchor.id)) {
+        restoreAnchor(anchor);
+        if (initial.reveal === anchor.id) highlightReading(anchor.id);
+      } else {
+        if (caret()?.id === anchor.id && !doc.block(anchor.id)) setCaret(null);
+        if (initial.reveal === anchor.id) setMessage('This reading is no longer available on its subject page.');
+      }
+      setPendingReadAnchor(null);
+      scheduleReport();
+    });
+    onCleanup(() => cancelAnimationFrame(frame));
   });
   createEffect(() => {
     const id = editing(), text = id ? doc.block(id)?.text : undefined;
@@ -1433,6 +1475,8 @@ function Pane(props: OutlinePaneProps) {
     editor?.destroy();
     cancelAnimationFrame(reportingFrame);
     clearTimeout(scrollSettle);
+    clearTimeout(revealTimer);
+    revealedReading?.classList.remove('reading-reveal');
     cancelScroll();
   });
 
@@ -1587,7 +1631,10 @@ function Pane(props: OutlinePaneProps) {
     <Show when={!zoom()}><projectSummary.LinkedTasks /></Show>
     <Show when={doc.status() === 'ready' && !zoom() && (doc.root()?.project || doc.root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'))}><Arrivals doc={doc} notebook={props.notebook} onOpen={props.onOpen} onFiled={restoreFocus} /></Show>
     <Show when={doc.status() === 'ready' && !zoom() && (mentionsAvailable() || relatedError() || (related()?.total ?? 0) + (related()?.tagged.length ?? 0) + (related()?.about.length ?? 0) > 0)}><div class="related-sections">
-      <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} relations /></Show>
+      <Show when={related()?.about.length}><Related title="Perspectives filed elsewhere" rows={related()?.about ?? []} revealId={reading() ? pendingReadAnchor()?.id ?? props.view.scroll?.id : undefined} expanded={readDisclosures().has('related:positions')} onExpanded={expanded => {
+        setReadDisclosures(previous => { const next = new Set(previous); expanded ? next.add('related:positions') : next.delete('related:positions'); return next; });
+        scheduleReport();
+      }} relations /></Show>
       <Show when={doc.root()?.source}><Backlinks cited /></Show>
       <Show when={doc.root()?.source || relatedError() || related()?.total}><Backlinks /></Show>
       <Show when={mentionsAvailable()}><UnlinkedMentions /></Show>

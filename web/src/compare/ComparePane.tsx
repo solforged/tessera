@@ -166,7 +166,7 @@ export function ComparePane(props: ComparePaneProps) {
               <Show when={!focusedQuestion()}><Button aria-expanded={chooseHolders()} onClick={() => setChooseHolders(value => !value)}>Choose readings</Button></Show>
               <Button onClick={event => setCriteriaEditor(event.currentTarget)}>Edit criteria</Button>
             </div>
-            <CriteriaMatrix rows={selected().map(item => item.row)} allRows={rows()} criteria={result()?.criteria.fields ?? []} questions={result()?.questions ?? []} focusedCriterion={focusedQuestion()?.criterion ?? null} onFocusQuestion={id => focusQuestion(id)} notebook={props.notebook} docs={docs()} fieldName={fieldName}
+            <CriteriaMatrix rows={selected().map(item => item.row)} allRows={rows()} criteria={result()?.criteria.fields ?? []} questions={result()?.questions ?? []} focusedCriterion={focusedQuestion()?.criterion ?? null} onFocusQuestion={id => focusQuestion(id)} notebook={props.notebook} docs={docs()} field={id => fieldList()?.fields.find(field => field.id === id)}
               holder={row => row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? 'Loading holder…' : 'Unattributed'} siglum={matrixSiglum}
               work={row => perspectives().find(item => item.row.block.block.id === row.block.block.id)?.work?.value ?? ''} onOpen={props.onOpen} onEdited={edited} />
           </div>

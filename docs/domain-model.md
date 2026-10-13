@@ -474,9 +474,13 @@ Compare question focus is view state, never notebook content. It shows the readi
 
 A criterion cell is identified by its position and field IDs. A refreshed position read preserves its focused cell; keyboard commit returns focus to that cell for the next history command.
 
+Criterion cells use the definition's kind and the field bed's shared value editors. Choice and Instance selections write target references, Date uses its calendar for readable or empty values, and Checkbox writes `yes` or `no`. Span values retain their written notation in the text editor.
+
 Quoted criterion values keep the ordinary block's frozen quote capability and `((ID))` text. A newly inserted value and its snapshot share one document change, including the field entry when it is missing.
 
 A holder's register groups its positions by their derived subjects and opens each position in its original place. A position zoom is a dossier of that reading with block-scoped incoming links and relations, not the containing page's backlinks.
+
+Read from a position zoom opens its titled subject in the unzoomed Read projection, revealing that position in the subject's local register or filed-elsewhere section. Reveal and its brief highlight are pane navigation state. The stored caret and scroll retain the location after reload; no block is copied or edited.
 
 Only identical trimmed authored cell text is marked as an exact repeat; differing wording implies nothing.
 

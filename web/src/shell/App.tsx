@@ -239,8 +239,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       setActive(pane); setSidebar(false); focusPane(pane);
       return;
     }
-    // Explicit caret and journal ledger requests rebuild even when the same page is already open beside.
-    const samePage = target.kind === 'page' && !target.caretId && !target.journalPeriod && current?.target.kind === 'page' && current.target.pageId === target.pageId && 'zoom' in current.view && current.view.zoom === (target.blockId ?? null);
+    // Explicit caret, reading and journal ledger requests rebuild even when the same page is already open beside.
+    const samePage = target.kind === 'page' && !target.caretId && !target.readAt && !target.journalPeriod && current?.target.kind === 'page' && current.target.pageId === target.pageId && 'zoom' in current.view && current.view.zoom === (target.blockId ?? null);
     if (!beside || !samePage) {
       const date = target.kind === 'agenda' ? target.date ?? target.query?.context_date ?? todayDate() : '';
       const view: PaneView = restore ? snapshotView(restore) : target.kind === 'table'
@@ -251,11 +251,15 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
               : target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'spread' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', filters: { people: [], decades: [], publishers: [], languages: [] }, group: 'none', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
-                  : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, ...(target.blockId && target.caretId ? { edit: true } : {}) };
-      setSessions(values => {
-        const previous = values[pane];
-        const next = { entries: [...previous.entries.slice(0, previous.index + 1), { target, view }], index: previous.index + 1, generation: previous.generation + 1 };
-        return { ...values, [pane]: next };
+                  : target.readAt ? { zoom: null, caret: { id: target.readAt, offset: 0 }, scroll: { id: target.readAt, offset: 0 }, folds: null, showArchived: false, reveal: target.readAt }
+                    : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, ...(target.blockId && target.caretId ? { edit: true } : {}) };
+      batch(() => {
+        if (target.kind === 'page' && target.readAt) setPagePresentations(values => ({ ...values, [target.pageId]: { ...values[target.pageId], projection: 'read' } }));
+        setSessions(values => {
+          const previous = values[pane];
+          const next = { entries: [...previous.entries.slice(0, previous.index + 1), { target, view }], index: previous.index + 1, generation: previous.generation + 1 };
+          return { ...values, [pane]: next };
+        });
       });
     }
     setActive(pane); setSidebar(false);
@@ -464,7 +468,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         } else if (saved.target.kind === 'page' && 'zoom' in saved.view) {
           const savedId = saved.target.pageId;
           const exists = notebook.roots().some(root => root.id === savedId);
-          current = exists ? { target: saved.target, view: copyView(saved.view) } : { target: { kind: 'page', pageId: await notebook.today() }, view: { zoom: null, caret: null, scroll: null, folds: null, showArchived: false } };
+          current = exists ? { target: targetFromView(saved), view: { ...copyView(saved.view), reveal: undefined } } : { target: { kind: 'page', pageId: await notebook.today() }, view: { zoom: null, caret: null, scroll: null, folds: null, showArchived: false } };
         } else continue;
         restored[pane] = { entries: [current], index: 0, generation: 1 };
       }
@@ -491,7 +495,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   createEffect(() => {
     const id = navigationId(); if (!id) return;
     const panes: Partial<Record<PaneId, HistoryEntry>> = {};
-    for (const pane of paneIds) { const current = entry(pane); if (current) panes[pane] = current; }
+    for (const pane of paneIds) {
+      const current = entry(pane);
+      if (current) panes[pane] = current.target.kind === 'page' && 'zoom' in current.view
+        ? { target: targetFromView(current), view: { ...copyView(current.view), reveal: undefined } } : current;
+    }
     navigationWrite = { key: `tessera.navigation.${id}`, value: { pinned: pinned(), pinnedViews: pinnedViews(), pagePresentations: pagePresentations(), recent: recent(), vim: vim(), panes, active: active() } };
     clearTimeout(navigationTimer);
     navigationTimer = window.setTimeout(writeNavigation, 500);
@@ -831,7 +839,43 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
     return page && isReadingSubject(page) ? 'read' : 'outline';
   });
   const projection = createMemo<PageProjection>(() => outlineView().zoom ? 'outline' : presentation().projection ?? defaultProjection());
+  const readSubject = () => {
+    const zoom = outlineView().zoom;
+    const subject = zoom && doc()?.block(zoom)?.position?.subject_id;
+    return subject ? props.notebook.lookup(subject)() : undefined;
+  };
+  const projectionReason = (value: PageProjection) => {
+    if (value !== 'read') return undefined;
+    if (doc()?.status() !== 'ready') return doc()?.status() === 'missing' || doc()?.status() === 'error' ? 'The page is unavailable.' : 'Read is unavailable while the page is loading.';
+    const zoom = outlineView().zoom;
+    if (!zoom) return root()?.kind === 'page' ? undefined : 'Only titled pages have projections.';
+    const block = doc()?.block(zoom);
+    if (!block?.position) return 'This zoom is not a reading. Open its page to use Read.';
+    if (doc()?.isArchived(zoom)) return 'This reading is archived. Restore it to use Read.';
+    const subject = readSubject();
+    if (subject === undefined) return 'The reading’s subject is loading.';
+    if (!subject || subject.archived) return 'The reading’s subject is unavailable.';
+    const page = subject.id === subject.page_id ? subject : props.notebook.lookup(subject.page_id)();
+    if (page === undefined) return 'The reading’s subject page is loading.';
+    if (!page || page.archived) return 'The reading’s subject page is unavailable.';
+    if (page.kind !== 'page') return 'Read needs a titled subject. File this reading under a concept or question.';
+    return undefined;
+  };
   const setProjection = (value: PageProjection) => {
+    if (projectionReason(value)) return;
+    const zoom = outlineView().zoom;
+    if (value === 'read' && zoom) {
+      const subject = readSubject()!;
+      if (subject.page_id !== pageId()) {
+        props.onOpen({ kind: 'page', pageId: subject.page_id, readAt: zoom }, false);
+        return;
+      }
+      batch(() => {
+        props.onPagePresentation(pageId()!, { ...presentation(), projection: 'read' });
+        props.onRestoreView({ ...outlineView(), zoom: null, caret: { id: zoom, offset: 0 }, scroll: { id: zoom, offset: 0 }, reveal: zoom, edit: undefined });
+      });
+      return;
+    }
     props.onPagePresentation(pageId()!, { ...presentation(), projection: value });
   };
   const pageStyle = () => (presentation().bullets ?? root()?.kind === 'journal') ? 'bullets' : 'prose';
@@ -911,7 +955,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
-        <Show when={root()?.kind === 'page'}><div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Page projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'compare' && !!compareReason()} onClick={() => setProjection(value)}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div></Show>
+        <Show when={root()?.kind === 'page' || outlineView().zoom && doc()?.block(outlineView().zoom!)?.position}><div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Page projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} aria-describedby={value === 'read' && projectionReason(value) ? `read-reason-${props.pane}` : undefined} onClick={() => setProjection(value)}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div></Show>
         <Show when={showDial()}><div class="depth-dial" role="group" aria-label="Depth">
           <For each={depthStops}>{stop => <button type="button" class="depth-stop" aria-pressed={depth() === stop} title={`${depthLabels[stop]} (${stop === 'gloss' ? '[' : stop === 'full' ? ']' : '[ ]'})`}
             onClick={event => { if (depth() === stop && compactHeader.matches) setDepthMenu(event.currentTarget); else outlineCommand(`depth-${stop}`)?.run(); }}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
@@ -937,8 +981,9 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Page menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
+    <Show when={pageId() && outlineView().zoom && projectionReason('read')}>{reason => <p class="page-projection-reason" id={`read-reason-${props.pane}`} role="status">{reason()}</p>}</Show>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
-    <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} projection={projection()} onProjection={setProjection} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
+    <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} projection={projection()} onProjection={setProjection} projectionReason={projectionReason} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
       <Match when={current().target.kind === 'table'}><TablePane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'table' }>} view={snapshotView(current().view) as TableViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'fields'}><FieldsPane typeId={(current().target as Extract<OpenTarget, { kind: 'fields' }>).typeId} view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'field'}><FieldPane target={current().target as Extract<OpenTarget, { kind: 'field' }>} view={snapshotView(current().view) as FieldViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
