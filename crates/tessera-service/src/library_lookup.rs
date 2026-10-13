@@ -306,7 +306,15 @@ mod mapping {
                 });
                 if !name.is_empty() {
                     let mut creator = ExtractedCreator::new(name, role);
-                    if person["name"].as_str().is_some() {
+                    if person["name"]
+                        .as_str()
+                        .is_some_and(|name| !name.trim().is_empty())
+                        && !["given", "family"].iter().any(|key| {
+                            person[key]
+                                .as_str()
+                                .is_some_and(|name| !name.trim().is_empty())
+                        })
+                    {
                         creator.kind = CreatorKind::Organisation;
                     }
                     creators.push(creator);
@@ -576,6 +584,7 @@ mod tests {
             Some("Pride and Prejudice")
         );
         assert_eq!(preview.metadata.creators[0].name, "Jane Austen");
+        assert_eq!(preview.metadata.creators[0].kind, CreatorKind::Person);
         assert_eq!(preview.metadata.published.as_deref(), Some("2003"));
         assert_eq!(preview.metadata.language.as_deref(), Some("en"));
         assert_eq!(preview.metadata.identifiers, ["isbn:9780141439518"]);
@@ -609,6 +618,7 @@ mod tests {
         );
         assert_eq!(preview.metadata.published.as_deref(), Some("2017-06-12"));
         assert_eq!(preview.metadata.creators[0].name, "Ashish Vaswani");
+        assert_eq!(preview.metadata.creators[0].kind, CreatorKind::Person);
         assert_eq!(preview.metadata.identifiers, ["arxiv:1706.03762v7"]);
     }
 }
@@ -623,11 +633,15 @@ mod creator_tests {
             "title": ["A collaborative paper"],
             "author": [
                 {"name": "Research Collaboration"},
-                {"given": "Ada", "family": "Researcher"}
+                {"given": "Ada", "family": "Researcher"},
+                {"name": "Ada Researcher", "given": "Ada", "family": "Researcher"},
+                {"name": "Editorial Board", "given": "", "family": " "}
             ]
         }}))
         .unwrap_or_else(|_| panic!("valid Crossref record"));
         assert_eq!(preview.metadata.creators[0].kind, CreatorKind::Organisation);
         assert_eq!(preview.metadata.creators[1].kind, CreatorKind::Person);
+        assert_eq!(preview.metadata.creators[2].kind, CreatorKind::Person);
+        assert_eq!(preview.metadata.creators[3].kind, CreatorKind::Organisation);
     }
 }

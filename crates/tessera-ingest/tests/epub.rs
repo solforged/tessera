@@ -3,7 +3,7 @@ use std::{
     io::{Cursor, Write},
 };
 
-use tessera_core::library::{CreatorRole, MarkKind, PassageKind, SourceFormat};
+use tessera_core::library::{CreatorKind, CreatorRole, MarkKind, PassageKind, SourceFormat};
 use tessera_ingest::{Error, detect, epub};
 use zip::{ZipWriter, write::SimpleFileOptions};
 
@@ -578,4 +578,20 @@ fn sparse_ncx_uses_percent_encoded_guide_contents_and_chapter_labels() {
     );
     assert!(document.toc[0].locator.starts_with("OPS/one.html#"));
     assert_eq!(document.toc[1].title, "Chapter 2 - Before the beginning");
+}
+
+#[test]
+fn unstructured_epub_creator_names_keep_person_default() {
+    let document = epub(&epub2(
+        "<dc:creator>The Editors of Encyclopaedia Britannica</dc:creator>",
+        "<html><body><p>Text.</p></body></html>",
+    ))
+    .unwrap();
+    let collective = document
+        .metadata
+        .creators
+        .iter()
+        .find(|creator| creator.name == "The Editors of Encyclopaedia Britannica")
+        .unwrap();
+    assert_eq!(collective.kind, CreatorKind::Person);
 }

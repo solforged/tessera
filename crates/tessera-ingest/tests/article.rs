@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use tessera_core::library::{CreatorRole, ExtractedDocument, MarkKind, PassageKind, SourceFormat};
+use tessera_core::library::{
+    CreatorKind, CreatorRole, ExtractedDocument, MarkKind, PassageKind, SourceFormat,
+};
 use tessera_ingest::{Error, article};
 
 fn invariants(document: &ExtractedDocument) {
@@ -312,4 +314,128 @@ fn metadata_byline_can_precede_the_article_container() {
     .unwrap();
     assert_eq!(document.metadata.creators[0].name, "Jane Writer");
     assert_eq!(document.passages[0].text, "Text.");
+}
+
+#[test]
+fn schema_json_ld_creator_signals_override_unstructured_duplicates() {
+    let html = r#"<html><head>
+      <title>Structured creator kinds</title>
+      <meta name="citation_author" content="Research Institute">
+      <script type="application/ld+json">{
+        "@type": "ScholarlyArticle",
+        "author": [
+          {"@type": "Organization", "name": "Research Institute"},
+          {"@type": ["Thing", "Person"], "name": "The Editors"},
+          {"givenName": "Ada", "familyName": "Reader"},
+          {"@type": "https://schema.org/Organization", "name": "A Collective",
+           "givenName": "Conflicting", "familyName": "Names"}
+        ]
+      }</script>
+    </head><body>
+      <span class="byline">Research Institute</span>
+      <article><p>Readable text.</p></article>
+    </body></html>"#;
+    let document = article(html, "https://example.org/creator-kinds").unwrap();
+    let creators = &document.metadata.creators;
+    assert_eq!(creators.len(), 4);
+    assert_eq!(creators[0].name, "Research Institute");
+    assert_eq!(creators[0].kind, CreatorKind::Organisation);
+    assert_eq!(creators[1].name, "The Editors");
+    assert_eq!(creators[1].kind, CreatorKind::Person);
+    assert_eq!(creators[2].name, "Ada Reader");
+    assert_eq!(creators[2].kind, CreatorKind::Person);
+    assert_eq!(creators[3].kind, CreatorKind::Organisation);
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = tessera_core::Notebook::open(dir.path()).unwrap();
+    let plan = notebook.plan_source_record(&document.metadata).unwrap();
+    notebook
+        .apply(&tessera_core::Batch {
+            actor: tessera_core::Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: plan.operations,
+        })
+        .unwrap();
+    let groups = notebook.kind_notes("group").unwrap();
+    assert!(
+        groups
+            .notes
+            .iter()
+            .any(|note| note.title == "Research Institute")
+    );
+    assert!(
+        !notebook
+            .kind_notes("person")
+            .unwrap()
+            .notes
+            .iter()
+            .any(|note| note.title == "Research Institute")
+    );
+}
+
+#[test]
+fn schema_json_ld_creator_references_keep_the_graph_entity_kind() {
+    let html = r##"<script type="application/ld+json">{"@graph": [
+      {"@type": "Article", "author": [{"@id": "#org"}, {"@id": "#person"}]},
+      {"@id": "#org", "@type": "http://schema.org/Organization", "name": "Editorial Board"},
+      {"@id": "#person", "@type": "Person", "givenName": "Grace", "familyName": "Reader"}
+    ]}</script><article><p>Text.</p></article>"##;
+    let document = article(html, "https://example.org/graph").unwrap();
+    assert_eq!(document.metadata.creators.len(), 2);
+    assert_eq!(document.metadata.creators[0].name, "Editorial Board");
+    assert_eq!(
+        document.metadata.creators[0].kind,
+        CreatorKind::Organisation
+    );
+    assert_eq!(document.metadata.creators[1].name, "Grace Reader");
+    assert_eq!(document.metadata.creators[1].kind, CreatorKind::Person);
+}
+
+#[test]
+fn schema_microdata_creator_signals_keep_organisation_and_person_kinds() {
+    let html = r#"<meta name="author" content="University Press">
+      <div itemprop="author" itemscope itemtype="https://schema.org/Organization">
+        <span class="author-name" itemprop="name">University Press</span>
+      </div>
+      <div itemprop="author" itemscope itemtype="http://schema.org/Person">
+        <span itemprop="name">Named Person</span>
+      </div>
+      <div itemprop="author">
+        <span itemprop="givenName">Ada</span><span itemprop="familyName">Reader</span>
+      </div>
+      <article><p>Text.</p></article>"#;
+    let document = article(html, "https://example.org/microdata").unwrap();
+    assert_eq!(document.metadata.creators.len(), 3);
+    assert_eq!(document.metadata.creators[0].name, "University Press");
+    assert_eq!(
+        document.metadata.creators[0].kind,
+        CreatorKind::Organisation
+    );
+    assert_eq!(document.metadata.creators[1].name, "Named Person");
+    assert_eq!(document.metadata.creators[1].kind, CreatorKind::Person);
+    assert_eq!(document.metadata.creators[2].name, "Ada Reader");
+    assert_eq!(document.metadata.creators[2].kind, CreatorKind::Person);
+}
+
+#[test]
+fn unstructured_article_creators_keep_person_default_without_name_guessing() {
+    let html = r#"<meta name="citation_author" content="The Editors of Encyclopaedia Britannica">
+      <script type="application/ld+json">{"@type": "Article",
+        "author": ["Research Institute", {"name": "Editorial Collective"}]
+      }</script>
+      <span class="byline">University Press</span>
+      <article><p>Text.</p></article>"#;
+    let document = article(html, "https://example.org/plain-creators").unwrap();
+    assert_eq!(document.metadata.creators.len(), 4);
+    assert_eq!(
+        document.metadata.creators[0].name,
+        "The Editors of Encyclopaedia Britannica"
+    );
+    assert!(
+        document
+            .metadata
+            .creators
+            .iter()
+            .all(|creator| creator.kind == CreatorKind::Person)
+    );
 }

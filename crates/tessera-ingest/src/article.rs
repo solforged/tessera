@@ -1,8 +1,8 @@
 use scraper::{ElementRef, Html};
 use serde_json::Value;
 use tessera_core::library::{
-    CreatorRole, ExtractedCreator, ExtractedDocument, ExtractedMetadata, PassageKind, SourceFormat,
-    TocEntry,
+    CreatorKind, CreatorRole, ExtractedCreator, ExtractedDocument, ExtractedMetadata, PassageKind,
+    SourceFormat, TocEntry,
 };
 use url::Url;
 
@@ -197,7 +197,7 @@ fn json_articles<'a>(value: &'a Value, output: &mut Vec<&'a Value>) {
     }
 }
 
-fn add_author(creators: &mut Vec<ExtractedCreator>, name: &str) {
+fn add_author(creators: &mut Vec<ExtractedCreator>, name: &str, kind: Option<CreatorKind>) {
     let name = normalize(name);
     let name = name
         .strip_prefix("By ")
@@ -207,27 +207,116 @@ fn add_author(creators: &mut Vec<ExtractedCreator>, name: &str) {
     if name.is_empty() || Url::parse(name).is_ok() {
         return;
     }
-    let creator = ExtractedCreator::new(name.to_owned(), CreatorRole::Author);
-    if !creators.contains(&creator) {
+    if let Some(creator) = creators.iter_mut().find(|creator| creator.name == name) {
+        if let Some(kind) = kind {
+            creator.kind = kind;
+        }
+    } else {
+        let mut creator = ExtractedCreator::new(name.to_owned(), CreatorRole::Author);
+        if let Some(kind) = kind {
+            creator.kind = kind;
+        }
         creators.push(creator);
     }
 }
 
-fn json_authors(value: &Value, creators: &mut Vec<ExtractedCreator>) {
+fn schema_kind(kind: &str) -> Option<CreatorKind> {
+    let kind = kind
+        .strip_prefix("https://schema.org/")
+        .or_else(|| kind.strip_prefix("http://schema.org/"))
+        .or_else(|| kind.strip_prefix("schema:"))
+        .unwrap_or(kind);
+    match kind {
+        "Person" => Some(CreatorKind::Person),
+        "Organization" => Some(CreatorKind::Organisation),
+        _ => None,
+    }
+}
+
+fn json_kind(value: &Value) -> Option<CreatorKind> {
     match value {
-        Value::String(name) => add_author(creators, name),
-        Value::Array(authors) => {
-            for author in authors {
-                json_authors(author, creators);
+        Value::String(kind) => schema_kind(kind),
+        Value::Array(kinds) => kinds.iter().find_map(json_kind),
+        _ => None,
+    }
+}
+
+fn json_entity<'a>(value: &'a Value, id: &str) -> Option<&'a Value> {
+    match value {
+        Value::Array(values) => values.iter().find_map(|value| json_entity(value, id)),
+        Value::Object(object) => {
+            if object.get("@id").and_then(Value::as_str) == Some(id)
+                && (object.contains_key("name")
+                    || object.contains_key("givenName")
+                    || object.contains_key("familyName"))
+            {
+                Some(value)
+            } else {
+                object
+                    .get("@graph")
+                    .and_then(|graph| json_entity(graph, id))
             }
         }
-        Value::Object(author) => {
-            if let Some(name) = author.get("name").and_then(Value::as_str) {
-                add_author(creators, name);
+        _ => None,
+    }
+}
+
+fn json_authors(value: &Value, entities: &[Value], creators: &mut Vec<ExtractedCreator>) {
+    match value {
+        Value::String(name) => add_author(creators, name, None),
+        Value::Array(authors) => {
+            for author in authors {
+                json_authors(author, entities, creators);
+            }
+        }
+        Value::Object(original) => {
+            let author = if original.contains_key("name")
+                || original.contains_key("givenName")
+                || original.contains_key("familyName")
+            {
+                value
+            } else if let Some(entity) = original
+                .get("@id")
+                .and_then(Value::as_str)
+                .and_then(|id| entities.iter().find_map(|value| json_entity(value, id)))
+            {
+                entity
+            } else {
+                return;
+            };
+            let given = author["givenName"]
+                .as_str()
+                .filter(|name| !name.trim().is_empty());
+            let family = author["familyName"]
+                .as_str()
+                .filter(|name| !name.trim().is_empty());
+            let kind = original
+                .get("@type")
+                .and_then(json_kind)
+                .or_else(|| author.get("@type").and_then(json_kind))
+                .or_else(|| (given.is_some() || family.is_some()).then_some(CreatorKind::Person));
+            if let Some(name) = author["name"]
+                .as_str()
+                .filter(|name| !name.trim().is_empty())
+            {
+                add_author(creators, name, kind);
+            } else if given.is_some() || family.is_some() {
+                add_author(
+                    creators,
+                    &format!("{} {}", given.unwrap_or(""), family.unwrap_or("")),
+                    kind,
+                );
             }
         }
         _ => {}
     }
+}
+
+fn byline_kind(byline: ElementRef<'_>) -> Option<CreatorKind> {
+    std::iter::once(byline)
+        .chain(byline.ancestors().filter_map(ElementRef::wrap))
+        .find_map(|element| element.value().attr("itemtype"))
+        .and_then(|types| types.split_whitespace().find_map(schema_kind))
 }
 
 fn metadata(document: &Html, root: ElementRef<'_>, url: &Url) -> ExtractedMetadata {
@@ -261,22 +350,44 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: &Url) -> ExtractedMetada
         .into_iter()
         .flatten()
         .any(|name| {
-            name.eq_ignore_ascii_case("author") || name.eq_ignore_ascii_case("article:author")
+            ["author", "article:author", "citation_author"]
+                .iter()
+                .any(|key| name.eq_ignore_ascii_case(key))
         }) {
-            add_author(&mut creators, element.value().attr("content").unwrap_or(""));
+            add_author(
+                &mut creators,
+                element.value().attr("content").unwrap_or(""),
+                None,
+            );
         }
     }
     for article in &json {
         if let Some(author) = article.get("author") {
-            json_authors(author, &mut creators);
+            json_authors(author, &json_values, &mut creators);
         }
     }
     let bylines =
         selector(".byline, .author, .post-author, .author-name, [rel=author], [itemprop=author]");
+    let names = selector("[itemprop=name]");
+    let given_names = selector("[itemprop=givenName]");
+    let family_names = selector("[itemprop=familyName]");
     for byline in document.select(&bylines) {
         // Prefer the named child to a wrapper that also includes a publication date.
         if byline.select(&bylines).next().is_none() {
-            add_author(&mut creators, &text(byline));
+            let name = byline.select(&names).next().unwrap_or(byline);
+            let given = byline.select(&given_names).next();
+            let family = byline.select(&family_names).next();
+            let kind = byline_kind(byline)
+                .or_else(|| (given.is_some() || family.is_some()).then_some(CreatorKind::Person));
+            if name == byline && (given.is_some() || family.is_some()) {
+                let given = given.map(text).unwrap_or_default();
+                let family = family.map(text).unwrap_or_default();
+                add_author(&mut creators, &format!("{given} {family}"), kind);
+            } else if let Some(name) = name.value().attr("content") {
+                add_author(&mut creators, name, kind);
+            } else {
+                add_author(&mut creators, &text(name), kind);
+            }
         }
     }
     let published = meta(document, "article:published_time")

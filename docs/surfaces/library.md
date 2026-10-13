@@ -285,6 +285,10 @@ Show and Hide metadata fields are saved with the pane's view across reloads and 
 Author, Editor and Translator values may be plain names or linked people. Plain names supply the same Library bylines, creator facets, exports and derived sigla without creating a person page.
 Imports can keep any creator as a plain name with `create_page: false`; the default still creates or links an entity. Organisation creators become Groups, and combined bylines stay plain rather than becoming one Person. Edit details preserves plain names when other metadata changes.
 
+Creator kinds use an explicit `kind` first, then the source's structured signals, otherwise Person. Crossref's `name` without `given` or `family` denotes an organisation; split personal names denote a person. Schema.org `Organization` and `Person` types in JSON-LD or HTML microdata supply the kind, and `givenName` or `familyName` supplies Person when no type is present. A structured kind also takes precedence over a duplicate plain byline. No name-pattern guessing is used.
+
+Open Library's ISBN author names, arXiv author names, ordinary web bylines, `author` and `citation_author` meta values, and EPUB `dc:creator` strings provide no person-or-organisation signal, so they retain the Person default. A native record-plan creator with only `name` and `role` does too; use `kind: organisation` for a known collective or `create_page: false` to keep it as a plain name.
+
 An unresolved title-form creator reference reads as its written name, not as an ID or a guessed link to a same-titled source. Only canonical references enable creator navigation. A title-form reference keeps its link intent when its role or other metadata changes, while a bare plain name stays plain. Saving creator names matches eligible people and groups by title or alias; shared names remain unlinked.
 
 The pane header reads Library / title, and Library opens the Library pane (Shift beside). Zoomed into a block, Library gives way to the zoom path.

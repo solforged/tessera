@@ -17,6 +17,7 @@ url = "2"
 zip = { version = "6", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
+tempfile.workspace = true
 zip = { version = "6", default-features = false, features = ["deflate"] }
 
 [lints]
