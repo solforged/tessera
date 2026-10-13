@@ -8,11 +8,11 @@ Open research desk is in Commands and the sidebar's Questions menu. Open in desk
 
 ## Linked columns
 
-At desktop width, three ruled columns share the pane:
+At a pane width of at least 840 px, three ruled columns share the pane:
 
 | Column | Query and rows |
 | --- | --- |
-| Questions | Active or recurrent questions, grouped by their top-level program. Each row shows title, state, reading count, last assessment and revisit date. |
+| Questions | Active or recurrent questions, grouped by their top-level program. Each row shows title, state, reading count, last assessment and revisit date. When the first row names the program itself, it supplies the group title without a duplicate heading. |
 | Positions | Positions about the selected question or any of its branches. Each row shows holder, Gist and Work. |
 | Sources | Sources cited in the selected position's subtree. Each row shows title, creator, publication date and authored or passage locators. |
 
@@ -30,6 +30,6 @@ Save desk asks for a name and saves all three queries as one view with the desk 
 
 Back and Forward restore all three queries, selected rows and the current column. Reload keeps the same pane state. Opening a saved desk restores its question and position from the linked conditions without changing the view or adding a save operation.
 
-## Phone
+## Narrow panes
 
-Below 600 px, only the current column shows. Selecting a question or position advances one step. The Question › Position › Sources breadcrumb returns to earlier steps without dropping the selection. Rows and query labels wrap inside the pane; no horizontal scroll is needed.
+Below 840 px of pane width, including a desktop split, only the current column shows. Selecting a question or position advances one step. The Question › Position › Sources breadcrumb returns to earlier steps without dropping the selection. Keyboard Left and Right use the same stepped layout. Rows and query labels wrap inside the pane; no horizontal scroll is needed.

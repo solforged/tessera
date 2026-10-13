@@ -42,7 +42,7 @@ Numbered sections follow with rubric numerals and hairlines, starting at 01 and 
 | --- | --- |
 | Options | Options with their uses and inline rename, then Add option; choice fields only. Option names may wrap; Uses and Edit retain their intrinsic one-line width, including on phones. |
 | In templates | Each type's pill, the field's place in its template and the member count. |
-| Used by | Up to twelve owners in three columns with their values in mono. View owner (one owner) or View all N owners opens the field-only table. |
+| Used by | Up to twelve owners with their values in mono: three columns in wide panes, two below 840 px of pane width and one below 480 px. View owner (one owner) or View all N owners opens the field-only table. |
 | Problem values | The written text in rubric beside its owner and the problem. Choice rows offer Make option: create or reuse the matching option and link every matching value in one undoable change. The help reads “Make it an option, or open its owner to edit it.” |
 
 Blocks in the pane header opens the definition in the Fields page, where names and options remain ordinary blocks. Edit definitions opens the Fields page.

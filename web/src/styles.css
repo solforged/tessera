@@ -193,7 +193,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .pane-tabs-close.button { flex: none; align-self: center; }
 .panes { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); flex: 1; min-height: 0; }
 .is-split .panes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.pane { position: relative; display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--canvas); }
+.pane { position: relative; display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; background: var(--canvas); container: pane / inline-size; }
 .pane + .pane { border-left: 1px solid var(--line); }
 /* Full screen: the reader pane fills the window; the rail, sidebar, pane tabs, pane header and the other pane step aside. */
 .app.is-immersive { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); background: var(--canvas); }
@@ -202,18 +202,18 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .app.is-immersive .panes { grid-template-columns: minmax(0, 1fr); }
 .app.is-immersive .pane + .pane { border-left: 0; }
 /* Pane headers carry document navigation and actions, never global search. */
-.pane-header { display: flex; align-items: center; gap: var(--space-4); flex-shrink: 0; min-height: var(--pane-header-height); padding: var(--space-4) var(--space-8); border-bottom: 1px solid var(--line); font-size: var(--text-control); line-height: var(--line-control); }
+.pane-header { display: flex; align-items: center; gap: var(--space-4); flex-shrink: 0; flex-wrap: wrap; min-height: var(--pane-header-height); padding: var(--space-4) var(--space-8); border-bottom: 1px solid var(--line); font-size: var(--text-control); line-height: var(--line-control); }
 .pane-header > .button, .pane-save-state, .vim-mode { flex-shrink: 0; }
 .pane-navigation { display: flex; flex-shrink: 0; margin-right: var(--space-2); }
 .pane-kind { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); margin-right: var(--space-4); color: var(--muted); }
 .pane.active .pane-kind { color: var(--accent); }
-.pane-breadcrumbs { display: flex; align-items: center; flex: 1; min-width: 0; overflow: hidden; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.pane-breadcrumbs { display: flex; align-items: center; flex: 1 1 12ch; min-width: 12ch; overflow: hidden; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 /* Block, not inline-flex: a centred flex button clips both ends of a long title instead of showing an ellipsis. */
 .pane-breadcrumbs .button { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 28px; color: inherit; font: inherit; letter-spacing: inherit; }
 span.pane-breadcrumbs { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* The title gives way first: ancestors such as Library keep their width up to 10em, so a narrow pane reads Library / Discourses on…, not L… / D…. */
-.pane-breadcrumbs .button:not(:last-child) { flex-shrink: 0; max-width: 10em; }
-.pane-breadcrumbs .button:last-child { color: var(--text); }
+/* Ancestors keep a bounded label while the current title always retains a readable ellipsis. */
+.pane-breadcrumbs .button:not(:last-child) { flex-shrink: 1; max-width: 10em; }
+.pane-breadcrumbs .button:last-child { min-width: 12ch; color: var(--text); }
 .is-split .pane:not(.active) .pane-header { color: var(--muted); }
 .is-split .pane:not(.active) .pane-breadcrumbs .button:last-child { color: var(--muted); }
 .breadcrumb-separator { color: var(--faint); }
@@ -230,8 +230,16 @@ span.pane-breadcrumbs { display: block; overflow: hidden; text-overflow: ellipsi
 .depth-stop:hover { color: var(--text); }
 .depth-stop[aria-pressed="true"] { border-color: var(--line); background: var(--surface); color: var(--accent); }
 .depth-label { min-width: 84px; margin-left: var(--space-4); color: var(--text); font-size: var(--text-meta); line-height: var(--line-meta); white-space: nowrap; }
-/* A narrow pane keeps the irises and gives the spoken name's width back to the title. */
-@media (max-width: 599px) { .depth-label { display: none; } }
+/* Pane width, not the window, decides how much apparatus the title can afford. */
+@container pane (max-width: 839px) {
+  .depth-label, .depth-stop:not([aria-pressed="true"]), .page-projection-tabs .button:disabled, .pane-header > .vim-mode { display: none; }
+}
+@container pane (max-width: 599px) {
+  .pane-kind, .pane-navigation .button:disabled, .pane-breadcrumbs .button:not(:last-child), .breadcrumb-separator { display: none; }
+}
+@container pane (max-width: 479px) {
+  .pane-header { padding-inline: var(--space-4); gap: var(--space-2); }
+}
 /* Vim mode is a fixed-width tag beside the save dot: gilt while inserting, filled while selecting. All four labels are six letters, so switching never moves the header. */
 .vim-mode { min-width: 8ch; margin-left: var(--space-4); padding: 0 var(--space-4); border: 1px solid var(--line); border-radius: var(--radius-control); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; white-space: nowrap; transition: color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
 .vim-mode[data-mode="normal"] { color: var(--text); }
@@ -380,10 +388,6 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .journal-navigation { gap: 0; margin-inline: 0; }
 }
 @media (max-width: 479px) {
-  .pane-header { padding-inline: 4px; gap: 2px; }
-  .pane-header > .pane-secondary, .pane-header > .vim-mode { display: none; }
-  /* Only the current iris shows; it opens the depth menu, and the title keeps the width. */
-  .depth-stop:not([aria-pressed="true"]) { display: none; }
   .save-banner { padding: 8px 12px; flex-wrap: wrap; }
   .save-banner details { max-width: 100%; }
   .undo-toast { bottom: 12px; }

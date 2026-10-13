@@ -62,8 +62,13 @@
 .field-inspector .field-owner-values { justify-content: flex-end; max-width: 50%; margin: 0; }
 .field-inspector .field-kind-row { padding-block: var(--space-4); }
 .field-inspector .field-preview-summary h2 { font: var(--apparatus); }
-@media (max-width: 599px) {
+@container pane (max-width: 839px) {
   .field-owners { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container pane (max-width: 479px) {
+  .field-owners { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 599px) {
   .field-template-row { gap: var(--space-8); }
   .field-ledger:not(.field-options) th:nth-child(2) { width: 36%; }
   .field-ledger.field-interpretations th:nth-child(2) { width: 12%; }

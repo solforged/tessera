@@ -210,7 +210,7 @@ Up to two, split equally. Each has a header, in this order:
 6. The page menu.
 7. Close while split.
 
-A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. In a narrow pane the title gives way first: ancestors such as Library keep their width up to 10em, so the header reads `Library / Discourses on…`.
+A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. Breadcrumbs reserve at least twelve mono characters for the current title and ellipsize its ending; ancestors may shrink. Below 840 px of pane width, the depth dial collapses to its current iris and unavailable projection tabs and the Vim tag step aside. Below 600 px of pane width, ancestors, the kind glyph and unavailable history buttons step aside too. If the remaining controls cannot share a line with the title's minimum, they wrap instead of erasing the title.
 
 On journal days the page menu leaves out what only titled pages can do (Rename, Gloss, Compare perspectives, Make question) rather than listing it disabled. Saved shows as a 4 px dot with a hidden label; slow saves, offline and errors speak in sans, errors in `--danger`.
 
@@ -313,7 +313,7 @@ The permanent merge confirmation stays a bounded short-control popup, with the s
 
 ### Handle, fold and block menu
 
-Handle and fold live in the gutter and show on hover, focus and selection. The handle opens the block menu and drags. The fold is hidden on leaf rows; a collapsed block shows a ringed bullet. Below 600 px both sit at the end of the row being edited or selected instead.
+Handle and fold live in the gutter and show on hover, focus and selection. The handle opens the block menu and drags. The fold is hidden on leaf rows; a collapsed block shows a ringed bullet. Below 600 px both sit at the end of the row being edited or selected instead. Prose outlines whose content column is at most 856 px wide keep their text and standfirst on the title edge; their block controls follow the text when selected or focused, and collapsed or card markers remain available at rest.
 
 Dragging starts after a small movement and shows an indented horizontal drop line: the upper or lower half of a row chooses before or after its subtree, moving right of its text edge makes it the first child, and moving left chooses an ancestor depth. A selected row moves the whole selection with its subtrees in one undo step; the pane scrolls at its edges, Escape cancels, and drops cannot cross the zoom boundary or enter a moved subtree.
 
@@ -345,7 +345,7 @@ Titled pages have four depths:
 | Perspectives | The opening, every heading whose parent shows, and positions directly under a shown heading, each closed to its own row |
 | Full | Full |
 
-The dial sits in the pane header as four irises whose pupils widen with depth, the current one gilt in a `--surface` well, followed by its name in sans. Below 600 px the name is dropped so the title keeps its room. Below 480 px only the current iris shows, opening a Depth menu of all four.
+The dial sits in the pane header as four irises whose pupils widen with depth, the current one gilt in a `--surface` well, followed by its name in sans. Below 840 px of pane width only the current iris shows, opening a Depth menu of all four; neither a desktop split nor a phone sacrifices its title to the other stops.
 
 `[` and `]` step it when no block is being edited, and the palette has a command per stop. Depth belongs to the pane's history entry, so back, forward and reload restore it. A zoomed page always shows in full, and the dial hides there and on journal days. Rows that leave the list stop being edited or selected.
 

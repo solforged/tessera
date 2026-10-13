@@ -19,10 +19,9 @@
   .has-apparatus.has-sigla > .outline-list { --sigla-rail-space: max(0px, calc(var(--siglum-width) + var(--space-8) - var(--outline-column-start) + var(--gutter))); margin-left: calc(var(--outline-column-start) - var(--gutter) + var(--sigla-rail-space)); max-width: calc(var(--measure) + var(--gutter) - var(--sigla-rail-space)); }
   .has-apparatus > .outline-apparatus { display: flex; flex-direction: column; gap: var(--section-item-gap); position: absolute; top: var(--page-top-space); left: calc(var(--pane-inset) + (100cqi + var(--measure) + var(--space-48) - var(--apparatus-width)) / 2); width: var(--apparatus-width); }
 }
-/* Below a full editing measure the rail is inside the body, never in the title gutter. */
+/* Below a full editing measure sigla lead the row, rather than narrowing every paragraph. */
 @container outline-pane (max-width: 856px) {
   .outline-list { width: 100%; max-width: var(--measure); margin-inline: auto; }
-  .has-sigla > .outline-list { width: calc(100% - var(--siglum-width) - var(--space-8)); margin-left: calc(var(--siglum-width) + var(--space-8)); }
 }
 .outline-apparatus h6 { margin: var(--space-8) 0 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-weight: var(--weight-body); }
 .constellation { display: block; width: 100%; height: auto; overflow: visible; }
@@ -126,6 +125,18 @@
 .row-sigla { position: absolute; right: 100%; top: calc((var(--row-height) - var(--line-apparatus)) / 2); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-4); margin-right: var(--space-4); }
 .row-siglum { min-width: var(--siglum-width); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--canvas); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: right; white-space: nowrap; }
 .outline-row-linked .row-siglum, .outline-row.row-selected .row-siglum { border-color: var(--accent); background: var(--accent); color: var(--canvas); }
+@container outline-pane (max-width: 856px) {
+  .outline-pane[data-projection="outline"] .outline-row:has(> .row-sigla) { flex-wrap: wrap; }
+  .outline-pane[data-projection="outline"] .row-sigla { position: static; flex: 0 0 100%; flex-direction: row; flex-wrap: wrap; align-items: baseline; margin: 0 0 var(--space-4); }
+  [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row { flex-wrap: wrap; }
+  [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row > :is(.row-menu, .row-fold, .row-bullet) { order: 1; }
+  [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row > .row-menu { margin-left: auto; }
+  [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row:not(:focus-within, .row-selected) > :is(.row-menu, .row-fold, .row-bullet):not(.bullet-collapsed, .row-card-mark),
+  [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row > .row-fold.fold-empty { display: none; }
+  [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row:not(.inline-field-value, .field-entry) > .outline-body { flex-basis: 100%; }
+  [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row::before { left: 0; }
+  [data-page-style="prose"] .outline-pane[data-projection="outline"] :is(.row-gloss, .row-gist, .inline-field-value[data-field-role="standfirst"]) > .outline-body { flex-basis: 100%; margin-left: 0; }
+}
 /* A perspective names its holder at control weight; the holder link reads as ink until hovered. */
 .row-position > .outline-body .static-text { font-weight: var(--weight-control); }
 .row-position > .outline-body .outline-reference { color: var(--text); }

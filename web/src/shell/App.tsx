@@ -82,8 +82,6 @@ const paneIds: PaneId[] = ['main', 'side'];
 /** ⌘ on Apple keyboards, where Ctrl+E stays the editor's end of line; Ctrl elsewhere. */
 const mac = /Mac|iPhone|iPad/.test(navigator.platform);
 const SAVE_NOTICE_DELAY = 1000;
-/** Matches the narrow pane header in styles.css, where the depth dial shows only its current iris. */
-const compactHeader = window.matchMedia('(max-width: 479px)');
 /** The Index's finding-aid heads, in order; spreads follow under their own head. */
 const shelves: readonly (readonly [Shelf, string])[] = [['notes', 'Notes'], ['sources', 'Sources'], ['work', 'Work'], ['tags', 'Tags'], ['loose', 'Loose']];
 
@@ -982,7 +980,7 @@ function Pane(props: { pane: PaneId; session: Accessor<PaneSession>; active: boo
         <Show when={root()?.kind === 'page' || outlineView().zoom && doc()?.block(outlineView().zoom!)?.position}><div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Page projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} aria-describedby={value === 'read' && projectionReason(value) ? `read-reason-${props.pane}` : undefined} onClick={() => setProjection(value)}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div></Show>
         <Show when={showDial()}><div class="depth-dial" role="group" aria-label="Depth">
           <For each={depthStops}>{stop => <button type="button" class="depth-stop" aria-pressed={depth() === stop} title={`${depthLabels[stop]} (${stop === 'gloss' ? '[' : stop === 'full' ? ']' : '[ ]'})`}
-            onClick={event => { if (depth() === stop && compactHeader.matches) setDepthMenu(event.currentTarget); else outlineCommand(`depth-${stop}`)?.run(); }}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
+            onClick={event => { if (depth() === stop && getComputedStyle(event.currentTarget.parentElement!.querySelector('.depth-label')!).display === 'none') setDepthMenu(event.currentTarget); else outlineCommand(`depth-${stop}`)?.run(); }}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
           <span class="depth-label" aria-hidden="true">{depthLabels[depth()]}</span>
         </div></Show>
         <span class="pane-save-state" data-state={saveState()} title={doc()?.saveMessage()}><Show when={saveState() !== 'saved'} fallback={<><span class="save-dot" /><span class="visually-hidden">Saved</span></>}><Icon name={saveState() === 'offline' ? 'offline' : saveState() === 'error' || saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</Show></span>

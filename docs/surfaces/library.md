@@ -334,7 +334,7 @@ Sigla are assigned per page in order of first appearance. The first source keeps
 
 The Library list, shelf and source sheet show each source's own siglum without that disambiguation, because the title beside it already tells the books apart; four Rowling books all read `ROW`.
 
-Margin, header, apparatus and Compare marks stay on one line, with boxes sized for five mono letters and room to grow for longer ordinals. A page that shows sigla widens its outline body's left edge by `--siglum-width` plus 8 px, so a five-character mark is never clipped in a narrow pane. The title keeps the shared inset.
+Margin, header, apparatus and Compare marks stay on one line, with boxes sized for five mono letters and room to grow for longer ordinals. Wide outlines retain the critical-edition margin. When the outline's content column is at most 856 px wide, the marks form a compact wrapping line immediately before their cited row instead of reserving a left rail for every paragraph. Prose and standfirst sentences keep the title's edge in both split panes and phones.
 
 ## Citation chips
 

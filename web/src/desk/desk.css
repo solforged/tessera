@@ -35,7 +35,7 @@
 .index-question-heading { display: flex; min-width: 0; }
 .index-question-heading > .index-kind { flex: 1; min-width: 0; }
 @media (pointer: coarse) { .desk-row-actions { visibility: visible; } }
-@media (max-width: 599px) {
+@container pane (max-width: 839px) {
   .desk-heading h1 { overflow-wrap: anywhere; }
   .desk-columns { display: block; }
   .desk-column { display: none; padding: var(--space-12) 0; height: 100%; }
