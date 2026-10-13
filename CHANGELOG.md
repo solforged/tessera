@@ -40,10 +40,14 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Register and Matrix layouts for position views: a register reads each position like a Read slip with its Gist and fields editable in place, and a matrix sets holders against the subject's criteria, one matrix per subject.
 - Saved views can live on a page as a block, written `[[view:ID|Name]]`. The embed follows the view's recipe, updates as the notebook changes, keeps cells editable and shows card fields on a phone.
 - Research desk: questions, the selected question's positions, and the sources the selected position cites, in three linked columns. Each column's query can be edited, and a desk can be saved as a view.
-- The sidebar Index reads as a finding aid: kinds sit under Notes, Sources, Work, Tags and Loose heads in Piazzolla, and empty built-in kinds fold into one Empty line. `GET /api/index` gives each kind its `shelf`.
+- The sidebar Index reads as a finding aid: kinds sit with their glyphs under Notes, Sources, Work, Tags and Loose heads, and empty built-in kinds fold into one Empty line. `GET /api/index` gives each kind its `shelf`.
 - On a phone, the open sidebar starts with the Tessera wordmark, Close sidebar and the notebook name with its note count.
 - Review's landing is a ruled register: the due count as a serif figure, a hairline start button and one mono stats line.
 - A page's own fields read as a specimen block under its imprint, with mono names, dotted rules and `Add…` on empty slots.
+
+### Changed
+
+- The notebook's own sentences are set in Plex everywhere in the outline, including rows that cite a source, glosses, positions and questions, and their previews in Find and on hover. Piazzolla stays for titles, headings, quotes and the reader.
 
 ### Fixed
 

@@ -242,7 +242,7 @@ function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient
   const icon = createPageIcon(props.notebook, () => props.hit.block);
   return <>
     <Icon name={icon()} />
-    <span class="picker-text find-result"><span classList={{ 'find-quote': !isPage() }}><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text}</small></Show><Show when={isPage() && props.book}>{book => <small>Book · {Math.round(book().progress * 100)}% · {book().highlights} highlights</small>}</Show></span>
+    <span class="picker-text find-result"><span classList={{ 'find-snippet': !isPage() }}><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text}</small></Show><Show when={isPage() && props.book}>{book => <small>Book · {Math.round(book().progress * 100)}% · {book().highlights} highlights</small>}</Show></span>
     <Show when={isPage() && props.hit.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>
     <Show when={props.selected}><kbd class="picker-hint">⇧↵ beside</kbd></Show>
   </>;
@@ -347,7 +347,7 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
           const citations = value().citation ? [value().citation!] : page().citations;
           return <For each={page().passages}>{passage => {
             const ranges = citations.map(citation => citationRange(passage, citation, ordinals)).filter((range): range is NonNullable<typeof range> => range !== null);
-            return <p><For each={passageSegments(passage, ranges, null)}>{segment => <span classList={{ 'find-highlight': !!segment.citations.length }} style={segment.citations.length ? { background: segment.citations[0]!.color ? `color-mix(in srgb, var(--highlight-${segment.citations[0]!.color}) 24%, transparent)` : 'var(--selection)' } : undefined}><MatchText text={segment.text} query={props.query} /></span>}</For></p>;
+            return <p class="find-passage"><For each={passageSegments(passage, ranges, null)}>{segment => <span classList={{ 'find-highlight': !!segment.citations.length }} style={segment.citations.length ? { background: segment.citations[0]!.color ? `color-mix(in srgb, var(--highlight-${segment.citations[0]!.color}) 24%, transparent)` : 'var(--selection)' } : undefined}><MatchText text={segment.text} query={props.query} /></span>}</For></p>;
           }}</For>;
         }}</Show>
       </div>

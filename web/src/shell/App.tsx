@@ -668,7 +668,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           <h3 class="index-shelf">{label}</h3>
           <Index each={shelfKinds()[shelf] ?? []}>{kind => <>
             <div classList={{ 'index-question-heading': kind().key === 'question' }}>
-            <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} title={kind().plural} onClick={event => open(indexKindTarget(kind()), event.shiftKey)}><span>{kind().plural}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
+            <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kind().plural} onClick={event => open(indexKindTarget(kind()), event.shiftKey)}><span>{kind().plural}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
             <Show when={kind().key === 'question'}><Button icon="more" label="Questions menu" aria-haspopup="menu" onClick={event => setQuestionsMenu(event.currentTarget)} /></Show>
             </div>
             <Show when={otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
@@ -676,7 +676,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         </Show>}</For>
         <Show when={index()?.spreads.length}>
           <h3 class="index-shelf">Spreads</h3>
-          <For each={index()?.spreads}>{spread => <Button class={`index-kind ${pageIdOf(entry(active())) === spread.id ? 'selected' : ''}`} title={spread.title} onClick={event => open({ kind: 'page', pageId: spread.id }, event.shiftKey)}><span>{spread.title}</span></Button>}</For>
+          <For each={index()?.spreads}>{spread => <Button class={`index-kind ${pageIdOf(entry(active())) === spread.id ? 'selected' : ''}`} icon="panes" title={spread.title} onClick={event => open({ kind: 'page', pageId: spread.id }, event.shiftKey)}><span>{spread.title}</span></Button>}</For>
         </Show>
         {/* Built-in kinds with nothing filed fold into one faint line, so they stay discoverable without a row each. */}
         <Show when={emptyKinds().length}><p class="index-empties">Empty: <For each={emptyKinds()}>{(kind, position) => <>{position() ? ' · ' : ''}<button type="button" aria-current={activeKindKey() === kind.key ? 'page' : undefined} onClick={event => open(indexKindTarget(kind), event.shiftKey)}>{kind.plural}</button></>}</For></p></Show>

@@ -131,7 +131,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 /* A notebook other than the default is named at the foot in the warning colour; long names shorten. */
 .sidebar .button > .notebook-marker { flex: 1; overflow: hidden; text-overflow: ellipsis; color: var(--warning); }
 /* A built-in kind with nothing filed but a saved view keeps its row, named faintly and without a count. */
-.sidebar .index-kind.empty:not(.selected) { color: var(--faint); }
+.sidebar .index-kind.empty:not(.selected), .sidebar .index-kind.empty:not(.selected) > .icon { color: var(--faint); }
 .sidebar .index-kind.empty:not(.selected):hover { color: var(--muted); }
 .journal-navigation { display: flex; align-items: center; flex-shrink: 0; gap: var(--space-2); margin-inline: var(--space-4); }
 /* Sections: a rubric numeral, the name, a hairline rule and a count. */
@@ -165,12 +165,10 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .index-views .sidebar-view { position: relative; padding-left: calc(var(--space-24) + var(--space-4)); }
 .index-views .sidebar-view::before { content: ""; position: absolute; left: calc(var(--space-12) + var(--space-2)); top: 0; bottom: 50%; width: var(--space-8); border-left: var(--rule-width) solid var(--line); border-bottom: var(--rule-width) solid var(--line); }
 .index-views .view-link > .icon { display: none; }
-/* The Index is a finding aid: kinds sit under small mono shelf heads and are named in the reading serif, without glyphs;
-   saved views under them are italic, like a question tree. Heads and the Empty line align with the names. */
+/* The Index is a finding aid: kinds sit under small mono shelf heads, in the interface voice with their glyphs.
+   Heads and the Empty line align with the kind names. */
 .index-shelf { margin: var(--space-12) 0 var(--space-2); padding-left: calc(var(--space-8) + 2 * var(--rule-width)); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-notebook); text-transform: uppercase; }
 .index-list > h2 + .index-shelf { margin-top: var(--space-4); }
-.sidebar .index-list .index-kind > span:not(.desk-count) { font: var(--weight-body) var(--text-body)/var(--line-control) var(--font-display); font-variation-settings: var(--optical-quote); }
-.index-views .view-link > span { font-family: var(--font-display); font-style: italic; }
 .index-empties { margin: var(--space-12) 0 0; padding-left: calc(var(--space-8) + 2 * var(--rule-width)); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .index-empties button { padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; cursor: pointer; }
 .index-empties button:hover, .index-empties button[aria-current="page"] { color: var(--text); }
@@ -312,7 +310,9 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 .palette-search .picker-section { color: var(--faint); text-transform: uppercase; letter-spacing: var(--tracking-notebook); }
 .find-result { display: block; flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .find-result small, .find-preview-header small { display: block; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.find-quote { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+/* Quotes and book passages are someone else's words, in the serif; your own blocks keep the writing voice. */
+.find-quote, .find-snippet { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.find-quote, .find-passage { font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
 .find-color { width: var(--space-8); height: var(--space-8); border-radius: var(--radius-pill); }
 .find-paragraph { width: var(--icon-size); color: var(--faint); font: var(--apparatus); }
 .palette-search mark { background: var(--text-selection); color: var(--accent); font-weight: inherit; }
@@ -321,12 +321,12 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 .find-scopes > .button { min-height: var(--target-size); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--muted); padding: var(--space-2) var(--space-8); font-weight: var(--weight-body); }
 .find-scopes > .button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
 .find-cancel { display: none; }
-/* Preview prose stays in the publication voice; source identifiers and keys stay apparatus. */
+/* Preview text follows the result's voice; source identifiers and keys stay apparatus. */
 .find-preview { grid-column: 2; grid-row: 1 / -1; min-width: 0; overflow: auto; padding: var(--space-16) var(--space-24); border-left: 1px solid var(--line); }
 .find-preview-header { display: flex; align-items: center; gap: var(--space-12); margin-bottom: var(--space-16); }
 .find-preview-header img { width: var(--resume-cover-width); max-height: 64px; object-fit: contain; border-radius: var(--radius-control); }
 .find-preview-header h2 { margin: 0; font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); font-variation-settings: var(--optical-heading); }
-.find-preview-prose { font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-reader); text-align: left; }
+.find-preview-prose { font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); text-align: left; }
 .find-preview-prose p { margin: 0 0 var(--space-12); }
 .find-highlight { box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .find-preview-keys { display: flex; flex-wrap: wrap; gap: var(--space-16); padding-block: var(--space-12); border-top: 1px solid var(--line); }

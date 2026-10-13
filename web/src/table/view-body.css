@@ -13,7 +13,7 @@
 .position-register-field { display: grid; grid-template-columns: calc(var(--space-48) * 3 + var(--space-24)) minmax(0, 1fr); gap: var(--space-12); align-items: baseline; }
 .position-field-label { color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
 .position-register-field[data-field-role="standfirst"], .position-register-field[data-field-role="prose"] { grid-template-columns: minmax(0, 1fr); }
-.position-register-field[data-field-role="standfirst"] { margin-bottom: var(--space-8); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); font-variation-settings: var(--optical-quote); }
+.position-register-field[data-field-role="standfirst"] { margin-bottom: var(--space-8); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-body); }
 .position-register-field[data-field-role="standfirst"] .criteria-input { font: inherit; }
 .position-register-field[data-field-role="prose"] { margin-top: var(--space-8); }
 .position-register-subject { display: flex; align-items: baseline; gap: var(--space-4); margin-top: var(--space-8); font: var(--apparatus); color: var(--faint); }

@@ -20,7 +20,7 @@ Status: applied to the shell, the outline and the table. The permanent global ra
 
 ### Type
 
-Three voices separate writing from publication and apparatus. IBM Plex Sans Variable is bundled for your writing, inputs and ordinary controls. Piazzolla Variable is bundled in normal and italic for page titles, heading rows, library titles, displayed highlights, quotes and the reader. Read projection prose, including its in-place editor, stays in Piazzolla. Outline writing and title editing stay in Plex. The font belongs to the projection, never to focus. Berkeley Mono is used when installed, with system monospace fallbacks. Its commercial font files are not bundled.
+Three voices separate writing from publication and apparatus. IBM Plex Sans Variable is bundled for your writing, inputs and ordinary controls. Piazzolla Variable is bundled in normal and italic for the names of things and for what someone else wrote: page titles, heading rows, library and work titles, displayed highlights, quotes and the reader. The notebook's own sentences stay in Plex wherever they appear: outline rows (cited or not), glosses and standfirsts, positions and questions, and their previews in Find and on hover. Read projection prose, including its in-place editor, stays in Piazzolla. The font belongs to the projection, never to focus. Berkeley Mono is used when installed, with system monospace fallbacks. Its commercial font files are not bundled.
 
 Apparatus uses `--apparatus`: 400 at 11.5 / 16, with tabular numerals and slight tracking. It covers breadcrumbs, save state, Vim mode, sidebar section headings, picker metadata, counts, progress and resurfaced metadata. UI labels stay in sentence case. Key hints (`⌃⇧F`, `⇧↵`, `Space`) keep the apparatus size in the sans voice.
 
@@ -334,7 +334,7 @@ Show bullets and Hide bullets in the page menu override a page's default; overri
 
 A titled page's gloss is an entry for the built-in Gloss field among its top-level blocks, added or edited from Gloss in the page menu or the palette, which create the field and put the entry first. Adding the entry and its empty value is one undo step.
 
-The definition's standfirst role gives it Piazzolla at `--text-gloss`, muted, on the text edge, with no field label. The same role works on any definition, including one named Summary. Clicking edits its sentence, and an empty gloss says what to write. Reference preview cards show the page's first standfirst under the title and leave it out of their rows.
+The definition's standfirst role sets it at `--text-gloss` in Plex, muted, on the text edge, with no field label. The same role works on any definition, including one named Summary. Clicking edits its sentence, and an empty gloss says what to write. Reference preview cards show the page's first standfirst under the title and leave it out of their rows.
 
 Titled pages have four depths:
 

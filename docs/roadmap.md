@@ -153,6 +153,10 @@ Exit: offline, highlight a book on the phone while editing today's journal on th
 
 Progress: determinism and identity, the replica protocol on loopback, and objects and library state are done. `tessera sync clone` and `tessera sync` replicate a notebook from a running service, with text conflicts kept as copies, same-day journals, same-title pages and the same book merged, covers kept on every replica, other files fetched when used or pinned, and reading positions and surfacings ordered by a hybrid logical clock. The tailnet listener, pairing and the Android client are in. A paired phone syncs with the Mac; an unpaired phone keeps its own notebook.
 
+## Later
+
+- A writing typeface choice in Settings › Appearance that sets the notebook's own sentences in Piazzolla, as the reader's Typeface setting does for books. Plex stays the default.
+
 ## Not planned
 
 Collaboration, an iOS app, plugin and schema builders, graph visualization and autonomous background agents. Each may come later; none blocks daily use.

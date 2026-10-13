@@ -18,7 +18,7 @@ Index is a sidebar section after Pinned. Its count is the distinct notes filed, 
 
 The service assigns each kind its shelf, so a type moves shelf only when most of its notes change capability. Saved spreads follow under their own Spreads head. A shelf with no listed kinds leaves out its head.
 
-Rows stay on one line: the plural in Piazzolla at body size, without a glyph, and a bare mono count right.
+Rows stay on one line: the kind's glyph in `--faint`, the plural at control size, and a bare mono count right.
 
 | Kind | Count and appearance |
 | --- | --- |
@@ -29,7 +29,7 @@ Rows stay on one line: the plural in Piazzolla at body size, without a glyph, an
 
 An empty built-in kind that has a saved view keeps its row, named in `--faint` without a count. Each other type and Unfiled are listed only while they have titled notes or tagged non-page blocks. Note counts and the distinct-note total never include tagged blocks.
 
-The Index heading opens a bounded directory in the same order, with explicit note, source or `N tagged` counts. Tag-only rows open their [member table](fields-tables.md#tables-and-views) directly; other kinds open their finding aid. A saved view sits under the kind whose type it lists, in Piazzolla italic on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
+The Index heading opens a bounded directory in the same order, with explicit note, source or `N tagged` counts. Tag-only rows open their [member table](fields-tables.md#tables-and-views) directly; other kinds open their finding aid. A saved view sits under the kind whose type it lists, on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
 
 ## Finding aid
 
