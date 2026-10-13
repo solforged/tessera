@@ -230,3 +230,73 @@ fn archived_targets_are_not_discoverable_but_page_keeps_editing_rows_and_targets
         vec![(id(2), true), (id(3), false)]
     );
 }
+
+#[test]
+fn canonical_reference_search_tracks_live_labels_without_rewriting_authored_text() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(directory.path()).unwrap();
+    let canonical = format!("Canonical [[{}]]", id(2));
+    apply(
+        &mut notebook,
+        vec![
+            page(1, "Notes"),
+            page(2, "Ibn Khaldun"),
+            insert(10, 1, &canonical),
+            insert(11, 1, &format!("Aliased [[{}|Historian]]", id(2))),
+            insert(12, 1, &format!("Unresolved [[{}]]", id(3))),
+        ],
+    );
+    let hits = |notebook: &Notebook, query: &str| {
+        notebook
+            .search(query, 100)
+            .unwrap()
+            .into_iter()
+            .map(|row| row.block.id)
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(hits(&notebook, "Canonical Ibn Khaldun"), [id(10)]);
+    assert!(hits(&notebook, "Aliased Ibn Khaldun").is_empty());
+    assert_eq!(hits(&notebook, "Aliased Historian"), [id(11)]);
+    apply(
+        &mut notebook,
+        vec![Operation::EditText {
+            id: id(2),
+            base_revision: 1,
+            text: "Ibn Khaldūn renamed".into(),
+        }],
+    );
+    assert_eq!(hits(&notebook, "Canonical Ibn Khaldun renamed"), [id(10)]);
+    assert_eq!(notebook.block(&id(10)).unwrap().text, canonical);
+    apply(&mut notebook, vec![page(3, "Plato")]);
+    assert_eq!(hits(&notebook, "Unresolved Plato"), [id(12)]);
+    let deleted = apply(
+        &mut notebook,
+        vec![Operation::Delete {
+            id: id(2),
+            base_revision: 2,
+        }],
+    );
+    assert!(hits(&notebook, "Canonical Ibn").is_empty());
+    apply(
+        &mut notebook,
+        vec![Operation::Restore {
+            id: id(2),
+            revision: 3,
+            deletion_id: deleted.deletions[0].clone(),
+        }],
+    );
+    assert_eq!(hits(&notebook, "Canonical renamed"), [id(10)]);
+    apply(
+        &mut notebook,
+        vec![Operation::EditText {
+            id: id(10),
+            base_revision: 1,
+            text: "Canonical without a link".into(),
+        }],
+    );
+    assert!(hits(&notebook, "Canonical renamed").is_empty());
+    drop(notebook);
+    let notebook = Notebook::open(directory.path()).unwrap();
+    assert_eq!(hits(&notebook, "Unresolved Plato"), [id(12)]);
+    assert_eq!(hits(&notebook, "Aliased Historian"), [id(11)]);
+}

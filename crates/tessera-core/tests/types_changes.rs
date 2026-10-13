@@ -1,3 +1,5 @@
+mod common;
+
 use tessera_core::{Actor, Batch, BlockKind, Committed, Notebook, Operation, Revision};
 
 fn id(value: u128) -> String {
@@ -737,6 +739,7 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
     apply(&mut nb, vec![delete(2, 1)]);
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    common::restore_authored_search(&conn);
     conn.execute_batch(
         "DROP TABLE type_presentation;
          DROP TABLE subject_criteria;
@@ -1276,6 +1279,7 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
     apply(&mut nb, vec![delete(2, 1)]);
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    common::restore_authored_search(&conn);
     conn.execute_batch(
         "DROP TABLE type_presentation;
          DROP TABLE subject_criteria;
@@ -1632,6 +1636,7 @@ fn provisional_cleanup_does_not_backfill_existing_pages_on_upgrade() {
     apply(&mut nb, vec![page(1, "Notes"), insert(10, 1, "#legacy")]);
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    common::restore_authored_search(&conn);
     conn.execute_batch(
         "DROP TABLE type_presentation;
          DROP TABLE subject_criteria;

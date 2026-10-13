@@ -1,3 +1,5 @@
+mod common;
+
 use tessera_core::{
     Actor, Batch, Committed, Direction, Error, FieldHide, FieldKind, Filter, FilterOp, Notebook,
     Operation, Query, QueryResult, Reading, ReadingValue, Revision, SortBy, SortKey,
@@ -475,11 +477,15 @@ fn field_hide_migration_replays_from_schema_36() {
     kind(&mut nb, 10, FieldKind::Number);
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    common::restore_authored_search(&conn);
     conn.execute_batch("ALTER TABLE fields DROP COLUMN hide; PRAGMA user_version = 36;")
         .unwrap();
     drop(conn);
     let mut nb = Notebook::open(dir.path()).unwrap();
-    assert_eq!(nb.info().unwrap().schema_version, 37);
+    assert_eq!(
+        nb.info().unwrap().schema_version,
+        tessera_core::SCHEMA_VERSION
+    );
     let definition = nb
         .field_detail(&id(10), None, None)
         .unwrap()
@@ -534,6 +540,7 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
     // A version-five database with existing Fields content upgrades in place.
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    common::restore_authored_search(&conn);
     conn.execute_batch(
         "DROP TABLE type_presentation;
          DROP TABLE subject_criteria;

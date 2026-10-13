@@ -1,3 +1,5 @@
+mod common;
+
 use tessera_core::{Actor, Batch, Committed, Error, Notebook, Operation, QuoteState, QuotedRow};
 
 fn id(value: u128) -> String {
@@ -427,6 +429,7 @@ fn migration_indexes_existing_quote_markers() {
     );
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    common::restore_authored_search(&conn);
     conn.execute_batch(
         "DROP TABLE quotes; DELETE FROM links; ALTER TABLE fields DROP COLUMN hide; PRAGMA user_version = 35;",
     )

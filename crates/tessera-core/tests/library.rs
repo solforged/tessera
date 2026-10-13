@@ -1,3 +1,5 @@
+mod common;
+
 use tessera_core::{
     Actor, Batch, Direction, Error, FieldKind, Notebook, Operation, Query, Reading, ReadingValue,
     library::*,
@@ -344,6 +346,7 @@ fn citation_triage_migration_preserves_existing_evidence() {
     let (dir, n, citation) = highlighted_source();
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    common::restore_authored_search(&conn);
     downgrade_card_schema(&conn);
     conn.execute_batch(
         "DROP TABLE type_presentation;
@@ -622,6 +625,7 @@ fn citation_color_migration_preserves_existing_evidence_with_null_color() {
     let (dir, n, citation) = highlighted_source();
     drop(n);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    common::restore_authored_search(&conn);
     downgrade_card_schema(&conn);
     conn.execute_batch(
         "DROP TABLE type_presentation;

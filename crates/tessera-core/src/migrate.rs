@@ -44,6 +44,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/035_review_undos.sql"),
     include_str!("../migrations/036_quotes.sql"),
     include_str!("../migrations/037_field_hide.sql"),
+    include_str!("../migrations/038_reference_search.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;

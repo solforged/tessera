@@ -1,3 +1,5 @@
+mod common;
+
 use std::path::Path;
 
 use rusqlite::{Connection, types::Value};
@@ -1683,6 +1685,7 @@ fn undo_grade_rebases_and_preserves_same_timestamp_reset_order_in_patches() {
 }
 
 fn downgrade_review_order(conn: &Connection) {
+    common::restore_authored_search(conn);
     conn.execute_batch(
         "DROP VIEW effective_review_events;
          DROP TABLE review_undos;
