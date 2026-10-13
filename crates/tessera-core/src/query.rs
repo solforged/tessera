@@ -106,6 +106,7 @@ fn column_frequencies<'a>(
     conn: &Connection,
     query: &Query,
     definitions: &HashMap<&'a str, &FieldDefinition>,
+    kind_members: Option<&HashSet<String>>,
 ) -> Result<HashMap<&'a str, usize>> {
     let mut statement = conn.prepare_cached(concat!(
         hidden_blocks!(),
@@ -124,8 +125,12 @@ fn column_frequencies<'a>(
     let mut frequencies = HashMap::new();
     let mut owner = String::new();
     let mut fields = HashSet::new();
-    let mut count_owner = |fields: &HashSet<&'a str>| {
+    let mut count_owner = |owner: &str, fields: &HashSet<&'a str>| {
+        if kind_members.is_some_and(|members| !members.contains(owner)) {
+            return;
+        }
         if query.r#type.is_some()
+            || kind_members.is_some()
             || query.filters.is_empty()
             || query
                 .filters
@@ -146,7 +151,7 @@ fn column_frequencies<'a>(
             )
         })?;
         if owner != id {
-            count_owner(&fields);
+            count_owner(&owner, &fields);
             fields.clear();
             owner.clear();
             owner.push_str(id);
@@ -164,7 +169,7 @@ fn column_frequencies<'a>(
             fields.insert(*field);
         }
     }
-    count_owner(&fields);
+    count_owner(&owner, &fields);
     Ok(frequencies)
 }
 
@@ -559,7 +564,20 @@ impl Notebook {
             .transpose()?
             .unwrap_or_default();
         columns.retain(|id| defs.contains_key(id.as_str()));
-        let mut frequencies = column_frequencies(&self.conn, query, &defs)?;
+        // A note view's columns describe its kind, not the find terms that narrow it.
+        let kind_members = query
+            .note_kind
+            .as_deref()
+            .map(|kind| -> Result<HashSet<String>> {
+                Ok(self
+                    .kind_notes(kind)?
+                    .notes
+                    .into_iter()
+                    .map(|note| note.id)
+                    .collect())
+            })
+            .transpose()?;
+        let mut frequencies = column_frequencies(&self.conn, query, &defs, kind_members.as_ref())?;
         for filter in &query.filters {
             frequencies.entry(filter.field.as_str()).or_default();
         }
