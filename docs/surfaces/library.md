@@ -12,7 +12,7 @@ The header starts with Reading, Inbox and Highlights with its unprocessed count,
 
 Under the tabs sit a 28 px search field, a sort menu (Added, Title, Author, Year, Last read, Progress, then Group and Save view…), the List and Shelf toggles, Browse, an Export menu (BibTeX, CSL JSON, Markdown) for the selection or the listed sources, and Add. Every tab keeps this row at one height and the same controls, Browse disabled where the tab has nothing to browse; Collections puts its heading and New collection in the same row. On wide panes the tab strip and the list keep the Browse rail's offset on every tab, so switching tabs never moves them sideways.
 
-Searching, filtering and sorting keep the current rows on screen until the new ones arrive and swap them in one step. Loading… appears only when nothing of that kind is loaded and the load takes over 300 ms.
+Searching, filtering and sorting keep the current rows on screen until the new ones arrive and swap them in one step; a tab's new rows fade in as they land, not at the click. Loading… appears only when nothing of that kind is loaded and the load takes over 300 ms. Returning to the Library, by Back, the sidebar or in the other pane, shows its last rows, tab, layout and scroll in the first frame and refreshes them quietly.
 
 | Context | Header behavior |
 | --- | --- |
@@ -53,7 +53,7 @@ The shelf is a grid of 2:3 covers at least `--shelf-cover-width` wide, sharing a
 - The byline in `--muted`.
 - One mono apparatus line in `--faint`: siglum (gilt on hover), state in views spanning states, year, progress (none once finished) and the unprocessed highlight count.
 
-A source without a cover gets a typeset spine on `--surface`: the gilt siglum over a short rule and the title, centered clear of the corners.
+A source without a cover gets a typeset spine on `--surface`: the gilt siglum over a short rule and the title, centered clear of the corners. Spine titles hyphenate long words and break one mid-word only when it cannot fit alone.
 
 The selection checkbox and the actions button sit on the cover's top corners and appear as in the list. A selected cover takes a 2 px accent ring.
 
@@ -100,7 +100,7 @@ The Works heading and shelf share the page title's left edge. Works and its coun
 Reading now leads the unsearched, unfiltered Reading and All tabs with one card for every Reading source, including books not yet started, in the toolbar's sort order. Other tabs list only their own state. On the Reading tab the cards are the list: they replace the rows in the ungrouped List layout, while Shelf shows the covers and a grouping shows grouped rows instead; a search, filter or saved view brings the rows back. Each card reads top-down:
 
 - Its real cover or spine tile, 56 px wide, beside the title on up to two lines, the author and the current chapter (`4 · Deus Vult!`; `Not started` before any reading, `Reading position` in front matter). Cards use a wider two-column measure so short articles retain their identities; authors and chapter labels also wrap to two lines instead of clipping to one.
-- Under the cover, spanning the card, the segmented chapter map, then `N min left` inside a named chapter (the full `N min left in chapter` on hover) and the book's percentage on one line. The maps sit at the cards' feet, level across a row.
+- Under the cover, spanning the card, the segmented chapter map, then `N min left` inside a named chapter (the full `N min left in chapter` on hover) and the book's percentage on one line. The maps sit at the cards' feet, level across a row. Until the source's contents load, a plain track holds the map's place, so the card never grows.
 
 Coverless articles omit the spine tile on Reading cards, leaving that width to their title and creators rather than an empty cover.
 
@@ -150,7 +150,9 @@ The manual details form remains in Add only: labeled rows, Creator name fields w
 
 ### Opening and layout
 
-Selecting a source through its leading slot or checkbox opens a 460 px catalog-card inspector to the right of the Library ledger or shelf. The title still opens the source page. Details is also available in each source's actions and the batch bar. Edit details… on a source page opens the same card beside the page, without leaving it.
+Selecting a source through its leading slot or checkbox opens a 460 px catalog-card inspector to the right of the Library ledger or shelf, sliding in 12 px from the right edge as it fades in. The title still opens the source page. Details is also available in each source's actions and the batch bar. Edit details… on a source page opens the same card beside the page, without leaving it.
+
+Changing the selection keeps the current card on screen until the next source's details are loaded, then swaps its content in one step with a short fade. Loading source details… shows only when no card is shown yet and loading takes over 300 ms.
 
 Browse steps aside while inspecting and its named button brings it back. Closing details clears selection. An edit that moves a source outside the current Library filter leaves its card open. A selected shelf cover has a 2 px gilt ring.
 
@@ -362,7 +364,7 @@ A collection opens the same sorted rows or shelf as All, filtered by its page ID
 
 Multi-selection and source actions offer Add to collection, with a new-collection row in the picker. The metadata form lists the source's collections with add and remove controls. Inside a collection, selected sources can be removed without deleting them. Touch selection stays visible and reveals the bulk controls.
 
-Each action is one revision-checked document commit with a quiet Undo notice. Deletion clears membership values in that same commit and leaves the books intact.
+Each action is one revision-checked document commit with a quiet Undo notice, shown once beside the collection chips. The notice rises into place and leaves after 10 seconds unless the pointer or focus is on it or its Undo is running; errors stay until the next action. A chip added on a source page arrives with a gilt border that fades to the hairline, while chips already present do not move. Deletion clears membership values in that same commit and leaves the books intact.
 
 ### Saved queries
 

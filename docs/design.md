@@ -130,17 +130,24 @@ A [resurfaced slip](surfaces/journal.md) sits on `--raised`, marked by its highl
 
 Motion acknowledges an action without delaying it: 140 ms for popup entry and sidebar movement, 90 ms for popup exit and hover feedback, with a short ease-out and no bounce. Popups travel 4 px; toasts and the reader's selection toolbar rise the same distance.
 
+Its vocabulary comes from the desk: ink is drawn, leaves are laid down, marks are stamped. Rules and bars draw from an edge, a page settles from the side it lies on, a new mark arrives in gilt that fades to its resting color. Nothing springs, bounces or overshoots. Old content stays until its replacement is ready, so a change happens once, at the moment of replacement, never on stale or empty content.
+
 - Clickable button icons scale subtly on hover, focus and press. Rows, pills and list items fade their hover fill.
 - Fold and disclosure chevrons turn rather than swap. A menu trigger's trailing chevron turns while its menu is open. Recent, related sections and review history expand and collapse in place.
 - A revealed answer fades in. The save state icon turns while saving.
 - In the [reader](surfaces/reader.md), a page slides to the next in 220 ms (`--motion-page`), following a finger that drags it and finishing from where the finger let go. Past a chapter's edge the page fades a step aside and the next fades in from the side it lies on.
 - A new highlight draws its band under the words left to right in 420 ms (`--motion-ink`). The reader's toolbar and book map drift 4 px toward their edges as they fade.
 - The reader's text and a [source page](surfaces/library.md) fade in once they are ready rather than arriving in pieces. The note sheet's writing area rises from the bottom edge, and the sheet fades away once the note is kept.
+- A mode strip's gilt rule glides from the old tab to the new one over 220 ms, like a ruling pen along the baseline. It appears in place when a strip first shows, follows count and width changes without gliding, and only glides for a tab the reader chose.
+- A selected row's accent bar and the Library's opened-source marker draw down from the top over `--motion-ui`.
+- A cover image fades in over `--motion-ui` the first time it loads; one already loaded shows at once.
 - Reduced motion sets durations and travel to zero and disables icon scaling.
 
-Pane destinations enter on target identity, not on document updates: content alone fades and rises by `--motion-distance` over `--motion-ui`; pane chrome stays still. Mode-tab rules fade between selections, and explicitly associated mode panels fade in over the same duration. The outgoing panel is not copied, so a long list costs nothing to leave and input belongs to the new panel immediately.
+Pane destinations enter on target identity, not on document updates. A navigation turns one leaf with a view transition: the outgoing content stays on screen until the incoming surface has something to show (up to 400 ms), then lifts away over `--motion-fast` while the new content settles from 12 px (`--motion-leaf`) over `--motion-page`, from the right going forward and from the left going back. Pane chrome changes at once without moving, the other pane does not move, and pointer input passes through to the new page during the motion. A source cover visible on both sides, on the shelf or a Reading now card and on the source page, travels between them. A surface still loading after the hold keeps its own entry fade for when it lands. Without view transitions the content fades and rises by `--motion-distance` over `--motion-ui`.
 
-No animation runs while typing or restoring scroll. Reduced motion prevents content animations and removes tab-rule and sidebar-bar transitions entirely.
+Surfaces mark what the motion waits for. A surface root carries `data-pane-pending` while it has nothing of its target to show; a mode panel carries `aria-busy="true"` while it still shows the previous selection's rows, and fades in over `--motion-ui` when its own rows land rather than at the click. The outgoing panel is not copied, so a long list costs nothing to leave and input belongs to the new panel immediately.
+
+No animation runs while typing or restoring scroll. Reduced motion prevents content animations and view transitions, and removes tab-rule and sidebar-bar transitions entirely.
 
 Outline folds animate the visible descendant group and following rows over `--motion-ui`, rather than running one animation per descendant. Outgoing children remain until collapse finishes; virtualization stays bounded and the active editor stays mounted. Reversing a fold settles the previous transition first. Reduced motion changes the tree immediately.
 
