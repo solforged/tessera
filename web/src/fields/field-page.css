@@ -44,6 +44,7 @@
 .field-interpretations .input { width: 100%; min-width: 0; margin-top: var(--space-4); }
 .field-interpretations td > label { display: flex; gap: var(--space-8); align-items: baseline; }
 .field-preview-summary { margin-block: var(--section-gap); padding-left: var(--space-16); border-left: var(--space-2) solid var(--danger); }
+.field-preview-summary.field-preview-clean { border-left-color: var(--line); }
 .field-preview-summary h2 { margin: 0; font-family: var(--font-display); font-size: var(--text-h1); font-weight: var(--weight-display-heading); line-height: var(--line-h1); }
 .field-preview-summary h2 .field-rubric { font-family: var(--font-mono); }
 .field-preview-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-12); margin-top: var(--section-gap); padding-top: var(--space-16); border-top: var(--rule-width) solid var(--line); }
