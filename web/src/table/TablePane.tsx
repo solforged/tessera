@@ -44,7 +44,8 @@ export interface TablePaneProps {
 type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label: string; header?: JSX.Element }
   | { kind: 'filter'; anchor: HTMLElement; field: string }
   | { kind: 'name'; anchor: HTMLElement; action: 'save' | 'rename' | 'field'; addColumn?: boolean }
-  | { kind: 'columns'; anchor: HTMLElement }
+  | { kind: 'columns'; anchor: HTMLElement; cards?: boolean }
+  | { kind: 'purpose'; anchor: HTMLElement }
   | { kind: 'sources'; anchor: HTMLElement; label: string; sources: TableSource[] }
   | { kind: 'delete'; anchor: HTMLElement; view: View }
   | { kind: 'embed-page'; anchor: HTMLElement; view: View }
@@ -81,6 +82,9 @@ function TableContent(props: TablePaneProps) {
   const [initialColumns, setInitialColumns] = createSignal<string[]>();
   const [resizingWidths, setResizingWidths] = createSignal<Record<string, number>>({});
   const [popup, setPopup] = createSignal<PopupState>(null);
+  const [narrow, setNarrow] = createSignal(false);
+  const [querySheet, setQuerySheet] = createSignal<HTMLElement | null>(null);
+  const [dockBounds, setDockBounds] = createSignal({ left: 0, width: 0 });
   const [focused, setFocused] = createSignal<TableCell>({ rowId: null, fieldId: null });
   const [selectedRow, setSelectedRow] = createSignal<string | null>(null);
   const [editing, setEditing] = createSignal<{ row: QueryRow; field: FieldDefinition; text: string } | null>(null);
@@ -90,7 +94,7 @@ function TableContent(props: TablePaneProps) {
   const [savingView, setSavingView] = createSignal(false);
   const [viewUndo, setViewUndo] = createSignal(false);
   const [replaying, setReplaying] = createSignal(false);
-  let region!: HTMLDivElement; let scroll!: HTMLDivElement; let grid!: HTMLTableElement;
+  let region!: HTMLDivElement; let register!: HTMLDivElement; let scroll!: HTMLDivElement; let grid!: HTMLTableElement;
   const documents = new Map<string, PageDocument>();
   const history: TableEdit[] = [];
   const undone: typeof history = [];
@@ -193,8 +197,9 @@ function TableContent(props: TablePaneProps) {
   createEffect(() => {
     setFocused(retainCell(untrack(focused), navigableRows(), visibleColumns()));
   });
+  const scrollHost = () => narrow() ? register : scroll;
   const reportView = (value = query()) => props.onViewChange({
-    query: copyQuery(value.columns || !initialColumns() ? value : { ...value, columns: recipeColumns() }), scroll: scroll?.scrollTop ?? props.view.scroll,
+    query: copyQuery(value.columns || !initialColumns() ? value : { ...value, columns: recipeColumns() }), scroll: scrollHost()?.scrollTop ?? props.view.scroll,
     hiddenFields: [...hiddenFields()], titleWidth: titleWidth(), horizontalScroll: scroll?.scrollLeft ?? props.view.horizontalScroll ?? 0,
   });
   const recipeColumns = () => query().columns?.map(column => ({ ...column })) ?? [{ key: '@title', width: titleWidth() }, ...visibleColumns().map(key => ({ key, width: undefined as number | undefined }))];
@@ -243,6 +248,20 @@ function TableContent(props: TablePaneProps) {
   };
   const changed = () => !!saved() && !queriesEqual(query(), saved()!.query);
   const title = () => typeKind()?.plural ?? type()?.plural ?? (query().type ? autoPlural(props.notebook.lookup(query().type!)()?.text ?? '') : query().source ? sourceName(query().source) : '');
+  const queryParts = createMemo(() => query().filters.length + query().sort.length + (query().group ? 1 : 0) + (query().text ? 1 : 0) + (query().source && query().source !== 'notes' ? 1 : 0) + (query().links?.length ?? 0) + (query().from?.length ?? 0) + (query().cites?.length ?? 0));
+  const summary = createMemo(() => {
+    const count = result()?.total ?? 0;
+    const plural = title() || 'blocks';
+    const noun = count === 1 ? typeKind()?.name ?? type()?.page.text ?? (query().type ? props.notebook.lookup(query().type!)()?.text ?? plural : plural.slice(0, -1)) : plural;
+    return [
+    `${canAppend() ? `${(result()?.rows.length ?? 0).toLocaleString()} of ` : ''}${count.toLocaleString()} ${noun.toLocaleLowerCase()}`,
+    ...(query().text ? [`“${query().text}”`] : []),
+    ...(['links', 'from', 'cites'] as const).flatMap(key => (query()[key] ?? []).map(id => `${key} ${props.notebook.lookup(id)()?.text ?? 'Loading…'}`)),
+    ...query().filters.map(filter => filterLabel(filter, pickerFields(), props.notebook, query().field_names)),
+    ...(query().sort.length ? [`sorted by ${query().sort.map(labelSort).join(', ')}`] : []),
+    ...(query().group ? [`by ${fieldName(query().group!.key)}`] : []),
+    ].join(' · ');
+  });
   const updateQuery = (next: Query) => {
     const value = retainFieldNames(next.columns || !initialColumns() ? next : { ...next, columns: recipeColumns() });
     const columns = value.columns?.filter(column => column.key !== '@title').map(column => column.key);
@@ -289,7 +308,7 @@ function TableContent(props: TablePaneProps) {
         showResult(rows); setError(''); setLoading(false);
         if (!restoredScroll) {
           restoredScroll = true;
-          requestAnimationFrame(() => { if (scroll) { scroll.scrollTop = props.view.scroll; scroll.scrollLeft = props.view.horizontalScroll ?? 0; } });
+          requestAnimationFrame(() => { if (scroll) { scrollHost().scrollTop = props.view.scroll; scroll.scrollLeft = props.view.horizontalScroll ?? 0; } });
         }
       })().catch(reason => { if (!controller.signal.aborted) { message(reason); setLoading(false); } });
     }, 150);
@@ -303,8 +322,9 @@ function TableContent(props: TablePaneProps) {
     try {
       const next = await api.query({ ...copyQuery(query()), limit: pageSize(), offset: current.rows.length }, controller.signal);
       if (controller.signal.aborted) return;
-      const top = scroll.scrollTop; const left = scroll.scrollLeft;
-      const viewport = scroll.getBoundingClientRect();
+      const host = scrollHost();
+      const top = host.scrollTop; const left = scroll.scrollLeft;
+      const viewport = host.getBoundingClientRect();
       const anchor = [...scroll.querySelectorAll<HTMLElement>('[data-block-id]')].find(row => {
         const bounds = row.getBoundingClientRect();
         return bounds.width > 0 && bounds.bottom > viewport.top && bounds.top < viewport.bottom;
@@ -318,7 +338,7 @@ function TableContent(props: TablePaneProps) {
       setResult({ ...next, rows: [...current.rows, ...next.rows], groups: [...groups.values()] });
       requestAnimationFrame(() => {
         if (controller.signal.aborted) return;
-        scroll.scrollTop = top + (anchor && anchorTop !== undefined ? anchor.getBoundingClientRect().top - anchorTop : 0);
+        host.scrollTop = top + (anchor && anchorTop !== undefined ? anchor.getBoundingClientRect().top - anchorTop : 0);
         scroll.scrollLeft = left;
         reportView(); measureEdge();
       });
@@ -424,7 +444,7 @@ function TableContent(props: TablePaneProps) {
     setTitleWidth(clampTitleWidth(next.columns?.find(column => column.key === '@title')?.width));
     setSelectedRow(null); setFocused({ rowId: null, fieldId: null }); setPopup(null);
     props.onTargetChange({ kind: 'table', typeId: next.type, viewId: view?.id ?? null, query: copyQuery(next) });
-    if (scroll) { scroll.scrollTop = 0; scroll.scrollLeft = 0; }
+    if (scroll) { scrollHost().scrollTop = 0; scroll.scrollLeft = 0; }
     reportView(next);
   };
   const viewMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Views',
@@ -433,6 +453,7 @@ function TableContent(props: TablePaneProps) {
       { label: title() ? `All ${title()}` : 'All blocks', checked: queriesEqual(query(), typeQuery(query().type)), shortcut: !props.target.viewId && !queriesEqual(query(), typeQuery(query().type)) ? 'Modified' : undefined, action: () => switchView(null) },
       ...(views() ?? []).filter(view => view.query.type === query().type && (view.query.source ?? 'notes') === (query().source ?? 'notes')).map((view): MenuItem => ({ label: view.name, checked: queriesEqual(query(), view.query), shortcut: view.id === props.target.viewId && !queriesEqual(query(), view.query) ? 'Modified' : undefined, action: () => switchView(view) })),
       { label: 'Save as view…', section: 'View actions', action: () => setPopup({ kind: 'name', anchor, action: 'save' }) },
+      ...(narrow() ? [{ label: query().purpose ? 'Edit purpose…' : 'Add purpose…', action: () => setPopup({ kind: 'purpose' as const, anchor }) }] : []),
       ...(!props.target.viewId && !queriesEqual(query(), typeQuery(query().type)) ? [{ label: 'Revert changes', action: () => switchView(null) }] : []),
       ...(props.target.viewId ? [
         ...(changed() ? [{ label: 'Save changes', disabledReason: savingView() ? 'Saving…' : undefined, action: () => { void saveChanges().catch(message); } }, { label: 'Revert changes', action: () => { const value = saved(); if (value) switchView(value); } }] : []),
@@ -443,7 +464,7 @@ function TableContent(props: TablePaneProps) {
     ],
   });
   const showFilter = (anchor: HTMLElement, field = '') => {
-    const initial = field || (window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches ? visibleColumns().find(id => fieldById(id)?.kind === 'choice') ?? '' : '');
+    const initial = field || (narrow() ? visibleColumns().find(id => fieldById(id)?.kind === 'choice') ?? '' : '');
     setPopup({ kind: 'filter', anchor, field: initial });
   };
   const columnMenu = (anchor: HTMLElement, field: FieldDefinition | undefined) => {
@@ -614,33 +635,9 @@ function TableContent(props: TablePaneProps) {
       }} onBlur={() => { void commitEdit(); }} />
     </Show>;
   };
-  const renderCardCell = (row: QueryRow, field: FieldDefinition) => <div class={`table-card-field table-kind-${field.kind}`} classList={{ 'table-card-source': field.id === sourceField()?.id }} role="button" tabIndex={0} aria-label={`Open ${field.name} field`} onClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('button') && !field.id.startsWith('@')) openField(row, field); }} onKeyDown={event => { if ((event.key === 'Enter' || event.key === ' ') && !field.id.startsWith('@')) { event.preventDefault(); event.stopPropagation(); openField(row, field); } }}><span class="table-card-field-name">{field.name}</span>{renderValue(row, field, true)}</div>;
+  const renderCardCell = (row: QueryRow, field: FieldDefinition) => <div class={`table-card-field table-kind-${field.kind}`} classList={{ 'table-card-source': field.id === sourceField()?.id, 'table-card-gloss': field.name.trim().toLocaleLowerCase() === 'gloss', 'table-card-grouped-field': !!query().group && field.id === query().group?.key }} role="button" tabIndex={0} aria-label={`Open ${field.name} field`} onClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('button') && !field.id.startsWith('@')) openField(row, field); }} onKeyDown={event => { if ((event.key === 'Enter' || event.key === ' ') && !field.id.startsWith('@')) { event.preventDefault(); event.stopPropagation(); openField(row, field); } }}><span class="table-card-field-name">{field.name}</span>{renderValue(row, field, true)}</div>;
   const renderRefs = (row: QueryRow, phone: boolean) => <Show when={(sourcesByRow().get(row.block.block.id) ?? []).length}>{count => <Button class={`table-source-count${phone ? ' table-card-refs' : ''}`} label={`${count()} ${count() === 1 ? 'reference' : 'references'}`} aria-haspopup="dialog" onClick={event => { event.stopPropagation(); setPopup({ kind: 'sources', anchor: event.currentTarget, label: sourceField()?.name ?? 'Source', sources: sourcesByRow().get(row.block.block.id) ?? [] }); }}>{count()} {phone ? count() === 1 ? 'ref' : 'refs' : ''}</Button>}</Show>;
-  onMount(() => {
-    if (props.active) region.focus({ preventScroll: true });
-    const resize = new ResizeObserver(measureEdge);
-    resize.observe(scroll);
-    if (grid) resize.observe(grid);
-    onCleanup(() => resize.disconnect());
-  });
-  return <div ref={region} class="table-pane" style={{ '--table-title-width': `${titleWidth()}px`, '--table-width': `calc(${titleWidth()}px + ${visibleColumns().map(columnWidth).join(' + ') || '0px'} + ${showRefs() ? 'var(--table-refs-width)' : '0px'})` }} tabIndex={0} role="region" aria-label="Table" onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
-    <div class="table-register">
-      <header class="table-header">
-        <div class="table-heading">
-          <div class="table-register-label"><Show when={query().type}><Button class="table-type-label" onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, event.shiftKey)}>{title()}</Button><span aria-hidden="true"> / </span></Show><span>Register</span></div>
-          <h1><Button class="table-title" label="Views" aria-haspopup="menu" onClick={event => viewMenu(event.currentTarget)}><Show when={typeKind()}>{kind => <Icon name={noteKindIcon(kind())} />}</Show><span>{saved()?.name ?? (title() || 'All blocks')}</span><Icon name="down" /></Button></h1>
-          <input class="table-purpose" aria-label="View purpose" placeholder="Add a one-line purpose…" value={query().purpose ?? ''} maxlength={240} onChange={event => updateQuery({ ...query(), purpose: event.currentTarget.value.trim() })} />
-        </div>
-        <div class="table-view-status"><Show when={props.target.viewId && saved()} fallback={<Show when={result()}>{rows => <>{membersLabel(rows().total)}</>}</Show>}>
-          <span>{changed() ? 'Modified' : 'Saved view'}</span><Show when={changed()}><Button disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button></Show>
-        </Show></div>
-      </header>
-      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : result()?.total} tableCount={missingFields().length ? undefined : result()?.total} fieldsCount={type()?.fields.length}
-        cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, event.shiftKey)}
-        onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}`, viewId: props.target.viewId, query: { ...copyQuery(query()), note_kind: typeKind()?.key ?? `type:${typeId()}`, note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}
-        onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, event.shiftKey)}
-        onFields={event => props.onOpen({ kind: 'fields', typeId: typeId() }, event.shiftKey)} />}</Show>
-      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}>Index <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button></div></Show>
+  const queryToolbar = () => <>
       <Show when={query().note_kind}><NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery} /></Show>
       <div class="table-toolbar">
         <Button class="table-chip" aria-haspopup="menu" onClick={event => sourceMenu(event.currentTarget)}>From {sourceName(query().source)} <Icon name="down" /></Button>
@@ -657,11 +654,57 @@ function TableContent(props: TablePaneProps) {
             ...(['register', 'matrix'] as const).map(layout => ({ label: layout === 'register' ? 'Register' : 'Matrix', checked: query().layout === layout, disabledReason: query().source !== 'positions' ? 'Choose Perspectives to use this layout.' : undefined, action: () => updateQuery({ ...query(), layout, ...(layout === 'register' && !query().group ? { group: { key: '@subject', collapsed: [] } } : {}) }) })),
           ] })}>Layout: {query().layout === 'register' ? 'Register' : query().layout === 'matrix' ? 'Matrix' : 'Table'} <Icon name="down" /></Button>
           <Button class="bordered table-columns-button" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'columns'} onClick={event => setPopup(popup()?.kind === 'columns' ? null : { kind: 'columns', anchor: event.currentTarget })}>Columns <Icon name="down" /></Button>
+          <Show when={narrow()}><Button class="bordered" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'columns', anchor: event.currentTarget, cards: true })}>Card fields <Icon name="down" /></Button></Show>
         </div>
       </div>
       <Show when={definitions() && (query().sort.length || query().filters.length)}><div class="table-query-chips">
         <For each={query().sort}>{(key, index) => <span class="table-chip"><span class="table-sort-priority">{index() + 1}</span>{labelSort(key)}<Show when={index() > 0}><Button label={`Make ${labelSort(key)} higher priority`} onClick={() => { const sort = [...query().sort]; [sort[index() - 1], sort[index()]] = [sort[index()]!, sort[index() - 1]!]; updateQuery({ ...query(), sort }); }}>←</Button></Show><Button label={`Remove ${labelSort(key)}`} onClick={() => updateQuery(removeSort(query(), index()))}>×</Button></span>}</For>
         <For each={query().filters}>{(filter, index) => <span class="table-chip">{filterLabel(filter, pickerFields(), props.notebook, query().field_names)}<Button label={`Remove ${filterLabel(filter, pickerFields(), props.notebook, query().field_names)}`} onClick={() => updateQuery(removeFilter(query(), index()))}>×</Button></span>}</For>
+      </div></Show>
+  </>;
+  onMount(() => {
+    if (props.active) region.focus({ preventScroll: true });
+    const coarse = window.matchMedia('(pointer: coarse)');
+    const measurePane = () => {
+      const bounds = register.getBoundingClientRect();
+      const style = getComputedStyle(region);
+      const contentWidth = region.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      setNarrow(coarse.matches && contentWidth < 600);
+      setDockBounds({ left: bounds.left, width: bounds.width });
+    };
+    const paneResize = new ResizeObserver(measurePane);
+    paneResize.observe(region);
+    coarse.addEventListener('change', measurePane);
+    measurePane();
+    onCleanup(() => { paneResize.disconnect(); coarse.removeEventListener('change', measurePane); });
+    const resize = new ResizeObserver(measureEdge);
+    resize.observe(scroll);
+    if (grid) resize.observe(grid);
+    onCleanup(() => resize.disconnect());
+  });
+  return <div ref={region} class="table-pane" style={{ '--table-title-width': `${titleWidth()}px`, '--table-width': `calc(${titleWidth()}px + ${visibleColumns().map(columnWidth).join(' + ') || '0px'} + ${showRefs() ? 'var(--table-refs-width)' : '0px'})` }} tabIndex={0} role="region" aria-label="Table" onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
+    <div ref={register} class="table-register" onScroll={() => { if (narrow()) { cancelAnimationFrame(scrollReport); scrollReport = requestAnimationFrame(() => reportView()); } }}>
+      <header class="table-header">
+        <div class="table-heading">
+          <div class="table-register-label"><Show when={query().type}><Button class="table-type-label" onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, event.shiftKey)}>{title()}</Button><span aria-hidden="true"> / </span></Show><span>Register</span></div>
+          <h1><Button class="table-title" label="Views" aria-haspopup="menu" onClick={event => viewMenu(event.currentTarget)}><Show when={typeKind()}>{kind => <Icon name={noteKindIcon(kind())} />}</Show><span>{saved()?.name ?? (title() || 'All blocks')}</span><Icon name="down" /></Button></h1>
+          <input class="table-purpose" aria-label="View purpose" placeholder="Add a one-line purpose…" value={query().purpose ?? ''} maxlength={240} onChange={event => updateQuery({ ...query(), purpose: event.currentTarget.value.trim() })} />
+          <Show when={narrow()}><p class="table-summary">{summary()}<Show when={changed()}> · <span class="table-modified">Modified</span></Show></p></Show>
+        </div>
+        <div class="table-view-status"><Show when={props.target.viewId && saved()} fallback={<Show when={result()}>{rows => <>{membersLabel(rows().total)}</>}</Show>}>
+          <span>{changed() ? 'Modified' : 'Saved view'}</span><Show when={changed()}><Button disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button></Show>
+        </Show></div>
+      </header>
+      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : result()?.total} tableCount={missingFields().length ? undefined : result()?.total} fieldsCount={type()?.fields.length}
+        cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, event.shiftKey)}
+        onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}`, viewId: props.target.viewId, query: { ...copyQuery(query()), note_kind: typeKind()?.key ?? `type:${typeId()}`, note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}
+        onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, event.shiftKey)}
+        onFields={event => props.onOpen({ kind: 'fields', typeId: typeId() }, event.shiftKey)} />}</Show>
+      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}>Index <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button></div></Show>
+      <Show when={!narrow()}>{queryToolbar()}</Show>
+      <Show when={narrow()}><div class="table-query-bar" style={{ left: `${dockBounds().left}px`, width: `${dockBounds().width}px` }}>
+        <label class="table-query-find"><Icon name="search" /><input class="input" aria-label={`Find in ${title() || 'blocks'}`} placeholder={`Find in ${title() || 'blocks'}…`} value={query().text ?? ''} onInput={event => { setSearch(event.currentTarget.value); updateQuery({ ...query(), text: event.currentTarget.value.trim() || null, offset: 0 }); }} /></label>
+        <Button class="bordered" aria-haspopup="dialog" aria-expanded={!!querySheet()} onClick={event => setQuerySheet(event.currentTarget)}><Icon name="query" />Query <span class="table-query-count">{queryParts()}</span></Button>
       </div></Show>
       <Show when={definitions() && missingFields().length}><MissingFields fields={missingFields()} busy={savingView()} onRemove={id => { void removeMissingField(id).catch(message); }} /></Show>
       <div class="table-scroll-frame">
@@ -673,18 +716,26 @@ function TableContent(props: TablePaneProps) {
       </div>
       <Show when={edge().hidden}><div class="table-more-right" style={{ height: `${edge().height}px` }}><Button class="table-more-columns" label={`Scroll to ${edge().hidden} more ${edge().hidden === 1 ? 'column' : 'columns'}`} onClick={showMoreColumns}>+{edge().hidden} <Icon name="right" /></Button></div></Show>
       </div>
-      <footer class="table-footer" role="status"><Show when={deleted()} fallback={<>
+      <footer class="table-footer" classList={{ 'table-footer-action': !!error() || !!deleted() || viewUndo() || canAppend() || !!missingFields().length }} role="status"><Show when={deleted()} fallback={<>
         <span>{loading() ? 'Loading…' : error() || (missingFields().length ? 'Results paused; remove the missing field or undo its deletion.' : `${(result()?.rows.length ?? 0).toLocaleString()} of ${membersLabel(result()?.total ?? 0)}`)}</span>
         <Show when={!loading() && canAppend()}><span aria-hidden="true">·</span><Button class="table-show-more" disabled={appending()} aria-busy={appending()} onClick={() => { void appendRows(); }}>Show {pageSize().toLocaleString()} more</Button></Show>
         <Show when={viewUndo()}><span>View saved ·</span><Button disabled={replaying()} onClick={() => { void replayCell(false).catch(message); }}>Undo</Button></Show>
       </>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>
     </div>
+    <Show when={narrow() && querySheet()}><div class="table-query-shade" onPointerDown={() => { setPopup(null); setQuerySheet(null); }} /></Show>
+    <Show when={narrow() && querySheet()}>{anchor => <Popup anchor={anchor() as HTMLElement} placement="sheet" label="Query" class="table-query-sheet" onDismiss={() => { setPopup(null); setQuerySheet(null); }}>
+      <div class="table-popup-heading">Query</div>
+      <p class="table-popup-note">{saved()?.name ?? title()}</p>
+      {queryToolbar()}
+      <div class="popup-actions"><Show when={saved() && changed()}><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button><Button class="bordered" disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button></Show><Button class="bordered" onClick={() => setQuerySheet(null)}>Done</Button></div>
+    </Popup>}</Show>
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
+      {state.kind === 'purpose' && <Popup anchor={state.anchor} label="View purpose" onDismiss={() => setPopup(null)}><form onSubmit={event => { event.preventDefault(); setPopup(null); }}><input class="input" aria-label="View purpose" value={query().purpose ?? ''} maxlength={240} onInput={event => updateQuery({ ...query(), purpose: event.currentTarget.value })} /><div class="popup-actions"><Button type="submit" class="bordered">Done</Button></div></form></Popup>}
       {state.kind === 'value' && <ValueEditor anchor={state.anchor} field={fieldById(state.field.id) ?? state.field} text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()}
         onCreateOption={text => writeCell(state.row, state.field, '', state.value, text)}
         onWrite={text => writeCell(state.row, state.field, text, state.value)} onError={message} onDismiss={() => { setPopup(null); requestAnimationFrame(() => focusCell(state.row.block.block.id, state.field.id)); }} />}
-      {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={pickerFields()} notebook={props.notebook} initialField={state.field} sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}
+      {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={pickerFields()} notebook={props.notebook} initialField={state.field} sheet={narrow()} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}
       {state.kind === 'name' && <NamePopup anchor={state.anchor} action={state.action} name={state.action === 'rename' ? saved()?.name ?? '' : ''} onDismiss={() => setPopup(null)} onSave={async name => { if (state.action === 'field') await createField(name, !!state.addColumn); else await saveView(name, state.action === 'rename'); }} />}
       {state.kind === 'embed-page' && <EmbedOnPagePicker anchor={state.anchor} view={state.view} notebook={props.notebook} onOpen={props.onOpen} onDismiss={() => setPopup(null)} />}
       {state.kind === 'delete' && <Popup anchor={state.anchor} label="Delete table view?" onDismiss={() => { if (!deleting()) setPopup(null); }}>
@@ -692,7 +743,8 @@ function TableContent(props: TablePaneProps) {
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
         <div class="popup-actions"><Button disabled={deleting()} onClick={() => setPopup(null)}>Cancel</Button><Button class="bordered danger" disabled={deleting()} onClick={() => void deleteView(state.view)}>Delete view</Button></div>
       </Popup>}
-      {state.kind === 'columns' && <Popup anchor={state.anchor} label="Columns" class="table-columns-popup" onDismiss={() => setPopup(null)} width={280}>
+      {state.kind === 'columns' && <Popup anchor={state.anchor} label={state.cards ? 'Card fields' : 'Columns'} class="table-columns-popup" onDismiss={() => setPopup(null)} width={280}>
+        <Show when={!state.cards}>
         <div class="table-popup-heading">Columns</div><div class="table-popup-note">Visibility in this register</div>
         <div class="table-column-choice table-column-fixed"><Icon name="check" />Title<span class="table-column-fixed-note">Always visible</span></div>
         <input class="input" aria-label="Find columns" placeholder="Find columns…" value={columnSearch()} onInput={event => setColumnSearch(event.currentTarget.value)} />
@@ -705,6 +757,7 @@ function TableContent(props: TablePaneProps) {
         <For each={columnChoices()}>{field => <label class="table-column-choice"><input type="checkbox" checked={visibleColumns().includes(field.id)} onChange={event => showField(field.id, event.currentTarget.checked)} />{field.name}</label>}</For>
         <Show when={sourceField()}>{field => <label class="table-column-choice"><input type="checkbox" checked={showRefs()} onChange={event => showField(refsColumn, event.currentTarget.checked)} />Refs<span class="table-column-fixed-note">From {field().name}</span></label>}</Show>
         <label class="table-width-control" for={`table-title-width-${props.pane}`}><span>Title width <output>{titleWidth()} px</output></span><input id={`table-title-width-${props.pane}`} type="range" min={titleWidthLimits.min} max={titleWidthLimits.max} value={titleWidth()} onInput={event => { const width = clampTitleWidth(event.currentTarget.valueAsNumber); setTitleWidth(width); const columns = recipeColumns(); columns.find(column => column.key === '@title')!.width = width; updateQuery({ ...query(), columns }); }} /></label>
+        </Show>
         <div class="table-popup-heading">Phone card fields</div><p class="table-popup-note">Sort fields are always shown.</p>
         <For each={columnChoices()}>{field => <label class="table-column-choice"><input type="checkbox" checked={query().card?.includes(field.id) ?? false} onChange={event => updateQuery({ ...query(), card: event.currentTarget.checked ? [...query().card ?? [], field.id] : (query().card ?? []).filter(id => id !== field.id) })} />{field.name}</label>}</For>
         <Show when={query().type}><div class="table-template-actions"><Button onClick={() => addColumnMenu(state.anchor)}>Add field to type template…</Button><Button onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, event.shiftKey)}>Open type template</Button></div></Show>

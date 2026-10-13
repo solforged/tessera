@@ -27,6 +27,7 @@ export const paths = {
   card: 'M4.5 4h7A1.5 1.5 0 0 1 13 5.5v5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 10.5v-5A1.5 1.5 0 0 1 4.5 4Z',
   archive: 'M1 2h14v3H1z M3 5v9h10V5 M6 8h4',
   table: 'M1 2h14v12H1z M1 6h14 M6 2v12 M11 6v8',
+  query: 'M2 4h7 M12 4h2 M2 12h2 M7 12h7 M10.5 2.5v3 M5.5 10.5v3',
   field: 'M2 3h12 M2 8h8 M2 13h5 M12 10v5 M10 12h4',
   // A gear: the clockwork of the notebook itself.
   settings: 'M12.6 8a4.6 4.6 0 1 1-9.2 0 4.6 4.6 0 0 1 9.2 0Z M9.8 8a1.8 1.8 0 1 1-3.6 0 1.8 1.8 0 0 1 3.6 0Z M12.6 8h1.8 M11.25 11.25l1.28 1.28 M8 12.6v1.8 M4.75 11.25l-1.28 1.28 M3.4 8H1.6 M4.75 4.75 3.47 3.47 M8 3.4V1.6 M11.25 4.75l1.28-1.28',
