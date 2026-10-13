@@ -53,6 +53,8 @@ Group offers Letter, Source cited, Note linked, Created month, then the kind's p
 
 Save as view… keeps the query, layout and grouping in the existing view store. Saved views sit under their kind, including capability kinds, and reopening restores chips and grouping. Older table views remain Table with Letter grouping when opened as an index. Index and Table retain the same query on switching.
 
+Field grouping travels between Index and Table: Table translates the finding aid's saved field grouping into its row grouping, and its Group menu updates the field grouping used on return to Index.
+
 If a saved finding aid names a detached or deleted field, it shows the remembered name and offers Remove from view. Results pause until that reference is removed or the field change is undone. The action saves the repaired query, without discarding other filters or presentation choices.
 
 Index rows reveal a checkbox on hover or focus. Cmd/Ctrl-click toggles a note; Shift-click extends from the selection anchor. The bar shows `N selected` and Clear, plus Spread when the shell provides it. Spread accepts two to five notes and Shift opens it beside. Selection counts distinct notes even when a note occurs under several headings.
@@ -149,6 +151,8 @@ A hand-typed `[[Name]]` that two or more pages answer to stays unlinked and read
 
 Merging leaves the merged page's title as an alias, which the confirmation states in one sentence.
 
+Unavailable Merge into items name the protected page capability or history, such as a spread, rather than referring to root state.
+
 ## Starting templates
 
 A Person, Group or Concept type page with an empty template offers `Start from the Person template` in its template area, naming the fields. A type page the app creates with one of those titles starts with it.
@@ -164,6 +168,8 @@ The sidebar, Index directory, note eyebrow and table title read the same kind pr
 New spread opens an unsaved sheet; a view's selected notes can open the same sheet. Add note… uses the note picker, up to five columns. The `SPREAD` rubric heads aligned rows: kind, title and gloss; the union of fields in first-column-then-next outline order, with absent cells blank; Sources, Links and Opening. Sources include passage citations and references to a source page. Opening is the first visible non-field prose block.
 
 An exact value shared by at least two columns carries `=` with title Shared. Text is compared after trimming; a whole reference is compared by its target, regardless of its label. A link to a selected column carries `↔`. Differences carry no mark.
+
+A faint mono legend beneath the sheet explains `= Shared value · ↔ Links to another column`.
 
 Each column offers Move left, Move right and Remove column. Save spread asks for a title, initially the column titles joined with ` / `. Saving creates a page with the spread capability and one top-level `[[id]]` block per column in order. Saved spreads appear after kinds in the Index directory and sidebar.
 

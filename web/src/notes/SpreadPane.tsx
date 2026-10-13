@@ -115,7 +115,7 @@ export function SpreadPane(props: SpreadPaneProps) {
     </header>
     <Show when={error() || result.error}><p class="error" role="alert">{error() || String(result.error)}</p></Show>
     <Show when={ids().length < 2}><p class="empty-state">Select two to five notes to compare them.</p></Show>
-    <Show when={result.latest?.columns.length}>{count => <div class="spread-scroll"><table class="spread-table" style={{ '--spread-count': count() }}>
+    <Show when={result.latest?.columns.length}>{count => <><div class="spread-scroll"><table class="spread-table" style={{ '--spread-count': count() }}>
       <thead><tr><th scope="col"><span class="visually-hidden">Notes</span></th><For each={result.latest!.columns}>{(column, index) => <th scope="col" data-note-id={column.id}>
         <div class="spread-kind">{column.kinds.map(kind => kind.name).join(' / ')}</div>
         <h2><Button class="spread-title" onClick={event => props.onOpen({ kind: 'page', pageId: column.id }, event.shiftKey)}>{column.title}</Button></h2>
@@ -130,7 +130,7 @@ export function SpreadPane(props: SpreadPaneProps) {
         <For each={result.latest!.fields}>{field => <tr data-field-id={field.id}><th scope="row">{field.name}</th><For each={field.cells}>{cell => <td>{values(cell)}</td>}</For></tr>}</For>
         <For each={['sources', 'links', 'opening'] as const}>{key => <tr data-spread-row={key}><th scope="row">{key === 'sources' ? 'Sources' : key === 'links' ? 'Links' : 'Opening'}</th><For each={result.latest!.columns}>{column => <td>{values(column[key])}</td>}</For></tr>}</For>
       </tbody>
-    </table></div>}</Show>
+    </table></div><p class="spread-legend">= Shared value · ↔ Links to another column</p></>}</Show>
     <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Add note" query={query()} onQuery={setQuery} placeholder="Find a note…" items={choices()} key={row => row.id} row={row => <span>{row.text}</span>} onPick={row => add(row.id)} onDismiss={() => setPicker(undefined)} busy={matches.loading} error={matches.error ? String(matches.error) : undefined} empty="No matching notes." />}</Show>
     <Show when={save()}>{anchor => <Popup anchor={anchor()} label="Save spread" onDismiss={() => { if (!busy()) setSave(undefined); }}>
       <form class="spread-save" onSubmit={event => { event.preventDefault(); void saveSpread(false); }}>

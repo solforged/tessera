@@ -88,6 +88,8 @@ Agenda counts the items in the [Agenda pane's Today section](tasks-agenda.md#gro
 
 That ledger uses the [Day rows](tasks-agenda.md#rows), with their time gutter, completion, [rescheduling keys and now rule](tasks-agenda.md#rescheduling), and ends in `Open agenda ›`. Tasks written in this journal are left out, since the outline below already shows them with their plan: a muted `N more in the journal below` follows the rows, or `N planned in the journal below` replaces Nothing planned today. Carried work collapses to one `N carried over` line in `--danger` that expands in place, with Move to today at its end and the [same Undo line](tasks-agenda.md#groups).
 
+When no tasks are planned, the Agenda tile says Nothing planned today once; the open ledger keeps only Open agenda, without a duplicate empty message or reserved empty-row height.
+
 ### Review tile
 
 Review uses the sidebar's same due-card query and opens the [review landing](cards-review.md#landing-and-decks).
@@ -98,7 +100,7 @@ Reading continues the most recently read EPUB still in Reading, with:
 
 - Its cover.
 - A short title using the [citation-chip rule](library.md#citation-chips).
-- Resolved chapter time left and the chapter's numeral and title on one ellipsized line.
+- Resolved chapter time left, then the chapter's numeral and title on a second line; narrow journal rows keep that chapter context and grow to fit it.
 - Segmented [BookMap](reader.md#book-map) with real highlight marks.
 
 Front matter and unresolved contents use whole-book time left instead of inventing a chapter. A coarse pointer at 900 px or wider opens the book beside the journal.

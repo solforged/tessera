@@ -16,6 +16,7 @@
 .spread-column-controls { display: flex; gap: var(--space-4); margin-top: var(--space-8); }
 .spread-value + .spread-value { margin-top: var(--space-8); }
 .spread-mark { margin-left: var(--space-4); color: var(--accent); font: var(--apparatus); }
+.spread-legend { margin: var(--space-8) 0 0; color: var(--faint); font: var(--apparatus); }
 .spread-link.button { display: inline; white-space: normal; height: auto; padding: 0; font: inherit; text-align: left; color: var(--accent); }
 .spread-save { width: min(var(--search-width), calc(100vw - 2 * var(--space-16))); padding: var(--card-padding); }
 .spread-save label { display: grid; gap: var(--space-8); }

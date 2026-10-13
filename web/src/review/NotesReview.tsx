@@ -43,7 +43,7 @@ export function NotesReview(props: ReviewPaneProps & { rows: RevisitRow[]; error
       <Show when={history()}><Button disabled={busy()} onClick={() => { void travel(); }}>{undone() ? 'Redo revisit' : 'Undo revisit'}</Button></Show>
     </header>
     <Show when={props.error || error()}><p class="pane-error" role="alert">{props.error || error()}</p></Show>
-    <Show when={props.rows.length} fallback={<p class="empty-state">No questions or notes to revisit.</p>}>
+    <Show when={props.rows.length} fallback={<p class="empty-state">No questions or notes to revisit. Set Revisit on a note or question to bring it here on its revisit date.</p>}>
       <nav class="revisit-queue" aria-label="Due questions and notes"><For each={props.rows}>{row => <Button aria-pressed={current()?.block.block.id === row.block.block.id} disabled={busy()} onClick={() => props.onViewChange({ ...props.view, revisitId: row.block.block.id })}>
         <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /><span class="revisit-meta">{revisitKind(row)} · {row.revisit_on}</span>
       </Button>}</For></nav>

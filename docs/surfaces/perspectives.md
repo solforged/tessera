@@ -20,9 +20,13 @@ Outside reading slips, fields use the same presentation roles as Outline: standf
 
 Open reading on each slip zooms into that position's dossier. Shift opens the reading beside the page. The Gist stays editable in place.
 
+On coarse pointers, Compare, Add reading, Prose, Facts and Open reading have the shared pointer-target height.
+
 Where they disagree appears only when stored questions name criteria. Each criterion groups its questions and named holders; an unscoped question says All holders. Questions without a criterion stay in their authored place. No differences between field values are turned into questions.
 
 Compare switches the same pane to the existing reading sheet and criteria matrix. Fewer than two readings leave Compare unavailable, with the reason visible in the register.
+
+Compare shows the readings/holders count once in its header; Criteria's tool line gives criteria and question counts. Narrow panes keep Choose readings in one horizontally scrolling strip rather than wrapping holders above the readings. Criteria questions wrap within the visible matrix width and stay with the sticky criterion edge, including their scope and Open original action.
 
 ### Adding a reading
 

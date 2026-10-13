@@ -255,8 +255,6 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 .journal-reading-book .library-cover { flex: none; width: var(--resume-cover-width); }
 .journal-reading-text { flex: 1; min-width: 0; }
 .journal-reading-title { display: block; color: var(--text); font: var(--weight-source-title) var(--text-library-title)/var(--line-source-title) var(--font-display); }
-.journal-reading-separator { display: none; white-space: pre; }
-/* The full chapter stays available in the reader; the hub keeps its apparatus to one quiet line. */
 .journal-reading-text > .journal-tile-meta { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .journal-reading-tile .book-map { width: 100%; margin-top: var(--space-4); }
 /* A narrow journal keeps the three destinations in one ruled ledger, not a 2+1 tile grid. */
@@ -272,13 +270,12 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .journal-tile-unavailable, .journal-tile-placeholder { grid-column: 2; grid-row: 1; }
   .journal-tile-placeholder { min-height: 0; padding: 0; }
   .journal-tile-placeholder > span + span { display: none; }
-  .journal-reading-tile.button { height: 84px; grid-template-rows: 1fr auto; }
+  .journal-reading-tile.button { height: auto; min-height: calc(var(--space-48) + var(--space-32)); grid-template-rows: 1fr auto; }
   .journal-reading-book { grid-column: 2; grid-row: 1; display: block; }
-  .journal-reading-book .library-cover, .journal-reading-chapter { display: none; }
-  .journal-reading-text { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0; }
+  .journal-reading-book .library-cover { display: none; }
+  .journal-reading-text { display: block; }
   .journal-reading-title { font: var(--apparatus); }
   .journal-reading-text > .journal-tile-meta { overflow: visible; white-space: normal; }
-  .journal-reading-separator { display: inline; }
   .journal-reading-tile .book-map { grid-column: 2 / 4; grid-row: 2; margin-top: 0; }
 }
 @media (max-width: 799px) {

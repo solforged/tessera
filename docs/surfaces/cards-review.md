@@ -20,6 +20,8 @@ Descriptor card is under `/` and under Space c as `d`. Its review source line le
 
 The queue tabs switch between Cards and Questions and notes. The latter shows its due count and lists notes and non-parked page or inline questions whose revisit date is today or earlier, earliest first. The sidebar badge combines cards and revisits; its accessible name and tooltip give each count separately.
 
+An empty Questions and notes queue explains that Set Revisit on a note or question brings it here when its revisit date arrives.
+
 Each item opens its ordinary outline inside Review; inline questions open zoomed. Sources, links and backlinks remain available. Revisited shows the proposed next date before confirmation, with the shared revisit picker to change or clear it. Later moves the date without an event. Resolve clears the date and resolves a note, or allows a question to resolve without accepting an assessment. Keep recurrent marks a question recurrent and records a revisit.
 
 After an action the next item opens. Undo revisit restores the prior date and state and removes the event from effective history. The control then offers Redo revisit. This history belongs to the queue action, not the next page's outline undo stack. There are no grades or streaks for this queue.
@@ -28,7 +30,7 @@ After an action the next item opens. Undo revisit restores the prior date and st
 
 Review is a pane on the outline measure, like [Library](library.md). Its mono register sits over the deck's Piazzolla title and picker; Open reviews and Deck actions stay at its right.
 
-The landing's Due, New and All tabs share the tab-strip baseline, with a 2 px gilt rule under the whole selected tab. The landing is a ruled register rather than a dashboard: one hairline opens the overview, with no boxes. The selected queue leads with its bounded batch size as a Piazzolla figure at `--text-figure`, its noun in Piazzolla beside it, and today's paced due/new split in mono apparatus beneath. Review N cards (Space) is a gilt hairline button, as are Review's other start actions. The fourteen-day forecast stays secondary at the right, square bars on a baseline rule; All includes deferred introductions.
+The landing's Due, New and All tabs share the tab-strip baseline, with a 2 px gilt rule under the whole selected tab. The landing is a ruled register rather than a dashboard: one hairline opens the overview, with no boxes. The selected queue leads with its total as a Piazzolla figure at `--text-figure`; Due says due now, while New and All say cards in this queue. The apparatus separates due now from later today, and an empty due-now queue names the next scheduled card's date and time in the notebook's time zone. Review N cards (Space) starts the bounded batch and is a gilt hairline button, as are Review's other start actions. The fourteen-day forecast stays secondary at the right, square bars on a baseline rule; All includes deferred introductions.
 
 The forecast's first bar is gilt. Every forecast bar has a two-letter weekday label; today's accessible name is “today”. Retention over thirty local days, this week's review count, the streak and total cards follow as one mono ledger line between rules, then a deck ledger with Due, New and Cards. The session summary uses the same stats line.
 

@@ -4,8 +4,8 @@ export interface TypeModeTabsProps {
   active: 'index' | 'table' | 'fields' | 'cards';
   indexCount: number | undefined;
   tableCount: number | undefined;
-  fieldsCount: number;
-  cardsCount: number;
+  fieldsCount: number | undefined;
+  cardsCount: number | undefined;
   onIndex(event: MouseEvent): void;
   onTable(event: MouseEvent): void;
   onFields(event: MouseEvent): void;

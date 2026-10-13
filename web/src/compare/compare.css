@@ -1,5 +1,5 @@
 /* Readings and criteria share the subject's authored positions. */
-.compare-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
+.compare-pane { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; outline: none; container-name: compare-pane; container-type: inline-size; }
 .compare-toolbar { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8) var(--space-16); width: min(100%, calc(var(--measure) + 2 * var(--pane-inset))); margin-inline: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-title-gap); }
 .compare-toolbar h2 { margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); }
 .compare-subject.button { padding: 0; font: inherit; color: var(--text); text-align: left; white-space: normal; }
@@ -57,10 +57,10 @@
 .criteria-input { display: block; width: 100%; min-height: var(--space-48); padding: var(--space-4); border: var(--rule-width) solid var(--accent); background: var(--canvas); color: var(--text); font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); outline: none; }
 .criteria-exact, .criteria-scope, .criteria-footnotes { color: var(--faint); font: var(--apparatus); }
 .criteria-exact { display: block; margin-top: var(--space-8); }
-.criteria-question td { padding: 0 var(--space-8) var(--space-12) var(--criterion-width); border-bottom: 1px solid var(--line); }
-.criteria-question td > div { display: flex; align-items: baseline; gap: var(--space-12); }
+.criteria-question td { padding: 0 0 var(--space-12); border-bottom: 1px solid var(--line); }
+.criteria-question td > div { position: sticky; left: 0; display: flex; align-items: baseline; gap: var(--space-12); width: min(100%, 100cqi); padding-inline: var(--space-8); background: var(--canvas); }
 .criteria-question-mark { color: var(--agree); font: var(--apparatus); }
-.criteria-question-text { flex: 1; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
+.criteria-question-text { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .criteria-scope { white-space: nowrap; }
 .criteria-question .button { color: var(--agree); font: var(--apparatus); }
 .criteria-footnotes { display: flex; gap: var(--space-16); justify-content: space-between; padding-top: var(--space-12); border-top: 1px solid var(--line); }
@@ -85,6 +85,10 @@
 .compare-question > .button:first-child { flex: 1; }
 .compare-question > .button:last-child { flex: none; color: var(--muted); font: var(--apparatus); }
 .compare-embedded .compare-tabs { margin-top: var(--space-16); }
+@container compare-pane (max-width: 640px) {
+  .compare-choices { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: thin; }
+  .compare-choices .button { flex: none; white-space: nowrap; min-height: var(--target-size); }
+}
 @media (max-width: 600px) {
   .compare-focused .compare-readings { min-width: 0; grid-template-columns: 1fr; }
   .compare-focused .compare-reading + .compare-reading { border-left: 0; border-top: var(--rule-width) solid var(--line); }

@@ -6,7 +6,7 @@ import type { IndexViewState, OpenTarget } from '../shell/contract';
 import { plainText } from '../outline/names';
 import { PageMergePicker } from '../outline/PageMerge';
 import { documentReady } from '../outline/source-fields';
-import { addFilter, copyQuery, filterLabel, missingQueryFields, queriesEqual, removeFilter, removeQueryField, retainFieldNames, typeQuery } from '../table/query';
+import { addFilter, copyQuery, filterLabel, missingQueryFields, noteTableQuery, queriesEqual, removeFilter, removeQueryField, retainFieldNames, typeQuery } from '../table/query';
 import { MissingFields } from '../table/MissingFields';
 import { FilterPopup } from '../table/FilterPopup';
 import { attributeDefinitions } from '../table/attributes';
@@ -196,7 +196,7 @@ function KindIndexPane(props: IndexPaneProps) {
     if (event.metaKey || event.ctrlKey || event.shiftKey) toggleSelection(note.id, event.shiftKey);
     else openNote(note, event);
   };
-  const openTable = (event: MouseEvent) => props.onOpen({ kind: 'table', typeId: query().type, viewId: props.view.viewId ?? null, query: { ...copyQuery(query()), note_view: { layout: 'table', grouping: grouping() } } }, event.shiftKey);
+  const openTable = (event: MouseEvent) => props.onOpen({ kind: 'table', typeId: query().type, viewId: props.view.viewId ?? null, query: noteTableQuery(query()) }, event.shiftKey);
   const saveView = async () => {
     if (!viewName().trim() || busy()) return;
     setBusy(true); setError('');

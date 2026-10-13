@@ -24,6 +24,17 @@ export function copyQuery(query: Query): Query {
   return { ...query, ...(desk ? { desk } : {}), filters: query.filters.map(filter => ({ ...filter })), sort: query.sort.map(key => ({ ...key })), ...(query.columns ? { columns: query.columns.map(column => ({ ...column })) } : {}), ...(query.group ? { group: { ...query.group, ...(query.group.collapsed ? { collapsed: [...query.group.collapsed] } : {}) } } : {}), ...(query.card ? { card: [...query.card] } : {}), ...(query.field_names ? { field_names: { ...query.field_names } } : {}), ...(query.note_view ? { note_view: { ...query.note_view } } : {}), ...Object.fromEntries((['links', 'from', 'cites'] as const).filter(key => query[key]).map(key => [key, [...query[key]!]])) };
 }
 
+/** A saved note index and its table use the same field grouping. */
+export function noteTableQuery(query: Query): Query {
+  const next = copyQuery(query);
+  if (!next.note_view) return next;
+  next.note_view.layout = 'table';
+  const field = next.note_view.grouping.startsWith('field:') ? next.note_view.grouping.slice(6) : null;
+  if (field && next.group?.key !== field) next.group = { key: field, collapsed: [] };
+  else if (!field && query.note_view?.layout === 'index') next.group = undefined;
+  return next;
+}
+
 /** Definition identities used by a recipe, excluding built-in attributes and group values. */
 export function queryFieldIds(query: Query): string[] {
   return [...new Set([

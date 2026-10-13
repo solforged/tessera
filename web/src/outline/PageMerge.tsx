@@ -14,7 +14,18 @@ export function pageMergeDisabledReason(root: BlockState | undefined): string | 
   if (root.source) return 'Sources cannot merge.';
   if (root.kind !== 'page') return 'Only titled pages can merge.';
   if (root.text.toLocaleLowerCase() === 'fields') return 'Fields cannot merge.';
-  if (root.mergeProtected || root.citations.length) return 'This page has root state that cannot move in a merge.';
+  if (root.spread) return "A spread can't be merged.";
+  if (root.project) return "A project can't be merged.";
+  if (root.task) return "A page with a task can't be merged.";
+  if (root.question) return "A question page can't be merged.";
+  if (root.position) return "A page with a reading can't be merged.";
+  if (root.assessment) return "A page with an assessment can't be merged.";
+  if (root.relation) return "A page with a relation can't be merged.";
+  if (root.quote) return "A page with a quoted copy can't be merged.";
+  if (root.citations.length) return "A page with citations on its title can't be merged.";
+  if (root.reviewedCards) return "A page with card review history can't be merged.";
+  if (root.templateCards) return "A page with card templates can't be merged.";
+  if (root.mergeProtected) return "A page with task or review history can't be merged.";
   return undefined;
 }
 

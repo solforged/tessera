@@ -96,6 +96,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   const [closing, setClosing] = createSignal<{ anchor: HTMLElement; state: 'finished' | 'abandoned' } | null>(null);
   const [events, setEvents] = createSignal<ReviewEvent[]>([]);
   const [stats, setStats] = createSignal<ReviewStats | null>(null);
+  const [nextDue, setNextDue] = createSignal<number | null>(null);
   const [inventory, setInventory] = createSignal<number | null>(null);
   const [ledger, setLedger] = createSignal<DeckCounts[]>([]);
   const [answerRevealed, setAnswerRevealed] = createSignal(false);
@@ -262,6 +263,11 @@ function CardReviewPane(props: ReviewPaneProps) {
         !currentSession && requestedDeck ? props.notebook.api.reviewStats(null, props.notebook.todayDate()) : Promise.resolve(null),
         ...selections.map(value => props.notebook.api.cardQuery({ ...nextQuery, selection: value, limit: 0 }).then(found => found.total)),
       ]);
+      // All is ordered by scheduled time before new cards; one row is enough
+      // when the due-now queue is empty, without loading the whole inventory.
+      const upcoming = !currentSession && totals[0] === 0
+        ? (await props.notebook.api.cardQuery({ ...nextQuery, selection: 'all', limit: 1 })).rows[0]?.card.schedule.due_at
+        : undefined;
       if (disposed || version !== generation) return;
       if (currentSession && currentSession.state !== 'open' && !history.some(event => event.kind === 'grade')) {
         moveTo({ deckId: currentSession.deck_id, sessionId: null, selection: requestedSelection });
@@ -314,6 +320,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         setDecks(savedDecks); setSessions(savedSessions); setSession(currentSession); setScope(nextScope);
         setQuery(nextQuery); setRows(remaining); setTotal(result.total); setLoadedCount(result.rows.length);
         setEvents(history); setStats(nextStats); setLedger(nextLedger);
+        setNextDue(upcoming && upcoming > Date.now() ? upcoming : null);
         if (!currentSession) setInventory((globalStats ?? nextStats).total_cards + (globalStats ?? nextStats).held_cards);
         setCounts(Object.fromEntries(selections.map((value, index) => [value, totals[index]!])));
         setShown(nextShown); setUpdated(nextUpdated); setStale(nextStale);
@@ -575,8 +582,9 @@ function CardReviewPane(props: ReviewPaneProps) {
       <Show when={!session() && ready() && inventory() !== 0 && stats()}>{value => <div class="review-landing">
         <div class="review-overview">
           <section class="review-today-load" aria-label="Selected review queue">
-            <h2>{selectionLabels[query().selection]}</h2><div class="review-stat-value">{rows().length}<small>cards to review</small></div>
-            <p>Today: {value().due_review} to review, {value().due_new} new</p>
+            <h2>{selectionLabels[query().selection]}</h2><div class="review-stat-value">{total()}<small>{query().selection === 'due' ? 'due now' : 'cards in this queue'}</small></div>
+            <p>{counts().due ?? 0} due now · {Math.max(0, value().due_review + value().due_new - (counts().due ?? 0))} later today</p>
+            <Show when={!(counts().due ?? 0) && nextDue()}>{due => <p>Next card due {new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(due())}.</p>}</Show>
             <Button ref={startButton} class="review-start" disabled={locked() || loading() || !!readError() || !rows().length} onClick={() => void start()}>Review {rows().length} cards <kbd>Space</kbd></Button>
             <Show when={!rows().length}><p>{value().held_cards ? `${value().held_cards} cards are paused or marked Not yet. Start or resume them from their source notes.` : 'Nothing in this queue.'}</p></Show>
           </section>

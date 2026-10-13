@@ -23,7 +23,7 @@ import { noteKindIcon } from '../notes/kinds';
 import { NoteFind } from '../notes/NoteFind';
 import { autoPlural } from '../fields/presentation';
 import { FilterPopup } from './FilterPopup';
-import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, missingQueryFields, queriesEqual, removeFilter, removeQueryField, removeSort, retainFieldNames, sortLabel, typeQuery } from './query';
+import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, missingQueryFields, noteTableQuery, queriesEqual, removeFilter, removeQueryField, removeSort, retainFieldNames, sortLabel, typeQuery } from './query';
 import { MissingFields } from './MissingFields';
 import { sourceText } from './sources';
 import type { TableSource } from './sources';
@@ -63,7 +63,7 @@ export function TablePane(props: TablePaneProps) {
 }
 
 function TableContent(props: TablePaneProps) {
-  const [query, setQuery] = createSignal(copyQuery(props.view.query));
+  const [query, setQuery] = createSignal(noteTableQuery(props.view.query));
   const [search, setSearch] = createSignal(query().text ?? '');
   const [hiddenFields, setHiddenFields] = createSignal([...(props.view.hiddenFields ?? [])]);
   const [titleWidth, setTitleWidth] = createSignal(clampTitleWidth(props.view.query.columns?.find(column => column.key === '@title')?.width ?? props.view.titleWidth));
@@ -260,9 +260,9 @@ function TableContent(props: TablePaneProps) {
   createEffect(() => {
     const next = saved(); if (!next) return;
     untrack(() => {
-      const previous = observedSaved?.query ?? props.target.query;
-      if (!previous || queriesEqual(query(), previous)) {
-        updateQuery(next.query); setSearch(next.query.text ?? '');
+      const previous = noteTableQuery(observedSaved?.query ?? props.target.query);
+      if (queriesEqual(query(), previous)) {
+        updateQuery(noteTableQuery(next.query)); setSearch(next.query.text ?? '');
       }
       observedSaved = next;
     });
@@ -420,7 +420,7 @@ function TableContent(props: TablePaneProps) {
     const next = view?.query ?? { ...typeQuery(query().type), ...(query().source ? { source: query().source } : {}), ...(query().note_kind ? { note_kind: query().note_kind, note_view: { layout: 'table' as const, grouping: 'letter' } } : {}) };
     if (next.note_kind && next.note_view?.layout === 'index') { props.onOpen({ kind: 'index', key: next.note_kind, viewId: view?.id, query: copyQuery(next) }, false); setPopup(null); return; }
     setInitialColumns(undefined);
-    clearTimeout(searchTimer); setSearch(next.text ?? ''); updateQuery(next); setSaved(view ?? undefined);
+    clearTimeout(searchTimer); setSearch(next.text ?? ''); updateQuery(noteTableQuery(next)); setSaved(view ?? undefined);
     setTitleWidth(clampTitleWidth(next.columns?.find(column => column.key === '@title')?.width));
     setSelectedRow(null); setFocused({ rowId: null, fieldId: null }); setPopup(null);
     props.onTargetChange({ kind: 'table', typeId: next.type, viewId: view?.id ?? null, query: copyQuery(next) });
@@ -474,8 +474,8 @@ function TableContent(props: TablePaneProps) {
   };
   const sortMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Sort', items: pickerFields().map(field => ({ label: field.name, action: () => updateQuery(chooseSort(query(), { by: 'field', field: field.id })) })) });
   const groupMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Group', items: [
-    { label: 'No grouping', checked: !query().group, action: () => updateQuery({ ...query(), group: undefined }) },
-    ...pickerFields().map(field => ({ label: field.name, checked: query().group?.key === field.id, action: () => updateQuery({ ...query(), group: { key: field.id, collapsed: [] } }) })),
+    { label: 'No grouping', checked: !query().group, action: () => updateQuery({ ...query(), group: undefined, ...(query().note_view ? { note_view: { ...query().note_view!, grouping: 'letter' } } : {}) }) },
+    ...pickerFields().map(field => ({ label: field.name, checked: query().group?.key === field.id, action: () => updateQuery({ ...query(), group: { key: field.id, collapsed: [] }, ...(query().note_view ? { note_view: { ...query().note_view!, grouping: field.id.startsWith('@') ? 'letter' : `field:${field.id}` } } : {}) }) })),
   ] });
   const sourceMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Source', items: querySources.map(source => ({
     label: source.name, checked: (query().source ?? 'notes') === source.key, action: () => {
@@ -635,12 +635,12 @@ function TableContent(props: TablePaneProps) {
           <span>{changed() ? 'Modified' : 'Saved view'}</span><Show when={changed()}><Button disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button></Show>
         </Show></div>
       </header>
-      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : result()?.total ?? 0} tableCount={missingFields().length ? undefined : result()?.total ?? 0} fieldsCount={type()?.fields.length ?? 0}
-        cardsCount={type()?.card_templates ?? 0} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, event.shiftKey)}
+      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : result()?.total} tableCount={missingFields().length ? undefined : result()?.total} fieldsCount={type()?.fields.length}
+        cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, event.shiftKey)}
         onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}`, viewId: props.target.viewId, query: { ...copyQuery(query()), note_kind: typeKind()?.key ?? `type:${typeId()}`, note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}
         onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, event.shiftKey)}
         onFields={event => props.onOpen({ kind: 'fields', typeId: typeId() }, event.shiftKey)} />}</Show>
-      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}>Index <span class="faint">{missingFields().length ? undefined : result()?.total ?? 0}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total ?? 0}</span></Button></div></Show>
+      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, event.shiftKey)}>Index <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button></div></Show>
       <Show when={query().note_kind}><NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery} /></Show>
       <div class="table-toolbar">
         <Button class="table-chip" aria-haspopup="menu" onClick={event => sourceMenu(event.currentTarget)}>From {sourceName(query().source)} <Icon name="down" /></Button>
@@ -651,7 +651,7 @@ function TableContent(props: TablePaneProps) {
         <div class="table-query-controls">
           <Button class="bordered table-filter-button" aria-haspopup="dialog" onClick={event => showFilter(event.currentTarget)}>Filters<Show when={query().filters.length}><span class="table-control-count">{query().filters.length}</span></Show></Button>
           <Button class="bordered" aria-haspopup="menu" onClick={event => sortMenu(event.currentTarget)}>Sort <Icon name="down" /></Button>
-          <Button class="bordered" aria-haspopup="menu" onClick={event => groupMenu(event.currentTarget)}>Group<Show when={query().group}>: {fieldName(query().group!.key)}</Show> <Icon name="down" /></Button>
+          <Button class="bordered" aria-haspopup="menu" onClick={event => groupMenu(event.currentTarget)}>Group<Show when={definitions() && query().group}>: {fieldName(query().group!.key)}</Show> <Icon name="down" /></Button>
           <Button class="bordered" aria-haspopup="menu" onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Layout', items: [
             { label: 'Table', checked: !query().layout || query().layout === 'table', action: () => updateQuery({ ...query(), layout: 'table' }) },
             ...(['register', 'matrix'] as const).map(layout => ({ label: layout === 'register' ? 'Register' : 'Matrix', checked: query().layout === layout, disabledReason: query().source !== 'positions' ? 'Choose Positions to use this layout.' : undefined, action: () => updateQuery({ ...query(), layout, ...(layout === 'register' && !query().group ? { group: { key: '@subject', collapsed: [] } } : {}) }) })),
@@ -659,11 +659,11 @@ function TableContent(props: TablePaneProps) {
           <Button class="bordered table-columns-button" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'columns'} onClick={event => setPopup(popup()?.kind === 'columns' ? null : { kind: 'columns', anchor: event.currentTarget })}>Columns <Icon name="down" /></Button>
         </div>
       </div>
-      <Show when={query().sort.length || query().filters.length}><div class="table-query-chips">
+      <Show when={definitions() && (query().sort.length || query().filters.length)}><div class="table-query-chips">
         <For each={query().sort}>{(key, index) => <span class="table-chip"><span class="table-sort-priority">{index() + 1}</span>{labelSort(key)}<Show when={index() > 0}><Button label={`Make ${labelSort(key)} higher priority`} onClick={() => { const sort = [...query().sort]; [sort[index() - 1], sort[index()]] = [sort[index()]!, sort[index() - 1]!]; updateQuery({ ...query(), sort }); }}>←</Button></Show><Button label={`Remove ${labelSort(key)}`} onClick={() => updateQuery(removeSort(query(), index()))}>×</Button></span>}</For>
         <For each={query().filters}>{(filter, index) => <span class="table-chip">{filterLabel(filter, pickerFields(), props.notebook, query().field_names)}<Button label={`Remove ${filterLabel(filter, pickerFields(), props.notebook, query().field_names)}`} onClick={() => updateQuery(removeFilter(query(), index()))}>×</Button></span>}</For>
       </div></Show>
-      <Show when={missingFields().length}><MissingFields fields={missingFields()} busy={savingView()} onRemove={id => { void removeMissingField(id).catch(message); }} /></Show>
+      <Show when={definitions() && missingFields().length}><MissingFields fields={missingFields()} busy={savingView()} onRemove={id => { void removeMissingField(id).catch(message); }} /></Show>
       <div class="table-scroll-frame">
       <div ref={scroll} class="table-scroll" onScroll={() => { cancelAnimationFrame(scrollReport); scrollReport = requestAnimationFrame(() => { reportView(); measureEdge(); }); }}>
         <ViewBody query={query()} result={result() ?? { fields: fields(), columns: [], rows: [], total: 0 }} notebook={props.notebook} onOpen={props.onOpen} onQueryChange={updateQuery} onEdited={doc => { history.push({ kind: 'cell', doc, rowId: null, fieldId: null }); undone.length = 0; setViewUndo(false); }}

@@ -68,3 +68,6 @@
 .reading-register .inline-field-value[data-field-role="prose"] .outline-body { margin-left: 0; flex-basis: 100%; }
 .reading-field-prose:empty { display: none; }
 .reading-facts .outline-row > .outline-field-label { display: none !important; }
+@media (pointer: coarse) {
+  .reading-register-actions .button, .reading-disclosures .button { min-height: var(--target-size); }
+}

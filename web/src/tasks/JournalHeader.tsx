@@ -122,7 +122,7 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
           <span class="journal-tile-heading"><span>Agenda</span><Icon name="down" class="journal-tile-chevron" /></span>
           <Show when={agendaSummary()} fallback={deskError() ? <span class="journal-tile-meta journal-tile-unavailable">Agenda unavailable</span> : <Placeholder />}>{summary => <>
             <span class="journal-tile-count">{summary().planned}<small>today · <span classList={{ 'agenda-late': summary().overdue > 0 }}>{summary().overdue} overdue</span></small></span>
-            <span class="journal-tile-meta"><Show when={summary().next} fallback="Nothing else planned today">{next => <>Next: <BlockText text={next().source.block.text} notebook={props.notebook} interactive={false} />{next().time ? ` · ${next().time}` : ''}</>}</Show></span>
+            <span class="journal-tile-meta"><Show when={summary().next} fallback={summary().planned ? 'Nothing else planned today' : 'Nothing planned today'}>{next => <>Next: <BlockText text={next().source.block.text} notebook={props.notebook} interactive={false} />{next().time ? ` · ${next().time}` : ''}</>}</Show></span>
           </>}</Show>
         </Button>
         <Button class="journal-tile" aria-busy={!desk() && !deskError()} onClick={() => props.onOpen({ kind: 'review' }, false)}>
@@ -137,7 +137,7 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
           <span class="journal-tile-heading"><span>Reading</span><span class="journal-tile-action" aria-hidden="true">›</span></span>
           <Show when={reading()} fallback={reading() === undefined && !readingError() ? <Placeholder /> : <span class="journal-tile-meta journal-tile-unavailable">{readingError() ? 'Reading unavailable' : 'No book in progress'}</span>}>{book => <>
             <span class="journal-reading-book"><SourceCover row={book().row} siglum={book().row.source.siglum} /><span class="journal-reading-text"><span class="journal-reading-title" title={book().row.page.text}>{shortSourceTitle(book().row.page.text)}</span>
-              <Show when={progress()?.length}><span class="journal-tile-meta"><span class="journal-reading-separator"> · </span>{progress()?.current?.chapter.title ? `${timeLeft(progress()!.current!.chapter.end - progress()!.at)} left` : `${timeLeft(progress()!.length - progress()!.at)} left in book`}<span class="journal-reading-chapter">{progress()?.current?.chapter.title ? ` · ${sectionLabel(progress()!.current!.chapter.title)}` : ''}</span></span></Show>
+              <Show when={progress()?.length}><span class="journal-tile-meta">{progress()?.current?.chapter.title ? `${timeLeft(progress()!.current!.chapter.end - progress()!.at)} left` : `${timeLeft(progress()!.length - progress()!.at)} left in book`}</span><Show when={progress()?.current?.chapter.title}><span class="journal-tile-meta journal-reading-chapter">{sectionLabel(progress()!.current!.chapter.title)}</span></Show></Show>
             </span></span>
             <Show when={progress()?.length}><BookMap chapters={progress()!.chapters} length={progress()!.length} at={progress()!.at} highlights={book().highlights} /></Show>
           </>}</Show>
@@ -154,7 +154,7 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
           </div>
           <Show when={carriedOpen()}><TaskSourceRows rows={groups().overdue} date={props.date} notebook={props.notebook} timetable plan onOpen={props.onOpen} onChanged={() => {}} /></Show>
         </Show>
-        <Show when={ledgerRows().elsewhere.length} fallback={<p class="agenda-message agenda-day-empty">{ledgerRows().below ? `${ledgerRows().below} planned in the journal below` : 'Nothing planned today'}</p>}>
+        <Show when={ledgerRows().elsewhere.length} fallback={<Show when={ledgerRows().below}><p class="agenda-message">{ledgerRows().below} planned in the journal below</p></Show>}>
           <TaskSourceRows rows={ledgerRows().elsewhere} date={props.date} notebook={props.notebook} timetable plan now={clock()} onOpen={props.onOpen} onChanged={() => {}} />
           <Show when={ledgerRows().below}><p class="agenda-message agenda-day-empty">{ledgerRows().below} more in the journal below</p></Show>
         </Show>

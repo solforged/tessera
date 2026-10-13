@@ -36,7 +36,7 @@ Rename uses New field's case-insensitive duplicate rule. An existing name opens 
 
 Delete definition opens an impact preview, listing affected views by name. Archive keeps values and views readable and hides the definition from pickers. Merge into opens the same merge preview. Detach keeps values as ordinary `Name: value` blocks with their child notes. Delete values requires a separate confirmation checkbox. Every action offers one Undo, including detaching or deleting an archived definition.
 
-Numbered sections follow with rubric numerals and hairlines:
+Numbered sections follow with rubric numerals and hairlines, starting at 01 and numbering only sections shown (non-choice definitions omit Options):
 
 | Section | Contents and actions |
 | --- | --- |
@@ -120,6 +120,8 @@ Enter returns focus to the committed cell before its save finishes. ⌘Z then un
 ### Toolbar
 
 The source chip, Search rows, Filters, Sort, Group and Columns align to the register. Applied filter and numbered sort chips sit beneath the controls and remove with their own ×. Chips wrap on narrow panes. A new sort follows the existing keys rather than replacing the primary key. Its left arrow raises its priority.
+
+Filter and sort chips wait for field definitions before naming their fields, so loading does not briefly label a saved field as missing.
 
 Filters offer conditions by kind. Choice and Instance offer **is**, **is not**, **has a value** and **is empty**; Choice selects an existing option, while Instance selects a page from the field's target types. Text, URL and Identifier also offer **contains** and **has the field**; Number and Date add **>**, **≥**, **<** and **≤**. Checkbox offers **is checked** and **is not checked**. **Has the field** means an entry exists, even blank; **has a value** means at least one authored value is nonblank, including problem readings; **is empty** means none is nonblank. Presence is offered separately on scalar kinds, not on Choice, Instance or Checkbox. Instance filters store page IDs and their chips follow current titles. A legacy unresolved instance value is marked in the picker and needs a page selection.
 

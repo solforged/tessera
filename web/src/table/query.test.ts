@@ -1,10 +1,22 @@
 import { describe, expect, test } from 'bun:test';
-import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, filterOperatorLabel, filterOperators, matchFieldEntry, missingQueryFields, queriesEqual, queryFieldIds, remapQueryField, removeFilter, removeQueryField, removeSort, sortLabel, typeQuery } from './query';
+import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, filterOperatorLabel, filterOperators, matchFieldEntry, missingQueryFields, noteTableQuery, queriesEqual, queryFieldIds, remapQueryField, removeFilter, removeQueryField, removeSort, sortLabel, typeQuery } from './query';
 import { attributeDefinitions } from './attributes';
 import type { FieldDefinition } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 
 describe('query edits', () => {
+  test('switching a saved field-grouped index to table retains grouping without mutating the recipe', () => {
+    const initial = { ...typeQuery(null), note_kind: 'concept', note_view: { layout: 'index' as const, grouping: 'field:strand' } };
+    const table = noteTableQuery(initial);
+    expect(table.note_view).toEqual({ layout: 'table', grouping: 'field:strand' });
+    expect(table.group).toEqual({ key: 'strand', collapsed: [] });
+    expect(initial.note_view.layout).toBe('index');
+    const collapsed = { ...table, group: { key: 'strand', collapsed: ['city'] } };
+    expect(noteTableQuery(collapsed).group).toEqual(collapsed.group);
+    expect(noteTableQuery({ ...table, note_view: { layout: 'table', grouping: 'field:other' } }).group?.key).toBe('other');
+    expect(noteTableQuery({ ...collapsed, note_view: { layout: 'index', grouping: 'letter' } }).group).toBeUndefined();
+    expect(noteTableQuery(typeQuery('books')).note_view).toBeUndefined();
+  });
   test('sort choice keeps the first key primary and flips in place without duplicates', () => {
     const initial = typeQuery('books');
     const title = chooseSort(initial, { by: 'title', field: null });

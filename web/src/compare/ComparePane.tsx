@@ -162,7 +162,7 @@ export function ComparePane(props: ComparePaneProps) {
       <Show when={result()} fallback={<Show when={!result.error}><p class="empty-state" role="status">Loading readings…</p></Show>}>
         <Show when={tab() === 'criteria'}>
           <div class="compare-matrix">
-            <div class="criteria-tools"><span class="compare-count">{count()} · {result()?.criteria.fields.length ?? 0} criteria · {result()?.questions.length ?? 0} questions</span>
+            <div class="criteria-tools"><span class="compare-count"><Show when={props.embedded}>{count()} · </Show>{result()?.criteria.fields.length ?? 0} criteria · {result()?.questions.length ?? 0} questions</span>
               <Show when={!focusedQuestion()}><Button aria-expanded={chooseHolders()} onClick={() => setChooseHolders(value => !value)}>Choose readings</Button></Show>
               <Button onClick={event => setCriteriaEditor(event.currentTarget)}>Edit criteria</Button>
             </div>
