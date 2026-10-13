@@ -25,7 +25,11 @@ Statuses are Todo, Doing, Waiting (an hourglass), Done and Canceled. Task state,
 
 ### Planning slip
 
-Plan task opens a compact slip headed by Planning and the task's authored text, or `Planning · done 2026-10-10` once done. Scheduled, Deadline, Priority, Project and Repeat are labeled rows with their current values in mono or a faint None. Warning appears only with a deadline. Project opens a searchable, title-ordered picker; choosing a project replaces the task's explicit Project field in one undo step, and None removes it.
+Plan task opens a compact slip headed by Planning and the task's authored text, or `Planning · done 2026-10-10` once done. Scheduled, Deadline, Priority, Project, Repeat and Work are labeled rows with their current values in mono or a faint None. Warning appears only with a deadline. Priority shows its bars beside its name.
+
+Project opens a searchable, title-ordered picker; choosing a project replaces the task's explicit Project field in one undo step, and None removes it. A name that matches no project exactly adds `New project “Name”`, which makes a project page of that title (or makes an existing page of that title a project) and assigns the task to it.
+
+Work reads `Running since 12:58` in `--status-doing` or a faint `Not running`, and opens Work sessions in the slip's place.
 
 ## Dates and times
 
@@ -77,11 +81,19 @@ Completion uses the displayed [journal](journal.md) or agenda date. A repeat cou
 - Repeating tasks retain their source identity and advance their plan. The advanced facts glow once and announce the next date.
 - History on an earlier day shows that occurrence's plan, not the next repeat.
 
-A running work session requires an explicit stop, with Stop and complete offered as one atomic action. Work-session notes and prior sessions remain accessible from the block menu, with times and durations in mono.
+A running work session requires an explicit stop, with Stop and complete offered as one atomic action.
+
+### Work sessions
+
+Work sessions open from the row's running clock, the block menu, the palette and the planning slip's Work row; `Space w` and `/clock` start or stop the clock without opening them. The popup is headed `Work` and the task's text. Its clock leads: a large mono `h:mm:ss` (the running session's elapsed time in `--status-doing`, otherwise the task's total), what it counts (`Since 12:58 · 0:21:14 in total`, `3 sessions in total`, `No work logged yet`), then one bordered action: Start, Start again or Stop.
+
+A running session's note is a one-line field under the clock; past sessions follow newest first on hairlines, each `today 12:58–13:19`, its duration and its note. Notes belong to the session record, not the outline, and save on Enter, when focus leaves them, and with Stop. Stop keeps focus in the note, so the note travels with it. The popup keeps its place when its trigger disappears, as when Stop removes the row's clock.
 
 ## Projects
 
-Project controls edit outcome, deadline and status. Show actions opens an outline-ordered task query over descendants and explicit Project field members. The project page summarizes status, deadline, outcome, completed count and the first unfinished task in outline order. Linked tasks below the outline shows explicit field members written elsewhere, ordered by plan. Task rows elsewhere show their project as a trailing fact. Completing a project does not complete its tasks.
+Project controls edit outcome, deadline and status, each saving as it is chosen; the outcome saves on Enter or when focus leaves it and is focused when the popup opens on a new project. Show actions opens an outline-ordered task query over descendants and explicit Project field members. The project page summarizes status, deadline, outcome, completed count and the first unfinished task in outline order. Linked tasks below the outline shows explicit field members written elsewhere, ordered by plan. Task rows elsewhere show their project as a trailing fact. Completing a project does not complete its tasks.
+
+On a journal day, Make project (`/project`, `Space o`, the block menu) makes the block a project page instead, so it is filed under Projects and collects tasks from later days. The block's text names the page, or an existing page of that title becomes the project. The block's children move to the end of the page, and the block becomes the page's link. It is one transaction with `Made project page Name.` and Undo. A block with no text asks for a name first. Outside journal days the block itself becomes the project.
 
 The task API's optional `project_via: "field"` filter restricts results to explicit field assignments before the result limit. Its default, `both`, also includes ancestry members. Linked tasks uses the field-only read and excludes the project page's own descendants. Counts and Next are computed before limiting rows; the task API's 2,000-row cap remains unchanged.
 

@@ -105,7 +105,7 @@ Controls share four shapes:
 - **Modes and tabs:** [Library states and Highlights processing](surfaces/library.md), [Agenda, Week and Tasks](surfaces/tasks-agenda.md), [Review's Due, New and All](surfaces/cards-review.md), [reader settings](surfaces/reader.md), and a creator's role. They are mono labels with faint counts. The current one is gilt with a 2 px gilt rule beneath the whole tab, label and count alike, never a box or fill. Strips that switch views (Library states, Review queues, Agenda modes) stand on a hairline baseline, and every tab's rule lands on it. Forms use these tabs instead of native selects.
 - **Menu triggers and date ranges:** bordered buttons with a `--line` hairline that brightens to `--control-border` on hover.
 - **Text fields:** sit on `--surface` with a `--line` hairline that brightens while hovered or typed in. Agenda's add field is a bare row on a hairline under the plus.
-- **Section heads:** sidebar, [journal Agenda and Resurfaced](surfaces/journal.md), and [Settings](surfaces/settings.md). They are mono: an optional rubric numeral, the name, a hairline rule, then state or count at the right in `--faint`, with the chevron last on collapsible ones.
+- **Section heads:** sidebar, [journal Agenda](surfaces/journal.md), and [Settings](surfaces/settings.md). They are mono: an optional rubric numeral, the name, a hairline rule, then state or count at the right in `--faint`, with the chevron last on collapsible ones. Journal days' Journal and From your highlights set only the name as an H2, in Piazzolla at `--text-h2`; the rule, state and chevron stay as above.
 
 Counts, dates and result lines (`1 of 1 task`, `15 of 15 rows`, `1 card · 1 due`) are mono; sentences never are. Civil dates in the apparatus read as ISO, `2026-10-03`.
 
@@ -411,15 +411,15 @@ Clicking a value or pressing Enter on a selected field enters filling mode for t
 
 Capability metadata follows the source text without replacing it. Clicking a task glyph completes the task, or reopens a done or canceled one. Right-click or ⌘⇧Enter opens the status menu, which marks the current status. Open hover previews the done color.
 
-[Planning facts](surfaces/tasks-agenda.md) read in mono relative to today (`today`, `tomorrow`, `Fri 16`, `17 Oct`, `due Fri 16`, `every week`, `!high`). A missed date reads `since Tue 6` or `was due Thu 8` in `--danger`.
+[Planning facts](surfaces/tasks-agenda.md) read in mono relative to today (`today`, `tomorrow`, `Fri 16`, `17 Oct`, `due Fri 16`, `every week`). A missed date reads `since Tue 6` or `was due Thu 8` in `--danger`. Priority is three rising bars filled to its level: high in `--danger`, medium in `--warning`, low in `--muted`, unlit bars in `--line`; its name is the tooltip and accessible label.
 
 | Task state | Appearance and controls |
 |---|---|
-| Open without facts | Faint Plan only under hover, focus or selection; a page's own task always shows it |
+| Open without facts | Plan, a hairline chip with the calendar glyph in `--muted`, only under hover, focus or selection; a page's own task always shows it. Hover brightens its border and text |
 | Done | `done today` and muted text; no Plan |
 | Canceled | Only muted, struck-through text; no Plan |
 | Parent | `1/2` for its done subtasks, canceled ones left out |
-| Running work session | Clock in `--status-doing`, opening Work sessions |
+| Running work session | A pulsing dot and `h:mm:ss` ticking each second in `--status-doing`, opening Work sessions |
 
 Project and review controls open the attached capability. Source text keeps its natural width; controls wrap beneath it when they cannot fit beside it. Wrapped planning values stay left-aligned.
 
@@ -615,7 +615,7 @@ Space on a selected row, or in Vim normal mode, opens a menu of single letters. 
 | `p` | Priority |
 | `r` | Repeat |
 | `w` | Clock in or out |
-| `o` | Make project or open its controls |
+| `o` | Make project or open its controls; on a journal day, make the block a project page |
 | `q` | Make question; make answer beneath the nearest question, or open the menu of an existing question |
 | `v` | Make or remove perspective |
 | `c` | Add card |

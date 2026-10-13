@@ -44,6 +44,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - On a phone, the open sidebar starts with the Tessera wordmark, Close sidebar and the notebook name with its note count.
 - Review's landing is a ruled register: the due count as a serif figure, a hairline start button and one mono stats line.
 - A page's own fields read as a specimen block under its imprint, with mono names, dotted rules and `Add…` on empty slots.
+- Make project on a journal block makes it a project page: the block's text names the page (or an existing page of that name becomes the project), its children move there, and the block becomes the link, with one Undo.
+- The planning slip's Project picker can start a new project by name, and its Work row shows whether the clock runs and opens Work sessions.
 
 ### Changed
 
@@ -57,6 +59,11 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - In a split pane or on a phone, page titles stay readable, depth collapses to its current stop, sigla sit on a short line above their paragraph, and the research desk and field owners use fewer columns.
 - Perspective slips lead with siglum and holder in mono, then the Gist as a serif headline and Work as one faint line. Where they disagree sets each perspective's answer under the question it settles, instead of hiding it under Facts. Slips stack whenever the pane is narrow, including a split unfolded Fold.
 - Holders and pages named in attribute values read as ink with a hairline underline, gilt on hover; prose links keep the gilt and their hover underline is gilt too. Revisit moved into the note's mono ID and date line.
+- Priority reads as three rising bars filled to its level, red for high and amber for medium, instead of `!high`.
+- Plan on an unplanned task is a hairline chip with a calendar glyph, so it reads as a control.
+- Work sessions lead with a large `h:mm:ss` clock and one Start, Start again or Stop; past sessions list newest first with one-line notes that save as you leave them. Running clocks on rows tick each second.
+- Project controls save each choice as it is made; the Save button is gone, and the outcome is focused when a project is made.
+- Journal days read `Tuesday, October 13` under a short `2026 · Oct · W42` trail, and Journal and From your highlights head as H2s.
 
 ### Fixed
 
@@ -86,6 +93,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Changing a field's kind from a note stays on the note.
 - Aliases show once, on the ALSO line, and Merge into has its own icon.
 - Creating a field never reuses a blank row on the Fields page.
+- Stopping work no longer throws the Work sessions popup into the window's corner.
+- Typing after `/project` no longer lands in the block while its popup waits for the project to save.
 
 ## 0.3.0, 2026-10-12
 

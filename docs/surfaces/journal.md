@@ -41,13 +41,13 @@ The launcher's New note and New task shortcuts and text shared to Tessera open t
 
 ## Journal dates
 
-Journal days present a spoken date such as Saturday 10 October beneath a mono period trail: `2026 · Q4 · October · Week 41`.
+Journal days present a spoken date such as Tuesday, October 13 beneath a short mono period trail: `2026 · Oct · W42`. Agenda's date heading and journal backlink groups speak dates the same way (`Tuesday, October 13, 2026`). One module forms these dates, so their shape can become a setting.
 
 The latest navigation request wins in its pane. Previous and next step from a pending journal date, and a superseded lookup does not create a missing journal. Before a new journal root is committed, missing reference reads show quiet zero counts rather than unavailable sections; successful reads still show real backlinks, and related sections refresh when the root becomes committed.
 
 Quiet dotted underlines make the segments clickable, brightening to gilt on hover; the open segment has a 2 px gilt rule instead. Each segment toggles one inline ledger beneath the heading. Tapping it again or Escape closes it.
 
-The trail names the period being inspected. Opening a week from a month, or a month from a year or quarter, moves the trail's labels to that period, and closing the ledger returns them to the displayed day. The week ledger is headed like a month, `Week 41 5–11 October`. Opening a finer period from inside a ledger scrolls just enough to bring that ledger into view.
+The trail names the period being inspected. Opening a week from a month, or a month from a year or quarter, moves the trail's labels to that period, and closing the ledger returns them to the displayed day. The quarter has no segment of its own; `Q4` joins the trail only while the quarter ledger is open (from This quarter in the palette). The week ledger is headed like a month, `Week 42 October 12–18`. Opening a finer period from inside a ledger scrolls just enough to bring that ledger into view.
 
 The period trail keeps even visible gaps around its separators. Touch hit areas extend to at least 40 px without widening the labels.
 
@@ -74,9 +74,15 @@ Integrate, in a journal block's menu, palette and slash menu, opens the destinat
 
 The move and reference are one transaction. Undo restores the original place and removes the reference. The change notice offers Undo, and the outline's Undo command uses it while the notice is present. Outside journal days, Integrate is not offered.
 
+## Making a project
+
+Make project on a journal block makes it a [project page](tasks-agenda.md#projects) and leaves the block as its link, with its children moved onto the page. The day keeps the record of where the project started, and the page collects tasks from later days.
+
 ## Today tiles
 
 Today alone leads with Agenda, Review and Reading tiles above the Journal rule and writable outline.
+
+Journal days' own sections, Journal and From your highlights, head as H2s: the name in Piazzolla at `--text-h2` (18 / 26) in `--text`, then the hairline rule and any mono state and chevron. Both are `h2` elements.
 
 Desktop and unfolded Today tiles are at least 120 px tall, enough for the tallest loaded Reading content including the book map, and grow with their content. Their placeholders keep the same height. The three desktop tiles reserve their loaded height while requests show quiet placeholders.
 
