@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
 import type { RevisitAction, RevisitRow } from '../api/types';
+import type { DocumentChange } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
 import { BlockText } from '../outline/BlockText';
 import { DatePicker } from '../tasks/DatePicker';
@@ -16,22 +17,30 @@ export function NotesReview(props: ReviewPaneProps & { rows: RevisitRow[]; error
   const [picker, setPicker] = createSignal<{ anchor: HTMLElement; later: boolean; row: RevisitRow }>();
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  const [undo, setUndo] = createSignal<(() => Promise<void>)>();
+  const [history, setHistory] = createSignal<DocumentChange>();
+  const [undone, setUndone] = createSignal(false);
   createEffect(() => { if (current() && props.view.revisitId !== current()!.block.block.id) props.onViewChange({ ...props.view, revisitId: current()!.block.block.id }); });
   async function act(row: RevisitRow, action: RevisitAction, date: string | null) {
     setBusy(true); setError('');
     try {
-      const reverse = await changeRevisit(props.notebook, row.block.block.id, action, date);
-      setUndo(() => reverse); setConfirm(undefined);
+      setHistory(await changeRevisit(props.notebook, row.block.block.id, action, date));
+      setUndone(false); setConfirm(undefined);
       const after = props.rows.find(value => value.block.block.id !== row.block.block.id);
       props.onViewChange({ ...props.view, revisitId: after?.block.block.id });
     } catch (reason) { setError(String(reason)); throw reason; }
     finally { setBusy(false); }
   }
+  async function travel() {
+    const change = history(); if (!change) return;
+    setBusy(true); setError('');
+    try { await (undone() ? change.redo() : change.undo()); setUndone(value => !value); }
+    catch (reason) { setError(String(reason)); }
+    finally { setBusy(false); }
+  }
   const openConfirmation = (anchor: HTMLElement, row: RevisitRow, action: 'revisited' | 'keep_recurrent') => { setNext(row.proposed_on); setConfirm({ anchor, row, action }); };
   return <div class="notes-review">
     <header class="notes-review-heading"><h1>Questions and notes</h1><span>{props.rows.length} due</span>
-      <Show when={undo()}><Button disabled={busy()} onClick={async () => { setBusy(true); try { await undo()!(); setUndo(undefined); } catch (reason) { setError(String(reason)); } finally { setBusy(false); } }}>Undo revisit</Button></Show>
+      <Show when={history()}><Button disabled={busy()} onClick={() => { void travel(); }}>{undone() ? 'Redo revisit' : 'Undo revisit'}</Button></Show>
     </header>
     <Show when={props.error || error()}><p class="pane-error" role="alert">{props.error || error()}</p></Show>
     <Show when={props.rows.length} fallback={<p class="empty-state">No questions or notes to revisit.</p>}>

@@ -544,7 +544,7 @@ A note is working or resolved. Working is the default and is not stored. Resolve
 
 A note comes back only when it has a revisit date. On a page that is also a question, the revisit date is the question's review date; there is one date, not two. A question block within a page that has a review date comes back as itself.
 
-From its revisit date onward a note waits in Review's Questions and notes queue, earliest date first. Inline questions join the same queue. Each opens in the ordinary outline, with its sources and backlinks at hand.
+From its revisit date onward a note waits in Review's Questions and notes queue, earliest date first. Inline questions join the same queue. Parked questions keep their date but stay out of Review, Today and the due count. Resume brings them back if their date has arrived. Each opens in the ordinary outline, with its sources and backlinks at hand.
 
 | Action | Effect |
 |---|---|
@@ -555,7 +555,7 @@ From its revisit date onward a note waits in Review's Questions and notes queue,
 
 Revisits have no grade or scheduler: they judge the note, not your memory of it. Revisited proposes the next date at the interval just ended, measured from the previous revisit or, for the first, from when the date was set. The date can be changed or cleared before confirming.
 
-Each action is attributed and undoable. Only Revisited and Keep recurrent write a revisit event. Later, Resolve and Reopen leave revisit history unchanged. The last revisit is the latest event not undone. Events remain authoritative history; undo marks the event undone and restores the prior date and state.
+Each action is attributed, undoable and redoable. Only Revisited and Keep recurrent write a revisit event. Later, Resolve and Reopen leave revisit history unchanged. The last revisit is the latest event not undone. Events remain authoritative history; undo marks the event undone and restores the prior date and state. Redo reapplies the action, recording a new effective event for a completed revisit. Both directions check the block revision and leave newer edits alone.
 
 A note capability on the page holds the resolved timestamp, revisit date and when that date was set. Working with no date needs no row. Questions keep their sole date in `review_on`; their note capability holds only the date-set timestamp. Today lists due items under Research to revisit, and Review's sidebar count includes them.
 

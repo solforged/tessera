@@ -18,11 +18,11 @@ Descriptor card is under `/` and under Space c as `d`. Its review source line le
 
 ### Questions and notes
 
-The queue tabs switch between Cards and Questions and notes. The latter shows its due count and lists notes and page or inline questions whose revisit date is today or earlier, earliest first.
+The queue tabs switch between Cards and Questions and notes. The latter shows its due count and lists notes and non-parked page or inline questions whose revisit date is today or earlier, earliest first. The sidebar badge combines cards and revisits; its accessible name and tooltip give each count separately.
 
 Each item opens its ordinary outline inside Review; inline questions open zoomed. Sources, links and backlinks remain available. Revisited shows the proposed next date before confirmation, with the shared revisit picker to change or clear it. Later moves the date without an event. Resolve clears the date and resolves a note, or allows a question to resolve without accepting an assessment. Keep recurrent marks a question recurrent and records a revisit.
 
-After an action the next item opens. Undo revisit restores the prior date and state and removes the event from effective history. There are no grades or streaks for this queue.
+After an action the next item opens. Undo revisit restores the prior date and state and removes the event from effective history. The control then offers Redo revisit. This history belongs to the queue action, not the next page's outline undo stack. There are no grades or streaks for this queue.
 
 ### Landing and decks
 

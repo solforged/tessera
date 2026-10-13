@@ -21,6 +21,7 @@ import { linkMentionEdit } from './link-mention';
 import { positionRelations, readingPassages } from '../outline/perspectives';
 import { embedTarget, fileArrival } from '../outline/streams';
 import { readingRegister } from '../outline/read-register';
+import { changeRevisit } from '../review/revisits';
 
 const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -82,6 +83,69 @@ afterAll(async () => {
 });
 
 describe('real notebook operations and recovery', () => {
+  test('revisit actions undo and redo after the acted-on page closes', async () => {
+    const instance = await client();
+    const { id, doc } = await page(instance);
+    await changeRevisit(instance, id, 'later', '2026-10-12');
+    const beforeLater = (await api.capabilities(id)).note;
+    const later = (await changeRevisit(instance, id, 'later', '2099-01-01'))!;
+    doc.release();
+    await later.undo();
+    expect((await api.capabilities(id)).note).toEqual(beforeLater);
+    await later.redo();
+    expect((await api.capabilities(id)).note?.revisit_on).toBe('2099-01-01');
+    expect(await api.revisitEvents(id)).toEqual([]);
+
+    const beforeResolve = (await api.capabilities(id)).note;
+    const resolve = (await changeRevisit(instance, id, 'resolve', null))!;
+    await resolve.undo();
+    expect((await api.capabilities(id)).note).toEqual(beforeResolve);
+    await resolve.redo();
+    expect((await api.capabilities(id)).note).toMatchObject({ resolved_at: expect.any(Number), revisit_on: null });
+    const beforeReopen = (await api.capabilities(id)).note;
+    const reopen = (await changeRevisit(instance, id, 'reopen', null))!;
+    await reopen.undo();
+    expect((await api.capabilities(id)).note).toEqual(beforeReopen);
+    await reopen.redo();
+    expect((await api.capabilities(id)).note).toBeNull();
+    expect(await api.revisitEvents(id)).toEqual([]);
+
+    const question = await page(instance);
+    success(question.doc.edit({ kind: 'question', id: question.id, value: { unsettled: false, parked: false, review_on: '2026-10-12', accepted: null } }));
+    await instance.flush();
+    question.doc.release();
+    for (const action of ['revisited', 'keep_recurrent'] as const) {
+      const before = await api.capabilities(question.id);
+      const change = (await changeRevisit(instance, question.id, action, '2099-01-01'))!;
+      const event = (await api.revisitEvents(question.id))[0]!;
+      await change.undo();
+      const restored = await api.capabilities(question.id);
+      expect(restored.question).toEqual(before.question);
+      expect(restored.note).toEqual(before.note);
+      expect(await api.revisitEvents(question.id)).toEqual([]);
+      await change.redo();
+      const redone = await api.capabilities(question.id);
+      expect(redone.question?.state).toMatchObject({ unsettled: action === 'keep_recurrent', review_on: '2099-01-01', accepted: null });
+      const events = await api.revisitEvents(question.id);
+      expect(events).toHaveLength(1);
+      expect(events[0]?.id).not.toBe(event.id);
+      expect(events[0]?.next_on).toBe('2099-01-01');
+      await change.undo();
+      expect(await api.revisitEvents(question.id)).toEqual([]);
+    }
+  });
+
+  test('revisit redo cannot overwrite a newer date after undo', async () => {
+    const instance = await client();
+    const { id, doc } = await page(instance);
+    const change = (await changeRevisit(instance, id, 'later', '2099-01-01'))!;
+    await change.undo();
+    await changeRevisit(instance, id, 'later', '2099-02-01');
+    await expect(change.redo()).rejects.toThrow();
+    expect((await api.capabilities(id)).note?.revisit_on).toBe('2099-02-01');
+    doc.release();
+  });
+
   test('explicit position link choices are separate undo steps from typing and each other', async () => {
     const instance = await client();
     const { doc, first } = await page(instance, 'Original prose');

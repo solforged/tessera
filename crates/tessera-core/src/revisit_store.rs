@@ -312,6 +312,7 @@ impl Notebook {
             LEFT JOIN note_states n ON n.block_id = b.id LEFT JOIN questions q ON q.block_id = b.id
             WHERE b.deletion_id IS NULL AND root.deletion_id IS NULL AND b.rowid NOT IN (SELECT rowid FROM hidden)
             AND (q.active = 1 OR b.kind = 'page') AND b.title_key IS NOT 'fields'
+            AND NOT (q.active = 1 AND COALESCE(json_extract(q.state, '$.parked'), 0) = 1)
             AND due_on <= ?1 ORDER BY due_on, b.id"))?;
         let rows = statement
             .query_map([due], |r| {

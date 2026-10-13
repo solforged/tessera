@@ -92,6 +92,57 @@ fn due_queue_orders_inline_questions_and_notes_and_survives_reopening() {
 }
 
 #[test]
+fn parked_page_and_inline_questions_resume_on_their_original_date() {
+    let (_dir, mut nb) = fixture();
+    for value in [1, 2] {
+        let revision = nb.block(&id(value)).unwrap().revision;
+        apply(
+            &mut nb,
+            vec![Operation::SetQuestion {
+                id: id(value),
+                base_revision: revision,
+                question: Some(QuestionState {
+                    parked: true,
+                    review_on: Some("2026-10-12".into()),
+                    ..Default::default()
+                }),
+            }],
+        );
+    }
+    assert!(
+        nb.revisits("2026-10-12", tessera_core::now_ms())
+            .unwrap()
+            .is_empty()
+    );
+    for value in [1, 2] {
+        let mut question = nb.capabilities(&id(value)).unwrap().question.unwrap().state;
+        assert_eq!(question.review_on.as_deref(), Some("2026-10-12"));
+        question.parked = false;
+        let revision = nb.block(&id(value)).unwrap().revision;
+        apply(
+            &mut nb,
+            vec![Operation::SetQuestion {
+                id: id(value),
+                base_revision: revision,
+                question: Some(question),
+            }],
+        );
+    }
+    assert!(
+        nb.revisits("2026-10-11", tessera_core::now_ms())
+            .unwrap()
+            .is_empty()
+    );
+    let rows = nb.revisits("2026-10-12", tessera_core::now_ms()).unwrap();
+    assert_eq!(
+        rows.iter()
+            .map(|row| row.block.block.id.clone())
+            .collect::<Vec<_>>(),
+        [id(1), id(2)]
+    );
+}
+
+#[test]
 fn revisit_records_attribution_and_undo_restores_date_and_removes_event() {
     let (_dir, mut nb) = fixture();
     revisit(&mut nb, 2, RevisitAction::Later, Some("2026-10-12"));

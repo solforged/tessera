@@ -1,6 +1,6 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import type { NoteState, RevisitAction } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { DocumentChange, NotebookClient } from '../document/contract';
 import { DatePicker } from '../tasks/DatePicker';
 import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';
@@ -15,7 +15,8 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
   const [picker, setPicker] = createSignal<HTMLElement>();
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  const [undo, setUndo] = createSignal<(() => Promise<void>)>();
+  const [history, setHistory] = createSignal<DocumentChange>();
+  const [undone, setUndone] = createSignal(false);
   createEffect(() => {
     const id = props.id; props.notebook.changeSequence();
     const controller = new AbortController();
@@ -29,14 +30,21 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
   });
   async function change(action: RevisitAction, next: string | null) {
     setBusy(true); setError('');
-    try { const reverse = await changeRevisit(props.notebook, props.id, action, next); setUndo(() => reverse); }
+    try { setHistory(await changeRevisit(props.notebook, props.id, action, next)); setUndone(false); }
     catch (reason) { setError(String(reason)); throw reason; }
+    finally { setBusy(false); }
+  }
+  async function travel() {
+    const change = history(); if (!change) return;
+    setBusy(true); setError('');
+    try { await (undone() ? change.redo() : change.undo()); setUndone(value => !value); }
+    catch (reason) { setError(String(reason)); }
     finally { setBusy(false); }
   }
   return <div class="note-revisit">
     <Button disabled={busy()} aria-haspopup="menu" onClick={event => setMenu(event.currentTarget)}>{note().resolved_at ? 'Resolved' : date() ? `Revisit ${date()}` : 'Revisit'}</Button>
     <Show when={changed()}><span>Changed after resolution</span></Show>
-    <Show when={undo()}><Button disabled={busy()} onClick={async () => { setBusy(true); try { await undo()!(); setUndo(undefined); } catch (reason) { setError(String(reason)); } finally { setBusy(false); } }}>Undo revisit</Button></Show>
+    <Show when={history()}><Button disabled={busy()} onClick={() => { void travel(); }}>{undone() ? 'Redo revisit' : 'Undo revisit'}</Button></Show>
     <Show when={error()}><span class="error" role="alert">{error()}</span></Show>
     <Show keyed when={menu()}>{anchor => <Menu anchor={anchor} label="Note revisit" onDismiss={() => setMenu(undefined)} items={[
       { label: 'Set revisit date…', action: () => setPicker(anchor) },
