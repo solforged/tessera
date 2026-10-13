@@ -56,30 +56,36 @@
 .deck-editor-queue { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
 .deck-editor-match { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .deck-editor p { margin: 0; overflow-wrap: anywhere; }
-/* The landing answers the selected queue before the deck ledger; figures use apparatus mono. */
+/* The landing is a ruled register, not a dashboard: one hairline opens the overview, the due count is a serif figure, and the
+   apparatus (today's split, the stats line) is mono between rules. */
 .review-landing { display: flex; flex-direction: column; gap: var(--section-gap); }
-.review-overview { display: grid; grid-template-columns: 1.1fr 1fr; gap: var(--card-gap); }
-.review-today-load, .review-forecast { min-width: 0; padding: var(--space-24); border: 1px solid var(--line); border-radius: var(--radius-popup); }
-.review-landing :is(.review-today-load, .review-forecast) { padding: var(--card-padding); }
-.review-today-load { display: flex; flex-direction: column; align-items: flex-start; gap: var(--section-item-gap); background: var(--raised); }
+.review-overview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--space-48); padding-top: var(--space-16); border-top: var(--rule-width) solid var(--line); }
+.review-forecast { min-width: 0; padding: var(--space-24); border: 1px solid var(--line); border-radius: var(--radius-popup); }
+.review-landing .review-forecast { padding: 0; border: 0; border-radius: 0; }
+.review-today-load { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-12); min-width: 0; }
 .review-landing h2, .review-forecast h2, .review-missed h3 { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.review-stat-value { font: var(--weight-body) calc(var(--text-title) + var(--space-8))/1.2 var(--font-mono); font-variant-numeric: tabular-nums; }
-.review-stat-value small, .review-stats small { margin-left: var(--space-4); color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
-.review-today-load p { margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
-.review-start.button { min-height: calc(var(--space-32) + var(--space-8)); padding-inline: var(--space-16); background: var(--accent); color: var(--canvas); }
-.review-start.button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 85%, var(--text)); }
+.review-stat-value { font: var(--weight-body) var(--text-figure)/var(--line-figure) var(--font-display); font-variation-settings: var(--optical-heading); font-variant-numeric: lining-nums tabular-nums; }
+.review-stat-value small { margin-left: var(--space-8); color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
+.review-today-load p { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+/* Starting review is a gilt hairline action like every other; Space is the primary path. */
+.review-start.button { min-height: calc(var(--space-32) + var(--space-8)); padding-inline: var(--space-16); border: var(--rule-width) solid color-mix(in srgb, var(--accent) 55%, transparent); background: none; color: var(--accent); }
+.review-start.button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .review-start kbd { color: inherit; opacity: .7; }
-.review-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-16); margin: 0; padding-block: var(--space-8); }
+/* The landing's stats are one mono ledger line between rules. */
+.review-stats { display: flex; flex-wrap: wrap; gap: var(--space-8) var(--space-24); margin: 0; padding-block: var(--space-12); border-block: var(--rule-width) solid var(--line); }
+.review-stats > div { display: flex; align-items: baseline; gap: var(--space-8); }
 .review-stats dt { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.review-stats dd { margin: var(--space-4) 0 0; font: var(--weight-body) var(--text-h1)/var(--line-h1) var(--font-mono); font-variant-numeric: tabular-nums; }
+.review-stats dd { margin: 0; font: var(--apparatus); font-variant-numeric: tabular-nums; }
+.review-stats small { margin-left: var(--space-4); color: var(--muted); font: var(--apparatus); }
 .review-forecast header, .review-decks header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .review-forecast header > span { color: var(--faint); font: var(--apparatus); white-space: nowrap; }
 .review-forecast-bars { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-16); }
 .review-landing .review-forecast-bars { margin-top: var(--section-item-gap); }
 .review-forecast-bars > div { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-4); min-width: 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; }
 .review-forecast-bars span { min-width: 0; overflow: hidden; white-space: nowrap; text-align: center; font-size: calc(var(--text-apparatus) - 1px); }
-.review-forecast-track { display: flex; align-items: flex-end; height: calc(2 * var(--space-48)); }
-.review-forecast-track > i { display: block; width: 100%; border-radius: var(--radius-control) var(--radius-control) 0 0; background: var(--control-border); }
+.review-forecast-track { display: flex; align-items: flex-end; height: var(--space-48); }
+.review-forecast-track > i { display: block; width: 100%; background: color-mix(in srgb, var(--faint) 45%, transparent); }
+.review-forecast-bars { padding-bottom: var(--space-4); border-bottom: var(--rule-width) solid var(--line); }
 .review-forecast-today, .review-forecast-today > span { color: var(--accent); }
 .review-forecast-today .review-forecast-track > i { background: var(--accent); }
 .review-decks table { width: 100%; border-collapse: collapse; }
@@ -130,8 +136,7 @@
   .review-session-active :is(.review-card-actions, .review-card-comparison, .review-card-grades:not(.review-card-comparison + *)) { margin-top: auto; }
   .review-session-active .review-history { display: none; }
   .review-session-actions { padding: var(--space-4) var(--space-16) max(var(--space-8), var(--bottom-inset)); }
-  .review-overview { grid-template-columns: 1fr; }
-  .review-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .review-overview { grid-template-columns: 1fr; gap: var(--space-24); }
   .review-done-actions { position: sticky; bottom: 0; padding-block: var(--space-12); background: var(--canvas); }
   .review-done-actions > .review-start { flex: 1; }
 }

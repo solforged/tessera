@@ -28,9 +28,9 @@ After an action the next item opens. Undo revisit restores the prior date and st
 
 Review is a pane on the outline measure, like [Library](library.md). Its mono register sits over the deck's Piazzolla title and picker; Open reviews and Deck actions stay at its right.
 
-The landing's Due, New and All tabs share the tab-strip baseline, with a 2 px gilt rule under the whole selected tab. The selected queue leads with its bounded batch size and Review N cards (Space). Today's paced due/new counts and fourteen-day forecast stay secondary; All includes deferred introductions.
+The landing's Due, New and All tabs share the tab-strip baseline, with a 2 px gilt rule under the whole selected tab. The landing is a ruled register rather than a dashboard: one hairline opens the overview, with no boxes. The selected queue leads with its bounded batch size as a Piazzolla figure at `--text-figure`, its noun in Piazzolla beside it, and today's paced due/new split in mono apparatus beneath. Review N cards (Space) is a gilt hairline button, as are Review's other start actions. The fourteen-day forecast stays secondary at the right, square bars on a baseline rule; All includes deferred introductions.
 
-The forecast's first bar is gilt. Every forecast bar has a two-letter weekday label; today's accessible name is “today”. Retention over thirty local days, this week's review count, the streak and total cards follow, then a deck ledger with Due, New and Cards.
+The forecast's first bar is gilt. Every forecast bar has a two-letter weekday label; today's accessible name is “today”. Retention over thirty local days, this week's review count, the streak and total cards follow as one mono ledger line between rules, then a deck ledger with Due, New and Cards. The session summary uses the same stats line.
 
 Counts come from active visible cards and committed review events, never sample data. No time estimate appears because reviews do not record per-card duration. Decks save source predicates, not copied collections. Start takes focus on a mouse-and-keyboard device, but touch leaves it alone and the pane has no focus ring.
 
