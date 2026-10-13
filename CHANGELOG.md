@@ -5,6 +5,15 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 <!-- releases -->
 ## Unreleased
 
+### Added
+
+- Argument relations: mark a block as supporting, disputing, qualifying or answering what its first link points to. Targets show who supports or disputes them, and holder pages show it under each perspective held.
+- Parent questions: a question can be filed under another question, and question pages list their branches with status.
+- Change holder, File under and Use place for perspectives, without editing link text by hand.
+- Integrate for journal blocks: move a thought to its page and keep a live reference in the journal.
+- Account is kept apart from Work: it shows as "as discussed by" and never becomes a Compare criterion.
+- `GET /api/relations`, `GET /api/questions?parent=`, and the MCP tools `tessera_relations` and `tessera_set_relation`.
+
 ### Fixed
 
 - Kept cover-screen writing, capture, date pickers and commands above the browser keyboard.
@@ -13,12 +22,6 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Made unavailable menu actions focusable, with a visible and accessible prerequisite.
 - Opened unread sources at the title-page origin.
 - Kept contents-margin entries above the reader scroller.
-
-
-## Unreleased
-
-### Fixed
-
 - New typed notes use the submitted title, even when an earlier title matched an existing note.
 - New typed notes appear in Merge into and show their ID and creation date without a reload.
 - Opening a blank note no longer adds a stored blank block.
