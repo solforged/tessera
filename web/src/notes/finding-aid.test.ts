@@ -1,8 +1,68 @@
 import { describe, expect, test } from 'bun:test';
-import type { NoteEntry, NoteSummary, Query } from '../api/types';
-import { filingGroups, filingOperations, groupKindIndex, parseNoteFind, wholeKindIndex } from './finding-aid';
+import type { KindIndex, NoteEntry, NoteSummary, Query, QueryResult, QueryRow } from '../api/types';
+import { filingGroups, filingOperations, groupKindIndex, parseNoteFind, settleFindingAid, wholeKindIndex } from './finding-aid';
 
 const note = (id: string, title: string, sort_as: string | null = null): NoteEntry => ({ id, title, sort_as, created_at: 0 });
+
+describe('finding aid loading', () => {
+  const index: KindIndex = {
+    notes: [note('a', 'Asabiyya'), note('b', 'Badawa')], summaries: {},
+    see: [{ alias: 'Desert life', targets: [{ id: 'b', title: 'Badawa' }] }],
+  };
+  const query: Query = { type: null, note_kind: 'concept', text: null, filters: [], sort: [], limit: null };
+  const result = (ids: string[], note_groups?: QueryResult['note_groups']): QueryResult => ({
+    fields: [], columns: [], rows: ids.map(id => ({ block: { block: { id } } } as QueryRow)), total: ids.length, note_groups,
+  });
+
+  test('keeps the complete index through the first search, then replaces rows, aliases and count together', () => {
+    const initial = settleFindingAid(undefined, index, query, true)!;
+    const search = { ...query, text: 'Asabiyya' };
+    expect(settleFindingAid(initial, index, search, false)).toBe(initial);
+    const found = settleFindingAid(initial, index, search, false, { query: search, result: result(['a']) })!;
+    expect(found.count).toBe(1);
+    expect(found.index.notes.map(note => note.id)).toEqual(['a']);
+    expect(found.index.see).toEqual([]);
+    expect(found.groups.map(group => group.letter)).toEqual(['A']);
+  });
+
+  test('never applies new grouping to old matches, including an out-of-order search result', () => {
+    const search = { ...query, text: 'Badawa' };
+    const read = { query: search, result: result(['b']) };
+    const previous = settleFindingAid(undefined, index, search, false, read)!;
+    const grouped = { ...query, note_view: { layout: 'index' as const, grouping: 'created' } };
+    expect(settleFindingAid(previous, index, grouped, false, read)).toBe(previous);
+    expect(previous.grouping).toBe('letter');
+    expect(previous.groups.map(group => group.letter)).toEqual(['B', 'D']);
+    const next = settleFindingAid(previous, index, grouped, false, {
+      query: grouped, result: result(['a', 'b'], [{ key: '2026-10', title: '2026-10', target: null, siglum: null, note_ids: ['a', 'b'] }]),
+    })!;
+    expect(next.grouping).toBe('created');
+    expect(next.count).toBe(2);
+    expect(next.groups.map(group => [group.letter, group.noteCount])).toEqual([['2026-10', 2]]);
+    expect(settleFindingAid(next, index, grouped, false, read)).toBe(next);
+  });
+
+  test('clearing search restores the whole index without waiting for the in-flight search', () => {
+    const search = { ...query, text: 'Badawa' };
+    const read = { query: search, result: result(['b']) };
+    const previous = settleFindingAid(undefined, index, search, false, read);
+    const cleared = settleFindingAid(previous, index, query, true, read)!;
+    expect(cleared.index).toBe(index);
+    expect(cleared.count).toBe(2);
+    expect(cleared.grouping).toBe('letter');
+  });
+
+  test('a saved search waits for both reads and only shows empty after its result arrives', () => {
+    const search = { ...query, text: 'unknown' };
+    const read = { query: search, result: result([]) };
+    expect(settleFindingAid(undefined, undefined, search, false, read)).toBeUndefined();
+    expect(settleFindingAid(undefined, index, search, false)).toBeUndefined();
+    const empty = settleFindingAid(undefined, index, search, false, read)!;
+    expect(empty.count).toBe(0);
+    expect(empty.index.notes).toEqual([]);
+    expect(empty.groups).toEqual([]);
+  });
+});
 
 describe('finding aid groups', () => {
   test('interleaves folded titles, Sort as values and aliases without counting cross-references', () => {

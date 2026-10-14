@@ -430,11 +430,16 @@ function Pane(props: OutlinePaneProps) {
   const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
   const [sourceHeaderReady, setSourceHeaderReady] = createSignal(false);
+  // Top-level notes reveal their kinds and aliases with the title and opening rows.
+  const isNote = () => !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
+  const [noteKinds] = createResource(() => isNote() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
+    ([id]) => api.noteKinds(id));
   // Mount the designed structure for measurement, but reveal it and its portaled dock together.
   // Keep settled resources visible during background refreshes, and paint nothing before the first load:
   // the title's "Loading…" placeholder otherwise flashes for a frame on every page open.
-  const sourceReady = () => doc.status() !== 'loading' && (!doc.root()?.source || sourceHeaderReady()
-    && !!(fields.error || fields()) && (!!zoom() || !!(sourceHighlights.error || sourceHighlights())));
+  const pageReady = () => doc.status() !== 'loading' && (!doc.root()?.source || sourceHeaderReady()
+    && !!(fields.error || fields()) && (!!zoom() || !!(sourceHighlights.error || sourceHighlights())))
+    && (!isNote() || !!(fields.error || fields.latest) && !!(noteKinds.error || noteKinds.latest));
   const filedElsewhere = createMemo(() => (sourceHighlights.error ? [] : sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId && (!sourceColors().length || !!row.color && sourceColors().includes(row.color)))
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset));
   const sourceDetails = createMemo(() => {
@@ -1377,7 +1382,7 @@ function Pane(props: OutlinePaneProps) {
   createEffect(() => { const enabled = props.vim; if (editor) { editor.configure(enabled); props.onVimMode(enabled ? editing() ? editor.mode() : 'outline' : null); } });
   createEffect(() => { const byId = definitionsById(), byName = definitionsByName(); editor?.configureFields(id => byId.get(id)?.name, name => byName.get(name.toLowerCase())?.kind); });
   createEffect(() => {
-    if (doc.status() !== 'ready' || !sourceReady() || !scroll || !editor) return;
+    if (doc.status() !== 'ready' || !pageReady() || !scroll || !editor) return;
     if (restoring) {
       restoring = false;
       const saved = initial.caret;
@@ -1436,7 +1441,7 @@ function Pane(props: OutlinePaneProps) {
   });
   createEffect(() => {
     const anchor = pendingReadAnchor();
-    if (!anchor || !reading() || doc.status() !== 'ready' || !sourceReady() || fields.loading || positionQuestions.loading || relatedLoading()) return;
+    if (!anchor || !reading() || doc.status() !== 'ready' || !pageReady() || fields.loading || positionQuestions.loading || relatedLoading()) return;
     if (!doc.block(anchor.id) && !related() && !relatedError()) return;
     untrack(() => revealRow(anchor.id));
     // Related readings and register fields mount asynchronously. Keep the requested location until
@@ -1474,7 +1479,7 @@ function Pane(props: OutlinePaneProps) {
   });
   let previousVisible: string[] = [];
   createEffect(() => {
-    if (!sourceReady()) return;
+    if (!pageReady()) return;
     const visible = ids(), before = previousVisible;
     previousVisible = visible;
     const id = editing() ?? selected();
@@ -1503,8 +1508,6 @@ function Pane(props: OutlinePaneProps) {
 
   reducedMotion.addEventListener('change', finishFoldMotion);
 
-  // A titled page at its top level wears the note header; sources keep their own, and the Fields page is not a note.
-  const isNote = () => !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
   // Only rendered static rows change groups; the active editor stays mounted.
   const foldGroups = createMemo(() => {
     const all = [...virtualItems().keys()].filter(id => id !== editing()), state = foldMotion();
@@ -1537,12 +1540,12 @@ function Pane(props: OutlinePaneProps) {
         });
       } }))] });
     }}>{sectionName() || 'Opening'}</Button></div></Show>
-    <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging(), 'projection-compare': props.projection === 'compare' }} style={{ visibility: sourceReady() ? undefined : 'hidden' }} aria-busy={!sourceReady()} data-pane-pending={sourceReady() ? undefined : ''} data-pane={props.pane} data-projection={reading() ? 'read' : 'outline'} tabIndex={0} role="tree" aria-label={reading() ? 'Page reading register' : 'Page outline'} aria-owns={ids().map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
+    <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging(), 'projection-compare': props.projection === 'compare' }} style={{ visibility: pageReady() ? undefined : 'hidden' }} aria-busy={!pageReady()} data-pane-pending={pageReady() ? undefined : ''} data-pane={props.pane} data-projection={reading() ? 'read' : 'outline'} tabIndex={0} role="tree" aria-label={reading() ? 'Page reading register' : 'Page outline'} aria-owns={ids().map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))} onOpen={props.onOpen} /></Show>
     <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} onClose={() => setSourceDetailsOpen(false)} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
-      <Show when={isNote()}><NoteEyebrow pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+      <Show when={isNote()}><NoteEyebrow kinds={noteKinds.error ? undefined : noteKinds.latest} onOpen={props.onOpen} /></Show>
       <Show when={positionZoom()}>{id => <div class="position-dossier">
         <h1><BlockText text={`[[${doc.block(id())?.position?.holder_id ?? ''}]]`} notebook={props.notebook} onOpen={props.onOpen} />
           <Show when={dossierFields().find(field => fieldRole(definitionsById().get(field.fieldId)) === 'standfirst')?.value}>{gist => <> · <BlockText text={gist()} notebook={props.notebook} onOpen={props.onOpen} /></>}</Show>
@@ -1564,7 +1567,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(opensBeside(event))}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
       </Show>
-      <Show when={isNote()}><NoteAliases doc={doc} notebook={props.notebook} onEdit={entry => {
+      <Show when={isNote()}><NoteAliases doc={doc} fields={definitions()} onEdit={entry => {
         setAliasesVisible(true);
         if (depth() !== 'full') setStop('full');
         const value = doc.outline.children(entry).find(id => !doc.isArchived(id));
@@ -1576,7 +1579,7 @@ function Pane(props: OutlinePaneProps) {
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
       </Show>}</Show>
       <Show when={doc.root()?.source && !positionZoom()}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
-        fields={definitions()} compact={!!zoom()} ready={sourceReady()} onReady={setSourceHeaderReady} onEditDetails={() => setSourceDetailsOpen(true)}
+        fields={definitions()} compact={!!zoom()} ready={pageReady()} onReady={setSourceHeaderReady} onEditDetails={() => setSourceDetailsOpen(true)}
         highlights={zoom() || sourceHighlights.error ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={visible => { setSourceFieldsVisible(visible); scheduleReport(); }} /></Show>
       <Show when={doc.root()?.templateCards}><CardSummary blockId={props.pageId} cards={[]} templateCount={doc.root()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={!zoom()}><projectSummary.Summary /></Show>

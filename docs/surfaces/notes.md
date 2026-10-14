@@ -57,7 +57,7 @@ Field grouping travels between Index and Table: Table translates the finding aid
 
 If a saved finding aid names a detached or deleted field, it shows the remembered name and offers Remove from view. Results pause until that reference is removed or the field change is undone. The action saves the repaired query, without discarding other filters or presentation choices.
 
-Counts, empty states and field-filter chips wait for the relevant reads; a pending request never claims there are zero notes or a missing field. Previously loaded finding aids can remain visible during a refresh.
+Counts, empty states and field-filter chips wait for the relevant reads; a pending request never claims there are zero notes or a missing field. Search and grouping keep the previous rows, headings and counts visible together until the new query finishes. Index and note panes reserve scrollbar space so shorter results do not move the text column sideways.
 
 Index rows reveal a checkbox on hover or focus and keep it visible on touch. Its label supplies the shared pointer target without enlarging the glyph. Cmd/Ctrl-click on the checkbox toggles a note; Shift-click extends from the selection anchor. The bar shows `N selected` and Clear, plus Spread when the shell provides it. Spread accepts two to five notes. ⌘-click opens it beside (Ctrl-click off Mac). Selection counts distinct notes even when a note occurs under several headings.
 
@@ -124,6 +124,8 @@ Sources is a bibliography, not a second reading shelf. It shows siglum, source t
 ## Note header
 
 A note at its top level shows its kinds above the title in rubric mono capitals, separated by a faint slash (`PERSON / ECONOMIST`). Each opens that kind's finding aid.
+
+The note waits for its kinds and alias fields before appearing. Its title, aliases and opening rows appear together; background refreshes keep the current note visible.
 
 The title wraps within its available header width, including unbroken names and URLs, without overlapping the header actions.
 

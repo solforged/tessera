@@ -1,6 +1,7 @@
 import { opensBeside, besideHint } from '../shell/beside';
-import { createMemo, createResource, For, Show, untrack } from 'solid-js';
+import { createMemo, For, Show, untrack } from 'solid-js';
 import type { JSX } from 'solid-js';
+import type { FieldDefinition, NoteKind } from '../api/types';
 import { Icon } from '../ui/Icon';
 import { noteKindIcon } from './kinds';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -10,10 +11,9 @@ import type { OpenTarget } from '../shell/contract';
 import './note-header.css';
 
 /** The kinds a note is filed under, in rubric capitals above its title; each opens that kind's index. */
-export function NoteEyebrow(props: { pageId: string; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
-  const [kinds] = createResource(() => [props.pageId, props.notebook.changeSequence()] as const, ([id]) => props.notebook.api.noteKinds(id));
-  return <Show when={!kinds.error && kinds.latest?.length}>
-    <p class="note-eyebrow"><For each={kinds.latest}>{(kind, index) => <>
+export function NoteEyebrow(props: { kinds: NoteKind[] | undefined; onOpen(target: OpenTarget, beside: boolean): void }) {
+  return <Show when={props.kinds?.length}>
+    <p class="note-eyebrow"><For each={props.kinds}>{(kind, index) => <>
       <Show when={index()}><span class="note-eyebrow-separator" aria-hidden="true">/</span></Show>
       <button type="button" title={`Open the ${kind.plural} index · ${besideHint}`} onClick={event => props.onOpen({ kind: 'index', key: kind.key }, opensBeside(event))}><Icon name={noteKindIcon(kind)} />{kind.plural}</button>
     </>}</For></p>
@@ -21,16 +21,8 @@ export function NoteEyebrow(props: { pageId: string; notebook: NotebookClient; o
 }
 
 /** Alternate names read from the open document, including unsaved value edits. */
-export function NoteAliases(props: { doc: PageDocument; notebook: NotebookClient; onEdit(entry: string): void }) {
-  const [fields] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.fields());
-  const fieldId = createMemo(() => {
-    if (fields.error) return undefined;
-    return fields.latest?.fields.find(field => {
-      if (foldName(field.name) !== 'aliases') return false;
-      const block = props.notebook.lookup(field.id)();
-      return block !== null && !block?.archived;
-    })?.id;
-  });
+export function NoteAliases(props: { doc: PageDocument; fields: FieldDefinition[]; onEdit(entry: string): void }) {
+  const fieldId = createMemo(() => props.fields.find(field => foldName(field.name) === 'aliases')?.id);
   const entry = createMemo(() => {
     const id = fieldId();
     if (!id) return undefined;

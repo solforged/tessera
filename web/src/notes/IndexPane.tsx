@@ -20,8 +20,8 @@ import { Popup } from '../ui/Popup';
 import { createSettledChanges, createSlowFlag } from '../ui/loading';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { indexKindTarget, noteKindIcon, tagOnly } from './kinds';
-import { filingGroups, filingOperations, groupKindIndex, wholeKindIndex } from './finding-aid';
-import type { FindingAidGroup } from './finding-aid';
+import { filingGroups, filingOperations, settleFindingAid, wholeKindIndex } from './finding-aid';
+import type { FindingAidSnapshot } from './finding-aid';
 import './notes.css';
 import { QuestionLedger } from './QuestionLedger';
 
@@ -64,7 +64,7 @@ export function IndexDirectory(props: IndexPaneProps) {
   const slow = createSlowFlag(() => !index.latest && !index.error);
   let scroll!: HTMLDivElement;
   onMount(() => { scroll.scrollTop = props.view.scroll; });
-  return <div ref={scroll} class="index-pane index-directory" role="region" tabIndex={0} aria-label="Index" onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
+  return <div ref={scroll} class="index-pane index-directory" role="region" tabIndex={0} aria-label="Index" aria-busy={index.loading} data-pane-pending={!index.latest && !index.error ? '' : undefined} onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
     <div class="index-sheet">
       <p class="index-eyebrow">Index</p>
       <div class="index-head"><h1>Index</h1><Show when={index.latest}>{list => <span class="index-tally">{tally(list().kinds.length, 'kind')}</span>}</Show></div>
@@ -112,7 +112,6 @@ function KindIndexPane(props: IndexPaneProps) {
   kindReads.set(props.notebook, reads);
   const cached = reads.get(props.kindKey);
   const [index] = createResource(() => [props.kindKey, changes(), version()] as const, ([key]) => props.notebook.api.kindNotes(key).then(result => { reads.set(key, result); return result; }), cached ? { initialValue: cached } : {});
-  const slow = createSlowFlag(() => !index.latest && !index.error);
   const typeId = () => props.kind?.type_id ?? (props.kindKey.startsWith('type:') ? props.kindKey.slice(5) : undefined);
   const [type] = createResource(() => typeId() ? [typeId()!, changes(), version()] as const : false, ([id]) => props.notebook.api.type(id));
   const isCollection = createMemo(() => (props.kind?.name ?? type()?.page.text)?.toLocaleLowerCase() === 'collection');
@@ -147,7 +146,7 @@ function KindIndexPane(props: IndexPaneProps) {
       if (!next.rows.length) break;
       result.rows.push(...next.rows);
     }
-    return result;
+    return { query: value, result };
   });
   const [kindFields] = createResource(() => noteMode() && (groupMenu() || filterMenu()) ? [props.kindKey, changes()] as const : false, async ([key]) => (await props.notebook.api.query({ ...typeQuery(typeId() ?? null), note_kind: key, limit: 0 })).fields);
   const savedViewId = createMemo(() => props.view.viewId);
@@ -174,20 +173,13 @@ function KindIndexPane(props: IndexPaneProps) {
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   };
-  const shown = createMemo(() => {
-    if (!noteMode() || wholeKind()) return index.latest;
-    if (!matches()) return undefined;
-    const ids = new Set(matches()?.rows.map(row => row.block.block.id) ?? []);
-    const value = index.latest;
-    return value ? { ...value, notes: value.notes.filter(note => ids.has(note.id)), see: value.see.map(reference => ({ ...reference, targets: reference.targets.filter(target => ids.has(target.id)) })).filter(reference => reference.targets.length) } : undefined;
-  });
-  const groups = createMemo<(FindingAidGroup & { target?: string | null; siglum?: string | null })[]>(() => {
-    if (grouping() === 'letter') return groupKindIndex(shown());
-    return (matches()?.note_groups ?? []).map(group => {
-      const ids = new Set(group.note_ids);
-      return { letter: group.title, target: group.target, siglum: group.siglum, noteCount: group.note_ids.length, entries: (shown()?.notes ?? []).filter(note => ids.has(note.id)).map(note => ({ kind: 'note' as const, note })) };
-    });
-  });
+  const display = createMemo<FindingAidSnapshot | undefined>(previous => settleFindingAid(previous,
+    index.error ? undefined : index.latest, query(), !noteMode() || wholeKind(), matches.error ? undefined : matches.latest));
+  const shown = () => display()?.index;
+  const groups = () => display()?.groups ?? [];
+  const displayedGrouping = () => display()?.grouping;
+  const pending = () => !display() && !index.error && !definitions.error && !matches.error && !missingFields().length;
+  const slow = createSlowFlag(pending);
   const toggleSelection = (id: string, extend: boolean) => {
     const order = [...new Set(groups().flatMap(group => group.entries.flatMap(entry => entry.kind === 'note' ? [entry.note.id] : [])))];
     if (extend && pickAnchor && order.includes(pickAnchor)) {
@@ -211,8 +203,8 @@ function KindIndexPane(props: IndexPaneProps) {
     } catch (reason) { setError(String(reason)); } finally { setBusy(false); }
   };
   const title = createMemo(() => props.kind?.plural ?? type()?.page.text ?? (props.kindKey === 'unfiled' ? 'Unfiled' : props.kindKey === 'source' ? 'Sources' : 'Index'));
-  const count = () => wholeKind() || !noteMode() ? index.latest?.notes.length : matches()?.total;
-  const summary = (note: NoteEntry) => index.latest?.summaries[note.id];
+  const count = () => display()?.count;
+  const summary = (note: NoteEntry) => shown()?.summaries[note.id];
   const lookup = (id: string) => props.notebook.lookup(id);
   const preview = (note: NoteEntry) => plainText(summary(note)?.preview ?? '', lookup);
   const queue = createMemo(() => filingGroups(index.latest?.notes ?? [], index.latest?.summaries ?? {}));
@@ -277,7 +269,7 @@ function KindIndexPane(props: IndexPaneProps) {
     finally { setBusy(false); }
   };
 
-  return <div ref={scroll} class={`index-pane ${props.kindKey === 'unfiled' ? 'index-unfiled' : props.kindKey === 'source' ? 'index-sources' : ''}`} role="region" tabIndex={0} aria-label={`${title()} index`} onFocusIn={props.onActivate} onScroll={scrollChanged}>
+  return <div ref={scroll} class={`index-pane ${props.kindKey === 'unfiled' ? 'index-unfiled' : props.kindKey === 'source' ? 'index-sources' : ''}`} role="region" tabIndex={0} aria-label={`${title()} index`} aria-busy={index.loading || definitions.loading || matches.loading} data-pane-pending={pending() ? '' : undefined} onFocusIn={props.onActivate} onScroll={scrollChanged}>
     <div class="index-sheet">
       <p class="index-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : props.kindKey === 'source' ? 'Index · Bibliography' : 'Index'}</p>
       <div class="index-head"><h1><Icon name={noteKindIcon(props.kind ?? props.kindKey)} />{saved()?.name ?? title()}</h1>
@@ -303,7 +295,7 @@ function KindIndexPane(props: IndexPaneProps) {
       </Show>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load this index · {String(index.error)}</p></Show>
       <Show when={readableSources.error || collectionCounts.error}><p class="error" role="alert">Couldn’t load source details · {String(readableSources.error || collectionCounts.error)}</p></Show>
-      <Show when={!missingFields().length}><Show when={shown()} fallback={<Show when={slow() || index.latest && matches.loading}><p class="empty-state" role="status">Loading notes…</p></Show>}>
+      <Show when={!missingFields().length}><Show when={shown()} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading notes…</p></Show>}>
         <Switch>
           <Match when={props.kindKey === 'unfiled'}>
             <div class="index-queue-tabs mode-tabs tab-strip" data-mode-panel=".index-queue-layout" role="group" aria-label="Filing queue">
@@ -344,7 +336,7 @@ function KindIndexPane(props: IndexPaneProps) {
               </aside>}</Show></div>
             </Show>
           </Match>
-          <Match when={props.kindKey === 'source' && grouping() === 'letter'}>
+          <Match when={props.kindKey === 'source' && displayedGrouping() === 'letter'}>
             <div class="index-source-tabs mode-tabs tab-strip" role="group" aria-label="Sources view"><Button aria-pressed="true">Bibliography <span class="faint">{index.latest!.notes.length}</span></Button><Button onClick={event => props.onOpen({ kind: 'library', tab: 'all' }, opensBeside(event))}>Open Library <Icon name="right" /></Button></div>
             <Show when={shown()?.notes.length} fallback={<div class="index-empty"><p class="index-empty-title">No sources found.</p><p class="index-empty-hint">Books and articles you add in the Library are listed here with their sigla and citation keys.</p></div>}><For each={shown()?.notes}>{note => <article class="index-source-row index-selectable" classList={{ selected: picked().includes(note.id) }}>
               <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${note.title}`} checked={picked().includes(note.id)} onClick={event => toggleSelection(note.id, event.shiftKey)} /></label>
@@ -360,8 +352,8 @@ function KindIndexPane(props: IndexPaneProps) {
           </Match>
           <Match when={true}>
             <Show when={groups().length} fallback={<Show when={index.latest?.notes.length} fallback={<EmptyKind kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} />}><p class="empty-state">No notes found.</p></Show>}>
-              <Show when={grouping() === 'letter'}><nav class="index-letters mode-tabs tab-strip" aria-label="Jump to letter"><span class="index-jump-label">Jump</span><For each={groups()}>{group => <Button aria-pressed={(letter() || groups()[0]?.letter) === group.letter} onClick={() => jump(group.letter)}>{group.letter}</Button>}</For></nav></Show>
-              <div class="index-columns" classList={{ 'index-by-heading': grouping() !== 'letter' }}><For each={groups()}>{group => <section class="index-group" data-letter={grouping() === 'letter' ? group.letter : undefined} aria-label={group.letter}>
+              <Show when={displayedGrouping() === 'letter'}><nav class="index-letters mode-tabs tab-strip" aria-label="Jump to letter"><span class="index-jump-label">Jump</span><For each={groups()}>{group => <Button aria-pressed={(letter() || groups()[0]?.letter) === group.letter} onClick={() => jump(group.letter)}>{group.letter}</Button>}</For></nav></Show>
+              <div class="index-columns" classList={{ 'index-by-heading': displayedGrouping() !== 'letter' }}><For each={groups()}>{group => <section class="index-group" data-letter={displayedGrouping() === 'letter' ? group.letter : undefined} aria-label={group.letter}>
                 <h2><Show when={group.siglum}><span>{group.siglum}</span></Show><Show when={group.target} fallback={<span>{group.letter}</span>}>{target => <Button onClick={event => props.onOpen({ kind: 'page', pageId: target() }, listOpensBeside(event, !!props.neighbour))}>{group.letter}</Button>}</Show><span class="section-rule" /><span class="index-group-count">{group.noteCount || ''}</span></h2>
                 <For each={group.entries}>{entry => entry.kind === 'note' ? <div class="index-selectable" classList={{ selected: picked().includes(entry.note.id) }}>
                   <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${entry.note.title}`} checked={picked().includes(entry.note.id)} onClick={event => toggleSelection(entry.note.id, event.shiftKey)} /></label>

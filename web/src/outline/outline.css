@@ -1,5 +1,5 @@
 /* Outline pane. Layout is in docs/design.md under "Block row". */
-.outline-pane { flex: 1; min-height: 0; overflow: auto; position: relative; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); outline: none; overflow-anchor: none; font-size: var(--text-body); line-height: var(--line-body); container: outline-pane / inline-size; }
+.outline-pane { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; position: relative; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); outline: none; overflow-anchor: none; font-size: var(--text-body); line-height: var(--line-body); container: outline-pane / inline-size; }
 
 /* Headings center the text measure, not the editing rail. Handles hang on the bullet side only. */
 .outline-heading, .related-sections, .add-first-block { max-width: var(--measure); margin-inline: auto; }

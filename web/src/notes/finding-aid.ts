@@ -1,4 +1,4 @@
-import type { CrossReference, Filter, KindIndex, NoteEntry, NoteSummary, Operation, Query } from '../api/types';
+import type { CrossReference, Filter, KindIndex, NoteEntry, NoteSummary, Operation, Query, QueryResult } from '../api/types';
 import { foldName } from '../outline/names';
 
 export type FindingAidEntry =
@@ -9,6 +9,32 @@ export interface FindingAidGroup {
   letter: string;
   entries: FindingAidEntry[];
   noteCount: number;
+}
+
+export interface FindingAidSnapshot {
+  index: KindIndex;
+  grouping: string;
+  groups: (FindingAidGroup & { target?: string | null; siglum?: string | null })[];
+  count: number;
+}
+
+/** Keep rows, headings and counts together until a result for the requested query arrives. */
+export function settleFindingAid(previous: FindingAidSnapshot | undefined, index: KindIndex | undefined, query: Query, wholeKind: boolean, read?: { query: Query; result: QueryResult }): FindingAidSnapshot | undefined {
+  if (!index || !wholeKind && read?.query !== query) return previous;
+  const result = wholeKind ? undefined : read!.result;
+  const grouping = wholeKind ? 'letter' : query.note_view?.grouping ?? 'letter';
+  const ids = result && new Set(result.rows.map(row => row.block.block.id));
+  const shown = ids ? {
+    ...index,
+    notes: index.notes.filter(note => ids.has(note.id)),
+    see: index.see.map(reference => ({ ...reference, targets: reference.targets.filter(target => ids.has(target.id)) })).filter(reference => reference.targets.length),
+  } : index;
+  const groups = grouping === 'letter' ? groupKindIndex(shown) : (result?.note_groups ?? []).map(group => {
+    const members = new Set(group.note_ids);
+    return { letter: group.title, target: group.target, siglum: group.siglum, noteCount: group.note_ids.length,
+      entries: shown.notes.filter(note => members.has(note.id)).map(note => ({ kind: 'note' as const, note })) };
+  });
+  return { index: shown, grouping, groups, count: result?.total ?? index.notes.length };
 }
 
 /** The alphabetical whole-kind read already contains every row this query would select. */
