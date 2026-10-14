@@ -51,9 +51,11 @@
 .outline-title { display: block; max-width: 100%; overflow-wrap: anywhere; white-space: normal; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); text-align: left; border: 0; padding: 0; background: transparent; color: var(--text); cursor: text; }
 .outline-title:disabled { color: var(--text); opacity: 1; cursor: default; }
 .title-input { width: 100%; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
-.outline-breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-bottom: var(--page-eyebrow-gap); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
+/* The pane header carries a zoom's trail; only once its ancestors step aside does the page repeat them. */
+.outline-breadcrumbs { display: none; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-bottom: var(--page-eyebrow-gap); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .outline-breadcrumbs button { background: transparent; border: 0; padding: var(--space-2); color: inherit; max-width: 220px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 .outline-breadcrumbs .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+@container pane (max-width: 599px) { .outline-breadcrumbs { display: flex; } }
 
 /* Rows: [handle][fold] in the gutter, then (bullet) text within the measure. */
 .outline-list { position: relative; }

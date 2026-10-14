@@ -19,6 +19,7 @@ import { PersonWorks } from '../library/PersonWorks';
 import { NoteAliases, NoteEyebrow, NoteLine } from '../notes/NoteHeader';
 import type { OutlineIndex } from '../document/outline-index';
 import { JournalHeader } from '../tasks/JournalHeader';
+import { spokenJournalDate } from '../tasks/journal-date';
 import { JournalResurface } from '../tasks/JournalResurface';
 import { NoteRevisit } from '../review/NoteRevisit';
 import { ResearchToRevisit } from '../review/ResearchToRevisit';
@@ -117,6 +118,8 @@ function Pane(props: OutlinePaneProps) {
     return path;
   });
   const zoom = createMemo(() => breadcrumbs().at(-1) ?? null);
+  // A journal day is titled as its header speaks it, including inside a zoom where the header steps aside.
+  const rootTitle = () => { const root = doc.root(); return root?.kind === 'journal' ? spokenJournalDate(root.text) : root?.text; };
   createEffect(() => { if (doc.status() === 'ready' && zoomTarget() !== zoom()) setZoom(zoom()); });
   const [folds, setFolds] = createSignal(new Set(initial.folds ?? storedFolds.get(`${props.pane}:${props.pageId}`) ?? []));
   const [foldMotion, setFoldMotion] = createSignal<{ id: string; opening: boolean; afterIds: string[]; beforeSize: number }>();
@@ -1550,7 +1553,7 @@ function Pane(props: OutlinePaneProps) {
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))} onOpen={props.onOpen} /></Show>
     <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} onClose={() => setSourceDetailsOpen(false)} /></Show>
     <div ref={heading} class="outline-heading">
-      <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
+      <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{rootTitle()}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
       <Show when={isNote()}><NoteEyebrow kinds={noteKinds.error ? undefined : noteKinds.latest} onOpen={props.onOpen} /></Show>
       <Show when={positionZoom()}>{id => <div class="position-dossier">
         <h1><BlockText text={`[[${doc.block(id())?.position?.holder_id ?? ''}]]`} notebook={props.notebook} onOpen={props.onOpen} />
@@ -1564,7 +1567,7 @@ function Pane(props: OutlinePaneProps) {
       </div>}</Show>
       <Show when={!positionZoom() && (!zoom() || !doc.root()?.source || renaming())}>
       <div class="outline-title-row">
-      <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{doc.root()?.text || 'Loading…'}</button></h1>}>
+      <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{rootTitle() || 'Loading…'}</button></h1>}>
         <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { event.preventDefault(); closeTitle(); } }} />
         <Show when={titleCollision()} fallback={<Button class="bordered" onClick={commitTitle}>Save title</Button>}>{page =>
           <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root())} title={pageMergeDisabledReason(doc.root())} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>

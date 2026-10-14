@@ -392,6 +392,8 @@ The dial sits in the pane header as four irises whose pupils widen with depth, t
 
 Structural edits reveal their caret target. If the current depth hides an inserted or moved block, the pane switches to Full before editing it.
 
+A zoom's trail is the pane header's breadcrumbs. The page repeats it above the title only below 600 px of pane width, where the header keeps just the current crumb. A journal zoom is titled with its spoken date (Tuesday, October 13), as the day itself is.
+
 If another pane deletes the zoom target, the pane resolves to its nearest surviving ancestor or the page root. Breadcrumbs and the depth dial follow that resolved target.
 
 ### Text and type pills
