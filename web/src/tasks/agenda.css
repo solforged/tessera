@@ -1,7 +1,7 @@
 /* Agenda rows also render in Today's ledger, so both hosts carry their height. */
 .agenda-pane, .today-ledger { --agenda-row-height: var(--row-height); }
 /* The date, tabs and day list share the outline measure and one left edge. */
-.agenda-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); container: agenda-pane / inline-size; }
+.agenda-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); container: agenda-pane / inline-size; }
 .agenda-content { max-width: var(--measure); margin-inline: auto; display: flex; flex-direction: column; gap: var(--page-head-gap); }
 .agenda-content-week { max-width: var(--week-measure); }
 /* Date navigation accompanies the heading; modes get their own shared ruled baseline below. */
@@ -114,24 +114,32 @@
 .agenda-now { position: absolute; inset: calc(-1 * var(--rule-width)) 0 auto; border-top: var(--rule-width) solid var(--accent); pointer-events: none; }
 .agenda-now::before { content: ''; position: absolute; left: 0; top: calc(var(--space-8) / -2 - var(--rule-width) / 2); width: var(--space-8); height: var(--space-8); border-radius: 50%; background: var(--accent); }
 li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(--rule-width)); }
-/* Rescheduling waits at the provenance's place: Today, Tomorrow and a date, in quiet mono, on hover or focus. */
+/* Rescheduling waits at the provenance's place: Today, Tomorrow and a date, in quiet mono, on hover or focus. The
+   two cross-fade in their shared cell, so a pointer passing down the list never snaps one for the other. */
 .agenda-row-actions { grid-column: 4; grid-row: 1; align-self: start; display: none; justify-content: flex-end; align-items: center; gap: var(--space-2); min-height: var(--agenda-row-height); }
 .agenda-row-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .agenda-row-actions .button:hover:not(:disabled) { color: var(--text); }
 @media (hover: hover) {
-  .agenda-row:is(:hover, :focus-within, .agenda-row-picking) > .agenda-row-actions { display: flex; }
-  .agenda-row:is(:hover, :focus-within, .agenda-row-picking):has(> .agenda-row-actions) > .agenda-provenance { visibility: hidden; }
+  .agenda-row-actions { display: flex; opacity: 0; visibility: hidden; transition: opacity var(--motion-ui) var(--motion-ease), visibility 0s var(--motion-ui); }
+  .agenda-row:has(> .agenda-row-actions) > .agenda-provenance { transition: opacity var(--motion-ui) var(--motion-ease), visibility 0s; }
+  .agenda-row:is(:hover, :focus-within, .agenda-row-picking) > .agenda-row-actions { opacity: 1; visibility: visible; transition-delay: 0s; }
+  .agenda-row:is(:hover, :focus-within, .agenda-row-picking):has(> .agenda-row-actions) > .agenda-provenance { opacity: 0; visibility: hidden; transition-delay: 0s, var(--motion-ui); }
 }
 /* Touch keeps only the date button, beside the planning facts. */
 @media (hover: none) {
   .agenda-row-actions { display: flex; grid-row: 2; min-height: 0; }
   .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
+  /* The facts stop short of the date button's column rather than running under it. */
+  .agenda-row-timetable:has(> .agenda-row-actions) > .agenda-row-meta { grid-column: 3; }
+  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable:has(> .agenda-row-actions) > .agenda-row-meta { grid-column: 2; }
 }
 .agenda-section-actions { display: flex; gap: var(--space-2); margin-left: var(--space-8); }
 .agenda-section-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .agenda-section-actions .button:hover:not(:disabled) { color: var(--text); }
 /* A phone or half pane keeps the heading's rule and count on one line and puts the moves beneath, under Overdue. */
 @container agenda-pane (max-width: 560px) {
+  /* The provenance's narrow column holds only the date button, so Today and Tomorrow never cover the task. */
+  .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
   .agenda-section-heading:has(> .agenda-section-actions) { flex-wrap: wrap; row-gap: 0; }
   .agenda-section-actions { flex-basis: 100%; margin: calc(-1 * var(--space-8)) 0 0 calc(-1 * var(--space-4)); }
 }
@@ -163,8 +171,10 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 
 /* The spoken date is presentation only: journals retain their ISO root and all other pages keep their titles. */
 .outline-heading:has(.journal-header) > .outline-title-row { display: none; }
-.journal-trail { display: flex; align-items: center; gap: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.journal-trail-segment.button { position: relative; padding: var(--space-4) 0; color: var(--muted); font: inherit; border-radius: 0; border-bottom: 2px solid transparent; }
+.journal-trail { display: flex; align-items: center; height: var(--line-apparatus); gap: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.journal-trail-segment.button { position: relative; min-height: 0; padding: 0 0 var(--space-2); margin-bottom: calc(-1 * var(--space-2) - 2px); color: var(--muted); font: inherit; border-radius: 0; border-bottom: 2px solid transparent; }
+/* The trail keeps an eyebrow's line, so the date heading sits where every page title does; the hit area stays a pointer target. */
+.journal-trail-segment.button::before { content: ''; position: absolute; inset: calc((var(--line-apparatus) - var(--target-size)) / 2) 0; }
 .journal-trail-segment.button:not([aria-expanded="true"])::after { content: ''; position: absolute; bottom: 0; inset-inline: 0; border-bottom: var(--rule-width) dotted var(--line); }
 .journal-trail-segment.button:hover { color: var(--accent); background: transparent; }
 .journal-trail-segment.button:hover::after { border-color: var(--accent); }
@@ -211,6 +221,10 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .journal-trail-segment.button::before { content: ''; position: absolute; inset-block: 0; left: 50%; width: max(100%, 40px); transform: translateX(-50%); }
   .journal-ledger-day.button, .journal-week-number.button { min-height: 40px; }
   .journal-week-ledger .journal-ledger-day { min-height: 64px; }
+}
+/* Today's ledger in a narrow pane keeps only the date button, as the Agenda does. */
+@container outline-pane (max-width: 560px) {
+  .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
 }
 @container outline-pane (max-width: 640px) {
   .journal-quarter-ledger { grid-template-columns: 1fr; }

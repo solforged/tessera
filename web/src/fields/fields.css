@@ -78,12 +78,14 @@
 @media (hover: none) { .template-field-actions { opacity: 1; } }
 
 /* The type's third mode keeps its template in the shared register measure. */
-.type-fields-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); outline: none; }
+.type-fields-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); outline: none; }
 .type-fields-register { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .type-fields-heading { padding-bottom: var(--page-title-gap); }
 .type-fields-crumb.button { min-height: 0; padding: 0; border: 0; color: var(--muted); font: inherit; letter-spacing: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: var(--space-4); }
 .type-fields-title { display: flex; align-items: baseline; gap: var(--space-16); }
-.type-fields-title h1 { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.type-fields-title h1 { display: flex; align-items: baseline; gap: var(--space-12); min-width: 0; margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+/* The kind's glyph leads the name, as on its index and table. */
+.type-fields-title h1 > .icon { flex: none; align-self: center; color: var(--faint); }
 .type-fields-title > span { margin-left: auto; color: var(--faint); font: var(--apparatus); white-space: nowrap; }
 .template-register { margin-top: var(--page-head-gap); }
 .template-register .template-body { margin: 0; }

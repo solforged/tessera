@@ -204,7 +204,8 @@ function TaskSourceRow(props: {
     <span class="agenda-row-meta">
       <Show when={!props.timetable && time()}><span class="agenda-time">{time()}</span></Show>
       <For each={facts()}>{fact => <Show when={fact.priority} fallback={<span classList={{ 'agenda-late': !!fact.late }} title={fact.label}>{fact.text}</span>}>{priority => <PriorityBars priority={priority()} label={fact.label} />}</Show>}</For>
-      <Show when={props.row.project_id !== props.pageId ? props.row.project_id : null}>{id => <span><BlockText text={props.notebook.lookup(id())()?.text ?? ''} notebook={props.notebook} interactive={false} /></span>}</Show>
+      {/* A project the row already names as its source page is not repeated among the facts. */}
+      <Show when={props.row.project_id !== props.pageId && props.row.project_id !== props.row.source.page.id ? props.row.project_id : null}>{id => <span><BlockText text={props.notebook.lookup(id())()?.text ?? ''} notebook={props.notebook} interactive={false} /></span>}</Show>
     </span>
     <Show when={props.plan && unfinished()}>
       <span class="agenda-row-actions">

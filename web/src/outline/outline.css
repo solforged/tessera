@@ -1,5 +1,7 @@
 /* Outline pane. Layout is in docs/design.md under "Block row". */
 .outline-pane { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; position: relative; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); outline: none; overflow-anchor: none; font-size: var(--text-body); line-height: var(--line-body); container: outline-pane / inline-size; }
+/* The active pane is marked by its registration corners; a ring on the scroller would clip to a stray top rule. */
+.outline-pane:focus-visible { outline: none; }
 
 /* Headings center the text measure, not the editing rail. Handles hang on the bullet side only. */
 .outline-heading, .related-sections, .add-first-block { max-width: var(--measure); margin-inline: auto; }
@@ -13,8 +15,8 @@
    Sigla retain their body rail, but do not add padding to the page heading. */
 .outline-apparatus { display: none; }
 @container outline-pane (min-width: 1096px) {
-  .has-apparatus > :is(.outline-heading, .outline-list, .related-sections, .add-first-block) { --outline-column-start: calc((100cqi - var(--measure) - var(--space-48) - var(--apparatus-width)) / 2); }
-  .has-apparatus > :is(.outline-heading, .related-sections, .add-first-block) { margin-left: var(--outline-column-start); margin-right: 0; }
+  .has-apparatus > :is(.section-navigator, .outline-heading, .outline-list, .related-sections, .add-first-block) { --outline-column-start: calc((100cqi - var(--measure) - var(--space-48) - var(--apparatus-width)) / 2); }
+  .has-apparatus > :is(.section-navigator, .outline-heading, .related-sections, .add-first-block) { margin-left: var(--outline-column-start); margin-right: 0; }
   .has-apparatus > .outline-list { margin-left: calc(var(--outline-column-start) - var(--gutter)); margin-right: 0; }
   .has-apparatus.has-sigla > .outline-list { --sigla-rail-space: max(0px, calc(var(--siglum-width) + var(--space-8) - var(--outline-column-start) + var(--gutter))); margin-left: calc(var(--outline-column-start) - var(--gutter) + var(--sigla-rail-space)); max-width: calc(var(--measure) + var(--gutter) - var(--sigla-rail-space)); }
   .has-apparatus > .outline-apparatus { display: flex; flex-direction: column; gap: var(--section-item-gap); position: absolute; top: var(--page-top-space); left: calc(var(--pane-inset) + (100cqi + var(--measure) + var(--space-48) - var(--apparatus-width)) / 2); width: var(--apparatus-width); }
@@ -49,9 +51,11 @@
 .outline-title { display: block; max-width: 100%; overflow-wrap: anywhere; white-space: normal; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); text-align: left; border: 0; padding: 0; background: transparent; color: var(--text); cursor: text; }
 .outline-title:disabled { color: var(--text); opacity: 1; cursor: default; }
 .title-input { width: 100%; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
-.outline-breadcrumbs { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-bottom: var(--page-eyebrow-gap); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
+/* The pane header carries a zoom's trail; only once its ancestors step aside does the page repeat them. */
+.outline-breadcrumbs { display: none; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-bottom: var(--page-eyebrow-gap); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .outline-breadcrumbs button { background: transparent; border: 0; padding: var(--space-2); color: inherit; max-width: 220px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
 .outline-breadcrumbs .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+@container pane (max-width: 599px) { .outline-breadcrumbs { display: flex; } }
 
 /* Rows: [handle][fold] in the gutter, then (bullet) text within the measure. */
 .outline-list { position: relative; }
@@ -134,6 +138,8 @@
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row:not(:focus-within, .row-selected) > :is(.row-menu, .row-fold, .row-bullet):not(.bullet-collapsed, .row-card-mark),
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row > .row-fold.fold-empty { display: none; }
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row:not(.inline-field-value, .field-entry) > .outline-body { flex-basis: 100%; }
+  /* A task's state glyph leads its text, so the text takes the rest of that line. */
+  [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row:not(.inline-field-value, .field-entry):has(> .task-status-control) > .outline-body { flex-basis: calc(100% - var(--target-size)); }
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row::before { left: 0; }
   [data-page-style="prose"] .outline-pane[data-projection="outline"] :is(.row-gloss, .row-gist, .inline-field-value[data-field-role="standfirst"]) > .outline-body { flex-basis: 100%; margin-left: 0; }
 }

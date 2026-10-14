@@ -19,6 +19,7 @@ import { PersonWorks } from '../library/PersonWorks';
 import { NoteAliases, NoteEyebrow, NoteLine } from '../notes/NoteHeader';
 import type { OutlineIndex } from '../document/outline-index';
 import { JournalHeader } from '../tasks/JournalHeader';
+import { spokenJournalDate } from '../tasks/journal-date';
 import { JournalResurface } from '../tasks/JournalResurface';
 import { NoteRevisit } from '../review/NoteRevisit';
 import { ResearchToRevisit } from '../review/ResearchToRevisit';
@@ -64,11 +65,12 @@ import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
-import { citedSource, createCitationSources, hasCitationDetail } from './references';
+import { createCitationSources, createCitedSources, hasCitationDetail } from './source-reads';
 import { HeldReadings } from './HeldReadings';
 import { AssessmentJournal, QuestionBranches, QuestionParent } from './Questions';
 import { ReadRegister } from './ReadRegister';
 import { isReadingSubject, localPositionCount, readingCounts, readingDisagreementRows, readingRegister, readingSlipRows } from './read-register';
+import { typeTokenAt } from './type-completion';
 import './outline.css';
 import './read-register.css';
 const ComparePane = lazy(() => import('../compare/ComparePane').then(module => ({ default: module.ComparePane })));
@@ -120,6 +122,8 @@ function Pane(props: OutlinePaneProps) {
     return path;
   });
   const zoom = createMemo(() => breadcrumbs().at(-1) ?? null);
+  // A journal day is titled as its header speaks it, including inside a zoom where the header steps aside.
+  const rootTitle = () => { const root = doc.root(); return root?.kind === 'journal' ? spokenJournalDate(root.text) : root?.text; };
   createEffect(() => { if (doc.status() === 'ready' && zoomTarget() !== zoom()) setZoom(zoom()); });
   const [folds, setFolds] = createSignal(new Set(initial.folds ?? storedFolds.get(`${props.pane}:${props.pageId}`) ?? []));
   const [foldMotion, setFoldMotion] = createSignal<{ id: string; opening: boolean; afterIds: string[]; beforeSize: number }>();
@@ -473,11 +477,10 @@ function Pane(props: OutlinePaneProps) {
     });
     return seen;
   }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
-  const [siglumRecords] = createResource(() => [citedSources(), props.notebook.changeSequence()] as const, ([ids]) => Promise.all(ids.map(async id =>
-    ({ id, source: await citedSource(props.notebook, id).catch(() => null) }))));
-  const sigla = createMemo(() => citedSigla(siglumRecords.error ? [] : siglumRecords() ?? []));
+  const siglumRecords = createCitedSources(props.notebook, citedSources);
+  const sigla = createMemo(() => citedSigla(siglumRecords()));
   /** Each distinct source on the page once, for the apparatus key. */
-  const siglumSources = createMemo(() => [...new Set((siglumRecords.error ? [] : siglumRecords() ?? []).flatMap(row => row.source ? [row.source.block_id] : []))]);
+  const siglumSources = createMemo(() => [...new Set(siglumRecords().flatMap(row => row.source ? [row.source.block_id] : []))]);
   const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
   const [sourceHeaderReady, setSourceHeaderReady] = createSignal(false);
@@ -599,11 +602,15 @@ function Pane(props: OutlinePaneProps) {
   }
   /** Measuring the scroll anchor forces layout, so a scroll reports once it settles rather than every frame. */
   const [sectionName, setSectionName] = createSignal('');
+  // The section line sits over the scroller's top space, so the current section is the one below it.
+  let navigator: HTMLDivElement | undefined;
   const [longPage, setLongPage] = createSignal(false);
+  const [scrolledAway, setScrolledAway] = createSignal(false);
   function scrolled() {
     if (scroll && list) {
       setLongPage(scroll.scrollHeight > scroll.clientHeight);
-      const top = scroll.getBoundingClientRect().top;
+      setScrolledAway(scroll.scrollTop > 0);
+      const top = scroll.getBoundingClientRect().top + (navigator?.offsetHeight ?? 0);
       const rows = [...list.querySelectorAll<HTMLElement>('[data-block-id]')].map(row => ({ row, rect: row.getBoundingClientRect() })).filter(({ rect }) => rect.top <= top);
       const row = rows.find(({ rect }) => rect.bottom > top)?.row ?? rows.sort((a, b) => b.rect.top - a.rect.top)[0]?.row;
       let id = row?.dataset.blockId;
@@ -1384,6 +1391,7 @@ function Pane(props: OutlinePaneProps) {
       blur: () => {
         const id = editor?.id;
         if (!id) return;
+        doc.holdTag(id, false);
         if (editing() === id) commitFieldEntry(id, false);
         queueMicrotask(() => {
           if (disposed || composition() || valueEditorId() === id) return;
@@ -1405,6 +1413,7 @@ function Pane(props: OutlinePaneProps) {
           return;
         } else if (taskPrefix(text, at)) return;
         else { const result = doc.edit({ kind: 'text', id: at.id, text, caret: at.offset }, caret()); if (!result.ok) setMessage(result.reason); }
+        doc.holdTag(at.id, !!typeTokenAt(text, at.offset));
         updateCompletion(text, at);
         updateTriggers(text, at);
       }),
@@ -1415,7 +1424,7 @@ function Pane(props: OutlinePaneProps) {
         setTextRange(previous => previous && previous.head.id === at.id ? { anchor: previous.anchor, head: at } : previous);
         scrollReveal = { id: at.id, epoch: focusEpoch, caret: true };
         scheduleScroll();
-        if (editor) { const text = editor.view.state.doc.toString(); updateCompletion(text, at); updateTriggers(text, at); }
+        if (editor) { const text = editor.view.state.doc.toString(); doc.holdTag(at.id, !!typeTokenAt(text, at.offset)); updateCompletion(text, at); updateTriggers(text, at); }
         scheduleReport();
       },
       composition: composing,
@@ -1545,7 +1554,7 @@ function Pane(props: OutlinePaneProps) {
   onCleanup(() => {
     finishFoldMotion();
     reducedMotion.removeEventListener('change', finishFoldMotion);
-    if (editing()) commitFieldEntry(editing()!, false);
+    if (editing()) { doc.holdTag(editing()!, false); commitFieldEntry(editing()!, false); }
     disposed = true;
     setLinkedCitation(null);
     unregister();
@@ -1575,28 +1584,28 @@ function Pane(props: OutlinePaneProps) {
     return groups;
   });
   return <>
-    <Show when={doc.root()?.kind === 'page' && !zoom() && props.projection !== 'compare'}><div class="section-navigator" style={{ visibility: longPage() ? undefined : 'hidden' }}><Button aria-haspopup="menu" onClick={event => {
-      const sections = Array.from({ length: doc.outline.size() }, (_, at) => doc.outline.idAt(at)).filter(id => !doc.isArchived(id) && (doc.block(id)?.position || doc.block(id)?.heading && doc.outline.parentOf(id) === props.pageId));
-      setMenu({ anchor: event.currentTarget, label: 'Sections and perspectives', items: [{ label: 'Opening', action: () => { cancelScroll(); scroll.scrollTop = 0; scrolled(); } }, ...sections.map(id => ({ label: doc.block(id)?.position ? `Perspectives · ${doc.block(id)?.position?.holder_id ? props.notebook.lookup(doc.block(id)!.position!.holder_id!)()?.text ?? 'Loading holder…' : 'Unattributed'}` : plainText(doc.block(id)?.text ?? '', props.notebook.lookup), action: () => {
-        revealRow(id);
-        if (!reading() && indices().has(id)) virtualizer.scrollToIndex(indices().get(id)!, { align: 'start' });
-        requestAnimationFrame(() => {
-          let row = rowAnchor(id);
-          if (!row && reading()) {
-            const start = doc.outline.indexOf(id), end = doc.outline.subtreeEnd(start);
-            const child = ids().find(candidate => { const at = doc.outline.indexOf(candidate); return at > start && at < end; });
-            if (child) row = rowAnchor(child);
-          }
-          if (row) scroll.scrollTop += row.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
-          scrolled();
-        });
-      } }))] });
-    }}>{sectionName() || 'Opening'}</Button></div></Show>
     <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging(), 'projection-compare': props.projection === 'compare' }} style={{ visibility: pageReady() ? undefined : 'hidden' }} aria-busy={!pageReady()} data-pane-pending={pageReady() ? undefined : ''} data-pane={props.pane} data-projection={reading() ? 'read' : 'outline'} tabIndex={0} role="tree" aria-label={reading() ? 'Page reading register' : 'Page outline'} aria-owns={ids().map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
+      <Show when={doc.root()?.kind === 'page' && !zoom() && props.projection !== 'compare'}><div ref={navigator} class="section-navigator" classList={{ 'section-navigator-shown': longPage() && scrolledAway() }} onKeyDown={event => event.stopPropagation()}><Button aria-haspopup="menu" onClick={event => {
+        const sections = Array.from({ length: doc.outline.size() }, (_, at) => doc.outline.idAt(at)).filter(id => !doc.isArchived(id) && (doc.block(id)?.position || doc.block(id)?.heading && doc.outline.parentOf(id) === props.pageId));
+        setMenu({ anchor: event.currentTarget, label: 'Sections and perspectives', items: [{ label: 'Opening', action: () => { cancelScroll(); scroll.scrollTop = 0; scrolled(); } }, ...sections.map(id => ({ label: doc.block(id)?.position ? `Perspectives · ${doc.block(id)?.position?.holder_id ? props.notebook.lookup(doc.block(id)!.position!.holder_id!)()?.text ?? 'Loading holder…' : 'Unattributed'}` : plainText(doc.block(id)?.text ?? '', props.notebook.lookup), action: () => {
+          revealRow(id);
+          if (!reading() && indices().has(id)) virtualizer.scrollToIndex(indices().get(id)!, { align: 'start' });
+          requestAnimationFrame(() => {
+            let row = rowAnchor(id);
+            if (!row && reading()) {
+              const start = doc.outline.indexOf(id), end = doc.outline.subtreeEnd(start);
+              const child = ids().find(candidate => { const at = doc.outline.indexOf(candidate); return at > start && at < end; });
+              if (child) row = rowAnchor(child);
+            }
+            if (row) scroll.scrollTop += row.getBoundingClientRect().top - scroll.getBoundingClientRect().top - (navigator?.offsetHeight ?? 0);
+            scrolled();
+          });
+        } }))] });
+      }}>{sectionName() || 'Opening'}</Button></div></Show>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))} onOpen={props.onOpen} /></Show>
     <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} onClose={() => setSourceDetailsOpen(false)} /></Show>
     <div ref={heading} class="outline-heading">
-      <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{doc.root()?.text}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
+      <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{rootTitle()}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
       <Show when={isNote()}><NoteEyebrow kinds={noteKinds.error ? undefined : noteKinds.latest} onOpen={props.onOpen} /></Show>
       <Show when={positionZoom()}>{id => <div class="position-dossier">
         <h1><BlockText text={`[[${doc.block(id())?.position?.holder_id ?? ''}]]`} notebook={props.notebook} onOpen={props.onOpen} />
@@ -1610,7 +1619,7 @@ function Pane(props: OutlinePaneProps) {
       </div>}</Show>
       <Show when={!positionZoom() && (!zoom() || !doc.root()?.source || renaming())}>
       <div class="outline-title-row">
-      <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{doc.root()?.text || 'Loading…'}</button></h1>}>
+      <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{rootTitle() || 'Loading…'}</button></h1>}>
         <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { event.preventDefault(); closeTitle(); } }} />
         <Show when={titleCollision()} fallback={<Button class="bordered" onClick={commitTitle}>Save title</Button>}>{page =>
           <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root())} title={pageMergeDisabledReason(doc.root())} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>

@@ -30,7 +30,7 @@ Filtering the index does not change definitions; an empty result offers Clear fi
 
 ## Field pages
 
-A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Under the Piazzolla name sit a mono summary (`Choice · 7 owners · 9 values`) and Rename. Kind, Links to for relation fields, Hide and Role follow as rows. Hide offers Never, When empty and Always, with one muted line saying what the current choice does. Role offers Standfirst, Attribute, Prose and Citation, with a sentence explaining its presentation. Each change is one undoable edit on the definition. The [field menu](../design.md#field-entries) in any note opens this page, at the kind preview, Options or Links to; its Role menu offers the same choices.
+A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Rename… and Delete definition… sit at the name's right, and a mono summary (`Choice · 7 owners · 9 values`) under it. A built-in field's Rename… is disabled. Kind, Links to for relation fields, Hide and Role follow as rows between single hairlines, each note inside its row. Hide offers Never, When empty and Always, with one muted line saying what the current choice does. Role offers Standfirst, Attribute, Prose and Citation, with a sentence explaining its presentation. Each change is one undoable edit on the definition. The [field menu](../design.md#field-entries) in any note opens this page, at the kind preview, Options or Links to; its Role menu offers the same choices.
 
 A note's field entry menu is titled with the field name and names its owning note as mono context. Open field page leads, Definition… groups Kind…, Options… for choices or Links to… for relations, Hide… and Role…, and Remove from this note stays last as a danger action. Templates… contains Add to or Remove from each owning type's template and is absent without an owning type. This gives four root rows, or three without Templates.
 
@@ -93,7 +93,7 @@ Under the list sits a count of the members that lack template fields and Fill mi
 
 ## Type fields tab
 
-The type's Fields tab opens its field template as a third in-pane view, with the same Index, Table, Fields and Cards strip. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. It lists the template in the [field rows](#field-rows) the type page uses. Usage counts are notebook-wide distinct owners, including empty entries.
+The type's Fields tab opens its field template as a third in-pane view, with the same Index, Table, Fields and Cards strip. All four tabs title the kind by its glyph and plural, and Index, Fields and Cards share one left edge. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists the template in the [field rows](#field-rows) the type page uses. Usage counts are notebook-wide distinct owners, including empty entries.
 
 Add field and Fill missing fields keep the type page's editing behavior. The underlined type crumb opens the ordinary type page; the global Fields register remains separate.
 
@@ -139,6 +139,8 @@ Enter returns focus to the committed cell before its save finishes. ⌘Z then un
 
 The source chip, Search rows, Filters, Sort, Group and Columns align to the register. Applied filter and numbered sort chips sit beneath the controls and remove with their own ×. Chips wrap on narrow panes. A new sort follows the existing keys rather than replacing the primary key. Its left arrow raises its priority.
 
+Sort, Group and Filters list the type template's fields first, then built-in attributes, then the notebook's other fields. Sort and Group head each run with its section and check the fields in use; choosing a sorted field again flips its direction. Filters names each field's kind at the row's end.
+
 Filter and sort chips wait for field definitions before naming their fields, so loading does not briefly label a saved field as missing.
 
 Filters offer conditions by kind. Choice and Relation offer **is**, **is not**, **has a value** and **is empty**; Choice selects an existing option, while Relation selects a member of the field's target types. Text, URL and Identifier also offer **contains** and **has the field**; Number and Date add **>**, **≥**, **<** and **≤**. Checkbox offers **is checked** and **is not checked**. **Has the field** means an entry exists, even blank; **has a value** means at least one authored value is nonblank, including problem readings; **is empty** means none is nonblank. Presence is offered separately on scalar kinds, not on Choice, Relation or Checkbox. Relation filters store target IDs and their chips follow current labels. A legacy unresolved value is marked in the picker and needs a target selection.
@@ -149,7 +151,7 @@ Choice sorts follow the options' order on the field page, first option first whe
 
 Span sorts compare start year, then end year. Open starts sort first and open ends last among equal starts. Unreadable and empty values follow readable spans. Span filters offer overlaps, before and after; overlap includes both boundary years. Cells keep the authored notation.
 
-Group offers attributes and fields. A heading shows its label and distinct row count; clicking it collapses or reopens its rows. Collapsed heading keys travel with the saved recipe.
+Group offers attributes and fields, except Title, which would make every row its own group. A heading shows its label and distinct row count; clicking it collapses or reopens its rows. Collapsed heading keys travel with the saved recipe.
 
 ### Perspective layouts
 
@@ -179,7 +181,7 @@ Apparatus headers are sticky on `--canvas`, with the title sticky at the left. C
 
 Source values keep the first authored label and hostname, with a named derived Refs column opening every original URL destination. Labels can be Markdown links or `Title: URL`; bare URLs use their hostname/path. Remaining prose stays visible, and invalid readings retain their warning.
 
-Note and tagged non-page members share the same grid and field cells, ordered notes first and then blocks while retaining query order within each kind. Only a mixed register inserts a full-width mono Tagged blocks row with its count and a hairline above; a block-only register needs no divider. Block titles use the same three-line clamp and More/Less expansion as note titles, followed by a faint apparatus `in <page title>` line (the journal date for journal pages). Titles reuse the outline's quiet card display: direction arrows are faint and cloze answers have a dotted underline.
+Note and tagged non-page members share the same grid and field cells, ordered notes first and then blocks while retaining query order within each kind. Only a mixed register inserts a full-width mono Tagged blocks row with its count and a hairline above; a block-only register needs no divider. Block titles use the same three-line clamp and More/Less expansion as note titles, followed by a faint apparatus `in <page title>` line (the journal date for journal pages). A run of blocks from one page names it on the first row only. A group heading or the Tagged blocks row starts a new run. Titles reuse the outline's quiet card display: direction arrows are faint and cloze answers have a dotted underline.
 
 Columns past the right edge fade under the rows. `+N ›` at the header's end counts them and scrolls to them.
 
@@ -201,7 +203,7 @@ Columns start with the type template's fields, then fields present on all member
 
 New entity views start with the source's key attributes, its standfirst fields, then fields filled on at least a quarter of the first result's rows. There are at most six starting columns, including Title and derived Refs. Perspectives start with Holder and Subject; Questions with State, Perspectives, Last assessed and Revisit; Sources with Creator; Highlights with Source. Saved recipes keep their chosen columns.
 
-Columns hides or restores attributes, fields and derived Refs. Title only starts a compact selection. Find columns narrows the choices without changing the recipe. Column headers drag into order; their menus also offer Move left and Move right. Dragging a header's edge resizes it. The sticky title stays first and is 170 to 340 px wide, 240 by default. Chosen columns and widths belong to the query recipe and never change the type template. Search and filtering retain them. Older views without a recipe start with their existing pane-local visibility.
+Columns hides or restores attributes, fields and derived Refs. Title only starts a compact selection. Find columns narrows the choices without changing the recipe. Column headers drag into order; their menus also offer Move left and Move right. A header's hover band and click target fill its column to within 4 px of each rule. Dragging a header's edge resizes it. The sticky title stays first and is 170 to 340 px wide, 240 by default. Chosen columns and widths belong to the query recipe and never change the type template. Search and filtering retain them. Older views without a recipe start with their existing pane-local visibility.
 
 With text in Find columns, Only these selects the matching columns together, keeping widths and order for columns already selected.
 
@@ -232,7 +234,7 @@ An empty result names the source and the conditions that excluded its rows. Clea
 
 On coarse pointers below 600 px of available pane width, compact ledger rows replace the grid without lateral scrolling. The title and mode tabs scroll away with the rows. One mono summary beneath the title describes the count, conditions, sorts and grouping; a changed saved recipe ends with Modified in gilt. An empty purpose stays hidden; Add purpose… in the title menu opens its editor, and a set purpose remains below the title.
 
-Notes and tagged blocks share the same ordered list, with the counted apparatus divider only for mixed membership. Each row shows its Piazzolla title and `in <page title>` beneath a block title. Gloss values clamp to two lines without their labels. Choice and instance pills also omit labels; other values retain mono labels on one line. The grouped field hides inside its own groups, whose counted hairline headings stick while scrolling. The whole row opens the note, with field taps still opening their canonical entries and refs opening the destination list.
+Notes and tagged blocks share the same ordered list, with the counted apparatus divider only for mixed membership. Each row shows its Piazzolla title and `in <page title>` beneath a block title, named once per run of blocks from one page. Gloss values clamp to two lines without their labels. Choice and instance pills also omit labels; other values retain mono labels on one line. The grouped field hides inside its own groups, whose counted hairline headings stick while scrolling. The whole row opens the note, with field taps still opening their canonical entries and refs opening the destination list.
 
 A fixed bar above the bottom navigation holds Find in the type's plural and Query N. N counts active text, link conditions, filters, sorts, grouping and a non-default source. Query opens a bottom sheet containing the existing finder, source, filters, sort, group, layout, columns and Phone card fields controls. Save changes and Revert changes appear at its foot when a saved view differs, and remain in the title menu. Done closes the sheet. Pagination, load errors and Undo remain available at the end of the rows.
 

@@ -234,7 +234,7 @@ Holding ⌘ (Ctrl elsewhere) over anything that opens shows where a click will l
 
 Below 840 px of window width the row becomes pane tabs, numbered, over the active pane; spines, dividers and header numbers step aside.
 
-A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. Breadcrumbs reserve at least twelve mono characters for the current title and ellipsize its ending; ancestors may shrink. Below 840 px of pane width, the depth dial collapses to its current iris and unavailable projection tabs and the Vim tag step aside. Below 600 px of pane width, ancestors, the kind glyph and unavailable history buttons step aside too. If the remaining controls cannot share a line with the title's minimum, they wrap instead of erasing the title.
+A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. Breadcrumbs reserve at least twelve mono characters for the current title and ellipsize its ending; ancestors may shrink. Below 840 px of pane width, the depth dial collapses to its current iris, and unavailable projection tabs, Read's reason and the Vim tag step aside. Below 600 px of pane width, ancestors, the kind glyph and unavailable history buttons step aside too. If the remaining controls cannot share a line with the title's minimum, they wrap instead of erasing the title.
 
 On journal days the page menu leaves out what only titled pages can do (Rename, Merge into…, Description, Stream and Question) rather than listing it disabled. Saved shows as a 4 px dot with a hidden label; slow saves, offline and errors speak in sans, errors in `--danger`.
 
@@ -388,9 +388,11 @@ Titled pages have four depths:
 
 The dial sits in the pane header as four irises whose pupils widen with depth, the current one gilt in a `--surface` well, followed by its name in sans. Below 840 px of pane width only the current iris shows, opening a Depth menu of all four; neither a desktop split nor a phone sacrifices its title to the other stops.
 
-`[` and `]` step it when no block is being edited, and the palette has a command per stop. Depth belongs to the pane's history entry, so back, forward and reload restore it. A zoomed page always shows in full, and the dial hides there and on journal days. Rows that leave the list stop being edited or selected.
+`[` and `]` step it when no block is being edited, and the palette has a command per stop. Depth belongs to the pane's history entry, so back, forward and reload restore it. A zoomed page always shows in full, and the dial hides there and on journal days. Read and Compare keep its place empty, so the projection tabs never move under the pointer. Rows that leave the list stop being edited or selected.
 
 Structural edits reveal their caret target. If the current depth hides an inserted or moved block, the pane switches to Full before editing it.
+
+A zoom's trail is the pane header's breadcrumbs. The page repeats it above the title only below 600 px of pane width, where the header keeps just the current crumb. A journal zoom is titled with its spoken date (Tuesday, October 13), as the day itself is.
 
 If another pane deletes the zoom target, the pane resolves to its nearest surviving ancestor or the page root. Breadcrumbs and the depth dial follow that resolved target.
 
@@ -609,7 +611,9 @@ A hand-typed reference spanning lines stays literal. Name normalization never re
 
 A bare `#`, `# `, repeated hashes, URL fragments, references, code, card/cloze syntax and field shorthand do not open the type picker; `# ` at block start still makes a heading.
 
-A page made for a tag or by Add type goes away again once no tag, manual type or link uses it, unless it was edited, gained content or is named by a saved query. So typing `#phil` slowly leaves `phil`, not `p`, `ph` and `phi`.
+A tag being typed is not saved until the word is finished: a space or Enter, a choice from the picker, the caret leaving it, or 3 seconds without a keystroke. Until then no type page or sidebar row appears, so typing `#phil` slowly never shows `p`, `ph` or `phi`; the text is already kept for recovery.
+
+A page made for a tag or by Add type goes away again once no tag, manual type or link uses it, unless it was edited, gained content or is named by a saved query.
 
 #### Field shorthand
 

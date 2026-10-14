@@ -166,6 +166,7 @@ impl Notebook {
             revisions: Vec::new(),
             removed: Vec::new(),
             deletions: Vec::new(),
+            pages: Some(Vec::new()),
             text_rewrites: Vec::new(),
             settings: Vec::new(),
             capabilities: Vec::new(),

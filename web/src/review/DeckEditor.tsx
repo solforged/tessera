@@ -105,6 +105,6 @@ export function DeckEditor(props: DeckEditorProps) {
         <Button type="submit" class="bordered" disabled={locked() || loading() || stale() || !!loadError() || !name().trim()}>Save deck</Button>
       </div>
     </form>
-    <Show keyed when={selectionAnchor()}>{anchor => <Menu anchor={anchor} label="Deck queue" onDismiss={() => setSelectionAnchor(null)} items={(Object.keys(selectionLabels) as CardSelection[]).map(selection => ({ label: selectionLabels[selection], icon: query().selection === selection ? 'check' : undefined, action: () => { if (!locked()) setQuery(value => ({ ...value, selection })); } }))} />}</Show>
+    <Show keyed when={selectionAnchor()}>{anchor => <Menu anchor={anchor} label="Deck queue" onDismiss={() => setSelectionAnchor(null)} items={(Object.keys(selectionLabels) as CardSelection[]).map(selection => ({ label: selectionLabels[selection], checked: query().selection === selection, action: () => { if (!locked()) setQuery(value => ({ ...value, selection })); } }))} />}</Show>
   </Popup>;
 }

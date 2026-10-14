@@ -6,7 +6,9 @@ export interface CardParse { cards: ParsedCard[]; problems: CardProblem[] }
 
 interface Cloze { start: number; end: number; id: string; answerStart: number; answerEnd: number; hintStart: number | null }
 
-type CardOperator = '>>' | '<<' | '<>' | '>>>' | '>>1.' | ';;';
+export type CardOperator = '>>' | '<<' | '<>' | '>>>' | '>>1.' | ';;';
+/** How an operator reads wherever authored text is shown rather than edited. */
+export const cardOperators: Record<CardOperator, { label: string; text: string }> = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' }, '>>>': { label: 'child answer', text: '↓' }, '>>1.': { label: 'list answer', text: '↓1.' }, ';;': { label: 'descriptor', text: '›' } };
 export type CardMark =
   | { kind: 'operator'; start: number; end: number; op: CardOperator }
   | ({ kind: 'cloze'; hintEnd: number | null } & Cloze);

@@ -75,11 +75,13 @@ The sidebar's Questions menu opens the [research desk](desk.md), which links que
 
 ## Empty kinds
 
-An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, then one sentence on how pages arrive:
+An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, lowercasing a built-in kind but keeping a type's own capitals (`No Italian words yet.`), then one sentence on how pages arrive:
 
 - Type kinds are filed from Unfiled.
 - Questions and Projects use Make… → Question or Project in the page menu.
 - Sources arrive through the [Library](library.md).
+
+A tag-only type's index has no notes but does have members. It says `No notes filed as Italian word.`, counts the blocks it tags, and offers Open table.
 
 Every built-in kind except Sources offers New person…, New question… and so on, in the empty state or beside the populated finding aid's tally. Creation files the page as one acknowledged batch, creating the kind's type page too when it is missing, then opens the page. ⌘Enter opens it beside (Ctrl+Enter off Mac). A title that an existing page already has files that page instead, or opens it when it is already of the kind, and the form says so before you submit. The type's own title is refused.
 
@@ -135,7 +137,7 @@ Unfiled notes show no kinds. Sources keep their own header; journal days and the
 
 The titled Page actions menu names the page (or journal date), then shows the full ID in mono, its Created date and Copy ID. Copy ID leaves the menu open and confirms with Copied; Copy reference is the first action and copies `[[id]]`, as the block menu does. Clipboard failures are reported without claiming success.
 
-Rename, Merge into…, Pin or Unpin and Open beside stay at the top. Description… holds Gloss and Add alias; Add field… stays direct. Make… offers only absent Task, Project, Stream and Question features, with Task and Project only on journal days. Existing features have named Task…, Project…, Stream… and Question… managers. Appearance… holds bullets in Outline and archived visibility; Delete page… is last.
+Rename, Merge into…, Pin or Unpin and Open beside stay at the top. Description… holds Gloss and Add alias; Add field… stays direct. Make… offers only absent Task, Project, Stream and Question features, with Task and Project only on journal days. Existing features have named Task…, Project…, Stream… and Question… managers. Appearance… holds bullets in Outline and archived visibility; Delete page… is last. Description… wears the note glyph and Appearance… the rows glyph, so no two rows share one.
 
 Compare remains a projection tab and palette command, and Undo and Redo remain palette commands and shortcuts rather than menu rows. On coarse phones the menu becomes a bottom sheet with Close, 44 px rows and Back for drill-ins; it scrolls on shorter screens.
 

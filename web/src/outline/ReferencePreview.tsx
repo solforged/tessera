@@ -7,7 +7,7 @@ import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget, PaneId } from '../shell/contract';
 import { isStableReference, textTokens } from '../document/text-tokens';
 import { citedSigla } from '../library/sigla';
-import { citedSource } from './references';
+import { createCitedSources } from './source-reads';
 import { loadWorks } from '../library/PersonWorks';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { Button } from '../ui/Button';
@@ -20,7 +20,7 @@ import { fieldRole } from '../fields/roles';
 import { positionFields, positionRelations, positionSource, readingPassages } from './perspectives';
 import { OutgoingRelations } from './RelationLines';
 import './reference-preview.css';
-import { hasCitationDetail, referenceSource } from './references';
+import { hasCitationDetail, referenceSource, sourceReadsVersion } from './source-reads';
 
 /** Resting on a reference this long opens its card; moving to another reference while one is open takes a third of it. */
 const OPEN_DELAY = 350;
@@ -355,7 +355,7 @@ function ReferenceCard(props: {
   });
   const isPage = () => target()?.kind !== 'block';
   const state = () => doc()?.block(props.id);
-  const [citationSource] = createResource(() => props.citation && state()?.source ? [props.id, props.notebook.changeSequence()] as const : false, ([id]) => referenceSource(props.notebook, id));
+  const [citationSource] = createResource(() => props.citation && state()?.source ? [props.id, sourceReadsVersion(props.notebook)] as const : false, ([id]) => referenceSource(props.notebook, id));
   const [fieldList] = createResource(() => doc()?.status() === 'ready' ? props.notebook.changeSequence() : false, () => props.notebook.api.fields());
   const gloss = createMemo(() => { const value = doc(); return value?.status() === 'ready' && isPage() ? glossEntry(value, id => fieldRole(fieldList()?.fields.find(field => field.id === id)) === 'standfirst') : null; });
   const summary = createMemo(() => { const value = doc(); return value && gloss() ? glossText(value, gloss()) : ''; });
@@ -494,11 +494,8 @@ function PinnedReadings(props: {
       prose: ready ? readingPassages(doc, row.block.block.id, fields.find(field => props.standfirst(field.fieldId))?.value, props.fieldName).slice(0, BLOCK_ROWS) : [],
     };
   }));
-  const [siglumRecords] = createResource(() => {
-    const ids = [...new Set(readings().map(reading => reading.source).filter(id => id !== null))];
-    return ids.length ? ids : false;
-  }, ids => Promise.all(ids.map(async id => ({ id, source: await citedSource(props.notebook, id).catch(() => null) }))));
-  const sigla = createMemo(() => citedSigla(siglumRecords.error ? [] : siglumRecords() ?? []));
+  const siglumRecords = createCitedSources(props.notebook, () => [...new Set(readings().map(reading => reading.source).filter(id => id !== null))]);
+  const sigla = createMemo(() => citedSigla(siglumRecords()));
 
   return <section class="reference-preview-readings" aria-label="Perspectives">
     <div class="reference-preview-section-heading"><span>Perspectives</span><span class="reference-preview-rule" /><span>{props.rows.length}</span></div>

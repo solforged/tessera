@@ -37,6 +37,9 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
   };
   return <>
     {props.heading}
+    <Show when={sync.state()?.role === 'none'}>
+      <div class="settings-row"><div class="settings-label"><span class="settings-name">Sync is off</span><p>This Mac is not serving its notebook to other devices, so no phone can pair with it.</p></div><span /></div>
+    </Show>
     <Show when={hubDevices.state()}>{value => <>
       <div class="settings-row devices-hub-row">
         <div class="settings-label"><span class="settings-name">The Mac<span class="settings-scope">Hub</span></span><p class="settings-mono">{value().hub_name} · {versionLine(value().this_device)}</p>

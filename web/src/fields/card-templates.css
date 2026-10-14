@@ -1,12 +1,13 @@
-.card-templates-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); outline: none; container: card-templates-pane / inline-size; }
+.card-templates-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); outline: none; container: card-templates-pane / inline-size; }
 .ct-sheet { width: 100%; max-width: var(--measure); margin-inline: auto; }
-.ct-sheet h1 { margin: var(--space-4) 0 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.ct-sheet h1 { display: flex; align-items: baseline; gap: var(--space-12); min-width: 0; margin: var(--space-4) 0 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.ct-sheet h1 > .icon { flex: none; align-self: center; color: var(--faint); }
 .ct-sheet h2 { margin: 0; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
 .ct-sheet h3 { margin: 0; font: var(--weight-control) var(--text-body)/var(--line-body) var(--font-body); }
 .ct-sheet p { margin: 0; }
 .ct-apparatus, .ct-footnote, .ct-marker { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; color: var(--faint); }
 .ct-crumb { display: flex; gap: var(--space-4); align-items: baseline; }
-.ct-crumb .button { padding: 0; min-height: 0; color: var(--muted); font: inherit; border-bottom: var(--rule-width) solid var(--line); }
+.ct-crumb .button { padding: 0; min-height: 0; border: 0; color: var(--muted); font: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: var(--space-4); }
 .ct-title-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-16); margin-bottom: var(--space-8); }
 .ct-sheet .type-mode-tabs { margin-bottom: var(--space-16); }
 .ct-meta { display: flex; gap: var(--space-16); align-items: center; flex-wrap: wrap; padding-bottom: var(--space-16); border-bottom: var(--rule-width) solid var(--line); color: var(--muted); font: var(--apparatus); }

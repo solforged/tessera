@@ -6,6 +6,8 @@ import type { FieldsViewState, OpenTarget } from '../shell/contract';
 import { opensBeside } from '../shell/beside';
 import { typeQuery } from '../table/query';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
+import { noteKindIcon } from '../notes/kinds';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { FieldPicker } from './FieldPicker';
 import { displayPattern, patternParts, storedPattern, usedFields } from './card-patterns';
@@ -91,7 +93,7 @@ export function CardTemplatesPane(props: Props) {
     finally { setBusy(false); }
   }
   const toCards = () => props.onOpen({ kind: 'cards', typeId: props.typeId }, false);
-  return <div ref={scroll} class="card-templates-pane" role="region" aria-label={`${title()} cards`} tabIndex={0} onFocusIn={props.onActivate}
+  return <div ref={scroll} class="card-templates-pane" role="region" aria-label={`${title()} cards`} tabIndex={0} data-pane-pending={!data.latest && !data.error ? '' : undefined} onFocusIn={props.onActivate}
     onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })} onKeyDown={event => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !(event.target as Element).closest('input, textarea, [contenteditable]')) {
         event.preventDefault(); event.stopPropagation(); void history(event.shiftKey);
@@ -100,7 +102,7 @@ export function CardTemplatesPane(props: Props) {
     <div class="ct-sheet">
       <header class="ct-heading">
         <div class="ct-apparatus ct-crumb"><Button onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, opensBeside(event))}>{title()}</Button><span> / {props.applyId ? `${applyTemplate()?.name ?? 'Cards'} / Apply` : 'Card templates'}</span></div>
-        <div class="ct-title-row"><h1>{title()}</h1><span class="ct-apparatus">{templates().length} {templates().length === 1 ? 'template' : 'templates'} · {templates().filter(template => template.applied).length} enabled</span></div>
+        <div class="ct-title-row"><h1><Show when={data.latest?.kind}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>{data.latest?.kind?.plural ?? title()}</h1><span class="ct-apparatus">{templates().length} {templates().length === 1 ? 'template' : 'templates'} · {templates().filter(template => template.applied).length} enabled</span></div>
       </header>
       <TypeModeTabs active="cards" indexCount={data.latest?.kind?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length} cardsCount={data.latest?.templates.length}
         onIndex={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}

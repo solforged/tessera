@@ -516,6 +516,12 @@ pub struct Committed {
     pub removed: Vec<String>,
     /// Deletion events created by `Delete` and `Merge`, in operation order.
     pub deletions: Vec<String>,
+    /// Pages holding a block the batch changed or removed, plus pages whose
+    /// order or nesting it changed, sorted. A window learns from its own
+    /// receipt which pages it touched without fetching each block. `None`
+    /// in receipts stored before it was recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pages: Option<Vec<String>>,
     /// Incoming-tag sources considered by a rename, including equal-text
     /// guards needed to preserve exact spelling on undo.
     /// Older persisted receipts predate tag rewriting.
@@ -623,6 +629,10 @@ pub struct ChangeEvent {
     pub removed: Vec<String>,
     /// Pages whose order or nesting changed, recorded when the batch applied.
     pub restructured_pages: Vec<String>,
+    /// The receipt's `pages`: every page this change touched. `None` for
+    /// changes recorded before it was.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pages: Option<Vec<String>>,
     /// Views saved or deleted by this change; clients reload their view list.
     #[serde(default)]
     pub views: Vec<String>,

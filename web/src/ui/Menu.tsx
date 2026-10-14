@@ -47,6 +47,12 @@ export function Menu(props: {
   const page = () => pages().at(-1)?.page;
   const items = () => page()?.items ?? props.items;
   const iconed = () => items().some(item => item.icon);
+  // A menu shut for one reason says it once, under the rows, rather than under each of them.
+  const sharedReason = () => {
+    const [first, ...rest] = items();
+    return first?.disabledReason && rest.length && rest.every(item => item.disabledReason === first.disabledReason) ? first.disabledReason : undefined;
+  };
+  const reasonFor = (index: number) => sharedReason() ? `${reasonId}-shared` : `${reasonId}-${index}`;
   const sheet = () => props.placement === undefined && props.title !== undefined && phoneSheet();
   let body!: HTMLDivElement;
   const focusRow = (index: number) => queueMicrotask(() => {
@@ -100,10 +106,11 @@ export function Menu(props: {
       <Index each={items()}>{(item, index) => <>
         {item().section && item().section !== items()[index - 1]?.section && <div class="menu-section">{item().section}</div>}
         {item().divider && index > 0 && <hr class="menu-divider" />}
-        <button type="button" role={item().checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item().checked} aria-haspopup={item().submenu ? 'menu' : undefined} class={`menu-item ${item().danger ? 'danger' : ''}`} aria-disabled={!!item().disabledReason} aria-describedby={item().disabledReason ? `${reasonId}-${index}` : undefined} title={item().disabledReason} onClick={event => run(item(), index, event)}>
-          {item().icon ? <Icon name={item().icon!} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item().label}{(item().disabledReason || item().secondary) && <span class="menu-disabled-reason" id={`${reasonId}-${index}`}>{item().disabledReason || item().secondary}</span>}</span>{item().shortcut && <kbd>{item().shortcut}</kbd>}{item().checked && <Icon name="check" class="menu-check" />}{item().submenu && <Icon name="right" class="menu-drill" />}
+        <button type="button" role={item().checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item().checked} aria-haspopup={item().submenu ? 'menu' : undefined} class={`menu-item ${item().danger ? 'danger' : ''}`} aria-disabled={!!item().disabledReason} aria-describedby={item().disabledReason ? reasonFor(index) : undefined} title={item().disabledReason} onClick={event => run(item(), index, event)}>
+          {item().icon ? <Icon name={item().icon!} /> : iconed() ? <span class="icon" /> : null}<span class="menu-label">{item().label}{(item().disabledReason && !sharedReason() || item().secondary) && <span class="menu-disabled-reason" id={`${reasonId}-${index}`}>{sharedReason() ? item().secondary : item().disabledReason || item().secondary}</span>}</span>{item().shortcut && <kbd>{item().shortcut}</kbd>}{item().checked && <Icon name="check" class="menu-check" />}{item().submenu && <Icon name="right" class="menu-drill" />}
         </button>
       </>}</Index>
+      <Show when={sharedReason()}>{reason => <p class="menu-note" id={`${reasonId}-shared`}>{reason()}</p>}</Show>
       <Show when={page()?.note}>{note => <p class="menu-note">{note()}</p>}</Show>
     </div>
   </Popup>;

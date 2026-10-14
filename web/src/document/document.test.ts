@@ -652,6 +652,27 @@ describe('real notebook operations and recovery', () => {
     }
   });
 
+  test('a tag being typed stays unsaved until the word is finished', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance);
+    const saved = (await api.block(first)).text;
+    const tag = `held${++serial}`;
+    for (let end = 2; end <= tag.length + 1; end++) {
+      success(doc.edit({ kind: 'text', id: first, text: `#${tag.slice(0, end - 1)}` }));
+      doc.holdTag(first, true);
+    }
+    await new Promise(resolve => setTimeout(resolve, 600));
+    expect((await api.block(first)).text).toBe(saved);
+    await expect(api.pageByTitle(tag)).rejects.toMatchObject({ status: 404 });
+    expect(doc.saveState()).not.toBe('saved');
+    success(doc.edit({ kind: 'text', id: first, text: `#${tag} ` }));
+    doc.holdTag(first, false);
+    await eventually(() => doc.saveState() === 'saved', 'the finished tag did not save');
+    expect((await api.block(first)).text).toBe(`#${tag} `);
+    expect(await api.pageByTitle(tag)).not.toBeNull();
+    doc.release();
+  });
+
   test('a new field keeps its chosen kind through one undo and redo', async () => {
     const instance = await client();
     const fields = await api.fields();

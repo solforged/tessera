@@ -156,6 +156,8 @@ export interface Committed {
   revisions: Revision[];
   /** Touched blocks removed by the batch, including pruned provisional pages. */
   removed?: string[];
+  /** Pages holding a block the batch changed or removed, plus restructured pages. Absent in receipts stored before it was recorded. */
+  pages?: string[];
   settings: SettingRevision[];
   /** Deletion events created by `delete`, `merge` and `merge_page`, in operation order. */
   deletions: string[];
@@ -239,6 +241,8 @@ export interface ChangeEvent {
   blocks: Block[];
   removed: string[];
   restructured_pages: string[];
+  /** Every page the change touched, from its receipt. Absent for changes recorded before it was. */
+  pages?: string[];
   /** Absent on change events produced before saved views were introduced. */
   views?: string[];
   settings?: string[];

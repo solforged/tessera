@@ -105,8 +105,9 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   const [current, setCurrent] = createSignal('preferences');
   const [scrolled, setScrolled] = createSignal(false);
   const [allChanges, setAllChanges] = createSignal(false);
-  // The index follows the last section whose heading has reached the sticky header. A section chosen from the index
-  // stays current until the reader scrolls by hand, since the last sections may never reach the header.
+  // The index follows the last section whose heading has reached the sticky header, and the last section once the
+  // pane can scroll no further. A section chosen from the index stays current until the reader scrolls by hand, since
+  // the last sections may never reach the header.
   const [chosen, setChosen] = createSignal<string | null>(null);
   const follow = () => {
     setScrolled(region.scrollTop > 0);
@@ -117,6 +118,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
       const element = document.getElementById(sectionId(section.key));
       if (element && element.offsetTop - region.scrollTop <= header + 1) key = section.key;
     }
+    if (region.scrollTop > 0 && region.scrollTop + region.clientHeight >= region.scrollHeight - 1) key = sections().at(-1)!.key;
     setCurrent(key);
   };
   const release = () => { if (chosen()) { setChosen(null); follow(); } };

@@ -42,6 +42,12 @@ describe('anchored popup placement', () => {
     expect(position.top + position.height).toBeLessThanOrEqual(bounds.bottom - 8);
   });
 
+  test('a completion opens under its caret in the right half when it fits', () => {
+    const wide = { ...pane, right: 1427, width: 1218 };
+    expect(anchoredPopupPosition({ left: 850, right: 851, top: 400, bottom: 419 }, wide, 480, 253).left).toBe(850);
+    expect(anchoredPopupPosition({ left: 1100, right: 1101, top: 400, bottom: 419 }, wide, 480, 253).left).toBe(1101 - 480);
+  });
+
   test('other popups retain viewport-only placement without pane bounds', () => {
     expect(popupBounds(viewport)).toBe(viewport);
     const position = anchoredPopupPosition({ left: 642, right: 751, top: 450, bottom: 469 }, viewport, 380, 253);

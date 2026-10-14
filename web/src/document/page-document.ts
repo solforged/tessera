@@ -25,6 +25,7 @@ export interface DocumentHost {
   cachePage(view: PageView): void;
   enqueue(doc: Document, actions: Action[], inverse: Action[], before: Caret | null, after: Caret | null, coalesce: boolean): PageCommand;
   flushPage(pageId: string): Promise<void>;
+  holdTag(pageId: string, blockId: string, typing: boolean): void;
   runningWork(): WorkSession | undefined;
   state(pageId?: string): SaveState;
   message(pageId?: string): string;
@@ -104,6 +105,7 @@ export class Document implements PageDocument {
   saveState() { return this.host.state(this.pageId); }
   saveMessage() { return this.host.message(this.pageId); }
   async flush() { await this.historyPending; await this.host.flushPage(this.pageId); }
+  holdTag(id: string, typing: boolean) { this.host.holdTag(this.pageId, id, typing); }
   canUndo() { this.historyVersion[0](); return !this.historyPending && this.undoStack.length > 0; }
   canRedo() { this.historyVersion[0](); return !this.historyPending && this.redoStack.length > 0; }
   release() { this.host.release(this); }

@@ -1175,7 +1175,7 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   </div></Show>;
 }
 
-function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: number; neighbour: boolean; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; noteKind?: NoteKind; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
+function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: number; neighbour: boolean; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; noteKind?: IndexKind; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
   const readerTarget = () => current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined;
@@ -1283,6 +1283,8 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     if (!readerTarget()) return outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, '');
     return page?.status() !== 'ready' ? 'Page is unavailable' : localPositionCount(page) < 2 ? 'Compare needs two perspectives on this page' : undefined;
   };
+  // Journals and other untitled roots have no projections, so their zooms carry neither the tabs nor Read's reason.
+  const projectionTabsShown = () => root()?.kind === 'page' || !!outlineView().zoom && !!doc()?.block(outlineView().zoom!)?.position;
   const ProjectionTabs = () => <div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Page projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} aria-describedby={value === 'read' && projectionReason(value) ? `read-reason-${props.pane}` : undefined} onClick={event => setProjection(value, opensBeside(event))}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div>;
   const breadcrumbs = createMemo(() => {
     const page = doc(); const zoom = 'zoom' in current().view ? outlineView().zoom : null; if (!page || !zoom) return [];
@@ -1310,6 +1312,8 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   const depth = (): Depth => outlineView().depth ?? 'full';
   // The dial shows on titled pages at their top level; a zoomed page always shows in full.
   const showDial = () => root()?.kind === 'page' && !outlineView().zoom && projection() === 'outline';
+  // Read and Compare keep the dial's place, unseen, so switching projection never slides the tabs under the pointer.
+  const dialPlace = () => root()?.kind === 'page' && !outlineView().zoom;
   // Journal days leave out description and the titled-page-only choices.
   const titled = () => root()?.kind !== 'journal';
   const stream = createMemo(() => root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'));
@@ -1330,7 +1334,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     ] satisfies MenuItem[] : []),
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', divider: !titled(), action: props.onPin },
     { label: 'Open beside', icon: 'panes', action: props.onPageBeside },
-    ...(titled() ? [{ label: 'Description…', icon: 'edit', divider: true, submenu: () => ({ title: 'Description', items: [
+    ...(titled() ? [{ label: 'Description…', icon: 'note', divider: true, submenu: () => ({ title: 'Description', items: [
       { label: 'Gloss', icon: 'edit', disabledReason: outlineCommand('gloss')?.disabledReason?.(), action: () => outlineCommand('gloss')?.run() },
       { label: 'Add alias', icon: 'edit', disabledReason: outlineCommand('alias')?.disabledReason?.(), action: () => outlineCommand('alias')?.run() },
     ] }) } satisfies MenuItem] : []),
@@ -1342,7 +1346,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     ...(stream() ? [{ label: 'Stream…', icon: 'link', submenu: () => ({ title: 'Stream', items: [
       { label: 'Remove stream', icon: 'trash', danger: true, disabledReason: outlineCommand('stream-root')?.disabledReason?.(), action: () => outlineCommand('stream-root')?.run() },
     ] }) } satisfies MenuItem] : []),
-    { label: 'Appearance…', icon: 'bullet', divider: true, submenu: () => ({ title: 'Appearance', items: [
+    { label: 'Appearance…', icon: 'rows', divider: true, submenu: () => ({ title: 'Appearance', items: [
       ...(projection() === 'outline' ? [{ label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }) } satisfies MenuItem] : []),
       { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
     ] }) },
@@ -1372,8 +1376,8 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
-        <Show when={root()?.kind === 'page' || outlineView().zoom && doc()?.block(outlineView().zoom!)?.position}><ProjectionTabs /></Show>
-        <Show when={showDial()}><div class="depth-dial" role="group" aria-label="Depth">
+        <Show when={projectionTabsShown()}><ProjectionTabs /></Show>
+        <Show when={dialPlace()}><div class="depth-dial" role="group" aria-label="Depth" data-held={showDial() ? undefined : ''}>
           <For each={depthStops}>{stop => <button type="button" class="depth-stop" aria-pressed={depth() === stop} title={`${depthLabels[stop]} (${stop === 'gloss' ? '[' : stop === 'full' ? ']' : '[ ]'})`}
             onClick={event => { if (depth() === stop && getComputedStyle(event.currentTarget.parentElement!.querySelector('.depth-label')!).display === 'none') setDepthMenu(event.currentTarget); else outlineCommand(`depth-${stop}`)?.run(); }}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
           <span class="depth-label" aria-hidden="true">{depthLabels[depth()]}</span>
@@ -1398,7 +1402,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Page menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
-    <Show when={pageId() && outlineView().zoom && projectionReason('read')}>{reason => <p class="page-projection-reason" id={`read-reason-${props.pane}`} role="status">{reason()}</p>}</Show>
+    <Show when={pageId() && outlineView().zoom && projectionTabsShown() && projectionReason('read')}>{reason => <p class="page-projection-reason read-reason" id={`read-reason-${props.pane}`} role="status">{reason()}</p>}</Show>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
     <Show when={copyMessage() && !menu()}><p class="page-projection-reason" role="status">{copyMessage()}</p></Show>
     <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} projection={projection()} onProjection={setProjection} projectionReason={projectionReason} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>

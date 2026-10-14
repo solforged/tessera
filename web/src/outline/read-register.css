@@ -85,8 +85,11 @@
 .page-projection-reason { flex: none; margin: 0; padding: var(--space-4) var(--pane-inset); color: var(--muted); font: var(--apparatus); }
 .projection-compare { display: none; }
 .embedded-comparison { display: flex; flex: 1; min-height: 0; }
-.section-navigator { flex: none; height: var(--row-height); width: calc(100% - var(--pane-inset) * 2); max-width: var(--measure); margin-inline: auto; background: var(--canvas); }
-.section-navigator > .button { font: var(--apparatus); color: var(--muted); padding: 0; min-height: var(--row-height); }
+/* The section line occupies the page's top space and sticks there, so it never moves the title or the text. */
+.section-navigator { position: sticky; top: calc(-1 * var(--page-top-space)); z-index: 3; display: flex; align-items: center; height: var(--page-top-space); max-width: var(--measure); margin: calc(-1 * var(--page-top-space)) auto 0; background: var(--canvas); box-shadow: calc(-1 * var(--gutter)) 0 0 var(--canvas); visibility: hidden; opacity: 0; transition: opacity var(--motion-ui) var(--motion-ease), visibility 0s linear var(--motion-ui); }
+/* At the top the title names the place; the line appears once the page scrolls. */
+.section-navigator-shown { visibility: visible; opacity: 1; transition: opacity var(--motion-ui) var(--motion-ease); }
+.section-navigator > .button { font: var(--apparatus); color: var(--muted); padding: 0; min-height: var(--page-top-space); }
 @media (max-width: 599px) {
   .page-projection-tabs button { font-size: var(--text-meta); padding-inline: var(--space-2); }
   .pane-header:has(.page-projection-tabs) .pane-breadcrumbs { flex: 1; min-width: 0; }

@@ -1,12 +1,12 @@
 import { opensBeside, listOpensBeside } from '../shell/beside';
 import { createEffect, createMemo, createResource, createSignal, For, onMount, Show, Switch, Match, untrack } from 'solid-js';
 import { ulid } from 'ulid';
-import type { KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query, View } from '../api/types';
+import type { IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query, View } from '../api/types';
 import { missingFilter } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
-import { plainText, referenceValue } from '../outline/names';
+import { plainText, readableText, referenceValue } from '../outline/names';
 import { PageMergePicker } from '../outline/PageMerge';
 import { documentReady } from '../outline/source-fields';
 import { addFilter, copyQuery, filterLabel, missingQueryFields, noteTableQuery, queriesEqual, removeFilter, removeQueryField, retainFieldNames, typeQuery } from '../table/query';
@@ -29,7 +29,7 @@ import { QuestionLedger } from './QuestionLedger';
 
 interface IndexPaneProps {
   kindKey: string;
-  kind: NoteKind | undefined;
+  kind: NoteKind | IndexKind | undefined;
   view: IndexViewState;
   notebook: NotebookClient; neighbour?: boolean;
   onActivate(): void;
@@ -219,7 +219,9 @@ function KindIndexPane(props: IndexPaneProps) {
   const count = () => display()?.count;
   const summary = (note: NoteEntry) => shown()?.summaries[note.id];
   const lookup = (id: string) => props.notebook.lookup(id);
-  const preview = (note: NoteEntry) => plainText(summary(note)?.preview ?? '', lookup);
+  const preview = (note: NoteEntry) => readableText(summary(note)?.preview ?? '', lookup);
+  // The inspector's opening prose continues from the preview rather than repeating it.
+  const excerpt = (note: NoteEntry) => (summary(note)?.prose_excerpt ?? []).map(text => readableText(text, lookup)).filter(text => text.trim() && text.trim() !== preview(note).trim());
   const queue = createMemo(() => filingGroups(index.latest?.notes ?? [], index.latest?.summaries ?? {}));
   const visibleQueue = createMemo(() => queue().filter(group => filter() === 'all' || group.key === filter()).flatMap(group => group.notes));
   const selectedForFiling = createMemo(() => visibleQueue().filter(note => filingSelection().has(note.id)));
@@ -290,7 +292,7 @@ function KindIndexPane(props: IndexPaneProps) {
         <Show when={noteMode() && !missingFields().length}><RequiredGaps gaps={incomplete.latest?.map(field => ({ field_id: field.field_id, missing: field.owners.size }))} name={fieldName} onShow={showMissing} /></Show>
         <Show when={groups().length}><NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} members={index.latest?.notes} /></Show>
       </div>
-      <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={missingFields().length ? undefined : count()} fieldsCount={type()?.fields.length}
+      <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={type.latest?.members} fieldsCount={type()?.fields.length}
         cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: id() }, opensBeside(event))}
         onIndex={() => { scroll.scrollTop = 0; }} onTable={openTable}
         onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, opensBeside(event))} />}</Show>
@@ -343,7 +345,7 @@ function KindIndexPane(props: IndexPaneProps) {
               </div><Show when={selectedNote()}>{note => <aside class="index-inspector" aria-label="Selected note">
                 <p class="index-eyebrow">Selected note</p><h2>{note().title}</h2><p class="index-apparatus">{apparatus(summary(note()))}</p>
                 <Show when={preview(note())}><p class="index-inspector-preview">{preview(note())}</p></Show>
-                <Show when={summary(note())?.prose_excerpt.length}><div class="index-inspector-excerpt" aria-label="Opening prose"><For each={summary(note())?.prose_excerpt}>{text => <p>{plainText(text, lookup)}</p>}</For></div></Show>
+                <Show when={excerpt(note()).length}><div class="index-inspector-excerpt" aria-label="Opening prose"><For each={excerpt(note())}>{text => <p>{text}</p>}</For></div></Show>
                 <div class="index-inspector-actions"><Button class="bordered" onClick={event => showPopup('file', note(), event.currentTarget)}>File under a type…</Button><Button onClick={event => openNote(note(), event)}>Open note</Button>
                   <Button onClick={event => showPopup('merge', note(), event.currentTarget)}>Merge into…</Button><Button class="danger" onClick={event => showPopup('delete', note(), event.currentTarget)}>Delete…</Button></div>
                 <Show when={summary(note())?.referenced_from.length}><div class="index-incoming"><p class="index-apparatus">Referenced from</p><For each={summary(note())?.referenced_from}>{page => <Button onClick={event => props.onOpen({ kind: 'page', pageId: page.id }, listOpensBeside(event, !!props.neighbour))}>{page.title}</Button>}</For></div></Show>
@@ -420,8 +422,12 @@ function KindIndexPane(props: IndexPaneProps) {
 const startable: Record<string, 'type' | 'question' | 'project'> = { person: 'type', group: 'type', concept: 'type', thesis: 'type', question: 'question', project: 'project' };
 
 /** An empty kind says how pages arrive in it and, for built-in kinds, starts one. */
-function EmptyKind(props: { kindKey: string; kind: NoteKind | undefined; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
+function EmptyKind(props: { kindKey: string; kind: NoteKind | IndexKind | undefined; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
   const mode = () => props.kind ? startable[props.kindKey] : undefined;
+  // A type that only tags blocks has members, just none of them notes; its table lists them.
+  const tagged = () => props.kind && 'tagged_block_count' in props.kind && tagOnly(props.kind) ? props.kind : undefined;
+  // Built-in kinds read as common nouns; a type's own name keeps the capitals it was given.
+  const plural = () => props.kind ? props.kindKey in startable || props.kindKey === 'source' ? props.kind.plural.toLocaleLowerCase() : props.kind.plural : '';
   const hint = () => {
     const name = props.kind?.name ?? '';
     switch (mode()) {
@@ -432,9 +438,15 @@ function EmptyKind(props: { kindKey: string; kind: NoteKind | undefined; noteboo
     }
   };
   return <div class="index-empty">
-    <p class="index-empty-title">{props.kind ? `No ${props.kind.plural.toLocaleLowerCase()} yet.` : 'No notes of this kind yet.'}</p>
-    <Show when={hint()}>{text => <p class="index-empty-hint">{text()}</p>}</Show>
-    <NewKindAction {...props} />
+    <Show when={tagged()} fallback={<>
+      <p class="index-empty-title">{props.kind ? `No ${plural()} yet.` : 'No notes of this kind yet.'}</p>
+      <Show when={hint()}>{text => <p class="index-empty-hint">{text()}</p>}</Show>
+      <NewKindAction {...props} />
+    </>}>{kind => <>
+      <p class="index-empty-title">No notes filed as {kind().name}.</p>
+      <p class="index-empty-hint">{kind().plural} tags {kind().tagged_block_count === 1 ? 'one block' : `${kind().tagged_block_count.toLocaleString()} blocks`}, listed in its table.</p>
+      <Button class="bordered" icon="table" onClick={event => props.onOpen(indexKindTarget(kind()), opensBeside(event))}>Open table</Button>
+    </>}</Show>
   </div>;
 }
 

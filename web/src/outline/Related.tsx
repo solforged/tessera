@@ -16,7 +16,7 @@ import { Button } from '../ui/Button';
 import { createSettledChanges } from '../ui/loading';
 import { isVirtualJournal, readJournalRelated } from './related-reads';
 import { IncomingRelations } from './RelationLines';
-import { hasCitationDetail } from './references';
+import { hasCitationDetail } from './source-reads';
 
 export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'doc' | 'zoom' | 'zoomTo' | 'localPositions'>) {
   const { props, doc, zoom, zoomTo, localPositions } = context;

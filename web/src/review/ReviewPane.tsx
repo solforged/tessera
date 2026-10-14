@@ -49,10 +49,10 @@ const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)');
 export function ReviewPane(props: ReviewPaneProps) {
   const queue = createRevisits(props.notebook);
   return <div class="review-queues">
-    <div class="review-kind-tabs review-queue-controls mode-tabs tab-strip" role="group" aria-label="Review kind">
+    <div class="review-head"><div class="review-kind-tabs review-queue-controls mode-tabs tab-strip" role="group" aria-label="Review kind">
       <Button aria-pressed={props.view.queue !== 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'cards' })}>Cards</Button>
       <Button aria-pressed={props.view.queue === 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'notes' })}>Questions and notes<span class="review-count">{queue.rows().length}</span></Button>
-    </div>
+    </div></div>
     <Show when={props.view.queue === 'notes'} fallback={<CardReviewPane {...props} />}><NotesReview {...props} rows={queue.rows()} error={queue.error()} /></Show>
   </div>;
 }
@@ -546,23 +546,25 @@ function CardReviewPane(props: ReviewPaneProps) {
 
   const deckName = createMemo(() => scope() ?? (deckId() ? selectedDeck()?.name ?? 'Unavailable deck' : 'All cards'));
   return <div class="review-pane" classList={{ 'review-session-active': sessionActive(), 'review-session-done': done() }} data-pane={props.pane} role="region" aria-label="Review" tabIndex={0} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
-    <header class="review-header">
-      <div class="review-heading">
-        <div class="review-register">Review<Show when={sessionActive()}><span> · in progress</span></Show></div>
-        <h1><Button ref={deckTrigger} class="review-deck-title" disabled={locked() || loading()} aria-haspopup="dialog" title="Choose a deck" onClick={event => { setSearch(''); setPicker({ kind: 'decks', anchor: event.currentTarget }); }}><span>{deckName()}</span><Icon name="down" /></Button></h1>
+    <div class="review-head">
+      <header class="review-header">
+        <div class="review-heading">
+          <div class="review-register">Review<Show when={sessionActive()}><span> · in progress</span></Show></div>
+          <h1><Button ref={deckTrigger} class="review-deck-title" disabled={locked() || loading()} aria-haspopup="dialog" title="Choose a deck" onClick={event => { setSearch(''); setPicker({ kind: 'decks', anchor: event.currentTarget }); }}><span>{deckName()}</span><Icon name="down" /></Button></h1>
+        </div>
+        <Show when={otherSessions().length}><Button class="review-open-sessions" disabled={locked() || loading()} aria-haspopup="dialog" onClick={event => { setSearch(''); setPicker({ kind: 'sessions', anchor: event.currentTarget }); }}>Open reviews<span class="review-count">{otherSessions().length}</span></Button></Show>
+        <Button class="review-deck-actions" icon="more" label="Deck actions" aria-haspopup="menu" disabled={locked() || loading()} onClick={event => setActions(event.currentTarget)} />
+      </header>
+      <div class="review-toolbar">
+        <Show when={!session()}><div role="group" aria-label="Review queue" class="review-queue-controls mode-tabs tab-strip" data-mode-panel=".review-scroll"><For each={selections}>{value => <Button aria-pressed={query().selection === value} disabled={locked() || loading()} onClick={() => {
+          if (value === query().selection) return;
+          setShown(null); setUpdated(null); setStale(''); setNeedsReload(false); setSelection(value); publish();
+        }}>{selectionLabels[value]}<Show when={counts()[value] !== undefined}><span class="review-count">{counts()[value]}</span></Show></Button>}</For></div></Show>
+        <Show when={sessionActive() && ready()}><div class="review-session-progress">
+          <span class="review-progress-label">{Math.min(gradedCount() + 1, gradedCount() + rows().length)} of {gradedCount() + rows().length}</span>
+          <GradeStrip grades={grades()} remaining={rows().length} />
+        </div></Show>
       </div>
-      <Show when={otherSessions().length}><Button class="review-open-sessions" disabled={locked() || loading()} aria-haspopup="dialog" onClick={event => { setSearch(''); setPicker({ kind: 'sessions', anchor: event.currentTarget }); }}>Open reviews<span class="review-count">{otherSessions().length}</span></Button></Show>
-      <Button class="review-deck-actions" icon="more" label="Deck actions" aria-haspopup="menu" disabled={locked() || loading()} onClick={event => setActions(event.currentTarget)} />
-    </header>
-    <div class="review-toolbar">
-      <Show when={!session()}><div role="group" aria-label="Review queue" class="review-queue-controls mode-tabs tab-strip" data-mode-panel=".review-scroll"><For each={selections}>{value => <Button aria-pressed={query().selection === value} disabled={locked() || loading()} onClick={() => {
-        if (value === query().selection) return;
-        setShown(null); setUpdated(null); setStale(''); setNeedsReload(false); setSelection(value); publish();
-      }}>{selectionLabels[value]}<Show when={counts()[value] !== undefined}><span class="review-count">{counts()[value]}</span></Show></Button>}</For></div></Show>
-      <Show when={sessionActive() && ready()}><div class="review-session-progress">
-        <span class="review-progress-label">{Math.min(gradedCount() + 1, gradedCount() + rows().length)} of {gradedCount() + rows().length}</span>
-        <GradeStrip grades={grades()} remaining={rows().length} />
-      </div></Show>
     </div>
     <Show when={queued() && !pending()}><div class="review-notice" role="status">
       {commandState() === 'offline' ? 'Offline · Review changes are kept for retry.' : 'Saving review changes…'}
@@ -643,7 +645,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       </>}</Show>
     </div>
     <Show when={openSession() || done() && latestGrade()}><footer class="review-session-actions">
-      <Show when={latestGrade()}><Button disabled={undoDisabled()} aria-keyshortcuts="Meta+Z Control+Z" onClick={() => void undoGrade()}>Undo last grade</Button></Show>
+      <Show when={openSession() || latestGrade()}><Button disabled={undoDisabled()} aria-keyshortcuts="Meta+Z Control+Z" onClick={() => void undoGrade()}>Undo last grade</Button></Show>
       <Show when={openSession()}>
         <Button class="bordered" disabled={locked() || loading() || !!readError()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'finished' }); }}>Finish review</Button>
         <Button disabled={locked() || loading() || !!readError()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'abandoned' }); }}>Abandon review</Button>

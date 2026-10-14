@@ -99,7 +99,7 @@ The task API's optional `project_via: "field"` filter restricts results to expli
 
 ## Agenda destination
 
-The Agenda destination has an Agenda kicker and spoken date heading with Previous / Today / Next alongside it. Day / Week / Tasks sit beneath on the shared ruled tab baseline. The date heading opens the calendar.
+The Agenda destination has an Agenda kicker and spoken date heading with Previous / Today / Next alongside it. Day / Week / Tasks sit beneath on the shared ruled tab baseline. The date heading opens the journal's calendar: picking a day moves there, and its Today returns to today.
 
 The seven-day strip has no boxes:
 
@@ -157,7 +157,7 @@ Named task views store the `TaskQuery`, never the line's spelling, and preserve 
 
 Day rows have a fixed left mono time gutter, blank for untimed work, then the status glyph and source text, with muted page provenance at the right. Journal provenance reads Journal rather than repeating the stored ISO date; the full page title remains in its tooltip and accessible name.
 
-Planning facts sit below the task text, omit dates implied by a day group, and show a carried schedule only as `since Tue 6`, not also an ISO date. Task-query and [journal](journal.md#today-tiles) rows retain their compact status, source and trailing planning layout.
+Planning facts sit below the task text, omit dates implied by a day group and a project the row already names as its provenance, and show a carried schedule only as `since Tue 6`, not also an ISO date. Task-query and [journal](journal.md#today-tiles) rows retain their compact status, source and trailing planning layout.
 
 On touch, Agenda task rows and their completion/source controls are at least 44 px high; the cover's content insets are equal. The whole row takes the hover fill and long task text clamps at two lines. Planning uses the same facts as outline rows, with carried or missed dates in `--danger`.
 
@@ -167,7 +167,7 @@ The glyph completes on the displayed agenda date, including from lookahead, or r
 
 Planned rows reschedule without dragging:
 
-- On hover or focus, quiet mono Today and Tomorrow and a calendar button take the provenance's place, each omitted when it would change nothing.
+- On hover or focus, quiet mono Today and Tomorrow and a calendar button take the provenance's place, each omitted when it would change nothing. In a pane under 560 px only the calendar button fits there, so only it shows.
 - On touch only the calendar button shows, beside the planning facts.
 
 | Focused-row key | Action |

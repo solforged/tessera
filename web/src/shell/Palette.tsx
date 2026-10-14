@@ -7,6 +7,7 @@ import { BlockTree, type TreeRow } from '../outline/BlockTree';
 import { cachedExactPage } from '../outline/completion';
 import { createPageIcon } from '../outline/source';
 import { Icon } from '../ui/Icon';
+import { ResourceImage } from '../library/ResourceImage';
 import { Picker } from '../ui/Picker';
 import { Button } from '../ui/Button';
 import { createVisualViewport } from '../ui/visual-viewport';
@@ -206,7 +207,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   };
   return <Picker<Entry> anchor={props.anchor} placement="top" width={mode() === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${mode() === 'search' ? 'palette-search' : ''}`} onDismiss={props.onDismiss}
     style={{ '--visual-viewport-height': `${viewportSize().height}px`, '--visual-viewport-top': `${viewportSize().top}px` }}
-    query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find in pages and books, or create a page' : 'Find a command'}
+    query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find or create a page' : 'Find a command'}
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
     queryActions={<Button class="find-cancel" onClick={props.onDismiss}>Cancel</Button>}
     preview={<Show when={mode() === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
@@ -265,7 +266,7 @@ function MatchText(props: { text: string; query: string; snippet?: boolean }) {
 
 function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookClient; book?: LibraryRow }) {
   const [content, setContent] = createSignal<{
-    title: string; location?: string; cover?: string; lines?: string[];
+    title: string; location?: string; cover?: { snapshotId: string; href: string }; lines?: string[];
     page?: PageView; targetId?: string; passages?: PassagePage; citation?: Citation;
   }>();
   const [loading, setLoading] = createSignal(false);
@@ -307,7 +308,7 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
         const page = await props.notebook.api.page(entry.kind === 'hit' ? entry.hit.page.id : entry.page.id, controller.signal);
         const targetId = entry.kind === 'hit' && entry.hit.block.id !== page.root.id ? entry.hit.block.id : undefined;
         return {
-          title: page.root.text, cover: props.book?.cover ?? undefined,
+          title: page.root.text, cover: props.book?.cover ? { snapshotId: props.book.source.current_snapshot_id ?? '', href: props.book.cover } : undefined,
           ...(targetId ? { page, targetId } : { lines: page.rows.slice(0, 8).map(row => row.block.text) }),
         };
       }
@@ -323,7 +324,7 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
       const chapter = source.toc.filter(entry => entry.ordinal !== null && entry.ordinal <= ordinal).at(-1)?.title;
       return {
         title: source.page.text, location: [source.source.siglum, chapter, `¶${ordinal + 1}`].filter(Boolean).join(' · '),
-        cover: source.snapshots.find(snapshot => snapshot.id === snapshotId)?.metadata.cover ?? undefined,
+        cover: (href => href ? { snapshotId, href } : undefined)(source.snapshots.find(snapshot => snapshot.id === snapshotId)?.metadata.cover),
         passages, citation,
       };
     };
@@ -338,7 +339,7 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
     <Show when={loading()}><p class="empty-state">Loading preview…</p></Show>
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
     <Show when={content()}>{value => <>
-      <header class="find-preview-header"><Show when={value().cover}>{cover => <img src={cover()} alt="" />}</Show><div><h2>{value().title}</h2><Show when={value().location}><small>{value().location}</small></Show></div></header>
+      <header class="find-preview-header">{/* Covers are paths inside a book, served through its snapshot. */}<Show when={value().cover}>{cover => <ResourceImage snapshotId={cover().snapshotId} href={cover().href} alt="" />}</Show><div><h2>{value().title}</h2><Show when={value().location}><small>{value().location}</small></Show></div></header>
       <div ref={body} class="find-preview-prose">
         <Show when={value().page}>
           <BlockTree rows={outlineRows()} block={id => previewBlocks().get(id)} notebook={props.notebook} interactive={false} highlight={props.query} />
