@@ -5350,7 +5350,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-android"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "axum",
  "base64 0.22.1",
@@ -5369,7 +5369,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-bench"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -5388,7 +5388,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-cli"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -5408,7 +5408,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-core"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "base64 0.22.1",
  "deunicode",
@@ -5430,7 +5430,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-desktop"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "jiff",
  "objc2",
@@ -5452,7 +5452,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-ingest"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "percent-encoding",
  "roxmltree",
@@ -5467,7 +5467,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-service"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -5501,7 +5501,7 @@ dependencies = [
 
 [[package]]
 name = "tessera-web"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "axum",
  "console_error_panic_hook",

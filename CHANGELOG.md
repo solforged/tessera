@@ -3,11 +3,16 @@
 Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/releasing.md) is how a version is cut, published and rolled back.
 
 <!-- releases -->
+
 ## Unreleased
+
+## 0.4.0, 2026-10-14
 
 ### Added
 
 - Argument relations: mark a block as supporting, disputing, qualifying or answering what its first link points to. Targets show who supports or disputes them, and holder pages show it under each perspective held.
+- Concept pages draw Supports, Disputes and Qualifies between the holders on the constellation, including a relation authored on a perspective filed elsewhere. Disputes take the warm tone; supports and qualifications stay steel, solid and dashed.
+- A perspective's holder has to be a person or a group. Who holds this? and Change holder list only those, and can file another page as one or create a new holder.
 - Parent questions: a question can be filed under another question, and question pages list their branches with status.
 - Change holder, File under and Use place for perspectives, without editing link text by hand.
 - Integrate for journal blocks: move a thought to its page and keep a live reference in the journal.
@@ -19,6 +24,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Bulk filing on Unfiled: select notes, file them under one type in a single change, and undo it in one step.
 - Changing a Text field to Choice can add its existing values as options in the same undoable change, and Make option repairs a value that is not an option.
 - Add field can create a field of any kind.
+- Relation fields can point at a block or a source, not only a page. Work and Coined in point at sources, and a relation's target lists who points at it.
+- Naming a field as you type (`name::`) sets its kind from the first value. The second time a field is used on a tag, the outline offers to add it to that tag's template.
+- A type can require a field without refusing the note: the slot stays visible, empty cells read "needed", and indexes count members that still lack it.
+- A field can count as creator, contributor or originator, so bylines, sigla, search and a person's Works follow that role. Built-in fields keep the role the schema gives them.
 - Read, Outline and Compare projections on titled pages. Concept and question pages open in Read: the opening on one text edge, then one slip per perspective with its Gist, Work and Account, facts folded, and disagreements filed under the criterion they name. Prose stays editable in place.
 - Add perspective: pick who holds it, and the perspective opens with its Gist ready to write.
 - A section line at the top of long pages names the section and perspective you are in, and jumps to any other.
@@ -54,6 +63,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Built-in field names are lowercase and cannot be renamed. Opening a notebook recases older names, and adds author to Book's template, as one synced change.
 - Removed the retired editor spike workspace; the performance documentation links to its source and full results at the original comparison commit.
 - The notebook's own sentences are set in Plex everywhere in the outline, including rows that cite a source, glosses, perspectives and questions, and their previews in Find and on hover. Piazzolla stays for titles, headings, quotes and the reader.
 - Sources by the same author keep a three-letter siglum and add a year, a title initial or a number to tell them apart, as `MAT`, `MAT19` and `MAT2`, instead of lengthening the surname.
