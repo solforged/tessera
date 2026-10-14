@@ -104,7 +104,14 @@ export function createOutlineInteractions(context: Pick<OutlineContext,
     }).catch(error => { if (!context.disposed) setMessage(error instanceof Error ? error.message : String(error)); });
   }
   function beforeInput(event: InputEvent) {
-    if (!textRange() || !textInputTarget(event) || composition() || context.compositionSelection || event.isComposing) return;
+    const range = textRange();
+    if (!range || !textInputTarget(event) || composition() || context.compositionSelection || event.isComposing) return;
+    // A selection inside the open block is the editor's. Leave it so `[[` can surround that text.
+    if (range.anchor.id === range.head.id && context.editor?.id === range.anchor.id) {
+      const selection = context.editor.view.state.selection.main;
+      const from = Math.min(range.anchor.offset, range.head.offset), to = Math.max(range.anchor.offset, range.head.offset);
+      if (selection.from === from && selection.to === to) { setTextRange(null); return; }
+    }
     if (event.inputType === 'insertText' || event.inputType === 'insertReplacementText') {
       if (event.data === null) return;
       event.preventDefault(); event.stopImmediatePropagation(); replaceSelection(event.data, 'text');

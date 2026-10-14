@@ -5,6 +5,7 @@ import type { PageDocument } from '../document/contract';
 import { referenceBeside } from '../document/text-tokens';
 import { boundaryDeletion } from '../document/outline-mechanics';
 import type { OutlineContext } from './context';
+import { applyBracketInput } from './editor';
 
 /** Only an additional blank leaf value is disposable; the entry's first value is always kept. */
 export function emptyExtraValuePrevious(doc: Pick<PageDocument, 'block' | 'outline' | 'isArchived'>, id: string, definitions: ReadonlyMap<string, unknown>): string | null {
@@ -204,7 +205,14 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
       return;
     }
     if (event.target === context.scroll && !event.isComposing && !composition()) {
-      if (textRange() && event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) { event.preventDefault(); replaceSelection(event.key, 'text'); return; }
+      if (textRange() && event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        event.preventDefault();
+        const range = textRange()!;
+        const from = Math.min(range.anchor.offset, range.head.offset), to = Math.max(range.anchor.offset, range.head.offset);
+        if (range.anchor.id === range.head.id && context.editor?.id === range.anchor.id && applyBracketInput(context.editor.view, from, to, event.key)) { setTextRange(null); return; }
+        replaceSelection(event.key, 'text');
+        return;
+      }
       if (editing() && context.editor?.id === editing()) {
         context.editor.view.focus();
         if (editorKey(event, context.editor.view) || context.editor.forwardVim(event)) { event.preventDefault(); return; }
@@ -215,7 +223,10 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
           else if (selection.empty) { const next = graphemes.segment(context.editor.view.state.doc.sliceString(to))[Symbol.iterator]().next(); to += next.value?.segment.length ?? 0; }
           context.editor.view.dispatch({ changes: { from, to, insert: '' }, selection: { anchor: from } });
           event.preventDefault();
-        } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) { context.editor.view.dispatch(context.editor.view.state.replaceSelection(event.key)); event.preventDefault(); }
+        } else if (event.key.length === 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          if (!applyBracketInput(context.editor.view, selection.from, selection.to, event.key)) context.editor.view.dispatch(context.editor.view.state.replaceSelection(event.key));
+          event.preventDefault();
+        }
         return;
       }
     }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { Compartment, EditorState } from '@codemirror/state';
-import { fieldDraftDecorations, fieldEntryExtension, pairInput, referenceDecorations, vimUndoKey } from './editor';
+import { fieldDraftDecorations, fieldEntryExtension, pairInput, pairSelection, referenceDecorations, vimUndoKey } from './editor';
 import type { NameMatch } from '../api/types';
 
 test('known whole-field references keep raw copy text and reject interior carets', () => {
@@ -113,6 +113,28 @@ function typed(keys: string, doc = '', caret = doc.length) {
   }
   return `${doc.slice(0, caret)}|${doc.slice(caret)}`;
 }
+/** Types `keys` over a selection, as the input handler would, and marks a caret with `|`. */
+function typedOver(keys: string, doc: string, from: number, to: number) {
+  let anchor = from, head = to;
+  for (const key of keys) {
+    const start = Math.min(anchor, head), end = Math.max(anchor, head);
+    const selected = start === end ? null : pairSelection(doc, start, end, key);
+    const paired = start === end ? pairInput(doc, start, key) : null;
+    if (selected) {
+      doc = doc.slice(0, start) + selected.before + doc.slice(start, end) + selected.after + doc.slice(end);
+      anchor = selected.anchor;
+      head = selected.head;
+    } else if (paired) {
+      doc = doc.slice(0, start) + paired.insert + doc.slice(end);
+      anchor = head = paired.caret;
+    } else {
+      doc = doc.slice(0, start) + key + doc.slice(end);
+      anchor = head = start + key.length;
+    }
+  }
+  const caret = head;
+  return `${doc.slice(0, caret)}|${doc.slice(caret)}`;
+}
 
 describe('bracket pairing', () => {
   test('a second opener closes the pair with the caret inside', () => {
@@ -132,6 +154,29 @@ describe('bracket pairing', () => {
   });
   test('a closer outside an open pair is ordinary text', () => {
     expect(typed(']', '[[a]]x]', 6)).toBe('[[a]]x]|]');
+  });
+  test('the first opener stays in front of a selection so the second can surround it', () => {
+    expect(pairSelection('See hello next', 4, 9, '[')).toEqual({ before: '[', after: '', anchor: 5, head: 10 });
+    expect(pairSelection('See hello next', 4, 9, '(')).toEqual({ before: '(', after: '', anchor: 5, head: 10 });
+    expect(typedOver('[[', 'See hello next', 4, 9)).toBe('See [[hello|]] next');
+    expect(typedOver('((', 'See hello next', 4, 9)).toBe('See ((hello|)) next');
+    expect(typedOver('[[', '  #tag name', 3, 11)).toBe('  #[[tag name|]]');
+  });
+  test('one input of the whole opener surrounds the selection at once', () => {
+    expect(pairSelection('hello', 0, 5, '[[')).toEqual({ before: '[[', after: ']]', anchor: 7, head: 7 });
+    expect(pairSelection('hello', 0, 5, '((')).toEqual({ before: '((', after: '))', anchor: 7, head: 7 });
+  });
+  test('a selection already inside one bracket upgrades without an extra closer', () => {
+    expect(typedOver('[', '[hello]', 1, 6)).toBe('[[hello|]]');
+    expect(typedOver('[', '[hello]]', 1, 6)).toBe('[[hello|]]');
+    expect(typedOver('(', '(expr)', 1, 5)).toBe('((expr|))');
+  });
+  test('a third opener and any other key still replace the selection', () => {
+    expect(pairSelection('[[hello', 2, 7, '[')).toBeNull();
+    expect(typedOver('[', '[[hello', 2, 7)).toBe('[[[|');
+    expect(typedOver('[x', 'hello', 0, 5)).toBe('[x|');
+    expect(typedOver(']', 'hello', 0, 5)).toBe(']|');
+    expect(pairSelection('hello', 0, 5, 'a')).toBeNull();
   });
 });
 

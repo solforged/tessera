@@ -6,6 +6,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ## Unreleased
 
+### Fixed
+
+- Selecting text and typing `[[` or `((` surrounds it, so the selection becomes a link or block reference instead of being replaced.
+
 ## 0.4.0, 2026-10-14
 
 ### Added

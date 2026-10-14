@@ -209,16 +209,44 @@ export function pairInput(doc: string, at: number, text: string): { insert: stri
   const prefix = doc.slice(0, at);
   return prefix.lastIndexOf(closer.open) > prefix.lastIndexOf(closer.close) ? { insert: '', caret: at + 1 } : null;
 }
-const bracketPairs = EditorView.inputHandler.of((view, from, to, text) => {
+/**
+ * An opener typed over a selection. The first `[` or `(` stays in front of the selection; the second surrounds
+ * it and leaves the caret before the closer. A whole `[[` or `((` in one input surrounds at once. Null means
+ * the key should replace the selection, including a third opener.
+ */
+export function pairSelection(doc: string, from: number, to: number, text: string): { before: string; after: string; anchor: number; head: number } | null {
+  if (from >= to) return null;
+  const pair = text === '[[' || text === '((' ? pairs[text[0]!] : pairs[text];
+  if (!pair || (text !== pair.open[0] && text !== pair.open)) return null;
+  const preceding = doc.slice(Math.max(0, from - pair.open.length), from);
+  if (preceding.endsWith(pair.open)) return null;
+  const open = text === pair.open ? pair.open : pair.open[0]!;
+  if (open.length === 1 && !preceding.endsWith(open)) return { before: open, after: '', anchor: from + 1, head: to + 1 };
+  const have = doc.startsWith(pair.close, to) ? pair.close.length : doc.startsWith(pair.close[0]!, to) ? 1 : 0;
+  const caret = to + open.length;
+  return { before: open, after: pair.close.slice(have), anchor: caret, head: caret };
+}
+export function applyBracketInput(view: EditorView, from: number, to: number, text: string): boolean {
   const range = view.state.selection.main;
-  if (from !== to || view.state.selection.ranges.length > 1 || range.from !== from) return false;
+  if (view.state.selection.ranges.length > 1 || range.from !== from || range.to !== to) return false;
+  if (from !== to) {
+    const wrapped = pairSelection(view.state.doc.toString(), from, to, text);
+    if (!wrapped) return false;
+    view.dispatch({
+      changes: wrapped.after ? [{ from, insert: wrapped.before }, { from: to, insert: wrapped.after }] : { from, insert: wrapped.before },
+      selection: { anchor: wrapped.anchor, head: wrapped.head },
+      userEvent: 'input.type',
+    });
+    return true;
+  }
   const result = pairInput(view.state.doc.toString(), from, text);
   if (!result) return false;
   view.dispatch(result.insert
     ? { changes: { from, insert: result.insert }, selection: { anchor: result.caret }, userEvent: 'input.type' }
     : { selection: { anchor: result.caret }, userEvent: 'select' });
   return true;
-});
+}
+const bracketPairs = EditorView.inputHandler.of((view, from, to, text) => applyBracketInput(view, from, to, text));
 
 const setDraft = StateEffect.define<{ from: number; to: number } | null>();
 const draftMark = Decoration.mark({ class: 'outline-reference-draft' });

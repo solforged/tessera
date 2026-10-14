@@ -593,7 +593,7 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 
 #### References
 
-`[[` and `((` close their pair as in Roam and Logseq, and a typed closer steps over the paired one. The picker opens under the opening brackets and stays there while the query grows or shrinks. It closes as soon as the text no longer holds an open query, however that text changed.
+`[[` and `((` close their pair as in Roam and Logseq, and a typed closer steps over the paired one. Selecting text and typing the pair surrounds that text, with the caret before the closer. The picker opens under the opening brackets and stays there while the query grows or shrinks. It closes as soon as the text no longer holds an open query, however that text changed.
 
 The open `[[query]]` is tinted in the accent until a choice replaces it with a reference. The picker searches the whole bracketed query, including any text after the caret, and a choice replaces all of it. Unmodified Enter or Tab picks, including when pressed before results arrive; modified chords keep their editing actions. Shift+Enter closes the picker and inserts its newline after a paired reference, never inside the query. The block being edited is never offered.
 
