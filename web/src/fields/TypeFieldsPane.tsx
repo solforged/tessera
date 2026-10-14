@@ -4,6 +4,8 @@ import type { FieldsViewState, OpenTarget } from '../shell/contract';
 import { opensBeside } from '../shell/beside';
 import { typeQuery } from '../table/query';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
+import { noteKindIcon } from '../notes/kinds';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { TemplateEditor } from './TemplateEditor';
 import './fields.css';
@@ -43,11 +45,11 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
     restored = true;
     requestAnimationFrame(() => { scroll.scrollTop = props.view.scroll; });
   });
-  return <div ref={scroll} class="type-fields-pane" role="region" tabIndex={0} aria-label={`${title()} fields`} onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
+  return <div ref={scroll} class="type-fields-pane" role="region" tabIndex={0} data-pane-pending={!data.latest && !error() ? '' : undefined} aria-label={`${title()} fields`} onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
     <div class="type-fields-register">
       <header class="type-fields-heading">
         <div class="fields-register"><Button class="type-fields-crumb" onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, opensBeside(event))}>{title()}</Button><span> / Template</span></div>
-        <div class="type-fields-title"><h1>{title()}</h1><span>{data.latest?.type.fields.length ?? 0} fields</span></div>
+        <div class="type-fields-title"><h1><Show when={data.latest?.kind}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>{data.latest?.kind?.plural ?? title()}</h1><span>{data.latest?.type.fields.length ?? 0} fields</span></div>
       </header>
       <TypeModeTabs active="fields" indexCount={data.latest?.kind?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length}
         cardsCount={data.latest?.type.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: props.typeId }, opensBeside(event))}

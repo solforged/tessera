@@ -81,7 +81,7 @@ Under the list sits a count of the members that lack template fields and Fill mi
 
 ## Type fields tab
 
-The type's Fields tab opens its field template as a third in-pane view, with the same Index, Table, Fields and Cards strip. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists Name, Kind and Used by in template order. Usage counts are notebook-wide distinct owners, including empty entries. Names open their field pages.
+The type's Fields tab opens its field template as a third in-pane view, with the same Index, Table, Fields and Cards strip. All four tabs title the kind by its glyph and plural, and Index, Fields and Cards share one left edge. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists Name, Kind and Used by in template order. Usage counts are notebook-wide distinct owners, including empty entries. Names open their field pages.
 
 Move up, Move down and Remove appear on hover or focus and remain visible on coarse pointers. Add field and Fill missing fields keep the type page's editing behavior. The underlined type crumb opens the ordinary type page; the global Fields register remains separate.
 

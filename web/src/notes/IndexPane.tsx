@@ -1,7 +1,7 @@
 import { opensBeside, listOpensBeside } from '../shell/beside';
 import { createEffect, createMemo, createResource, createSignal, For, onMount, Show, Switch, Match, untrack } from 'solid-js';
 import { ulid } from 'ulid';
-import type { KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query, View } from '../api/types';
+import type { IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query, View } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
 import { plainText, readableText, referenceValue } from '../outline/names';
@@ -27,7 +27,7 @@ import { QuestionLedger } from './QuestionLedger';
 
 interface IndexPaneProps {
   kindKey: string;
-  kind: NoteKind | undefined;
+  kind: NoteKind | IndexKind | undefined;
   view: IndexViewState;
   notebook: NotebookClient; neighbour?: boolean;
   onActivate(): void;
@@ -278,7 +278,7 @@ function KindIndexPane(props: IndexPaneProps) {
         <Show when={count() != null && !missingFields().length}><span class="index-tally">{tally(count()!, props.kindKey === 'source' ? 'source' : 'note')}</span></Show>
         <Show when={groups().length}><NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} members={index.latest?.notes} /></Show>
       </div>
-      <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={missingFields().length ? undefined : count()} fieldsCount={type()?.fields.length}
+      <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={type.latest?.members} fieldsCount={type()?.fields.length}
         cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: id() }, opensBeside(event))}
         onIndex={() => { scroll.scrollTop = 0; }} onTable={openTable}
         onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, opensBeside(event))} />}</Show>
@@ -408,8 +408,12 @@ function KindIndexPane(props: IndexPaneProps) {
 const startable: Record<string, 'type' | 'question' | 'project'> = { person: 'type', group: 'type', concept: 'type', thesis: 'type', question: 'question', project: 'project' };
 
 /** An empty kind says how pages arrive in it and, for built-in kinds, starts one. */
-function EmptyKind(props: { kindKey: string; kind: NoteKind | undefined; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
+function EmptyKind(props: { kindKey: string; kind: NoteKind | IndexKind | undefined; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
   const mode = () => props.kind ? startable[props.kindKey] : undefined;
+  // A type that only tags blocks has members, just none of them notes; its table lists them.
+  const tagged = () => props.kind && 'tagged_block_count' in props.kind && tagOnly(props.kind) ? props.kind : undefined;
+  // Built-in kinds read as common nouns; a type's own name keeps the capitals it was given.
+  const plural = () => props.kind ? props.kindKey in startable || props.kindKey === 'source' ? props.kind.plural.toLocaleLowerCase() : props.kind.plural : '';
   const hint = () => {
     const name = props.kind?.name ?? '';
     switch (mode()) {
@@ -420,9 +424,15 @@ function EmptyKind(props: { kindKey: string; kind: NoteKind | undefined; noteboo
     }
   };
   return <div class="index-empty">
-    <p class="index-empty-title">{props.kind ? `No ${props.kind.plural.toLocaleLowerCase()} yet.` : 'No notes of this kind yet.'}</p>
-    <Show when={hint()}>{text => <p class="index-empty-hint">{text()}</p>}</Show>
-    <NewKindAction {...props} />
+    <Show when={tagged()} fallback={<>
+      <p class="index-empty-title">{props.kind ? `No ${plural()} yet.` : 'No notes of this kind yet.'}</p>
+      <Show when={hint()}>{text => <p class="index-empty-hint">{text()}</p>}</Show>
+      <NewKindAction {...props} />
+    </>}>{kind => <>
+      <p class="index-empty-title">No notes filed as {kind().name}.</p>
+      <p class="index-empty-hint">{kind().plural} tags {kind().tagged_block_count === 1 ? 'one block' : `${kind().tagged_block_count.toLocaleString()} blocks`}, listed in its table.</p>
+      <Button class="bordered" icon="table" onClick={event => props.onOpen(indexKindTarget(kind()), opensBeside(event))}>Open table</Button>
+    </>}</Show>
   </div>;
 }
 

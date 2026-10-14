@@ -696,7 +696,7 @@ function TableContent(props: TablePaneProps) {
           <span>{changed() ? 'Modified' : 'Saved view'}</span><Show when={changed()}><Button disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button></Show>
         </Show></div>
       </header>
-      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : result()?.total} tableCount={missingFields().length ? undefined : result()?.total} fieldsCount={type()?.fields.length}
+      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={typeKind()?.count} tableCount={missingFields().length ? undefined : result()?.total} fieldsCount={type()?.fields.length}
         cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, opensBeside(event))}
         onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}`, viewId: props.target.viewId, query: { ...copyQuery(query()), note_kind: typeKind()?.key ?? `type:${typeId()}`, note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, opensBeside(event))}
         onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, opensBeside(event))}
