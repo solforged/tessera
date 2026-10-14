@@ -547,11 +547,15 @@ function Pane(props: OutlinePaneProps) {
   }
   /** Measuring the scroll anchor forces layout, so a scroll reports once it settles rather than every frame. */
   const [sectionName, setSectionName] = createSignal('');
+  // The section line sits over the scroller's top space, so the current section is the one below it.
+  let navigator: HTMLDivElement | undefined;
   const [longPage, setLongPage] = createSignal(false);
+  const [scrolledAway, setScrolledAway] = createSignal(false);
   function scrolled() {
     if (scroll && list) {
       setLongPage(scroll.scrollHeight > scroll.clientHeight);
-      const top = scroll.getBoundingClientRect().top;
+      setScrolledAway(scroll.scrollTop > 0);
+      const top = scroll.getBoundingClientRect().top + (navigator?.offsetHeight ?? 0);
       const rows = [...list.querySelectorAll<HTMLElement>('[data-block-id]')].map(row => ({ row, rect: row.getBoundingClientRect() })).filter(({ rect }) => rect.top <= top);
       const row = rows.find(({ rect }) => rect.bottom > top)?.row ?? rows.sort((a, b) => b.rect.top - a.rect.top)[0]?.row;
       let id = row?.dataset.blockId;
@@ -1522,24 +1526,24 @@ function Pane(props: OutlinePaneProps) {
     return groups;
   });
   return <>
-    <Show when={doc.root()?.kind === 'page' && !zoom() && props.projection !== 'compare'}><div class="section-navigator" style={{ visibility: longPage() ? undefined : 'hidden' }}><Button aria-haspopup="menu" onClick={event => {
-      const sections = Array.from({ length: doc.outline.size() }, (_, at) => doc.outline.idAt(at)).filter(id => !doc.isArchived(id) && (doc.block(id)?.position || doc.block(id)?.heading && doc.outline.parentOf(id) === props.pageId));
-      setMenu({ anchor: event.currentTarget, label: 'Sections and perspectives', items: [{ label: 'Opening', action: () => { cancelScroll(); scroll.scrollTop = 0; scrolled(); } }, ...sections.map(id => ({ label: doc.block(id)?.position ? `Perspectives · ${doc.block(id)?.position?.holder_id ? props.notebook.lookup(doc.block(id)!.position!.holder_id!)()?.text ?? 'Loading holder…' : 'Unattributed'}` : plainText(doc.block(id)?.text ?? '', props.notebook.lookup), action: () => {
-        revealRow(id);
-        if (!reading() && indices().has(id)) virtualizer.scrollToIndex(indices().get(id)!, { align: 'start' });
-        requestAnimationFrame(() => {
-          let row = rowAnchor(id);
-          if (!row && reading()) {
-            const start = doc.outline.indexOf(id), end = doc.outline.subtreeEnd(start);
-            const child = ids().find(candidate => { const at = doc.outline.indexOf(candidate); return at > start && at < end; });
-            if (child) row = rowAnchor(child);
-          }
-          if (row) scroll.scrollTop += row.getBoundingClientRect().top - scroll.getBoundingClientRect().top;
-          scrolled();
-        });
-      } }))] });
-    }}>{sectionName() || 'Opening'}</Button></div></Show>
     <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging(), 'projection-compare': props.projection === 'compare' }} style={{ visibility: pageReady() ? undefined : 'hidden' }} aria-busy={!pageReady()} data-pane-pending={pageReady() ? undefined : ''} data-pane={props.pane} data-projection={reading() ? 'read' : 'outline'} tabIndex={0} role="tree" aria-label={reading() ? 'Page reading register' : 'Page outline'} aria-owns={ids().map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
+      <Show when={doc.root()?.kind === 'page' && !zoom() && props.projection !== 'compare'}><div ref={navigator} class="section-navigator" classList={{ 'section-navigator-shown': longPage() && scrolledAway() }} onKeyDown={event => event.stopPropagation()}><Button aria-haspopup="menu" onClick={event => {
+        const sections = Array.from({ length: doc.outline.size() }, (_, at) => doc.outline.idAt(at)).filter(id => !doc.isArchived(id) && (doc.block(id)?.position || doc.block(id)?.heading && doc.outline.parentOf(id) === props.pageId));
+        setMenu({ anchor: event.currentTarget, label: 'Sections and perspectives', items: [{ label: 'Opening', action: () => { cancelScroll(); scroll.scrollTop = 0; scrolled(); } }, ...sections.map(id => ({ label: doc.block(id)?.position ? `Perspectives · ${doc.block(id)?.position?.holder_id ? props.notebook.lookup(doc.block(id)!.position!.holder_id!)()?.text ?? 'Loading holder…' : 'Unattributed'}` : plainText(doc.block(id)?.text ?? '', props.notebook.lookup), action: () => {
+          revealRow(id);
+          if (!reading() && indices().has(id)) virtualizer.scrollToIndex(indices().get(id)!, { align: 'start' });
+          requestAnimationFrame(() => {
+            let row = rowAnchor(id);
+            if (!row && reading()) {
+              const start = doc.outline.indexOf(id), end = doc.outline.subtreeEnd(start);
+              const child = ids().find(candidate => { const at = doc.outline.indexOf(candidate); return at > start && at < end; });
+              if (child) row = rowAnchor(child);
+            }
+            if (row) scroll.scrollTop += row.getBoundingClientRect().top - scroll.getBoundingClientRect().top - (navigator?.offsetHeight ?? 0);
+            scrolled();
+          });
+        } }))] });
+      }}>{sectionName() || 'Opening'}</Button></div></Show>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))} onOpen={props.onOpen} /></Show>
     <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} onClose={() => setSourceDetailsOpen(false)} /></Show>
     <div ref={heading} class="outline-heading">

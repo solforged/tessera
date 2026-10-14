@@ -15,8 +15,8 @@
    Sigla retain their body rail, but do not add padding to the page heading. */
 .outline-apparatus { display: none; }
 @container outline-pane (min-width: 1096px) {
-  .has-apparatus > :is(.outline-heading, .outline-list, .related-sections, .add-first-block) { --outline-column-start: calc((100cqi - var(--measure) - var(--space-48) - var(--apparatus-width)) / 2); }
-  .has-apparatus > :is(.outline-heading, .related-sections, .add-first-block) { margin-left: var(--outline-column-start); margin-right: 0; }
+  .has-apparatus > :is(.section-navigator, .outline-heading, .outline-list, .related-sections, .add-first-block) { --outline-column-start: calc((100cqi - var(--measure) - var(--space-48) - var(--apparatus-width)) / 2); }
+  .has-apparatus > :is(.section-navigator, .outline-heading, .related-sections, .add-first-block) { margin-left: var(--outline-column-start); margin-right: 0; }
   .has-apparatus > .outline-list { margin-left: calc(var(--outline-column-start) - var(--gutter)); margin-right: 0; }
   .has-apparatus.has-sigla > .outline-list { --sigla-rail-space: max(0px, calc(var(--siglum-width) + var(--space-8) - var(--outline-column-start) + var(--gutter))); margin-left: calc(var(--outline-column-start) - var(--gutter) + var(--sigla-rail-space)); max-width: calc(var(--measure) + var(--gutter) - var(--sigla-rail-space)); }
   .has-apparatus > .outline-apparatus { display: flex; flex-direction: column; gap: var(--section-item-gap); position: absolute; top: var(--page-top-space); left: calc(var(--pane-inset) + (100cqi + var(--measure) + var(--space-48) - var(--apparatus-width)) / 2); width: var(--apparatus-width); }

@@ -42,7 +42,7 @@ The holder link, position capability and empty Gist slot are one undoable edit. 
 
 ### Section navigator
 
-Long Read and Outline pages keep a quiet section line at the top of the scroller. Within a perspective it names the section and holder, such as Perspectives · Polybius. Its menu, Sections and perspectives, jumps to the opening, a section or a perspective. It has a reserved line, so appearing does not shift the text.
+Long Read and Outline pages keep a quiet section line at the top of the scroller once the page scrolls; at the top, the title names the place. Within a perspective it names the section and holder, such as Perspectives · Polybius. Its menu, Sections and perspectives, jumps to the opening, a section or a perspective. The line fades in over the page's top space and sticks there, so it never shifts the text and the title sits where every other screen's does.
 
 
 ## Perspectives and holder rows
