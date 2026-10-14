@@ -1,5 +1,7 @@
 /* Outline pane. Layout is in docs/design.md under "Block row". */
 .outline-pane { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; position: relative; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); outline: none; overflow-anchor: none; font-size: var(--text-body); line-height: var(--line-body); container: outline-pane / inline-size; }
+/* The active pane is marked by its registration corners; a ring on the scroller would clip to a stray top rule. */
+.outline-pane:focus-visible { outline: none; }
 
 /* Headings center the text measure, not the editing rail. Handles hang on the bullet side only. */
 .outline-heading, .related-sections, .add-first-block { max-width: var(--measure); margin-inline: auto; }
@@ -134,6 +136,8 @@
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row:not(:focus-within, .row-selected) > :is(.row-menu, .row-fold, .row-bullet):not(.bullet-collapsed, .row-card-mark),
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row > .row-fold.fold-empty { display: none; }
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row:not(.inline-field-value, .field-entry) > .outline-body { flex-basis: 100%; }
+  /* A task's state glyph leads its text, so the text takes the rest of that line. */
+  [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row:not(.inline-field-value, .field-entry):has(> .task-status-control) > .outline-body { flex-basis: calc(100% - var(--target-size)); }
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row::before { left: 0; }
   [data-page-style="prose"] .outline-pane[data-projection="outline"] :is(.row-gloss, .row-gist, .inline-field-value[data-field-role="standfirst"]) > .outline-body { flex-basis: 100%; margin-left: 0; }
 }
