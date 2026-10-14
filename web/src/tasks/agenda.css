@@ -1,7 +1,7 @@
 /* Agenda rows also render in Today's ledger, so both hosts carry their height. */
 .agenda-pane, .today-ledger { --agenda-row-height: var(--row-height); }
 /* The date, tabs and day list share the outline measure and one left edge. */
-.agenda-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); container: agenda-pane / inline-size; }
+.agenda-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); container: agenda-pane / inline-size; }
 .agenda-content { max-width: var(--measure); margin-inline: auto; display: flex; flex-direction: column; gap: var(--page-head-gap); }
 .agenda-content-week { max-width: var(--week-measure); }
 /* Date navigation accompanies the heading; modes get their own shared ruled baseline below. */
@@ -166,8 +166,10 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 
 /* The spoken date is presentation only: journals retain their ISO root and all other pages keep their titles. */
 .outline-heading:has(.journal-header) > .outline-title-row { display: none; }
-.journal-trail { display: flex; align-items: center; gap: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.journal-trail-segment.button { position: relative; padding: var(--space-4) 0; color: var(--muted); font: inherit; border-radius: 0; border-bottom: 2px solid transparent; }
+.journal-trail { display: flex; align-items: center; height: var(--line-apparatus); gap: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.journal-trail-segment.button { position: relative; min-height: 0; padding: 0 0 var(--space-2); margin-bottom: calc(-1 * var(--space-2) - 2px); color: var(--muted); font: inherit; border-radius: 0; border-bottom: 2px solid transparent; }
+/* The trail keeps an eyebrow's line, so the date heading sits where every page title does; the hit area stays a pointer target. */
+.journal-trail-segment.button::before { content: ''; position: absolute; inset: calc((var(--line-apparatus) - var(--target-size)) / 2) 0; }
 .journal-trail-segment.button:not([aria-expanded="true"])::after { content: ''; position: absolute; bottom: 0; inset-inline: 0; border-bottom: var(--rule-width) dotted var(--line); }
 .journal-trail-segment.button:hover { color: var(--accent); background: transparent; }
 .journal-trail-segment.button:hover::after { border-color: var(--accent); }

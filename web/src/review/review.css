@@ -30,7 +30,9 @@
 .review-count { margin-left: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .review-queue-controls [aria-pressed="true"] .review-count { color: inherit; }
 .review-open-sessions.button { font-weight: var(--weight-body); }
-.review-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--space-16) var(--space-24); }
+/* Chrome above the scroller reserves the scroller's gutter, so headings and cards share one column edge with every other pane. */
+.review-head { flex: none; overflow: hidden; scrollbar-gutter: stable; }
+.review-scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; padding: 0 var(--space-16) var(--space-24); }
 .review-scroll > * + * { margin-top: var(--space-12); }
 .review-pending { color: var(--faint); }
 .review-notice { padding: var(--space-8) var(--space-24); color: var(--muted); background: var(--surface); font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }

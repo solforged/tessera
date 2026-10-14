@@ -1,8 +1,8 @@
 .review-queues { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 /* The kind switch and the questions queue sit on the cards landing's measure, so switching kinds keeps one column edge. */
-.review-kind-tabs.review-queue-controls { flex: none; flex-wrap: wrap; align-self: center; width: min(var(--measure), 100% - 2 * var(--pane-inset)); margin: var(--space-8) 0 0; }
+.review-kind-tabs.review-queue-controls { flex-wrap: wrap; width: min(var(--measure), 100% - 2 * var(--pane-inset)); margin: var(--space-8) auto 0; }
 .review-queues > .review-pane, .notes-review { flex: 1; min-height: 0; }
-.notes-review { display: flex; flex-direction: column; overflow: auto; padding: 0 var(--pane-inset) var(--page-bottom-space); }
+.notes-review { display: flex; flex-direction: column; overflow: auto; scrollbar-gutter: stable; padding: 0 var(--pane-inset) var(--page-bottom-space); }
 .notes-review > :not(.revisit-outline) { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .notes-review > .empty-state { margin-block: 0; }
 .notes-review-heading { display: flex; align-items: flex-end; gap: var(--space-8); padding: var(--page-top-space) 0 var(--page-head-gap); }
