@@ -419,6 +419,7 @@ fn notebook_routes() -> Router<AppState> {
             get(review_session_events),
         )
         .route("/api/types", get(types))
+        .route("/api/entities", get(entities))
         .route("/api/types/{id}", get(type_info))
         .route("/api/types/{id}/starting-template", post(starting_template))
         .route("/api/fields", get(fields))
@@ -1146,6 +1147,11 @@ async fn field_detail(
     })
     .await
     .map(Json)
+}
+
+/// People and groups, including members of types that refine them: the pages that can hold perspectives.
+async fn entities(State(state): State<AppState>) -> Result<Json<Vec<String>>, ApiError> {
+    run(&state, |notebook| notebook.entities()).await.map(Json)
 }
 
 async fn types(State(state): State<AppState>) -> Result<Json<Vec<TypeInfo>>, ApiError> {

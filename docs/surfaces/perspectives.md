@@ -38,9 +38,9 @@ Compare shows the perspectives/holders count once in its header; Criteria's tool
 
 ### Adding a perspective
 
-Add perspective is in the register, the Outline header and Commands. Who holds this? lists People and Groups first, then other pages, then Create for a new name. Choosing appends an attributed perspective after the last perspective in its section, or at the page's end when there are none.
+Add perspective is in the register, the Outline header and Commands. Who holds this? lists people and groups, including members of refined types such as Philosopher. Up to three other matching pages offer File as person or File as group, and a new name offers Create person and Create group. Choosing appends an attributed perspective after the last perspective in its section, or at the page's end when there are none.
 
-The holder link, position capability and empty Gist slot are one undoable edit. The caret starts in the Gist value in filling mode, in Read and Outline. Typing keeps the same editor mounted while the blank value becomes a sentence; Tab moves to Work, then the subject's criteria. Creating a holder makes an ordinary page; undoing the perspective keeps that page.
+The holder link, position capability and empty Gist slot are one undoable edit. The caret starts in the Gist value in filling mode, in Read and Outline. Typing keeps the same editor mounted while the blank value becomes a sentence; Tab moves to Work, then the subject's criteria. Creating a holder makes a page filed as a person or group in one change; undoing the perspective keeps that page.
 
 ### Section navigator
 
@@ -53,7 +53,9 @@ Make perspective, in the block menu, the palette and `/perspective`, turns a blo
 
 Its row names the holder at control weight. The holder link keeps the text color with a `--line` hairline underline; hover or focus turns both gilt. Attribute values that name pages, such as Work, read the same way, while links in prose stay gilt. Its source's siglum hangs in the margin; rows inside the perspective do not repeat it. A standfirst field drops its label and reads as the sentence under the holder, so the pair reads "Plato / A line of decline". At the Perspectives depth each perspective closes to its holder and standfirst.
 
-Clicking the holder link opens the holder's page in place, like any reference, in Read and Outline; ⌘-click opens it beside (Ctrl-click off Mac). Change holder and File under are in the block menu's Perspective…, the palette and the slash menu. Its picker lists People and Groups, including their refined types, before other pages. File under lists page and inline questions and concepts first. The pickers write ordinary link tokens and preserve the prose.
+Clicking the holder link opens the holder's page in place, like any reference, in Read and Outline; ⌘-click opens it beside (Ctrl-click off Mac). Change holder and File under are in the block menu's Perspective…, the palette and the slash menu. Its picker offers the same people, groups, filing and creation as Who holds this?. File under lists page and inline questions and concepts first. The pickers write ordinary link tokens and preserve the prose.
+
+A perspective whose first link is not a person or group stays a perspective with a warning at the end of its holder line. The warning names the problem and opens File as person, File as group and Change holder…. The two filing actions also lead Perspective…. Filing tags the holder's page and clears the warning on every perspective it holds.
 
 Use place, in the same menus, returns to the nearest ancestor question or the page. It removes the subject only when that link is a standalone token immediately after the holder. Otherwise the action shows why the author must edit the prose. Each change has one undo step; the palette names the selected perspective.
 

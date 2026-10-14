@@ -1,5 +1,6 @@
 use tessera_core::{
-    Actor, Batch, Committed, Error, Notebook, Operation, PositionInfo, PositionQuery,
+    Actor, Batch, Committed, Error, NO_HOLDER, NOT_ENTITY, Notebook, Operation, PositionInfo,
+    PositionQuery,
 };
 
 fn id(value: u128) -> String {
@@ -160,7 +161,8 @@ fn position_links_derive_holder_subject_and_follow_text_edits() {
         info(&nb, 10),
         PositionInfo {
             holder_id: Some(id(2)),
-            subject_id: id(1)
+            subject_id: id(1),
+            problem: Some(NOT_ENTITY.into()),
         }
     );
     let receipt = edit(&mut nb, 10, &format!("[[{}]] on [[{}]]", id(2), id(3)));
@@ -181,7 +183,8 @@ fn position_links_derive_holder_subject_and_follow_text_edits() {
         info(&nb, 10),
         PositionInfo {
             holder_id: None,
-            subject_id: id(1)
+            subject_id: id(1),
+            problem: Some(NO_HOLDER.into()),
         }
     );
     edit(
@@ -200,7 +203,8 @@ fn position_links_derive_holder_subject_and_follow_text_edits() {
         info(&nb, 10),
         PositionInfo {
             holder_id: None,
-            subject_id: id(1)
+            subject_id: id(1),
+            problem: Some(NO_HOLDER.into()),
         }
     );
 }
@@ -415,4 +419,57 @@ fn explicit_subject_criteria_validate_revisions_and_undo_to_derivation() {
     apply(&mut nb, vec![set(revision + 1, vec![])]);
     assert!(!nb.positions(&query).unwrap().criteria.explicit);
     assert_eq!(nb.block(&id(1)).unwrap().revision, revision + 2);
+}
+
+fn file_as(nb: &mut Notebook, value: u128, title: &str) {
+    let base_revision = nb.block(&id(value)).unwrap().revision;
+    apply(
+        nb,
+        vec![Operation::AddType {
+            id: id(value),
+            base_revision,
+            title: title.into(),
+        }],
+    );
+}
+
+#[test]
+fn holders_must_be_people_or_groups_directly_or_through_a_refining_type() {
+    let (_dir, mut nb) = fixture();
+    let page = |value: u128, title: &str| Operation::CreatePage {
+        id: id(value),
+        title: title.into(),
+    };
+    apply(
+        &mut nb,
+        vec![
+            page(30, "Person"),
+            page(31, "Philosopher"),
+            page(32, "Group"),
+            page(33, "Topic"),
+        ],
+    );
+    let op = set(&nb, 10, true);
+    apply(&mut nb, vec![op]);
+    // The block stays a perspective with its holder; only the problem says what to fix.
+    assert_eq!(info(&nb, 10).holder_id, Some(id(2)));
+    assert_eq!(info(&nb, 10).problem.as_deref(), Some(NOT_ENTITY));
+    file_as(&mut nb, 2, "Topic");
+    assert_eq!(info(&nb, 10).problem.as_deref(), Some(NOT_ENTITY));
+    file_as(&mut nb, 2, "Person");
+    assert_eq!(info(&nb, 10).problem, None);
+
+    // A type filed as Person refines it, so its members hold perspectives too.
+    file_as(&mut nb, 31, "Person");
+    edit(&mut nb, 10, &format!("[[{}]]", id(3)));
+    assert_eq!(info(&nb, 10).problem.as_deref(), Some(NOT_ENTITY));
+    file_as(&mut nb, 3, "Philosopher");
+    assert_eq!(info(&nb, 10).problem, None);
+    edit(&mut nb, 10, &format!("[[{}]]", id(33)));
+    file_as(&mut nb, 33, "Group");
+    assert_eq!(info(&nb, 10).problem, None);
+
+    // The built-in type page is not itself a holder.
+    edit(&mut nb, 10, &format!("[[{}]]", id(30)));
+    assert_eq!(info(&nb, 10).problem.as_deref(), Some(NOT_ENTITY));
 }

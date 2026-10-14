@@ -59,6 +59,26 @@ macro_rules! hidden_blocks {
 }
 pub(crate) use hidden_blocks;
 
+/// Entities are live titled pages filed as Person or Group, directly or through a type that is itself filed
+/// as one, as Philosopher refines Person. The built-in type pages are not entities themselves. Follows
+/// `hidden_blocks!()`, whose `WITH RECURSIVE` it shares.
+macro_rules! entity_pages {
+    () => {
+        "entity_types(id) AS (
+             SELECT id FROM blocks WHERE kind = 'page' AND parent_id IS NULL AND deletion_id IS NULL
+                 AND title_key IN ('person', 'group')
+             UNION
+             SELECT m.block_id FROM memberships m JOIN entity_types e ON m.type_id = e.id
+             JOIN blocks b ON b.id = m.block_id
+             WHERE b.kind = 'page' AND b.parent_id IS NULL AND b.deletion_id IS NULL AND b.archived = 0
+         ), entity_pages(id) AS (
+             SELECT e.id FROM entity_types e JOIN blocks b ON b.id = e.id
+             WHERE b.title_key NOT IN ('person', 'group')
+         ) "
+    };
+}
+pub(crate) use entity_pages;
+
 // Aliases are discovered through their page, not as separate value-block hits.
 macro_rules! alias_values {
     () => {

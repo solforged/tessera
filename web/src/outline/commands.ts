@@ -1,6 +1,7 @@
 import { opensBeside } from '../shell/beside';
 import { createEffect, onCleanup } from 'solid-js';
 import { plainText } from './names';
+import { entityKinds, entityLabel, fileAsEntity } from './holders';
 import type { Edit } from '../document/contract';
 import { depthStops } from '../shell/contract';
 import type { Command } from '../shell/contract';
@@ -303,6 +304,21 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     unregister = props.commands.register(commands);
     onCleanup(unregister);
   });
+  /** A perspective whose holder is not a person or group keeps working; these file the holder or change it. */
+  function holderFixes(id: string): MenuItem[] {
+    const holder = doc.block(id)?.position?.problem ? doc.block(id)?.position?.holder_id : undefined;
+    if (!holder) return [];
+    const name = plainText(props.notebook.lookup(holder)()?.text ?? '', target => props.notebook.lookup(target)) || 'the holder';
+    return entityKinds.map(kind => ({ label: `File ${name} as ${entityLabel(kind)}`, action: () => {
+      void fileAsEntity(props.notebook, holder, kind, [props.pageId]).catch(reason => setMessage(reason instanceof Error ? reason.message : String(reason)));
+    } }));
+  }
+  function holderMenu(id: string, anchor: HTMLElement) {
+    const problem = doc.block(id)?.position?.problem;
+    if (!problem) return;
+    if (!selectedSet().has(id)) rowFocus(id);
+    setMenu({ anchor, label: 'Holder', title: 'Holder', context: problem, items: [...holderFixes(id), { label: 'Change holder…', action: () => context.openRelation(id, 'holder', anchor) }] });
+  }
   /** Keep routine work in one short menu; transformations and capabilities stay one step away. */
   function blockMenu(id: string, anchor: HTMLElement) {
     if (!selectedSet().has(id)) rowFocus(id);
@@ -338,7 +354,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         { label: 'Show actions', action: () => capabilities.showActions(id) },
       ])] : []),
       ...(entry.position ? [group('Perspective…', 'Perspective', () => [
-        item('change-holder'), item('file-under'), item('use-place'),
+        ...holderFixes(id), item('change-holder'), item('file-under'), item('use-place'),
         ...(!addRelationReason(entry) ? [group('Add argument…', 'Add argument', () => relationItems(id, true, undefined, anchor))] : []),
         { ...item('remove-perspective'), divider: true, danger: true },
       ])] : []),
@@ -485,5 +501,5 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       leader('z', 'Zoom in', () => zoomTo(id)),
     ]);
   }
-  return { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy };
+  return { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy };
 }

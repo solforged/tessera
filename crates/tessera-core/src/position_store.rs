@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use rusqlite::{Connection, OptionalExtension};
 
-use crate::reads::hidden_blocks;
+use crate::reads::{entity_pages, hidden_blocks};
 use crate::storage::{block_at, block_columns, validate_id, validation};
 use crate::{
     BlockCapabilities, BlockInPage, FieldOption, Notebook, PositionField, PositionInfo,
@@ -39,6 +39,10 @@ pub(crate) fn set(conn: &Connection, id: &str, active: bool) -> Result<bool> {
         != 0)
 }
 
+/// A holder is a person or group; anything else keeps the perspective and reports one of these.
+pub const NO_HOLDER: &str = "Start with a link to the person or group who holds this.";
+pub const NOT_ENTITY: &str = "The holder is not filed as a person or group.";
+
 /// Resolve both links together, without skipping an invalid first or second link.
 /// An optional ID set keeps page loads and receipts set-based.
 pub(crate) fn derive(
@@ -53,9 +57,11 @@ pub(crate) fn derive(
                 (SELECT target_id FROM links WHERE source_id = b.id ORDER BY occurrence LIMIT 1 OFFSET 1) AS second_id
             FROM positions pos JOIN blocks b ON b.id = pos.block_id
             WHERE pos.active = 1 AND (?1 IS NULL OR b.id IN (SELECT value FROM json_each(?1)))
-        )
-        SELECT c.id, c.page_id, h.id,
-            CASE WHEN h.id IS NOT NULL AND s.id != h.id THEN s.id END
+        ), ",
+        entity_pages!(),
+        "SELECT c.id, c.page_id, h.id,
+            CASE WHEN h.id IS NOT NULL AND s.id != h.id THEN s.id END,
+            h.id IN (SELECT id FROM entity_pages)
         FROM candidates c
         LEFT JOIN blocks h ON h.id = c.first_id AND h.kind = 'page'
             AND h.parent_id IS NULL AND h.deletion_id IS NULL
@@ -71,21 +77,28 @@ pub(crate) fn derive(
                 row.get::<_, String>(1)?,
                 row.get::<_, Option<String>>(2)?,
                 row.get::<_, Option<String>>(3)?,
+                row.get::<_, Option<bool>>(4)?.unwrap_or(false),
             ))
         },
     )?;
     let mut result = HashMap::new();
     for row in rows {
-        let (id, page, holder_id, subject) = row?;
+        let (id, page, holder_id, subject, entity) = row?;
         let subject_id = match subject {
             Some(subject) => subject,
             None => crate::question_store::nearest_question_ancestor(conn, &id)?.unwrap_or(page),
+        };
+        let problem = match (&holder_id, entity) {
+            (None, _) => Some(NO_HOLDER.to_owned()),
+            (Some(_), false) => Some(NOT_ENTITY.to_owned()),
+            (Some(_), true) => None,
         };
         result.insert(
             id,
             PositionInfo {
                 holder_id,
                 subject_id,
+                problem,
             },
         );
     }
@@ -124,6 +137,21 @@ pub(crate) fn hydrate(
 }
 
 impl Notebook {
+    /// Every page that can hold a perspective, in one read for the holder pickers.
+    pub fn entities(&self) -> Result<Vec<String>> {
+        Ok(self
+            .conn
+            .prepare_cached(concat!(
+                hidden_blocks!(),
+                ", ",
+                entity_pages!(),
+                "SELECT e.id FROM entity_pages e JOIN blocks b ON b.id = e.id
+                 WHERE b.rowid NOT IN (SELECT rowid FROM hidden) ORDER BY b.title_key, b.id"
+            ))?
+            .query_map([], |row| row.get(0))?
+            .collect::<rusqlite::Result<_>>()?)
+    }
+
     pub fn positions(&self, query: &PositionQuery) -> Result<PositionQueryResult> {
         if query.holder.is_none() && query.subject.is_none() {
             return Err(validation("A holder or subject is required"));

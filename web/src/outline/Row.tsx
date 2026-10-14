@@ -40,7 +40,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'doc' | 'capabilities' | 'setMenu' | 'investigationItems' | 'definitionsById' | 'contextDate'
   | 'inlineFields' | 'baseDepth' | 'positionSource' | 'sourceDetails' | 'virtualizer'
   | 'hosts' | 'props' | 'folds' | 'selectedSet' | 'editing'
-  | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu' | 'fieldMenu'
+  | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu' | 'holderMenu' | 'fieldMenu'
   | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach'
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
@@ -49,7 +49,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     doc, capabilities, setMenu, investigationItems, definitionsById, contextDate, inlineFields,
     baseDepth, positionSource, sourceDetails, virtualizer, hosts, props,
     folds, selectedSet, editing, coveredSet, glossId, margin,
-    sigla, blockMenu, fold, zoomTo, editAt, restoreFocus, pointerStart,
+    sigla, blockMenu, holderMenu, fold, zoomTo, editAt, restoreFocus, pointerStart,
     attach, referenceMenu, selectedOffsets, ids, indices, setMessage, apply,
     setConflicts, conflicts, editedConflicts, setEditedConflicts,
   } = context;
@@ -245,6 +245,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
         </Switch></Show>
         <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRestoreFocus={restoreFocus} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         </div>
+        <Show when={block()?.position?.problem}>{problem => <button type="button" class="relation-problem position-problem" aria-label={problem()} title={problem()} aria-haspopup="menu" onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); holderMenu(id(), event.currentTarget); }}><Icon name="warning" /></button>}</Show>
         <Show when={block()?.task || block()?.project || block()?.question || block()?.assessment || derivedCards().length || block()?.templateCards || block()?.citations.length}><span class="outline-capability-metadata" onMouseDown={event => { if ((event.target as Element).closest('button')) { event.preventDefault(); event.stopPropagation(); } }}>
           <TaskSummary id={id()} />
           <Show when={block()?.project}><Button class="outline-planning" label="Project" aria-haspopup="dialog" onClick={event => capabilities.open(id(), 'project', event.currentTarget)}>Project</Button></Show>

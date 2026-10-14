@@ -385,6 +385,7 @@ fn queries_intersect_all_filters_and_resolve_endpoint_holders() {
         target: Some(id(20)),
         source_holder: Some(id(2)),
         target_holder: Some(id(3)),
+        subject: None,
         limit: Some(1),
     };
     let rows = nb.relations(&query).unwrap();
@@ -529,4 +530,52 @@ fn upgrading_old_notebooks_does_not_infer_relations_from_text() {
         set(&mut nb, 13, Some(RelationKind::Disputes));
         assert_eq!(info(&nb, 13).target_id, Some(id(20)));
     }
+}
+
+#[test]
+fn subject_reads_join_perspectives_filed_under_one_page_wherever_they_are_written() {
+    let (_dir, mut nb) = fixture();
+    set(&mut nb, 13, Some(RelationKind::Disputes));
+    let position = |value: u128| Operation::SetPosition {
+        id: id(value),
+        base_revision: 1,
+        position: true,
+    };
+    apply(
+        &mut nb,
+        vec![
+            // Filed under the question page from another page.
+            insert(50, 4, &format!("[[{}]] [[{}]]", id(2), id(1))),
+            position(50),
+            insert(51, 50, &format!("Supports [[{}]]", id(20))),
+            insert(52, 50, &format!("Supports [[{}]]", id(40))),
+            // About the other page itself.
+            insert(60, 4, &format!("[[{}]]", id(3))),
+            position(60),
+            insert(61, 60, &format!("Qualifies [[{}]]", id(10))),
+        ],
+    );
+    for (value, kind) in [
+        (51, RelationKind::Supports),
+        (52, RelationKind::Supports),
+        (61, RelationKind::Qualifies),
+    ] {
+        set(&mut nb, value, Some(kind));
+    }
+    let subject = |value: u128| {
+        let mut ids: Vec<_> = nb
+            .relations(&RelationQuery {
+                subject: Some(id(value)),
+                ..Default::default()
+            })
+            .unwrap()
+            .into_iter()
+            .map(|row| row.block.block.id)
+            .collect();
+        ids.sort();
+        ids
+    };
+    // An edge to an ordinary block or to a perspective on another subject is not between two of its perspectives.
+    assert_eq!(subject(1), vec![id(13), id(51)]);
+    assert!(subject(4).is_empty());
 }

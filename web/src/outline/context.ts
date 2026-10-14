@@ -147,6 +147,8 @@ export interface OutlineContext {
   margin: Accessor<number>;
   sigla: Accessor<Map<string, string>>;
   blockMenu: (id: string, anchor: HTMLElement) => void;
+  /** The fixes for a perspective whose holder is not a person or group. */
+  holderMenu: (id: string, anchor: HTMLElement) => void;
   pointerStart: (event: MouseEvent, id: string, element: HTMLElement) => void;
   attach: (id: string, host: HTMLElement) => void;
   referenceMenu: (id: string, anchor: HTMLElement) => void;

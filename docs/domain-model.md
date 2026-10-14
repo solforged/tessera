@@ -457,7 +457,7 @@ Marking a highlight processed or unprocessed overrides that rule until cleared; 
 
 A position is an attributed claim: who holds it, about which question or subject, supported by which passages. A position capability marks an ordinary block as one; the interface calls it a perspective, and the `positions` query source is labeled Perspectives. Holder and subject are derived from its text and place, never stored:
 
-- **Holder:** the page its first link points to.
+- **Holder:** the page its first link points to. It should be an entity, a person or group; otherwise the position keeps its holder and reports a problem until the page is filed or the holder changed.
 - **Subject:** the block or page its second link points to, else its nearest ancestor question, else its page.
 
 Change holder and File under write the first and second link tokens through pickers. They keep the rest of the text. Change holder keeps an alias only when it also names the new holder. Use place removes a standalone subject token directly after the holder; a subject woven into prose stays for the author to edit. Each action is one undo step.
@@ -536,7 +536,7 @@ A kind says what a note is about. These are built in:
 | Source | A source capability on the page | Something read, watched or listened to |
 | Project | A project capability on the page | A bounded outcome |
 
-Person and Group are entities: pages referred to by a position's holder or a source's creators.
+Person and Group are entities: pages referred to by a position's holder or a source's creators. A page is an entity when it is filed as Person or Group, or as a type that is itself filed as one.
 
 - Person, Group, Concept and Thesis are system types in every notebook, like the Fields page. They take templates and fields like any type and cannot be deleted or merged.
 - An existing type with one of those titles becomes the built-in kind, keeping its page, members, fields and template.

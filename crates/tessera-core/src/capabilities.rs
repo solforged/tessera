@@ -205,6 +205,9 @@ pub struct QuestionRow {
 pub struct PositionInfo {
     pub holder_id: Option<String>,
     pub subject_id: String,
+    /// Why the holder is not an entity. The block stays a perspective; the problem only asks for a fix.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub problem: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -242,6 +245,10 @@ pub struct RelationQuery {
     pub target: Option<String>,
     pub source_holder: Option<String>,
     pub target_holder: Option<String>,
+    /// Relations between two perspectives filed under this page or a block on it, as a concept page's
+    /// constellation draws them.
+    #[serde(default)]
+    pub subject: Option<String>,
     pub limit: Option<u32>,
 }
 

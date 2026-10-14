@@ -426,7 +426,7 @@ export interface TaskOccurrence {
 export type ProjectStatus = 'active' | 'done' | 'cancelled';
 export interface ProjectState { outcome: string; deadline: string | null; status: ProjectStatus }
 export interface ProjectRecord { block_id: string; state: ProjectState }
-export interface PositionInfo { holder_id: string | null; subject_id: string }
+export interface PositionInfo { holder_id: string | null; subject_id: string; problem?: string | null }
 export interface PositionFieldEntry { field_id: string; entry_id: string; values: { id: string; text: string }[] }
 export interface PositionRow { block: BlockInPage; holder_id: string | null; subject_id: string; fields: PositionFieldEntry[] }
 export interface SubjectCriteria { explicit: boolean; fields: string[] }
@@ -434,7 +434,7 @@ export interface PositionQuestion extends QuestionRow { criterion: string | null
 export interface PositionQueryResult { rows: PositionRow[]; criteria: SubjectCriteria; questions: PositionQuestion[] }
 export type RelationKind = 'supports' | 'disputes' | 'qualifies' | 'answers';
 export interface RelationInfo { kind: RelationKind; source_id: string; target_id: string | null; problem: string | null }
-export interface RelationQuery { kind?: RelationKind; source?: string; target?: string; source_holder?: string; target_holder?: string; limit?: number }
+export interface RelationQuery { kind?: RelationKind; source?: string; target?: string; source_holder?: string; target_holder?: string; subject?: string; limit?: number }
 export interface RelationEndpoint { block: BlockInPage; holder_id: string | null }
 export interface RelationRow { block: BlockInPage; kind: RelationKind; source: RelationEndpoint; target: RelationEndpoint | null; problem: string | null }
 export type QuestionStatus = 'open' | 'answered' | 'parked' | 'unsettled';

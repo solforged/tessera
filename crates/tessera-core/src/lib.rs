@@ -103,6 +103,7 @@ pub use notes::{
 };
 pub use notes_summary::{NoteSummary, SourceSummary, SummaryField};
 pub use ownership::NotebookOwnership;
+pub use position_store::{NO_HOLDER, NOT_ENTITY};
 pub use references::{
     Mention, PageReferences, ReferenceCount, ReferenceGroup, ReferenceSource, UnlinkedMentions,
 };

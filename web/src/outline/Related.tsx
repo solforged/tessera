@@ -123,11 +123,11 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   }, undefined, { equals: (a, b) => a.size === b.size && [...a].every(id => b.has(id)) });
   let relationRequest: AbortController | undefined;
   onCleanup(() => relationRequest?.abort());
-  // One read per holder on the ring, so a relation counts wherever it is authored and whichever page holds its perspectives.
-  const [relationRows] = createResource(() => apparatus() && holders().length ? `${version()}:${holders().join(',')}` : false, async () => {
+  // One subject read joins this page's perspectives wherever they and their relations are written.
+  const [relationRows] = createResource(() => apparatus() ? version() : false, async () => {
     relationRequest?.abort();
-    const request = relationRequest = new AbortController();
-    return (await Promise.all(holders().map(holder => api.relations({ source_holder: holder }, request.signal)))).flat();
+    relationRequest = new AbortController();
+    return api.relations({ subject: props.pageId }, relationRequest.signal);
   });
   const holderRelations = createMemo(() => {
     const ids = perspectives(), seen = new Map<string, HolderRelation>();

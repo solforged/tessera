@@ -1,5 +1,8 @@
 .relation-label { flex: none; max-width: 100%; color: var(--muted); font: var(--weight-body) var(--text-meta)/var(--line-body) var(--font-body); font-variant-caps: all-small-caps; overflow-wrap: anywhere; }
 .relation-problem { display: inline-flex; vertical-align: middle; margin-inline-start: var(--space-4); color: var(--warning); }
+/* A perspective's holder problem opens its fixes, so it is a bare button beside the holder's name. */
+.position-problem { flex: none; align-self: center; padding: 0; border: 0; background: none; cursor: pointer; }
+.position-problem:hover, .position-problem:focus-visible { color: var(--accent); }
 .relation-problem .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
 .relation-line { min-width: 0; max-width: 100%; color: var(--muted); font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); white-space: normal; overflow-wrap: anywhere; }
 .relation-line .button { display: inline; min-width: 0; max-width: 100%; padding: 0; color: inherit; font: inherit; white-space: normal; overflow-wrap: anywhere; text-align: left; }

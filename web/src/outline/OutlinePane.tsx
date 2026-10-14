@@ -1280,6 +1280,7 @@ function Pane(props: OutlinePaneProps) {
     margin,
     sigla,
     blockMenu: (id, anchor) => blockMenu(id, anchor),
+    holderMenu: (id, anchor) => holderMenu(id, anchor),
     pointerStart: (event, id, element) => pointerStart(event, id, element),
     attach,
     referenceMenu: (id, anchor) => referenceMenu(id, anchor),
@@ -1302,7 +1303,7 @@ function Pane(props: OutlinePaneProps) {
   });
   const { openViewEmbed, ViewEmbedPopups } = createViewEmbedActions(context);
   const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); });
-  const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
+  const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context, (event, id) => fieldSheet.key(event, id));
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
   const fieldSheet = createFieldSheet(context, {

@@ -293,6 +293,8 @@ export interface ApiClient {
   fields(signal?: AbortSignal): Promise<Fields>;
   fieldDetail(id: string, kind?: FieldKind, limit?: number, signal?: AbortSignal): Promise<FieldDetail>;
   types(signal?: AbortSignal): Promise<Type[]>;
+  /** People and groups, including refined types' members: the pages that can hold perspectives. */
+  entities(signal?: AbortSignal): Promise<string[]>;
   type(id: string, signal?: AbortSignal): Promise<Type>;
   noteIndex(signal?: AbortSignal): Promise<NoteIndex>;
   spread(ids: string[], signal?: AbortSignal): Promise<Spread>;
@@ -445,6 +447,7 @@ export function createApi(base = ''): ApiClient {
     fields: (signal?: AbortSignal) => get<Fields>('/fields', signal),
     fieldDetail: (id: string, kind?: FieldKind, limit = 12, signal?: AbortSignal) => get<FieldDetail>(`/fields/${segment(id)}${query({ kind, limit })}`, signal),
     types: (signal?: AbortSignal) => get<Type[]>('/types', signal),
+    entities: (signal?: AbortSignal) => get<string[]>('/entities', signal),
     type: (id: string, signal?: AbortSignal) => get<Type>(`/types/${segment(id)}`, signal),
     noteIndex: (signal?: AbortSignal) => get<NoteIndex>('/index', signal),
     spread: (ids: string[], signal?: AbortSignal) => request<Spread>(base, 'POST', '/spreads', ids, signal),

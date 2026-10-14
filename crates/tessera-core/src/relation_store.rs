@@ -193,9 +193,10 @@ impl Notebook {
             && query.target.is_none()
             && query.source_holder.is_none()
             && query.target_holder.is_none()
+            && query.subject.is_none()
         {
             return Err(validation(
-                "Choose a relation kind, source, target or holder.",
+                "Choose a relation kind, source, target, holder or subject.",
             ));
         }
         for id in [
@@ -203,6 +204,7 @@ impl Notebook {
             &query.target,
             &query.source_holder,
             &query.target_holder,
+            &query.subject,
         ]
         .into_iter()
         .flatten()
@@ -246,6 +248,33 @@ impl Notebook {
             holder_matches(&query.source_holder, Some(&info.source_id))
                 && holder_matches(&query.target_holder, info.target_id.as_deref())
         });
+        if let Some(subject) = &query.subject {
+            // A perspective filed under an inline question still belongs to that question's page.
+            let subjects: Vec<_> = positions
+                .values()
+                .map(|position| position.subject_id.clone())
+                .collect();
+            let pages: HashMap<String, String> = self
+                .conn
+                .prepare_cached(
+                    "SELECT id, page_id FROM blocks WHERE id IN (SELECT value FROM json_each(?1))",
+                )?
+                .query_map(
+                    [serde_json::to_string(&subjects).expect("IDs serialize")],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )?
+                .collect::<rusqlite::Result<_>>()?;
+            let filed = |id: Option<&str>| {
+                id.and_then(|id| positions.get(id)).is_some_and(|position| {
+                    pages
+                        .get(&position.subject_id)
+                        .unwrap_or(&position.subject_id)
+                        == subject
+                })
+            };
+            infos
+                .retain(|_, info| filed(Some(&info.source_id)) && filed(info.target_id.as_deref()));
+        }
         if infos.is_empty() {
             return Ok(Vec::new());
         }
