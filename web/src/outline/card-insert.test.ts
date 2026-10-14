@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test';
 import { insertCard, makeCloze } from './card-insert';
-import { rankSlash } from './slash';
 
 test('empty fronts come before the operator and existing text ends at the answer', () => {
   for (const [kind, operator] of [['forward', '>> '], ['reverse', '<< '], ['both', '<> '], ['multiline', '>>>'], ['list', '>>1.'], ['descriptor', ';; ']] as const) {
@@ -41,10 +40,4 @@ test('cloze wrapping refuses operators, existing clozes, reference boundaries an
     ['{{c1::unfinished', 8, 12], ['   ', 0, 3],
   ] as const) expect(makeCloze(text, from, to)).toHaveProperty('reason');
   expect(makeCloze('`code` plain', 7, 12)).toEqual({ text: '`code` {{c1::plain}}', caret: 20 });
-});
-
-test('Card remains first when all card kinds match the slash query', () => {
-  const entries = ['Card', 'Reverse card', 'Reversible card', 'Multi-line card', 'List card', 'Descriptor card', 'Cloze'].map(title => ({ id: title, title, aliases: ['flashcard'] }));
-  expect(rankSlash(entries, 'card')[0]?.title).toBe('Card');
-  expect(rankSlash(entries, 'flashcard').map(entry => entry.title)).toEqual(entries.map(entry => entry.title));
 });

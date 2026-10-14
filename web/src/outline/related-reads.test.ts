@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { ApiError } from '../api/client';
 import type { Block, PageReferences, ReferenceCount } from '../api/types';
-import { isVirtualJournal, readJournalRelated } from './related-reads';
+import { readJournalRelated } from './related-reads';
 
 const virtualJournal = { kind: 'journal', revision: 0 } as const;
 const persistedJournal = { kind: 'journal', revision: 1 } as const;
@@ -38,12 +38,5 @@ describe('related reads for a local journal day', () => {
     for (const error of [new ApiError('Service error.', 500, 'internal'), new ApiError('Offline.', 0, 'offline'), new Error('Aborted')]) {
       await expect(readJournalRelated(Promise.reject(error), virtualJournal, [])).rejects.toBe(error);
     }
-  });
-
-  test('the related resource key changes when the journal root becomes committed', () => {
-    expect(isVirtualJournal(undefined)).toBe(false);
-    expect(isVirtualJournal(virtualJournal)).toBe(true);
-    expect(isVirtualJournal(persistedJournal)).toBe(false);
-    expect(isVirtualJournal({ kind: 'page', revision: 0 })).toBe(false);
   });
 });

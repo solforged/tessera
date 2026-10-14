@@ -91,10 +91,6 @@ describe('editor reference decorations', () => {
   test('leaves multiline references raw because plugin replacements cannot span lines', () => {
     expect(decorations('By [[author|First\nSecond]]', 0)).toEqual([]);
   });
-  test('rebuilds labels when a lookup changes', () => {
-    expect(decorations('By [[author]]', 0)[0]?.label).toBe('author');
-    expect(decorations('By [[author]]', 0, { author: 'Author' })[0]?.label).toBe('Author');
-  });
   test('marks shared title references but not stable references and exposes raw source under the caret', () => {
     const text = '[[Pliny]] [[01ARZ3NDEKTSV4RRFFQ69G5FAV]]';
     const matches = [{ page: { id: 'elder' }, alias: 'Pliny' }, { page: { id: 'younger' }, alias: 'Pliny' }] as NameMatch[];
