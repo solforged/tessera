@@ -643,7 +643,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       </>}</Show>
     </div>
     <Show when={openSession() || done() && latestGrade()}><footer class="review-session-actions">
-      <Show when={latestGrade()}><Button disabled={undoDisabled()} aria-keyshortcuts="Meta+Z Control+Z" onClick={() => void undoGrade()}>Undo last grade</Button></Show>
+      <Show when={openSession() || latestGrade()}><Button disabled={undoDisabled()} aria-keyshortcuts="Meta+Z Control+Z" onClick={() => void undoGrade()}>Undo last grade</Button></Show>
       <Show when={openSession()}>
         <Button class="bordered" disabled={locked() || loading() || !!readError()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'finished' }); }}>Finish review</Button>
         <Button disabled={locked() || loading() || !!readError()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'abandoned' }); }}>Abandon review</Button>
