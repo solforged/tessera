@@ -3130,9 +3130,18 @@ fn library_year_filter_keeps_facets_and_drops_other_years() {
     assert_eq!(
         all.facets.years,
         [
-            YearFacet { year: 2001, count: 1 },
-            YearFacet { year: 1999, count: 1 },
-            YearFacet { year: 1846, count: 1 },
+            YearFacet {
+                year: 2001,
+                count: 1
+            },
+            YearFacet {
+                year: 1999,
+                count: 1
+            },
+            YearFacet {
+                year: 1846,
+                count: 1
+            },
         ]
     );
     let filtered = n
@@ -3142,7 +3151,11 @@ fn library_year_filter_keeps_facets_and_drops_other_years() {
         })
         .unwrap();
     assert_eq!(
-        filtered.rows.iter().map(|row| row.page.id.as_str()).collect::<Vec<_>>(),
+        filtered
+            .rows
+            .iter()
+            .map(|row| row.page.id.as_str())
+            .collect::<Vec<_>>(),
         vec![ids[1].as_str()]
     );
     assert_eq!(filtered.facets.years, all.facets.years);
