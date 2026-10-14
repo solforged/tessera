@@ -126,6 +126,9 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
 @media (hover: none) {
   .agenda-row-actions { display: flex; grid-row: 2; min-height: 0; }
   .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
+  /* The facts stop short of the date button's column rather than running under it. */
+  .agenda-row-timetable:has(> .agenda-row-actions) > .agenda-row-meta { grid-column: 3; }
+  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable:has(> .agenda-row-actions) > .agenda-row-meta { grid-column: 2; }
 }
 .agenda-section-actions { display: flex; gap: var(--space-2); margin-left: var(--space-8); }
 .agenda-section-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
