@@ -65,6 +65,7 @@ import { HeldReadings } from './HeldReadings';
 import { AssessmentJournal, QuestionBranches, QuestionParent } from './Questions';
 import { ReadRegister } from './ReadRegister';
 import { isReadingSubject, localPositionCount, readingCounts, readingDisagreementRows, readingRegister, readingSlipRows } from './read-register';
+import { typeTokenAt } from './type-completion';
 import './outline.css';
 import './read-register.css';
 const ComparePane = lazy(() => import('../compare/ComparePane').then(module => ({ default: module.ComparePane })));
@@ -1335,6 +1336,7 @@ function Pane(props: OutlinePaneProps) {
       blur: () => {
         const id = editor?.id;
         if (!id) return;
+        doc.holdTag(id, false);
         if (editing() === id) commitFieldEntry(id, false);
         queueMicrotask(() => {
           if (disposed || composition() || valueEditorId() === id) return;
@@ -1356,6 +1358,7 @@ function Pane(props: OutlinePaneProps) {
           return;
         } else if (taskPrefix(text, at)) return;
         else { const result = doc.edit({ kind: 'text', id: at.id, text, caret: at.offset }, caret()); if (!result.ok) setMessage(result.reason); }
+        doc.holdTag(at.id, !!typeTokenAt(text, at.offset));
         updateCompletion(text, at);
         updateTriggers(text, at);
       }),
@@ -1366,7 +1369,7 @@ function Pane(props: OutlinePaneProps) {
         setTextRange(previous => previous && previous.head.id === at.id ? { anchor: previous.anchor, head: at } : previous);
         scrollReveal = { id: at.id, epoch: focusEpoch, caret: true };
         scheduleScroll();
-        if (editor) { const text = editor.view.state.doc.toString(); updateCompletion(text, at); updateTriggers(text, at); }
+        if (editor) { const text = editor.view.state.doc.toString(); doc.holdTag(at.id, !!typeTokenAt(text, at.offset)); updateCompletion(text, at); updateTriggers(text, at); }
         scheduleReport();
       },
       composition: composing,
@@ -1496,7 +1499,7 @@ function Pane(props: OutlinePaneProps) {
   onCleanup(() => {
     finishFoldMotion();
     reducedMotion.removeEventListener('change', finishFoldMotion);
-    if (editing()) commitFieldEntry(editing()!, false);
+    if (editing()) { doc.holdTag(editing()!, false); commitFieldEntry(editing()!, false); }
     disposed = true;
     setLinkedCitation(null);
     unregister();

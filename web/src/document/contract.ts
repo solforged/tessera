@@ -322,6 +322,8 @@ export interface PageDocument {
   saveMessage(): string;
   /** Wait for this page's pending commands to commit; uncertainty remains pending. */
   flush(): Promise<void>;
+  /** Hold `id`'s unsent typing while its caret is inside an unfinished `#tag`, or release it. */
+  holdTag(id: string, typing: boolean): void;
   /** Keep the local version (rewrites over the remote one) or take the remote one. */
   resolveConflict(id: string, keep: 'mine' | 'theirs'): void;
   /** Drop one pane's hold; the document closes when no pane holds it. */
