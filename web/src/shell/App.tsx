@@ -1312,6 +1312,8 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   const depth = (): Depth => outlineView().depth ?? 'full';
   // The dial shows on titled pages at their top level; a zoomed page always shows in full.
   const showDial = () => root()?.kind === 'page' && !outlineView().zoom && projection() === 'outline';
+  // Read and Compare keep the dial's place, unseen, so switching projection never slides the tabs under the pointer.
+  const dialPlace = () => root()?.kind === 'page' && !outlineView().zoom;
   // Journal days leave out description and the titled-page-only choices.
   const titled = () => root()?.kind !== 'journal';
   const stream = createMemo(() => root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'));
@@ -1375,7 +1377,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
         <Show when={projectionTabsShown()}><ProjectionTabs /></Show>
-        <Show when={showDial()}><div class="depth-dial" role="group" aria-label="Depth">
+        <Show when={dialPlace()}><div class="depth-dial" role="group" aria-label="Depth" data-held={showDial() ? undefined : ''}>
           <For each={depthStops}>{stop => <button type="button" class="depth-stop" aria-pressed={depth() === stop} title={`${depthLabels[stop]} (${stop === 'gloss' ? '[' : stop === 'full' ? ']' : '[ ]'})`}
             onClick={event => { if (depth() === stop && getComputedStyle(event.currentTarget.parentElement!.querySelector('.depth-label')!).display === 'none') setDepthMenu(event.currentTarget); else outlineCommand(`depth-${stop}`)?.run(); }}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
           <span class="depth-label" aria-hidden="true">{depthLabels[depth()]}</span>
@@ -1400,7 +1402,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Page menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
-    <Show when={pageId() && outlineView().zoom && projectionTabsShown() && projectionReason('read')}>{reason => <p class="page-projection-reason" id={`read-reason-${props.pane}`} role="status">{reason()}</p>}</Show>
+    <Show when={pageId() && outlineView().zoom && projectionTabsShown() && projectionReason('read')}>{reason => <p class="page-projection-reason read-reason" id={`read-reason-${props.pane}`} role="status">{reason()}</p>}</Show>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
     <Show when={copyMessage() && !menu()}><p class="page-projection-reason" role="status">{copyMessage()}</p></Show>
     <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} projection={projection()} onProjection={setProjection} projectionReason={projectionReason} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
