@@ -41,7 +41,7 @@ import { SourceDetails } from './SourceDetails';
 import { GLOSS_FIELD, glossEntry } from './gloss';
 import { positionFields, positionSource as sharedPositionSource } from './perspectives';
 import { Apparatus } from './Apparatus';
-import { createFieldEntryConversion, createSourceFieldResets, ensureField, isFreshField, settleField } from './source-fields';
+import { createFieldEntryConversion, createSourceFieldResets, ensureField, ensureWorkField, isFreshField, settleField } from './source-fields';
 import { addTemplateField, setFreshFieldKind } from '../fields/commands';
 import { templateOffer } from '../fields/template-offer';
 import { kindNoun } from '../fields/kinds';
@@ -1289,8 +1289,10 @@ function Pane(props: OutlinePaneProps) {
     setEditedConflicts,
   };
   const { openRelation, positionReason, placeReason, usePlace, RelationPopups } = createRelationActions(context, async holderId => {
+    // The recipe offers only defined fields, so Tab from the Gist reaches Work only once work exists.
     const field = definitionsByName().get('gist') ?? await ensureField(props.notebook, 'gist', 'text', 'standfirst');
-    setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
+    const work = definitionsByName().get('work') ?? await ensureWorkField(props.notebook);
+    setCreatedFields(previous => [...previous, ...[field, work].filter(created => !previous.some(existing => existing.id === created.id))]);
     const last = register().slips.at(-1)?.id;
     const parentId = last ? doc.outline.parentOf(last) : props.pageId;
     const result = doc.edit({ kind: 'addReading', parentId, after: last ?? doc.outline.children(parentId).at(-1) ?? null, holderId, gistFieldId: field.id }, caret());
