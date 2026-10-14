@@ -49,6 +49,9 @@
 .reading-register .reading-slip .reading-work .outline-source .static-text { min-height: var(--line-apparatus); overflow: hidden; font: var(--apparatus); color: var(--faint); white-space: nowrap; text-overflow: ellipsis; }
 .reading-register .reading-work .outline-reference { color: inherit; text-decoration-color: var(--line); }
 .reading-register .reading-work .outline-reference:is(:hover, :focus-visible) { color: var(--accent); text-decoration-color: var(--accent); }
+/* Work is a relation to a source, but its slip line stays the faint mono citation rather than a value pill. */
+.reading-register .reading-work .outline-value-pill { padding: 0; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; }
+.reading-register .reading-work .outline-value-pill:is(:hover, :focus-visible) { background: none; color: var(--accent); }
 .reading-account { color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .reading-prose, .reading-facts { margin-top: var(--space-4); }
 .reading-relations:empty { display: none; }
