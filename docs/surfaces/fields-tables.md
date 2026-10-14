@@ -172,10 +172,11 @@ On phones the register's labels stack above values. Matrix rows become holder sl
 
 ### Grid
 
-Apparatus headers are sticky on `--canvas`, with the title sticky at the left. Cells are 13 px; rows are at least 28 px, divided by horizontal rules and one edge beside the title.
+Apparatus headers are sticky on `--canvas`, with the title sticky at the left. Cells are 13 px; rows are at least 28 px, divided by horizontal rules and one edge beside the title. The title cell is Piazzolla, the same voice as a page title. Gloss and other authored cells stay in Plex.
 
 | Value | Appearance |
 | --- | --- |
+| Titles | Piazzolla at the cell size. The faint `in <page>` line under a block title stays mono. |
 | Numbers and counts | Right-aligned tabular mono. |
 | Dates | Left-aligned mono. |
 | Choices | Quiet pills. |

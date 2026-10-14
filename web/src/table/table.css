@@ -45,7 +45,7 @@
 /* The toggle's label starts on the cell text's edge. */
 .table-cell-more.button { margin-inline-start: calc(-1 * (var(--space-8) + var(--rule-width))); color: var(--muted); font-weight: var(--weight-body); }
 .type-table .table-cell:focus { outline: var(--focus-ring); outline-offset: calc(-2 * var(--rule-width)); background: var(--selection); }
-.table-cell.table-title-column { cursor: pointer; }
+.table-cell.table-title-column { cursor: pointer; font-family: var(--font-display); font-weight: var(--weight-title); font-variation-settings: var(--optical-quote); letter-spacing: var(--tracking-title); }
 .type-table :is(.table-kind-number, .table-refs) { text-align: right; font: var(--apparatus); font-variant-numeric: tabular-nums; }
 .table-kind-date { font: var(--apparatus); font-variant-numeric: tabular-nums; }
 .table-page-title { color: var(--faint); font: var(--apparatus); margin-top: var(--space-4); white-space: normal; }
@@ -88,7 +88,7 @@
 .table-column-fixed-note { margin-left: auto; color: var(--faint); font: var(--apparatus); }
 .table-grid tbody tr.selected td, .table-grid tbody tr.selected:hover td { background: var(--selection); }
 .table-grid tbody tr.selected .table-title-column { box-shadow: inset var(--space-2) 0 var(--accent); }
-.table-row-beside.button { position: absolute; right: var(--space-4); top: 50%; transform: translateY(-50%); visibility: hidden; color: var(--accent); }
+.table-row-beside.button { position: absolute; right: var(--space-4); top: 50%; transform: translateY(-50%); visibility: hidden; color: var(--accent); font-family: var(--font-body); font-weight: var(--weight-body); letter-spacing: normal; font-variation-settings: normal; }
 .table-grid tr:hover .table-row-beside, .table-grid tr.selected .table-row-beside, .table-row-beside:focus-visible { visibility: visible; }
 .table-kind-instance .table-value-pill { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .table-kind-choice .table-value-pill { background: var(--surface); color: var(--muted); }
