@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import type { PositionRow } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { citedSigla } from '../library/sigla';
-import { citedSource } from '../outline/references';
+import { createCitedSources } from '../outline/source-reads';
 import { BlockText } from '../outline/BlockText';
 import { fieldRole } from '../fields/roles';
 import { positionFields, positionRelations, positionSource, readingPassages } from '../outline/perspectives';
@@ -107,9 +107,8 @@ export function ComparePane(props: ComparePaneProps) {
     reportView();
   }
   const questions = createMemo(() => (result()?.questions ?? []).filter(question => tab() === 'readings' || !question.criterion));
-  const [siglumRecords] = createResource(() => { const ids = [...new Set(perspectives().map(item => item.source).filter(id => id !== null))]; return ids.length ? ids : false; },
-    ids => Promise.all(ids.map(async id => ({ id, source: await citedSource(props.notebook, id).catch(() => null) }))));
-  const sigla = createMemo(() => citedSigla(siglumRecords.error ? [] : siglumRecords() ?? []));
+  const siglumRecords = createCitedSources(props.notebook, () => [...new Set(perspectives().map(item => item.source).filter(id => id !== null))]);
+  const sigla = createMemo(() => citedSigla(siglumRecords()));
   const subject = () => props.notebook.lookup(props.subjectId)();
   const holder = (perspective: Perspective) => perspective.row.holder_id ? props.notebook.lookup(perspective.row.holder_id)()?.text ?? 'Loading holder…' : 'Unattributed';
   const open = (pageId: string, blockId: string | null, beside: boolean) => props.onOpen({ kind: 'page', pageId, ...(blockId ? { blockId } : {}) }, beside);

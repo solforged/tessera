@@ -60,7 +60,7 @@ import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
-import { citedSource, createCitationSources, hasCitationDetail } from './references';
+import { createCitationSources, createCitedSources, hasCitationDetail } from './source-reads';
 import { HeldReadings } from './HeldReadings';
 import { AssessmentJournal, QuestionBranches, QuestionParent } from './Questions';
 import { ReadRegister } from './ReadRegister';
@@ -422,11 +422,10 @@ function Pane(props: OutlinePaneProps) {
     });
     return seen;
   }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
-  const [siglumRecords] = createResource(() => [citedSources(), props.notebook.changeSequence()] as const, ([ids]) => Promise.all(ids.map(async id =>
-    ({ id, source: await citedSource(props.notebook, id).catch(() => null) }))));
-  const sigla = createMemo(() => citedSigla(siglumRecords.error ? [] : siglumRecords() ?? []));
+  const siglumRecords = createCitedSources(props.notebook, citedSources);
+  const sigla = createMemo(() => citedSigla(siglumRecords()));
   /** Each distinct source on the page once, for the apparatus key. */
-  const siglumSources = createMemo(() => [...new Set((siglumRecords.error ? [] : siglumRecords() ?? []).flatMap(row => row.source ? [row.source.block_id] : []))]);
+  const siglumSources = createMemo(() => [...new Set(siglumRecords().flatMap(row => row.source ? [row.source.block_id] : []))]);
   const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
   const [sourceHeaderReady, setSourceHeaderReady] = createSignal(false);

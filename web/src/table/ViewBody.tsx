@@ -7,7 +7,7 @@ import type { OpenTarget } from '../shell/contract';
 import { CriteriaMatrix } from '../compare/CriteriaMatrix';
 import { fieldRole } from '../fields/roles';
 import { citedSigla } from '../library/sigla';
-import { citedSource } from '../outline/references';
+import { createCitedSources } from '../outline/source-reads';
 import { BlockText } from '../outline/BlockText';
 import { positionRelations, positionSource } from '../outline/perspectives';
 import { OutgoingRelations } from '../outline/RelationLines';
@@ -79,9 +79,8 @@ export function ViewBody(props: ViewBodyProps) {
     const doc = docs().get(row.block.page.id);
     return { id: row.block.block.id, source: doc?.status() === 'ready' ? positionSource(doc, row.block.block.id, id => definition(id)?.name) : fieldEntryId(row.fields.find(field => definition(field.field_id)?.name.trim().toLowerCase() === 'work')?.values[0]?.text ?? '') };
   }));
-  const [sourceRecords] = createResource(() => [...new Set(sources().flatMap(row => row.source ? [row.source] : []))].sort().join(',') || false,
-    ids => Promise.all(ids.split(',').map(async id => ({ id, source: await citedSource(props.notebook, id).catch(() => null) }))));
-  const sigla = createMemo(() => citedSigla(sourceRecords() ?? []));
+  const sourceRecords = createCitedSources(props.notebook, () => [...new Set(sources().flatMap(row => row.source ? [row.source] : []))].sort());
+  const sigla = createMemo(() => citedSigla(sourceRecords()));
   function edited(doc: PageDocument) {
     history.push(doc); undone.length = 0;
     props.onEdited?.(doc);

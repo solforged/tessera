@@ -534,6 +534,7 @@ impl Notebook {
                     removed: Vec::new(),
                     restructured_pages: serde_json::from_str(&pages)
                         .map_err(|error| validation(format!("invalid stored pages: {error}")))?,
+                    pages: committed.pages,
                     views: serde_json::from_str(&row.get::<_, String>(17)?)
                         .map_err(|error| validation(format!("invalid stored view IDs: {error}")))?,
                     settings: committed

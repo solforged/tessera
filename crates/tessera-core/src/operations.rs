@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fmt::Write;
 
 use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
@@ -202,12 +202,28 @@ impl Notebook {
         restructured_pages.sort_unstable();
         let mut removed: Vec<_> = engine.removed.into_iter().collect();
         removed.sort_unstable();
+        let mut pages: BTreeSet<String> = restructured_pages.iter().cloned().collect();
+        {
+            let mut page_of = tx.prepare_cached("SELECT page_id FROM blocks WHERE id = ?1")?;
+            for id in engine
+                .revisions
+                .iter()
+                .map(|revision| &revision.id)
+                .chain(&removed)
+            {
+                // Deleted blocks keep their row; pruned provisional pages do not.
+                if let Some(page) = page_of.query_row([id], |row| row.get(0)).optional()? {
+                    pages.insert(page);
+                }
+            }
+        }
         let committed = Committed {
             seq,
             revisions: engine.revisions,
             removed,
             settings: engine.settings,
             deletions: engine.deletions,
+            pages: Some(pages.into_iter().collect()),
             text_rewrites: engine.text_rewrites,
             capabilities,
             cards: engine.cards.into_values().collect(),

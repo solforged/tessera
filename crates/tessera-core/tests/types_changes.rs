@@ -188,6 +188,17 @@ fn change_events_expose_current_blocks_removals_and_apply_time_topology() {
     assert_eq!(changes[1].restructured_pages, vec![id(1), id(2)]);
     assert_eq!(changes[1].removed, vec![id(10), id(11)]);
     assert_eq!(changes[2].restructured_pages, vec![id(2)]);
+    // Receipts name every touched page at apply time, even after the block moved or was deleted.
+    assert_eq!(edited.pages, Some(vec![id(1)]));
+    assert_eq!(moved.pages, Some(vec![id(1), id(2)]));
+    assert_eq!(deleted.pages, Some(vec![id(2)]));
+    assert_eq!(
+        changes
+            .iter()
+            .map(|event| event.pages.clone())
+            .collect::<Vec<_>>(),
+        vec![edited.pages, moved.pages, deleted.pages.clone()]
+    );
     apply(&mut nb, vec![restore(10, 4, &deleted.deletions[0])]);
     let changes = nb.changes_since(edited.seq - 1, 2).unwrap();
     assert_eq!(changes[0].blocks, vec![nb.block(&id(10)).unwrap()]);
