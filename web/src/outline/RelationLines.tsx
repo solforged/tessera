@@ -1,11 +1,11 @@
 import { opensBeside } from '../shell/beside';
-import { For, Show, createMemo, createResource, onCleanup } from 'solid-js';
-import type { RelationRow } from '../api/types';
+import { For, Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
+import type { FieldOwner, IncomingFieldValue, RelationRow } from '../api/types';
 import type { BlockState, NotebookClient } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
-import { plainText } from './names';
+import { plainText, targetLabel } from './names';
 import { incomingRelationLabels, relationLabels } from './relations';
 import './relations.css';
 
@@ -29,6 +29,33 @@ export function IncomingRelationLine(props: RelationProps & { rows: readonly Rel
   </div></Show>;
 }
 
+/** Built-in relations their targets already list: creators as Works, collections as their members. */
+const listedElsewhere = new Set(['author', 'editor', 'translator', 'collections']);
+const ownersShown = 3;
+
+/** Relation fields read from the target as `← name`, one group per field, each owner opening where it is written. */
+export function IncomingFieldLine(props: RelationProps & { rows: readonly IncomingFieldValue[] }) {
+  const groups = createMemo(() => {
+    const byField = new Map<string, { id: string; name: string; owners: FieldOwner[] }>();
+    for (const row of props.rows) {
+      if (listedElsewhere.has(row.field_name.trim().toLowerCase())) continue;
+      const group = byField.get(row.field_id) ?? { id: row.field_id, name: row.field_name, owners: [] };
+      if (!group.owners.some(owner => owner.id === row.owner.id)) group.owners.push(row.owner);
+      byField.set(row.field_id, group);
+    }
+    return [...byField.values()];
+  });
+  const [expanded, setExpanded] = createSignal(new Set<string>());
+  const label = (owner: FieldOwner) => targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, props.notebook.lookup) || 'Empty block';
+  return <Show when={groups().length}><div class="relation-line incoming-fields" onMouseDown={event => event.stopPropagation()}>
+    <For each={groups()}>{(group, index) => {
+      const shown = () => expanded().has(group.id) ? group.owners : group.owners.slice(0, ownersShown);
+      return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span><span class="incoming-field-name" title={`Values of ${group.name} that link here`}>← {group.name}</span> <For each={shown()}>{(owner, at) => <><Show when={at() > 0}><span aria-hidden="true">, </span></Show><Button title={owner.id === owner.page_id ? owner.page_title : `In ${owner.page_title}`} onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: owner.page_id, blockId: owner.id === owner.page_id ? undefined : owner.id }, opensBeside(event)); }}>{label(owner)}</Button></>}</For>
+        <Show when={shown().length < group.owners.length}> <Button onClick={event => { event.stopPropagation(); setExpanded(previous => new Set(previous).add(group.id)); }}>{`+${group.owners.length - shown().length} more`}</Button></Show></span></>;
+    }}</For>
+  </div></Show>;
+}
+
 /** Visible targets share the outline's settled-change clock; unreferenced rows issue no query. */
 export function IncomingRelations(props: RelationProps & { target: string; version: number; enabled?: boolean }) {
   let request: AbortController | undefined;
@@ -36,10 +63,18 @@ export function IncomingRelations(props: RelationProps & { target: string; versi
   const [rows] = createResource(() => props.enabled === false ? false : `${props.target}:${props.version}:${props.notebook.connection() === 'live'}`, async () => {
     request?.abort();
     request = new AbortController();
-    return props.notebook.api.relations({ target: props.target }, request.signal);
+    const [relations, fields] = await Promise.all([
+      props.notebook.api.relations({ target: props.target }, request.signal),
+      // Relation fields are secondary here; an older service without the route still shows arguments.
+      props.notebook.api.incomingFields(props.target, request.signal).catch(() => [] as IncomingFieldValue[]),
+    ]);
+    return { relations, fields };
   });
   return <Show when={props.enabled !== false}>
-    <Show when={!rows.error} fallback={<div class="relation-line" role="status">Arguments unavailable.</div>}><IncomingRelationLine rows={rows() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+    <Show when={!rows.error} fallback={<div class="relation-line" role="status">Arguments unavailable.</div>}>
+      <IncomingRelationLine rows={rows()?.relations ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+      <IncomingFieldLine rows={rows()?.fields ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+    </Show>
   </Show>;
 }
 

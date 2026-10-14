@@ -204,6 +204,8 @@ Values are plain blocks read through the field's kind. A value that does not fit
 
 A relation target's label is its first line as plain text: trailing tags are dropped, inner tags read as their titles and references as their labels. Sorting, contains filters, group headings, card rendering and exports use that label.
 
+A relation reads from both ends. Its target lists each owner whose value is exactly a reference to it, as `← qualifies` followed by the owners' labels, with no inverse name to define. A reference inside longer text stays a mention. Archived definitions and hidden owners or values are left out. author, editor, translator and collections read back elsewhere, as a person's Works and a collection's members, so the target's line omits them.
+
 Changing a field's kind opens a reviewed interpretation map of every distinct written value. Choice mappings reuse or create options, and several spellings can share one option. Relation mappings propose only a page with a unique exact title or alias; creating a page requires an explicit choice, and the new page joins the field's Links to type when it has exactly one. Ambiguous and unreadable values stay as written. Applying the map and kind is one undoable change across every owner. Owner counts include empty entries and count each owning block once. Archived or deleted entries and owners do not count.
 
 Renaming to another definition's name offers a merge preview with affected owners, pages, templates, saved views and conflicts. A merge redirects entries, template slots and saved view references to the surviving definition. It keeps conflicting entries side by side and moves option blocks without changing their identities. Filters, sort keys, column widths, grouping, collapsed headings and phone card fields stay in their original order. One undo restores both definitions, their entries and the exact saved queries.
@@ -563,7 +565,7 @@ Built-in kinds start with templates, filled in only when wanted. Their fields ar
 - A built-in field cannot be renamed, only recased. Opening the notebook recases older Title Case names, such as Author, and gives a built-in relation with no Links to types the types it expects, where those type pages exist. It never changes a field's kind, so an older `lived` stays text until a reviewed kind change. These are ordinary synced edits.
 - A built-in relation links to its types only where those type pages exist; it never creates Person or Group.
 - A question page uses Add alias, since it has no type to carry a template.
-- A Group's members are the people affiliated with it, not a second list.
+- A Group's members are the people affiliated with it, read back on its page as `← affiliated with`, not a second list.
 - Templates change like any type's and never rewrite notes.
 - Thesis starts without a template. A perspective's holder remains its first link.
 

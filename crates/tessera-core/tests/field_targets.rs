@@ -299,6 +299,67 @@ fn block_members_satisfy_targets_and_read_their_labels() {
 }
 
 #[test]
+fn incoming_field_values_read_whole_relation_references_from_live_owners() {
+    let (_dir, mut nb) = fixture();
+    let fields = nb.fields().unwrap().page_id;
+    let reference = |n: u128| format!("[[{}]]", id(n));
+    nb.apply(&batch(vec![
+        page(5, "Structure"),
+        child(11, &fields, "qualifies"),
+        Operation::SetFieldKind {
+            id: id(11),
+            base_revision: 1,
+            kind: FieldKind::Instance,
+        },
+        child(12, &fields, "notes"),
+        child(30, &id(5), "Normal science is puzzle-solving"),
+        child(31, &id(5), "Anomalies accumulate"),
+        child(35, &id(5), "Crises loosen the rules"),
+        child(32, &id(30), &reference(11)),
+        child(33, &id(32), &reference(31)),
+        child(36, &id(35), &reference(11)),
+        child(37, &id(36), &reference(31)),
+        // A mention inside longer text, and a text field's reference, are not this relation.
+        child(38, &id(35), &reference(11)),
+        child(39, &id(38), &format!("see {} too", reference(31))),
+        child(40, &id(30), &reference(12)),
+        child(41, &id(40), &reference(31)),
+    ]))
+    .unwrap();
+    let incoming = nb.incoming_field_values(&id(31)).unwrap();
+    assert_eq!(
+        incoming
+            .iter()
+            .map(|row| (
+                row.field_name.as_str(),
+                row.owner.id.clone(),
+                row.owner.page_title.as_str()
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("qualifies", id(30), "Structure"),
+            ("qualifies", id(35), "Structure"),
+        ]
+    );
+    let revision = nb.block(&id(35)).unwrap().revision;
+    nb.apply(&batch(vec![Operation::SetArchived {
+        id: id(35),
+        base_revision: revision,
+        archived: true,
+    }]))
+    .unwrap();
+    assert_eq!(nb.incoming_field_values(&id(31)).unwrap().len(), 1);
+    let revision = nb.block(&id(11)).unwrap().revision;
+    nb.apply(&batch(vec![Operation::SetArchived {
+        id: id(11),
+        base_revision: revision,
+        archived: true,
+    }]))
+    .unwrap();
+    assert!(nb.incoming_field_values(&id(31)).unwrap().is_empty());
+}
+
+#[test]
 fn opening_lowercases_built_in_fields_files_their_targets_and_refuses_renames() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();

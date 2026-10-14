@@ -1062,6 +1062,15 @@ pub struct FieldOwner {
     pub page_title: String,
 }
 
+/// A relation field value pointing at a block, read from the target's side.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IncomingFieldValue {
+    pub field_id: String,
+    pub field_name: String,
+    pub owner: FieldOwner,
+    pub value_id: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FieldOwnerValues {
     pub owner: FieldOwner,

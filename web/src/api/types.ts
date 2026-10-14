@@ -337,6 +337,8 @@ export interface Fields { page_id: string; fields: FieldSummary[] }
 export interface FieldOwner { id: string; text: string; page_id: string; page_title: string }
 export interface FieldOwnerValues { owner: FieldOwner; entry_id: string; values: FieldValue[] }
 export interface FieldValueUse { owner: FieldOwner; entry_id: string; value: FieldValue }
+/** A relation field value pointing at a block, read from the target's side. */
+export interface IncomingFieldValue { field_id: string; field_name: string; owner: FieldOwner; value_id: string }
 export interface FieldChoiceCandidate {
   text: string;
   option_id: string | null;

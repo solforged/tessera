@@ -761,6 +761,8 @@ Below the outline, Backlinks is open by default and counts every distinct referr
 
 Blocks on the page with incoming references carry their count as a faint mono numeral in the outside right rail, where it cannot shift text or the editor. It opens the Block backlinks popup.
 
+A relation's target shows a quiet meta line beneath its row, or beneath a page's title: `← qualifies` and its owners' labels, one group per field, after any argument line. Each label opens its owner where it is written, and its title names the owner's page. A field with more than three owners shows three, then a +N more button.
+
 Unlinked mentions follows, collapsed and fetched only once opened. Each mention shows its breadcrumb as a mono capital link, its text with the matched title or alias highlighted, and Link, which turns the first whole-word match into an aliased reference keeping the original wording. The edit belongs to the source page's undo history.
 
 ## Icon

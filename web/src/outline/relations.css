@@ -4,5 +4,6 @@
 .relation-line { min-width: 0; max-width: 100%; color: var(--muted); font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); white-space: normal; overflow-wrap: anywhere; }
 .relation-line .button { display: inline; min-width: 0; max-width: 100%; padding: 0; color: inherit; font: inherit; white-space: normal; overflow-wrap: anywhere; text-align: left; }
 .relation-line .button:hover { color: var(--accent); }
+.incoming-field-name { white-space: nowrap; }
 .related-block > .relation-line { flex-basis: 100%; }
 .related-block:has(> .relation-line) { flex-wrap: wrap; }

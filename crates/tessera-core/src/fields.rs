@@ -5,7 +5,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::model::{
     FieldChoiceCandidate, FieldChoiceValue, FieldDetail, FieldInterpretation, FieldOptionUse,
     FieldOwner, FieldOwnerValues, FieldSummary, FieldTemplate, FieldType, FieldValue,
-    FieldValueUse,
+    FieldValueUse, IncomingFieldValue,
 };
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, validate_date, validate_id, validation};
@@ -486,6 +486,58 @@ impl Notebook {
             page_id: page_id(&self.conn)?.ok_or_else(|| not_found("Fields"))?,
             fields,
         })
+    }
+
+    /// Relation field values whose whole text references `target`, so the target can read them back, such as
+    /// `← qualifies`. Archived definitions, and values, entries or owners that are hidden, are left out.
+    pub fn incoming_field_values(&self, target: &str) -> Result<Vec<IncomingFieldValue>> {
+        validate_id(target)?;
+        let mut statement = self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
+            "SELECT fv.field_id, d.text, o.id, o.text, p.id, p.text, v.id, v.text
+             FROM links l
+             JOIN field_values fv ON fv.value_id = l.source_id
+             JOIN fields f ON f.block_id = fv.field_id AND f.kind = 'instance'
+             JOIN blocks d ON d.id = fv.field_id
+             JOIN blocks v ON v.id = fv.value_id
+             JOIN blocks o ON o.id = fv.owner_id
+             JOIN blocks p ON p.id = o.page_id
+             WHERE l.target_id = ?1
+               AND d.deletion_id IS NULL AND d.archived = 0
+               AND v.deletion_id IS NULL AND o.deletion_id IS NULL AND p.deletion_id IS NULL
+               AND v.rowid NOT IN (SELECT rowid FROM hidden)
+               AND o.rowid NOT IN (SELECT rowid FROM hidden)
+             ORDER BY lower(d.text), fv.field_id, o.id, fv.ordinal"
+        ))?;
+        let rows = statement.query_map([target], |row| {
+            Ok((
+                IncomingFieldValue {
+                    field_id: row.get(0)?,
+                    field_name: row.get(1)?,
+                    owner: FieldOwner {
+                        id: row.get(2)?,
+                        text: row.get(3)?,
+                        page_id: row.get(4)?,
+                        page_title: row.get(5)?,
+                    },
+                    value_id: row.get(6)?,
+                },
+                row.get::<_, String>(7)?,
+            ))
+        })?;
+        let mut incoming = Vec::new();
+        for row in rows {
+            let (value, text) = row?;
+            // A link inside longer text is a mention, not this relation's value.
+            if reference(&text) == Some(target)
+                && !incoming
+                    .iter()
+                    .any(|seen: &IncomingFieldValue| seen.value_id == value.value_id)
+            {
+                incoming.push(value);
+            }
+        }
+        Ok(incoming)
     }
 
     /// Read a field and its consequences without changing authored blocks.
