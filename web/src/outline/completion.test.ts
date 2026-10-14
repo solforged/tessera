@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { completedReference, completionPickKey, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { completedReference, completionPickKey, completionTakesKey, engagedToken, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { foldName } from './names';
+import { typeTokenAt } from './type-completion';
 
 test('resolution and completion retain citation labels and locators', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
@@ -103,6 +104,25 @@ describe('typed completion triggers', () => {
       expect(completionPickKey(event)).toBe(true);
       for (const modifier of ['shiftKey', 'metaKey', 'ctrlKey', 'altKey'] as const) expect(completionPickKey({ ...event, [modifier]: true })).toBe(false);
     }
+  });
+
+  test('a caret placed after an existing tag offers the picker without taking Enter or Tab', () => {
+    const text = 'Normal science is puzzle-solving #proposition';
+    const token = typeTokenAt(text, text.length)!;
+    expect(token.query).toBe('proposition');
+    const at = { id: 'b', from: token.from, query: token.query };
+    // Clicking in the block and pressing End only moves the caret.
+    const placed = engagedToken(null, at, false);
+    expect(placed).toBeNull();
+    for (const key of ['Enter', 'Tab', 'ArrowDown', 'ArrowUp']) expect(completionTakesKey({ key }, !!placed)).toBe(false);
+    expect(completionTakesKey({ key: 'Escape' }, !!placed)).toBe(true);
+    // Typing engages the token, and the caret update that follows each keystroke keeps it engaged.
+    const typed = engagedToken(placed, { ...at, query: 'propositions' }, true);
+    expect(completionTakesKey({ key: 'Enter' }, !!engagedToken(typed, { ...at, query: 'propositions' }, false))).toBe(true);
+    // Moving to another token, or another block, offers again.
+    expect(engagedToken(typed, { ...at, query: 'proposition' }, false)).toBeNull();
+    expect(engagedToken(typed, { ...at, id: 'c', query: 'propositions' }, false)).toBeNull();
+    expect(engagedToken(typed, null, false)).toBeNull();
   });
 
   test('removes a heading prefix typed before existing text without removing the text', () => {

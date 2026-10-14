@@ -700,7 +700,7 @@ function Pane(props: OutlinePaneProps) {
     if (!editor || editor.id !== id || composition()) return;
     const text = editor.view.state.doc.toString();
     const at = { id, offset: editor.view.state.selection.main.head };
-    updateCompletion(text, at);
+    updateCompletion(text, at, false);
     updateTriggers(text, at);
   }
   /** Structural commands reveal folded destinations before restoring the caret. */
@@ -1362,7 +1362,7 @@ function Pane(props: OutlinePaneProps) {
         } else if (taskPrefix(text, at)) return;
         else { const result = doc.edit({ kind: 'text', id: at.id, text, caret: at.offset }, caret()); if (!result.ok) setMessage(result.reason); }
         doc.holdTag(at.id, !!typeTokenAt(text, at.offset));
-        updateCompletion(text, at);
+        updateCompletion(text, at, true);
         updateTriggers(text, at);
       }),
       selection: at => {
@@ -1372,7 +1372,7 @@ function Pane(props: OutlinePaneProps) {
         setTextRange(previous => previous && previous.head.id === at.id ? { anchor: previous.anchor, head: at } : previous);
         scrollReveal = { id: at.id, epoch: focusEpoch, caret: true };
         scheduleScroll();
-        if (editor) { const text = editor.view.state.doc.toString(); doc.holdTag(at.id, !!typeTokenAt(text, at.offset)); updateCompletion(text, at); updateTriggers(text, at); }
+        if (editor) { const text = editor.view.state.doc.toString(); doc.holdTag(at.id, !!typeTokenAt(text, at.offset)); updateCompletion(text, at, false); updateTriggers(text, at); }
         scheduleReport();
       },
       composition: composing,
