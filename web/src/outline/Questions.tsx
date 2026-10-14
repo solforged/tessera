@@ -7,6 +7,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
+import { assessmentStatus, questionAssessments } from './assessments';
 import { BlockText } from './BlockText';
 import { foldName, plainText } from './names';
 import { isStableReference, textTokens } from '../document/text-tokens';
@@ -67,22 +68,8 @@ export function QuestionBranches(props: { rows: QuestionRow[]; notebook: Noteboo
 }
 
 export function AssessmentJournal(props: { questionId: string; doc: PageDocument; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onWrite(): void }) {
-  const rows = createMemo(() => {
-    props.doc.outline.version();
-    const result = [];
-    for (let index = 0; index < props.doc.outline.size(); index++) {
-      const block = props.doc.block(props.doc.outline.idAt(index));
-      if (block?.assessment?.question_id === props.questionId) result.push(block);
-    }
-    return result.sort((a, b) => b.assessment!.state.assessed_on.localeCompare(a.assessment!.state.assessed_on) || b.id.localeCompare(a.id));
-  });
-  const status = (id: string, accepted: boolean) => {
-    if (accepted) return 'Current answer';
-    const history = props.doc.block(props.questionId)?.question?.state.reading_history ?? [];
-    let decision;
-    for (let index = history.length - 1; index >= 0; index--) if (history[index]!.assessment_id === id) { decision = history[index]; break; }
-    return decision?.status === 'superseded' ? `Superseded on ${decision.on}` : decision?.status === 'withdrawn' ? `Withdrawn on ${decision.on}` : 'Not accepted';
-  };
+  const rows = createMemo(() => questionAssessments(props.doc, props.questionId));
+  const status = (id: string, accepted: boolean) => assessmentStatus(props.doc, props.questionId, id, accepted);
   const citations = (id: string) => {
     const links: { id: string; text: string }[] = [];
     const visit = (blockId: string) => {

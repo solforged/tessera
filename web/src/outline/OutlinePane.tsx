@@ -446,7 +446,7 @@ function Pane(props: OutlinePaneProps) {
   const ids = createMemo(() => {
     if (reading()) {
       const view = readView();
-      return [...view.opening, ...(view.sectionId ? [view.sectionId] : []), ...view.slips.flatMap(slip => readingSlipRows(doc, slip, readDisclosures())), ...view.disagreements.flatMap(group => readingDisagreementRows(doc, group)), ...view.remaining];
+      return [...view.opening, ...(view.sectionId ? [view.sectionId] : []), ...view.slips.flatMap(slip => readingSlipRows(doc, slip, readDisclosures())), ...view.disagreements.flatMap(group => readingDisagreementRows(doc, group, readDisclosures())), ...view.remaining];
     }
     const inline = inlineFields(), visible = unfoldedIds();
     return fieldBedRows(doc, inline.size ? visible.filter(id => !inline.has(id)) : visible, definitionsById(), zoom() ?? props.pageId);
@@ -1710,6 +1710,7 @@ function Pane(props: OutlinePaneProps) {
           setReadDisclosures(previous => { const next = new Set(previous); next.has(key) ? next.delete(key) : next.add(key); return next; });
           scheduleReport(); requestAnimationFrame(scrolled);
         }} row={id => <Row id={id} natural />} onCompare={() => props.onProjection?.('compare')} onAddReading={anchor => openRelation(props.pageId, 'reading', anchor)}
+          onWriteAssessment={id => apply({ kind: 'writeAssessment', parentId: id, assessedOn: props.notebook.todayDate() }, true)}
           onOpenReading={(id, beside) => beside ? props.onOpen({ kind: 'page', pageId: props.pageId, blockId: id }, true) : zoomTo(id)}
           siglum={id => { const source = positionSource(id); return source ? sigla().get(source) : undefined; }} />
       </Show>

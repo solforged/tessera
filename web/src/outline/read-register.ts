@@ -3,6 +3,7 @@ import type { PageDocument } from '../document/contract';
 import type { OutlineIndex } from '../document/outline-index';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { positionFields, positionRelations, readingPassages } from './perspectives';
+import { earlierKey, verdictAssessments } from './assessments';
 import { isCatalogueField } from '../library/details';
 import { fieldBedRows, fieldRole } from '../fields/roles';
 export interface ReadingField { name: string; entryId: string }
@@ -107,8 +108,12 @@ export function readingSlipRows(doc: PageDocument, slip: ReadingSlip, disclosure
 }
 
 /** Rows of a disagreement in reading order: its questions, then each answer's values. */
-export function readingDisagreementRows(doc: PageDocument, group: ReadingDisagreement): string[] {
-  return [...group.questions.map(question => question.id), ...group.answers.flatMap(answer => answer.entryId ? doc.outline.children(answer.entryId).filter(id => !doc.isArchived(id)) : [])];
+export function readingDisagreementRows(doc: PageDocument, group: ReadingDisagreement, disclosures: ReadonlySet<string>): string[] {
+  const verdicts = group.questions.flatMap(question => {
+    const { shown, earlier } = verdictAssessments(doc, question.id);
+    return [...(shown ? [shown.id] : []), ...(disclosures.has(earlierKey(question.id)) ? earlier.map(block => block.id) : [])];
+  });
+  return [...group.questions.map(question => question.id), ...group.answers.flatMap(answer => answer.entryId ? doc.outline.children(answer.entryId).filter(id => !doc.isArchived(id)) : []), ...verdicts];
 }
 
 export function readingCounts(slips: readonly ReadingSlip[]): string {

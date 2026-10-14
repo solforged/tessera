@@ -1,18 +1,48 @@
 import { opensBeside, besideHint } from '../shell/beside';
 import { For, Show, createMemo } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { PageDocument, NotebookClient } from '../document/contract';
+import type { BlockState, PageDocument, NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
+import { BlockText } from './BlockText';
 import type { ReadingRegister as Register } from './read-register';
 import type { ReadingField } from './read-register';
 import { isReadingSubject, readingCounts } from './read-register';
+import { assessmentStatus, earlierKey, verdictAssessments } from './assessments';
 
-export function ReadRegister(props: { register: Register; doc: PageDocument; notebook: NotebookClient; disclosures: ReadonlySet<string>; onDisclosure(key: string): void; row(id: string): JSX.Element; onCompare(): void; onAddReading(anchor: HTMLElement): void; onOpenReading(id: string, beside: boolean): void; siglum(positionId: string): string | undefined }) {
+export function ReadRegister(props: { register: Register; doc: PageDocument; notebook: NotebookClient; disclosures: ReadonlySet<string>; onDisclosure(key: string): void; row(id: string): JSX.Element; onCompare(): void; onAddReading(anchor: HTMLElement): void; onWriteAssessment(questionId: string): void; onOpenReading(id: string, beside: boolean): void; siglum(positionId: string): string | undefined }) {
   const values = (fields: readonly Pick<ReadingField, 'entryId'>[]) => fields.flatMap(field => props.doc.outline.children(field.entryId).filter(id => !props.doc.isArchived(id)));
   // A refreshed projection must not replace a reading's live editor.
   const slips = createMemo(() => new Map(props.register.slips.map(slip => [slip.id, slip])));
   const slipIds = createMemo(() => [...slips().keys()]);
   const holderName = (positionId: string) => { const holder = slips().get(positionId)?.holderId; return holder ? props.notebook.lookup(holder)()?.text ?? '' : 'Unattributed'; };
+  /**
+   * Your answer follows theirs: the current assessment, or else the newest one as a draft, editable in place, with
+   * the rest folded away. A new assessment therefore appears where the caret can reach it.
+   */
+  function ReadingVerdict(verdict: { questionId: string; named: boolean }) {
+    const assessments = createMemo(() => verdictAssessments(props.doc, verdict.questionId));
+    const shown = () => assessments().shown;
+    const earlier = () => assessments().earlier;
+    const parked = () => !!props.doc.block(verdict.questionId)?.question?.state.parked;
+    const key = () => earlierKey(verdict.questionId);
+    const question = () => props.doc.block(verdict.questionId)?.text.split('\n')[0] ?? '';
+    const label = (block: BlockState) => block.assessment!.accepted ? `Your answer · ${block.assessment!.state.assessed_on}` : `${block.assessment!.state.assessed_on} · ${assessmentStatus(props.doc, verdict.questionId, block.id, false)}`;
+    return <div class="reading-verdict" classList={{ 'reading-verdict-current': !!shown()?.assessment!.accepted }}>
+      <Show when={shown()}>{block => <>
+        <p class="reading-verdict-label"><span>{label(block())}<Show when={block().assessment!.state.aporia}> · Aporia</Show></span><Show when={verdict.named}><span class="reading-verdict-question"><BlockText text={question()} notebook={props.notebook} interactive={false} /></span></Show></p>
+        <div class="reading-verdict-text">{props.row(block().id)}</div>
+      </>}</Show>
+      <div class="reading-verdict-actions">
+        <Show when={!shown()}><span class="reading-counts">No answer yet</span></Show>
+        <Show when={earlier().length}><Button aria-expanded={props.disclosures.has(key())} onClick={() => props.onDisclosure(key())}>{earlier().length} earlier</Button></Show>
+        <Button disabled={parked()} title={parked() ? 'Resume the question before writing an assessment.' : undefined} onClick={() => props.onWriteAssessment(verdict.questionId)}>Write assessment</Button>
+      </div>
+      <Show when={props.disclosures.has(key())}><div class="reading-verdict-earlier"><For each={earlier()}>{block => <div>
+        <p class="reading-verdict-label">{label(block)}</p>
+        <div class="reading-verdict-text">{props.row(block.id)}</div>
+      </div>}</For></div></Show>
+    </div>;
+  }
   return <div class="reading-register">
     <div class="reading-opening"><For each={props.register.opening}>{props.row}</For></div>
     <div class="reading-section-head">
@@ -46,6 +76,7 @@ export function ReadRegister(props: { register: Register; doc: PageDocument; not
             <div class="reading-answer-value"><Show when={rows().length} fallback={<span class="reading-answer-empty">Not stated</span>}><For each={rows()}>{props.row}</For></Show></div>
           </div>;
         }}</For></div>
+        <For each={group.questions}>{question => <ReadingVerdict questionId={question.id} named={group.questions.length > 1} />}</For>
       </div>}</For>
     </section></Show>
     <For each={props.register.remaining}>{props.row}</For>

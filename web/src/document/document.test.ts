@@ -20,7 +20,7 @@ import { clipboardText, parseBlockClipboard } from './clipboard';
 import { linkMentionEdit } from './link-mention';
 import { positionRelations, readingPassages } from '../outline/perspectives';
 import { addArrival, embedTarget } from '../outline/streams';
-import { isReadingSubject, readingRegister } from '../outline/read-register';
+import { isReadingSubject, readingDisagreementRows, readingRegister } from '../outline/read-register';
 import { changeRevisit } from '../review/revisits';
 
 const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
@@ -798,6 +798,20 @@ describe('real notebook operations and recovery', () => {
     success(doc.edit({ kind: 'delete', ids: [unscoped] }));
     expect(project().remaining).not.toContain(heading);
     expect(projected.slips[0]?.facts).toEqual([]);
+
+    // Your answer follows theirs as editable rows: a draft until one is accepted, earlier ones only when unfolded.
+    const earlier = success(doc.edit({ kind: 'writeAssessment', parentId: scoped, assessedOn: '2026-09-14' })).created[0]!;
+    await doc.flush();
+    const group = () => project().disagreements[0]!;
+    expect(readingDisagreementRows(doc, group(), new Set()).at(-1)).toBe(earlier);
+    const current = success(doc.edit({ kind: 'writeAssessment', parentId: scoped, assessedOn: '2026-10-13' })).created[0]!;
+    await doc.flush();
+    success(doc.edit({ kind: 'question', id: scoped, value: currentReading(doc.block(scoped)!.question!.state, current, '2026-10-13') }));
+    await doc.flush();
+    const folded = readingDisagreementRows(doc, group(), new Set());
+    expect(folded).toContain(current);
+    expect(folded).not.toContain(earlier);
+    expect(readingDisagreementRows(doc, group(), new Set([`${scoped}:earlier`])).slice(-2)).toEqual([current, earlier]);
     definitions.release(); doc.release();
   });
 

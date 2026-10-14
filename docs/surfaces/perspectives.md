@@ -30,6 +30,8 @@ On coarse pointers, Compare, Add perspective, Prose, Facts and Open perspective 
 
 Where they disagree appears only when stored questions name criteria. Each criterion leads with its questions, which link the criterion, then each perspective's answer: its siglum (or holder name when it has none) and its value for that criterion, in the slips' columns. Questions that all name holders show only those holders' answers; otherwise every perspective answers. A perspective without a value reads Not stated. Questions without a criterion stay in their authored place. No differences between field values are turned into questions.
 
+Your answer follows theirs. Under a gilt rule, the current assessment shows its date and text, editable in place. Without one, the newest assessment shows as a draft with its status under a plain rule. Earlier assessments fold under N earlier and read muted when unfolded. Write assessment shares that mono line and puts the caret in the new answer without leaving Read. A question with no assessment reads No answer yet. Read leaves the Decision journal, with its repeated links, to Outline.
+
 Compare switches the same pane to the existing perspective sheet and criteria matrix. With fewer than two perspectives, the register and Outline's counts line leave Compare out; the count already says why.
 
 Compare shows the perspectives/holders count once in its header; Criteria's tool line gives criteria and question counts. Narrow panes keep Choose perspectives in one horizontally scrolling strip rather than wrapping holders above the perspectives. Criteria questions wrap within the visible matrix width and stay with the sticky criterion edge, including their scope and Open original action.
@@ -204,7 +206,7 @@ The Question… manager keeps Open in desk, Write assessment, Add branch questio
 
 The question's Decision journal lists its assessments newest first. Each shows its assessment date, status, first line, linked perspectives and cited passages. Current answer is explicit; earlier entries say Superseded on or Withdrawn on with the decision date. An unaccepted assessment reads Not accepted alongside its date. Aporia stays a separate mark.
 
-The journal appears only when the question has an assessment, including inline criterion questions. Empty questions keep Write assessment in their menu, Commands and slash completion. The journal's label stays on one line; its writing action wraps below it when space is short.
+The journal appears in Outline only when the question has an assessment, including inline criterion questions. Read shows a criterion question's answer after the perspectives' answers instead. Empty questions keep Write assessment in their menu, Commands and slash completion. The journal's label stays on one line; its writing action wraps below it when space is short.
 
 Accept current answer chooses one assessment. Accepting another keeps both and records the supersession date. Withdraw current answer keeps the assessment, text and citations. Each transition is one undoable change and survives a reload. Two assessments a month apart show what each cites, without an automatic diff.
 

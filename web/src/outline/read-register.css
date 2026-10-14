@@ -17,11 +17,11 @@
 
 /* Counts and actions are apparatus: the count faint, the actions muted until hovered. On the register they share
    the section heading's line and wrap below it when the pane is narrow. */
-.reading-register-actions, .reading-disclosures { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-12); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--muted); }
+.reading-register-actions, .reading-disclosures, .reading-verdict-actions { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-12); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .outline-heading .reading-register-actions { margin-block: var(--space-4) var(--space-8); }
 .reading-counts { color: var(--faint); }
-.reading-register-actions .button, .reading-disclosures .button { font: inherit; padding: 0; min-height: var(--line-control); color: var(--muted); }
-.reading-register-actions .button:hover:not(:disabled), .reading-disclosures .button:hover { color: var(--accent); }
+.reading-register-actions .button, .reading-disclosures .button, .reading-verdict-actions .button { font: inherit; padding: 0; min-height: var(--line-control); color: var(--muted); }
+.reading-register-actions .button:hover:not(:disabled), .reading-disclosures .button:hover, .reading-verdict-actions .button:hover:not(:disabled) { color: var(--accent); }
 .reading-section-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-16); }
 .reading-section-head > .outline-row { flex: 0 1 auto; }
 .reading-section-head > .reading-register-actions { margin-left: auto; }
@@ -70,6 +70,22 @@
 .reading-answer-value .outline-row { min-height: 0; padding: 0; }
 .reading-register .reading-answer-value .outline-body { margin-left: 0; color: var(--text); font: inherit; }
 .reading-answer-value .static-text { min-height: var(--line-control); }
+/* Read shows a question's own answer after theirs, so the outline's decision journal stays in Outline. */
+.reading-disagreement .assessment-journal { display: none; }
+/* Your current answer carries a gilt rule and a draft a plain one; an unanswered question gets only its action line. */
+.reading-verdict { margin-top: var(--space-8); }
+.reading-verdict:has(> .reading-verdict-text) { margin-top: var(--space-12); padding-left: var(--space-12); border-left: 2px solid var(--line); }
+.reading-verdict-current:has(> .reading-verdict-text) { border-left-color: var(--accent); }
+.reading-verdict-label { display: flex; gap: var(--space-8); min-width: 0; margin: 0 0 var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.reading-verdict-label > span:first-child { flex: none; }
+.reading-verdict-question { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.reading-verdict-text .outline-row { min-height: 0; padding: 0; }
+.reading-verdict-text .outline-capability-metadata { display: none; }
+.reading-verdict-text .static-text { min-height: var(--line-body); }
+.reading-verdict-actions { margin-top: var(--space-4); }
+.reading-verdict-earlier { margin-top: var(--space-8); color: var(--muted); }
+.reading-verdict-earlier > div + div { margin-top: var(--space-8); }
+.reading-register .reading-verdict-earlier .outline-body { color: var(--muted); }
 .reading-answer-empty { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 /* Slips and answers follow the pane's width, so a split unfolded Fold stacks them as a phone does. */
 @container outline-pane (max-width: 619px) {
@@ -104,7 +120,7 @@
 .reading-field-prose:empty { display: none; }
 :is(.reading-facts, .reading-answer-value) .outline-row > .outline-field-label { display: none !important; }
 @media (pointer: coarse) {
-  .reading-register-actions .button, .reading-disclosures .button { min-height: var(--target-size); }
+  .reading-register-actions .button, .reading-disclosures .button, .reading-verdict-actions .button { min-height: var(--target-size); }
   .reading-disclosures { padding-top: 0; }
   /* The holder name sits on an 18 px line; padding widens its touch target without moving the text. */
   .reading-holder .outline-reference { padding-block: var(--space-8); }
