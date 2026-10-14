@@ -4,17 +4,12 @@ name: Demo
 # to the Vercel project behind tessera.solforged.io. Vercel's build image has
 # no Rust toolchain, so the build runs here and Vercel receives prebuilt output.
 # Landing a pull request dispatches a deploy of the commit main moved to
-# (fast-forward.yml), and a push to main deploys after CI succeeds. A manual
-# dispatch publishes a chosen commit without waiting, which is how a bad
-# deploy is rolled back. A failed deploy opens or updates one issue labelled
-# demo-deploy, and the next good deploy closes it, so failures do not repeat
-# as separate notifications.
+# (fast-forward.yml), after CI passed on that commit. A manual dispatch
+# publishes a chosen commit, which is how a bad deploy is rolled back. A
+# failed deploy opens or updates one issue labelled demo-deploy, and the next
+# good deploy closes it, so failures do not repeat as separate notifications.
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       ref:
@@ -37,13 +32,12 @@ env:
 
 jobs:
   deploy:
-    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ inputs.ref || github.sha }}
           persist-credentials: false
 
       - name: Install tools
@@ -83,7 +77,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          COMMIT: ${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
+          COMMIT: ${{ inputs.ref || github.sha }}
         run: |
           issue=$(gh issue list --repo "$REPO" --label demo-deploy --state open --json number --jq '.[0].number // empty')
           body="Deploying $COMMIT failed: $RUN"
@@ -98,7 +92,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          COMMIT: ${{ inputs.ref || github.event.workflow_run.head_sha || github.sha }}
+          COMMIT: ${{ inputs.ref || github.sha }}
         run: |
           for issue in $(gh issue list --repo "$REPO" --label demo-deploy --state open --json number --jq '.[].number'); do
             gh issue close "$issue" --repo "$REPO" --comment "Deployed $COMMIT."

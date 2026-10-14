@@ -27,9 +27,11 @@ Two rulesets guard `main`:
 | Ruleset | Rules | Bypass |
 |---|---|---|
 | `green` | Signed commits, linear history, no force-push or deletion, and the seven CI checks on the new head | Nobody |
-| `reviewed` | Changes arrive through a pull request | GitHub Actions, which the fast-forward workflow uses |
+| `reviewed` | Changes arrive through a pull request | Deploy keys. The fast-forward workflow pushes with the write key in the `FAST_FORWARD_KEY` secret. |
 
-If `main` moves before CI finishes, the workflow comments on the pull request instead of landing it. Rebase onto `origin/main` and run `land` again; the new head lands when its CI passes. A pull request without the label, or a draft, waits until the label is added or it is marked ready. CI runs once per pull request push; branches without a pull request do not run CI.
+If `main` moves before CI finishes, the workflow comments on the pull request instead of landing it. Rebase onto `origin/main` and run `land` again; the new head lands when its CI passes. A pull request without the label, or a draft, waits until the label is added or it is marked ready. CI runs once per pull request push, and not again on `main`, which only ever moves to a head that passed. Branches without a pull request do not run CI; `gh workflow run ci.yml --ref <branch>` runs it by hand.
+
+GitHub only lets an organization's own apps bypass a ruleset, so on this personal repository the workflow token cannot move `main`. A deploy key can, and only this workflow holds the write key. To rotate it, generate a key, add it under Settings → Deploy keys with write access, and replace the secret with `gh secret set FAST_FORWARD_KEY`.
 
 Use an issue for a user-visible bug or feature and pass `--issue`, so the pull request closes it. Chores, docs and lockfile updates need no issue.
 

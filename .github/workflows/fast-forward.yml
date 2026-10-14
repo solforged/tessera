@@ -4,12 +4,13 @@ name: Fast-forward
 # exactly as written and signed and main stays linear without merge or squash
 # commits. A pull request lands once it carries the fast-forward label, is not
 # a draft, comes from a branch of this repository, sits on main's tip and has a
-# green CI run on its head. The pull-request ruleset lets only GitHub Actions
-# move main; the green ruleset still checks the signatures and the required
-# checks on the commit this workflow moves main to.
+# green CI run on its head. The reviewed ruleset (pull requests only) lets
+# just deploy keys bypass it, and this workflow pushes with the write deploy
+# key in the FAST_FORWARD_KEY secret; the green ruleset still checks the
+# signatures and the required checks on the commit main moves to.
 #
-# A push made with the workflow token starts no workflows, so this workflow
-# dispatches the demo deploy itself.
+# Nothing else runs on main: CI already passed on this exact commit, and this
+# workflow dispatches the demo deploy itself.
 
 on:
   workflow_run:
@@ -34,11 +35,12 @@ jobs:
       (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     steps:
-      # No checkout: the job only reads the API and moves a ref, so no pull
-      # request code ever runs with this token.
+      # The job checks out no pull request code: it reads the API, fetches the
+      # head commit's objects and pushes that commit to main.
       - name: Fast-forward main
         env:
           GH_TOKEN: ${{ github.token }}
+          KEY: ${{ secrets.FAST_FORWARD_KEY }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha }}
         run: |
@@ -69,7 +71,16 @@ jobs:
               exit 0 ;;
           esac
 
-          gh api -X PATCH "repos/$REPO/git/refs/heads/main" -f sha="$SHA" -F force=false >/dev/null
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/fast_forward
+          chmod 600 ~/.ssh/fast_forward
+          git init -q land && cd land
+          git fetch -q --filter=blob:none "https://github.com/$REPO.git" "$SHA"
+          # A plain push refuses anything but a fast-forward of main.
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/fast_forward -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+            git push -q "git@github.com:$REPO.git" "$SHA:refs/heads/main"
+          cd ..
+          rm -f ~/.ssh/fast_forward
           echo "Moved main to $SHA for #$number."
 
           # GitHub marks the pull request merged once it sees its head on

@@ -1,11 +1,10 @@
 name: CI
 
-# Branches run CI through their pull request; main changes only by
-# fast-forwarding to a head that already passed here (fast-forward.yml).
+# CI runs on pull requests only. main changes only by fast-forwarding to a
+# head that already passed here (fast-forward.yml), so it never reruns there.
 on:
-  push:
-    branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
