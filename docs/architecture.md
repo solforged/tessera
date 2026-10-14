@@ -232,7 +232,6 @@ crates/tessera-bench     corpus generator and backend budget checks
 crates/tessera-ingest    extractors for EPUB books and web articles
 crates/tessera-web       browser demo: core and service routes in a WASM worker
 web/                     Solid editor
-spikes/                  prototypes; spikes/editor/ has the editor measurement runner
 mise-tasks/              development, build and publishing tasks
 docs/                    design documents
 ```

@@ -54,6 +54,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Removed the retired editor spike workspace; the performance documentation links to its source and full results at the original comparison commit.
 - The notebook's own sentences are set in Plex everywhere in the outline, including rows that cite a source, glosses, perspectives and questions, and their previews in Find and on hover. Piazzolla stays for titles, headings, quotes and the reader.
 - Sources by the same author keep a three-letter siglum and add a year, a title initial or a number to tell them apart, as `MAT`, `MAT19` and `MAT2`, instead of lengthening the surname.
 - Read, Compare, the research desk and tables all call a holder's stance a perspective, with the same counts, tabs and actions.
