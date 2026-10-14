@@ -2897,6 +2897,8 @@ describe('durable Action and Learning document commands', () => {
   test('make perspective undo and redo round trip through the API', async () => {
     const instance = await client();
     const holder = await instance.createPage(`Perspective holder ${++serial}`);
+    await instance.flush();
+    await instance.commit([{ op: 'add_type', id: holder, base_revision: (await api.block(holder)).revision, title: 'Person' }]);
     const { doc, first, id } = await page(instance, `[[${holder}]]`);
     expect(doc.edit({ kind: 'position', id, value: true }).ok).toBe(false);
     success(doc.edit({ kind: 'position', id: first, value: true }));
@@ -2914,7 +2916,9 @@ describe('durable Action and Learning document commands', () => {
     expect(doc.block(first)?.position).toEqual({ holder_id: holder, subject_id: id });
     success(doc.edit({ kind: 'text', id: first, text: 'Unattributed' }));
     await doc.flush();
-    expect(doc.block(first)?.position).toEqual({ holder_id: null, subject_id: id });
+    // Losing its holder keeps the perspective and reports a problem to fix.
+    expect(doc.block(first)?.position).toMatchObject({ holder_id: null, subject_id: id });
+    expect(doc.block(first)?.position?.problem).toBeTruthy();
     expect((await api.positions({ holder })).rows).toEqual([]);
     doc.release();
   });
