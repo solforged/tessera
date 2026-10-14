@@ -1283,6 +1283,8 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     if (!readerTarget()) return outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, '');
     return page?.status() !== 'ready' ? 'Page is unavailable' : localPositionCount(page) < 2 ? 'Compare needs two perspectives on this page' : undefined;
   };
+  // Journals and other untitled roots have no projections, so their zooms carry neither the tabs nor Read's reason.
+  const projectionTabsShown = () => root()?.kind === 'page' || !!outlineView().zoom && !!doc()?.block(outlineView().zoom!)?.position;
   const ProjectionTabs = () => <div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Page projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} aria-describedby={value === 'read' && projectionReason(value) ? `read-reason-${props.pane}` : undefined} onClick={event => setProjection(value, opensBeside(event))}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div>;
   const breadcrumbs = createMemo(() => {
     const page = doc(); const zoom = 'zoom' in current().view ? outlineView().zoom : null; if (!page || !zoom) return [];
@@ -1372,7 +1374,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
-        <Show when={root()?.kind === 'page' || outlineView().zoom && doc()?.block(outlineView().zoom!)?.position}><ProjectionTabs /></Show>
+        <Show when={projectionTabsShown()}><ProjectionTabs /></Show>
         <Show when={showDial()}><div class="depth-dial" role="group" aria-label="Depth">
           <For each={depthStops}>{stop => <button type="button" class="depth-stop" aria-pressed={depth() === stop} title={`${depthLabels[stop]} (${stop === 'gloss' ? '[' : stop === 'full' ? ']' : '[ ]'})`}
             onClick={event => { if (depth() === stop && getComputedStyle(event.currentTarget.parentElement!.querySelector('.depth-label')!).display === 'none') setDepthMenu(event.currentTarget); else outlineCommand(`depth-${stop}`)?.run(); }}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
@@ -1398,7 +1400,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Page menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
-    <Show when={pageId() && outlineView().zoom && projectionReason('read')}>{reason => <p class="page-projection-reason" id={`read-reason-${props.pane}`} role="status">{reason()}</p>}</Show>
+    <Show when={pageId() && outlineView().zoom && projectionTabsShown() && projectionReason('read')}>{reason => <p class="page-projection-reason" id={`read-reason-${props.pane}`} role="status">{reason()}</p>}</Show>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
     <Show when={copyMessage() && !menu()}><p class="page-projection-reason" role="status">{copyMessage()}</p></Show>
     <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} projection={projection()} onProjection={setProjection} projectionReason={projectionReason} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
