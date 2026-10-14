@@ -41,7 +41,8 @@ import { GLOSS_FIELD, glossEntry } from './gloss';
 import { positionFields, positionSource as sharedPositionSource } from './perspectives';
 import { Apparatus } from './Apparatus';
 import { createFieldEntryConversion, createSourceFieldResets, ensureField, isFreshField, settleField } from './source-fields';
-import { setFreshFieldKind } from '../fields/commands';
+import { addTemplateField, setFreshFieldKind } from '../fields/commands';
+import { templateOffer } from '../fields/template-offer';
 import { kindNoun } from '../fields/kinds';
 import { guessFieldKind } from '../fields/value-reading';
 import { sourceFieldName } from './source';
@@ -136,13 +137,14 @@ function Pane(props: OutlinePaneProps) {
   const [textRange, setTextRange] = createSignal<TextRange | null>(null);
   const [composition, setComposition] = createSignal(false);
   const [message, setMessage] = createSignal('');
-  const [notice, setNotice] = createSignal<{ label: string; undo?: () => Promise<void> } | null>(null);
+  /** A change with its Undo, or an offer whose action stands in for Undo. */
+  const [notice, setNotice] = createSignal<{ label: string; undo?: () => Promise<void>; action?: { label: string; run: () => Promise<void> } } | null>(null);
   const [noticeBusy, setNoticeBusy] = createSignal(false);
   const [noticeHeld, setNoticeHeld] = createSignal(false);
-  function showNotice(label: string, undo?: () => Promise<void>) {
+  function showNotice(label: string, undo?: () => Promise<void>, action?: { label: string; run: () => Promise<void> }) {
     setMessage('');
     setNoticeHeld(false);
-    setNotice({ label, undo });
+    setNotice({ label, undo, action });
   }
   createEffect(() => {
     if (!notice() || noticeHeld() || noticeBusy()) return;
@@ -151,8 +153,16 @@ function Pane(props: OutlinePaneProps) {
   });
   // A newer outline edit returns keyboard history to this document. Until then the notice owns Undo.
   createEffect(on(() => doc.saveState(), state => {
-    if (state !== 'saved') setNotice(null);
+    if (state !== 'saved' && notice()?.undo) setNotice(null);
   }, { defer: true }));
+  async function runNoticeAction() {
+    const current = notice();
+    if (!current?.action || noticeBusy()) return;
+    setNoticeBusy(true);
+    try { await current.action.run(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : String(error)); if (notice() === current) setNotice(null); }
+    finally { setNoticeBusy(false); restoreFocus(); }
+  }
   async function undoNotice() {
     const current = notice();
     if (!current?.undo || noticeBusy()) return;
@@ -241,6 +251,7 @@ function Pane(props: OutlinePaneProps) {
     onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]),
     onCommitted: (id, next, epoch, focus, field) => {
       setMessage('');
+      offerTemplateField(id);
       setFolds(previous => { const next = new Set(previous); next.delete(id); return next; });
       if (next && focusEpoch === epoch) {
         setSelected(next.id);
@@ -258,7 +269,29 @@ function Pane(props: OutlinePaneProps) {
   function commitFieldEntry(id: string, focus = true) {
     linkTitles(id);
     settleFreshField(id);
+    offerTemplateField(doc.outline.parentOf(id));
     return fieldConversion.shorthand(id, focus);
+  }
+  /**
+   * After a field entry on a typed block gets a value, offers to add the field to the type's template when another
+   * member already uses it.
+   */
+  function offerTemplateField(entryId: string | null | undefined) {
+    const fieldId = entryId ? fieldEntryId(doc.block(entryId)?.text ?? '') : null;
+    const ownerId = entryId ? doc.outline.parentOf(entryId) : null;
+    const owner = ownerId ? doc.block(ownerId) : undefined;
+    if (!fieldId || !owner || !doc.outline.children(entryId!).some(id => doc.block(id)?.text.trim())) return;
+    void templateOffer(props.notebook, owner, fieldId).then(offer => {
+      if (!offer || disposed) return;
+      const name = definitionsById().get(fieldId)?.name ?? 'This field';
+      // The tag as the owner spells it, else the type's title.
+      const typed = textTokens(owner.text).find(token => token.kind === 'tag' && token.value.trim().toLowerCase() === offer.type.page.text.toLowerCase());
+      const tag = typed ? `#${typed.value.trim()}` : offer.type.page.text;
+      showNotice(`${name} is on another ${tag} too.`, undefined, { label: `Add to ${tag}`, run: async () => {
+        const change = await addTemplateField(props.notebook, offer.type, fieldId);
+        showNotice(`${name} added to ${tag}.`, change.undo);
+      } });
+    }, () => {});
   }
   /** Leaving the first value of a field `name::` just created gives the field the kind that value suggests. */
   function settleFreshField(id: string) {
@@ -1693,7 +1726,11 @@ function Pane(props: OutlinePaneProps) {
       <Show when={notice()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setNoticeHeld(true)} onPointerLeave={() => setNoticeHeld(false)} onFocusIn={() => setNoticeHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNoticeHeld(false); }}>
         <span>{value().label}</span>
         <Show when={value().undo}><Button class="notice-undo" icon="undo" disabled={noticeBusy()} onClick={() => { void undoNotice(); }}>Undo</Button></Show>
-        <Button icon="close" label="Dismiss change notice" disabled={noticeBusy()} onClick={() => setNotice(null)} />
+        <Show when={value().action}>{action => <>
+          <Button class="notice-undo" disabled={noticeBusy()} onClick={() => { void runNoticeAction(); }}>{action().label}</Button>
+          <Button class="notice-undo" disabled={noticeBusy()} onClick={() => setNotice(null)}>Not now</Button>
+        </>}</Show>
+        <Show when={!value().action}><Button icon="close" label="Dismiss change notice" disabled={noticeBusy()} onClick={() => setNotice(null)} /></Show>
       </div>}</Show>
     </div>
   </>;

@@ -615,6 +615,8 @@ A page made for a tag or by Add type goes away again once no tag, manual type or
 
 `name::` reads as a field label while it is typed: the field icon, the name in `--muted`, and a tinted hint at the end. A name no field has reads New field, then New number field or the kind its value suggests once one is typed. A known field shows its kind until a value is typed. Leaving the first value of a field just made this way sets that kind and shows a notice, such as page count is now a number field, with Undo.
 
+Leaving a value on a tagged block may instead show the template offer, such as strength is on another #proposition too, with Add to #proposition and Not now buttons. It names the tag as the block spells it. An offer stays while you keep typing, because it has no Undo to compete with the outline's. Add replaces it with a notice that has Undo.
+
 Space straight after `::`, or Tab anywhere in the name, makes the entry at once and puts the caret in its value; leaving the block converts it as before. `::` at the start of a block opens a field picker listing each field with its kind and Create field for a new name, and picking makes the entry the same way. Conversion, including its first empty value, is one undo step.
 
 The picker puts the owner's missing template fields first, in template order, and fields the owner already has last. A choice field's value offers its options as you type, with Add option for a new one. A new date entry opens the date picker for its value, and a new relation entry opens the relation picker.

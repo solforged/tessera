@@ -123,6 +123,14 @@ export async function setFreshFieldKind(notebook: NotebookClient, fieldId: strin
   }], [definition.page_id], 'Set field kind');
 }
 
+/** An existing field placed last in a type's template; Undo restores the template it had. */
+export async function addTemplateField(notebook: NotebookClient, type: Type, fieldId: string): Promise<DocumentChange> {
+  return commit(notebook, [{
+    forward: { op: 'set_type_fields', type_id: type.page.id, base_revision: type.page.revision, fields: [...type.fields, fieldId] },
+    backward: { op: 'set_type_fields', type_id: type.page.id, base_revision: 0, fields: type.fields },
+  }], [type.page.id], 'Add field to template');
+}
+
 /** A new definition placed last in a type's template, as one undoable change. */
 export async function createTemplateField(notebook: NotebookClient, type: Type, name: string, kind: FieldKind): Promise<DocumentChange> {
   const register = await notebook.api.fields();

@@ -306,7 +306,7 @@ span.pane-breadcrumbs { display: block; overflow: hidden; text-overflow: ellipsi
 .shell-error, .save-banner.error, .pane-error { color: var(--danger); }
 .pane-error { display: block; }
 .startup-state { padding: 48px 24px; color: var(--muted); }
-.undo-toast { position: fixed; bottom: calc(24px + var(--bottom-inset)); left: 50%; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 24px); padding: 10px 12px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); font-size: var(--text-control); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
+.undo-toast { position: fixed; bottom: calc(24px + var(--bottom-inset)); left: 50%; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 12px; width: max-content; max-width: calc(100vw - 24px); padding: 10px 12px; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); font-size: var(--text-control); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
 /* Between a notebook switch and the reload, the window is covered so nothing is edited in the notebook being left. */
 .notebook-opening { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: color-mix(in srgb, var(--canvas) 86%, transparent); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 /* Toasts and anchored toolbars rise into place; `translate` leaves their positioning transforms alone. */
@@ -338,6 +338,7 @@ span.pane-breadcrumbs { display: block; overflow: hidden; text-overflow: ellipsi
 details::details-content { opacity: 0; overflow: clip; block-size: 0; interpolate-size: allow-keywords; transition: block-size var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease), content-visibility var(--motion-ui) allow-discrete; }
 details[open]::details-content { opacity: 1; block-size: auto; }
 .undo-toast > span { min-width: 0; overflow-wrap: anywhere; }
+.undo-toast > button { flex: none; white-space: nowrap; }
 .popup-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 :is(.popup, .popup-exit) p { margin: 4px 0 12px; }
 :is(.popup, .popup-exit) label { display: block; margin-bottom: 8px; font-size: var(--text-control); }

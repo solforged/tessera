@@ -226,6 +226,8 @@ A field's detail read may count readable and problem values using a proposed kin
 
 A type may carry a template: an ordered list of fields shown first in its table and offered as empty slots in its members' field areas. Members' other fields follow the template, which is never required. Fill missing fields on the type page writes empty entries for members only when asked.
 
+A template can grow from use. When a member's field gets a value and another member of that type already has one, the outline offers to add the field to the template, such as “strength is on another #proposition too”, with Add and Not now buttons. A field used once is never offered, since it may be a one-off. Each type and field is offered once per window, whatever the answer, and Add has an Undo.
+
 ## Queries and views
 
 A query selects notes, questions, positions, sources, tasks or highlights with `source`. Omitting it preserves the existing type, text and field-owner selection. An explicit notes source without a type selects titled notes; type tables still include tagged blocks. Other sources select the entity's own block, not its containing page. Every row names both and carries its ordinary field values with their value block IDs for editing.
