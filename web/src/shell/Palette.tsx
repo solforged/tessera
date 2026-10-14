@@ -207,7 +207,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   };
   return <Picker<Entry> anchor={props.anchor} placement="top" width={mode() === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${mode() === 'search' ? 'palette-search' : ''}`} onDismiss={props.onDismiss}
     style={{ '--visual-viewport-height': `${viewportSize().height}px`, '--visual-viewport-top': `${viewportSize().top}px` }}
-    query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find in pages and books, or create a page' : 'Find a command'}
+    query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find or create a page' : 'Find a command'}
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
     queryActions={<Button class="find-cancel" onClick={props.onDismiss}>Cancel</Button>}
     preview={<Show when={mode() === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
