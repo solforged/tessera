@@ -17,12 +17,13 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { captureQuoteCompletion, completedReference, completionPickKey, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { captureQuoteCompletion, completedReference, completionPickKey, completionTakesKey, engagedToken, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt } from './completion';
+import type { CompletionToken } from './completion';
 import { rankSlash, slashTokenAt } from './slash';
 import { insertCard } from './card-insert';
 import type { InsertCardKind } from './card-insert';
 import type { SlashEntry, SlashToken } from './slash';
-import { completeTypes, typeSpelling, typeTokenAt } from './type-completion';
+import { completeTypes, typeChoiceSpelling, typeTokenAt } from './type-completion';
 import type { OutlineContext } from './context';
 import { createPageIcon } from './source';
 import { emptyExtraValuePrevious } from './keyboard';
@@ -30,7 +31,7 @@ import { addRelationReason, relationKinds, relationLabels, relationReason } from
 import { questionDescriptions, questionVerbs } from './question-verbs';
 
 /** An open page/block reference, a type query, `::` field name, or the manual Add type picker. */
-export interface Completion { from: number; to: number; query: string; types?: boolean; blocks?: boolean; quote?: boolean; fields?: boolean; manual?: { blockId: string; anchor: HTMLElement }; relationTarget?: { parentId: string; kind: RelationKind; anchor: HTMLElement; sourceText?: string } }
+export interface Completion { from: number; to: number; query: string; offered?: boolean; types?: boolean; blocks?: boolean; quote?: boolean; fields?: boolean; manual?: { blockId: string; anchor: HTMLElement }; relationTarget?: { parentId: string; kind: RelationKind; anchor: HTMLElement; sourceText?: string } }
 /** A slash-menu row: a block verb (`run`) or syntax that replaces the token (`insert`), or both. */
 interface SlashItem extends SlashEntry {
   section: string;
@@ -195,7 +196,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       return;
     }
     if (!rewriteEditing(id, next)) return;
-    if (insertion || item.cardKind) { updateCompletion(next.text, { id, offset: next.caret }); updateTriggers(next.text, { id, offset: next.caret }); }
+    if (insertion || item.cardKind) { updateCompletion(next.text, { id, offset: next.caret }, true); updateTriggers(next.text, { id, offset: next.caret }); }
     void doc.flush().catch(reason => capabilities.failure(id, reason));
     item.run?.(id);
     scheduleReport();
@@ -242,7 +243,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   }
   function popupKey(event: KeyboardEvent) {
     const state = completion();
-    if (!state) return false;
+    if (!state || !completionTakesKey(event, !state.offered)) return false;
     if (event.key === 'Enter' && event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey && !state.manual && !state.relationTarget && !state.types && !state.fields && context.editor && !textRange() && context.editor.view.state.selection.main.empty) {
       const id = context.editor.id;
       const text = context.editor.view.state.doc.toString();
@@ -309,14 +310,17 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (!reference) return null;
     return { ...reference, quote: reference.blocks && isQuoteCompletion(text, reference.from, reference.to) };
   }
-  function updateCompletion(text: string, at: Caret) {
+  let engaged: CompletionToken | null = null;
+  /** `typed` is false when only the caret moved or the text was synced, so the picker is offered but not engaged. */
+  function updateCompletion(text: string, at: Caret, typed: boolean) {
     if (completion()?.manual || completion()?.relationTarget) return;
     const next = completionAt(text, at);
+    engaged = engagedToken(engaged, next && { id: at.id, from: next.from, query: next.query }, typed);
     if (!next) { setCompletion(null); return; }
     if (dismissedCompletion && dismissedCompletion.id === at.id && dismissedCompletion.from === next.from && dismissedCompletion.query === next.query) return;
     dismissedCompletion = null;
     if (completion()?.query !== next.query) setCompletionIndex(0);
-    setCompletion(next);
+    setCompletion(engaged ? next : { ...next, offered: true });
   }
   // A primitive key: every keystroke sets a fresh completion object, and the same query must not fetch twice.
   const completionKey = createMemo(() => {
@@ -364,6 +368,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     for (const field of byId.values()) rows.push({ kind: 'field', field });
     return rows;
   });
+  /** An offered picker highlights no row, since Enter leaves it to the editor. */
+  const pickable = (index: number) => !completion()?.offered && completionIndex() === index;
   /** As in Find or create, a query that names nothing exactly offers creation after the matches. */
   const canCreate = createMemo(() => {
     const state = completion();
@@ -480,7 +486,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       const source = editing();
       const title = row?.kind === 'block' ? row.block.text : canCreate() ? state.query.trim() : null;
       if (!source || !context.editor || !title || matches.error) return;
-      const inserted = `${typeSpelling(title)} `;
+      const inserted = `${typeChoiceSpelling(state.query, title)} `;
       const selectionBefore = activeRange() ?? undefined;
       setCompletion(null);
       // Text tags and Add type share the notebook's type-page derivation, including new page creation.
@@ -591,14 +597,14 @@ function CompletionPopups(){ return <>
         <Show when={quoteBusy()}><p class="empty-state" role="status">Capturing quote…</p></Show>
         <Show when={completionKey() && matches.loading && !completionRows().length && !canCreate()}><p class="empty-state">Searching…</p></Show>
         <Show when={completionKey() && matches.error}><p class="error" role="alert">Couldn't load completion.</p></Show>
-        <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={completionIndex() === index()} class="picker-row" classList={{ selected: completionIndex() === index() }} onClick={() => void chooseCompletion(index())}>
+        <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={pickable(index())} class="picker-row" classList={{ selected: pickable(index()) }} onClick={() => void chooseCompletion(index())}>
           <Show when={row.kind === 'block' ? row.block : null}>{block => {
             const icon = createPageIcon(props.notebook, block);
             return <><Icon name={icon()} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>;
           }}</Show>
           <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">{completion()?.fields ? kindLabels[field().kind] : 'Field'}</span></>}</Show>
         </div>}</For>
-        <Show when={canCreate()}><div role="option" aria-selected={completionIndex() === completionRows().length} class="picker-row" classList={{ selected: completionIndex() === completionRows().length }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">{completion()?.fields ? 'Create field' : completion()?.types ? 'Create type' : 'Create page'} “{completion()?.query.trim()}”</span></div></Show>
+        <Show when={canCreate()}><div role="option" aria-selected={pickable(completionRows().length)} class="picker-row" classList={{ selected: pickable(completionRows().length) }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">{completion()?.fields ? 'Create field' : completion()?.types ? 'Create type' : 'Create page'} “{completion()?.query.trim()}”</span></div></Show>
         <Show when={!(completionKey() && (matches.loading || matches.error)) && !canCreate() && !completionRows().length}><p class="empty-state">{
           completion()?.fields ? 'Type a field name.' : completion()?.blocks && !completion()?.query.trim() ? 'Type to search blocks.' : 'No matching blocks.'
         }</p></Show>

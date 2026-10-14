@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { completeTypes, typeSpelling, typeTokenAt } from './type-completion';
+import { completeTypes, typeChoiceSpelling, typeSpelling, typeTokenAt } from './type-completion';
 import type { NotebookClient } from '../document/contract';
 import type { Block } from '../api/types';
 
@@ -72,5 +72,13 @@ describe('type spelling', () => {
     expect(typeSpelling('書籍_2/notes-book')).toBe('#書籍_2/notes-book');
     expect(typeSpelling('Reading list')).toBe('#[[Reading list]]');
     expect(typeSpelling('C++')).toBe('#[[C++]]');
+  });
+
+  test('accepting a type that matches the typed tag ignoring case keeps the typed spelling', () => {
+    expect(typeChoiceSpelling('proposition', 'Proposition')).toBe('#proposition');
+    expect(typeChoiceSpelling('PROPOSITION', 'Proposition')).toBe('#PROPOSITION');
+    expect(typeChoiceSpelling('c++', 'C++')).toBe('#[[c++]]');
+    // A prefix picks the title, spelled as the title.
+    expect(typeChoiceSpelling('prop', 'Proposition')).toBe('#Proposition');
   });
 });

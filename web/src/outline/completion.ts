@@ -21,6 +21,22 @@ export function completionPickKey(event: Pick<KeyboardEvent, 'key' | 'shiftKey' 
   return (event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey;
 }
 
+export interface CompletionToken { id: string; from: number; query: string }
+/**
+ * Typing engages a completion's token. A caret that only lands in a token (a click, End, undo) offers its picker
+ * without engaging it, and the token stays engaged while the caret moves within it unchanged.
+ */
+export function engagedToken(previous: CompletionToken | null, next: CompletionToken | null, typed: boolean): CompletionToken | null {
+  if (!next) return null;
+  if (typed) return next;
+  return previous && previous.id === next.id && previous.from === next.from && previous.query === next.query ? previous : null;
+}
+
+/** An offered completion leaves every key but Escape to the editor, so Enter still splits and Tab still indents. */
+export function completionTakesKey(event: Pick<KeyboardEvent, 'key'>, engaged: boolean): boolean {
+  return engaged || event.key === 'Escape';
+}
+
 /** ISO date references name existing journals, never newly created ordinary pages. */
 export function isJournalReference(query: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(query.trim());
