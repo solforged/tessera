@@ -88,7 +88,7 @@ export function ProjectControls(props: ProjectControlsProps) {
       <Show when={deadlineAnchor()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor()} label="Deadline" value={current().deadline} contextDate={props.contextDate} onDismiss={() => setDeadlineAnchor(null)} onSelect={value => save({ ...current(), outcome: outcome().trim(), deadline: value.date })} />}</Show>
       <Show when={statusAnchor()}>{anchor => <Menu anchor={anchor()} label="Project status" onDismiss={() => setStatusAnchor(null)} items={statuses.map(status => ({
         label: statusLabels[status],
-        icon: status === current().status ? 'check' as const : undefined,
+        checked: status === current().status,
         action: () => { void save({ ...current(), outcome: outcome().trim(), status }); },
       }))} />}</Show>
     </Show>

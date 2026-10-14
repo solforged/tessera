@@ -99,7 +99,7 @@ export function SourceHeader(props: {
   const fail = (error: unknown) => props.onError(error instanceof Error ? error.message : String(error));
   function stateMenu(anchor: HTMLElement) {
     setMenu({ anchor, label: 'Reading state', items: (Object.keys(stateLabels) as ReadingState[]).map(state => ({
-      label: stateLabels[state], icon: props.doc.root()?.source?.state === state ? 'check' : undefined,
+      label: stateLabels[state], checked: props.doc.root()?.source?.state === state,
       action: () => {
         const current = props.doc.root()?.source;
         if (!current) return;
@@ -195,8 +195,8 @@ export function SourceHeader(props: {
       <Show when={props.highlights!.total > 0}><div class="outline-source-highlight-controls">
         <div class="outline-source-highlight-colors" role="group" aria-label="Highlight colours"><For each={highlightColors}>{color => <Button class="icon-only" aria-label={`Filter ${color} highlights`} aria-pressed={props.colors.includes(color)} onClick={() => props.onColors(props.colors.includes(color) ? props.colors.filter(value => value !== color) : [...props.colors, color])}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /></Button>}</For></div>
         <Button class="outline-source-group" aria-haspopup="menu" onClick={event => setMenu({ anchor: event.currentTarget, label: 'Group highlights', items: [
-          { label: 'By chapter', icon: props.grouped ? 'check' : undefined, action: () => props.onGrouped(true) },
-          { label: 'Reading order', icon: !props.grouped ? 'check' : undefined, action: () => props.onGrouped(false) },
+          { label: 'By chapter', checked: props.grouped, action: () => props.onGrouped(true) },
+          { label: 'Reading order', checked: !props.grouped, action: () => props.onGrouped(false) },
         ] })}>{props.grouped ? 'By chapter' : 'Reading order'}<Icon name="down" /></Button>
       </div></Show>
     </div></Show>

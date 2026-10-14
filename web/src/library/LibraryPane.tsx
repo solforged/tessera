@@ -1089,8 +1089,8 @@ export function LibraryPane(props: LibraryPaneProps) {
             <Button class="library-sort" aria-haspopup="menu" label="Sort and group sources" onClick={event => {
               const anchor = event.currentTarget;
               setPopup({ kind: 'menu', anchor, label: 'Sort and group sources', items: [
-                ...sorts.map(item => ({ section: 'Sort', label: item.label, icon: target().sort === item.id ? 'check' as const : undefined, action: () => update({ view: null, sort: item.id, scroll: 0 }) })),
-                ...groupings.map(item => ({ section: 'Group', label: item.label, icon: target().group === item.id ? 'check' as const : undefined, action: () => update({ group: item.id }) })),
+                ...sorts.map(item => ({ section: 'Sort', label: item.label, checked: target().sort === item.id, action: () => update({ view: null, sort: item.id, scroll: 0 }) })),
+                ...groupings.map(item => ({ section: 'Group', label: item.label, checked: target().group === item.id, action: () => update({ group: item.id }) })),
                 { section: 'View', label: 'Save view…', disabledReason: saving() ? 'Saving…' : undefined, action: () => setPopup({ kind: 'name', anchor, saved: null, id: ulid() }) },
               ] });
             }}>{sorts.find(item => item.id === target().sort)!.label}<Show when={target().group !== 'none'}><span class="library-sort-group"> · by {groupings.find(item => item.id === target().group)!.label.toLowerCase()}</span></Show><Icon name="down" /></Button>
