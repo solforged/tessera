@@ -157,7 +157,7 @@ Named task views store the `TaskQuery`, never the line's spelling, and preserve 
 
 Day rows have a fixed left mono time gutter, blank for untimed work, then the status glyph and source text, with muted page provenance at the right. Journal provenance reads Journal rather than repeating the stored ISO date; the full page title remains in its tooltip and accessible name.
 
-Planning facts sit below the task text, omit dates implied by a day group, and show a carried schedule only as `since Tue 6`, not also an ISO date. Task-query and [journal](journal.md#today-tiles) rows retain their compact status, source and trailing planning layout.
+Planning facts sit below the task text, omit dates implied by a day group and a project the row already names as its provenance, and show a carried schedule only as `since Tue 6`, not also an ISO date. Task-query and [journal](journal.md#today-tiles) rows retain their compact status, source and trailing planning layout.
 
 On touch, Agenda task rows and their completion/source controls are at least 44 px high; the cover's content insets are equal. The whole row takes the hover fill and long task text clamps at two lines. Planning uses the same facts as outline rows, with carried or missed dates in `--danger`.
 
