@@ -18,7 +18,7 @@ Descriptor card is under `/` and under Space c as `d`. Its review source line le
 
 ### Questions and notes
 
-The queue tabs switch between Cards and Questions and notes. The latter shows its due count and lists notes and non-parked page or inline questions whose revisit date is today or earlier, earliest first. The sidebar badge combines cards and revisits; its accessible name and tooltip give each count separately.
+The queue tabs switch between Cards and Questions and notes. Both sit on the cards landing's measure, and Questions and notes repeats its Review eyebrow and page title position, so switching keeps one column edge. Questions and notes shows its due count and lists notes and non-parked page or inline questions whose revisit date is today or earlier, earliest first. The sidebar badge combines cards and revisits; its accessible name and tooltip give each count separately.
 
 An empty Questions and notes queue explains that Set Revisit on a note or question brings it here when its revisit date arrives.
 

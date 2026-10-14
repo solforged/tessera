@@ -1,17 +1,21 @@
 .review-queues { display: flex; flex-direction: column; min-height: 0; height: 100%; }
-.review-kind-tabs { flex: none; flex-wrap: wrap; padding-inline: var(--pane-inset); }
+/* The kind switch and the questions queue sit on the cards landing's measure, so switching kinds keeps one column edge. */
+.review-kind-tabs.review-queue-controls { flex: none; flex-wrap: wrap; align-self: center; width: min(var(--measure), 100% - 2 * var(--pane-inset)); margin: var(--space-8) 0 0; }
 .review-queues > .review-pane, .notes-review { flex: 1; min-height: 0; }
-.notes-review { display: flex; flex-direction: column; overflow: auto; }
-.notes-review-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-12); padding: var(--space-16) var(--pane-inset); }
-.notes-review-heading h1 { margin: 0; font: var(--page-title-font); }
-.notes-review-heading > span, .revisit-meta, .note-revisit > span { color: var(--muted); font: var(--apparatus); }
+.notes-review { display: flex; flex-direction: column; overflow: auto; padding: 0 var(--pane-inset) var(--page-bottom-space); }
+.notes-review > :not(.revisit-outline) { width: 100%; max-width: var(--measure); margin-inline: auto; }
+.notes-review > .empty-state { margin-block: 0; }
+.notes-review-heading { display: flex; align-items: flex-end; gap: var(--space-8); padding: var(--page-top-space) 0 var(--page-head-gap); }
+.notes-review-heading .review-heading h1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-12); margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.notes-review-heading .review-heading h1 > span, .revisit-meta, .note-revisit > span { color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .revisit-meta { display: block; }
-.revisit-queue { display: flex; flex-wrap: wrap; gap: var(--space-8); padding-inline: var(--pane-inset); }
+.revisit-queue { display: flex; flex-wrap: wrap; gap: var(--space-8); }
 .revisit-queue > .button { flex-direction: column; align-items: flex-start; max-width: 100%; white-space: normal; text-align: left; }
 .revisit-queue > [aria-pressed="true"] { color: var(--accent); }
 .revisit-action-bar, .note-revisit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
-.revisit-action-bar { padding: var(--space-12) var(--pane-inset); border-bottom: var(--rule-width) solid var(--line); }
-.revisit-outline { flex: 1; min-height: calc(var(--space-48) * 6); }
+.revisit-action-bar { padding-block: var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
+/* The note's outline keeps the pane's full width and its own insets. */
+.revisit-outline { flex: 1; min-height: calc(var(--space-48) * 6); margin-inline: calc(-1 * var(--pane-inset)); }
 .revisit-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-12); }
 /* In a note's apparatus line Revisit is one more mono item: muted, gilt on hover and once its date is due. */
 .note-line .note-revisit { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-8); }

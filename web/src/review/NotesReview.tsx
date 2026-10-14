@@ -39,7 +39,8 @@ export function NotesReview(props: ReviewPaneProps & { rows: RevisitRow[]; error
   }
   const openConfirmation = (anchor: HTMLElement, row: RevisitRow, action: 'revisited' | 'keep_recurrent') => { setNext(row.proposed_on); setConfirm({ anchor, row, action }); };
   return <div class="notes-review">
-    <header class="notes-review-heading"><h1>Questions and notes</h1><span>{props.rows.length} due</span>
+    <header class="notes-review-heading">
+      <div class="review-heading"><div class="review-register">Review</div><h1>Questions and notes<span>{props.rows.length} due</span></h1></div>
       <Show when={history()}><Button disabled={busy()} onClick={() => { void travel(); }}>{undone() ? 'Redo revisit' : 'Undo revisit'}</Button></Show>
     </header>
     <Show when={props.error || error()}><p class="pane-error" role="alert">{props.error || error()}</p></Show>
