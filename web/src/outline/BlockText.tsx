@@ -9,7 +9,7 @@ import { createCitationSources } from './source-reads';
 import { Menu } from '../ui/Menu';
 import { foldName, nameMenuItems, plainText, referenceLabel, resolveName } from './names';
 import type { NameMatch } from '../api/types';
-import { cardMarks } from '../review/card-text';
+import { cardMarks, cardOperators } from '../review/card-text';
 import type { CardMark } from '../review/card-text';
 
 import { isStableReference, isViewReference, quoteTarget, textTokens } from '../document/text-tokens';
@@ -32,7 +32,6 @@ interface Props {
 
 interface DisplayToken extends Token { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean; matches?: NameMatch[] }
 interface TokenGroup { mark?: CardMark; tokens: Token[] }
-const operators = { '>>': { label: 'then', text: '→' }, '<<': { label: 'from', text: '←' }, '<>': { label: 'both ways', text: '↔' }, '>>>': { label: 'child answer', text: '↓' }, '>>1.': { label: 'list answer', text: '↓1.' }, ';;': { label: 'descriptor', text: '›' } };
 
 /** A whole-row `((ID))` reads as a quote of its target wherever a block shows as text: backlinks, breadcrumbs, search. */
 export function BlockText(props: Props) {
@@ -49,18 +48,20 @@ function TokenText(props: Props) {
   const [matches] = createResource(() => names().length ? [names().join('\u0000'), props.notebook.changeSequence()] as const : false, async ([value]) =>
     new Map(await Promise.all(value.split('\u0000').map(async name => [foldName(name), await resolveName(props.notebook, name)] as const))));
   const [views] = createResource(() => textTokens(props.text).some(isViewReference) ? props.notebook.changeSequence() : false, () => props.notebook.api.views());
+  // Card syntax reads the same everywhere text is shown; mapped literals keep caret positions exact around it.
+  const marks = createMemo(() => cardMarks(props.text));
+  const mapped = () => props.cards || marks().length > 0;
   const groups = createMemo(() => {
-    const marks = props.cards ? cardMarks(props.text) : [];
     const result: TokenGroup[] = [];
     const add = (start: number, end: number, mark?: CardMark) => {
       const tokens = textTokens(props.text.slice(start, end)).map(token => ({ ...token, start: token.start + start, end: token.end + start }));
       result.push({ mark, tokens });
     };
     let offset = 0;
-    for (const mark of marks) {
+    for (const mark of marks()) {
       if (offset < mark.start) add(offset, mark.start);
       if (mark.kind === 'cloze') add(mark.answerStart, mark.answerEnd, mark);
-      else result.push({ mark, tokens: [{ start: mark.start, end: mark.end, kind: 'text', value: operators[mark.op].text }] });
+      else result.push({ mark, tokens: [{ start: mark.start, end: mark.end, kind: 'text', value: cardOperators[mark.op].text }] });
       offset = mark.end;
     }
     if (offset < props.text.length) add(offset, props.text.length);
@@ -123,7 +124,7 @@ function TokenText(props: Props) {
   function renderTokens(tokens: DisplayToken[]) {
     return <For each={tokens}>{token => <>
       <Show when={token.literal}>
-        <Show when={props.cards} fallback={text(token)}><span data-source-start={token.start} data-source-end={token.end} data-source-literal>{text(token)}</span></Show>
+        <Show when={mapped()} fallback={text(token)}><span data-source-start={token.start} data-source-end={token.end} data-source-literal>{text(token)}</span></Show>
       </Show>
       <Show when={!token.literal && token.kind === 'reference'}>
         <Show when={props.interactive !== false || token.matches && props.blockId} fallback={<span class="outline-reference" classList={{ 'outline-reference-ambiguous': !!token.matches, 'outline-citation': !!citationSources()?.has(token.id!) && !!(token.alias || token.locator) }} data-source-start={token.start} data-source-end={token.end} data-reference={isStableReference(token) ? token.id : undefined}>
@@ -155,7 +156,7 @@ function TokenText(props: Props) {
   }
   return <><For each={displayed()}>{group => {
     const mark = group.mark;
-    if (mark?.kind === 'operator') return <span class="card-operator" aria-label={operators[mark.op].label} data-source-start={mark.start} data-source-end={mark.end}>{text(group.tokens[0]!)}</span>;
+    if (mark?.kind === 'operator') return <span class="card-operator" aria-label={cardOperators[mark.op].label} data-source-start={mark.start} data-source-end={mark.end}>{text(group.tokens[0]!)}</span>;
     if (mark?.kind === 'cloze') return <span class="card-cloze" title={`Cloze ${mark.id}${mark.hintStart === null ? '' : ` · ${props.text.slice(mark.hintStart, mark.hintEnd!)}`}`}>{renderTokens(group.tokens)}</span>;
     return renderTokens(group.tokens);
   }}</For><Show when={menu()}>{state => <Menu anchor={state().anchor} label="Choose a page" header={<div class="menu-section">“{state().token.id}” names {state().token.matches!.length} pages</div>}

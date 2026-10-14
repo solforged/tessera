@@ -4,6 +4,7 @@ import type { Token } from '../document/text-tokens';
 import { isStableReference, isViewReference, quoteTarget, textTokens } from '../document/text-tokens';
 import type { MenuItem } from '../ui/Menu';
 import { documentReady } from './source-fields';
+import { cardMarks, cardOperators } from '../review/card-text';
 
 /** Names compare as the core folds them: no case, diacritics or apostrophes, and any other run of spaces or punctuation is one space. */
 export function foldName(value: string): string {
@@ -72,6 +73,15 @@ export function plainText(text: string, lookup: NotebookClient['lookup'], seen: 
   const quoted = quoteTarget(text);
   if (quoted) return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)(), lookup, seen)}”`;
   return textTokens(text).map(token => isViewReference(token) ? token.alias || 'Saved view' : isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${token.value}` : token.value).join('');
+}
+/** Plain text as a reader sees it: card operators as their arrows and clozes as their answers. Never use it for text that is written back. */
+export function readableText(text: string, lookup: NotebookClient['lookup']): string {
+  let shown = '', offset = 0;
+  for (const mark of cardMarks(text)) {
+    shown += text.slice(offset, mark.start) + (mark.kind === 'cloze' ? text.slice(mark.answerStart, mark.answerEnd) : cardOperators[mark.op].text);
+    offset = mark.end;
+  }
+  return plainText(shown + text.slice(offset), lookup);
 }
 /** Only the selected occurrence changes; a concurrently edited token is never overwritten. */
 export function resolvedReferenceText(text: string, token: Token, target: string): string | null {

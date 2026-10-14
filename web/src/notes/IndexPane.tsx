@@ -4,7 +4,7 @@ import { ulid } from 'ulid';
 import type { KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query, View } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
-import { plainText, referenceValue } from '../outline/names';
+import { plainText, readableText, referenceValue } from '../outline/names';
 import { PageMergePicker } from '../outline/PageMerge';
 import { documentReady } from '../outline/source-fields';
 import { addFilter, copyQuery, filterLabel, missingQueryFields, noteTableQuery, queriesEqual, removeFilter, removeQueryField, retainFieldNames, typeQuery } from '../table/query';
@@ -206,7 +206,9 @@ function KindIndexPane(props: IndexPaneProps) {
   const count = () => display()?.count;
   const summary = (note: NoteEntry) => shown()?.summaries[note.id];
   const lookup = (id: string) => props.notebook.lookup(id);
-  const preview = (note: NoteEntry) => plainText(summary(note)?.preview ?? '', lookup);
+  const preview = (note: NoteEntry) => readableText(summary(note)?.preview ?? '', lookup);
+  // The inspector's opening prose continues from the preview rather than repeating it.
+  const excerpt = (note: NoteEntry) => (summary(note)?.prose_excerpt ?? []).map(text => readableText(text, lookup)).filter(text => text.trim() && text.trim() !== preview(note).trim());
   const queue = createMemo(() => filingGroups(index.latest?.notes ?? [], index.latest?.summaries ?? {}));
   const visibleQueue = createMemo(() => queue().filter(group => filter() === 'all' || group.key === filter()).flatMap(group => group.notes));
   const selectedForFiling = createMemo(() => visibleQueue().filter(note => filingSelection().has(note.id)));
@@ -329,7 +331,7 @@ function KindIndexPane(props: IndexPaneProps) {
               </div><Show when={selectedNote()}>{note => <aside class="index-inspector" aria-label="Selected note">
                 <p class="index-eyebrow">Selected note</p><h2>{note().title}</h2><p class="index-apparatus">{apparatus(summary(note()))}</p>
                 <Show when={preview(note())}><p class="index-inspector-preview">{preview(note())}</p></Show>
-                <Show when={summary(note())?.prose_excerpt.length}><div class="index-inspector-excerpt" aria-label="Opening prose"><For each={summary(note())?.prose_excerpt}>{text => <p>{plainText(text, lookup)}</p>}</For></div></Show>
+                <Show when={excerpt(note()).length}><div class="index-inspector-excerpt" aria-label="Opening prose"><For each={excerpt(note())}>{text => <p>{text}</p>}</For></div></Show>
                 <div class="index-inspector-actions"><Button class="bordered" onClick={event => showPopup('file', note(), event.currentTarget)}>File under a type…</Button><Button onClick={event => openNote(note(), event)}>Open note</Button>
                   <Button onClick={event => showPopup('merge', note(), event.currentTarget)}>Merge into…</Button><Button class="danger" onClick={event => showPopup('delete', note(), event.currentTarget)}>Delete…</Button></div>
                 <Show when={summary(note())?.referenced_from.length}><div class="index-incoming"><p class="index-apparatus">Referenced from</p><For each={summary(note())?.referenced_from}>{page => <Button onClick={event => props.onOpen({ kind: 'page', pageId: page.id }, listOpensBeside(event, !!props.neighbour))}>{page.title}</Button>}</For></div></Show>
