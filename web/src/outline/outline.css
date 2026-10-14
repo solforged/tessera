@@ -29,6 +29,18 @@
 .constellation { display: block; width: 100%; height: auto; overflow: visible; }
 .constellation-orbit { fill: none; stroke: var(--line); stroke-width: 1; }
 .constellation-spoke { stroke: var(--agree); stroke-width: 1; opacity: .45; }
+/* Authored relations bow between holders: steel for agreement, dashed for a qualification, warm for a dispute. */
+.constellation-relation { fill: none; stroke: var(--relation-stroke); stroke-width: 1.2; opacity: .85; }
+.constellation-arrow path { fill: var(--relation-stroke); }
+.constellation-supports { --relation-stroke: var(--agree); }
+.constellation-qualifies { --relation-stroke: var(--agree); stroke-dasharray: 3 2; }
+.constellation-disputes { --relation-stroke: var(--danger); }
+.constellation-key { list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-4) var(--space-12); margin: 0; padding: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.constellation-key li { display: flex; align-items: center; gap: var(--space-4); }
+.constellation-key svg { width: 16px; height: 6px; overflow: visible; }
+.constellation-key .constellation-relation { opacity: 1; }
+/* Once holders are related, the spokes step back so steel chords are not read as more spokes. */
+.constellation:has(.constellation-relation) .constellation-spoke { opacity: .2; }
 .constellation-holder, .constellation-linked { cursor: pointer; outline: none; }
 .constellation-holder circle { fill: var(--canvas); stroke: var(--agree); stroke-width: 1.4; }
 .constellation-holder text { fill: var(--muted); font: var(--weight-body) var(--text-meta) var(--font-body); }

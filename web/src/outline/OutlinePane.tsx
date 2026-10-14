@@ -40,7 +40,7 @@ import { CitationChip, SourceHeader } from './SourceHeader';
 import { SourceDetails } from './SourceDetails';
 import { GLOSS_FIELD, glossEntry } from './gloss';
 import { positionFields, positionSource as sharedPositionSource } from './perspectives';
-import { Apparatus } from './Apparatus';
+import { Apparatus, type HolderRelation } from './Apparatus';
 import { createFieldEntryConversion, createSourceFieldResets, ensureField, ensureWorkField, isFreshField, settleField } from './source-fields';
 import { addTemplateField, setFreshFieldKind } from '../fields/commands';
 import { templateOffer } from '../fields/template-offer';
@@ -480,6 +480,18 @@ function Pane(props: OutlinePaneProps) {
   const siglumRecords = createCitedSources(props.notebook, citedSources);
   const sigla = createMemo(() => citedSigla(siglumRecords()));
   /** Each distinct source on the page once, for the apparatus key. */
+  /** Relations authored on this page between two holders' perspectives, once per holder pair and kind. */
+  const holderRelations = createMemo(() => {
+    doc.outline.version(); doc.archivedVersion();
+    const seen = new Map<string, HolderRelation>();
+    (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => {
+      const relation = doc.block(row.id)?.relation;
+      if (!relation?.target_id || relation.problem || relation.kind === 'answers' || doc.isArchived(row.id)) return;
+      const from = doc.block(relation.source_id)?.position?.holder_id, to = doc.block(relation.target_id)?.position?.holder_id;
+      if (from && to && from !== to) seen.set(`${from}:${to}:${relation.kind}`, { from, to, kind: relation.kind });
+    });
+    return [...seen.values()];
+  });
   const siglumSources = createMemo(() => [...new Set(siglumRecords().flatMap(row => row.source ? [row.source.block_id] : []))]);
   const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
@@ -1604,7 +1616,7 @@ function Pane(props: OutlinePaneProps) {
           });
         } }))] });
       }}>{sectionName() || 'Opening'}</Button></div></Show>
-    <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))} onOpen={props.onOpen} /></Show>
+    <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} relations={holderRelations()} sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))} onOpen={props.onOpen} /></Show>
     <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} onClose={() => setSourceDetailsOpen(false)} /></Show>
     <div ref={heading} class="outline-heading">
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{rootTitle()}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
