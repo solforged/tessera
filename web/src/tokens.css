@@ -49,10 +49,12 @@
   --calendar-deadline: var(--warning);
   --calendar-related: var(--muted);
 
-  /* Highlight hues: reader tints at 24%, dots and chips at full strength.
-     Distinct from the accent and status hues so a colour reads as a label. */
+  /* Highlight hues are labels: dots, chips and map marks at full strength,
+     distinct from the accent and status hues. Reader ink lifts the same hue
+     so a band under the line can be named on midnight and stays a wash on vellum. */
   --highlight-yellow: #d8b24a; --highlight-green: #62ad85; --highlight-blue: #6f95e0;
   --highlight-red: #d86b6f; --highlight-purple: #ae8ad8;
+  --highlight-ink-l: 0.54; --highlight-ink-deep: 0.60; --highlight-ink-chroma: 1.25;
 
   /* Three voices: writing, publication and apparatus. Only the first two are bundled. */
   --font-body: "IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -198,6 +200,7 @@
 
   --highlight-yellow: #d6a21f; --highlight-green: #3c9564; --highlight-blue: #4b7bd4;
   --highlight-red: #cf4f55; --highlight-purple: #9566cc;
+  --highlight-ink-l: 0.90; --highlight-ink-deep: 0.84; --highlight-ink-chroma: 1;
 
   --popup-shadow: 0 12px 32px #3b2c1426;
   --dialog-shadow: 0 24px 64px #3b2c1438;

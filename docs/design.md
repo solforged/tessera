@@ -96,7 +96,7 @@ Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f
 | Warning, danger | `--warning` `--danger` |
 | Type hues, pills only | `--type-1` to `--type-6` |
 | Task states, stage 3 | `--status-*` |
-| Highlight colors: reader bands at 42%, dots at full strength | `--highlight-yellow` `-green` `-blue` `-red` `-purple` |
+| Highlight colors: reader ink under the line, nameable on midnight, dots at full strength | `--highlight-yellow` `-green` `-blue` `-red` `-purple` |
 
 Pills take a 12% tint of their hue with a 30% border. A selected row adds a 2 px gilt bar at its left edge; keyboard focus inside a menu looks the same, never a ring.
 
