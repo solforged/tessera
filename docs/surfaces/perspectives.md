@@ -40,7 +40,7 @@ Compare shows the perspectives/holders count once in its header; Criteria's tool
 
 Add perspective is in the register, the Outline header and Commands. Who holds this? lists people and groups, including members of refined types such as Philosopher. Up to three other matching pages offer File as person or File as group, and a new name offers Create person and Create group. Choosing appends an attributed perspective after the last perspective in its section, or at the page's end when there are none.
 
-The holder link, position capability and empty Gist slot are one undoable edit. The caret starts in the Gist value in filling mode, in Read and Outline. Typing keeps the same editor mounted while the blank value becomes a sentence; Tab moves to Work, then the subject's criteria. Creating a holder makes a page filed as a person or group in one change; undoing the perspective keeps that page.
+The holder link, position capability and empty Gist slot are one undoable edit. The caret starts in the Gist value in filling mode, in Read and Outline. Typing keeps the same editor mounted while the blank value becomes a sentence; Tab moves to Work, then the subject's criteria. Work is the built-in work relation to sources; a notebook without it gets it, already linked to Sources, from the first Add perspective. Creating a holder makes a page filed as a person or group in one change; undoing the perspective keeps that page.
 
 ### Section navigator
 
@@ -165,7 +165,7 @@ The margin holds the constellation, then a Sources key pairing each siglum used 
 | Page | A gilt hub |
 | Its holders | On the inner ring, with blued-steel spokes and holder names in `--muted` |
 | Up to twelve pages that link to it | Faint dots on an outer ring, with their titles on hover |
-| Supports, Disputes and Qualifies relations between two holders' perspectives filed under the page, wherever either perspective or the relation is authored | Chords bowed toward the hub with an arrowhead at the target: solid steel, warm `--danger` or dashed steel, with a key beneath for the kinds present. The spokes fade while chords are drawn |
+| Supports, Disputes and Qualifies arguments between two holders' perspectives filed under the page, wherever either perspective or the argument is authored | Chords bowed toward the hub with an arrowhead at the target: solid steel, warm `--danger` or dashed steel, with a key beneath for the kinds present. The spokes fade while chords are drawn |
 
 Every node and source opens its page. ⌘-click opens it beside (Ctrl-click off Mac).
 
