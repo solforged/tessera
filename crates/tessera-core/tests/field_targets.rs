@@ -424,3 +424,65 @@ fn opening_lowercases_built_in_fields_files_their_targets_and_refuses_renames() 
     }]))
     .unwrap();
 }
+
+#[test]
+fn required_fields_count_members_without_a_value_and_stay_in_the_template() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    nb.apply(&batch(vec![
+        page(1, "Book"),
+        page(2, "Shelf"),
+        child(20, &id(2), "Structure #book"),
+        child(21, &id(2), "Revolutions #book"),
+        child(22, &id(2), "Paradigms #book"),
+        child(11, &fields, "mood"),
+    ]))
+    .unwrap();
+    drop(nb);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let book = nb.type_info(&id(1)).unwrap();
+    let author = book.fields[0].clone();
+    nb.apply(&batch(vec![
+        child(30, &id(20), &format!("[[{author}]]")),
+        child(31, &id(30), "Kuhn"),
+        // A blank value is no value.
+        child(32, &id(21), &format!("[[{author}]]")),
+        child(33, &id(32), " "),
+    ]))
+    .unwrap();
+    let book = nb.type_info(&id(1)).unwrap();
+    assert_eq!(book.required.len(), 1);
+    assert_eq!(
+        (book.required[0].field_id.as_str(), book.required[0].missing),
+        (author.as_str(), 2)
+    );
+    let empty = nb
+        .query(
+            &serde_json::from_value(serde_json::json!({
+                "type": id(1),
+                "filters": [{ "field": author, "op": "empty", "value": null }],
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(empty.total, 2);
+
+    // Reordering keeps it; dropping it is refused with the reason.
+    let set = |nb: &Notebook, fields: Vec<String>| {
+        batch(vec![Operation::SetTypeFields {
+            type_id: id(1),
+            base_revision: nb.block(&id(1)).unwrap().revision,
+            fields,
+        }])
+    };
+    nb.apply(&set(&nb, vec![id(11), author.clone()])).unwrap();
+    let refused = nb.apply(&set(&nb, vec![id(11)])).unwrap_err();
+    assert!(
+        refused.to_string().contains("Books require author."),
+        "{refused}"
+    );
+    assert_eq!(nb.type_info(&id(1)).unwrap().fields, [id(11), author]);
+    // Other types carry no requirement.
+    assert!(nb.type_info(&id(2)).unwrap().required.is_empty());
+}

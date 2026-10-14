@@ -9,7 +9,7 @@ import { depthStops } from '../shell/contract';
 import type { Depth, OutlinePaneProps, ViewState } from '../shell/contract';
 import { fieldEntryId } from '../table/query';
 import { setLinkedCitation } from '../library/highlights';
-import { createTemplateCache, startingTemplateFor } from '../fields/templates';
+import { createTemplateCache, startingTemplateFor, typeKeys } from '../fields/templates';
 import { TemplateEditor } from '../fields/TemplateEditor';
 import { citedSigla } from '../library/sigla';
 import { sourceReadingOrder } from '../library/source-order';
@@ -369,6 +369,9 @@ function Pane(props: OutlinePaneProps) {
   }), id => createMemo((): HiddenFieldEntry => {
     const definition = definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '');
     let hide = fieldHide(definition);
+    // A required field stays in view while it has no value, whatever its Hide setting.
+    const owner = doc.block(doc.outline.parentOf(id));
+    if (hide !== 'never' && definition && owner && templates.requiredFor(typeKeys(owner.text, owner.manual_types)).has(definition.id)) hide = 'never';
     doc.archivedVersion();
     const values = doc.outline.children(id).filter(value => !doc.isArchived(value));
     if (!zoom() && !aliasesVisible() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields'
@@ -1190,6 +1193,7 @@ function Pane(props: OutlinePaneProps) {
     definitionsById,
     definitions,
     templateFor: templates.templateFor,
+    requiredFor: templates.requiredFor,
     activeRange,
     fieldConversion,
     get commandDefinitions() { return commandDefinitions; },

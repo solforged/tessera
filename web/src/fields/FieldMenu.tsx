@@ -7,6 +7,7 @@ import { plainText } from '../outline/names';
 import { fieldEntryId } from '../table/query';
 import type { MenuItem } from '../ui/Menu';
 import { fieldHide, fieldHides, hideLabels } from './hide';
+import { requiredIds, requiredReason } from './required';
 import type { FieldHide } from './hide';
 import { fieldRole, fieldRoles, roleLabels } from './roles';
 import type { FieldRole } from './roles';
@@ -100,7 +101,7 @@ export function createFieldMenu(context: Pick<OutlineContext,
       ...(ownerTypes.length || (keys.length && (types.loading || types.error)) ? [{ label: 'Templates…', submenu: () => ({ title: 'Templates', items: [
         ...ownerTypes.map((type): MenuItem => {
           const present = type.fields.includes(field.id);
-          return { label: `${present ? 'Remove from' : 'Add to'} ${type.page.text} template`, action: () => { void changeTemplate(type, field, present); } };
+          return { label: `${present ? 'Remove from' : 'Add to'} ${type.page.text} template`, disabledReason: present && requiredIds(type).has(field.id) ? requiredReason(type, field.name) : undefined, action: () => { void changeTemplate(type, field, present); } };
         }),
         ...(types.loading ? [{ label: 'Loading templates…', disabledReason: 'Types are loading.' }] : []),
         ...(types.error ? [{ label: 'Templates unavailable', disabledReason: 'Could not load types.' }] : []),

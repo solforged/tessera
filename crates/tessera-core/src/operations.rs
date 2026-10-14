@@ -1841,6 +1841,11 @@ impl Engine<'_, '_> {
                         return Err(validation("duplicate field in type template"));
                     }
                 }
+                if let Some(problem) =
+                    crate::built_in::removal_problem(self.tx, type_id, &current.block.text, fields)?
+                {
+                    return Err(validation(problem));
+                }
                 self.tx
                     .execute("DELETE FROM type_fields WHERE type_id = ?1", [type_id])?;
                 let mut insert = self.tx.prepare_cached(

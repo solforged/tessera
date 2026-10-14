@@ -1032,6 +1032,16 @@ pub struct TypeInfo {
     pub fields: Vec<String>,
     pub members: usize,
     pub card_templates: usize,
+    /// Template fields the type's built-in schema requires, in template order.
+    #[serde(default)]
+    pub required: Vec<RequiredField>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequiredField {
+    pub field_id: String,
+    /// Members with no nonblank value for the field.
+    pub missing: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

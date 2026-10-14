@@ -13,6 +13,7 @@ import { LinksToPopup } from './LinksToPopup';
 import { changeFieldKind, createTemplateField, renameField, setFieldTargets } from './commands';
 import { fieldKinds, kindLabels, kindNoun } from './kinds';
 import { TypePresentation } from './TypePresentation';
+import { requiredIds, requiredReason } from './required';
 import { entryAnchor, startingTemplateFor } from './templates';
 import './fields.css';
 
@@ -51,6 +52,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
   const [linksMenu, setLinksMenu] = createSignal<{ id: string; anchor: HTMLElement } | null>(null);
   const [changed, setChanged] = createSignal<{ label: string; change: DocumentChange } | null>(null);
   const template = () => props.type.fields.filter(id => byId().has(id));
+  const required = createMemo(() => requiredIds(props.type));
   const starting = createMemo(() => startingTemplateFor(props.type.page.text, props.type.fields));
   // The count is a guide, recounted when the template or membership changes; Fill recounts before it writes.
   const [gaps, { refetch }] = createResource(() => (props.register || open()) && `${props.type.page.id}:${props.type.fields.join(',')}:${props.type.members}`, () => templateGaps(props.notebook, props.type));
@@ -132,7 +134,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
     <Button icon="edit" label={byId().get(id)!.built_in ? `${byId().get(id)!.name} is built in and cannot be renamed.` : `Rename ${byId().get(id)!.name}`} disabled={busy() || !!byId().get(id)!.built_in} onClick={() => setRenaming({ id, text: byId().get(id)!.name })} />
     <Button icon="up" label={`Move ${byId().get(id)!.name} up`} disabled={busy() || index === 0} onClick={() => move(props.type.fields.indexOf(id), -1)} />
     <Button icon="down" label={`Move ${byId().get(id)!.name} down`} disabled={busy() || index === template().length - 1} onClick={() => move(props.type.fields.indexOf(id), 1)} />
-    <Button icon="close" label={`Remove ${byId().get(id)!.name} from template`} disabled={busy()} onClick={() => void setFields(props.type.fields.filter(field => field !== id))} />
+    <Button icon="close" label={required().has(id) ? requiredReason(props.type, byId().get(id)!.name) : `Remove ${byId().get(id)!.name} from template`} disabled={busy() || required().has(id)} onClick={() => void setFields(props.type.fields.filter(field => field !== id))} />
   </span>;
   return <section class={`template-editor ${props.register ? 'template-register' : ''}`} aria-label="Template">
     <TypePresentation type={props.type} notebook={props.notebook} onError={props.onError} />
@@ -150,7 +152,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
           <colgroup><col class="template-name-column" /><col class="template-kind-column" /><col class="template-usage-column" /><col class="template-actions-column" /></colgroup>
           <thead><tr><th scope="col">Name</th><th scope="col">Kind</th><th scope="col">Used by</th><th scope="col"><span class="visually-hidden">Field actions</span></th></tr></thead>
           <tbody><For each={template()}>{(id, index) => <Show when={byId().get(id)}>{field => <tr>
-            <td><Show when={renaming()?.id === id} fallback={<Button class="template-definition" title={`Open ${field().name} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'field', fieldId: id }, opensBeside(event))}>{field().name}</Button>}>
+            <td><Show when={renaming()?.id === id} fallback={<><Button class="template-definition" title={`Open ${field().name} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'field', fieldId: id }, opensBeside(event))}>{field().name}</Button><Show when={required().has(id)}> <span class="template-required" title={requiredReason(props.type, field().name)}>required</span></Show></>}>
               <form class="template-rename" onSubmit={event => { event.preventDefault(); void rename(); }}><input class="input" aria-label={`New name for ${field().name}`} value={renaming()!.text} onInput={event => setRenaming({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setRenaming(null); } }} onBlur={() => { if (renaming()?.id === id) void rename(); }} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} /></form>
             </Show></td>
             <td class="template-field-kind"><Button class="template-kind" aria-haspopup="menu" aria-expanded={kindMenu()?.id === id} aria-label={`Kind for ${field().name}: ${kindSummary(field())}`} disabled={busy()} onClick={event => setKindMenu({ id, anchor: event.currentTarget })}>{kindSummary(field())} <Icon name="down" /></Button></td>

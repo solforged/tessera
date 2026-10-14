@@ -20,6 +20,8 @@ import { checkboxValue, partialDatePlaceholder } from '../fields/kinds';
 import { ValueEditor, writeFieldValue } from '../fields/value-editor';
 import { hasValueEditor } from '../fields/value-options';
 import { createOptionValue } from '../fields/commands';
+import { missingFilter, requiredIds, requiredReason } from '../fields/required';
+import { RequiredGaps } from '../fields/RequiredGaps';
 import { noteKindIcon } from '../notes/kinds';
 import { NoteFind } from '../notes/NoteFind';
 import { autoPlural } from '../fields/presentation';
@@ -487,7 +489,7 @@ function TableContent(props: TablePaneProps) {
         { label: 'Move right', disabledReason: visibleColumns().indexOf(field.id) >= visibleColumns().length - 1 ? 'This is the last column' : undefined, action: () => moveColumn(field.id, 1) },
         ...(!field.id.startsWith('@') ? [
           { label: 'Edit field…', section: 'Definition', action: () => props.onOpen({ kind: 'field', fieldId: field.id }, false) },
-          ...(query().type && type()?.fields.includes(field.id) ? [{ label: 'Remove from template', section: 'Type template', icon: 'close' as const, action: () => { const current = type()!; void submit({ op: 'set_type_fields', type_id: current.page.id, base_revision: current.page.revision, fields: current.fields.filter(id => id !== field.id) }).catch(message); } }] : []),
+          ...(query().type && type()?.fields.includes(field.id) ? [{ label: 'Remove from template', section: 'Type template', icon: 'close' as const, disabledReason: required().has(field.id) ? requiredReason(type()!, field.name) : undefined, action: () => { const current = type()!; void submit({ op: 'set_type_fields', type_id: current.page.id, base_revision: current.page.revision, fields: current.fields.filter(id => id !== field.id) }).catch(message); } }] : []),
         ] : []),
       ] : []),
     ] });
@@ -631,9 +633,20 @@ function TableContent(props: TablePaneProps) {
     event.preventDefault();
   };
   const renderValue = (row: QueryRow, field: FieldDefinition | undefined, hideCount = false) => <Show when={field?.id.startsWith('@')} fallback={<TableFieldValue field={field} values={row.values[field?.id ?? ''] ?? []} notebook={props.notebook} hideCount={hideCount} onPill={(value, anchor, beside) => { if (field) void openPill(row, field, value, anchor, beside).catch(message); }} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: field?.name ?? 'Sources', sources })} />}><TableAttributeValue values={row.attributes?.[field?.id ?? ''] ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>;
+  const required = createMemo(() => requiredIds(type()));
+  // Counted within this view's scope, which may be narrower than the type, such as its notes.
+  const [gaps] = createResource(() => !loading() && type()?.required?.some(field => field.missing > 0) ? [query(), type()!] as const : false, ([value, current]) => Promise.all(current.required.filter(field => field.missing > 0).map(async field => {
+    const filters = [...value.filters.filter(filter => !(filter.field === field.field_id && filter.op === 'empty')), missingFilter(field.field_id)];
+    return { field_id: field.field_id, missing: (await api.query({ ...value, filters, offset: 0, limit: 0 })).total };
+  })));
+  /** Lists the members without a nonblank value for a required field, keeping the other filters. */
+  const showMissing = (field: string) => {
+    const filters = query().filters.filter(filter => !(filter.field === field && filter.op === 'empty'));
+    updateQuery({ ...query(), filters: [...filters, missingFilter(field)], offset: 0 });
+  };
   const renderCell = (row: QueryRow, id: string) => {
     const field = () => fieldById(id); const current = () => editing();
-    return <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={renderValue(row, field(), id === sourceField()?.id)}>
+    return <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={required().has(id) && !row.values[id]?.length ? <span class="table-needed">needed</span> : renderValue(row, field(), id === sourceField()?.id)}>
       <textarea class="input table-cell-input" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field() ? valuePlaceholders[field()!.kind] : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : field()?.kind === 'url' ? 'url' : undefined} rows={Math.min(8, Math.max(1, (current()?.text.match(/\n/g)?.length ?? 0) + 1))} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus({ preventScroll: true }); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
         if (event.isComposing) return;
         if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); void commitEdit(); }
@@ -699,7 +712,7 @@ function TableContent(props: TablePaneProps) {
         </div>
         <div class="table-view-status"><Show when={props.target.viewId && saved()} fallback={<Show when={result()}>{rows => <>{membersLabel(rows().total)}</>}</Show>}>
           <span>{changed() ? 'Modified' : 'Saved view'}</span><Show when={changed()}><Button disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button></Show>
-        </Show></div>
+        </Show><RequiredGaps gaps={gaps.latest} name={id => fieldById(id)?.name} onShow={showMissing} /></div>
       </header>
       <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : query().note_kind ? result()?.total : indexTotal()} tableCount={missingFields().length ? undefined : result()?.total} fieldsCount={type()?.fields.length}
         cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, opensBeside(event))}

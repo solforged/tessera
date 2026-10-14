@@ -17,6 +17,8 @@ interface SheetState {
   template: readonly string[];
   present: ReadonlySet<string>;
   missing: readonly string[];
+  /** Missing fields the owner's types require, shown whatever their Hide setting and even at rest. */
+  required: ReadonlySet<string>;
 }
 interface PlacedSheet extends SheetState { anchor: string; depth: number }
 
@@ -54,7 +56,7 @@ function createSubjectCriteria(
 /** Every eligible owner has one stable field area, independent of selection and editing. */
 export function createFieldSheet(context: Pick<OutlineContext,
   | 'doc' | 'props' | 'definitionsById' | 'definitions' | 'indices' | 'selected' | 'editing' | 'zoom'
-  | 'folds' | 'apply' | 'setMessage' | 'showNotice' | 'templateFor' | 'baseDepth' | 'setSelected' | 'editAt' | 'rowFocus'
+  | 'folds' | 'apply' | 'setMessage' | 'showNotice' | 'templateFor' | 'requiredFor' | 'baseDepth' | 'setSelected' | 'editAt' | 'rowFocus'
 >, options: {
   offerValue(id: string, field: FieldDefinition): void;
   controlledId(): string | undefined;
@@ -106,7 +108,9 @@ export function createFieldSheet(context: Pick<OutlineContext,
     const apparatus = block?.position ? definitions().filter(field => ['gist', 'work'].includes(field.name.trim().toLowerCase())).sort((a, b) => Number(a.name.trim().toLowerCase() === 'work') - Number(b.name.trim().toLowerCase() === 'work')).map(field => field.id) : [];
     const template = [...new Set([...apparatus, ...subjects, ...templateFor(typeKeys(untrack(() => block?.text ?? ''), block?.manual_types ?? []))])]
       .filter(id => known.has(id) && !(block?.source && isCatalogueField(known.get(id)!.name)));
-    return { owner, entries, template, present, missing: template.filter(id => !present.has(id)) };
+    const missing = template.filter(id => !present.has(id));
+    const required = context.requiredFor(typeKeys(untrack(() => block?.text ?? ''), block?.manual_types ?? []));
+    return { owner, entries, template, present, missing, required: new Set(missing.filter(id => required.has(id))) };
   }
   const subjects = createMemo(() => {
     const visible = indices(), result = new Set<string>();
@@ -276,8 +280,9 @@ export function createFieldSheet(context: Pick<OutlineContext,
     const root = () => area.state.owner === props.pageId;
     // A page owner is never selected or edited itself, so its slots stay at rest; nested owners show them only while focused.
     const focused = () => root() || filling() === area.state.owner || belongs(selected(), area.state.owner) || belongs(editing(), area.state.owner);
-    const missing = createMemo(() => focused() ? area.state.missing.filter(id => options.revealed().has(area.state.owner) || fieldHide(definitionsById().get(id)) === 'never') : []);
-    const hidden = () => (options.hiddenCounts().get(area.state.owner) ?? 0) + area.state.missing.filter(id => fieldHide(definitionsById().get(id)) !== 'never').length;
+    const shown = (id: string) => area.state.required.has(id) || fieldHide(definitionsById().get(id)) === 'never';
+    const missing = createMemo(() => focused() ? area.state.missing.filter(id => options.revealed().has(area.state.owner) || shown(id)) : area.state.missing.filter(id => area.state.required.has(id)));
+    const hidden = () => (options.hiddenCounts().get(area.state.owner) ?? 0) + area.state.missing.filter(id => !shown(id)).length;
     const active = () => belongs(hovered(), area.state.owner) || belongs(selected(), area.state.owner) || belongs(editing(), area.state.owner);
     const Controls = () => <div class="field-area-controls" classList={{ 'field-area-active': active(), 'field-area-root': root() }}>
       <button type="button" class="field-area-add" aria-haspopup="dialog" aria-expanded={picker()?.owner === area.state.owner} onClick={event => pick(area.state.owner, event.currentTarget)}><Icon name="plus" />{root() ? 'Add field' : 'Field'}</button>

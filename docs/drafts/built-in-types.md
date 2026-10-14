@@ -51,7 +51,7 @@ Nothing is ever refused or rewritten. Required is a promise of attention:
 
 - A required field is always in the type's template. Its Remove button is disabled with the reason, such as “Books require author”.
 - A member without a nonblank value shows the faint slot whatever the field's Hide setting, and its row reads as incomplete, such as “needs author”.
-- The type's table and Index count incomplete members (“3 books lack an author”), and a **missing required field** filter lists them.
+- The type's table and Index count incomplete members (“3 need author”), and the count adds the field's `is empty` filter, which lists them. A separate missing-required filter waits for a type that requires two fields.
 - Expected fields start in the template and can be removed or reordered like any other. Available fields are created when a value first needs them, as today.
 
 ### Counts as
@@ -88,6 +88,6 @@ Built in stage 1. Every creation site takes names from `built_in.rs`, and the en
 ## Build order
 
 1. **Built.** The schema table, lowercase names, ensuring on open and the rename refusal. The web's starting-template list mirrors the schema.
-2. Required: slots, incomplete counts, the filter and the disabled Remove.
+2. **Built.** Required: slots, incomplete counts in Table and Index, the field's empty filter, and the disabled Remove with a core refusal.
 3. Counts as: the definition property, its operation, and `@creator` reading it.
 4. Several holders on one proposition, with the perspectives work.

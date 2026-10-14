@@ -49,6 +49,7 @@ export function entryAnchor(children: readonly string[], entries: readonly { id:
  */
 export function createTemplateCache(fields: Accessor<Fields | undefined>, lastChange: Accessor<ChangeEvent | null>) {
   const [orders, setOrders] = createSignal(new Map<string, readonly string[]>());
+  const [required, setRequired] = createSignal(new Map<string, readonly string[]>());
   const loading = new Set<string>();
   const typeIds = createMemo(() => {
     const result = new Map<string, string>();
@@ -61,7 +62,10 @@ export function createTemplateCache(fields: Accessor<Fields | undefined>, lastCh
   function load(id: string) {
     if (loading.has(id)) return;
     loading.add(id);
-    void api.type(id).then(type => setOrders(previous => new Map(previous).set(id, type.fields)), () => {}).finally(() => loading.delete(id));
+    void api.type(id).then(type => {
+      setOrders(previous => new Map(previous).set(id, type.fields));
+      setRequired(previous => new Map(previous).set(id, type.required?.map(field => field.field_id) ?? []));
+    }, () => {}).finally(() => loading.delete(id));
   }
   createEffect(on(lastChange, change => {
     if (!change) return;
@@ -82,5 +86,10 @@ export function createTemplateCache(fields: Accessor<Fields | undefined>, lastCh
     }
     return result;
   }
-  return { templateFor };
+  /** Template fields the types named by `keys` require; they show as slots whatever their Hide setting. */
+  function requiredFor(keys: readonly string[]): ReadonlySet<string> {
+    const ids = typeIds(), known = required();
+    return new Set(keys.flatMap(key => known.get(ids.get(key) ?? '') ?? []));
+  }
+  return { templateFor, requiredFor };
 }

@@ -67,6 +67,7 @@ export interface OutlineContext {
   definitions: Accessor<FieldDefinition[]>;
   /** Template fields of the types named by `typeKeys`, first type first. */
   templateFor: (keys: readonly string[]) => string[];
+  requiredFor: (keys: readonly string[]) => ReadonlySet<string>;
   activeRange: () => TextRange | null;
   fieldConversion: FieldEntryConversion;
   readonly commandDefinitions: Command[];

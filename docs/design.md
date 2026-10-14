@@ -440,7 +440,7 @@ Slots read as suggestions: the name in `--faint` and no value text. On a page, s
 
 Add field opens a picker with missing template fields under Template, then the rest, and Create field for a new name. A perspective instead begins with From this recipe: Gist, Work, then its subject's explicit or derived criteria. A suggested field takes its recipe or template place among the entries; another follows the last entry. Each addition is one undo step.
 
-A definition's Hide setting (Never, When empty, Always; see the [domain model](domain-model.md#types-and-fields)) leaves its entries and slots out of outlines. An entry stays while it or one of its values is edited or selected. The area then counts `N hidden`, which reveals that owner's hidden fields in this pane.
+A definition's Hide setting (Never, When empty, Always; see the [domain model](domain-model.md#types-and-fields)) leaves its entries and slots out of outlines. A field the owner's type requires is the exception while it has no value: its slot shows even at rest, outside the focused owner. An entry stays while it or one of its values is edited or selected. The area then counts `N hidden`, which reveals that owner's hidden fields in this pane.
 
 Hide and template changes from the field menu belong to the field and the type rather than the note, so they offer the Undo toast instead of joining the page's undo history.
 

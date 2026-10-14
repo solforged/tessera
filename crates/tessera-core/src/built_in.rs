@@ -3,6 +3,8 @@
 
 use std::collections::HashMap;
 
+use rusqlite::{Connection, OptionalExtension};
+
 use crate::FieldKind::{self, Date, Identifier, Instance, Number, Span, Text, Url};
 use crate::library_ingest::Planner;
 use crate::{Actor, Batch, Notebook, Operation, Result};
@@ -143,6 +145,65 @@ pub(crate) fn rename_problem(current: &str, next: &str) -> Option<String> {
     let field = field_named(current)?;
     (!field.name.eq_ignore_ascii_case(next.trim()))
         .then(|| format!("{} is built in and cannot be renamed.", field.name))
+}
+
+/// The fields in `template` that a type titled `title` requires, as `(field id, name)` in template order.
+pub(crate) fn required_fields(
+    conn: &Connection,
+    title: &str,
+    template: &[String],
+) -> Result<Vec<(String, &'static str)>> {
+    let required: Vec<&str> = schema(&title.trim().to_lowercase())
+        .iter()
+        .filter(|(_, level)| *level == Level::Required)
+        .map(|(name, _)| *name)
+        .collect();
+    if required.is_empty() {
+        return Ok(vec![]);
+    }
+    let mut name = conn.prepare_cached(
+        "SELECT text FROM blocks WHERE id = ?1 AND deletion_id IS NULL AND archived = 0",
+    )?;
+    let mut fields = vec![];
+    for id in template {
+        let Some(text) = name
+            .query_row([id], |row| row.get::<_, String>(0))
+            .optional()?
+        else {
+            continue;
+        };
+        if let Some(required) = required
+            .iter()
+            .find(|required| required.eq_ignore_ascii_case(text.trim()))
+        {
+            fields.push((id.clone(), *required));
+        }
+    }
+    Ok(fields)
+}
+
+/// A template change may reorder a required field but not drop it, such as “Books require author.”
+pub(crate) fn removal_problem(
+    conn: &Connection,
+    type_id: &str,
+    title: &str,
+    next: &[String],
+) -> Result<Option<String>> {
+    let current = crate::query::template(conn, type_id)?;
+    let Some((_, name)) = required_fields(conn, title, &current)?
+        .into_iter()
+        .find(|(id, _)| !next.contains(id))
+    else {
+        return Ok(None);
+    };
+    let (plural, _) = crate::query::presentation(conn, type_id)?;
+    let plural = plural.unwrap_or_else(|| crate::notes::auto_plural(title.trim()));
+    let mut letters = plural.chars();
+    let plural: String = letters
+        .next()
+        .map(|first| first.to_uppercase().chain(letters).collect())
+        .unwrap_or_default();
+    Ok(Some(format!("{plural} require {name}.")))
 }
 
 impl Notebook {
@@ -286,5 +347,24 @@ mod tests {
             Some("author is built in and cannot be renamed.")
         );
         assert_eq!(rename_problem("mood", "feeling"), None);
+    }
+
+    #[test]
+    fn only_book_requires_a_field() {
+        for key in ["person", "group", "concept", "article"] {
+            assert!(
+                schema(key)
+                    .iter()
+                    .all(|(_, level)| *level != Level::Required)
+            );
+        }
+        assert_eq!(
+            schema("book")
+                .iter()
+                .filter(|(_, level)| *level == Level::Required)
+                .map(|(name, _)| *name)
+                .collect::<Vec<_>>(),
+            ["author"]
+        );
     }
 }

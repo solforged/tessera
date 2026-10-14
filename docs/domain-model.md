@@ -226,7 +226,7 @@ A field's detail read may count readable and problem values using a proposed kin
 - Owner samples combine an owner's entries in outline order and identify the first entry.
 - Problem and readable samples identify each value's own entry.
 
-A type may carry a template: an ordered list of fields shown first in its table and offered as empty slots in its members' field areas. Members' other fields follow the template, which is never required. Fill missing fields on the type page writes empty entries for members only when asked.
+A type may carry a template: an ordered list of fields shown first in its table and offered as empty slots in its members' field areas. Members' other fields follow the template. Fill missing fields on the type page writes empty entries for members only when asked.
 
 A template can grow from use. When a member's field gets a value and another member of that type already has one, the outline offers to add the field to the template, such as “strength is on another #proposition too”, with Add and Not now buttons. A field used once is never offered, since it may be a one-off. Each type and field is offered once per window, whatever the answer, and Add has an Undo.
 
@@ -562,6 +562,7 @@ Built-in kinds start with templates, filled in only when wanted. Their fields ar
 
 - A new type page with one of these titles gets its template. An existing page with an empty template offers it instead.
 - Required is rare: only a book requires author. Opening the notebook adds a missing author to Book's template; every other template field can be removed or reordered.
+- Required asks for attention and never refuses a note. A required field stays in its template: a change that drops it is refused with the reason, such as “Books require author.” A member without a nonblank value is incomplete. Its slot shows whatever the field's Hide setting, and the type reads each required field with a count of the members that lack it, which is the field's `empty` filter.
 - A built-in field cannot be renamed, only recased. Opening the notebook recases older Title Case names, such as Author, and gives a built-in relation with no Links to types the types it expects, where those type pages exist. It never changes a field's kind, so an older `lived` stays text until a reviewed kind change. These are ordinary synced edits.
 - A built-in relation links to its types only where those type pages exist; it never creates Person or Group.
 - A question page uses Add alias, since it has no type to carry a template.

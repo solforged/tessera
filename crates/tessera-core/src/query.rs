@@ -7,8 +7,9 @@ use crate::fields::{constrained_reading, definition_map, definitions};
 use crate::reads::{fts_query, hidden_blocks};
 use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
 use crate::{
-    BlockKind, Direction, FieldDefinition, FieldKind, FieldValue, Filter, FilterOp, Notebook,
-    Query, QueryResult, QueryRow, Reading, ReadingValue, Result, SortBy, SortKey, TypeInfo, View,
+    Block, BlockKind, Direction, FieldDefinition, FieldKind, FieldValue, Filter, FilterOp,
+    Notebook, Query, QueryResult, QueryRow, Reading, ReadingValue, RequiredField, Result, SortBy,
+    SortKey, TypeInfo, View,
 };
 
 pub(crate) fn validate_query(conn: &Connection, query: &Query) -> Result<Vec<FieldDefinition>> {
@@ -382,11 +383,14 @@ impl Notebook {
              AND b.rowid NOT IN (SELECT rowid FROM hidden) AND t.rowid NOT IN (SELECT rowid FROM hidden)"))?
             .query_row([id], |row| row.get::<_, i64>(0))? as usize;
         let (plural, icon) = presentation(&self.conn, id)?;
+        let fields = template(&self.conn, id)?;
+        let required = self.required_fields(&page, &fields)?;
         Ok(TypeInfo {
             page,
             plural,
             icon,
-            fields: template(&self.conn, id)?,
+            fields,
+            required,
             members,
             card_templates: self.conn.query_row(
                 "SELECT COUNT(*) FROM card_templates WHERE type_id = ?1",
@@ -394,6 +398,30 @@ impl Notebook {
                 |row| row.get::<_, i64>(0),
             )? as usize,
         })
+    }
+
+    /// Each required template field with how many live members lack a nonblank value for it, which is
+    /// what a field's empty filter lists.
+    fn required_fields(&self, page: &Block, template: &[String]) -> Result<Vec<RequiredField>> {
+        let mut missing = self.conn.prepare_cached(concat!(hidden_blocks!(),
+            "SELECT COUNT(DISTINCT m.block_id) FROM memberships m JOIN blocks b ON b.id = m.block_id
+             JOIN blocks p ON p.id = b.page_id JOIN blocks t ON t.id = m.type_id
+             WHERE m.type_id = ?1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL AND t.deletion_id IS NULL
+             AND b.rowid NOT IN (SELECT rowid FROM hidden) AND t.rowid NOT IN (SELECT rowid FROM hidden)
+             AND NOT EXISTS (SELECT 1 FROM field_values f JOIN blocks v ON v.id = f.value_id
+                 WHERE f.owner_id = b.id AND f.field_id = ?2
+                 AND trim(v.text, ' ' || char(9) || char(10) || char(13)) <> '')"))?;
+        crate::built_in::required_fields(&self.conn, &page.text, template)?
+            .into_iter()
+            .map(|(field_id, _)| {
+                let count =
+                    missing.query_row(params![page.id, field_id], |row| row.get::<_, i64>(0))?;
+                Ok(RequiredField {
+                    field_id,
+                    missing: count as usize,
+                })
+            })
+            .collect()
     }
 
     pub fn types(&self) -> Result<Vec<TypeInfo>> {
@@ -416,10 +444,12 @@ impl Notebook {
         while let Some(row) = rows.next()? {
             let page = block_at(row, 1)?;
             let (plural, icon) = presentation(&self.conn, &page.id)?;
+            let fields = template(&self.conn, &page.id)?;
             types.push(TypeInfo {
                 plural,
                 icon,
-                fields: template(&self.conn, &page.id)?,
+                required: self.required_fields(&page, &fields)?,
+                fields,
                 card_templates: template_counts.get(&page.id).copied().unwrap_or(0),
                 page,
                 members: row.get::<_, i64>(0)? as usize,
