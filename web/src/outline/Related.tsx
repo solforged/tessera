@@ -16,6 +16,7 @@ import { Button } from '../ui/Button';
 import { createSettledChanges } from '../ui/loading';
 import { isVirtualJournal, readJournalRelated } from './related-reads';
 import { IncomingRelations } from './RelationLines';
+import type { HolderRelation } from './Apparatus';
 import { hasCitationDetail } from './source-reads';
 
 export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'doc' | 'zoom' | 'zoomTo' | 'localPositions'>) {
@@ -113,6 +114,31 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   }, undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
   // The margin appears on titled pages with three or more perspectives; CSS shows it only when the pane is wide.
   const apparatus = () => doc.root()?.kind === 'page' && !zoom() && localPositions() + (related()?.aboutHolders.length ?? 0) >= 3;
+  /** Perspectives filed under this page, here or elsewhere: the endpoints the constellation may join. */
+  const perspectives = createMemo(() => {
+    const ids = new Set<string>();
+    (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => { if (doc.block(row.id)?.position?.subject_id === props.pageId && !doc.isArchived(row.id)) ids.add(row.id); });
+    for (const row of related()?.about ?? []) ids.add(row.block.id);
+    return ids;
+  }, undefined, { equals: (a, b) => a.size === b.size && [...a].every(id => b.has(id)) });
+  let relationRequest: AbortController | undefined;
+  onCleanup(() => relationRequest?.abort());
+  // One read per holder on the ring, so a relation counts wherever it is authored and whichever page holds its perspectives.
+  const [relationRows] = createResource(() => apparatus() && holders().length ? `${version()}:${holders().join(',')}` : false, async () => {
+    relationRequest?.abort();
+    const request = relationRequest = new AbortController();
+    return (await Promise.all(holders().map(holder => api.relations({ source_holder: holder }, request.signal)))).flat();
+  });
+  const holderRelations = createMemo(() => {
+    const ids = perspectives(), seen = new Map<string, HolderRelation>();
+    for (const row of relationRows.error ? [] : relationRows() ?? []) {
+      const from = row.source.holder_id, to = row.target?.holder_id;
+      if (row.problem || row.kind === 'answers' || !from || !to || from === to) continue;
+      if (!ids.has(row.source.block.block.id) || !ids.has(row.target!.block.block.id)) continue;
+      seen.set(`${from}:${to}:${row.kind}`, { from, to, kind: row.kind });
+    }
+    return [...seen.values()];
+  });
   const linkedPages = createMemo(() => {
     const seen: string[] = [];
     for (const row of related()?.backlinks ?? []) if (row.page.id !== props.pageId && !holders().includes(row.page.id) && !seen.includes(row.page.id)) seen.push(row.page.id);
@@ -254,5 +280,5 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       </Show>
     </details>;
   }
-  return { related, relatedError, relatedLoading, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations };
+  return { related, relatedError, relatedLoading, apparatus, holders, holderRelations, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations };
 }

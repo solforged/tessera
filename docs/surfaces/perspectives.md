@@ -163,7 +163,7 @@ The margin holds the constellation, then a Sources key pairing each siglum used 
 | Page | A gilt hub |
 | Its holders | On the inner ring, with blued-steel spokes and holder names in `--muted` |
 | Up to twelve pages that link to it | Faint dots on an outer ring, with their titles on hover |
-| Supports, Disputes and Qualifies relations authored on the page between two holders' perspectives | Chords bowed toward the hub with an arrowhead at the target: solid steel, warm `--danger` or dashed steel, with a key beneath for the kinds present. The spokes fade while chords are drawn |
+| Supports, Disputes and Qualifies relations between two holders' perspectives filed under the page, wherever either perspective or the relation is authored | Chords bowed toward the hub with an arrowhead at the target: solid steel, warm `--danger` or dashed steel, with a key beneath for the kinds present. The spokes fade while chords are drawn |
 
 Every node and source opens its page. ⌘-click opens it beside (Ctrl-click off Mac).
 

@@ -40,7 +40,7 @@ import { CitationChip, SourceHeader } from './SourceHeader';
 import { SourceDetails } from './SourceDetails';
 import { GLOSS_FIELD, glossEntry } from './gloss';
 import { positionFields, positionSource as sharedPositionSource } from './perspectives';
-import { Apparatus, type HolderRelation } from './Apparatus';
+import { Apparatus } from './Apparatus';
 import { createFieldEntryConversion, createSourceFieldResets, ensureField, ensureWorkField, isFreshField, settleField } from './source-fields';
 import { addTemplateField, setFreshFieldKind } from '../fields/commands';
 import { templateOffer } from '../fields/template-offer';
@@ -480,18 +480,6 @@ function Pane(props: OutlinePaneProps) {
   const siglumRecords = createCitedSources(props.notebook, citedSources);
   const sigla = createMemo(() => citedSigla(siglumRecords()));
   /** Each distinct source on the page once, for the apparatus key. */
-  /** Relations authored on this page between two holders' perspectives, once per holder pair and kind. */
-  const holderRelations = createMemo(() => {
-    doc.outline.version(); doc.archivedVersion();
-    const seen = new Map<string, HolderRelation>();
-    (doc.outline as OutlineIndex).each(0, doc.outline.size(), row => {
-      const relation = doc.block(row.id)?.relation;
-      if (!relation?.target_id || relation.problem || relation.kind === 'answers' || doc.isArchived(row.id)) return;
-      const from = doc.block(relation.source_id)?.position?.holder_id, to = doc.block(relation.target_id)?.position?.holder_id;
-      if (from && to && from !== to) seen.set(`${from}:${to}:${relation.kind}`, { from, to, kind: relation.kind });
-    });
-    return [...seen.values()];
-  });
   const siglumSources = createMemo(() => [...new Set(siglumRecords().flatMap(row => row.source ? [row.source.block_id] : []))]);
   const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
@@ -1324,7 +1312,7 @@ function Pane(props: OutlinePaneProps) {
     reveal: owner => setRevealedFields(previous => { const next = new Set(previous); next.has(owner) ? next.delete(owner) : next.add(owner); return next; }),
   });
   const drag = createOutlineDrag(context);
-  const { related, relatedError, relatedLoading, apparatus, holders, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations } = createOutlineRelated(context);
+  const { related, relatedError, relatedLoading, apparatus, holders, holderRelations, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations } = createOutlineRelated(context);
   const holderBoundary = createMemo(() => !zoom() && related()?.heldReadings.length
     ? ids().find(id => doc.outline.parentOf(id) === props.pageId && !!doc.block(id)?.heading) : undefined);
   const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, RowRelations, openValueEditor,
