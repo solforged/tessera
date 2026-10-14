@@ -683,7 +683,7 @@ function TableContent(props: TablePaneProps) {
     if (grid) resize.observe(grid);
     onCleanup(() => resize.disconnect());
   });
-  return <div ref={region} class="table-pane" style={{ '--table-title-width': `${titleWidth()}px`, '--table-width': `calc(${titleWidth()}px + ${visibleColumns().map(columnWidth).join(' + ') || '0px'} + ${showRefs() ? 'var(--table-refs-width)' : '0px'})` }} tabIndex={0} role="region" aria-label="Table" onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
+  return <div ref={region} class="table-pane" style={{ '--table-title-width': `${titleWidth()}px`, '--table-width': `calc(${titleWidth()}px + ${visibleColumns().map(columnWidth).join(' + ') || '0px'} + ${showRefs() ? 'var(--table-refs-width)' : '0px'})` }} tabIndex={0} role="region" aria-label="Table" data-pane-pending={loading() && !result() ? '' : undefined} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
     <div ref={register} class="table-register" onScroll={() => { if (narrow()) { cancelAnimationFrame(scrollReport); scrollReport = requestAnimationFrame(() => reportView()); } }}>
       <header class="table-header">
         <div class="table-heading">
