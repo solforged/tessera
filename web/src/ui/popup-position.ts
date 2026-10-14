@@ -23,7 +23,9 @@ export function anchoredPopupPosition(rect: Pick<DOMRect, 'left' | 'right' | 'to
   const below = Math.max(0, bounds.bottom - belowTop - 8);
   const above = Math.max(0, aboveBottom - bounds.top - 8);
   const needed = Math.min(contentHeight, maxHeight);
-  const start = rect.left > bounds.left + bounds.width / 2 ? rect.right - width : rect.left;
+  // A trigger in the right half hangs its popup leftward; a caret keeps it under the text being typed whenever it fits.
+  const caret = rect.right - rect.left <= 2 && rect.left + width <= bounds.right - 8;
+  const start = !caret && rect.left > bounds.left + bounds.width / 2 ? rect.right - width : rect.left;
   const left = Math.max(bounds.left + 8, Math.min(start, bounds.right - width - 8));
   const flip = prefer && (prefer === 'above' ? above : below) >= needed ? prefer === 'above' : below < needed && above > below;
   const height = Math.min(needed, flip ? above : below);
