@@ -8,7 +8,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 The header sticks to the top, so the save status and Undo and Redo stay in reach. It has a mono `Notebook and device` register over a Piazzolla title, the status in faint mono, and Undo and Redo as icon buttons at its right. A hairline appears under it once the page scrolls.
 
-On panes 1096 px and wider, an index of the sections sits left of the measure, as the [Library's browse rail](library.md#browse) does, with mono counts. The current section carries the 2 px gilt bar. A section chosen from the index stays current until you scroll by hand.
+On panes 1096 px and wider, an index of the sections sits left of the measure, as the [Library's browse rail](library.md#browse) does, with mono counts. The current section carries the 2 px gilt bar. Once the page can scroll no further, the last section is current. A section chosen from the index stays current until you scroll by hand.
 
 Sections head with a rubric numeral, a Piazzolla name and a hairline rule, in this order:
 
@@ -66,7 +66,7 @@ Restore and Start over cover the window while they work, then reload. A file tha
 
 ## Mac devices
 
-The Mac's own version line (`hyperion · 0.3.0 · schema 35`) and tailnet address head the section. The sharing switch follows, then Pair a phone, disabled until sharing is on. A mono line shows the changes kept for devices that have not caught up.
+A Mac serving without sync says so under the heading: `Sync is off`, and that no phone can pair with it. Otherwise the Mac's own version line (`hyperion · 0.3.0 · schema 35`) and tailnet address head the section. The sharing switch follows, then Pair a phone, disabled until sharing is on. A mono line shows the changes kept for devices that have not caught up.
 
 Pair a phone opens a dialog: the QR code on white with the code under it in spaced mono, three numbered steps beside it, and the wait on a hairline. The wait turns to `<phone> is paired and copying the notebook.`
 
