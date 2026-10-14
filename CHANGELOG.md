@@ -58,7 +58,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Sources by the same author keep a three-letter siglum and add a year, a title initial or a number to tell them apart, as `MAT`, `MAT19` and `MAT2`, instead of lengthening the surname.
 - Read, Compare, the research desk and tables all call a holder's stance a perspective, with the same counts, tabs and actions.
 - On a source with a snapshot, Read in the page header opens the book at your saved position (⌘ opens it beside). The reader keeps the source's Read, Outline and Compare tabs, so Outline returns to the page.
-- ⌘-click opens beside everywhere (Ctrl-click off Apple keyboards), and ⌘Enter from the keyboard; Shift-click now only selects. A list with a pane to its right opens rows there on a plain click and keeps focus.
+- ⌘-click opens beside everywhere (Ctrl-click off Apple keyboards), and ⌘Enter from the keyboard; Shift-click now only selects. A link in text, including a perspective's holder, opens in its own pane on a plain click. A list with a pane to its right opens rows there on a plain click and keeps focus.
 - The active pane carries a gilt rule along its header, and inactive panes mute their title and tabs.
 - Backlinks and related blocks show Open beside as a glyph on the row under the pointer instead of a text button on every row.
 - Failed imports sit only in the Library Inbox, folded behind one `N imports failed` line with Retry, Dismiss and Dismiss all, and name the page they tried (`pubmed.ncbi.nlm.nih.gov/16507066`).

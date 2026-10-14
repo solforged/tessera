@@ -117,7 +117,7 @@ function TokenText(props: Props) {
     }
     if (token.matches && props.blockId) { setMenu({ token, anchor }); return; }
     const block = token.target;
-    if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, true);
+    if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, opensBeside(event));
   }
   function renderTokens(tokens: DisplayToken[]) {
     return <For each={tokens}>{token => <>
