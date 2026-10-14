@@ -11,6 +11,8 @@
 .table-type-label.button { position: relative; min-height: 0; max-width: 100%; border: 0; padding: 0; color: var(--muted); font: inherit; letter-spacing: inherit; overflow-wrap: anywhere; }
 .table-view-status { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-4); padding-top: var(--space-24); color: var(--faint); font: var(--apparatus); text-align: left; }
 .table-view-status .button { color: var(--accent); }
+.table-view-status .required-gap::before { content: "· "; color: var(--faint); }
+.table-needed { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .table-columns-button { margin-left: auto; color: var(--muted); }
 .table-register > .type-mode-tabs { width: 100%; }
 .table-toolbar { display: flex; align-items: center; flex-shrink: 0; flex-wrap: wrap; width: 100%; gap: var(--space-8); padding-block: var(--page-head-gap); }

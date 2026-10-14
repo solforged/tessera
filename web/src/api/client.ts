@@ -1,6 +1,7 @@
 import { DEMO, EMBEDDED } from '../demo/mode';
 import type {
   Actor,
+  IncomingFieldValue,
   AgentProviders,
   SaveAgentProviders,
   StartAgentTurn,
@@ -283,6 +284,8 @@ export interface ApiClient {
   reviewStats(deckId?: string | null, date?: string, signal?: AbortSignal): Promise<ReviewStats>;
   reviewSessionEvents(id: string, signal?: AbortSignal): Promise<ReviewEvent[]>;
   backlinks(id: string, limit?: number, signal?: AbortSignal): Promise<Backlink[]>;
+  /** Relation field values whose whole text references `id`. */
+  incomingFields(id: string, signal?: AbortSignal): Promise<IncomingFieldValue[]>;
   pageReferences(id: string, limit?: number, signal?: AbortSignal): Promise<PageReferences>;
   referenceCounts(id: string, signal?: AbortSignal): Promise<ReferenceCount[]>;
   unlinkedMentions(id: string, limit?: number, signal?: AbortSignal): Promise<UnlinkedMentions>;
@@ -434,6 +437,7 @@ export function createApi(base = ''): ApiClient {
     reviewStats: (deckId?: string | null, date?: string, signal?: AbortSignal) => get<ReviewStats>(`/review/stats${query({ deck: deckId ?? undefined, date })}`, signal),
     reviewSessionEvents: (id: string, signal?: AbortSignal) => get<ReviewEvent[]>(`/review-sessions/${segment(id)}/reviews`, signal),
     backlinks: (id: string, limit = Number.MAX_SAFE_INTEGER, signal?: AbortSignal) => get<Backlink[]>(`/blocks/${segment(id)}/backlinks${query({ limit })}`, signal),
+    incomingFields: (id: string, signal?: AbortSignal) => get<IncomingFieldValue[]>(`/blocks/${segment(id)}/incoming-fields`, signal),
     pageReferences: (id: string, limit = Number.MAX_SAFE_INTEGER, signal?: AbortSignal) => get<PageReferences>(`/pages/${segment(id)}/references${query({ limit })}`, signal),
     referenceCounts: (id: string, signal?: AbortSignal) => get<ReferenceCount[]>(`/pages/${segment(id)}/reference-counts`, signal),
     unlinkedMentions: (id: string, limit = 100, signal?: AbortSignal) => get<UnlinkedMentions>(`/pages/${segment(id)}/unlinked-mentions${query({ limit })}`, signal),

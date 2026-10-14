@@ -537,12 +537,12 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'use-place', title: 'Use place', aliases: ['implicit subject'], section: 'Block', icon: 'close', when: block => !!block?.position, disabledReason: context.placeReason, run: context.usePlace },
       ...(doc.root()?.kind === 'journal' ? [{ id: 'integrate', title: 'Integrate…', aliases: ['move', 'file thought'], section: 'Block', icon: 'link' as const, run: (id: string) => context.openRelation(id, 'integrate') }] : []),
       ...relationKinds.map((kind): SlashItem => ({
-        id: `relation-${kind}`, title: `${relationLabels[kind]}…`, aliases: [kind, 'relation'], section: 'Relation', icon: 'link',
+        id: `relation-${kind}`, title: `${relationLabels[kind]}…`, aliases: [kind, 'argument', 'relation'], section: 'Argument', icon: 'link',
         disabledReason: id => relationReason(doc.block(id)), relationKind: kind,
       })),
-      { id: 'relation-kind', title: 'Change kind', aliases: ['relation kind'], section: 'Relation', icon: 'link', when: block => !!block?.relation, relationAction: 'change' },
-      { id: 'remove-relation', title: 'Remove relation', section: 'Relation', icon: 'close', when: block => !!block?.relation, relationAction: 'remove' },
-      { id: 'add-relation', title: 'Add relation…', section: 'Relation', icon: 'plus', when: block => !addRelationReason(block), relationAction: 'add' },
+      { id: 'relation-kind', title: 'Change kind', aliases: ['argument kind', 'relation kind'], section: 'Argument', icon: 'link', when: block => !!block?.relation, relationAction: 'change' },
+      { id: 'remove-relation', title: 'Remove argument', section: 'Argument', icon: 'close', when: block => !!block?.relation, relationAction: 'remove' },
+      { id: 'add-relation', title: 'Add argument…', section: 'Argument', icon: 'plus', when: block => !addRelationReason(block), relationAction: 'add' },
       ...(['question', 'assessment'] as const).map((kind): SlashItem => ({
         id: kind, title: `Make ${kind}`, aliases: [kind], section: 'Question', icon: kind === 'question' ? 'question-open' : 'question-settled', keys: 'Space q',
         secondary: questionDescriptions[`Make ${kind}`],
@@ -611,6 +611,7 @@ function CompletionPopups(){ return <>
       </div>
     </Popup></Show>
     <Show keyed when={valueEditor()}>{state => <ValueEditor notebook={props.notebook} anchor={state.anchor} field={definitionsById().get(state.field.id) ?? state.field} text={doc.block(state.id)?.text ?? ''} contextDate={contextDate()}
+      owner={(owner => owner ? { id: owner, page: doc.block(owner)?.pageId ?? '' } : undefined)(doc.outline.parentOf(doc.outline.parentOf(state.id)))}
       onDismiss={() => dismissValueEditor(state.id)} onError={setMessage}
       onCreateOption={async text => { const change = await createOptionValue(props.notebook, doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text); context.showNotice('Option added.', change.undo); }}
       onWrite={async text => { writeFieldValue(doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text); await doc.flush(); }} />}</Show>

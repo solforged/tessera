@@ -3,8 +3,10 @@ import type { Block, Committed, FieldChoiceCandidate, FieldDefinition, FieldDeta
 import type { DocumentChange, NotebookClient, PageDocument } from '../document/contract';
 import { fieldEntryId, queryFieldIds, remapQueryField } from '../table/query';
 import { documentReady } from '../outline/source-fields';
+import { fieldNameProblem } from './kinds';
+import { SOURCE_TARGET, sourceOperation } from './targets';
 
-type Write = Extract<Operation, { op: 'insert' | 'create_page' | 'edit_text' | 'set_field_kind' | 'set_type_fields' | 'set_archived' | 'move' | 'delete' | 'restore' }> | (Extract<Operation, { op: 'save_view' }> & { base_revision: number });
+type Write = Extract<Operation, { op: 'insert' | 'create_page' | 'edit_text' | 'set_field_kind' | 'set_field_targets' | 'set_type_fields' | 'set_archived' | 'move' | 'delete' | 'restore' | 'add_type' | 'remove_type' | 'set_source' }> | (Extract<Operation, { op: 'save_view' }> & { base_revision: number });
 interface Step { forward: Write; backward: Write }
 const revision = (receipt: Committed, id: string) => {
   const value = receipt.revisions.find(value => value.id === id);
@@ -67,6 +69,11 @@ export async function changeFieldKind(notebook: NotebookClient, detail: FieldDet
   });
   const options = new Map(detail.field.options.map(option => [option.text.trim().toLocaleLowerCase(), option.id]));
   const created = new Map<string, string>();
+  // A created page joins the field's only target type, or becomes a source, so it reads as a member at once; with
+  // several, the choice is the author's.
+  const [only, ...others] = detail.kind === 'instance' ? detail.field.targets : [];
+  const sole = only && !others.length && Object.values(convert).some(mapping => mapping.mode === 'create') ? only : null;
+  const fileUnder = sole && sole !== SOURCE_TARGET ? (await notebook.api.block(sole)).text : null;
   let after = detail.field.options.at(-1)?.id ?? null;
   for (const row of detail.interpretations) {
     const mapping = convert[row.text];
@@ -84,6 +91,8 @@ export async function changeFieldKind(notebook: NotebookClient, detail: FieldDet
       target = created.get(title) ?? ulid();
       if (!created.has(title)) {
         steps.push({ forward: { op: 'create_page', id: target, title }, backward: { op: 'delete', id: target, base_revision: 0 } });
+        if (fileUnder) steps.push({ forward: { op: 'add_type', id: target, base_revision: 1, title: fileUnder }, backward: { op: 'remove_type', id: target, base_revision: 0, title: fileUnder } });
+        if (sole === SOURCE_TARGET) steps.push({ forward: sourceOperation(target, 1), backward: { op: 'set_source', id: target, base_revision: 0, source: null } });
         created.set(title, target); pages.add(target);
       }
     } else target = mapping.value;
@@ -107,6 +116,57 @@ export async function makeFieldOption(notebook: NotebookClient, detail: FieldDet
   const pages = new Set([definition.page_id]);
   addCandidates(steps, pages, detail.field, candidates);
   return commit(notebook, steps, [...pages], 'Make field option');
+}
+
+/** A fresh field's kind, set from its first value; Undo returns it to text. Nothing else needs reinterpreting yet. */
+export async function setFreshFieldKind(notebook: NotebookClient, fieldId: string, kind: FieldKind): Promise<DocumentChange> {
+  const definition = await notebook.api.block(fieldId);
+  return commit(notebook, [{
+    forward: { op: 'set_field_kind', id: fieldId, base_revision: definition.revision, kind },
+    backward: { op: 'set_field_kind', id: fieldId, base_revision: 0, kind: 'text' },
+  }], [definition.page_id], 'Set field kind');
+}
+
+/** A field renamed in place; the caller has already refused names another field holds. */
+export async function renameField(notebook: NotebookClient, field: FieldDefinition, name: string): Promise<DocumentChange> {
+  const register = await notebook.api.fields();
+  const problem = fieldNameProblem(name, register.fields, field.id);
+  if (problem) throw new Error(problem);
+  const steps: Step[] = [];
+  replace(steps, { id: field.id, text: field.name, revision: field.revision }, name.trim());
+  return commit(notebook, steps, [register.page_id], 'Rename field');
+}
+
+/** A relation field's Links to types; none means any block. */
+export async function setFieldTargets(notebook: NotebookClient, field: FieldDefinition, targets: string[]): Promise<DocumentChange> {
+  const register = await notebook.api.fields();
+  return commit(notebook, [{
+    forward: { op: 'set_field_targets', id: field.id, base_revision: field.revision, targets },
+    backward: { op: 'set_field_targets', id: field.id, base_revision: 0, targets: field.targets },
+  }], [register.page_id], 'Set field targets');
+}
+
+/** An existing field placed last in a type's template; Undo restores the template it had. */
+export async function addTemplateField(notebook: NotebookClient, type: Type, fieldId: string): Promise<DocumentChange> {
+  return commit(notebook, [{
+    forward: { op: 'set_type_fields', type_id: type.page.id, base_revision: type.page.revision, fields: [...type.fields, fieldId] },
+    backward: { op: 'set_type_fields', type_id: type.page.id, base_revision: 0, fields: type.fields },
+  }], [type.page.id], 'Add field to template');
+}
+
+/** A new definition placed last in a type's template, as one undoable change. */
+export async function createTemplateField(notebook: NotebookClient, type: Type, name: string, kind: FieldKind): Promise<DocumentChange> {
+  const register = await notebook.api.fields();
+  const problem = fieldNameProblem(name, register.fields);
+  if (problem) throw new Error(problem);
+  const steps: Step[] = [];
+  const id = insert(steps, register.page_id, name.trim());
+  if (kind !== 'text') steps.push({ forward: { op: 'set_field_kind', id, base_revision: 1, kind }, backward: { op: 'set_field_kind', id, base_revision: 0, kind: 'text' } });
+  steps.push({
+    forward: { op: 'set_type_fields', type_id: type.page.id, base_revision: type.page.revision, fields: [...type.fields, id] },
+    backward: { op: 'set_type_fields', type_id: type.page.id, base_revision: 0, fields: type.fields },
+  });
+  return commit(notebook, steps, [register.page_id, type.page.id], 'Create template field');
 }
 
 export async function createFieldEntry(notebook: NotebookClient, doc: PageDocument, owner: string, name: string, kind: FieldKind) {

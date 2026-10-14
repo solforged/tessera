@@ -106,7 +106,7 @@ fn query(n: &Notebook) -> tessera_core::QueryResult {
         .unwrap()
         .fields
         .into_iter()
-        .find(|field| field.definition.name == "Author")
+        .find(|field| field.definition.name.eq_ignore_ascii_case("author"))
         .unwrap()
         .definition
         .id;
@@ -128,7 +128,12 @@ fn query(n: &Notebook) -> tessera_core::QueryResult {
 }
 fn field(n: &Notebook, source: &str, name: &str) -> Vec<tessera_core::FieldValue> {
     let result = query(n);
-    let field = &result.fields.iter().find(|f| f.name == name).unwrap().id;
+    let field = &result
+        .fields
+        .iter()
+        .find(|f| f.name.eq_ignore_ascii_case(name))
+        .unwrap()
+        .id;
     result
         .rows
         .iter()
@@ -751,7 +756,7 @@ fn staging_ingestion_fields_and_immutable_objects() {
     assert!(
         values
             .iter()
-            .any(|(label, v)| label == "Author" && v[0] == authors[0].text)
+            .any(|(label, v)| label.eq_ignore_ascii_case("author") && v[0] == authors[0].text)
     );
 }
 
@@ -868,7 +873,7 @@ fn reingest_longer_list_inserts_missing_positions() {
         .extracted_values(&source)
         .unwrap()
         .into_iter()
-        .find(|(name, _)| name == "Author")
+        .find(|(name, _)| name.eq_ignore_ascii_case("author"))
         .unwrap()
         .1;
     assert_eq!(
@@ -999,7 +1004,7 @@ fn ingest_preserves_existing_author_kind_and_extracted_text() {
             .extracted_values(&source)
             .unwrap()
             .into_iter()
-            .find(|(name, _)| name == "Author")
+            .find(|(name, _)| name.eq_ignore_ascii_case("author"))
             .unwrap()
             .1;
         assert_eq!(values[0].text, extracted[0]);
@@ -2725,7 +2730,7 @@ fn catalogue_value(
         .query_row(
             "SELECT v.id FROM field_values fv
              JOIN blocks v ON v.id = fv.value_id JOIN blocks d ON d.id = fv.field_id
-             WHERE fv.owner_id = ?1 AND d.text = ?2 AND v.deletion_id IS NULL",
+             WHERE fv.owner_id = ?1 AND lower(d.text) = lower(?2) AND v.deletion_id IS NULL",
             [source, name],
             |row| row.get(0),
         )

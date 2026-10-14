@@ -9,11 +9,27 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write;
 
 pub(crate) type FieldReadings = BTreeMap<String, Vec<String>>;
+
+/// Readings of every field that counts as creator, author first; a work's byline, siglum and sort.
+pub(crate) const CREATORS: &str = "@creator";
+/// Creators read only when a work has none of the above, such as its editors.
+pub(crate) const FALLBACK_CREATORS: &str = "@creator fallback";
+/// Readings of fields that count as contributor, listed after the creators.
+pub(crate) const CONTRIBUTORS: &str = "@contributor";
+
+/// A work's creators: those that count as creator, else its fallback creators such as editors.
+pub(crate) fn creators(readings: &FieldReadings) -> &[String] {
+    [CREATORS, FALLBACK_CREATORS]
+        .into_iter()
+        .filter_map(|key| readings.get(key))
+        .find(|names| !names.is_empty())
+        .map_or(&[], Vec::as_slice)
+}
 pub(crate) fn field_readings(
     conn: &rusqlite::Connection,
     ids: &[String],
 ) -> Result<HashMap<String, FieldReadings>> {
-    read_field_readings(conn, ids, |_, _, _, _| {})
+    read_field_readings(conn, ids, |_, _, _, _, _| {})
 }
 
 pub(crate) fn field_readings_with_people(
@@ -21,11 +37,13 @@ pub(crate) fn field_readings_with_people(
     ids: &[String],
     people: &mut HashMap<String, Vec<LibraryPerson>>,
 ) -> Result<HashMap<String, FieldReadings>> {
-    let readings = read_field_readings(conn, ids, |owner, field, name, id| {
+    let readings = read_field_readings(conn, ids, |owner, field, tier, name, id| {
         let role = match field {
             "author" => CreatorRole::Author,
             "editor" => CreatorRole::Editor,
             "translator" => CreatorRole::Translator,
+            // The notebook's own creator fields, such as director, read as authors here.
+            _ if tier == Some(crate::built_in::CreatorTier::Creator) => CreatorRole::Author,
             _ => return,
         };
         people
@@ -50,14 +68,24 @@ pub(crate) fn field_readings_with_people(
 fn read_field_readings(
     conn: &rusqlite::Connection,
     ids: &[String],
-    mut visit: impl FnMut(&str, &str, &str, Option<String>),
+    mut visit: impl FnMut(&str, &str, Option<crate::built_in::CreatorTier>, &str, Option<String>),
 ) -> Result<HashMap<String, FieldReadings>> {
     if ids.is_empty() {
         return Ok(HashMap::new());
     }
     let definitions = crate::fields::definitions(conn)?;
+    let tiers: HashMap<&str, (crate::built_in::CreatorTier, usize)> = definitions
+        .iter()
+        .enumerate()
+        .filter_map(|(position, definition)| {
+            crate::built_in::creator_tier(definition, position)
+                .map(|tier| (definition.id.as_str(), tier))
+        })
+        .collect();
     let definitions = crate::fields::definition_map(&definitions);
     let mut result: HashMap<String, FieldReadings> = HashMap::new();
+    let mut ranked: HashMap<String, Vec<(crate::built_in::CreatorTier, usize, String)>> =
+        HashMap::new();
     let mut statement = conn.prepare_cached(concat!(
         "SELECT f.field_id, v.text, ",
         block_columns!("target"),
@@ -82,10 +110,11 @@ fn read_field_readings(
             None
         };
         let field = definition.name.to_lowercase();
+        let tier = tiers.get(definition.id.as_str()).copied();
         // Creator metadata can be an unlinked name even when imported names use
         // an instance field. References still retain their constrained reading.
         let reading = if definition.kind == crate::FieldKind::Instance
-            && matches!(field.as_str(), "author" | "editor" | "translator")
+            && tier.is_some()
             && crate::fields::reference(&text).is_none()
             && !text.trim().is_empty()
         {
@@ -143,7 +172,13 @@ fn read_field_readings(
                 value
             };
             let owner: String = row.get(12)?;
-            visit(&owner, &field, &value, target);
+            if let Some((tier, rank)) = tier {
+                ranked
+                    .entry(owner.clone())
+                    .or_default()
+                    .push((tier, rank, value.clone()));
+            }
+            visit(&owner, &field, tier.map(|(tier, _)| tier), &value, target);
             result
                 .entry(owner)
                 .or_default()
@@ -152,8 +187,51 @@ fn read_field_readings(
                 .push(value);
         }
     }
+    for (owner, mut values) in ranked {
+        // Stable, so each field keeps its entries' order.
+        values.sort_by_key(|(tier, rank, _)| (*tier, *rank));
+        let readings = result.entry(owner).or_default();
+        for (tier, _, value) in values {
+            let key = match tier {
+                crate::built_in::CreatorTier::Creator => CREATORS,
+                crate::built_in::CreatorTier::Fallback => FALLBACK_CREATORS,
+                crate::built_in::CreatorTier::Contributor => CONTRIBUTORS,
+            };
+            readings.entry(key.into()).or_default().push(value);
+        }
+    }
     Ok(result)
 }
+/// CSL's name variables, which a creator or contributor field exports as when its name matches.
+const CSL_NAMES: &[&str] = &[
+    "author",
+    "chair",
+    "collection-editor",
+    "compiler",
+    "composer",
+    "container-author",
+    "contributor",
+    "curator",
+    "director",
+    "editor",
+    "editorial-director",
+    "executive-producer",
+    "guest",
+    "host",
+    "illustrator",
+    "interviewer",
+    "narrator",
+    "organizer",
+    "original-author",
+    "performer",
+    "producer",
+    "recipient",
+    "reviewed-author",
+    "script-writer",
+    "series-creator",
+    "translator",
+];
+
 fn person(name: &str) -> (String, String) {
     if let Some((family, given)) = name.split_once(',') {
         return (family.trim().into(), given.trim().into());
@@ -245,6 +323,28 @@ impl Notebook {
         let mut bib = String::new();
         let mut csl = vec![];
         let mut readings_by_source = field_readings(&self.conn, ids)?;
+        // Fields of the notebook's own that count as creator or contributor, by the CSL role closest to their
+        // name: a `director` exports as director, any other creator as author.
+        let extra_roles: Vec<(String, &str)> = crate::fields::definitions(&self.conn)?
+            .into_iter()
+            .filter(|definition| !definition.built_in && !definition.archived)
+            .filter_map(|definition| {
+                let name = definition.name.trim().to_lowercase();
+                let role = CSL_NAMES
+                    .iter()
+                    .copied()
+                    .find(|role| role.replace('-', " ") == name)
+                    .or(match definition.counts_as? {
+                        crate::CountsAs::Creator => Some("author"),
+                        crate::CountsAs::Contributor => Some("contributor"),
+                        crate::CountsAs::Originator => None,
+                    })?;
+                definition
+                    .counts_as
+                    .filter(|counts| *counts != crate::CountsAs::Originator)?;
+                Some((name, role))
+            })
+            .collect();
         for id in ids {
             let source = self.source(id)?;
             let key =
@@ -269,23 +369,40 @@ impl Notebook {
                         .get("identifier")
                         .is_some_and(|ids| ids.iter().any(|id| id.starts_with("isbn:")));
             let mut has_doi = false;
-            for role in ["author", "editor", "translator"] {
-                if let Some(names) = readings.get(role).filter(|v| !v.is_empty()) {
+            let mut roles: Vec<(&str, Vec<String>)> = ["author", "editor", "translator"]
+                .into_iter()
+                .map(|role| (role, readings.get(role).cloned().unwrap_or_default()))
+                .collect();
+            for (name, role) in &extra_roles {
+                let Some(names) = readings.get(name) else {
+                    continue;
+                };
+                match roles.iter_mut().find(|(known, _)| known == role) {
+                    Some((_, known)) => known.extend(names.iter().cloned()),
+                    None => roles.push((role, names.clone())),
+                }
+            }
+            for (role, names) in &roles {
+                let role = *role;
+                if !names.is_empty() {
                     let names: Vec<_> = names.iter().map(|n| person(n)).collect();
-                    fields.push((
-                        role,
-                        names
-                            .iter()
-                            .map(|(family, given)| {
-                                if given.is_empty() {
-                                    family.clone()
-                                } else {
-                                    format!("{family}, {given}")
-                                }
-                            })
-                            .collect::<Vec<_>>()
-                            .join(" and "),
-                    ));
+                    // BibTeX names only these three; CSL takes every name variable.
+                    if matches!(role, "author" | "editor" | "translator") {
+                        fields.push((
+                            role,
+                            names
+                                .iter()
+                                .map(|(family, given)| {
+                                    if given.is_empty() {
+                                        family.clone()
+                                    } else {
+                                        format!("{family}, {given}")
+                                    }
+                                })
+                                .collect::<Vec<_>>()
+                                .join(" and "),
+                        ));
+                    }
                     item.insert(
                         role.into(),
                         Value::Array(
@@ -473,7 +590,7 @@ impl Notebook {
             }
             writeln!(output, "# {}", source.page.text).expect("String write");
             let fields = readings.remove(id).unwrap_or_default();
-            if let Some(creators) = fields.get("author").filter(|names| !names.is_empty()) {
+            if let Some(creators) = fields.get(CREATORS).filter(|names| !names.is_empty()) {
                 write!(output, "{} · ", creators.join(", ")).expect("String write");
             }
             if let Some(published) = fields.get("published").and_then(|values| values.first()) {

@@ -412,7 +412,7 @@ A field whose values are all leaves reads through its definition's role. Standfi
 
 A page's own fields read as a specimen block under the imprint, as the site sets title, standfirst, imprint, then text. Names are mono apparatus in `--faint` without the field icon, starting on the title edge. Attribute values are `--text-control` in `--muted`, and a dotted hairline separates rows. On phones each name sits over its value, both on the title edge. Nested fields sit inside prose and keep the bed above; journal days and the reading register set fields their own way.
 
-- Clicking a name opens a menu titled with the field name and its owning note as context: Open field page, Definition…, Templates… and Remove from this note last. Definition groups Kind…, Options… or Links to…, Hide… and Role…; Kind opens the change preview on the field page. Templates holds Add to or Remove from each owning type's template and is omitted without an owning type. Nested choices replace the rows in place with a header Back. The block menu's Field manager and the leader key `f` open the same menu.
+- Clicking a name opens a menu titled with the field name and its owning note as context: Open field page, Definition…, Templates… and Remove from this note last. Definition groups Kind…, Options… or Links to…, Hide…, Role… and Counts as…; Kind opens the change preview on the field page. Templates holds Add to or Remove from each owning type's template and is omitted without an owning type. Nested choices replace the rows in place with a header Back. The block menu's Field manager and the leader key `f` open the same menu.
 - An entry with no value shows its name and a blank value; clicking the blank adds a value and edits it. Blank values show no text.
 - Backspace at the start of the first inline value does nothing; at the start of a later one it joins the value above.
 - A page that opens on a field selects its value row instead of editing.
@@ -423,12 +423,12 @@ Each kind has its own value editor, the same in outlines and tables:
 | Kind | Click | ⌘-click |
 |---|---|---|
 | Choice | The pill opens its options: type to filter, Create option for a new name, Clear | Opens the option beside |
-| Instance | The pill opens its page; the blank space after it, or Enter on the selected value, opens a picker of the target types | Opens the page beside |
+| Relation | The pill opens its target; the blank space after it, or Enter on the selected value, opens a picker of the target types | Opens the target beside |
 | Date | Opens the date picker at the value; a year or year-month can still be typed | |
 | Checkbox | A control that writes `yes` or `no`; other spellings stay text | |
 | Text, number, URL, identifier | Edits the text | |
 
-Choice and instance values never show their reference text. Their pills sit centered on the label's line. Insert below (`o`, or the block menu) on a choice or instance value adds a blank value and opens its picker. Leaving a blank value that is not the entry's first removes it. A value its kind cannot read keeps its text with the tables' dotted `--warning` underline and the problem in its tooltip; identifiers and target constraints are checked only in tables and on field pages.
+Choice and relation values never show their reference text. Their pills sit centered on the label's line. Insert below (`o`, or the block menu) on a choice or relation value adds a blank value and opens its picker. Leaving a blank value that is not the entry's first removes it. A value its kind cannot read keeps its text with the tables' dotted `--warning` underline and the problem in its tooltip; identifiers and target constraints are checked only in tables and on field pages.
 
 ### Field area
 
@@ -436,19 +436,19 @@ Every block or page with field entries or template fields has a field bed at res
 
 - On a page, an Add field line in mono apparatus closes the area, followed by a small gap before the notes.
 - On a nested block, `+ Field` appears at the end of its last field row while the block or one of its fields is hovered, selected or edited, without changing any row's height.
-- A page or block without fields adds one from Add field… in its page or block menu, or with `Name::`.
+- A page or block without fields adds one from Add field… in its page or block menu, or with `name::`.
 
 Slots read as suggestions: the name in `--faint` and no value text. On a page, slot names take the specimen block's mono apparatus without the icon, the value reads `Add…` in `--faint`, and a dotted hairline follows each slot. Slots share the field labels' edge and sit on the canvas outside the row's hover and selection. A slot adds the entry with a blank value and opens its kind's editor; a checkbox slot adds a ticked value.
 
 Add field opens a picker with missing template fields under Template, then the rest, and Create field for a new name. A perspective instead begins with From this recipe: Gist, Work, then its subject's explicit or derived criteria. A suggested field takes its recipe or template place among the entries; another follows the last entry. Each addition is one undo step.
 
-A definition's Hide setting (Never, When empty, Always; see the [domain model](domain-model.md#types-and-fields)) leaves its entries and slots out of outlines. An entry stays while it or one of its values is edited or selected. The area then counts `N hidden`, which reveals that owner's hidden fields in this pane.
+A definition's Hide setting (Never, When empty, Always; see the [domain model](domain-model.md#types-and-fields)) leaves its entries and slots out of outlines. A field the owner's type requires is the exception while it has no value: its slot shows even at rest, outside the focused owner. An entry stays while it or one of its values is edited or selected. The area then counts `N hidden`, which reveals that owner's hidden fields in this pane.
 
 Hide and template changes from the field menu belong to the field and the type rather than the note, so they offer the Undo toast instead of joining the page's undo history.
 
 Inserting or removing a value transfers its area and measured height in one layout update, without briefly shrinking or growing the scrollable page.
 
-Clicking a value or pressing Enter on a selected field enters filling mode for that owner. Tab and Shift-Tab move through its fields and missing slots in recipe or template order, creating an entry only when reached. Shift-Enter adds a newline. Enter on an empty value leaves for the next ordinary row under the owner; Escape leaves without moving. Each value keeps its normal undo grouping. Outside filling mode, Tab and Shift-Tab still indent and outdent ordinary outline rows.
+Clicking a value or pressing Enter on a selected field enters filling mode for that owner. Tab and Shift-Tab move through its fields and missing slots in recipe or template order, creating an entry only when reached. Shift-Enter adds a newline. Enter on an empty value leaves for the next ordinary row under the owner. While its value picker has a query or an arrow-key highlight, Enter picks instead. Escape leaves without moving. Each value keeps its normal undo grouping. Outside filling mode, Tab and Shift-Tab still indent and outdent ordinary outline rows.
 
 ### Capability metadata
 
@@ -587,7 +587,7 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 | `#name` | Type: picks a page used as a type, or creates one |
 | `@` | When: `@fri` schedules, `@by fri` or `@due fri` sets a deadline; Tab flips the field, Enter picks |
 | `/` | Every block verb: statuses, schedule, deadline, priority, repeat, clock, project, headings, references, types, cards |
-| `Name::`, `::` at block start | Field entry; `::` alone picks the field |
+| `name::`, `::` at block start | Field entry; `::` alone picks the field |
 | `[] `, `# ` | Todo, heading; on a line that is already a task, `[] ` just disappears |
 | `>>`, `<<`, `<>`, `>>>`, `>>1.`, `;;`, `{{c1::}}` | Cards; ⌘⇧C wraps the selection in a cloze |
 
@@ -617,11 +617,13 @@ A page made for a tag or by Add type goes away again once no tag, manual type or
 
 #### Field shorthand
 
-`Name::` reads as a field label while it is typed: the field icon, the name in `--muted`, and a tinted hint at the end, New field for a name no field has or the field's kind until a value is typed.
+`name::` reads as a field label while it is typed: the field icon, the name in `--muted`, and a tinted hint at the end. A name no field has reads New field, then New number field or the kind its value suggests once one is typed. A known field shows its kind until a value is typed. Leaving the first value of a field just made this way sets that kind and shows a notice, such as page count is now a number field, with Undo.
+
+Leaving a value on a tagged block may instead show the template offer, such as strength is on another #proposition too, with Add to #proposition and Not now buttons. It names the tag as the block spells it. An offer stays while you keep typing, because it has no Undo to compete with the outline's. Add replaces it with a notice that has Undo.
 
 Space straight after `::`, or Tab anywhere in the name, makes the entry at once and puts the caret in its value; leaving the block converts it as before. `::` at the start of a block opens a field picker listing each field with its kind and Create field for a new name, and picking makes the entry the same way. Conversion, including its first empty value, is one undo step.
 
-The picker puts the owner's missing template fields first, in template order, and fields the owner already has last. A choice field's value offers its options as you type, with Add option for a new one. A new date entry opens the date picker for its value, and a new instance entry opens page completion inside `[[]]`.
+The picker puts the owner's missing template fields first, in template order, and fields the owner already has last. A choice field's value offers its options as you type, with Add option for a new one. A new date entry opens the date picker for its value, and a new relation entry opens the relation picker.
 
 #### Slash commands
 
@@ -703,7 +705,7 @@ Escape closes the topmost one and returns focus to the editor or outline that ow
 | Find or create: pages, blocks and explicit page creation; `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Below the global search trigger, 560 px |
 | Dedicated command palette | Picker, grouped by action section, with shortcuts; disabled reasons appear on the selected row and remain available to assistive technology | Top center, 560 px |
 | [Add to today](surfaces/journal.md) (⌘E) | One capture line under a mono rubric, its completions in a picker beneath, key hints and Add on a hairline | Top center, 560 px; a bottom sheet on the cover |
-| `[[`, `((`, `#`, `Name::` completion and Add type | Picker | Below the opening brackets, the caret or the block |
+| `[[`, `((`, `#`, `name::` completion and Add type | Picker | Below the opening brackets, the caret or the block |
 | `@` dates and `/` commands | Picker without an input; the block text is the query, sections label `/` rows, faster keys at the right | Below the token |
 | Leader, status and priority menus | Menu; leader letters at the right and pressed directly | Below the row |
 | Add filter | Picker in three steps: field, condition, value; Backspace on an empty query steps back | Below its trigger |
@@ -711,7 +713,7 @@ Escape closes the topmost one and returns focus to the editor or outline that ow
 | Page actions | Titled Menu with page context, full ID, Copy ID and Created; Description, Make and Appearance drill in with Back | Below its trigger; bottom sheet with Close and 44 px rows on coarse phones |
 | Note actions | Titled Menu with the existing note header; Open, File under, Rename and Delete, then More for Merge and Copy reference | Below its trigger; bottom sheet on coarse phones |
 | Source actions | Edit details, Copy citation key, Collections…, Export…, Source settings… and Delete source last; drill-ins replace rows with a header Back | Below the trigger; a bottom sheet below 600 px with a coarse pointer |
-| Field entry | Open field page, Definition…, Templates… when an owning type exists, Remove from this note last; Kind, Hide and Role drill into Definition | Below the field name; a bottom sheet below 600 px with a coarse pointer |
+| Field entry | Open field page, Definition…, Templates… when an owning type exists, Remove from this note last; Kind, Hide, Role and Counts as drill into Definition | Below the field name; a bottom sheet below 600 px with a coarse pointer |
 | Notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | New page, Delete page | Confirm | Below their trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
@@ -762,6 +764,8 @@ A `((ID))` row without a snapshot shows the target's live text in the same frame
 Below the outline, Backlinks is open by default and counts every distinct referring block, including references to the page's own blocks. Groups follow the referring page, newest first, under a mono capital heading that opens the page, with the group's count at the right. Each source shows its live text, opens at the block on click (⌘ opens beside), and has a disclosure that shows its parent and up to six descendants from the live page. An Open beside glyph appears at the right of the row under the pointer or in focus, and always on touch screens; related blocks follow the same pattern. A source that names one of this page's blocks only through an alias adds a faint mono `→` line naming that block, which zooms to it. Load more fetches the next hundred.
 
 Blocks on the page with incoming references carry their count as a faint mono numeral in the outside right rail, where it cannot shift text or the editor. It opens the Block backlinks popup.
+
+A relation's target shows a quiet meta line beneath its row, or beneath a page's title: `← qualifies` and its owners' labels, one group per field, after any argument line. Each label opens its owner where it is written, and its title names the owner's page. A field with more than three owners shows three, then a +N more button.
 
 Unlinked mentions follows, collapsed and fetched only once opened. Each mention shows its breadcrumb as a mono capital link, its text with the matched title or alias highlighted, and Link, which turns the first whole-word match into an aliased reference keeping the original wording. The edit belongs to the source page's undo history.
 

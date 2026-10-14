@@ -7,6 +7,8 @@
 .index-head h1 { display: flex; align-items: baseline; gap: var(--space-12); flex: 1 1 auto; min-width: 0; margin: 0; font: var(--page-title-font); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
 .index-head h1 > .icon { flex: none; align-self: center; color: var(--faint); }
 .index-tally { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.index-head .required-gap { color: var(--accent); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.index-needs { display: block; margin-top: var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .index-head:has(+ :is(.type-mode-tabs, .index-queue-tabs, .index-source-tabs)) { margin-bottom: var(--page-title-gap); }
 .index-sheet > .type-mode-tabs, .index-queue-tabs, .index-source-tabs { margin-bottom: var(--page-head-gap); }
 .index-letters { flex-wrap: nowrap; gap: 0; margin: var(--space-12) 0 var(--space-16); overflow-x: auto; }

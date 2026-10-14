@@ -8,7 +8,8 @@ import type * as VimModule from '@replit/codemirror-vim';
 import type { Caret } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import type { FieldKind, NameMatch } from '../api/types';
-import { kindLabels } from '../fields/kinds';
+import { kindLabels, kindNoun } from '../fields/kinds';
+import { guessFieldKind } from '../fields/value-reading';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { glyphElement } from '../ui/glyphs';
 import type { Token } from '../document/text-tokens';
@@ -67,15 +68,16 @@ class FieldHintWidget extends WidgetType {
 const fieldIcon = Decoration.widget({ widget: new FieldIconWidget(), side: -1 });
 const draftName = Decoration.mark({ class: 'field-draft-name' });
 /**
- * While `Name:: value` is typed, the name already reads as a field label. A trailing hint says the field is
- * new, or names a known field's kind until a value is typed.
+ * While `name:: value` is typed, the name already reads as a field label. A trailing hint says the field is
+ * new and which kind its value suggests, or names a known field's kind until a value is typed.
  */
 export function fieldDraftDecorations(text: string, kindOf: FieldKindResolver): DecorationSet {
   if (fieldEntryId(text) !== null) return Decoration.none;
   const match = matchFieldEntry(text);
   if (!match) return Decoration.none;
   const kind = kindOf(match.name);
-  const hint = kind ? match.value.trim() ? null : kindLabels[kind] : 'New field';
+  const guess = match.value.trim() ? guessFieldKind(match.value) ?? 'text' : null;
+  const hint = kind ? match.value.trim() ? null : kindLabels[kind] : guess ? `New ${kindNoun(guess)} field` : 'New field';
   const ranges = [fieldIcon.range(0), draftName.range(0, text.indexOf('::') + 2)];
   if (hint) ranges.push(Decoration.widget({ widget: new FieldHintWidget(hint), side: 1 }).range(text.length));
   return Decoration.set(ranges, true);

@@ -204,7 +204,7 @@ impl Notebook {
                 siglum: source.siglum,
                 citation_key: source.citation_key,
                 format: source.format,
-                authors: fields.get("author").cloned().unwrap_or_default(),
+                authors: crate::library_export::creators(&fields).to_vec(),
                 publisher: first("publisher"),
                 published: first("published"),
                 highlights: highlight_counts

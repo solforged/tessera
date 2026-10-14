@@ -5,13 +5,13 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::model::{
     FieldChoiceCandidate, FieldChoiceValue, FieldDetail, FieldInterpretation, FieldOptionUse,
     FieldOwner, FieldOwnerValues, FieldSummary, FieldTemplate, FieldType, FieldValue,
-    FieldValueUse,
+    FieldValueUse, IncomingFieldValue,
 };
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, validate_date, validate_id, validation};
 use crate::{
-    Block, BlockKind, FieldDefinition, FieldHide, FieldKind, FieldOption, FieldRole, FieldsView,
-    Notebook, Operation, Reading, ReadingValue, Result,
+    Block, BlockKind, CountsAs, FieldDefinition, FieldHide, FieldKind, FieldOption, FieldRole,
+    FieldsView, Notebook, Operation, Reading, ReadingValue, Result,
 };
 
 pub(crate) fn ensure_page(conn: &Connection) -> Result<()> {
@@ -196,6 +196,7 @@ impl FieldChanges {
             | Operation::SetFieldKind { id, .. }
             | Operation::SetFieldHide { id, .. }
             | Operation::SetFieldRole { id, .. }
+            | Operation::SetFieldCountsAs { id, .. }
             | Operation::SetFieldTargets { id, .. } => self.capture(conn, id),
             Operation::SetTypeFields { .. }
             | Operation::SetTypePresentation { .. }
@@ -340,11 +341,38 @@ pub(crate) fn rebuild(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// The Links to entry for sources, which are a capability rather than a type page; named like their note kind.
+pub const SOURCE_TARGET: &str = "source";
+
+/// A relation's Links to entries: [`SOURCE_TARGET`] first when it links to sources, then its type pages.
 pub(crate) fn targets(conn: &Connection, id: &str) -> Result<Vec<String>> {
     Ok(conn
-        .prepare_cached("SELECT type_id FROM field_targets WHERE field_id = ?1 ORDER BY position")?
-        .query_map([id], |row| row.get(0))?
+        .prepare_cached(
+            "SELECT ?2 FROM fields WHERE block_id = ?1 AND links_sources = 1
+             UNION ALL SELECT * FROM (SELECT type_id FROM field_targets WHERE field_id = ?1 ORDER BY position)",
+        )?
+        .query_map(params![id, SOURCE_TARGET], |row| row.get(0))?
         .collect::<rusqlite::Result<_>>()?)
+}
+
+/// Replaces a relation's Links to with checked `targets`, [`SOURCE_TARGET`] among them or not.
+pub(crate) fn file_targets(conn: &Connection, id: &str, targets: &[String]) -> Result<()> {
+    conn.execute(
+        "UPDATE fields SET links_sources = ?2 WHERE block_id = ?1",
+        params![id, targets.iter().any(|target| target == SOURCE_TARGET)],
+    )?;
+    conn.execute("DELETE FROM field_targets WHERE field_id = ?1", [id])?;
+    let mut insert = conn.prepare_cached(
+        "INSERT INTO field_targets(field_id, type_id, position) VALUES (?1, ?2, ?3)",
+    )?;
+    for (position, target) in targets
+        .iter()
+        .filter(|target| *target != SOURCE_TARGET)
+        .enumerate()
+    {
+        insert.execute(params![id, target, position as i64])?;
+    }
+    Ok(())
 }
 
 pub(crate) fn definitions(conn: &Connection) -> Result<Vec<FieldDefinition>> {
@@ -353,7 +381,7 @@ pub(crate) fn definitions(conn: &Connection) -> Result<Vec<FieldDefinition>> {
 
 fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefinition>> {
     let mut statement = conn.prepare_cached(
-        "SELECT d.id, d.text, COALESCE(f.kind, 'text'), d.revision, o.id, o.text, COALESCE(f.hide, 'never'), COALESCE(f.role, 'attribute'), d.archived
+        "SELECT d.id, d.text, COALESCE(f.kind, 'text'), d.revision, o.id, o.text, COALESCE(f.hide, 'never'), COALESCE(f.role, 'attribute'), d.archived, f.counts_as
          FROM blocks p JOIN blocks d ON d.parent_id = p.id LEFT JOIN fields f ON f.block_id = d.id
          LEFT JOIN blocks o ON o.parent_id = d.id AND o.deletion_id IS NULL AND o.archived = 0
          WHERE p.kind = 'page' AND p.title_key = 'fields' AND p.deletion_id IS NULL
@@ -375,8 +403,18 @@ fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefin
         }
         let id: String = row.get(0)?;
         if result.last().is_none_or(|d| d.id != id) {
+            let built_in = crate::built_in::field_named(name);
             result.push(FieldDefinition {
                 targets: targets(conn, &id)?,
+                built_in: built_in.is_some(),
+                // A built-in field counts as what the core's schema says; others as they were set.
+                counts_as: match built_in {
+                    Some(field) => field.counts_as,
+                    None => row
+                        .get::<_, Option<String>>(9)?
+                        .as_deref()
+                        .and_then(CountsAs::from_str),
+                },
                 id,
                 name: name.to_owned(),
                 kind: FieldKind::from_str(&row.get::<_, String>(2)?).ok_or_else(|| {
@@ -487,6 +525,67 @@ impl Notebook {
         })
     }
 
+    /// Relation field values whose whole text references `target`, so the target can read them back, such as
+    /// `← qualifies`. Archived definitions, and values, entries or owners that are hidden, are left out.
+    pub fn incoming_field_values(&self, target: &str) -> Result<Vec<IncomingFieldValue>> {
+        validate_id(target)?;
+        let mut statement = self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
+            "SELECT fv.field_id, d.text, o.id, o.text, p.id, p.text, v.id, v.text
+             FROM links l
+             JOIN field_values fv ON fv.value_id = l.source_id
+             JOIN fields f ON f.block_id = fv.field_id AND f.kind = 'instance'
+             JOIN blocks d ON d.id = fv.field_id
+             JOIN blocks v ON v.id = fv.value_id
+             JOIN blocks o ON o.id = fv.owner_id
+             JOIN blocks p ON p.id = o.page_id
+             WHERE l.target_id = ?1
+               AND d.deletion_id IS NULL AND d.archived = 0
+               AND v.deletion_id IS NULL AND o.deletion_id IS NULL AND p.deletion_id IS NULL
+               AND v.rowid NOT IN (SELECT rowid FROM hidden)
+               AND o.rowid NOT IN (SELECT rowid FROM hidden)
+             ORDER BY lower(d.text), fv.field_id, o.id, fv.ordinal"
+        ))?;
+        let rows = statement.query_map([target], |row| {
+            Ok((
+                IncomingFieldValue {
+                    field_id: row.get(0)?,
+                    field_name: row.get(1)?,
+                    counts_as: None,
+                    owner: FieldOwner {
+                        id: row.get(2)?,
+                        text: row.get(3)?,
+                        page_id: row.get(4)?,
+                        page_title: row.get(5)?,
+                    },
+                    value_id: row.get(6)?,
+                },
+                row.get::<_, String>(7)?,
+            ))
+        })?;
+        let mut incoming = Vec::new();
+        let mut counts: HashMap<String, Option<CountsAs>> = HashMap::new();
+        for row in rows {
+            let (mut value, text) = row?;
+            if !counts.contains_key(&value.field_id) {
+                let counted = definitions_for(&self.conn, Some(&value.field_id))?
+                    .first()
+                    .and_then(|definition| definition.counts_as);
+                counts.insert(value.field_id.clone(), counted);
+            }
+            value.counts_as = counts[&value.field_id];
+            // A link inside longer text is a mention, not this relation's value.
+            if reference(&text) == Some(target)
+                && !incoming
+                    .iter()
+                    .any(|seen: &IncomingFieldValue| seen.value_id == value.value_id)
+            {
+                incoming.push(value);
+            }
+        }
+        Ok(incoming)
+    }
+
     /// Read a field and its consequences without changing authored blocks.
     pub fn field_detail(
         &self,
@@ -499,6 +598,15 @@ impl Notebook {
             .pop()
             .ok_or_else(|| not_found(id))?;
         let kind = kind.unwrap_or(definition.kind);
+        let mut definition = definition;
+        // A built-in field previewed as a relation reads against the Links to that changing its kind files.
+        if kind == FieldKind::Instance
+            && definition.kind != kind
+            && definition.targets.is_empty()
+            && let Some(field) = crate::built_in::field_named(&definition.name)
+        {
+            definition.targets = crate::built_in::targets(&self.conn, field)?;
+        }
         let option_uses = if kind == FieldKind::Choice {
             definition
                 .options
@@ -756,31 +864,50 @@ pub(crate) fn constrained_reading(
     text: &str,
     target: Option<&Block>,
 ) -> Result<Reading> {
-    let reading = reading(kind, &definition.id, text, target);
-    if kind != FieldKind::Instance || definition.targets.is_empty() {
+    let mut reading = reading(kind, &definition.id, text, target);
+    if kind != FieldKind::Instance {
+        return Ok(reading);
+    }
+    if let Reading::Value {
+        value: ReadingValue::Text(label),
+        target: Some(_),
+        ..
+    } = &mut reading
+    {
+        let mut text =
+            conn.prepare_cached("SELECT text FROM blocks WHERE id = ?1 AND deletion_id IS NULL")?;
+        *label = target_label(label, &mut |id| {
+            text.query_row([id], |row| row.get(0))
+                .optional()
+                .ok()
+                .flatten()
+        });
+    }
+    if definition.targets.is_empty() {
         return Ok(reading);
     }
     if let Reading::Value {
         target: Some(id), ..
     } = &reading
     {
+        // The definition's own targets, which a kind preview may fill before they are filed.
+        let targets = serde_json::json!(definition.targets).to_string();
         let matches: bool = conn
             .prepare_cached(
-                "SELECT EXISTS(SELECT 1 FROM memberships m
-             JOIN field_targets t ON t.type_id = m.type_id
-             JOIN blocks p ON p.id = m.block_id
-             JOIN blocks ty ON ty.id = t.type_id
-             WHERE m.block_id = ?1 AND t.field_id = ?2 AND p.kind = 'page'
-             AND ty.deletion_id IS NULL AND ty.archived = 0)",
+                "SELECT EXISTS(SELECT 1 FROM memberships m JOIN blocks ty ON ty.id = m.type_id
+             WHERE m.block_id = ?1 AND m.type_id IN (SELECT value FROM json_each(?2))
+             AND ty.deletion_id IS NULL AND ty.archived = 0)
+             OR (?3 IN (SELECT value FROM json_each(?2))
+                 AND EXISTS(SELECT 1 FROM sources WHERE block_id = ?1 AND active = 1))",
             )?
-            .query_row(params![id, definition.id], |row| row.get(0))?;
+            .query_row(params![id, targets, SOURCE_TARGET], |row| row.get(0))?;
         if !matches {
             let names = conn
                 .prepare_cached(
-                    "SELECT b.text FROM field_targets t JOIN blocks b ON b.id = t.type_id
-                 WHERE t.field_id = ?1 ORDER BY t.position",
+                    "SELECT COALESCE(b.text, t.value) FROM json_each(?1) t
+                 LEFT JOIN blocks b ON b.id = t.value ORDER BY t.key",
                 )?
-                .query_map([&definition.id], |row| row.get::<_, String>(0))?
+                .query_map([&targets], |row| row.get::<_, String>(0))?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             return Ok(Reading::Problem {
                 ok: false,
@@ -789,6 +916,52 @@ pub(crate) fn constrained_reading(
         }
     }
     Ok(reading)
+}
+
+/// A relation target's label wherever it sorts, groups, filters or renders: its
+/// first line as plain text, with trailing tags dropped, inner tags read as
+/// their titles and references as their labels. Nesting stops a few targets deep.
+pub(crate) fn target_label(text: &str, resolve: &mut dyn FnMut(&str) -> Option<String>) -> String {
+    fn label(text: &str, resolve: &mut dyn FnMut(&str) -> Option<String>, depth: usize) -> String {
+        let line = text.trim().lines().next().unwrap_or_default();
+        let mut parts: Vec<(std::ops::Range<usize>, String)> = crate::storage::tag_tokens(line)
+            .map(|tag| (tag.span, tag.title.to_owned()))
+            .collect();
+        let mut end = line.trim_end().len();
+        while let Some((span, _)) = parts
+            .last()
+            .filter(|(span, _)| line[span.end..end].trim().is_empty())
+        {
+            end = span.start;
+            parts.pop();
+        }
+        for (span, target, alias) in crate::storage::reference_spans(&line[..end]) {
+            let text = match alias {
+                Some(alias) => alias.to_owned(),
+                None if depth > 0 => resolve(target).map_or_else(
+                    || target.to_owned(),
+                    |text| label(&text, resolve, depth - 1),
+                ),
+                None => "…".to_owned(),
+            };
+            parts.push((span, text));
+        }
+        parts.sort_by_key(|(span, _)| span.start);
+        let mut output = String::with_capacity(end);
+        let mut cursor = 0;
+        // A tag spelled inside a reference's label belongs to the reference.
+        for (span, text) in parts {
+            if span.start < cursor {
+                continue;
+            }
+            output.push_str(&line[cursor..span.start]);
+            output.push_str(&text);
+            cursor = span.end;
+        }
+        output.push_str(&line[cursor..end]);
+        output.trim().to_owned()
+    }
+    label(text, resolve, 3)
 }
 
 pub(crate) fn reading(kind: FieldKind, field: &str, text: &str, target: Option<&Block>) -> Reading {

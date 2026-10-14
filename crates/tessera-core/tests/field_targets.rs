@@ -1,4 +1,6 @@
-use tessera_core::{Actor, Batch, Error, FieldKind, Notebook, Operation, Reading, library::*};
+use tessera_core::{
+    Actor, Batch, Error, FieldKind, Notebook, Operation, Reading, SOURCE_TARGET, library::*,
+};
 
 fn id(n: u128) -> String {
     ulid::Ulid::from(n).to_string()
@@ -42,7 +44,7 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
         page(2, "Person"),
         page(3, "Group"),
         page(4, "A creator"),
-        child(10, &fields, "Author"),
+        child(10, &fields, "author"),
         Operation::SetFieldKind {
             id: id(10),
             base_revision: 1,
@@ -220,7 +222,7 @@ fn import_files_new_and_matched_untyped_creators_but_keeps_groups() {
         nb.page_by_title("Person").unwrap().unwrap().id,
         nb.page_by_title("Group").unwrap().unwrap().id,
     ];
-    for name in ["Author", "Editor", "Translator"] {
+    for name in ["author", "editor", "translator"] {
         let field = nb
             .fields()
             .unwrap()
@@ -236,4 +238,370 @@ fn import_files_new_and_matched_untyped_creators_but_keeps_groups() {
             0
         );
     }
+}
+
+#[test]
+fn block_members_satisfy_targets_and_read_their_labels() {
+    let (_dir, mut nb) = fixture();
+    let fields = nb.fields().unwrap().page_id;
+    nb.apply(&batch(vec![
+        page(5, "Structure"),
+        page(6, "Proposition"),
+        child(11, &fields, "qualifies"),
+        Operation::SetFieldKind {
+            id: id(11),
+            base_revision: 1,
+            kind: FieldKind::Instance,
+        },
+        Operation::SetFieldTargets {
+            id: id(11),
+            base_revision: 2,
+            targets: vec![id(6)],
+        },
+        child(30, &id(5), "Normal science is puzzle-solving #proposition"),
+        child(
+            31,
+            &id(5),
+            &format!(
+                "The #paradigm decides for [[{}]] #proposition #open\nwith a second line",
+                id(4)
+            ),
+        ),
+        child(32, &id(30), &format!("[[{}]]", id(11))),
+        child(33, &id(32), &format!("[[{}]]", id(31))),
+        child(34, &id(5), "An untagged aside"),
+    ]))
+    .unwrap();
+    let detail = nb.field_detail(&id(11), None, None).unwrap();
+    assert_eq!(detail.problems_total, 0);
+    assert_eq!(
+        detail.readable[0].value.reading,
+        Reading::Value {
+            ok: true,
+            value: tessera_core::ReadingValue::Text("The paradigm decides for A creator".into()),
+            target: Some(id(31)),
+        }
+    );
+    let revision = nb.block(&id(33)).unwrap().revision;
+    nb.apply(&batch(vec![Operation::EditText {
+        id: id(33),
+        base_revision: revision,
+        text: format!("[[{}]]", id(34)),
+    }]))
+    .unwrap();
+    assert_eq!(
+        nb.field_detail(&id(11), None, None).unwrap().problems[0]
+            .value
+            .reading,
+        Reading::Problem {
+            ok: false,
+            problem: "Not a proposition".into()
+        }
+    );
+}
+
+#[test]
+fn incoming_field_values_read_whole_relation_references_from_live_owners() {
+    let (_dir, mut nb) = fixture();
+    let fields = nb.fields().unwrap().page_id;
+    let reference = |n: u128| format!("[[{}]]", id(n));
+    nb.apply(&batch(vec![
+        page(5, "Structure"),
+        child(11, &fields, "qualifies"),
+        Operation::SetFieldKind {
+            id: id(11),
+            base_revision: 1,
+            kind: FieldKind::Instance,
+        },
+        child(12, &fields, "notes"),
+        child(30, &id(5), "Normal science is puzzle-solving"),
+        child(31, &id(5), "Anomalies accumulate"),
+        child(35, &id(5), "Crises loosen the rules"),
+        child(32, &id(30), &reference(11)),
+        child(33, &id(32), &reference(31)),
+        child(36, &id(35), &reference(11)),
+        child(37, &id(36), &reference(31)),
+        // A mention inside longer text, and a text field's reference, are not this relation.
+        child(38, &id(35), &reference(11)),
+        child(39, &id(38), &format!("see {} too", reference(31))),
+        child(40, &id(30), &reference(12)),
+        child(41, &id(40), &reference(31)),
+    ]))
+    .unwrap();
+    let incoming = nb.incoming_field_values(&id(31)).unwrap();
+    assert_eq!(
+        incoming
+            .iter()
+            .map(|row| (
+                row.field_name.as_str(),
+                row.owner.id.clone(),
+                row.owner.page_title.as_str()
+            ))
+            .collect::<Vec<_>>(),
+        [
+            ("qualifies", id(30), "Structure"),
+            ("qualifies", id(35), "Structure"),
+        ]
+    );
+    let revision = nb.block(&id(35)).unwrap().revision;
+    nb.apply(&batch(vec![Operation::SetArchived {
+        id: id(35),
+        base_revision: revision,
+        archived: true,
+    }]))
+    .unwrap();
+    assert_eq!(nb.incoming_field_values(&id(31)).unwrap().len(), 1);
+    let revision = nb.block(&id(11)).unwrap().revision;
+    nb.apply(&batch(vec![Operation::SetArchived {
+        id: id(11),
+        base_revision: revision,
+        archived: true,
+    }]))
+    .unwrap();
+    assert!(nb.incoming_field_values(&id(31)).unwrap().is_empty());
+}
+
+#[test]
+fn opening_lowercases_built_in_fields_files_their_targets_and_refuses_renames() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    nb.apply(&batch(vec![
+        page(1, "Book"),
+        page(2, "Person"),
+        child(10, &fields, "Translator"),
+        Operation::SetFieldKind {
+            id: id(10),
+            base_revision: 1,
+            kind: FieldKind::Instance,
+        },
+        child(11, &fields, "Mood"),
+    ]))
+    .unwrap();
+    drop(nb);
+    let nb = Notebook::open(dir.path()).unwrap();
+    let translator = nb
+        .field_detail(&id(10), None, None)
+        .unwrap()
+        .field
+        .definition;
+    assert_eq!(translator.name, "translator");
+    assert!(translator.built_in);
+    assert_eq!(translator.targets, [id(2)]);
+    assert_eq!(nb.block(&id(11)).unwrap().text, "Mood");
+    // Book requires author, so its template gains one.
+    let book = nb.type_info(&id(1)).unwrap().fields;
+    let author = nb
+        .field_detail(&book[0], None, None)
+        .unwrap()
+        .field
+        .definition;
+    assert_eq!(
+        (author.name.as_str(), author.kind),
+        ("author", FieldKind::Instance)
+    );
+    let after = nb.changes_since(0, 1000).unwrap().len();
+    drop(nb);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    assert_eq!(nb.changes_since(0, 1000).unwrap().len(), after);
+
+    let revision = nb.block(&id(10)).unwrap().revision;
+    let rename = |text: &str| {
+        batch(vec![Operation::EditText {
+            id: id(10),
+            base_revision: revision,
+            text: text.into(),
+        }])
+    };
+    assert!(matches!(
+        nb.apply(&rename("by")),
+        Err(Error::Validation { .. })
+    ));
+    nb.apply(&rename("Translator")).unwrap();
+    let revision = nb.block(&id(11)).unwrap().revision;
+    nb.apply(&batch(vec![Operation::EditText {
+        id: id(11),
+        base_revision: revision,
+        text: "Feeling".into(),
+    }]))
+    .unwrap();
+}
+
+#[test]
+fn required_fields_count_members_without_a_value_and_stay_in_the_template() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    nb.apply(&batch(vec![
+        page(1, "Book"),
+        page(2, "Shelf"),
+        child(20, &id(2), "Structure #book"),
+        child(21, &id(2), "Revolutions #book"),
+        child(22, &id(2), "Paradigms #book"),
+        child(11, &fields, "mood"),
+    ]))
+    .unwrap();
+    drop(nb);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let book = nb.type_info(&id(1)).unwrap();
+    let author = book.fields[0].clone();
+    nb.apply(&batch(vec![
+        child(30, &id(20), &format!("[[{author}]]")),
+        child(31, &id(30), "Kuhn"),
+        // A blank value is no value.
+        child(32, &id(21), &format!("[[{author}]]")),
+        child(33, &id(32), " "),
+    ]))
+    .unwrap();
+    let book = nb.type_info(&id(1)).unwrap();
+    assert_eq!(book.required.len(), 1);
+    assert_eq!(
+        (book.required[0].field_id.as_str(), book.required[0].missing),
+        (author.as_str(), 2)
+    );
+    let empty = nb
+        .query(
+            &serde_json::from_value(serde_json::json!({
+                "type": id(1),
+                "filters": [{ "field": author, "op": "empty", "value": null }],
+            }))
+            .unwrap(),
+        )
+        .unwrap();
+    assert_eq!(empty.total, 2);
+
+    // Reordering keeps it; dropping it is refused with the reason.
+    let set = |nb: &Notebook, fields: Vec<String>| {
+        batch(vec![Operation::SetTypeFields {
+            type_id: id(1),
+            base_revision: nb.block(&id(1)).unwrap().revision,
+            fields,
+        }])
+    };
+    nb.apply(&set(&nb, vec![id(11), author.clone()])).unwrap();
+    let refused = nb.apply(&set(&nb, vec![id(11)])).unwrap_err();
+    assert!(
+        refused.to_string().contains("Books require author."),
+        "{refused}"
+    );
+    assert_eq!(nb.type_info(&id(1)).unwrap().fields, [id(11), author]);
+    // Other types carry no requirement.
+    assert!(nb.type_info(&id(2)).unwrap().required.is_empty());
+}
+
+#[test]
+fn sources_are_a_links_to_choice_beside_types_and_built_in_work_links_to_them() {
+    let (dir, mut nb) = fixture();
+    let op = target(&nb, vec![id(2), SOURCE_TARGET.into()]);
+    nb.apply(&batch(vec![op])).unwrap();
+    let detail = nb.field_detail(&id(10), None, None).unwrap();
+    // Sources come first, whatever order they were chosen in.
+    assert_eq!(
+        detail.field.definition.targets,
+        [SOURCE_TARGET.to_owned(), id(2)]
+    );
+    assert_eq!(
+        detail.problems[0].value.reading,
+        Reading::Problem {
+            ok: false,
+            problem: "Not a source or person".into()
+        }
+    );
+    nb.apply(&batch(vec![Operation::SetSource {
+        id: id(4),
+        base_revision: nb.block(&id(4)).unwrap().revision,
+        source: Some(SourceState {
+            format: SourceFormat::Record,
+            state: ReadingState::Inbox,
+            origin: None,
+            match_key: None,
+            citation_key: None,
+        }),
+    }]))
+    .unwrap();
+    assert!(
+        nb.field_detail(&id(10), None, None)
+            .unwrap()
+            .problems
+            .is_empty()
+    );
+    let op = target(&nb, vec![SOURCE_TARGET.into(), SOURCE_TARGET.into()]);
+    assert!(matches!(
+        nb.apply(&batch(vec![op])),
+        Err(Error::Validation { .. })
+    ));
+    let op = target(&nb, vec![]);
+    nb.apply(&batch(vec![op])).unwrap();
+    let definition = nb
+        .field_detail(&id(10), None, None)
+        .unwrap()
+        .field
+        .definition;
+    assert!(definition.targets.is_empty());
+
+    // Opening files Sources on built-in relations that have no Links to, but never changes a kind.
+    let fields = nb.fields().unwrap().page_id;
+    nb.apply(&batch(vec![
+        child(30, &fields, "coined in"),
+        Operation::SetFieldKind {
+            id: id(30),
+            base_revision: 1,
+            kind: FieldKind::Instance,
+        },
+        child(31, &fields, "work"),
+    ]))
+    .unwrap();
+    drop(nb);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let definition = |nb: &Notebook, n| {
+        nb.field_detail(&id(n), None, None)
+            .unwrap()
+            .field
+            .definition
+    };
+    assert_eq!(definition(&nb, 30).targets, [SOURCE_TARGET]);
+    let work = definition(&nb, 31);
+    assert_eq!((work.kind, work.targets.len()), (FieldKind::Text, 0));
+
+    // Previewing work as a relation reads its values against Sources, so the review shows which are not.
+    nb.apply(&batch(vec![
+        page(5, "Not a source"),
+        child(40, &id(1), "A reading"),
+        child(41, &id(40), &format!("[[{}]]", id(31))),
+        child(42, &id(41), &format!("[[{}||p. 12]]", id(4))),
+        child(43, &id(40), &format!("[[{}]]", id(31))),
+        child(44, &id(43), &format!("[[{}]]", id(5))),
+        child(45, &id(40), &format!("[[{}]]", id(31))),
+        child(46, &id(45), "Kuhn 1962"),
+    ]))
+    .unwrap();
+    let preview = nb
+        .field_detail(&id(31), Some(FieldKind::Instance), None)
+        .unwrap();
+    assert_eq!(preview.field.definition.targets, [SOURCE_TARGET]);
+    let mut problems: Vec<_> = preview
+        .interpretations
+        .iter()
+        .filter_map(|row| match &row.reading {
+            Reading::Problem { problem, .. } => Some((row.text.as_str(), problem.as_str())),
+            Reading::Value { .. } => None,
+        })
+        .collect();
+    problems.sort();
+    let unlinked = format!("[[{}]]", id(5));
+    assert_eq!(
+        problems,
+        [
+            ("Kuhn 1962", "not a reference"),
+            (unlinked.as_str(), "Not a source")
+        ]
+    );
+    // Changing the kind files them at once, as opening would.
+    nb.apply(&batch(vec![Operation::SetFieldKind {
+        id: id(31),
+        base_revision: work.revision,
+        kind: FieldKind::Instance,
+    }]))
+    .unwrap();
+    assert_eq!(definition(&nb, 31).targets, [SOURCE_TARGET]);
 }

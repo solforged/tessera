@@ -64,7 +64,7 @@ use tessera_core::{
     NoteIndex, NoteKind, Notebook, NotebookInfo, PageView, QueryResult, SettingsView, TypeInfo,
     UndoReceipt, View,
 };
-use tessera_core::{PageReferences, ReferenceCount, UnlinkedMentions};
+use tessera_core::{IncomingFieldValue, PageReferences, ReferenceCount, UnlinkedMentions};
 use tokio::sync::broadcast;
 
 use crate::error::ApiError;
@@ -365,6 +365,7 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/blocks/{id}/quote-snapshot", get(quote_snapshot))
         .route("/api/pages/{id}/quote-status", get(quote_status))
         .route("/api/blocks/{id}/backlinks", get(backlinks))
+        .route("/api/blocks/{id}/incoming-fields", get(incoming_fields))
         .route("/api/pages/{id}/references", get(page_references))
         .route("/api/pages/{id}/reference-counts", get(reference_counts))
         .route("/api/pages/{id}/unlinked-mentions", get(unlinked_mentions))
@@ -1059,6 +1060,16 @@ async fn backlinks(
     let Path(id) = path.map_err(ApiError::from)?;
     let Query(query) = query.map_err(ApiError::from)?;
     run(&state, move |notebook| notebook.backlinks(&id, query.limit))
+        .await
+        .map(Json)
+}
+
+async fn incoming_fields(
+    State(state): State<AppState>,
+    path: Result<Path<String>, PathRejection>,
+) -> Result<Json<Vec<IncomingFieldValue>>, ApiError> {
+    let Path(id) = path.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.incoming_field_values(&id))
         .await
         .map(Json)
 }

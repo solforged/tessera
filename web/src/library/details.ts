@@ -27,12 +27,12 @@ export function derivedSourceSiglum(creators: readonly SourceCreator[], site: st
 export const emptyMetadata = (): ExtractedMetadata => ({ title: null, subtitle: null, creators: [], published: null, publisher: null, language: null, identifiers: [], unique_id: null, url: null, site: null, description: null, cover: null });
 type OrdinaryField = Exclude<SourceField, 'title' | 'creators' | 'citationKey' | 'state' | 'tags'>;
 const fields: Record<OrdinaryField, readonly [string, FieldKind]> = {
-  subtitle: ['Subtitle', 'text'], firstPublished: ['First published', 'date'], originalLanguage: ['Original language', 'text'],
-  published: ['Published', 'date'], publisher: ['Publisher', 'text'], edition: ['Edition', 'text'], series: ['Series', 'text'],
-  number: ['Number', 'number'], pages: ['Pages', 'number'], language: ['Language', 'text'], identifiers: ['Identifier', 'identifier'],
-  volume: ['Volume', 'text'], issue: ['Issue', 'text'], pageRange: ['Page range', 'text'],
-  url: ['URL', 'url'], site: ['Site', 'text'], description: ['Description', 'text'], cover: ['Cover', 'text'], siglum: ['Siglum', 'text'],
-  started: ['Started', 'date'], finished: ['Finished', 'date'],
+  subtitle: ['subtitle', 'text'], firstPublished: ['first published', 'date'], originalLanguage: ['original language', 'text'],
+  published: ['published', 'date'], publisher: ['publisher', 'text'], edition: ['edition', 'text'], series: ['series', 'text'],
+  number: ['number', 'number'], pages: ['pages', 'number'], language: ['language', 'text'], identifiers: ['identifier', 'identifier'],
+  volume: ['volume', 'text'], issue: ['issue', 'text'], pageRange: ['page range', 'text'],
+  url: ['url', 'url'], site: ['site', 'text'], description: ['description', 'text'], cover: ['cover', 'text'], siglum: ['siglum', 'text'],
+  started: ['started', 'date'], finished: ['finished', 'date'],
 };
 const roles = ['author', 'editor', 'translator'] as const;
 const catalogueFields = new Set([...Object.values(fields).map(([name]) => name.toLowerCase()), ...roles, 'collections']);
@@ -173,6 +173,8 @@ async function prepareField(notebook: NotebookClient, context: FieldPreparation,
     } finally { doc.release(); }
   }
   if (kind === 'instance' || definition.kind === 'instance') {
+    // A creator page made a moment ago may still be on its way; the kind checks below read the service.
+    await notebook.flush();
     values = await Promise.all(values.map(async (value, index) => {
       if (creators?.[index]?.create_page === false) return value;
       const entityType = creators?.[index]?.kind === 'organisation' ? 'Group' : 'Person';
@@ -217,7 +219,7 @@ async function prepareSourceField(doc: PageDocument, notebook: NotebookClient, c
     const entries = sourceEntries(doc, context.definitions);
     const plain = (sourceFieldValue(doc, notebook, context.definitions, 'creators') as SourceCreator[]).filter(creator => !creator.id && !creator.create_page);
     const pending = field === 'creators'
-      ? roles.map(role => ({ label: role[0]!.toUpperCase() + role.slice(1), kind: 'instance' as const,
+      ? roles.map(role => ({ label: role as string, kind: 'instance' as const,
         values: (value as SourceCreator[]).filter(creator => creator.role === role).map(creator => creator.id ? `[[${creator.id}]]` : creator.name) }))
       : [{ label: fields[field][0], kind: fields[field][1], values: field === 'identifiers' ? value as string[] : value || ['url', 'site', 'description', 'cover'].includes(field) ? [value as string] : [] }];
     for (const { label, kind, values } of pending) {

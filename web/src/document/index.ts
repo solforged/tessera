@@ -771,7 +771,7 @@ export class Notebook implements NotebookClient, DocumentHost {
             changed = !!value.position !== action.value;
             value.position = action.value ? { holder_id: null, subject_id: block.page_id } : null;
           } else if (action.kind === 'relation') {
-            if ((value.relation?.kind ?? null) !== action.previous) throw new Error('Relation changed. Rejected command kept.');
+            if ((value.relation?.kind ?? null) !== action.previous) throw new Error('Argument changed. Rejected command kept.');
             operations.push({ op: 'set_relation', id: action.id, base_revision: block.revision, relation: action.value });
             changed = (value.relation?.kind ?? null) !== action.value;
             value.relation = action.value ? { kind: action.value, source_id: block.page_id, target_id: null, problem: null } : null;
@@ -924,6 +924,12 @@ export class Notebook implements NotebookClient, DocumentHost {
         case 'fieldRole': {
           const block = current(action.id);
           operations.push({ op: 'set_field_role', id: block.id, base_revision: action.baseRevision ?? block.revision, role: action.value });
+          if (action.value !== action.previous) block.revision++;
+          break;
+        }
+        case 'fieldCountsAs': {
+          const block = current(action.id);
+          operations.push({ op: 'set_field_counts_as', id: block.id, base_revision: action.baseRevision ?? block.revision, counts_as: action.value });
           if (action.value !== action.previous) block.revision++;
           break;
         }

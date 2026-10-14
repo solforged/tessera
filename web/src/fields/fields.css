@@ -90,10 +90,10 @@
 .template-register { margin-top: var(--page-head-gap); }
 .template-register .template-body { margin: 0; }
 .template-field-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: var(--text-control); line-height: var(--line-control); }
-.template-name-column { width: 36%; }
-.template-kind-column { width: 22%; }
-.template-usage-column { width: 22%; }
-.template-actions-column { width: 20%; }
+.template-name-column { width: 30%; }
+.template-kind-column { width: 32%; }
+.template-usage-column { width: 12%; }
+.template-actions-column { width: 26%; }
 .template-field-table :is(th, td) { height: var(--row-height); padding: 0 var(--space-8) 0 0; border-bottom: var(--rule-width) solid var(--line); text-align: left; overflow-wrap: anywhere; }
 .template-field-table th { color: var(--muted); font: var(--apparatus); }
 .template-field-table tr:is(:hover, :focus-within) { background: var(--hover); }
@@ -101,6 +101,11 @@
 .template-field-table .button { min-height: var(--row-height); padding: 0; font-weight: var(--weight-body); justify-content: flex-start; }
 .template-field-table .template-definition { color: var(--text); }
 .template-field-table .template-definition:hover { text-decoration: underline; text-underline-offset: var(--space-4); }
+.template-required { color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.template-field-table .template-kind { gap: var(--space-4); max-width: 100%; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: left; }
+.template-field-table .template-kind:hover { color: var(--text); }
+.template-field-table .template-kind .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); }
+.template-rename .input { width: 100%; min-height: calc(var(--row-height) - var(--space-8)); }
 .template-field-usage, .template-field-usage .button { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .template-field-table .template-field-actions { gap: var(--space-4); }
 .template-field-table .template-field-actions .button { width: var(--target-size); flex: none; color: var(--muted); }
@@ -112,10 +117,10 @@
   .template-field-table .button { min-height: var(--target-size); }
 }
 @media (max-width: 599px) {
-  .template-name-column { width: 29%; }
-  .template-kind-column { width: 24%; }
-  .template-usage-column { width: 22%; }
-  .template-actions-column { width: 25%; }
+  .template-name-column { width: 28%; }
+  .template-kind-column { width: 30%; }
+  .template-usage-column { width: 12%; }
+  .template-actions-column { width: 30%; }
   .template-field-table .template-field-actions { gap: 0; }
   .template-field-table .template-field-actions .button { width: calc(var(--space-16) + var(--space-8)); }
   .template-field-usage, .template-field-usage .button { font-size: var(--text-apparatus); }

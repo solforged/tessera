@@ -114,7 +114,7 @@ Each column heads with the siglum in mono, the holder in 18 px Piazzolla and the
 
 Cells are the perspectives' own values. Enter or a click edits one in place, an empty cell offers Add on hover or focus, and both are undoable edits of the perspective's page.
 
-Choice and Instance cells use the field bed's option and page pickers, writing references to the chosen targets. Readable and empty Date cells open the calendar; unreadable dates stay editable as written. Checkbox cells toggle with a click or Space.
+Choice and Relation cells use the field bed's option and relation pickers, writing references to the chosen targets. Readable and empty Date cells open the calendar; unreadable dates stay editable as written. Checkbox cells toggle with a click or Space.
 
 Span and other text cells use the outline's CodeMirror block editor, including paired references, completion, Unicode and composition. Spans keep their written historical notation. Enter commits, Shift-Enter adds a newline and Escape cancels. Saving resolves hand-typed `[[Title]]` references by title or alias, retaining the authored spelling, as in the outline. Shared names stay unlinked rather than choosing a page.
 
@@ -166,9 +166,9 @@ Every node and source opens its page. ⌘-click opens it beside (Ctrl-click off 
 
 ## Argument relations
 
-Supports…, Disputes…, Qualifies… and Answers…, under Make… → Relation… in the block menu and in Commands and slash completion, mark the selected block as a relation. On an empty block, the action opens link completion for the target. Existing edges offer Change kind and Remove relation under the block menu's Relation…; removal keeps the text and children.
+Supports…, Disputes…, Qualifies… and Answers…, under Make… → Argument… in the block menu and in Commands and slash completion, mark the selected block as an argument. On an empty block, the action opens link completion for the target. Existing edges offer Change kind and Remove argument under the block menu's Argument…; removal keeps the text and children.
 
-Add relation… on a perspective, assessment or question asks for the kind and target, then adds a last child edge as one undoable change. A question, perspective or assessment cannot itself become an edge, so its Make… leaves Relation… out; Commands and slash completion explain why.
+Add argument… on a perspective, assessment or question asks for the kind and target, then adds a last child edge as one undoable change. A question, perspective or assessment cannot itself become an edge, so its Make… leaves Argument… out; Commands and slash completion explain why.
 
 An edge keeps its ordinary editable row. Its kind appears before the text as a quiet small-caps field label. A problem marker explains a missing or deleted target, or an Answers target that is not a question, without changing the text.
 
@@ -197,7 +197,7 @@ The state control sits in the capability metadata with the question glyph and it
 | Answered | `--status-done` | Settled glyph |
 | Parked | `--faint` | Question glyph |
 
-The Question… manager keeps Open in desk, Write assessment, Add branch question, Set revisit date… and Add relation… together, with Remove question last and separated. Question settings… contains Park or Resume, Make recurrent or Allow resolution, Withdraw current answer, Set parent question… and Remove parent when present. Drill-ins have a title and Back; coarse phones use one bottom sheet. Routine rows stay concise, while Commands and slash retain descriptions. Disabled choices explain prerequisites without hover.
+The Question… manager keeps Open in desk, Write assessment, Add branch question, Set revisit date… and Add argument… together, with Remove question last and separated. Question settings… contains Park or Resume, Make recurrent or Allow resolution, Withdraw current answer, Set parent question… and Remove parent when present. Drill-ins have a title and Back; coarse phones use one bottom sheet. Routine rows stay concise, while Commands and slash retain descriptions. Disabled choices explain prerequisites without hover.
 
 ### Decision journal
 
@@ -207,4 +207,4 @@ The journal appears only when the question has an assessment, including inline c
 
 Accept current answer chooses one assessment. Accepting another keeps both and records the supersession date. Withdraw current answer keeps the assessment, text and citations. Each transition is one undoable change and survives a reload. Two assessments a month apart show what each cites, without an automatic diff.
 
-The Assessment… manager offers Accept current answer and Record aporia or Clear aporia, with Add relation… when available. Remove assessment is last and separated; it removes the date and assessment state, not the text, and clears acceptance. Undo restores both. A parked question's unavailable Write assessment and acceptance actions say to resume it first.
+The Assessment… manager offers Accept current answer and Record aporia or Clear aporia, with Add argument… when available. Remove assessment is last and separated; it removes the date and assessment state, not the text, and clears acceptance. Undo restores both. A parked question's unavailable Write assessment and acceptance actions say to resume it first.

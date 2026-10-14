@@ -95,7 +95,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   function relationMenu(id: string, add = false, text?: string) {
     const anchor = rowAnchor(id) ?? context.heading;
     if (!anchor) return;
-    const title = add ? 'Add relation' : 'Relation kind';
+    const title = add ? 'Add argument' : 'Argument kind';
     setMenu({ anchor, label: title, title, items: relationItems(id, add, text, anchor) });
   }
   function investigationItems(id: string, manager = false): MenuItem[] {
@@ -128,7 +128,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         { label: 'Remove assessment', secondary: questionDescriptions['Remove assessment'], danger: true, action: () => edit({ kind: 'assessment', id, value: null }) },
       ] : !question ? [{ label: 'Make assessment', secondary: questionDescriptions['Make assessment'], disabledReason: block.relation ? 'Remove the relation first.' : !owner ? 'Put the assessment under a question first.' : owner.state.parked ? 'Resume the question before writing an assessment.' : undefined,
         action: () => edit({ kind: 'assessment', id, value: { assessed_on: props.notebook.todayDate(), aporia: false } }) }] : []),
-      ...(!addRelationReason(block) ? [{ label: 'Add relation…', submenu: () => ({ title: 'Add relation', items: relationItems(id, true) }) }] : []),
+      ...(!addRelationReason(block) ? [{ label: 'Add argument…', submenu: () => ({ title: 'Add argument', items: relationItems(id, true) }) }] : []),
     ];
     if (!manager) return items;
     const concise = (label: string) => {
@@ -138,14 +138,14 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     if (assessment) return [
       concise('Accept current answer'),
       concise(assessment.state.aporia ? 'Clear aporia' : 'Record aporia'),
-      ...items.filter(item => item.label === 'Add relation…'),
+      ...items.filter(item => item.label === 'Add argument…'),
       { ...concise('Remove assessment'), divider: true },
     ];
     if (!question) return [];
     return [
       concise('Open in desk'), concise('Write assessment'), concise('Add branch question'),
       concise('Set revisit date…'),
-      ...items.filter(item => item.label === 'Add relation…'),
+      ...items.filter(item => item.label === 'Add argument…'),
       { label: 'Question settings…', submenu: () => ({ title: 'Question settings', items: [
         concise(question.parked ? 'Resume' : 'Park'),
         concise(question.unsettled ? 'Allow resolution' : 'Make recurrent'),
@@ -186,7 +186,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'question-root', title: 'Question', section: 'Page', disabledReason: () => !doc.root()?.question ? 'Make the page a question first.' : capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
       if (context.heading) setMenu({ anchor: context.heading, label: 'Question', title: 'Question', context: doc.root()?.text, items: investigationItems(props.pageId, true) });
     } },
-    { id: 'add-relation-root', title: 'Add relation…', section: 'Page', disabledReason: () => addRelationReason(doc.root()), run: () => relationMenu(props.pageId, true) },
+    { id: 'add-relation-root', title: 'Add argument…', section: 'Page', disabledReason: () => addRelationReason(doc.root()), run: () => relationMenu(props.pageId, true) },
     { id: 'question-parent', title: 'Set parent question…', description: questionDescriptions['Set parent question…'], section: 'Page', disabledReason: () => doc.block(selected() ?? '')?.question || doc.root()?.question ? undefined : 'Select a question.', run: () => {
       const id = selected() && doc.block(selected()!)?.question ? selected()! : props.pageId;
       capabilities.open(id, 'question-parent', id === props.pageId ? context.heading : undefined);
@@ -242,8 +242,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       run: () => { const id = selected(); if (id) markRelation(id, kind); },
     })),
     { id: 'relation-kind', title: 'Change kind', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) relationMenu(id); } },
-    { id: 'remove-relation', title: 'Remove relation', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) markRelation(id, null); } },
-    { id: 'add-relation', title: 'Add relation…', section: 'Block', disabledReason: () => addRelationReason(doc.block(selected() ?? '')), run: () => { const id = selected(); if (id) relationMenu(id, true); } },
+    { id: 'remove-relation', title: 'Remove argument', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) markRelation(id, null); } },
+    { id: 'add-relation', title: 'Add argument…', section: 'Block', disabledReason: () => addRelationReason(doc.block(selected() ?? '')), run: () => { const id = selected(); if (id) relationMenu(id, true); } },
     ...['Make question', 'Make assessment', ...Object.keys(questionVerbs), 'Record aporia', 'Clear aporia', 'Set revisit date…', 'Remove parent', 'Remove question', 'Remove assessment'].map((title): Command => ({
       id: title.toLowerCase().replaceAll(' ', '-'), title, description: questionDescriptions[title], section: selected() ? 'Outline' : 'Page', keys: title === 'Make question' || title === 'Make assessment' ? ['Space q'] : undefined,
       disabledReason: () => {
@@ -339,13 +339,13 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ])] : []),
       ...(entry.position ? [group('Perspective…', 'Perspective', () => [
         item('change-holder'), item('file-under'), item('use-place'),
-        ...(!addRelationReason(entry) ? [group('Add relation…', 'Add relation', () => relationItems(id, true, undefined, anchor))] : []),
+        ...(!addRelationReason(entry) ? [group('Add argument…', 'Add argument', () => relationItems(id, true, undefined, anchor))] : []),
         { ...item('remove-perspective'), divider: true, danger: true },
       ])] : []),
       ...(entry.question ? [group('Question…', 'Question', () => investigationItems(id, true))] : []),
       ...(entry.assessment ? [group('Assessment…', 'Assessment', () => investigationItems(id, true))] : []),
-      ...(entry.relation ? [group('Relation…', 'Relation', () => [
-        group('Change kind…', 'Relation kind', () => relationItems(id)),
+      ...(entry.relation ? [group('Argument…', 'Argument', () => [
+        group('Change kind…', 'Argument kind', () => relationItems(id)),
         { ...item('remove-relation'), divider: true, danger: true },
       ])] : []),
       ...(hasCards ? [group('Cards…', 'Cards', () => [
@@ -362,7 +362,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ...(!entry.question && !entry.assessment ? [makeInvestigation('question'), makeInvestigation('assessment')].filter((item): item is MenuItem => !!item) : []),
       // Perspectives, questions and assessments add relations from their own manager.
       ...(!entry.relation && !entry.position && !entry.question && !entry.assessment ? [{
-        ...group('Relation…', 'Relation', () => relationKinds.map(kind => item(`relation-${kind}`, relationLabels[kind]))),
+        ...group('Argument…', 'Argument', () => relationKinds.map(kind => item(`relation-${kind}`, relationLabels[kind]))),
         disabledReason: relationReason(entry),
       }] : []),
       ...(!hasCards ? [group('Card…', 'Cards', () => cardItems(id))] : []),

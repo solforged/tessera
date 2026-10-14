@@ -495,7 +495,7 @@ fn person_merge_redirects_incoming_author_fields_on_two_sources_and_unions_backl
         .unwrap()
         .fields
         .into_iter()
-        .find(|field| field.definition.name == "Author")
+        .find(|field| field.definition.name == "author")
         .unwrap()
         .definition
         .id;

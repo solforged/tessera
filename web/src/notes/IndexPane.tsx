@@ -2,6 +2,8 @@ import { opensBeside, listOpensBeside } from '../shell/beside';
 import { createEffect, createMemo, createResource, createSignal, For, onMount, Show, Switch, Match, untrack } from 'solid-js';
 import { ulid } from 'ulid';
 import type { IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query, View } from '../api/types';
+import { missingFilter } from '../fields/required';
+import { RequiredGaps } from '../fields/RequiredGaps';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
 import { plainText, readableText, referenceValue } from '../outline/names';
@@ -138,6 +140,17 @@ function KindIndexPane(props: IndexPaneProps) {
   const report = (next = query()) => props.onViewChange({ scroll: scroll?.scrollTop ?? 0, noteQuery: copyQuery(next), viewId: props.view.viewId });
   const updateQuery = (next: Query) => { const value = copyQuery(retainFieldNames(next)); setQuery(value); setPicked([]); report(value); };
   const [definitions] = createResource(() => noteMode() ? [changes()] : false, () => props.notebook.api.fields());
+  // Notes lacking a required field: the type counts tagged blocks too, which this index does not list.
+  const [incomplete] = createResource(() => type.latest?.required?.some(field => field.missing > 0) && index.latest ? [type.latest, index.latest] as const : false, async ([value, kind]) => {
+    const notes = new Set(kind.notes.map(note => note.id));
+    return Promise.all(value.required.filter(field => field.missing > 0).map(async required => {
+      const result = await props.notebook.api.query({ type: value.page.id, text: null, filters: [missingFilter(required.field_id)], sort: [], limit: null });
+      return { field_id: required.field_id, owners: new Set(result.rows.map(row => row.block.block.id).filter(id => notes.has(id))) };
+    }));
+  });
+  const fieldName = (id: string) => definitions.latest?.fields.find(field => field.id === id)?.name;
+  const needs = (note: string) => incomplete.latest?.filter(field => field.owners.has(note)).map(field => fieldName(field.field_id)).filter(Boolean).join(', ');
+  const showMissing = (field: string) => updateQuery({ ...query(), filters: [...query().filters.filter(filter => !(filter.field === field && filter.op === 'empty')), missingFilter(field)] });
   const missingFields = createMemo(() => definitions() ? missingQueryFields(query(), definitions()!.fields) : []);
   const [matches] = createResource(() => noteMode() && !wholeKind() && definitions() && !definitions.loading && !missingFields().length ? [query(), changes(), version()] as const : false, async ([value]) => {
     const result = await props.notebook.api.query({ ...value, offset: 0, limit: 2000 });
@@ -276,6 +289,7 @@ function KindIndexPane(props: IndexPaneProps) {
       <p class="index-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : props.kindKey === 'source' ? 'Index · Bibliography' : 'Index'}</p>
       <div class="index-head"><h1><Icon name={noteKindIcon(props.kind ?? props.kindKey)} />{saved()?.name ?? title()}</h1>
         <Show when={count() != null && !missingFields().length}><span class="index-tally">{tally(count()!, props.kindKey === 'source' ? 'source' : 'note')}</span></Show>
+        <Show when={noteMode() && !missingFields().length}><RequiredGaps gaps={incomplete.latest?.map(field => ({ field_id: field.field_id, missing: field.owners.size }))} name={fieldName} onShow={showMissing} /></Show>
         <Show when={groups().length}><NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} members={index.latest?.notes} /></Show>
       </div>
       <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={type.latest?.members} fieldsCount={type()?.fields.length}
@@ -360,7 +374,7 @@ function KindIndexPane(props: IndexPaneProps) {
                 <For each={group.entries}>{entry => entry.kind === 'note' ? <div class="index-selectable" classList={{ selected: picked().includes(entry.note.id) }}>
                   <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${entry.note.title}`} checked={picked().includes(entry.note.id)} onClick={event => toggleSelection(entry.note.id, event.shiftKey)} /></label>
                   <button type="button" class="index-entry" data-open-page={entry.note.id} data-open-label={entry.note.title} onClick={event => selectOrOpen(entry.note, event)}>
-                    <span class="index-entry-title">{entry.note.title}</span><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
+                    <span class="index-entry-title">{entry.note.title}</span><Show when={needs(entry.note.id)}>{names => <span class="index-needs">needs {names()}</span>}</Show><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
                     <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <Show when={value().field || value().block_count || value().backlinks}><span class="index-apparatus">{[value().field ? plainText(value().field!.value, lookup) : '', value().block_count ? tally(value().block_count, 'prose block') : value().backlinks ? tally(value().backlinks, 'backlink') : ''].filter(Boolean).join(' · ')}</span></Show>}</Show>}>
                       <Show when={collectionCounts.latest?.get(entry.note.id) != null}><span class="index-apparatus">{tally(collectionCounts.latest!.get(entry.note.id)!, 'source')}</span></Show>
                     </Show>

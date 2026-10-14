@@ -20,7 +20,7 @@ export function pageMergeDisabledReason(root: BlockState | undefined): string | 
   if (root.question) return "A question page can't be merged.";
   if (root.position) return "A perspective page can't be merged.";
   if (root.assessment) return "A page with an assessment can't be merged.";
-  if (root.relation) return "A page with a relation can't be merged.";
+  if (root.relation) return "A page with an argument can't be merged.";
   if (root.quote) return "A page with a quoted copy can't be merged.";
   if (root.citations.length) return "A page with citations on its title can't be merged.";
   if (root.reviewedCards) return "A page with card review history can't be merged.";

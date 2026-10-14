@@ -58,7 +58,7 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
         onFields={() => { scroll.scrollTop = 0; }} />
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setVersion(value => value + 1)}>Retry</Button></p></Show>
       <Show when={data.latest} fallback={<Show when={!error()}><p class="empty-state" role="status">Loading fields…</p></Show>}>{value =>
-        <TemplateEditor type={value().type} fields={value().fields.fields} notebook={props.notebook} onError={setError} register={{ fields: value().fields.fields, pageId: value().fields.page_id, onOpen: props.onOpen }} />
+        <TemplateEditor type={value().type} fields={value().fields.fields} notebook={props.notebook} onError={setError} onOpen={props.onOpen} register={{ fields: value().fields.fields, pageId: value().fields.page_id }} />
       }</Show>
     </div>
   </div>;

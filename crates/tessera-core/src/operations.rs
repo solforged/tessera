@@ -4,6 +4,7 @@ use std::fmt::Write;
 use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
 use sha2::{Digest, Sha256};
 
+use crate::CountsAs;
 use crate::notebook::{derived_id, new_ulid, now_ms};
 use crate::storage::{
     Stored, TypeCreation, derive_links, derive_memberships, not_found, resolve_type, rewrite_links,
@@ -1615,6 +1616,11 @@ impl Engine<'_, '_> {
                 text,
             } => {
                 let current = self.checked(id, *base_revision, index, false)?;
+                if let Some(problem) = crate::built_in::rename_problem(&current.block.text, text)
+                    .filter(|_| crate::fields::is_definition(self.tx, id).unwrap_or(false))
+                {
+                    return Err(validation(problem));
+                }
                 self.edit(&current, text)
             }
             Operation::SetHeading {
@@ -1773,6 +1779,14 @@ impl Engine<'_, '_> {
                 let current = self.checked(id, *base_revision, index, false)?;
                 self.tx.execute("INSERT INTO fields(block_id, kind) VALUES (?1, ?2) ON CONFLICT(block_id) DO UPDATE SET kind = excluded.kind",
                     params![id, kind.as_str()])?;
+                // A built-in field that becomes a relation links to its built-in types at once, as opening would.
+                if *kind == crate::FieldKind::Instance
+                    && let Some(field) = crate::built_in::field_named(&current.block.text)
+                    && crate::fields::targets(self.tx, id)?.is_empty()
+                {
+                    let targets = crate::built_in::targets(self.tx, field)?;
+                    crate::fields::file_targets(self.tx, id, &targets)?;
+                }
                 self.bump(&current, true)
             }
             Operation::SetFieldHide {
@@ -1797,6 +1811,40 @@ impl Engine<'_, '_> {
                     params![id, role.as_str()])?;
                 self.bump(&current, true)
             }
+            Operation::SetFieldCountsAs {
+                id,
+                base_revision,
+                counts_as,
+            } => {
+                crate::fields::require_definition(self.tx, id)?;
+                let current = self.checked(id, *base_revision, index, false)?;
+                if let Some(field) = crate::built_in::field_named(&current.block.text) {
+                    return Err(validation(match field.counts_as {
+                        Some(counts) => format!(
+                            "{} is built in and counts as {}.",
+                            field.name,
+                            counts.as_str()
+                        ),
+                        None => format!("{} is built in and counts as nothing.", field.name),
+                    }));
+                }
+                let kind: Option<String> = self
+                    .tx
+                    .query_row("SELECT kind FROM fields WHERE block_id = ?1", [id], |row| {
+                        row.get(0)
+                    })
+                    .optional()?;
+                if counts_as.is_some()
+                    && !matches!(kind.as_deref().unwrap_or("text"), "text" | "instance")
+                {
+                    return Err(validation(
+                        "Only text and relation fields count as a creator, contributor or originator.",
+                    ));
+                }
+                self.tx.execute("INSERT INTO fields(block_id, kind, counts_as) VALUES (?1, 'text', ?2) ON CONFLICT(block_id) DO UPDATE SET counts_as = excluded.counts_as",
+                    params![id, counts_as.map(CountsAs::as_str)])?;
+                self.bump(&current, true)
+            }
             Operation::SetFieldTargets {
                 id,
                 base_revision,
@@ -1814,22 +1862,20 @@ impl Engine<'_, '_> {
                 }
                 let mut unique = HashSet::with_capacity(targets.len());
                 for target in targets {
-                    let block = self.live(target)?;
-                    if block.block.kind != BlockKind::Page || block.block.archived {
-                        return Err(validation("target type must be a live page"));
-                    }
                     if !unique.insert(target) {
                         return Err(validation("duplicate field target"));
                     }
                 }
-                self.tx
-                    .execute("DELETE FROM field_targets WHERE field_id = ?1", [id])?;
-                let mut insert = self.tx.prepare_cached(
-                    "INSERT INTO field_targets(field_id, type_id, position) VALUES (?1, ?2, ?3)",
-                )?;
-                for (position, target) in targets.iter().enumerate() {
-                    insert.execute(params![id, target, position as i64])?;
+                for target in targets
+                    .iter()
+                    .filter(|target| *target != crate::fields::SOURCE_TARGET)
+                {
+                    let block = self.live(target)?;
+                    if block.block.kind != BlockKind::Page || block.block.archived {
+                        return Err(validation("target type must be a live page"));
+                    }
                 }
+                crate::fields::file_targets(self.tx, id, targets)?;
                 self.bump(&current, true)
             }
             Operation::SetTypeFields {
@@ -1851,6 +1897,11 @@ impl Engine<'_, '_> {
                     if !unique.insert(field) {
                         return Err(validation("duplicate field in type template"));
                     }
+                }
+                if let Some(problem) =
+                    crate::built_in::removal_problem(self.tx, type_id, &current.block.text, fields)?
+                {
+                    return Err(validation(problem));
                 }
                 self.tx
                     .execute("DELETE FROM type_fields WHERE type_id = ?1", [type_id])?;

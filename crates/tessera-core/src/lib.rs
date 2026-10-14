@@ -4,6 +4,7 @@
 mod agent;
 mod aliases;
 mod backup;
+mod built_in;
 pub mod calendar;
 pub mod capabilities;
 mod card_query;
@@ -83,17 +84,18 @@ pub use card_templates::{
     CardTemplateProvenance, CardTemplateWaiting, TemplateLoadDay,
 };
 pub use error::{Error, Result};
+pub use fields::SOURCE_TARGET;
 pub use migrate::SCHEMA_VERSION;
 pub use model::{
     Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, ChangeStamp, Committed,
-    Direction, FieldChoiceCandidate, FieldChoiceValue, FieldDefinition, FieldDetail, FieldHide,
-    FieldInterpretation, FieldKind, FieldOption, FieldOptionUse, FieldOwner, FieldOwnerValues,
-    FieldRole, FieldSummary, FieldTemplate, FieldType, FieldValue, FieldValueUse, FieldsView,
-    Filter, FilterOp, KeptCopy, NoteGroup, NoteLayout, NoteView, Operation, PageView, Query,
-    QueryAttribute, QueryAttributeValue, QueryColumn, QueryGroup, QueryGrouping, QueryResult,
-    QueryRow, QuerySource, QuoteState, QuoteStatus, QuotedRow, Reading, ReadingValue, Revision,
-    Row, Setting, SettingRevision, SettingsView, SortBy, SortKey, Subtree, TextRewrite, TypeInfo,
-    View, YearSpan,
+    CountsAs, Direction, FieldChoiceCandidate, FieldChoiceValue, FieldDefinition, FieldDetail,
+    FieldHide, FieldInterpretation, FieldKind, FieldOption, FieldOptionUse, FieldOwner,
+    FieldOwnerValues, FieldRole, FieldSummary, FieldTemplate, FieldType, FieldValue, FieldValueUse,
+    FieldsView, Filter, FilterOp, IncomingFieldValue, KeptCopy, NoteGroup, NoteLayout, NoteView,
+    Operation, PageView, Query, QueryAttribute, QueryAttributeValue, QueryColumn, QueryGroup,
+    QueryGrouping, QueryResult, QueryRow, QuerySource, QuoteState, QuoteStatus, QuotedRow, Reading,
+    ReadingValue, RequiredField, Revision, Row, Setting, SettingRevision, SettingsView, SortBy,
+    SortKey, Subtree, TextRewrite, TypeInfo, View, YearSpan,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use notes::{

@@ -114,7 +114,7 @@ fn fixture(count: usize, ready: usize) -> (tempfile::TempDir, Notebook) {
                 title: "Greek vocabulary".into(),
             },
             insert(10, &fields, "Lemma"),
-            insert(11, &fields, "Gloss"),
+            insert(11, &fields, "Translation"),
             insert(12, &fields, "Part of speech"),
             Operation::SetTypeFields {
                 type_id: id(1),
@@ -162,7 +162,7 @@ fn waiting_values_identity_schedule_and_field_renames() {
         ),
         (12, 9, 3, 9)
     );
-    assert_eq!(forecast.waiting[0].missing, vec!["Gloss"]);
+    assert_eq!(forecast.waiting[0].missing, vec!["Translation"]);
     assert_eq!(forecast.days_to_introduce, 5);
     assert_eq!(forecast.load.iter().map(|day| day.added).sum::<usize>(), 9);
     assert!(nb.source_cards(&id(190)).unwrap().is_empty());

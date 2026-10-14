@@ -1261,7 +1261,7 @@ fn a_first_book_imported_offline_on_both_devices_shares_one_set_of_fields() {
     import(&mut p.hub, &book("Desk Book", "urn:desk"), b"desk", &[]);
     // The desk drops a field from Book before the phone syncs.
     let (_, mut fields) = book_fields(&p.hub);
-    fields.retain(|id| p.hub.block(id).unwrap().text != "Translator");
+    fields.retain(|id| p.hub.block(id).unwrap().text != "translator");
     let book_page = p.hub.page_by_title("Book").unwrap().unwrap();
     apply(
         &mut p.hub,
@@ -1292,7 +1292,7 @@ fn a_first_book_imported_offline_on_both_devices_shares_one_set_of_fields() {
             |row| row.get(0),
         )
         .unwrap();
-    assert_eq!(author, "Author");
+    assert_eq!(author, "author");
 }
 
 /// A book with more passage text than one content request carries.

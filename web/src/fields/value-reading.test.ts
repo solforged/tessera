@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { FieldDefinition } from '../api/types';
-import { fieldValueProblem } from './value-reading';
+import { fieldValueProblem, guessFieldKind } from './value-reading';
 
 const field = (kind: FieldDefinition['kind']): FieldDefinition => ({ id: 'field', name: 'Field', kind, revision: 1, options: [{ id: 'option', text: 'Option' }], targets: [] });
 
@@ -26,5 +26,19 @@ describe('outline field reading problems', () => {
     expect(fieldValueProblem(field('instance'), 'Person')).toBe('not a reference');
     for (const kind of ['date', 'instance'] as const) expect(fieldValueProblem(field(kind), '[[unresolved]]')).toBeUndefined();
     for (const kind of ['number', 'date', 'choice', 'checkbox'] as const) expect(fieldValueProblem(field(kind), '  ')).toBeUndefined();
+  });
+});
+
+describe('first-value kind guesses', () => {
+  const id = '01M4W27DSHYJGWZF9VHNQBM1A0';
+  test('read references, dates, numbers and addresses, and leave the rest as text', () => {
+    expect(guessFieldKind(`[[${id}]]`)).toBe('instance');
+    expect(guessFieldKind(`[[${id}|Anomalies]]`)).toBe('instance');
+    expect(guessFieldKind(`[[${id}]]`, () => 'journal')).toBe('date');
+    expect(guessFieldKind('2026-10-14')).toBe('date');
+    expect(guessFieldKind('2026-02-30')).toBeNull();
+    for (const text of ['4', '-0.5', '1970']) expect(guessFieldKind(text)).toBe('number');
+    expect(guessFieldKind('https://example.com/a')).toBe('url');
+    for (const text of ['calm', '4 stars', 'yes', '[[A title]]', `see [[${id}]]`, 'c. 1340s']) expect(guessFieldKind(text)).toBeNull();
   });
 });

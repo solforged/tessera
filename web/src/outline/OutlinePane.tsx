@@ -9,7 +9,7 @@ import { depthStops } from '../shell/contract';
 import type { Depth, OutlinePaneProps, ViewState } from '../shell/contract';
 import { fieldEntryId } from '../table/query';
 import { setLinkedCitation } from '../library/highlights';
-import { createTemplateCache, startingTemplateFor } from '../fields/templates';
+import { createTemplateCache, startingTemplateFor, typeKeys } from '../fields/templates';
 import { TemplateEditor } from '../fields/TemplateEditor';
 import { citedSigla } from '../library/sigla';
 import { sourceReadingOrder } from '../library/source-order';
@@ -41,7 +41,11 @@ import { SourceDetails } from './SourceDetails';
 import { GLOSS_FIELD, glossEntry } from './gloss';
 import { positionFields, positionSource as sharedPositionSource } from './perspectives';
 import { Apparatus } from './Apparatus';
-import { createFieldEntryConversion, createSourceFieldResets, ensureField } from './source-fields';
+import { createFieldEntryConversion, createSourceFieldResets, ensureField, isFreshField, settleField } from './source-fields';
+import { addTemplateField, setFreshFieldKind } from '../fields/commands';
+import { templateOffer } from '../fields/template-offer';
+import { kindNoun } from '../fields/kinds';
+import { guessFieldKind } from '../fields/value-reading';
 import { sourceFieldName } from './source';
 import { createOutlineCompletions } from './completions';
 import { headingPrefix } from './completion';
@@ -137,13 +141,14 @@ function Pane(props: OutlinePaneProps) {
   const [textRange, setTextRange] = createSignal<TextRange | null>(null);
   const [composition, setComposition] = createSignal(false);
   const [message, setMessage] = createSignal('');
-  const [notice, setNotice] = createSignal<{ label: string; undo?: () => Promise<void> } | null>(null);
+  /** A change with its Undo, or an offer whose action stands in for Undo. */
+  const [notice, setNotice] = createSignal<{ label: string; undo?: () => Promise<void>; action?: { label: string; run: () => Promise<void> } } | null>(null);
   const [noticeBusy, setNoticeBusy] = createSignal(false);
   const [noticeHeld, setNoticeHeld] = createSignal(false);
-  function showNotice(label: string, undo?: () => Promise<void>) {
+  function showNotice(label: string, undo?: () => Promise<void>, action?: { label: string; run: () => Promise<void> }) {
     setMessage('');
     setNoticeHeld(false);
-    setNotice({ label, undo });
+    setNotice({ label, undo, action });
   }
   createEffect(() => {
     if (!notice() || noticeHeld() || noticeBusy()) return;
@@ -152,8 +157,16 @@ function Pane(props: OutlinePaneProps) {
   });
   // A newer outline edit returns keyboard history to this document. Until then the notice owns Undo.
   createEffect(on(() => doc.saveState(), state => {
-    if (state !== 'saved') setNotice(null);
+    if (state !== 'saved' && notice()?.undo) setNotice(null);
   }, { defer: true }));
+  async function runNoticeAction() {
+    const current = notice();
+    if (!current?.action || noticeBusy()) return;
+    setNoticeBusy(true);
+    try { await current.action.run(); }
+    catch (error) { setMessage(error instanceof Error ? error.message : String(error)); if (notice() === current) setNotice(null); }
+    finally { setNoticeBusy(false); restoreFocus(); }
+  }
   async function undoNotice() {
     const current = notice();
     if (!current?.undo || noticeBusy()) return;
@@ -237,10 +250,12 @@ function Pane(props: OutlinePaneProps) {
   const fieldConversion = createFieldEntryConversion({
     doc, notebook: props.notebook, disposed: () => disposed, composing: composition, caret, focusEpoch: () => focusEpoch,
     known: name => definitionsByName().get(name.toLowerCase()),
+    targetKind: id => props.notebook.lookup(id)()?.kind,
     onStart: () => setCompletion(null),
     onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]),
     onCommitted: (id, next, epoch, focus, field) => {
       setMessage('');
+      offerTemplateField(id);
       setFolds(previous => { const next = new Set(previous); next.delete(id); return next; });
       if (next && focusEpoch === epoch) {
         setSelected(next.id);
@@ -257,7 +272,40 @@ function Pane(props: OutlinePaneProps) {
   /** Leaving a block converts `Name::` shorthand and links hand-typed `[[Title]]`; true when a field conversion started. */
   function commitFieldEntry(id: string, focus = true) {
     linkTitles(id);
+    settleFreshField(id);
+    offerTemplateField(doc.outline.parentOf(id));
     return fieldConversion.shorthand(id, focus);
+  }
+  /**
+   * After a field entry on a typed block gets a value, offers to add the field to the type's template when another
+   * member already uses it.
+   */
+  function offerTemplateField(entryId: string | null | undefined) {
+    const fieldId = entryId ? fieldEntryId(doc.block(entryId)?.text ?? '') : null;
+    const ownerId = entryId ? doc.outline.parentOf(entryId) : null;
+    const owner = ownerId ? doc.block(ownerId) : undefined;
+    if (!fieldId || !owner || !doc.outline.children(entryId!).some(id => doc.block(id)?.text.trim())) return;
+    void templateOffer(props.notebook, owner, fieldId).then(offer => {
+      if (!offer || disposed) return;
+      const name = definitionsById().get(fieldId)?.name ?? 'This field';
+      // The tag as the owner spells it, else the type's title.
+      const typed = textTokens(owner.text).find(token => token.kind === 'tag' && token.value.trim().toLowerCase() === offer.type.page.text.toLowerCase());
+      const tag = typed ? `#${typed.value.trim()}` : offer.type.page.text;
+      showNotice(`${name} is on another ${tag} too.`, undefined, { label: `Add to ${tag}`, run: async () => {
+        const change = await addTemplateField(props.notebook, offer.type, fieldId);
+        showNotice(`${name} added to ${tag}.`, change.undo);
+      } });
+    }, () => {});
+  }
+  /** Leaving the first value of a field `name::` just created gives the field the kind that value suggests. */
+  function settleFreshField(id: string) {
+    const fieldId = fieldEntryId(doc.block(doc.outline.parentOf(id))?.text ?? '');
+    const text = doc.block(id)?.text.trim();
+    if (!fieldId || !text || !isFreshField(props.notebook, fieldId)) return;
+    settleField(props.notebook, fieldId);
+    const kind = guessFieldKind(text, target => props.notebook.lookup(target)()?.kind);
+    const name = definitionsById().get(fieldId)?.name ?? 'This field';
+    if (kind) void setFreshFieldKind(props.notebook, fieldId, kind).then(change => showNotice(`${name} is now a ${kindNoun(kind)} field.`, change.undo), reason => setMessage(reason instanceof Error ? reason.message : String(reason)));
   }
   /** A hand-typed name links only when one page owns it; ambiguous names wait for a choice. */
   const linking = new Set<string>();
@@ -325,6 +373,9 @@ function Pane(props: OutlinePaneProps) {
   }), id => createMemo((): HiddenFieldEntry => {
     const definition = definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '');
     let hide = fieldHide(definition);
+    // A required field stays in view while it has no value, whatever its Hide setting.
+    const owner = doc.block(doc.outline.parentOf(id));
+    if (hide !== 'never' && definition && owner && templates.requiredFor(typeKeys(owner.text, owner.manual_types)).has(definition.id)) hide = 'never';
     doc.archivedVersion();
     const values = doc.outline.children(id).filter(value => !doc.isArchived(value));
     if (!zoom() && !aliasesVisible() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields'
@@ -1040,7 +1091,7 @@ function Pane(props: OutlinePaneProps) {
   function addAlias() {
     void (async () => {
       try {
-        const field = definitionsByName().get('aliases') ?? await ensureField(props.notebook, 'Aliases');
+        const field = definitionsByName().get('aliases') ?? await ensureField(props.notebook, 'aliases');
         setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
         if (disposed) return;
         if (zoom()) zoomTo(null);
@@ -1149,6 +1200,7 @@ function Pane(props: OutlinePaneProps) {
     definitionsById,
     definitions,
     templateFor: templates.templateFor,
+    requiredFor: templates.requiredFor,
     activeRange,
     fieldConversion,
     get commandDefinitions() { return commandDefinitions; },
@@ -1237,7 +1289,7 @@ function Pane(props: OutlinePaneProps) {
     setEditedConflicts,
   };
   const { openRelation, positionReason, placeReason, usePlace, RelationPopups } = createRelationActions(context, async holderId => {
-    const field = definitionsByName().get('gist') ?? await ensureField(props.notebook, 'Gist', 'text', 'standfirst');
+    const field = definitionsByName().get('gist') ?? await ensureField(props.notebook, 'gist', 'text', 'standfirst');
     setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
     const last = register().slips.at(-1)?.id;
     const parentId = last ? doc.outline.parentOf(last) : props.pageId;
@@ -1585,7 +1637,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={isReadingSubject(doc) && !reading() && !zoom()}><div class="reading-register-actions"><span class="reading-counts">{readingCounts(register().slips)}</span><Show when={localPositions() > 1}><Button onClick={() => props.onProjection?.('compare')}>Compare</Button></Show><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add perspective</Button></div></Show>
       <RowRelations id={zoom() ?? props.pageId} />
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
-        <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
+        <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} onOpen={props.onOpen} />
       </Show>}</Show>
       <Show when={doc.root()?.source && !positionZoom()}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
         fields={definitions()} compact={!!zoom()} ready={pageReady()} onReady={setSourceHeaderReady} onEditDetails={() => setSourceDetailsOpen(true)}
@@ -1687,7 +1739,11 @@ function Pane(props: OutlinePaneProps) {
       <Show when={notice()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setNoticeHeld(true)} onPointerLeave={() => setNoticeHeld(false)} onFocusIn={() => setNoticeHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNoticeHeld(false); }}>
         <span>{value().label}</span>
         <Show when={value().undo}><Button class="notice-undo" icon="undo" disabled={noticeBusy()} onClick={() => { void undoNotice(); }}>Undo</Button></Show>
-        <Button icon="close" label="Dismiss change notice" disabled={noticeBusy()} onClick={() => setNotice(null)} />
+        <Show when={value().action}>{action => <>
+          <Button class="notice-undo" disabled={noticeBusy()} onClick={() => { void runNoticeAction(); }}>{action().label}</Button>
+          <Button class="notice-undo" disabled={noticeBusy()} onClick={() => setNotice(null)}>Not now</Button>
+        </>}</Show>
+        <Show when={!value().action}><Button icon="close" label="Dismiss change notice" disabled={noticeBusy()} onClick={() => setNotice(null)} /></Show>
       </div>}</Show>
     </div>
   </>;

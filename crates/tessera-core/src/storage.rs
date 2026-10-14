@@ -173,6 +173,7 @@ pub(crate) fn reference_parts(reference: &str) -> (&str, Option<&str>, Option<&s
 struct LinkToken<'a> {
     target: &'a str,
     alias: Option<&'a str>,
+    span: std::ops::Range<usize>,
     target_span: std::ops::Range<usize>,
 }
 
@@ -190,6 +191,7 @@ fn link_tokens(text: &str) -> impl Iterator<Item = LinkToken<'_>> {
         LinkToken {
             target,
             alias: None,
+            span: 0..text.len(),
             target_span: start..start + target.len(),
         }
     });
@@ -220,12 +222,20 @@ fn link_tokens(text: &str) -> impl Iterator<Item = LinkToken<'_>> {
                 return Some(LinkToken {
                     target,
                     alias,
+                    span: start..cursor,
                     target_span: target_start..target_start + target.len(),
                 });
             }
         }
         None
     })
+}
+
+/// Each block reference's whole span, target and label, as indexing reads them.
+pub(crate) fn reference_spans(
+    text: &str,
+) -> impl Iterator<Item = (std::ops::Range<usize>, &str, Option<&str>)> {
+    link_tokens(text).map(|token| (token.span, token.target, token.alias))
 }
 
 pub(crate) fn rewrite_links(text: &str, from: &str, into: &str) -> Option<String> {

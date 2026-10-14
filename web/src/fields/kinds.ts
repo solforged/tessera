@@ -10,10 +10,15 @@ export const kindLabels: Record<FieldKind, string> = {
   span: 'Span',
   checkbox: 'Checkbox',
   choice: 'Choice',
-  instance: 'Instance',
+  instance: 'Relation',
   url: 'URL',
   identifier: 'Identifier',
 };
+
+/** A kind as a word inside a sentence: lowercase, except for the URL initialism. */
+export function kindNoun(kind: FieldKind): string {
+  return kind === 'url' ? 'URL' : kindLabels[kind].toLowerCase();
+}
 
 /** Why a field name is refused; creation and rename share syntax and notebook-wide uniqueness. */
 export function fieldNameProblem(name: string, fields: readonly { id: string; name: string }[] = [], exceptId?: string): string | null {

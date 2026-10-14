@@ -169,8 +169,10 @@ function draft(text: string, kinds: Record<string, 'text' | 'date'> = {}): { nam
 
 describe('field shorthand drafts', () => {
   test('mark the name as a label while it is typed and say when the field is new', () => {
-    expect(draft('Mood::')).toEqual({ name: [0, 6], hint: 'New field' });
-    expect(draft('Mood:: calm')).toEqual({ name: [0, 6], hint: 'New field' });
+    expect(draft('mood::')).toEqual({ name: [0, 6], hint: 'New field' });
+    expect(draft('mood:: calm')).toEqual({ name: [0, 6], hint: 'New text field' });
+    expect(draft('rating:: 4')).toEqual({ name: [0, 8], hint: 'New number field' });
+    expect(draft('qualifies:: [[01M4W27DSHYJGWZF9VHNQBM1A0]]')).toEqual({ name: [0, 11], hint: 'New relation field' });
   });
   test('name a known field kind until a value is typed', () => {
     expect(draft('Published::', { published: 'date' })).toEqual({ name: [0, 11], hint: 'Date' });

@@ -66,7 +66,7 @@ test('collections use one commit, extend templates, backlink, filter, undo and c
   const created = await createCollection(notebook, 'First collection');
   expect(await api.changeHead()).toBe(before + 1);
   const register = await api.fields();
-  const field = register.fields.find(field => field.name === 'Collections')!;
+  const field = register.fields.find(field => field.name === 'collections')!;
   expect(field.kind).toBe('instance');
   expect(field.targets).toEqual([(await api.roots()).find(page => page.text === 'Collection')!.id]);
   const book = await api.type(bookId);
@@ -104,7 +104,7 @@ test('collections use one commit, extend templates, backlink, filter, undo and c
   expect(new Set((await api.backlinks(created.id)).map(link => link.page.id))).toEqual(new Set(sources.slice(0, 2)));
 
   const next = await createCollection(notebook, 'Second collection', [sources[2]!]);
-  expect((await api.fields()).fields.filter(field => field.name === 'Collections')).toHaveLength(1);
+  expect((await api.fields()).fields.filter(field => field.name === 'collections')).toHaveLength(1);
   expect((await api.type(book.page.id)).fields).toEqual(book.fields);
   expect((await api.library({ collection_id: next.id })).total).toBe(1);
   await next.change.undo();
