@@ -253,10 +253,12 @@ pub(crate) fn source_siglum(
         source.siglum_authored = true;
         return;
     }
-    for (index, candidate) in first("author")
+    for (index, candidate) in first(crate::library_export::CREATORS)
         .map(crate::library_ingest::family_name)
         .into_iter()
-        .chain(first("editor").map(crate::library_ingest::family_name))
+        .chain(
+            first(crate::library_export::FALLBACK_CREATORS).map(crate::library_ingest::family_name),
+        )
         .chain(first("site"))
         .chain(
             title
@@ -281,7 +283,7 @@ pub(crate) fn source_siglum(
         if !basis.is_empty() {
             source.siglum = basis[..siglum_end].to_owned();
             source.siglum_basis = basis;
-            if index == 0 && first("author").is_some() {
+            if index == 0 && first(crate::library_export::CREATORS).is_some() {
                 let year = first("published")
                     .and_then(|date| date.get(..4))
                     .filter(|year| year.bytes().all(|digit| digit.is_ascii_digit()))

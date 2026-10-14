@@ -17,6 +17,7 @@ import type { Accessor } from 'solid-js';
 import type { Block, BlockKind, ChangeEvent, Citation, Committed, FieldDefinition, FieldKind, Operation, PassagePoint, ProjectState, SettingsView, SourceRecord, SourceState, TaskState, WorkSession } from '../api/types';
 import type { PositionInfo, RelationInfo, RelationKind } from '../api/types';
 import type { FieldHide } from '../fields/hide';
+import type { CountsAs } from '../fields/counts';
 import type { FieldRole } from '../fields/roles';
 import type { AssessmentInfo, AssessmentState, QuestionInfo, QuestionState, QuoteState } from '../api/types';
 import type { ApiClient } from '../api/client';
@@ -236,6 +237,7 @@ export type Edit =
   | { kind: 'fieldKind'; definition: FieldDefinition; value: FieldKind }
   | { kind: 'fieldHide'; definition: FieldDefinition; value: FieldHide }
   | { kind: 'fieldRole'; definition: FieldDefinition; value: FieldRole }
+  | { kind: 'fieldCountsAs'; definition: FieldDefinition; value: CountsAs | null }
   | { kind: 'fieldTargets'; definition: FieldDefinition; targets: string[] }
   /** Replace the subject's explicit criteria; an empty previous list restores derivation on undo. */
   | { kind: 'subjectCriteria'; id: string; fields: string[]; previous: string[]; revision: number }

@@ -71,7 +71,7 @@ Built in stage 1 as `ensure_built_in_fields`, a synced, operation-based change l
 - **For each live built-in definition**, it recases the name and gives a relation with no Links to types the types it expects, where those pages exist.
 - **For each built-in type page that exists**, it appends missing required fields to the template. Expected fields still arrive only with a starting template.
 - **It never changes an existing field's kind,** which stays a reviewed interpretation. A notebook whose `lived` is text keeps it.
-- Still to come: counts-as on existing definitions, and running when a built-in type page is created.
+- Still to come: running when a built-in type page is created. Counts-as needs no ensuring, since built-in fields read theirs from the schema.
 
 ### Lowercase names
 
@@ -89,5 +89,5 @@ Built in stage 1. Every creation site takes names from `built_in.rs`, and the en
 
 1. **Built.** The schema table, lowercase names, ensuring on open and the rename refusal. The web's starting-template list mirrors the schema.
 2. **Built.** Required: slots, incomplete counts in Table and Index, the field's empty filter, and the disabled Remove with a core refusal.
-3. Counts as: the definition property, its operation, and `@creator` reading it.
+3. **Built.** Counts as: the definition property, its operation, and `@creator`, `@contributor`, sigla, bylines, search and exports reading it. Built-in fields count as the schema says, read rather than stored. The source header's editable byline still lists only author, editor and translator.
 4. Several holders on one proposition, with the perspectives work.

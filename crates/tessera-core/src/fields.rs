@@ -10,8 +10,8 @@ use crate::model::{
 use crate::reads::hidden_blocks;
 use crate::storage::{block_at, block_columns, not_found, validate_date, validate_id, validation};
 use crate::{
-    Block, BlockKind, FieldDefinition, FieldHide, FieldKind, FieldOption, FieldRole, FieldsView,
-    Notebook, Operation, Reading, ReadingValue, Result,
+    Block, BlockKind, CountsAs, FieldDefinition, FieldHide, FieldKind, FieldOption, FieldRole,
+    FieldsView, Notebook, Operation, Reading, ReadingValue, Result,
 };
 
 pub(crate) fn ensure_page(conn: &Connection) -> Result<()> {
@@ -196,6 +196,7 @@ impl FieldChanges {
             | Operation::SetFieldKind { id, .. }
             | Operation::SetFieldHide { id, .. }
             | Operation::SetFieldRole { id, .. }
+            | Operation::SetFieldCountsAs { id, .. }
             | Operation::SetFieldTargets { id, .. } => self.capture(conn, id),
             Operation::SetTypeFields { .. }
             | Operation::SetTypePresentation { .. }
@@ -353,7 +354,7 @@ pub(crate) fn definitions(conn: &Connection) -> Result<Vec<FieldDefinition>> {
 
 fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefinition>> {
     let mut statement = conn.prepare_cached(
-        "SELECT d.id, d.text, COALESCE(f.kind, 'text'), d.revision, o.id, o.text, COALESCE(f.hide, 'never'), COALESCE(f.role, 'attribute'), d.archived
+        "SELECT d.id, d.text, COALESCE(f.kind, 'text'), d.revision, o.id, o.text, COALESCE(f.hide, 'never'), COALESCE(f.role, 'attribute'), d.archived, f.counts_as
          FROM blocks p JOIN blocks d ON d.parent_id = p.id LEFT JOIN fields f ON f.block_id = d.id
          LEFT JOIN blocks o ON o.parent_id = d.id AND o.deletion_id IS NULL AND o.archived = 0
          WHERE p.kind = 'page' AND p.title_key = 'fields' AND p.deletion_id IS NULL
@@ -375,9 +376,18 @@ fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefin
         }
         let id: String = row.get(0)?;
         if result.last().is_none_or(|d| d.id != id) {
+            let built_in = crate::built_in::field_named(name);
             result.push(FieldDefinition {
                 targets: targets(conn, &id)?,
-                built_in: crate::built_in::field_named(name).is_some(),
+                built_in: built_in.is_some(),
+                // A built-in field counts as what the core's schema says; others as they were set.
+                counts_as: match built_in {
+                    Some(field) => field.counts_as,
+                    None => row
+                        .get::<_, Option<String>>(9)?
+                        .as_deref()
+                        .and_then(CountsAs::from_str),
+                },
                 id,
                 name: name.to_owned(),
                 kind: FieldKind::from_str(&row.get::<_, String>(2)?).ok_or_else(|| {
@@ -514,6 +524,7 @@ impl Notebook {
                 IncomingFieldValue {
                     field_id: row.get(0)?,
                     field_name: row.get(1)?,
+                    counts_as: None,
                     owner: FieldOwner {
                         id: row.get(2)?,
                         text: row.get(3)?,
@@ -526,8 +537,16 @@ impl Notebook {
             ))
         })?;
         let mut incoming = Vec::new();
+        let mut counts: HashMap<String, Option<CountsAs>> = HashMap::new();
         for row in rows {
-            let (value, text) = row?;
+            let (mut value, text) = row?;
+            if !counts.contains_key(&value.field_id) {
+                let counted = definitions_for(&self.conn, Some(&value.field_id))?
+                    .first()
+                    .and_then(|definition| definition.counts_as);
+                counts.insert(value.field_id.clone(), counted);
+            }
+            value.counts_as = counts[&value.field_id];
             // A link inside longer text is a mention, not this relation's value.
             if reference(&text) == Some(target)
                 && !incoming

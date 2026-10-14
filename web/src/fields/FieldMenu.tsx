@@ -9,6 +9,8 @@ import type { MenuItem } from '../ui/Menu';
 import { fieldHide, fieldHides, hideLabels } from './hide';
 import { requiredIds, requiredReason } from './required';
 import type { FieldHide } from './hide';
+import { countsAsValues, countsLabels, countsReason, fieldCounts } from './counts';
+import type { CountsAs } from './counts';
 import { fieldRole, fieldRoles, roleLabels } from './roles';
 import type { FieldRole } from './roles';
 import { fieldKinds, kindLabels } from './kinds';
@@ -55,6 +57,17 @@ export function createFieldMenu(context: Pick<OutlineContext,
       context.showNotice(label, () => saveHide(field, previous));
     } catch (error) { failure(error); }
   }
+  async function changeCounts(field: FieldDefinition, value: CountsAs | null) {
+    const document = definitionDocument();
+    if (!document || fieldCounts(field) === value) return;
+    try {
+      await doc.flush();
+      const result = document.edit({ kind: 'fieldCountsAs', definition: field, value });
+      if (!result.ok) throw new Error(result.reason);
+      await document.flush();
+      context.showNotice(`${field.name} counts as ${(value ?? 'nothing')}.`, async () => { document.undo(); await document.flush(); });
+    } catch (error) { failure(error); }
+  }
   async function changeRole(field: FieldDefinition, value: FieldRole) {
     const document = definitionDocument();
     if (!document || fieldRole(field) === value) return;
@@ -97,6 +110,7 @@ export function createFieldMenu(context: Pick<OutlineContext,
         ...(field.kind === 'instance' ? [{ label: 'Links to…', action: (event?: MouseEvent | KeyboardEvent) => open(opensBeside(event), { section: 'targets' }) }] : []),
         { label: 'Hide…', submenu: () => ({ title: 'Hide', items: fieldHides.map(value => ({ label: hideLabels[value], checked: value === fieldHide(field), disabledReason: unavailable, action: () => { void changeHide(field, value); } })) }) },
         { label: 'Role…', submenu: () => ({ title: 'Role', items: fieldRoles.map(value => ({ label: roleLabels[value], checked: value === fieldRole(field), disabledReason: unavailable, action: () => { void changeRole(field, value); } })) }) },
+        { label: 'Counts as…', disabledReason: countsReason(field), submenu: () => ({ title: 'Counts as', items: [null, ...countsAsValues].map(value => ({ label: countsLabels[value ?? 'nothing'], checked: value === fieldCounts(field), disabledReason: unavailable, action: () => { void changeCounts(field, value); } })) }) },
       ] }) },
       ...(ownerTypes.length || (keys.length && (types.loading || types.error)) ? [{ label: 'Templates…', submenu: () => ({ title: 'Templates', items: [
         ...ownerTypes.map((type): MenuItem => {

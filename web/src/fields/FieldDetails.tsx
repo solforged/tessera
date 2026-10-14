@@ -11,6 +11,8 @@ import { Menu } from '../ui/Menu';
 import { fieldKinds, fieldNameProblem, kindLabels } from './kinds';
 import { fieldHide, fieldHides, hideLabels } from './hide';
 import type { FieldHide } from './hide';
+import { countsAsValues, countsDescriptions, countsLabel, countsLabels, countsReason, fieldCounts } from './counts';
+import type { CountsAs } from './counts';
 import { fieldRole, fieldRoles, roleDescriptions, roleLabels } from './roles';
 import type { FieldRole } from './roles';
 import './field-page.css';
@@ -51,6 +53,7 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [menu, setMenu] = createSignal<HTMLElement | null>(null);
   const [hideMenu, setHideMenu] = createSignal<HTMLElement | null>(null);
   const [roleMenu, setRoleMenu] = createSignal<HTMLElement | null>(null);
+  const [countsMenu, setCountsMenu] = createSignal<HTMLElement | null>(null);
   const [editing, setEditing] = createSignal<{ id: string; text: string } | null>(null);
   const [adding, setAdding] = createSignal(false);
   const [option, setOption] = createSignal('');
@@ -188,6 +191,16 @@ export function FieldDetails(props: FieldDetailsProps) {
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
   };
+  const applyCounts = async (counts: CountsAs | null) => {
+    const value = data(); const doc = props.document;
+    if (!value || !doc || !ready()) return;
+    const result = doc.edit({ kind: 'fieldCountsAs', definition: value.field, value: counts });
+    if (!result.ok) { setError(result.reason); return; }
+    setCountsMenu(null); article.focus({ preventScroll: true }); setApplying(true);
+    try { await doc.flush(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setApplying(false); }
+  };
   const applyRole = async (role: FieldRole) => {
     const value = data(); const doc = props.document;
     if (!value || !doc || !ready()) return;
@@ -250,6 +263,8 @@ export function FieldDetails(props: FieldDetailsProps) {
       <p class="field-note">{fieldHide(value().field) === 'never' ? 'Shown even when empty.' : fieldHide(value().field) === 'when_empty' ? 'Hidden in notes while empty.' : 'Hidden in notes; tables still show it.'}</p>
       <div class="field-kind-row"><span>Role</span><Button class="bordered" aria-label={`Role for ${value().field.name}: ${roleLabels[fieldRole(value().field)]}`} aria-haspopup="menu" aria-expanded={!!roleMenu()} disabled={!ready()} onClick={event => setRoleMenu(event.currentTarget)}>{roleLabels[fieldRole(value().field)]} <Icon name="down" /></Button></div>
       <p class="field-note">{roleDescriptions[fieldRole(value().field)]}</p>
+      <div class="field-kind-row"><span>Counts as</span><Button class="bordered" aria-label={`Counts as for ${value().field.name}: ${countsLabel(value().field)}`} aria-haspopup="menu" aria-expanded={!!countsMenu()} title={countsReason(value().field)} disabled={!ready() || !!countsReason(value().field)} onClick={event => setCountsMenu(event.currentTarget)}>{countsLabel(value().field)} <Icon name="down" /></Button></div>
+      <p class="field-note">{countsReason(value().field) && value().field.built_in ? countsReason(value().field) : countsDescriptions[fieldCounts(value().field) ?? 'nothing']}</p>
       <Show when={preview()} fallback={<>
         <Show when={value().kind === 'choice' && !props.inspector}><section class="field-section" data-field-section="options"><SectionHead number="01" title="Options" count={plural(value().field.options.length, 'option')} />
           <table class="field-ledger field-options"><thead><tr><th scope="col">Value</th><th scope="col">Uses</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody><For each={value().field.options}>{option => <tr><td><Show when={editing()?.id !== option.id} fallback={inlineEdit(option.id)}>{option.text}</Show></td><td class="field-apparatus">{optionUses().get(option.id) ?? 0}</td><td><Button disabled={!ready()} aria-label={`Rename option ${option.text}`} onClick={() => setEditing({ id: option.id, text: option.text })}>Edit…</Button></td></tr>}</For></tbody></table>
@@ -274,6 +289,7 @@ export function FieldDetails(props: FieldDetailsProps) {
       </Show>
       <Show when={menu()}>{anchor => <Menu anchor={anchor()} label={`Kind for ${value().field.name}`} onDismiss={() => setMenu(null)} items={fieldKinds.map(kind => ({ label: kindLabels[kind], icon: kind === value().kind ? 'check' : undefined, action: () => { setEditing(null); props.onPreview(kind === value().field.kind ? undefined : kind); } }))} />}</Show>
       <Show when={hideMenu()}>{anchor => <Menu anchor={anchor()} label={`Hide for ${value().field.name}`} onDismiss={() => setHideMenu(null)} items={fieldHides.map(hide => ({ label: hideLabels[hide], checked: hide === fieldHide(value().field), action: () => { void applyHide(hide); } }))} />}</Show>
+      <Show when={countsMenu()}>{anchor => <Menu anchor={anchor()} label={`Counts as for ${value().field.name}`} onDismiss={() => setCountsMenu(null)} items={[null, ...countsAsValues].map(counts => ({ label: countsLabels[counts ?? 'nothing'], checked: counts === fieldCounts(value().field), action: () => { void applyCounts(counts); } }))} />}</Show>
       <Show when={roleMenu()}>{anchor => <Menu anchor={anchor()} label={`Role for ${value().field.name}`} onDismiss={() => setRoleMenu(null)} items={fieldRoles.map(role => ({ label: roleLabels[role], checked: role === fieldRole(value().field), action: () => { void applyRole(role); } }))} />}</Show>
       <Show when={targetsMenu()}>{anchor => <LinksToPopup anchor={anchor()} notebook={props.notebook} targets={value().field.targets} disabled={!ready()} onApply={targets => void applyTargets(targets)} onDismiss={() => setTargetsMenu(null)} />}</Show>
     </>}</Show>

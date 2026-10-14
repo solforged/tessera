@@ -950,7 +950,7 @@ impl Notebook {
                 .remove(&source.block_id)
                 .unwrap_or_default();
             source_siglum(&mut source, &page.text, &fields);
-            let creators = fields.get("author").cloned().unwrap_or_default();
+            let creators = crate::library_export::creators(&fields).to_vec();
             if let Some(text) = &text
                 && !page.text.to_lowercase().contains(text.as_str())
                 && !creators

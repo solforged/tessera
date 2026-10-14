@@ -5,6 +5,7 @@
  */
 import type { fieldKinds } from '../fields/kinds';
 import type { FieldHide } from '../fields/hide';
+import type { CountsAs } from '../fields/counts';
 import type { FieldRole } from '../fields/roles';
 
 export type BlockKind = 'block' | 'page' | 'journal';
@@ -97,6 +98,7 @@ export type Operation =
   | { op: 'set_field_kind'; id: string; base_revision: number; kind: FieldKind }
   | { op: 'set_field_hide'; id: string; base_revision: number; hide: FieldHide }
   | { op: 'set_field_role'; id: string; base_revision: number; role: FieldRole }
+  | { op: 'set_field_counts_as'; id: string; base_revision: number; counts_as: CountsAs | null }
   | { op: 'set_field_targets'; id: string; base_revision: number; targets: string[] }
   | { op: 'set_type_fields'; type_id: string; base_revision: number; fields: string[] }
   | { op: 'set_type_presentation'; type_id: string; base_revision: number; plural: string | null; icon: string | null }
@@ -334,7 +336,7 @@ export interface QueryAttributeValue { text: string; reading: Reading }
 export interface QueryAttribute { key: string; name: string; kind: FieldKind }
 export interface QueryGroup { key: string; title: string; target: string | null; row_ids: string[]; count: number }
 export interface QueryRow { block: BlockInPage; values: Record<string, FieldValue[]>; attributes?: Record<string, QueryAttributeValue[]> }
-export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[]; targets: string[]; hide?: FieldHide; role?: FieldRole; archived?: boolean; /** Created and named by the app: only its case can change. */ built_in?: boolean }
+export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[]; targets: string[]; hide?: FieldHide; role?: FieldRole; /** Absent counts as nothing. */ counts_as?: CountsAs | null; archived?: boolean; /** Created and named by the app: only its case can change. */ built_in?: boolean }
 export interface QueryResult { fields: FieldDefinition[]; columns: string[]; rows: QueryRow[]; total: number; note_groups?: NoteGroup[]; attributes?: QueryAttribute[]; groups?: QueryGroup[] }
 export interface FieldSummary extends FieldDefinition { owners: number; types: { id: string; name: string }[] }
 export interface Fields { page_id: string; fields: FieldSummary[] }
@@ -342,7 +344,7 @@ export interface FieldOwner { id: string; text: string; page_id: string; page_ti
 export interface FieldOwnerValues { owner: FieldOwner; entry_id: string; values: FieldValue[] }
 export interface FieldValueUse { owner: FieldOwner; entry_id: string; value: FieldValue }
 /** A relation field value pointing at a block, read from the target's side. */
-export interface IncomingFieldValue { field_id: string; field_name: string; owner: FieldOwner; value_id: string }
+export interface IncomingFieldValue { field_id: string; field_name: string; counts_as?: CountsAs | null; owner: FieldOwner; value_id: string }
 export interface FieldChoiceCandidate {
   text: string;
   option_id: string | null;

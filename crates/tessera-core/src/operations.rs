@@ -4,6 +4,7 @@ use std::fmt::Write;
 use rusqlite::{OptionalExtension, Transaction, TransactionBehavior, params};
 use sha2::{Digest, Sha256};
 
+use crate::CountsAs;
 use crate::notebook::{derived_id, new_ulid, now_ms};
 use crate::storage::{
     Stored, TypeCreation, derive_links, derive_memberships, not_found, resolve_type, rewrite_links,
@@ -1800,6 +1801,40 @@ impl Engine<'_, '_> {
                 let current = self.checked(id, *base_revision, index, false)?;
                 self.tx.execute("INSERT INTO fields(block_id, kind, role) VALUES (?1, 'text', ?2) ON CONFLICT(block_id) DO UPDATE SET role = excluded.role",
                     params![id, role.as_str()])?;
+                self.bump(&current, true)
+            }
+            Operation::SetFieldCountsAs {
+                id,
+                base_revision,
+                counts_as,
+            } => {
+                crate::fields::require_definition(self.tx, id)?;
+                let current = self.checked(id, *base_revision, index, false)?;
+                if let Some(field) = crate::built_in::field_named(&current.block.text) {
+                    return Err(validation(match field.counts_as {
+                        Some(counts) => format!(
+                            "{} is built in and counts as {}.",
+                            field.name,
+                            counts.as_str()
+                        ),
+                        None => format!("{} is built in and counts as nothing.", field.name),
+                    }));
+                }
+                let kind: Option<String> = self
+                    .tx
+                    .query_row("SELECT kind FROM fields WHERE block_id = ?1", [id], |row| {
+                        row.get(0)
+                    })
+                    .optional()?;
+                if counts_as.is_some()
+                    && !matches!(kind.as_deref().unwrap_or("text"), "text" | "instance")
+                {
+                    return Err(validation(
+                        "Only text and relation fields count as a creator, contributor or originator.",
+                    ));
+                }
+                self.tx.execute("INSERT INTO fields(block_id, kind, counts_as) VALUES (?1, 'text', ?2) ON CONFLICT(block_id) DO UPDATE SET counts_as = excluded.counts_as",
+                    params![id, counts_as.map(CountsAs::as_str)])?;
                 self.bump(&current, true)
             }
             Operation::SetFieldTargets {

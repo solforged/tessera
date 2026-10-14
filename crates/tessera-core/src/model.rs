@@ -249,6 +249,12 @@ pub enum Operation {
         base_revision: i64,
         role: FieldRole,
     },
+    /// What a field's values count as in creator readings; `None` counts as nothing.
+    SetFieldCountsAs {
+        id: String,
+        base_revision: i64,
+        counts_as: Option<CountsAs>,
+    },
     SetFieldTargets {
         id: String,
         base_revision: i64,
@@ -760,6 +766,36 @@ impl FieldRole {
     }
 }
 
+/// What a field's values count as, so readers find creators by meaning rather than by field name.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CountsAs {
+    /// Who made the work: bylines, sigla, sorting and `@creator`.
+    Creator,
+    /// Listed after the creators, never in a byline, siglum or sort: `@contributor`.
+    Contributor,
+    /// Who first proposed a concept, and where.
+    Originator,
+}
+
+impl CountsAs {
+    pub const ALL: [Self; 3] = [Self::Creator, Self::Contributor, Self::Originator];
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Creator => "creator",
+            Self::Contributor => "contributor",
+            Self::Originator => "originator",
+        }
+    }
+
+    pub(crate) fn from_str(value: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|counts| counts.as_str() == value)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Direction {
@@ -1000,6 +1036,8 @@ pub struct FieldDefinition {
     pub hide: FieldHide,
     #[serde(default)]
     pub role: FieldRole,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counts_as: Option<CountsAs>,
     pub archived: bool,
     pub revision: i64,
     pub options: Vec<FieldOption>,
@@ -1087,6 +1125,8 @@ pub struct FieldOwner {
 pub struct IncomingFieldValue {
     pub field_id: String,
     pub field_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub counts_as: Option<CountsAs>,
     pub owner: FieldOwner,
     pub value_id: String,
 }

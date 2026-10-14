@@ -7,13 +7,17 @@ use rusqlite::{Connection, OptionalExtension};
 
 use crate::FieldKind::{self, Date, Identifier, Instance, Number, Span, Text, Url};
 use crate::library_ingest::Planner;
-use crate::{Actor, Batch, Notebook, Operation, Result};
+use crate::{Actor, Batch, CountsAs, Notebook, Operation, Result};
 
 pub(crate) struct BuiltInField {
     pub name: &'static str,
     pub kind: FieldKind,
     /// Titles of the types a relation links to, filed only where those type pages exist.
     pub targets: &'static [&'static str],
+    /// What its values count as; fixed, like its name.
+    pub counts_as: Option<CountsAs>,
+    /// A creator read only when a work has no other creator, as an editor is.
+    pub fallback: bool,
 }
 
 const fn field(name: &'static str, kind: FieldKind) -> BuiltInField {
@@ -21,27 +25,34 @@ const fn field(name: &'static str, kind: FieldKind) -> BuiltInField {
         name,
         kind,
         targets: &[],
+        counts_as: None,
+        fallback: false,
+    }
+}
+
+const fn person(
+    name: &'static str,
+    targets: &'static [&'static str],
+    counts_as: CountsAs,
+) -> BuiltInField {
+    BuiltInField {
+        name,
+        kind: Instance,
+        targets,
+        counts_as: Some(counts_as),
+        fallback: false,
     }
 }
 
 const CREATORS: &[&str] = &["Person", "Group"];
 
 pub(crate) const FIELDS: &[BuiltInField] = &[
+    person("author", CREATORS, CountsAs::Creator),
     BuiltInField {
-        name: "author",
-        kind: Instance,
-        targets: CREATORS,
+        fallback: true,
+        ..person("editor", CREATORS, CountsAs::Creator)
     },
-    BuiltInField {
-        name: "editor",
-        kind: Instance,
-        targets: CREATORS,
-    },
-    BuiltInField {
-        name: "translator",
-        kind: Instance,
-        targets: CREATORS,
-    },
+    person("translator", CREATORS, CountsAs::Contributor),
     field("subtitle", Text),
     field("published", Date),
     field("first published", Date),
@@ -64,25 +75,22 @@ pub(crate) const FIELDS: &[BuiltInField] = &[
     field("started", Date),
     field("finished", Date),
     BuiltInField {
-        name: "collections",
-        kind: Instance,
         targets: &["Collection"],
+        ..field("collections", Instance)
     },
     field("aliases", Text),
     field("sort as", Text),
     field("lived", Span),
     field("active", Span),
     BuiltInField {
-        name: "affiliated with",
-        kind: Instance,
         targets: &["Group"],
+        ..field("affiliated with", Instance)
     },
+    person("coined by", CREATORS, CountsAs::Originator),
     BuiltInField {
-        name: "coined by",
-        kind: Instance,
-        targets: CREATORS,
+        counts_as: Some(CountsAs::Originator),
+        ..field("coined in", Instance)
     },
-    field("coined in", Instance),
     field("gist", Text),
     field("gloss", Text),
     field("work", Text),
@@ -145,6 +153,32 @@ pub(crate) fn rename_problem(current: &str, next: &str) -> Option<String> {
     let field = field_named(current)?;
     (!field.name.eq_ignore_ascii_case(next.trim()))
         .then(|| format!("{} is built in and cannot be renamed.", field.name))
+}
+
+/// Where a field's values go in a work's creator readings.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum CreatorTier {
+    Creator,
+    /// Creators read only when a work has none of the first tier, as editors are.
+    Fallback,
+    Contributor,
+}
+
+/// A definition's creator tier and its rank within it: author first, then other fields in Fields page order.
+pub(crate) fn creator_tier(
+    definition: &crate::FieldDefinition,
+    position: usize,
+) -> Option<(CreatorTier, usize)> {
+    let tier = match definition.counts_as? {
+        CountsAs::Creator if field_named(&definition.name).is_some_and(|field| field.fallback) => {
+            CreatorTier::Fallback
+        }
+        CountsAs::Creator => CreatorTier::Creator,
+        CountsAs::Contributor => CreatorTier::Contributor,
+        CountsAs::Originator => return None,
+    };
+    let author = definition.name.trim().eq_ignore_ascii_case("author");
+    Some((tier, if author { 0 } else { position + 1 }))
 }
 
 /// The fields in `template` that a type titled `title` requires, as `(field id, name)` in template order.

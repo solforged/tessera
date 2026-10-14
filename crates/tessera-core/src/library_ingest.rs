@@ -293,6 +293,7 @@ impl<'a> Planner<'a> {
                 kind,
                 hide: crate::FieldHide::Never,
                 role: crate::FieldRole::Attribute,
+                counts_as: crate::built_in::field_named(label).and_then(|field| field.counts_as),
                 archived: false,
                 revision: if targets.is_empty() { 2 } else { 3 },
                 options: vec![],

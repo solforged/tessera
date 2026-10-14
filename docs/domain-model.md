@@ -253,11 +253,11 @@ Attributes use a leading `@` wherever a field key is accepted, including filters
 | Notes | `@kind`, `@resolved`, `@revisit` |
 | Questions | `@state`, `@parent`, `@program`, `@readings`, `@current`, `@last_assessed`, `@revisit`, `@inline` |
 | Positions | `@holder`, `@subject`, `@question`, `@relation`, `@target_holder`, `@cites` |
-| Sources | `@creator`, `@cited_by`, `@cited_in`, `@highlights` |
+| Sources | `@creator`, `@contributor`, `@cited_by`, `@cited_in`, `@highlights` |
 | Tasks | `@status`, `@due`, `@scheduled`, `@project` |
 | Highlights | `@source`, `@color` |
 
-The shared attributes are `@title` (text), `@page` (instance), `@created` and `@updated` (dates in the notebook's time zone). Questions use active, recurrent, parked and answered states. `@last_assessed` is the latest live assessment date, accepted or not. `@readings` counts positions about the question. Sources count distinct citing positions and highlighted blocks. Instance attributes compare stable IDs, not labels. Links and citations on a block source refer to its subtree.
+The shared attributes are `@title` (text), `@page` (instance), `@created` and `@updated` (dates in the notebook's time zone). Questions use active, recurrent, parked and answered states. `@last_assessed` is the latest live assessment date, accepted or not. `@readings` counts positions about the question. Sources count distinct citing positions and highlighted blocks. Instance attributes compare stable IDs, not labels. `@creator` and `@contributor` read the fields that [count as](#counts-as) creator or contributor. Links and citations on a block source refer to its subtree.
 
 Positions' `@question` includes their subject when it is a live question and every effective parent question above it. A parent question therefore selects positions about its branches too. Sources' `@cited_in` names each live block whose subtree cites that source, including positions and containing pages. Both are instance attributes and compare stable IDs. Repeated citations count once per block; hidden or deleted subtrees do not contribute.
 
@@ -569,6 +569,17 @@ Built-in kinds start with templates, filled in only when wanted. Their fields ar
 - A Group's members are the people affiliated with it, read back on its page as `← affiliated with`, not a second list.
 - Templates change like any type's and never rewrite notes.
 - Thesis starts without a template. A perspective's holder remains its first link.
+
+### Counts as
+
+A field may count as creator, contributor or originator, so readers find who made a work by what a field means rather than by its name. A built-in field counts as the schema says and cannot change, like its name: author and editor count as creator, translator as contributor, and coined by and coined in as originator. Any text or relation field of the notebook's own can count as one of them, or as nothing, the default. A field of another kind cannot.
+
+- A work's creators are its creator fields' values, author first and then the other fields in Fields page order. Editors count only when a work has no other creator.
+- `@creator`, sigla, the bibliography byline, Library search and the Markdown export header read these creators. A director that counts as creator files a film under its director with no code change.
+- Contributors, such as translators, are listed after the creators and never appear in a byline, siglum or sort. `@contributor` reads them.
+- BibTeX and CSL keep author, editor and translator. Another field exports as the CSL name variable its name matches, such as `director`, and otherwise as author for a creator or contributor for a contributor. BibTeX takes only its three roles.
+- A person's Works lists works whose creator fields, editors or translators name them, so those fields are left out of the person's `←` lines.
+- Originator is recorded but not yet read.
 
 ### Aliases
 

@@ -996,6 +996,28 @@ describe('real notebook operations and recovery', () => {
     doc.release();
   });
 
+  test('a field counts as a creator with one undo, and a built-in field keeps what the core says', async () => {
+    const instance = await client();
+    const fields = await api.fields();
+    const doc = instance.open(fields.page_id);
+    await eventually(() => doc.status() === 'ready', doc.statusMessage());
+    const id = success(doc.edit({ kind: 'addField', name: `Director ${++serial}`, value: 'text' })).created[0]!;
+    await instance.flush();
+    const read = async () => (await api.fields()).fields.find(field => field.id === id)?.counts_as ?? null;
+    const definition = (await api.fields()).fields.find(field => field.id === id)!;
+    success(doc.edit({ kind: 'fieldCountsAs', definition, value: 'creator' }));
+    await instance.flush();
+    expect(await read()).toBe('creator');
+    doc.undo(); await instance.flush();
+    expect(await read()).toBeNull();
+    doc.redo(); await instance.flush();
+    expect(await read()).toBe('creator');
+    const current = (await api.fields()).fields.find(field => field.id === id)!;
+    const refused = doc.edit({ kind: 'fieldCountsAs', definition: { ...current, built_in: true }, value: null });
+    expect(refused.ok ? '' : refused.reason).toContain('is built in and counts as creator.');
+    doc.release();
+  });
+
   test('new tag and manual type pages receive starting templates after creation is acknowledged', async () => {
     for (const scenario of [
       { title: 'Pérsón', manual: false, fields: ['aliases', 'lived', 'affiliated with'] },

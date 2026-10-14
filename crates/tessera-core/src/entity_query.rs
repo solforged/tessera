@@ -41,6 +41,7 @@ pub(crate) fn attributes(source: QuerySource) -> Vec<QueryAttribute> {
         ],
         QuerySource::Sources => &[
             ("@creator", "Creator", Instance),
+            ("@contributor", "Contributor", Instance),
             ("@cited_by", "Cited by", Number),
             ("@cited_in", "Cited in", Instance),
             ("@highlights", "Highlights", Number),
@@ -392,20 +393,64 @@ impl Notebook {
                         None,
                     );
                 }
+                // Creators by what their fields count as: author first, then the notebook's own creator
+                // fields, and editors only for works with neither. Contributors such as translators follow.
+                let definitions = crate::fields::definitions(&self.conn)?;
+                let tiers: HashMap<&str, (crate::built_in::CreatorTier, usize)> = definitions
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(position, definition)| {
+                        crate::built_in::creator_tier(definition, position)
+                            .map(|tier| (definition.id.as_str(), tier))
+                    })
+                    .collect();
+                let ids = serde_json::to_string(&tiers.keys().collect::<Vec<_>>())
+                    .expect("IDs serialize");
                 let mut statement = self.conn.prepare_cached(concat!(
                     hidden_blocks!(),
-                    "SELECT DISTINCT fv.owner_id, l.target_id FROM field_values fv
-                    JOIN blocks d ON d.id = fv.field_id JOIN blocks v ON v.id = fv.value_id
+                    "SELECT DISTINCT fv.owner_id, fv.field_id, l.target_id FROM field_values fv
+                    JOIN blocks v ON v.id = fv.value_id
                     JOIN links l ON l.source_id = v.id AND l.occurrence = 0
-                    WHERE lower(d.text) IN ('author', 'editor', 'translator')
+                    WHERE fv.field_id IN (SELECT value FROM json_each(?1))
                     AND v.rowid NOT IN (SELECT rowid FROM hidden) ORDER BY fv.owner_id, fv.ordinal"
                 ))?;
-                for row in statement
-                    .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?
-                {
-                    let (owner, target) = row?;
-                    if let Some(attrs) = entities.get_mut(&owner) {
-                        instance(attrs, "@creator", &target, &titles);
+                let mut people: HashMap<
+                    String,
+                    Vec<(crate::built_in::CreatorTier, usize, String)>,
+                > = HashMap::new();
+                for row in statement.query_map([&ids], |r| {
+                    Ok((
+                        r.get::<_, String>(0)?,
+                        r.get::<_, String>(1)?,
+                        r.get::<_, String>(2)?,
+                    ))
+                })? {
+                    let (owner, field, target) = row?;
+                    if let Some(&(tier, rank)) = tiers.get(field.as_str()) {
+                        people.entry(owner).or_default().push((tier, rank, target));
+                    }
+                }
+                for (owner, mut values) in people {
+                    let Some(attrs) = entities.get_mut(&owner) else {
+                        continue;
+                    };
+                    values.sort_by_key(|(tier, rank, _)| (*tier, *rank));
+                    let leads = values
+                        .iter()
+                        .any(|(tier, _, _)| *tier == crate::built_in::CreatorTier::Creator);
+                    for (tier, _, target) in values {
+                        match tier {
+                            crate::built_in::CreatorTier::Creator => {
+                                instance(attrs, "@creator", &target, &titles);
+                            }
+                            crate::built_in::CreatorTier::Fallback if !leads => {
+                                instance(attrs, "@creator", &target, &titles);
+                            }
+                            crate::built_in::CreatorTier::Fallback => {}
+                            crate::built_in::CreatorTier::Contributor => {
+                                instance(attrs, "@contributor", &target, &titles);
+                            }
+                        }
                     }
                 }
             }

@@ -14,6 +14,7 @@ import { isStableReference, quoteTarget, textTokens } from './text-tokens';
 import { newTask } from '../tasks/quick-date';
 import { rebaseText } from './text-patch';
 import { fieldHide } from '../fields/hide';
+import { countsReason, fieldCounts } from '../fields/counts';
 import { fieldRole } from '../fields/roles';
 import { fieldEntryId } from '../table/query';
 
@@ -518,6 +519,9 @@ export class Document implements PageDocument {
       case 'fieldRole':
         this.changed(action.id, {}, base);
         return [{ kind: 'fieldRole', id: action.id, value: action.previous, previous: action.value }];
+      case 'fieldCountsAs':
+        this.changed(action.id, {}, base);
+        return [{ kind: 'fieldCountsAs', id: action.id, value: action.previous, previous: action.value }];
       case 'fieldTargets':
         this.changed(action.id, {}, base);
         return [{ kind: 'fieldTargets', id: action.id, targets: action.previous, previous: action.targets }];
@@ -1522,6 +1526,15 @@ export class Document implements PageDocument {
           if (previous !== edit.value) actions.push({ kind: 'fieldRole', id: definition.id, value: edit.value, previous, baseRevision: definition.revision });
           break;
         }
+        case 'fieldCountsAs': {
+          const definition = edit.definition;
+          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing what it counts as.');
+          const reason = countsReason(definition);
+          if (reason) throw new Error(reason);
+          const previous = fieldCounts(definition);
+          if (previous !== edit.value) actions.push({ kind: 'fieldCountsAs', id: definition.id, value: edit.value, previous, baseRevision: definition.revision });
+          break;
+        }
         case 'fieldTargets': {
           const definition = edit.definition;
           if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its targets.');
@@ -1785,7 +1798,7 @@ export class Document implements PageDocument {
     const entry = from.pop();
     if (!entry) return null;
     const actions = (undo ? entry.inverse : entry.forward).map<Action>(action => {
-      if (!undo && (action.kind === 'fieldKind' || action.kind === 'fieldHide' || action.kind === 'fieldRole' || action.kind === 'fieldTargets' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return { ...action, baseRevision: undefined };
+      if (!undo && (action.kind === 'fieldKind' || action.kind === 'fieldHide' || action.kind === 'fieldRole' || action.kind === 'fieldCountsAs' || action.kind === 'fieldTargets' || action.kind === 'subjectCriteria' || action.kind === 'typePresentation')) return { ...action, baseRevision: undefined };
       return { ...action };
     });
     // Check all text patches before applying any part of the transaction.

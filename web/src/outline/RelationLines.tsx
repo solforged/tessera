@@ -30,7 +30,8 @@ export function IncomingRelationLine(props: RelationProps & { rows: readonly Rel
 }
 
 /** Built-in relations their targets already list: creators as Works, collections as their members. */
-const listedElsewhere = new Set(['author', 'editor', 'translator', 'collections']);
+// A person's Works lists the works its creator fields, editors and translators name, and a collection lists its members.
+const listedElsewhere = (row: IncomingFieldValue) => row.counts_as === 'creator' || ['translator', 'collections'].includes(row.field_name.trim().toLowerCase());
 const ownersShown = 3;
 
 /** Relation fields read from the target as `← name`, one group per field, each owner opening where it is written. */
@@ -38,7 +39,7 @@ export function IncomingFieldLine(props: RelationProps & { rows: readonly Incomi
   const groups = createMemo(() => {
     const byField = new Map<string, { id: string; name: string; owners: FieldOwner[] }>();
     for (const row of props.rows) {
-      if (listedElsewhere.has(row.field_name.trim().toLowerCase())) continue;
+      if (listedElsewhere(row)) continue;
       const group = byField.get(row.field_id) ?? { id: row.field_id, name: row.field_name, owners: [] };
       if (!group.owners.some(owner => owner.id === row.owner.id)) group.owners.push(row.owner);
       byField.set(row.field_id, group);
