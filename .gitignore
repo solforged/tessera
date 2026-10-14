@@ -10,10 +10,6 @@
 /crates/tessera-android/node_modules/
 # The Gradle project in gen/android is committed; Tauri regenerates the schemas.
 /crates/tessera-android/gen/schemas/
-/spikes/editor/node_modules/
-/spikes/editor/*/node_modules/
-/spikes/editor/*/dist/
-/spikes/editor/results/profiles/
 /web/perf/results/*
 !/web/perf/results/*.md
 # Local development notebooks.

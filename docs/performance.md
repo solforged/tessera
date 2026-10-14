@@ -70,7 +70,7 @@ Risk: completion and search for a word that appears in thousands of blocks cost 
 
 ## Spike 2 result: editor
 
-Three variants of the same outline editor live in `spikes/editor/`: React with one CodeMirror per pane, Solid with the same design, and one ProseMirror document. A runner drives them in headless Chrome with real keyboard and IME input, at 2,000 and 10,000 fully mounted rows. Results are in `spikes/editor/results/summary.md`.
+The editor comparison measured three variants of the same outline editor: React with one CodeMirror per pane, Solid with the same design, and one ProseMirror document. A runner drove them in headless Chrome with real keyboard and IME input, at 2,000 and 10,000 fully mounted rows. The retired [spike workspace](https://github.com/solforged/tessera/tree/1f5f12b582659468a361c4d916eed7dc7971b738/spikes/editor) and [full results](https://github.com/solforged/tessera/blob/1f5f12b582659468a361c4d916eed7dc7971b738/spikes/editor/results/summary.md) remain available at the original comparison commit.
 
 | Variant | Correctness scenarios | Typing, handler p99 | Structural edit, handler p99 at 10,000 rows |
 |---|---|---|---|
