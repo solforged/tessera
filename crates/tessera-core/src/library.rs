@@ -402,6 +402,8 @@ pub struct LibraryQuery {
     pub publishers: Vec<String>,
     /// Publication years floored to the decade.
     pub decades: Vec<i32>,
+    /// Publication years, as the first four digits of the published date.
+    pub years: Vec<i32>,
     /// Primary language codes as rows and facets report them, such as `en` for `en-US` or `eng`.
     pub languages: Vec<String>,
     pub sort: LibrarySort,
@@ -418,6 +420,7 @@ impl Default for LibraryQuery {
             people: vec![],
             publishers: vec![],
             decades: vec![],
+            years: vec![],
             languages: vec![],
             sort: LibrarySort::Added,
             direction: crate::Direction::Desc,
@@ -489,6 +492,7 @@ pub struct LibraryResult {
 pub struct LibraryFacets {
     pub people: Vec<PersonFacet>,
     pub decades: Vec<DecadeFacet>,
+    pub years: Vec<YearFacet>,
     pub publishers: Vec<ValueFacet>,
     pub languages: Vec<ValueFacet>,
 }
@@ -503,6 +507,12 @@ pub struct PersonFacet {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecadeFacet {
     pub decade: i32,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct YearFacet {
+    pub year: i32,
     pub count: usize,
 }
 

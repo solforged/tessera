@@ -45,6 +45,8 @@
   @container library-pane (max-width: 560px) {
     .library-row-open :is(.library-state, .library-year), .library-progress > .library-reading-rule { display: none; }
     .library-progress { width: auto; min-width: 4ch; }
+    .library-inbox-ledger .library-row-open { display: flex; }
+    .library-inbox-ledger .library-author, .library-colhead { display: none; }
   }
 }
 .library-siglum { flex: none; width: 5ch; font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--faint); transition: color var(--motion-fast) var(--motion-ease); }
@@ -84,10 +86,21 @@
 .library-empty h2 { margin: 0 0 var(--space-8); color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
 .library-empty p { margin: 0 0 var(--space-8); }
 .library-jobs { display: flex; flex-direction: column; }
+.library-inbox-ledger .library-row-open { display: grid; grid-template-columns: minmax(0, 1fr) 22ch 4.5ch auto; column-gap: var(--space-16); align-items: baseline; }
+.library-year-grouped.library-inbox-ledger .library-row-open { grid-template-columns: minmax(0, 1fr) 22ch auto; }
+.library-inbox-ledger .library-title { grid-column: 1; }
+.library-author { grid-column: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.library-inbox-ledger .library-year { grid-column: 3; }
+.library-inbox-ledger .library-highlight-count { grid-column: 4; width: auto; min-width: 0; justify-self: end; }
+.library-year-grouped.library-inbox-ledger .library-highlight-count { grid-column: 3; }
+.library-colhead { min-height: 20px; border-bottom: 0; content-visibility: visible; contain-intrinsic-size: auto 20px; color: var(--faint); }
+.library-colhead .library-author, .library-colhead .library-year { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .library-job { flex-wrap: wrap; font-size: var(--text-control); line-height: var(--line-control); }
 .library-failures { width: 100%; border-bottom: var(--rule-width) solid var(--line); }
-.library-failures > summary { padding: var(--space-8); color: var(--muted); font: var(--apparatus); cursor: pointer; }
-.library-dismiss-all.button { margin: 0 var(--space-8) var(--space-8); }
+.library-failure-heading { display: flex; align-items: center; min-height: var(--target-size); margin: 0; padding-inline: var(--space-8); color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.library-failure-more { display: flex; gap: var(--space-16); justify-content: flex-start; padding: var(--space-4) var(--space-8) var(--space-8) calc(var(--row-height) + var(--space-8)); }
+.library-failure-more .button { color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.library-dismiss-all.button { margin: 0; }
 .library-job-name { flex: 1 1 0; min-width: var(--space-48); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-inline: var(--space-8); }
 @container library-pane (max-width: 599px) {
   .library-job-name { flex-basis: calc(100% - var(--space-48)); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
@@ -358,7 +371,8 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
 /* The phone ledger uses the same boxed rhythm as Reading; its cover rail is separate from the readable title and metadata stack. */
 @media (max-width: 599px) {
   .library-pane:not(.library-all-tab) .library-row-open.button { display: grid; grid-template-columns: minmax(0, 1fr) auto; height: auto; gap: var(--space-4) var(--space-8); padding-block: var(--space-8); }
-  .library-pane:not(.library-all-tab) .library-row-open :is(.library-title, .library-byline) { grid-column: 1 / -1; max-width: none; margin: 0; }
+  .library-pane:not(.library-all-tab) .library-row-open :is(.library-title, .library-byline, .library-author) { grid-column: 1 / -1; max-width: none; margin: 0; }
+  .library-colhead { display: none; }
   .library-pane:not(.library-all-tab) .library-row-open .library-siglum { display: none; }
   .library-pane:not(.library-all-tab) .library-row-open :is(.library-state, .library-progress, .library-highlight-count) { width: auto; min-width: 0; }
   .library-pane:not(.library-all-tab) .library-progress > .library-reading-rule { display: none; }

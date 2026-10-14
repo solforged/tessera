@@ -29,12 +29,16 @@ fn passage_at(r: &rusqlite::Row<'_>, n: usize) -> rusqlite::Result<Passage> {
     })
 }
 
-fn publication_decade(published: Option<&str>) -> Option<i32> {
+fn publication_year(published: Option<&str>) -> Option<i32> {
     let year = published?.get(..4)?;
-    year.bytes()
-        .all(|byte| byte.is_ascii_digit())
-        .then(|| year.parse::<i32>().ok().map(|year| year / 10 * 10))
+    (year.len() == 4 && year.bytes().all(|byte| byte.is_ascii_digit()))
+        .then(|| year.parse::<i32>().ok())
         .flatten()
+        .filter(|year| *year > 0)
+}
+
+fn publication_decade(published: Option<&str>) -> Option<i32> {
+    publication_year(published).map(|year| year / 10 * 10)
 }
 
 /// A language's primary subtag, so names, `en`, `en-US`, `en_GB` and `eng` browse as one language.
@@ -920,6 +924,7 @@ impl Notebook {
         let mut linked_people: HashMap<String, PersonFacet> = HashMap::new();
         let mut unlinked_people: HashMap<String, PersonFacet> = HashMap::new();
         let mut decades: HashMap<i32, usize> = HashMap::new();
+        let mut years: HashMap<i32, usize> = HashMap::new();
         let mut publishers = HashMap::new();
         let mut languages = HashMap::new();
         let text = query
@@ -968,6 +973,7 @@ impl Notebook {
                 .get("language")
                 .and_then(|values| values.first())
                 .map(|value| language_code(value));
+            let year = publication_year(published.map(String::as_str));
             let decade = publication_decade(published.map(String::as_str));
             for (index, person) in people.iter().enumerate() {
                 if people[..index].iter().any(|previous| match &person.id {
@@ -996,6 +1002,9 @@ impl Notebook {
             if let Some(decade) = decade {
                 *decades.entry(decade).or_default() += 1;
             }
+            if let Some(year) = year {
+                *years.entry(year).or_default() += 1;
+            }
             count_value(&mut publishers, publisher.map(String::as_str));
             count_value(&mut languages, language.as_deref());
             if (!query.people.is_empty()
@@ -1009,6 +1018,8 @@ impl Notebook {
                     && !publisher.is_some_and(|value| query.publishers.contains(value)))
                 || (!query.decades.is_empty()
                     && !decade.is_some_and(|value| query.decades.contains(&value)))
+                || (!query.years.is_empty()
+                    && !year.is_some_and(|value| query.years.contains(&value)))
                 || (!query.languages.is_empty()
                     && !language
                         .as_ref()
@@ -1065,9 +1076,15 @@ impl Notebook {
             .map(|(decade, count)| DecadeFacet { decade, count })
             .collect();
         decades.sort_unstable_by_key(|facet| std::cmp::Reverse(facet.decade));
+        let mut years: Vec<_> = years
+            .into_iter()
+            .map(|(year, count)| YearFacet { year, count })
+            .collect();
+        years.sort_unstable_by_key(|facet| std::cmp::Reverse(facet.year));
         let facets = LibraryFacets {
             people,
             decades,
+            years,
             publishers: value_facets(publishers),
             languages: value_facets(languages),
         };

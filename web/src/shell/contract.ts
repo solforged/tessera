@@ -109,7 +109,7 @@ export interface IndexViewState { scroll: number; noteQuery?: Query; viewId?: st
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
 /** `blockId` is a one-shot request to review that block's cards; the pane drops it once handled. */
 export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number; blockId?: string; queue?: 'cards' | 'notes'; revisitId?: string }
-export type LibraryGroup = 'none' | 'author' | 'decade' | 'publisher' | 'language';
+export type LibraryGroup = 'none' | 'author' | 'year' | 'decade' | 'publisher' | 'language';
 export interface LibraryViewState { view: string | null; collection?: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; filters: LibraryFilters; group: LibraryGroup; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }
 /** `ordinal` is the top passage; `offset` its pixel offset from the pane's top. */
 export interface ReaderViewState { snapshotId: string | null; ordinal: number; offset: number }

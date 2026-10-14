@@ -18,12 +18,12 @@ export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort
 
 export interface SourceGroup { key: string; label: string; personId: string | null; rows: LibraryRow[] }
 
-const missingGroup: Record<Exclude<LibraryGroup, 'none'>, string> = { author: 'No author', decade: 'Undated', publisher: 'No publisher', language: 'No language' };
+const missingGroup: Record<Exclude<LibraryGroup, 'none'>, string> = { author: 'No author', year: 'Undated', decade: 'Undated', publisher: 'No publisher', language: 'No language' };
 
 /**
  * Splits rows into groups, keeping each group's rows in their listed order. A source belongs to one group: by its
- * first author (else editor), its decade, publisher or language. Authors run A–Z by family name, decades newest
- * first, publishers and languages A–Z; sources without a value come last.
+ * first author (else editor), its publication year, decade, publisher or language. Authors run A–Z by family name,
+ * years and decades newest first, publishers and languages A–Z; sources without a value come last.
  */
 export function groupSources(rows: readonly LibraryRow[], group: Exclude<LibraryGroup, 'none'>): SourceGroup[] {
   const groups = new Map<string, SourceGroup & { order: string | number }>();
@@ -31,10 +31,12 @@ export function groupSources(rows: readonly LibraryRow[], group: Exclude<Library
     const person = row.people.find(value => value.role === 'author') ?? row.people.find(value => value.role === 'editor');
     const name = person && referenceValue(person.name).name;
     const year = Number(row.published?.slice(0, 4));
+    const dated = year > 0 ? { key: String(year), label: String(year), personId: null, order: -year } : undefined;
     const value = group === 'author' ? person && name && { key: person.id ?? `name:${name}`, label: name, personId: person.id, order: (name.includes(',') ? name.split(',')[0]! : name.split(/\s+/).at(-1)!) + ' ' + name }
-      : group === 'decade' ? (year > 0 ? { key: String(year - year % 10), label: `${year - year % 10}s`, personId: null, order: -(year - year % 10) } : undefined)
-        : group === 'publisher' ? row.publisher && { key: row.publisher, label: row.publisher, personId: null, order: row.publisher }
-          : row.language && { key: row.language, label: formatSourceValue('language', row.language), personId: null, order: formatSourceValue('language', row.language) };
+      : group === 'year' ? dated
+        : group === 'decade' ? (year > 0 ? { key: String(year - year % 10), label: `${year - year % 10}s`, personId: null, order: -(year - year % 10) } : undefined)
+          : group === 'publisher' ? row.publisher && { key: row.publisher, label: row.publisher, personId: null, order: row.publisher }
+            : row.language && { key: row.language, label: formatSourceValue('language', row.language), personId: null, order: formatSourceValue('language', row.language) };
     const entry = value || { key: '', label: missingGroup[group], personId: null, order: '' };
     let existing = groups.get(entry.key);
     if (!existing) { existing = { ...entry, rows: [] }; groups.set(entry.key, existing); }
@@ -57,6 +59,12 @@ export function sourceStateOperation(row: LibraryRow, state: ReadingState): Oper
 
 export function sourceByline(row: Pick<LibraryRow, 'creators' | 'site' | 'published'>): string {
   return row.creators.map(value => referenceValue(value).name).join(', ') || row.site || '';
+}
+
+/** The ledger's author column: first author, else editor, else the site. The stored creators are unchanged. */
+export function sourceAuthor(row: Pick<LibraryRow, 'people' | 'site'>): string {
+  const person = row.people.find(value => value.role === 'author') ?? row.people.find(value => value.role === 'editor');
+  return (person && referenceValue(person.name).name) || row.site || '';
 }
 
 /** Whole percent, rounded down so a source never reads 100% before its last passage; a started source never reads as 0%. */

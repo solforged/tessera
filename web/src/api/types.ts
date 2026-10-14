@@ -655,7 +655,7 @@ export interface SourceView {
 export interface PassagePage { passages: Passage[]; citations: Citation[]; total: number; toc: TocEntry[] }
 export interface PassageHit { source_id: string; title: string; snapshot_id: string; passage: Passage; snippet: string }
 /** Browse filters: AND across fields, OR within one; empty means no filter. `people` holds person page ids. */
-export interface LibraryFilters { people: string[]; decades: number[]; publishers: string[]; languages: string[] }
+export interface LibraryFilters { people: string[]; decades: number[]; years: number[]; publishers: string[]; languages: string[] }
 export interface LibraryQuery extends Partial<LibraryFilters> {
   states?: ReadingState[]; format?: SourceFormat | null; text?: string | null;
   collection_id?: string | null;
@@ -673,6 +673,7 @@ export interface LibraryRow {
 export interface LibraryFacets {
   people: { id: string | null; name: string; count: number }[];
   decades: { decade: number; count: number }[];
+  years: { year: number; count: number }[];
   publishers: { value: string; count: number }[];
   languages: { value: string; count: number }[];
 }

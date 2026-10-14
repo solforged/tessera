@@ -3124,6 +3124,32 @@ fn library_facets_count_sources_and_respect_base_filters_only() {
 }
 
 #[test]
+fn library_year_filter_keeps_facets_and_drops_other_years() {
+    let (_dir, n, ids) = facet_library();
+    let all = n.library(&LibraryQuery::default()).unwrap();
+    assert_eq!(
+        all.facets.years,
+        [
+            YearFacet { year: 2001, count: 1 },
+            YearFacet { year: 1999, count: 1 },
+            YearFacet { year: 1846, count: 1 },
+        ]
+    );
+    let filtered = n
+        .library(&LibraryQuery {
+            years: vec![1999],
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(
+        filtered.rows.iter().map(|row| row.page.id.as_str()).collect::<Vec<_>>(),
+        vec![ids[1].as_str()]
+    );
+    assert_eq!(filtered.facets.years, all.facets.years);
+    assert_eq!(filtered.total, 1);
+}
+
+#[test]
 fn library_reads_plain_author_edits_without_losing_linked_creators() {
     let dir = tempfile::tempdir().unwrap();
     let mut n = Notebook::open(dir.path()).unwrap();
@@ -3259,6 +3285,7 @@ fn library_query_facet_filters_default_and_round_trip() {
     assert!(old.people.is_empty());
     assert!(old.publishers.is_empty());
     assert!(old.decades.is_empty());
+    assert!(old.years.is_empty());
     assert!(old.languages.is_empty());
     assert_eq!(old.limit, Some(100));
     let query = LibraryQuery {

@@ -6,6 +6,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ## Unreleased
 
+### Added
+
+- Inbox groups by publication year, with a fixed author column and the siglum set aside. Years replace decades on that tab's rail, and failed imports open under a heading instead of a collapsed disclosure.
+
 ### Fixed
 
 - Table row titles use Piazzolla, matching page titles and the phone ledger. Gloss and other authored cells stay in Plex.

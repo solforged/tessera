@@ -26,13 +26,12 @@ Tabs, Browse values, sorting and search answer at once in the toolbar, while the
 Rows read as a ledger on one 28 px line:
 
 - A leading slot holds a book or article glyph in `--faint`. A 28 px row cannot show a cover legibly, so covers appear in the Shelf, Reading now and the phone ledger's taller rows.
-- The siglum is a mono shelfmark in `--faint` that turns gilt on hover.
-- The title precedes the byline in `--muted` (creators, else site). The byline truncates before the title.
-- Trailing fixed-width mono columns show year, progress and the unprocessed highlight count, so figures line up across rows.
+- On Inbox the siglum steps aside. The title is followed by a fixed author column in `--muted`: the first author, else the editor, else the site. A long title cannot eat the name, and a duplicate second name stays in the record rather than the row. Other tabs keep the mono siglum, gilt on hover, and the ragged byline (creators, else site), which truncates before the title.
+- Trailing fixed-width mono columns show year, progress and the unprocessed highlight count, so figures line up across rows. Inside a year group the year column steps aside, because the heading already says it. An empty progress or highlight cell reserves no width on Inbox.
 
 Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows only its state-change date (`Oct 11`, named `Finished Oct 11` on hover), never a percentage, since the tab or the state column already says Finished. All and saved views spanning several states add a state column (`Inbox`, `Reading`, `Finished`, `Abandoned`) in `--faint` before the year.
 
-In a pane narrower than 560 px on a wide screen, the state and year columns step aside and progress keeps only its number, so the title keeps its room. Below 600 px, state and saved-view ledger rows stack the title and byline across the available width, omit the siglum, and put compact metadata beneath; empty progress, highlight and year cells reserve no space. All and collection ledgers retain their taller card layout.
+In a pane narrower than 560 px on a wide screen, the state, author and year columns step aside and progress keeps only its number, so the title keeps its room. Below 600 px, ledger rows stack the title and author or byline across the available width, omit the siglum, and put compact metadata beneath; empty progress, highlight and year cells reserve no space. All and collection ledgers retain their taller card layout.
 
 The leading slot shows a selection checkbox on hover, focus, or while any row is selected. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details (while the catalog card is closed), Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Beside an open card, a ledger narrower than 840 px (1000 px inside a collection, which adds Remove from collection) shows Browse, Export, Add to collection, Delete and Clear selection as glyphs named in tooltips, and Remove without its object, so the bar stays one line. Escape clears.
 
@@ -63,26 +62,27 @@ Arrow keys move one book sideways and to the nearest cover in the next row up or
 
 ### Group
 
-The sort menu has a second section, Group: None, Author, Decade, Publisher or Language. A source sits in one group.
+The sort menu has a second section, Group: None, Author, Year, Decade, Publisher or Language. A source sits in one group. A new library pane starts on Year. A pane saved before Year existed, still on None, is offered Year once on this device; choosing None after that sticks. Grouping belongs to the pane, so the choice also groups All.
 
 | Group | Basis | Group order | Missing value, placed last |
 | --- | --- | --- | --- |
 | Author | First author, else editor | A–Z by family name | `No author` |
+| Year | Publication year | Newest first | `Undated` |
 | Decade | Publication decade | Newest first | `Undated` |
 | Publisher | Publisher | A–Z | `No publisher` |
 | Language | Language | A–Z | `No language` |
 
-Rows keep the chosen sort within each group, and Shift-click ranges follow the grouped order. Each group opens with a sticky heading on `--canvas`: its name in Piazzolla and a mono count. An author's name opens their page. In the shelf the heading spans the grid. The sort button then reads `Added · by decade`. Grouping belongs to the pane, not to saved views.
+Rows keep the chosen sort within each group, and Shift-click ranges follow the grouped order. Each group opens with a sticky heading on `--canvas`: its name in Piazzolla and a mono count. An author's name opens their page. In the shelf the heading spans the grid. The sort button then reads `Added · by year`.
 
 ### Browse
 
-Browse narrows the sources by People, Decades, Publishers and Languages. The service counts each value over the current tab and search, ignoring the Browse filters themselves, so every value the tab offers stays visible.
+Browse narrows the sources by People, Decades, Publishers and Languages. Inbox shows Years in place of Decades. The service counts each value over the current tab and search, ignoring the Browse filters themselves, so every value the tab offers stays visible. Years are the first four digits of the published date, newest first, not the six commonest; undated sources are not a year.
 
 Values combine with OR inside a field and AND across fields. People match as author, editor or translator, by page, so a renamed person keeps their filter. Languages count by primary code, so `en`, `en-US`, `eng` and case-insensitive English language names such as `English` are one English. Imports resolve ISO language names to codes; existing catalog fields are normalized when read, without rewriting their authored text.
 
 | Pane width | Browse presentation |
 | --- | --- |
-| At least 1096 px | A 240 px rail left of the measure, the two centered together. It shows each field's six commonest values with their counts, chosen values pressed, and `All N` opening the rest in a picker. |
+| At least 1096 px | A 240 px rail left of the measure, the two centered together. It shows each field's six commonest values with their counts, or the six newest years, chosen values pressed, and `All N` opening the rest in a picker. The rail's offset stays on every tab, so switching between Inbox and All does not slide the list. |
 | Narrower | A Browse glyph beside the layout toggles, pressed while any filter applies. It opens one sectioned picker. |
 
 Chosen values also show as removable chips under the controls with Clear filters. Continue reading steps aside while Browse filters apply. Filters travel with the query, so saved views and Export of the listed sources keep them.
@@ -136,7 +136,7 @@ Edit details opens the details form seeded from the lookup, keeping its cover. E
 
 Queued and running file or article submissions show a job row above the sources: a state icon, name, state, and any error sentence on a second line aligned with the name. Completed jobs leave once their source exists.
 
-Failed jobs appear only in Inbox, collapsed behind one mono disclosure such as `41 imports failed`. Expanding lists each failure with Retry and Dismiss and a Dismiss all action. Dismissal uses the existing device preference per notebook, including the batch action; it does not delete the service's jobs. Other registers show no failed backlog.
+Failed jobs appear only in Inbox, under a heading such as `40 imports failed`. The first two are open, with Retry and Dismiss; the rest sit behind `38 more`, beside Dismiss all. Dismissal uses the existing device preference per notebook, including the batch action; it does not delete the service's jobs. Other registers show no failed backlog.
 
 URL names retain the host and final path identifier (the complete DOI for doi.org), with middle ellipsis for long identifiers, and expose the full URL as their title and accessible name. In narrow panes the identifying name wraps to two lines above the state and actions.
 

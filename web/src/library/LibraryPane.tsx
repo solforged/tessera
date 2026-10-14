@@ -18,7 +18,7 @@ import { Picker } from '../ui/Picker';
 import { downloadBlob } from '../ui/download';
 import { createSlowFlag } from '../ui/loading';
 import { crossfade, glide } from '../ui/pane-motion';
-import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightMeta, importJobName, jobLabel, keepRows, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightMeta, importJobName, jobLabel, keepRows, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceAuthor, sourceByline, sourceStateOperation, visibleJobs } from './query';
 import { formatSourceValue } from '../outline/source';
 import { createHighlightActions, highlightColors, setLinkedCitation } from './highlights';
 import type { HighlightMenu } from './highlights';
@@ -56,18 +56,20 @@ export interface LibraryPaneProps {
 type BrowseField = keyof LibraryFilters;
 interface BrowseEntry { field: BrowseField; value: string | number; label: string; count: number }
 const browseFields: { field: BrowseField; label: string }[] = [
-  { field: 'people', label: 'People' }, { field: 'decades', label: 'Decades' },
+  { field: 'people', label: 'People' }, { field: 'decades', label: 'Decades' }, { field: 'years', label: 'Years' },
   { field: 'publishers', label: 'Publishers' }, { field: 'languages', label: 'Languages' },
 ];
-/** The rail lists the commonest values of each field; the rest are a picker away. */
+/** The rail lists the commonest values of each field; the rest are a picker away. Years are newest first, not the commonest. */
 const browseLimit = 6;
-const browsePlaceholders: Record<BrowseField | 'all', string> = {
-  all: 'Find a person, decade, publisher or language', people: 'Find a person', decades: 'Find a decade', publishers: 'Find a publisher', languages: 'Find a language',
+const browsePlaceholders: Record<BrowseField | 'all' | 'inbox', string> = {
+  all: 'Find a person, decade, publisher or language', inbox: 'Find a person, year, publisher or language',
+  people: 'Find a person', decades: 'Find a decade', years: 'Find a year', publishers: 'Find a publisher', languages: 'Find a language',
 };
 const groupings: { id: LibraryGroup; label: string }[] = [
-  { id: 'none', label: 'None' }, { id: 'author', label: 'Author' }, { id: 'decade', label: 'Decade' },
+  { id: 'none', label: 'None' }, { id: 'author', label: 'Author' }, { id: 'year', label: 'Year' }, { id: 'decade', label: 'Decade' },
   { id: 'publisher', label: 'Publisher' }, { id: 'language', label: 'Language' },
 ];
+const clearedFilters = (): LibraryFilters => ({ people: [], decades: [], years: [], publishers: [], languages: [] });
 
 type LibraryPopup =
   | { kind: 'add'; anchor: HTMLElement }
@@ -120,16 +122,19 @@ function libraryPreferences(id?: string) {
   const tabKey = id ? `tessera.library.tab.${id}` : undefined;
   const layoutKey = id ? `tessera.library.layout.${id}` : undefined;
   const dismissedKey = id ? `tessera.library.dismissed.${id}` : undefined;
+  const yearKey = id ? `tessera.library.year-default.${id}` : undefined;
   let layout: 'list' | 'shelf' = 'list';
   let remembered: string | null = null;
   let dismissed: string[] = [];
+  let yearDefault = false;
   try {
     if (layoutKey && localStorage.getItem(layoutKey) === 'shelf') layout = 'shelf';
     if (tabKey) remembered = localStorage.getItem(tabKey);
+    if (yearKey) yearDefault = localStorage.getItem(yearKey) === '1';
     const stored: unknown = JSON.parse(dismissedKey ? localStorage.getItem(dismissedKey) ?? '[]' : '[]');
     if (Array.isArray(stored)) dismissed = stored.filter((id): id is string => typeof id === 'string');
   } catch { /* Session-only preferences. */ }
-  return { tabKey, layoutKey, dismissedKey, layout, remembered, dismissed };
+  return { tabKey, layoutKey, dismissedKey, yearKey, layout, remembered, dismissed, yearDefault };
 }
 
 export function LibraryPane(props: LibraryPaneProps) {
@@ -266,7 +271,6 @@ export function LibraryPane(props: LibraryPaneProps) {
   const displayedSources = createMemo(() => tab() === 'highlights' || error() ? [] : sourceRows() ?? []);
   const hasResult = createMemo(() => collectionsIndex() ? collectionCards.latest !== undefined : tab() === 'highlights' ? highlights() !== undefined : sourceRows() !== undefined);
   const groups = createMemo(() => group() === 'none' || tab() === 'highlights' ? undefined : groupSources(displayedSources(), group() as Exclude<LibraryGroup, 'none'>));
-  // Shift-click ranges follow what is on screen, so a grouped list selects in group order.
   const orderedSources = createMemo(() => groups()?.flatMap(value => value.rows) ?? displayedSources());
   const slowLoad = createSlowFlag(() => loading() && !hasResult());
   const slowCollections = createSlowFlag(() => !collectionCards.latest && (collections.loading || collectionCards.loading));
@@ -285,6 +289,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   let tabChosen = false;
   // List or Shelf is a device preference per notebook, like the last tab.
   const [layout, setLayout] = createSignal<'list' | 'shelf'>(preferences.layout);
+  const inboxLedger = createMemo(() => tab() === 'inbox' && layout() === 'list');
   const [coverLayout, setCoverLayout] = createSignal(coverMedia.matches);
   const [searchOpen, setSearchOpen] = createSignal(false);
   const finishedDate = createMemo(() => new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', timeZone: props.notebook.settings()?.time_zone }));
@@ -308,7 +313,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     const includeInbox = coverLayout();
     const controller = new AbortController();
     // Cards follow the toolbar's sort; on the Reading tab they stand in for the rows.
-    const { sort: order, direction } = libraryQuery({ tab: 'reading', text: '', sort: sort(), filters: { people: [], decades: [], publishers: [], languages: [] }, collection: null });
+    const { sort: order, direction } = libraryQuery({ tab: 'reading', text: '', sort: sort(), filters: clearedFilters(), collection: null });
     void props.notebook.api.library({ states: includeInbox ? ['reading', 'inbox'] : ['reading'], sort: order, direction, limit: 100000 }, controller.signal)
       .then(result => {
         if (controller.signal.aborted) return;
@@ -371,6 +376,11 @@ export function LibraryPane(props: LibraryPaneProps) {
           setDismissedJobs(previous => new Set([...previous, ...stored.dismissed]));
           setLayout(stored.layout);
         });
+        // Group used to have no Year, so a saved None is the old default, not a choice. Choosing None after this sticks.
+        if (!stored.yearDefault && stored.yearKey) {
+          try { localStorage.setItem(stored.yearKey, '1'); } catch { /* Session-only preference. */ }
+          if (untrack(target).group === 'none') update({ group: 'year' });
+        }
         if (!tabChosen && !target().view && target().tab === 'inbox') {
           if (coverLayout()) update({ tab: 'reading', scroll: 0 });
           else if (tabs.some(tab => tab.id === stored.remembered)) update({ tab: stored.remembered as LibraryTab, scroll: 0 });
@@ -393,6 +403,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     try { if (dismissedKey) localStorage.setItem(dismissedKey, JSON.stringify([...next])); } catch { /* The preference lasts for this tab. */ }
   }
   const [popup, setPopup] = createSignal<LibraryPopup | null>(null);
+  const [failuresOpen, setFailuresOpen] = createSignal(false);
   const sourceMenuId = createMemo(() => {
     const state = popup();
     return state?.kind === 'menu' ? state.source?.page.id : undefined;
@@ -409,10 +420,13 @@ export function LibraryPane(props: LibraryPaneProps) {
     return [
       ...facets.people.flatMap(person => person.id ? [{ field: 'people' as const, value: person.id, label: person.name, count: person.count }] : []),
       ...facets.decades.map(decade => ({ field: 'decades' as const, value: decade.decade, label: `${decade.decade}s`, count: decade.count })),
+      ...(facets.years ?? []).map(year => ({ field: 'years' as const, value: year.year, label: String(year.year), count: year.count })),
       ...facets.publishers.map(publisher => ({ field: 'publishers' as const, value: publisher.value, label: publisher.value, count: publisher.count })),
       ...facets.languages.map(language => ({ field: 'languages' as const, value: language.value, label: formatSourceValue('language', language.value), count: language.count })),
     ];
   });
+  // Inbox browses years; the other tabs keep decades. The 240 px offset stays either way.
+  const railFields = createMemo(() => browseFields.filter(section => tab() === 'inbox' ? section.field !== 'decades' : section.field !== 'years'));
   // The rail and Browse answer at once, so they read the chosen filters rather than the shown ones.
   const chosen = (field: BrowseField, value: string | number) => (target().filters[field] as (string | number)[]).includes(value);
   const chosenFilters = createMemo(() => browseFields.flatMap(({ field }) => (filters()[field] as (string | number)[]).map(value => ({
@@ -597,7 +611,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   function viewFields(query: LibraryQuery): Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters' | 'collection'> {
     return {
       tab: query.collection_id ? 'collections' : query.states?.length === 1 ? query.states[0]! : 'all', collection: query.collection_id ?? null, text: query.text ?? '', sort: query.sort ?? 'added',
-      filters: { people: query.people ?? [], decades: query.decades ?? [], publishers: query.publishers ?? [], languages: query.languages ?? [] },
+      filters: { people: query.people ?? [], decades: query.decades ?? [], years: query.years ?? [], publishers: query.publishers ?? [], languages: query.languages ?? [] },
     };
   }
   createEffect(() => {
@@ -647,7 +661,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     requestedText = state.text;
     const timer = setTimeout(() => {
       void Promise.all([
-        props.notebook.api.library(query, controller.signal),
+        props.notebook.api.library({ ...query, limit: query.limit ?? 100_000 }, controller.signal),
         state.tab === 'highlights' ? props.notebook.api.highlights({ unprocessed: state.unprocessedOnly, colors: state.colors, tags: state.tags, limit: 200 }, controller.signal) : Promise.resolve(undefined),
       ]).then(([sources, cited]) => {
         if (controller.signal.aborted) return;
@@ -944,14 +958,17 @@ export function LibraryPane(props: LibraryPaneProps) {
           </Button>
         </div>
         <Button class="library-row-open" data-library-row={row.page.id} data-open-page={row.page.id} data-open-label={row.page.text} onClick={event => openSource(target, opensBeside(event))} onKeyDown={event => rowKey(event, target)}>
-          <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span>
+          <Show when={inboxLedger()} fallback={<><span class="library-siglum" aria-hidden="true">{row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span></>}>
+            <span class="library-title">{row.page.text}</span><span class="library-author">{sourceAuthor(row)}</span>
+          </Show>
           <Show when={mixedStates()}><span class="library-count library-state">{stateLabels[row.source.state]}</span></Show>
-          <span class="library-count library-year" aria-label="Published year">{row.published?.slice(0, 4)}</span>
-          {/* Finished needs no percentage, and an unread Inbox or Abandoned source needs no "Not started". */}
-          <span class="library-progress"><Show when={row.source.state === 'finished'} fallback={<Show when={row.progress > 0} fallback={row.source.state === 'reading' ? 'Not started' : null}>
-            <span class="library-reading-rule library-reading-started" style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" /><span>{formatProgress(row.progress)}</span>
-          </Show>}><Show when={row.source.state_changed_at != null}><span title={`Finished ${finishedDate().format(row.source.state_changed_at!)}`}>{finishedDate().format(row.source.state_changed_at!)}</span></Show></Show></span>
-          <span class="library-highlight-count" aria-label={row.unprocessed ? `${row.unprocessed} unprocessed highlights` : undefined}><Show when={row.unprocessed > 0}><Icon name="highlight" />{row.unprocessed}</Show></span>
+          <Show when={group() !== 'year'}><span class="library-count library-year" aria-label="Published year">{row.published?.slice(0, 4)}</span></Show>
+          <Show when={!inboxLedger() || row.progress > 0 || row.source.state === 'finished'}>
+            <span class="library-progress"><Show when={row.source.state === 'finished'} fallback={<Show when={row.progress > 0} fallback={row.source.state === 'reading' ? 'Not started' : null}>
+              <span class="library-reading-rule library-reading-started" style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" /><span>{formatProgress(row.progress)}</span>
+            </Show>}><Show when={row.source.state_changed_at != null}><span title={`Finished ${finishedDate().format(row.source.state_changed_at!)}`}>{finishedDate().format(row.source.state_changed_at!)}</span></Show></Show></span>
+          </Show>
+          <Show when={!inboxLedger() || row.unprocessed > 0}><span class="library-highlight-count" aria-label={row.unprocessed ? `${row.unprocessed} unprocessed highlights` : undefined}><Show when={row.unprocessed > 0}><Icon name="highlight" />{row.unprocessed}</Show></span></Show>
         </Button>
         <Button icon="more" label={`Actions for ${row.page.text}`} aria-haspopup="menu" disabled={saving()} onClick={event => rowMenu(row, event.currentTarget)} />
       </div>;
@@ -967,7 +984,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             <span class="library-book-apparatus">
               <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span>
               <Show when={mixedStates()}><span class="library-book-state">{stateLabels[row.source.state]}</span></Show>
-              <Show when={row.published}><span aria-label="Published year">{row.published!.slice(0, 4)}</span></Show>
+              <Show when={row.published && group() !== 'year'}><span aria-label="Published year">{row.published!.slice(0, 4)}</span></Show>
               <Show when={row.progress > 0 && row.source.state !== 'finished'}><span>{formatProgress(row.progress)}</span></Show>
               <Show when={row.unprocessed > 0}><span class="library-book-highlights" aria-label={`${row.unprocessed} unprocessed highlights`}><Icon name="highlight" />{row.unprocessed}</span></Show>
             </span>
@@ -1020,7 +1037,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     }}</Show>;
   }
 
-  return <div ref={libraryHost} class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all' || !!view().collection, 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-reading-cards': readingCards(), 'library-cover-reading': coverLayout() && readingCards(), 'library-inspecting': inspectorShown(), 'library-inspector-narrow': inspectorShown() && narrowInspector() && !coverLayout(), 'library-inspector-phone': inspectorShown() && coverLayout() }} data-pane={props.pane} data-pane-pending={!hasResult() ? '' : undefined} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
+  return <div ref={libraryHost} class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-inbox-ledger': inboxLedger(), 'library-year-grouped': group() === 'year', 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all' || !!view().collection, 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-reading-cards': readingCards(), 'library-cover-reading': coverLayout() && readingCards(), 'library-inspecting': inspectorShown(), 'library-inspector-narrow': inspectorShown() && narrowInspector() && !coverLayout(), 'library-inspector-phone': inspectorShown() && coverLayout() }} data-pane={props.pane} data-pane-pending={!hasResult() ? '' : undefined} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
     onKeyDown={event => {
       if (event.key === 'Escape' && !event.defaultPrevented && selected().size && !popup() && !(event.target as HTMLElement).closest('input, textarea, [contenteditable="true"]')) { event.preventDefault(); event.stopPropagation(); clearSelection(); }
       if (!inspecting() && tab() !== 'highlights' && (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z' && collectionActions.canUndo() && !(event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]'))) {
@@ -1117,7 +1134,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       </div>
       <Show when={tab() !== 'highlights' && chosenFilters().length}><div class="library-filter library-chosen" role="group" aria-label="Browse filters">
         <For each={chosenFilters()}>{item => <Button class="bordered library-chip" aria-label={`Remove filter ${item.label}`} onClick={() => toggleFilter(item.field, item.value)}>{item.label}<Icon name="close" /></Button>}</For>
-        <Button onClick={() => update({ view: null, filters: { people: [], decades: [], publishers: [], languages: [] }, scroll: 0 })}>Clear filters</Button>
+        <Button onClick={() => update({ view: null, filters: clearedFilters(), scroll: 0 })}>Clear filters</Button>
       </div></Show>
       </Show>
       <collectionActions.Notice />
@@ -1134,7 +1151,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     }}>
       <Show when={!collectionsIndex() && tab() !== 'highlights' && browseEntries().length && !inspectorShown()}>
         <nav class="library-browse" aria-label="Browse library">
-          <For each={browseFields}>{section => {
+          <For each={railFields()}>{section => {
             const entries = () => browseEntries().filter(entry => entry.field === section.field);
             // The commonest values, plus any chosen value further down.
             const shown = () => entries().filter((entry, at) => at < browseLimit || chosen(entry.field, entry.value));
@@ -1157,7 +1174,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={slowCollections()}><p class="library-message" role="status">Loading collections…</p></Show>
         <Show when={!collections.loading && !collections()?.length}><p class="library-empty">Select books in the library, then choose Add to collection.</p></Show>
         <div class="library-collections" role="list"><For each={collectionCards()}>{card => <div role="listitem">
-          <Button class="library-collection-card" data-collection={card.page.id} onClick={() => update({ view: null, tab: 'collections', collection: card.page.id, text: '', filters: { people: [], decades: [], publishers: [], languages: [] }, scroll: 0 })}>
+          <Button class="library-collection-card" data-collection={card.page.id} onClick={() => update({ view: null, tab: 'collections', collection: card.page.id, text: '', filters: clearedFilters(), scroll: 0 })}>
             <span class="library-collection-covers" aria-hidden="true"><For each={card.covers}>{row => <SourceCover row={row} siglum={row.source.siglum} />}</For><Show when={!card.covers.length}><Icon name="shelf" /></Show></span>
             <span class="library-collection-title">{card.page.text}</span><span class="library-count">{card.count}</span>
           </Button>
@@ -1184,11 +1201,14 @@ export function LibraryPane(props: LibraryPaneProps) {
       </Show>
       <section class="library-rows" classList={{ 'library-has-selection': selected().size > 0, 'library-rows-shelf': layout() === 'shelf' && tab() !== 'highlights', 'library-rows-grouped': !!groups() }} aria-label={tab() === 'highlights' ? 'Highlights' : 'Sources'} aria-busy={loading()}>
         <Show when={shownJobs().length}><JobRows jobs={shownJobs()} /></Show>
-        <Show when={failedJobs().length}><details class="library-failures">
-          <summary>{failedJobs().length} imports failed</summary>
-          <Button class="library-dismiss-all" onClick={() => { for (const job of failedJobs()) dismissJob(job.id); }}>Dismiss all</Button>
-          <JobRows jobs={failedJobs()} />
-        </details></Show>
+        <Show when={failedJobs().length}><section class="library-failures" aria-label="Failed imports">
+          <h3 class="library-failure-heading"><span>{failedJobs().length} imports failed</span></h3>
+          <JobRows jobs={failuresOpen() ? failedJobs() : failedJobs().slice(0, 2)} />
+          <div class="library-failure-more">
+            <Show when={!failuresOpen() && failedJobs().length > 2}><Button onClick={() => setFailuresOpen(true)}>{failedJobs().length - 2} more</Button></Show>
+            <Button class="library-dismiss-all" onClick={() => { for (const job of failedJobs()) dismissJob(job.id); }}>Dismiss all</Button>
+          </div>
+        </section></Show>
         <Show when={slowLoad()}><p class="library-message" role="status">Loading…</p></Show>
         <Show when={hasResult() && !error()}>
           <Show when={tab() !== 'highlights'} fallback={
@@ -1226,8 +1246,9 @@ export function LibraryPane(props: LibraryPaneProps) {
                   <p>{EMBEDDED ? 'Import an EPUB to read, highlight, and make notes.' : 'Import an EPUB, save an article, or add a catalogue record.'}</p>
                 </Show>
                 <Button class="bordered" icon="plus" onClick={event => openAdd(event.currentTarget)}>{EMBEDDED ? 'Import an EPUB' : 'Add a source'}</Button>
-              </>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', filters: { people: [], decades: [], publishers: [], languages: [] }, scroll: 0 })}>{filtered() ? 'Clear search and filters' : 'Clear search'}</Button></Show>
+              </>}><p>No sources match.</p><Button onClick={() => update({ view: null, text: '', filters: clearedFilters(), scroll: 0 })}>{filtered() ? 'Clear search and filters' : 'Clear search'}</Button></Show>
             </div>}>
+              <Show when={inboxLedger()}><div class="library-row library-colhead" aria-hidden="true"><span class="library-leading" /><span class="library-row-open"><span class="library-title" /><span class="library-author">Author</span><Show when={group() !== 'year'}><span class="library-year">Year</span></Show></span></div></Show>
               <Show when={groups()} fallback={<SourceRows rows={displayedSources()} />}>{list => <For each={list()}>{value => <section class="library-group" aria-label={value.label}>
                 <h3 class="library-group-heading">
                   <Show when={value.personId} fallback={<span class="library-group-label">{value.label}</span>}>{id => <Button class="library-group-label" onClick={event => props.onOpen({ kind: 'page', pageId: id() }, opensBeside(event))}>{value.label}</Button>}</Show>
@@ -1292,10 +1313,10 @@ export function LibraryPane(props: LibraryPaneProps) {
         onPick={tag => { const tags = target().tags; update({ tags: tags.includes(tag) ? tags.filter(value => value !== tag) : [...tags, tag], scroll: 0 }); dismiss(); }} empty="No tags in these highlights" onDismiss={dismiss} />;
       if (state.kind === 'browse') {
         const field = state.field;
-        const items = () => browseEntries().filter(entry => (!field || entry.field === field) && entry.label.toLocaleLowerCase().includes(browseQuery().trim().toLocaleLowerCase()));
+        const items = () => browseEntries().filter(entry => railFields().some(section => section.field === entry.field) && (!field || entry.field === field) && entry.label.toLocaleLowerCase().includes(browseQuery().trim().toLocaleLowerCase()));
         return <Picker anchor={state.anchor} label={field ? `Browse ${browseFields.find(item => item.field === field)!.label.toLowerCase()}` : 'Browse library'} class="library-browse-picker" width={360}
-          placeholder={browsePlaceholders[field ?? 'all']} query={browseQuery()} onQuery={setBrowseQuery} items={items()} key={entry => `${entry.field}:${entry.value}`}
-          section={field ? undefined : entry => browseFields.find(item => item.field === entry.field)!.label}
+          placeholder={browsePlaceholders[field ?? (tab() === 'inbox' ? 'inbox' : 'all')]} query={browseQuery()} onQuery={setBrowseQuery} items={items()} key={entry => `${entry.field}:${entry.value}`}
+          section={field ? undefined : entry => railFields().find(item => item.field === entry.field)!.label}
           row={entry => <><span class="library-browse-check"><Show when={chosen(entry.field, entry.value)}><Icon name="check" /></Show></span><span class="library-browse-label">{entry.label}</span><span class="library-browse-count">{entry.count}</span></>}
           onPick={entry => { toggleFilter(entry.field, entry.value); dismiss(); }} empty="Nothing matches" onDismiss={dismiss} />;
       }

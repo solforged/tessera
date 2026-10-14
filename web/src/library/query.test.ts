@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import type { Citation, HighlightRow, IngestJob, LibraryFilters, LibraryRow } from '../api/types';
-import { groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightLocation, highlightMeta, importJobName, jobLabel, keepRows, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightLocation, highlightMeta, importJobName, jobLabel, keepRows, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceAuthor, sourceByline, sourceStateOperation, visibleJobs } from './query';
 
-const filters: LibraryFilters = { people: [], decades: [], publishers: [], languages: [] };
+const filters: LibraryFilters = { people: [], decades: [], years: [], publishers: [], languages: [] };
 
 describe('library queries', () => {
   test('selects a state, trims search text and carries browse filters', () => {
-    expect(libraryQuery({ tab: 'reading', text: '  Tudors  ', sort: 'added', filters: { ...filters, people: ['wood'], decades: [1840] } })).toEqual({ states: ['reading'], collection_id: null, text: 'Tudors', sort: 'added', direction: 'desc', people: ['wood'], decades: [1840], publishers: [], languages: [] });
+    expect(libraryQuery({ tab: 'reading', text: '  Tudors  ', sort: 'added', filters: { ...filters, people: ['wood'], decades: [1840], years: [2011] } })).toEqual({ states: ['reading'], collection_id: null, text: 'Tudors', sort: 'added', direction: 'desc', people: ['wood'], decades: [1840], years: [2011], publishers: [], languages: [] });
   });
   test('all and highlights retain global counts without a state filter', () => {
     for (const tab of ['all', 'collections', 'highlights'] as const) {
@@ -49,6 +49,12 @@ test('groups keep listed order, use the first author or editor, and put missing 
     ['No author', null, ['nameless']],
   ]);
   expect(groupSources(rows, 'decade').map(group => [group.label, group.rows.length])).toEqual([['2010s', 1], ['2000s', 1], ['1970s', 1], ['1900s', 1], ['1840s', 1], ['Undated', 1]]);
+  expect(groupSources(rows, 'year').map(group => [group.label, group.rows.map(value => value.page.id)])).toEqual([
+    ['2011', ['wood-2']], ['2008', ['wood-1']], ['1978', ['marx-reader']], ['1908', ['plain']], ['1846', ['ideology']], ['Undated', ['nameless']],
+  ]);
+  expect(sourceAuthor({ people: rows[3]!.people, site: '' })).toBe('Karl Marx');
+  expect(sourceAuthor({ people: rows[0]!.people, site: 'Press' })).toBe('Robert C. Tucker');
+  expect(sourceAuthor({ people: [], site: 'Tailscale' })).toBe('Tailscale');
 });
 
 test('source state edits preserve authored identifiers and use the owning revision', () => {
