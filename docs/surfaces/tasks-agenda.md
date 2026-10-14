@@ -99,7 +99,7 @@ The task API's optional `project_via: "field"` filter restricts results to expli
 
 ## Agenda destination
 
-The Agenda destination has an Agenda kicker and spoken date heading with Previous / Today / Next alongside it. Day / Week / Tasks sit beneath on the shared ruled tab baseline. The date heading opens the calendar.
+The Agenda destination has an Agenda kicker and spoken date heading with Previous / Today / Next alongside it. Day / Week / Tasks sit beneath on the shared ruled tab baseline. The date heading opens the journal's calendar: picking a day moves there, and its Today returns to today.
 
 The seven-day strip has no boxes:
 

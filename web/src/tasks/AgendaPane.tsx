@@ -3,6 +3,7 @@ import type { JSX } from 'solid-js';
 import { ulid } from 'ulid';
 import type { Agenda, FieldDefinition, ProjectRecord, TaskQuery, TaskQueryResult, TaskRow, TaskView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
+import { Calendar } from '../shell/Calendar';
 import type { AgendaViewState, OpenTarget, PaneId } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -11,7 +12,6 @@ import type { MenuItem } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { createSlowFlag, sameData } from '../ui/loading';
-import { DatePicker } from './DatePicker';
 import { AgendaWeekStrip } from './AgendaWeekStrip';
 import { spokenJournalDate } from './journal-date';
 import { groupDayAgenda, relativeDate } from './task-labels';
@@ -442,7 +442,8 @@ export function AgendaPane(props: AgendaPaneProps) {
       <Show keyed when={popup()}>{state => {
         const dismiss = () => { if (!busy() && popup() === state) setPopup(null); };
         if (state.kind === 'menu') return <Menu anchor={state.anchor} label={state.label} items={state.items} onDismiss={dismiss} />;
-        if (state.kind === 'date') return <DatePicker notebook={props.notebook} anchor={state.anchor} label="Displayed date" value={date()} contextDate={date()} onDismiss={dismiss} onSelect={value => { if (!value.date) throw new Error('Choose a displayed date.'); changeDay(value.date); }} />;
+        // The displayed date is a place, not a value: the journal's calendar moves to a day on one click.
+        if (state.kind === 'date') return <Calendar notebook={props.notebook} anchor={state.anchor} label="Choose date" date={date()} today={props.notebook.todayDate()} onToday={() => changeDay(props.notebook.todayDate())} onDismiss={dismiss} onSelect={changeDay} />;
         if (state.kind === 'views') return <Picker<TaskView | null> anchor={state.anchor} label="Saved task views" query={pickerSearch()} onQuery={setPickerSearch} placeholder="Find a task view" items={[null, ...viewChoices()]} key={item => item?.id ?? 'unsaved'} busy={viewsLoading()} error={viewsError()} onDismiss={dismiss} onPick={selectView} row={item => <><Icon name={viewId() === (item?.id ?? null) ? 'check' : 'page'} /><span class="picker-text">{item?.name ?? 'New task query'}</span></>} empty="No matching task views." />;
         if (state.kind === 'name') return <TaskViewNamePopup anchor={state.anchor} name={state.saved?.name ?? ''} rename={state.action === 'rename'} busy={busy()} onDismiss={dismiss} onSave={name => saveView(name, state.id, state.saved, state.action === 'rename')} />;
         if (state.kind === 'delete') return <Popup anchor={state.anchor} label="Delete task view?" onDismiss={dismiss}><p>Delete “{state.saved.name}”? Tasks are not deleted.</p><Show when={commandError()}><p class="error" role="alert">{commandError()}</p></Show><div class="popup-actions"><Button disabled={busy()} onClick={dismiss}>Cancel</Button><Button class="bordered danger" disabled={busy()} onClick={() => { void deleteView(state.saved); }}>Delete view</Button></div></Popup>;
