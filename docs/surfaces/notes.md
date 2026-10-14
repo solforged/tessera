@@ -137,7 +137,7 @@ Unfiled notes show no kinds. Sources keep their own header; journal days and the
 
 The titled Page actions menu names the page (or journal date), then shows the full ID in mono, its Created date and Copy ID. Copy ID leaves the menu open and confirms with Copied; Copy reference is the first action and copies `[[id]]`, as the block menu does. Clipboard failures are reported without claiming success.
 
-Rename, Merge into…, Pin or Unpin and Open beside stay at the top. Description… holds Gloss and Add alias; Add field… stays direct. Make… offers only absent Task, Project, Stream and Question features, with Task and Project only on journal days. Existing features have named Task…, Project…, Stream… and Question… managers. Appearance… holds bullets in Outline and archived visibility; Delete page… is last.
+Rename, Merge into…, Pin or Unpin and Open beside stay at the top. Description… holds Gloss and Add alias; Add field… stays direct. Make… offers only absent Task, Project, Stream and Question features, with Task and Project only on journal days. Existing features have named Task…, Project…, Stream… and Question… managers. Appearance… holds bullets in Outline and archived visibility; Delete page… is last. Description… wears the note glyph and Appearance… the rows glyph, so no two rows share one.
 
 Compare remains a projection tab and palette command, and Undo and Redo remain palette commands and shortcuts rather than menu rows. On coarse phones the menu becomes a bottom sheet with Close, 44 px rows and Back for drill-ins; it scrolls on shorter screens.
 

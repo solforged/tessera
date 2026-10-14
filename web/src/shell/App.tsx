@@ -1334,7 +1334,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     ] satisfies MenuItem[] : []),
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', divider: !titled(), action: props.onPin },
     { label: 'Open beside', icon: 'panes', action: props.onPageBeside },
-    ...(titled() ? [{ label: 'Description…', icon: 'edit', divider: true, submenu: () => ({ title: 'Description', items: [
+    ...(titled() ? [{ label: 'Description…', icon: 'note', divider: true, submenu: () => ({ title: 'Description', items: [
       { label: 'Gloss', icon: 'edit', disabledReason: outlineCommand('gloss')?.disabledReason?.(), action: () => outlineCommand('gloss')?.run() },
       { label: 'Add alias', icon: 'edit', disabledReason: outlineCommand('alias')?.disabledReason?.(), action: () => outlineCommand('alias')?.run() },
     ] }) } satisfies MenuItem] : []),
@@ -1346,7 +1346,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     ...(stream() ? [{ label: 'Stream…', icon: 'link', submenu: () => ({ title: 'Stream', items: [
       { label: 'Remove stream', icon: 'trash', danger: true, disabledReason: outlineCommand('stream-root')?.disabledReason?.(), action: () => outlineCommand('stream-root')?.run() },
     ] }) } satisfies MenuItem] : []),
-    { label: 'Appearance…', icon: 'bullet', divider: true, submenu: () => ({ title: 'Appearance', items: [
+    { label: 'Appearance…', icon: 'rows', divider: true, submenu: () => ({ title: 'Appearance', items: [
       ...(projection() === 'outline' ? [{ label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }) } satisfies MenuItem] : []),
       { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
     ] }) },
