@@ -9,7 +9,7 @@ import { Button } from '../ui/Button';
 import { BlockText } from './BlockText';
 import { fieldRole } from '../fields/roles';
 import { IncomingRelations } from './RelationLines';
-import { citedSource } from './references';
+import { createCitedSources } from './source-reads';
 import './held-readings.css';
 
 interface HeldReading { row: PositionRow; gist: string | undefined; work: string; source: string | null }
@@ -37,9 +37,8 @@ export function HeldReadings(props: {
   const [counts] = createResource(() => groups().map(group => group.subject).filter(id => id !== null),
     subjects => Promise.all(subjects.map(async subject => [subject, (await props.notebook.api.positions({ subject })).rows.length] as const)));
   const countBySubject = createMemo(() => new Map(counts() ?? []));
-  const [sources] = createResource(() => [...new Set(readings().map(reading => reading.source).filter(id => id !== null))],
-    ids => Promise.all(ids.map(async id => ({ id, source: await citedSource(props.notebook, id).catch(() => null) }))));
-  const sigla = createMemo(() => citedSigla(sources() ?? []));
+  const sources = createCitedSources(props.notebook, () => [...new Set(readings().map(reading => reading.source).filter(id => id !== null))]);
+  const sigla = createMemo(() => citedSigla(sources()));
   return <section class="held-readings" aria-label="Perspectives held">
     <Show when={fields.error}><p class="pane-error" role="alert">Couldn’t load perspective fields.</p></Show>
     <For each={groups()}>{group => <section class="held-subject">

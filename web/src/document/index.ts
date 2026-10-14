@@ -1113,7 +1113,15 @@ export class Notebook implements NotebookClient, DocumentHost {
       else if (this.activeWork?.id === session.id) this.activeWork = undefined;
     }
     if (ack.work_sessions?.length) this.workSequence = Math.max(this.workSequence, ack.seq);
-    this.observedChange[1]({ seq: ack.seq, actor: { kind: 'client', name: this.actorName }, reason: null, created_at: Date.now(), blocks: [], removed: [], restructured_pages: [],
+    // Like a change event, but only with the changed blocks this window holds; `pages` names every touched page.
+    const removed = new Set(ack.removed ?? []);
+    const blocks = [...new Set([...ack.revisions, ...ack.text_rewrites].map(value => value.id))].flatMap(id => {
+      if (removed.has(id)) return [];
+      for (const doc of this.docs.values()) { const block = doc.baseBlocks.get(id); if (block) return [block]; }
+      const block = this.cache.get(id)?.[0]();
+      return block ? [block] : [];
+    });
+    this.observedChange[1]({ seq: ack.seq, actor: { kind: 'client', name: this.actorName }, reason: null, created_at: Date.now(), blocks, removed: [...removed], restructured_pages: [], pages: ack.pages,
       capabilities: ack.capabilities ?? [], cards: (ack.cards ?? []).map(value => value.id), work_sessions: (ack.work_sessions ?? []).map(value => value.id),
       review_sessions: (ack.review_sessions ?? []).map(value => value.id), decks: (ack.decks ?? []).map(value => value.id), task_views: (ack.task_views ?? []).map(value => value.id), library_views: (ack.library_views ?? []).map(value => value.id) });
     this.observedSequence[1](seq => Math.max(seq, ack.seq));
@@ -1537,7 +1545,14 @@ export class Notebook implements NotebookClient, DocumentHost {
     const latest = events.at(-1)!;
     await this.outbox?.capabilities([...capabilities.values()], latest.seq);
     const changed = events.filter(event => event.seq > this.seq);
+    // Own events are included: a reader can't tell which of their pages the receipts already reported.
+    const touched = new Map<string, Block>();
+    for (const event of changed) for (const block of event.blocks) touched.set(block.id, block);
     this.observedChange[1]({ ...latest, capabilities: [...capabilities.values()],
+      blocks: [...touched.values()],
+      removed: [...new Set(changed.flatMap(event => event.removed))],
+      restructured_pages: [...new Set(changed.flatMap(event => event.restructured_pages))],
+      pages: changed.every(event => event.pages) ? [...new Set(changed.flatMap(event => event.pages!))] : undefined,
       views: [...new Set(changed.flatMap(event => event.views ?? []))],
       cards: [...new Set(changed.flatMap(event => event.cards ?? []))],
       work_sessions: [...new Set(changed.flatMap(event => event.work_sessions ?? []))],
