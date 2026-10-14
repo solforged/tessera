@@ -1006,7 +1006,7 @@ fn every_kind_reads_values_without_rewriting_authored_blocks() {
     edit(&mut nb, 300, &format!("[[{}]]", id(100)));
     assert_eq!(
         reading(&nb, 10),
-        ok(ReadingValue::Text("alpha #books".into()), Some(id(100)))
+        ok(ReadingValue::Text("alpha".into()), Some(id(100)))
     );
     edit(&mut nb, 300, &format!("[[{}]]", id(999)));
     assert_eq!(reading(&nb, 10), problem("not a reference"));

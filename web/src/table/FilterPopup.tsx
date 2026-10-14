@@ -1,9 +1,9 @@
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import type { FieldDefinition, Filter, FilterOp } from '../api/types';
+import type { Block, FieldDefinition, Filter, FilterOp } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { instancePages } from '../fields/instances';
-import { completeNames } from '../outline/names';
+import { instancePages, relationMembers } from '../fields/instances';
+import { completeNames, targetLabel } from '../outline/names';
 import { partialDatePlaceholder } from '../fields/kinds';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -21,7 +21,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
   const initialIdentity = initial?.kind === 'instance' && (props.initialFilter?.op === 'is' || props.initialFilter?.op === 'is_not');
   const initialValue = props.initialFilter?.value;
   const resolvedInitial = !!initialValue && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(initialValue);
-  const [query, setQuery] = createSignal(initial?.kind === 'checkbox' ? '' : initialIdentity && resolvedInitial ? props.notebook.lookup(initialValue!)()?.text ?? '' : initialValue ?? '');
+  const [query, setQuery] = createSignal(initial?.kind === 'checkbox' ? '' : initialIdentity && resolvedInitial ? (target => target ? target.kind === 'page' ? target.text : targetLabel(target.text, id => props.notebook.lookup(id)) : '')(props.notebook.lookup(initialValue!)()) : initialValue ?? '');
   const [draftValue, setDraftValue] = createSignal<string | null | undefined>(initialIdentity && !resolvedInitial ? undefined : initialValue);
   const [orEmpty, setOrEmpty] = createSignal(props.initialFilter?.or_empty ?? false);
   const [busy, setBusy] = createSignal(false); const [error, setError] = createSignal('');
@@ -29,7 +29,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
   const definition = () => props.fields.find(candidate => candidate.id === field()?.id);
   const needle = () => query().trim().toLocaleLowerCase();
   const identity = () => definition()?.kind === 'instance' && (op() === 'is' || op() === 'is_not');
-  const unresolved = () => initialIdentity && !resolvedInitial && draftValue() === undefined && query() === initialValue ? `Unresolved value “${initialValue}”. Choose a page.` : '';
+  const unresolved = () => initialIdentity && !resolvedInitial && draftValue() === undefined && query() === initialValue ? `Unresolved value “${initialValue}”. Choose a target.` : '';
   const [pages] = createResource(() => identity() && [definition()!, props.notebook.changeSequence(), definition()?.id === '@cited_in' ? query() : ''] as const, async ([field, , search]) => {
     if (field.id === '@parent' || field.id === '@program' || field.id === '@subject' || field.id === '@question') {
       const questions = await props.notebook.api.questions({ include_inline: true });
@@ -47,15 +47,17 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
       const projects = await props.notebook.api.projects();
       return Promise.all(projects.map(project => props.notebook.api.block(project.block_id)));
     }
-    return instancePages(props.notebook, field.targets);
+    const members = await relationMembers(props.notebook, field.targets);
+    return [...members.pages, ...members.blocks.map(row => row.block)];
   });
+  const label = (block: Block) => block.kind === 'page' ? block.text : targetLabel(block.text, id => props.notebook.lookup(id)) || 'Empty block';
   const [names] = createResource(() => identity() && pages() ? { pages: pages()!, query: query() } : false, async ({ pages, query }) => {
     const names = await completeNames(props.notebook, query, pages);
     const other = pages.filter(block => block.kind !== 'page');
     const matches = query.trim() && other.length ? new Set((await props.notebook.api.search(query, 100)).map(row => row.block.id)) : null;
     return { ...names, rows: [...names.rows, ...other.filter(block => !matches || matches.has(block.id)).map(page => ({ page, alias: null }))] };
   });
-  const valueError = createMemo(() => identity() && (pages.error || names.error) ? 'Could not load matching pages.' : '');
+  const valueError = createMemo(() => identity() && (pages.error || names.error) ? 'Could not load targets.' : '');
   const rows = createMemo((): FilterRow[] => {
     if (step() === 'field') {
       const matching = props.fields.filter(candidate => candidate.name.toLocaleLowerCase().includes(needle())).map((candidate): FilterRow => ({ kind: 'field', id: candidate.id, name: candidate.name }));
@@ -63,7 +65,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
       return props.onNewField && query().trim() && !exact ? [...matching, { kind: 'new-field', name: query().trim() }] : matching;
     }
     if (step() === 'op') return filterOperators(definition()?.kind).filter(candidate => filterOperatorLabel(candidate, definition()?.kind).includes(needle())).map(candidate => ({ kind: 'op', op: candidate }));
-    if (identity()) return (names()?.rows ?? []).map(match => ({ kind: 'value', value: match.page.id, label: match.alias ? `${match.alias} · ${match.page.text}` : match.page.text }));
+    if (identity()) return (names()?.rows ?? []).map(match => ({ kind: 'value', value: match.page.id, label: match.alias ? `${match.alias} · ${match.page.text}` : label(match.page) }));
     const options = definition()?.options ?? [];
     const choices = options.filter(option => option.text.toLocaleLowerCase().includes(needle())).map((option): FilterRow => ({ kind: 'value', value: definition()?.id.startsWith('@') ? option.id : option.text, label: option.text }));
     if (definition()?.kind === 'choice') return choices;
@@ -97,7 +99,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
     } else if (props.sheet) setDraftValue(row.value);
     else void finish(row.value);
   };
-  const placeholder = () => step() === 'field' ? 'Field name' : step() === 'op' ? 'Condition' : identity() ? 'Choose a page' : definition()?.kind === 'date' ? partialDatePlaceholder : definition()?.kind === 'choice' ? 'Choose an option' : 'Value';
+  const placeholder = () => step() === 'field' ? 'Field name' : step() === 'op' ? 'Condition' : identity() ? 'Choose a target' : definition()?.kind === 'date' ? partialDatePlaceholder : definition()?.kind === 'choice' ? 'Choose an option' : 'Value';
   return <Show when={props.sheet} fallback={<Picker<FilterRow> anchor={props.anchor} width={320} label={props.label ?? (props.initialFilter ? 'Edit condition' : 'Add filter')} onDismiss={props.onDismiss}
     query={query()} onQuery={setQuery} placeholder={placeholder()}
     prefix={<><Show when={field()}>{chosen => <span class="table-chip">{chosen().name}</span>}</Show><Show when={op()}>{chosen => <span class="table-chip">{filterOperatorLabel(chosen(), definition()?.kind)}</span>}</Show><Show when={unresolved()}><span class="table-chip">{unresolved()}</span></Show></>}
@@ -110,7 +112,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
       if (op()) { setOp(null); setDraftValue(undefined); } else if (field()) setField(null); else return false;
       return true;
     }}
-    busy={busy() || !!(identity() && (pages.loading || names.loading))} error={error() || valueError() || undefined} empty={step() === 'value' ? identity() ? unresolved() || 'No matching pages.' : definition()?.kind === 'choice' ? 'No matching options.' : 'Type a value.' : 'No matches.'}
+    busy={busy() || !!(identity() && (pages.loading || names.loading))} error={error() || valueError() || undefined} empty={step() === 'value' ? identity() ? unresolved() || 'No matches.' : definition()?.kind === 'choice' ? 'No matching options.' : 'Type a value.' : 'No matches.'}
     row={row => row.kind === 'field' ? <><Icon name="field" /><span class="picker-text">{row.name}</span></>
       : row.kind === 'new-field' ? <><Icon name="plus" /><span class="picker-text">New field “{row.name}”</span></>
         : row.kind === 'op' ? <span class="picker-text">{filterOperatorLabel(row.op, definition()?.kind)}</span>

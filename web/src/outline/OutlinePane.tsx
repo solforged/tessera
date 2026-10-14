@@ -40,7 +40,10 @@ import { SourceDetails } from './SourceDetails';
 import { GLOSS_FIELD, glossEntry } from './gloss';
 import { positionFields, positionSource as sharedPositionSource } from './perspectives';
 import { Apparatus } from './Apparatus';
-import { createFieldEntryConversion, createSourceFieldResets, ensureField } from './source-fields';
+import { createFieldEntryConversion, createSourceFieldResets, ensureField, isFreshField, settleField } from './source-fields';
+import { setFreshFieldKind } from '../fields/commands';
+import { kindNoun } from '../fields/kinds';
+import { guessFieldKind } from '../fields/value-reading';
 import { sourceFieldName } from './source';
 import { createOutlineCompletions } from './completions';
 import { headingPrefix } from './completion';
@@ -233,6 +236,7 @@ function Pane(props: OutlinePaneProps) {
   const fieldConversion = createFieldEntryConversion({
     doc, notebook: props.notebook, disposed: () => disposed, composing: composition, caret, focusEpoch: () => focusEpoch,
     known: name => definitionsByName().get(name.toLowerCase()),
+    targetKind: id => props.notebook.lookup(id)()?.kind,
     onStart: () => setCompletion(null),
     onField: field => setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]),
     onCommitted: (id, next, epoch, focus, field) => {
@@ -253,7 +257,18 @@ function Pane(props: OutlinePaneProps) {
   /** Leaving a block converts `Name::` shorthand and links hand-typed `[[Title]]`; true when a field conversion started. */
   function commitFieldEntry(id: string, focus = true) {
     linkTitles(id);
+    settleFreshField(id);
     return fieldConversion.shorthand(id, focus);
+  }
+  /** Leaving the first value of a field `name::` just created gives the field the kind that value suggests. */
+  function settleFreshField(id: string) {
+    const fieldId = fieldEntryId(doc.block(doc.outline.parentOf(id))?.text ?? '');
+    const text = doc.block(id)?.text.trim();
+    if (!fieldId || !text || !isFreshField(props.notebook, fieldId)) return;
+    settleField(props.notebook, fieldId);
+    const kind = guessFieldKind(text, target => props.notebook.lookup(target)()?.kind);
+    const name = definitionsById().get(fieldId)?.name ?? 'This field';
+    if (kind) void setFreshFieldKind(props.notebook, fieldId, kind).then(change => showNotice(`${name} is now a ${kindNoun(kind)} field.`, change.undo), reason => setMessage(reason instanceof Error ? reason.message : String(reason)));
   }
   /** A hand-typed name links only when one page owns it; ambiguous names wait for a choice. */
   const linking = new Set<string>();
@@ -1033,7 +1048,7 @@ function Pane(props: OutlinePaneProps) {
   function addAlias() {
     void (async () => {
       try {
-        const field = definitionsByName().get('aliases') ?? await ensureField(props.notebook, 'Aliases');
+        const field = definitionsByName().get('aliases') ?? await ensureField(props.notebook, 'aliases');
         setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
         if (disposed) return;
         if (zoom()) zoomTo(null);
@@ -1230,7 +1245,7 @@ function Pane(props: OutlinePaneProps) {
     setEditedConflicts,
   };
   const { openRelation, positionReason, placeReason, usePlace, RelationPopups } = createRelationActions(context, async holderId => {
-    const field = definitionsByName().get('gist') ?? await ensureField(props.notebook, 'Gist', 'text', 'standfirst');
+    const field = definitionsByName().get('gist') ?? await ensureField(props.notebook, 'gist', 'text', 'standfirst');
     setCreatedFields(previous => previous.some(existing => existing.id === field.id) ? previous : [...previous, field]);
     const last = register().slips.at(-1)?.id;
     const parentId = last ? doc.outline.parentOf(last) : props.pageId;

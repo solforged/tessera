@@ -377,6 +377,7 @@ fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefin
         if result.last().is_none_or(|d| d.id != id) {
             result.push(FieldDefinition {
                 targets: targets(conn, &id)?,
+                built_in: crate::built_in::field_named(name).is_some(),
                 id,
                 name: name.to_owned(),
                 kind: FieldKind::from_str(&row.get::<_, String>(2)?).ok_or_else(|| {
@@ -756,8 +757,26 @@ pub(crate) fn constrained_reading(
     text: &str,
     target: Option<&Block>,
 ) -> Result<Reading> {
-    let reading = reading(kind, &definition.id, text, target);
-    if kind != FieldKind::Instance || definition.targets.is_empty() {
+    let mut reading = reading(kind, &definition.id, text, target);
+    if kind != FieldKind::Instance {
+        return Ok(reading);
+    }
+    if let Reading::Value {
+        value: ReadingValue::Text(label),
+        target: Some(_),
+        ..
+    } = &mut reading
+    {
+        let mut text =
+            conn.prepare_cached("SELECT text FROM blocks WHERE id = ?1 AND deletion_id IS NULL")?;
+        *label = target_label(label, &mut |id| {
+            text.query_row([id], |row| row.get(0))
+                .optional()
+                .ok()
+                .flatten()
+        });
+    }
+    if definition.targets.is_empty() {
         return Ok(reading);
     }
     if let Reading::Value {
@@ -768,9 +787,8 @@ pub(crate) fn constrained_reading(
             .prepare_cached(
                 "SELECT EXISTS(SELECT 1 FROM memberships m
              JOIN field_targets t ON t.type_id = m.type_id
-             JOIN blocks p ON p.id = m.block_id
              JOIN blocks ty ON ty.id = t.type_id
-             WHERE m.block_id = ?1 AND t.field_id = ?2 AND p.kind = 'page'
+             WHERE m.block_id = ?1 AND t.field_id = ?2
              AND ty.deletion_id IS NULL AND ty.archived = 0)",
             )?
             .query_row(params![id, definition.id], |row| row.get(0))?;
@@ -789,6 +807,52 @@ pub(crate) fn constrained_reading(
         }
     }
     Ok(reading)
+}
+
+/// A relation target's label wherever it sorts, groups, filters or renders: its
+/// first line as plain text, with trailing tags dropped, inner tags read as
+/// their titles and references as their labels. Nesting stops a few targets deep.
+pub(crate) fn target_label(text: &str, resolve: &mut dyn FnMut(&str) -> Option<String>) -> String {
+    fn label(text: &str, resolve: &mut dyn FnMut(&str) -> Option<String>, depth: usize) -> String {
+        let line = text.trim().lines().next().unwrap_or_default();
+        let mut parts: Vec<(std::ops::Range<usize>, String)> = crate::storage::tag_tokens(line)
+            .map(|tag| (tag.span, tag.title.to_owned()))
+            .collect();
+        let mut end = line.trim_end().len();
+        while let Some((span, _)) = parts
+            .last()
+            .filter(|(span, _)| line[span.end..end].trim().is_empty())
+        {
+            end = span.start;
+            parts.pop();
+        }
+        for (span, target, alias) in crate::storage::reference_spans(&line[..end]) {
+            let text = match alias {
+                Some(alias) => alias.to_owned(),
+                None if depth > 0 => resolve(target).map_or_else(
+                    || target.to_owned(),
+                    |text| label(&text, resolve, depth - 1),
+                ),
+                None => "…".to_owned(),
+            };
+            parts.push((span, text));
+        }
+        parts.sort_by_key(|(span, _)| span.start);
+        let mut output = String::with_capacity(end);
+        let mut cursor = 0;
+        // A tag spelled inside a reference's label belongs to the reference.
+        for (span, text) in parts {
+            if span.start < cursor {
+                continue;
+            }
+            output.push_str(&line[cursor..span.start]);
+            output.push_str(&text);
+            cursor = span.end;
+        }
+        output.push_str(&line[cursor..end]);
+        output.trim().to_owned()
+    }
+    label(text, resolve, 3)
 }
 
 pub(crate) fn reading(kind: FieldKind, field: &str, text: &str, target: Option<&Block>) -> Reading {

@@ -11,7 +11,7 @@ const common: Attribute[] = [['title', 'Title', 'text'], ['page', 'Page', 'insta
 const attributes: Record<QuerySource, Attribute[]> = {
   notes: [['kind', 'Kind', 'choice'], ['resolved', 'Resolved', 'checkbox'], ['revisit', 'Revisit', 'date']],
   questions: [['state', 'State', 'choice', ['active', 'recurrent', 'parked', 'answered']], ['parent', 'Parent question', 'instance'], ['program', 'Program', 'instance'], ['readings', 'Perspectives', 'number'], ['current', 'Current answer', 'text'], ['last_assessed', 'Last assessed', 'date'], ['revisit', 'Revisit', 'date'], ['inline', 'Inline', 'checkbox']],
-  positions: [['holder', 'Holder', 'instance'], ['subject', 'Subject', 'instance'], ['question', 'Question', 'instance'], ['relation', 'Relation', 'choice', ['supports', 'disputes', 'qualifies', 'answers']], ['target_holder', 'Target holder', 'instance'], ['cites', 'Cites', 'instance']],
+  positions: [['holder', 'Holder', 'instance'], ['subject', 'Subject', 'instance'], ['question', 'Question', 'instance'], ['relation', 'Argument', 'choice', ['supports', 'disputes', 'qualifies', 'answers']], ['target_holder', 'Target holder', 'instance'], ['cites', 'Cites', 'instance']],
   sources: [['creator', 'Creator', 'instance'], ['cited_by', 'Cited by', 'number'], ['cited_in', 'Cited in', 'instance'], ['highlights', 'Highlights', 'number']],
   tasks: [['status', 'Status', 'choice', ['todo', 'doing', 'waiting', 'done', 'cancelled']], ['due', 'Due', 'date'], ['scheduled', 'Scheduled', 'date'], ['project', 'Project', 'instance']],
   highlights: [['source', 'Source', 'instance'], ['color', 'Color', 'choice', ['yellow', 'green', 'blue', 'red', 'purple']]],

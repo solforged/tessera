@@ -1599,6 +1599,11 @@ impl Engine<'_, '_> {
                 text,
             } => {
                 let current = self.checked(id, *base_revision, index, false)?;
+                if let Some(problem) = crate::built_in::rename_problem(&current.block.text, text)
+                    .filter(|_| crate::fields::is_definition(self.tx, id).unwrap_or(false))
+                {
+                    return Err(validation(problem));
+                }
                 self.edit(&current, text)
             }
             Operation::SetHeading {

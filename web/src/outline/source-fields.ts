@@ -1,6 +1,7 @@
 import { createEffect, createResource, createRoot } from 'solid-js';
 import { api } from '../api/client';
-import type { FieldDefinition, FieldKind } from '../api/types';
+import type { BlockKind, FieldDefinition, FieldKind } from '../api/types';
+import { guessFieldKind } from '../fields/value-reading';
 import type { FieldRole } from '../fields/roles';
 import type { Caret, NotebookClient, PageDocument } from '../document/contract';
 import { matchFieldEntry } from '../table/query';
@@ -25,8 +26,14 @@ export function documentReady(doc: PageDocument): Promise<void> {
   return promise;
 }
 
+const freshFields = new WeakMap<NotebookClient, Set<string>>();
+/** A field `name::` created here whose kind still waits for its first value. */
+export function isFreshField(notebook: NotebookClient, id: string): boolean { return freshFields.get(notebook)?.has(id) ?? false; }
+/** The first value has been read: the field keeps whatever kind it now has. */
+export function settleField(notebook: NotebookClient, id: string): void { freshFields.get(notebook)?.delete(id); }
+
 /** The named definition, created with the requested kind on first use; concurrent calls share one creation. */
-export function ensureField(notebook: NotebookClient, name: string, kind: FieldKind = 'text', role: FieldRole = 'attribute'): Promise<FieldDefinition> {
+export function ensureField(notebook: NotebookClient, name: string, kind: FieldKind = 'text', role: FieldRole = 'attribute', fresh = false): Promise<FieldDefinition> {
   const pending = fieldCreations.get(notebook) ?? new Map<string, Promise<FieldDefinition>>();
   fieldCreations.set(notebook, pending);
   const key = name.toLowerCase();
@@ -47,6 +54,7 @@ export function ensureField(notebook: NotebookClient, name: string, kind: FieldK
       const written = fieldsDoc.edit({ kind: 'addField', name, value: kind, role });
       if (!written.ok) throw new Error(written.reason);
       await fieldsDoc.flush();
+      if (fresh) { const ids = freshFields.get(notebook) ?? new Set(); freshFields.set(notebook, ids); ids.add(written.created[0]!); }
       return { id: written.created[0]!, name, kind, role, revision: fieldsDoc.block(written.created[0]!)!.revision, options: [], targets: [] };
     } finally { fieldsDoc.release(); }
   })();
@@ -79,6 +87,8 @@ export interface FieldEntryConversion {
 export function createFieldEntryConversion(options: {
   doc: PageDocument; notebook: NotebookClient;
   disposed(): boolean; composing(): boolean; caret(): Caret | null; focusEpoch(): number;
+  /** A referenced block's kind, so a journal day reads as a date. */
+  targetKind(id: string): BlockKind | undefined;
   /** A definition already loaded by name, so a known field converts without a round trip. */
   known(name: string): FieldDefinition | undefined;
   onStart(): void; onField(field: FieldDefinition): void;
@@ -98,7 +108,8 @@ export function createFieldEntryConversion(options: {
     if (!result.ok) throw new Error(result.reason);
     options.onCommitted(id, result.caret, at?.id === id ? options.focusEpoch() : epoch, focus, field);
   }
-  function start(id: string, target: FieldDefinition | string, valueStart: number, focus: boolean, still: (text: string) => number | null) {
+  /** A new name's kind comes from `guess`, its first value when typed inline; with no value yet, the field stays fresh until one is. */
+  function start(id: string, target: FieldDefinition | string, valueStart: number, focus: boolean, still: (text: string) => number | null, guess?: { kind: FieldKind | null }) {
     pending.add(id);
     const epoch = options.focusEpoch();
     const heldDoc = options.notebook.open(options.doc.pageId);
@@ -113,7 +124,7 @@ export function createFieldEntryConversion(options: {
     }
     void (async () => {
       try {
-        const field = await ensureField(options.notebook, typeof target === 'string' ? target : target.name);
+        const field = await ensureField(options.notebook, typeof target === 'string' ? target : target.name, guess?.kind ?? 'text', 'attribute', !!guess && !guess.kind);
         if (options.disposed()) return;
         options.onField(field);
         const text = heldDoc.block(id)?.text;
@@ -137,7 +148,7 @@ export function createFieldEntryConversion(options: {
       start(id, match.name, valueOffset(original!, match.value), focus, text => {
         const now = matchFieldEntry(text);
         return now && now.name.toLowerCase() === name ? valueOffset(text, now.value) : null;
-      });
+      }, { kind: match.value.trim() ? guessFieldKind(match.value, options.targetKind) ?? 'text' : null });
       return true;
     },
     entry(id, field, from, focus = true) {

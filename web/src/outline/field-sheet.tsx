@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, mapA
 import type { Accessor, JSX } from 'solid-js';
 import type { ChangeEvent, FieldDefinition, FieldKind, SubjectCriteria } from '../api/types';
 import { FieldPicker } from '../fields/FieldPicker';
-import { InstancePicker } from '../fields/InstancePicker';
+import { RelationPicker } from '../fields/RelationPicker';
 import { fieldHide } from '../fields/hide';
 import { entryAnchor, typeKeys } from '../fields/templates';
 import { isCatalogueField } from '../library/details';
@@ -220,9 +220,15 @@ export function createFieldSheet(context: Pick<OutlineContext,
     }
     return true;
   }
+  // Enter skips an untouched value picker; once its query or highlight has been used, Enter is the picker's choice.
+  let engaged: string | null = null;
   const controlledKey = (event: KeyboardEvent) => {
     const id = options.controlledId();
-    if (id && key(event, id)) { event.preventDefault(); event.stopImmediatePropagation(); }
+    if (!id) return;
+    const query = event.target instanceof HTMLInputElement && event.target.classList.contains('picker-input') ? event.target : null;
+    if (query && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) engaged = id;
+    if (event.key === 'Enter' && query && (query.value.trim() || engaged === id)) return;
+    if (key(event, id)) { event.preventDefault(); event.stopImmediatePropagation(); }
   };
   document.addEventListener('keydown', controlledKey, true);
   onCleanup(() => document.removeEventListener('keydown', controlledKey, true));
@@ -293,7 +299,7 @@ export function createFieldSheet(context: Pick<OutlineContext,
     return <>
       <Show keyed when={picker()}>{value => <FieldPicker anchor={value.anchor} label="Add field" fields={doc.block(value.owner)?.source ? definitions().filter(field => !isCatalogueField(field.name)) : definitions()} template={(states().get(value.owner) ?? stateFor(value.owner)).template} templateLabel={doc.block(value.owner)?.position ? 'From this recipe' : 'Template'} exclude={(states().get(value.owner) ?? stateFor(value.owner)).present}
         onPick={field => { setPicker(null); choose(value.owner, value.anchor, field); }} onCreate={(name, kind) => { setPicker(null); void create(value.owner, name, kind); }} onDismiss={() => setPicker(null)} />}</Show>
-      <Show when={instance()}>{value => <InstancePicker anchor={value().anchor} field={value().field} notebook={props.notebook} onDismiss={() => setInstance(null)} onError={setMessage} onPick={page => { add(value().owner, value().field, `[[${page.id}]]`); setInstance(null); }} />}</Show>
+      <Show when={instance()}>{value => <RelationPicker anchor={value().anchor} field={value().field} notebook={props.notebook} owner={{ id: value().owner, page: doc.block(value().owner)?.pageId ?? '' }} onDismiss={() => setInstance(null)} onError={setMessage} onPick={page => { add(value().owner, value().field, `[[${page.id}]]`); setInstance(null); }} />}</Show>
     </>;
   }
   return { FieldSlots, Popups, pick, hover: setHovered, fill, toggle, start, key };

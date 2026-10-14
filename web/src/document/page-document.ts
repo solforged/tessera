@@ -227,7 +227,7 @@ export class Document implements PageDocument {
     const value = this.capabilities(id);
     if (value.merge_protected) throw new Error(value.history
       ? 'This task has completion or work history; delete it or keep it separate.'
-      : 'Cannot merge away an active task, project, perspective, relation, question, answer, or reviewed card.');
+      : 'Cannot merge away an active task, project, perspective, argument, question, answer, or reviewed card.');
   }
   receiveCardRevisions(cards: NonNullable<Committed['cards']>) {
     if (!cards.length) return;
@@ -1297,16 +1297,16 @@ export class Document implements PageDocument {
         case 'position': {
           const block = this.snapshot(edit.id);
           if (block.kind !== 'block') throw new Error('Only ordinary blocks can be perspectives.');
-          if (edit.value && this.block(edit.id)?.relation) throw new Error('Remove the relation first.');
+          if (edit.value && this.block(edit.id)?.relation) throw new Error('Remove the argument first.');
           const previous = !!this.capabilities(edit.id).position;
           if (previous !== edit.value) actions.push({ kind: 'position', id: edit.id, value: edit.value, previous, baseRevision: block.revision });
           break;
         }
         case 'relation': {
           const block = this.snapshot(edit.id);
-          if (block.kind !== 'block') throw new Error('Only ordinary blocks can be relations.');
+          if (block.kind !== 'block') throw new Error('Only ordinary blocks can be arguments.');
           const capability = this.capabilities(edit.id);
-          if (edit.value && (capability.position || capability.question || capability.assessment)) throw new Error('A relation cannot also be a perspective, question or answer.');
+          if (edit.value && (capability.position || capability.question || capability.assessment)) throw new Error('An argument cannot also be a perspective, question or answer.');
           const previous = capability.relation?.kind ?? null;
           if (edit.text !== undefined) setText(block, edit.text);
           if (previous !== edit.value) actions.push({ kind: 'relation', id: edit.id, value: edit.value, previous, baseRevision: block.revision });
@@ -1347,7 +1347,7 @@ export class Document implements PageDocument {
           if (previous && value && previous.accepted !== value.accepted && sameState(previous.reading_history, value.reading_history)) {
             value = currentReading({ ...value, accepted: previous.accepted }, value.accepted, this.host.todayDate());
           }
-          if (edit.value && this.block(edit.id)?.relation) throw new Error('Remove the relation first.');
+          if (edit.value && this.block(edit.id)?.relation) throw new Error('Remove the argument first.');
           if (edit.value && this.block(edit.id)?.assessment) throw new Error('A block cannot be both a question and an answer.');
           if ((previous?.parked || edit.value?.parked) && (previous?.accepted ?? null) !== (edit.value?.accepted ?? null) && edit.value?.accepted) throw new Error('Resume the question before accepting a reading.');
           if (!sameState(previous, value)) actions.push({ ...edit, value: structuredClone(value), previous, baseRevision: this.snapshot(edit.id).revision });
@@ -1366,7 +1366,7 @@ export class Document implements PageDocument {
         case 'assessment': {
           const previous = this.capabilities(edit.id).assessment?.state ?? null;
           if (edit.value) {
-            if (this.block(edit.id)?.relation) throw new Error('Remove the relation first.');
+            if (this.block(edit.id)?.relation) throw new Error('Remove the argument first.');
             if (this.block(edit.id)?.question) throw new Error('A block cannot be both a question and an answer.');
             let owner = this.block(edit.id)?.parentId;
             while (owner && !this.block(owner)?.question) owner = this.block(owner)?.parentId;

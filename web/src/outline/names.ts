@@ -64,14 +64,26 @@ export function referenceLabel(token: Token, target: Block | null | undefined, l
   if (target === null) return `Unresolved ${token.id}`;
   if (token.alias) return token.alias;
   if (seen.has(target.id)) return 'Circular reference';
-  return plainText(target.text, lookup, new Set([...seen, target.id])) || 'Empty block';
+  return targetLabel(target.text, lookup, new Set([...seen, target.id])) || 'Empty block';
+}
+
+/** What a reference or relation calls its target, as the core labels it: the first line, its trailing tags dropped and inner tags read as words. */
+export function targetLabel(text: string, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set()): string {
+  if (quoteTarget(text)) return plainText(text, lookup, seen);
+  const tokens = textTokens(text.trim().split('\n', 1)[0] ?? '');
+  while (tokens.length && (tokens.at(-1)!.kind === 'tag' || (tokens.at(-1)!.kind === 'text' && !tokens.at(-1)!.value.trim()))) tokens.pop();
+  return tokens.map(token => token.kind === 'tag' ? token.value : plainToken(token, lookup, seen)).join('').trim();
+}
+
+function plainToken(token: Token, lookup: NotebookClient['lookup'], seen: ReadonlySet<string>): string {
+  return isViewReference(token) ? token.alias || 'Saved view' : isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${token.value}` : token.value;
 }
 
 /** The shared live display pipeline used by reference labels, breadcrumbs and field previews. */
 export function plainText(text: string, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set()): string {
   const quoted = quoteTarget(text);
   if (quoted) return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)(), lookup, seen)}”`;
-  return textTokens(text).map(token => isViewReference(token) ? token.alias || 'Saved view' : isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${token.value}` : token.value).join('');
+  return textTokens(text).map(token => plainToken(token, lookup, seen)).join('');
 }
 /** Only the selected occurrence changes; a concurrently edited token is never overwritten. */
 export function resolvedReferenceText(text: string, token: Token, target: string): string | null {

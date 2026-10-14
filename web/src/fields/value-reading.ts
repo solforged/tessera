@@ -1,4 +1,4 @@
-import type { FieldDefinition } from '../api/types';
+import type { BlockKind, FieldDefinition, FieldKind } from '../api/types';
 import { checkboxValue } from './kinds';
 import { partialFieldDate } from './value-options';
 import { parseTaskDate } from '../tasks/date-input';
@@ -22,4 +22,19 @@ export function fieldValueProblem(field: FieldDefinition | undefined, text: stri
     case 'instance': return /^\[\[[^\]]+\]\]$/.test(value) ? undefined : 'not a reference';
     case 'url': return /^https?:\/\/[^/?#\s]+[^\s]*$/.test(value) ? undefined : 'not a URL';
   }
+}
+
+/**
+ * The kind a new field's first value suggests: a whole reference is a relation, or a date when it names a
+ * journal day; a calendar date, a number or a web address reads as such. Anything else stays text, and a bare
+ * year counts as a number.
+ */
+export function guessFieldKind(text: string, targetKind: (id: string) => BlockKind | undefined = () => undefined): FieldKind | null {
+  const value = text.trim();
+  const reference = /^\[\[([0-9A-HJKMNP-TV-Z]{26})(?:\|[^\]]*)?\]\]$/i.exec(value);
+  if (reference) return targetKind(reference[1]!) === 'journal' ? 'date' : 'instance';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value) && parseTaskDate(value, '2000-01-01').ok) return 'date';
+  if (/^-?\d+(?:\.\d+)?$/.test(value) && Number.isFinite(Number(value))) return 'number';
+  if (/^https?:\/\/[^/?#\s]+[^\s]*$/.test(value)) return 'url';
+  return null;
 }

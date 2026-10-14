@@ -790,14 +790,14 @@ describe('real notebook operations and recovery', () => {
     const added = success(doc.edit({ kind: 'addFieldEntries', parentId: id, after: first, entries: [{ fieldId: annotation, value: 'An authored annotation' }] }));
     const empty = success(doc.edit({ kind: 'insert', parentId: id, after: added.created[0]!, text: `[[${annotation}]]` })).created[0]!;
     const fields = (await api.fields()).fields;
-    const publisher = fields.find(field => field.name === 'Publisher')!.id;
+    const publisher = fields.find(field => field.name === 'publisher')!.id;
     const nested = success(doc.edit({ kind: 'addFieldEntries', parentId: first, after: null, entries: [{ fieldId: publisher, value: 'A nested note, not catalog data' }] }));
     const shorthand = success(doc.edit({ kind: 'insert', parentId: id, after: empty, text: 'Publisher:: An explicit catalog shorthand' })).created[0]!;
     await instance.flush();
     const projected = readingRegister(doc, fieldId => fields.find(field => field.id === fieldId), []);
     const rows = [...projected.opening, ...projected.remaining];
     expect(rows).toContain(first);
-    for (const fieldId of [publisher, fields.find(field => field.name === 'Published')!.id]) {
+    for (const fieldId of [publisher, fields.find(field => field.name === 'published')!.id]) {
       const entry = doc.outline.children(id).find(block => doc.block(block)?.text === `[[${fieldId}]]`)!;
       expect(rows).not.toContain(entry);
       for (const value of doc.outline.children(entry)) expect(rows).not.toContain(value);
@@ -977,8 +977,8 @@ describe('real notebook operations and recovery', () => {
 
   test('new tag and manual type pages receive starting templates after creation is acknowledged', async () => {
     for (const scenario of [
-      { title: 'Pérsón', manual: false, fields: ['Aliases', 'Lived', 'Affiliated with'] },
-      { title: 'Gróup', manual: true, fields: ['Aliases', 'Active'] },
+      { title: 'Pérsón', manual: false, fields: ['aliases', 'lived', 'affiliated with'] },
+      { title: 'Gróup', manual: true, fields: ['aliases', 'active'] },
     ]) {
       const instance = await client();
       const { id, doc, first } = await page(instance, 'Reading');
@@ -3247,16 +3247,16 @@ describe('library inspector metadata commands', () => {
     const instance = await client();
     const { doc, fieldsDoc } = await metadataSource(instance);
     const cases: [SourceField, string, FieldKind, string][] = [
-      ['subtitle', 'Subtitle', 'text', 'A subtitle'], ['firstPublished', 'First published', 'date', '1846'],
-      ['originalLanguage', 'Original language', 'text', 'de'], ['published', 'Published', 'date', '2024-02-29'],
-      ['publisher', 'Publisher', 'text', 'Example press'], ['edition', 'Edition', 'text', 'Second'],
-      ['series', 'Series', 'text', 'Collected works'], ['number', 'Number', 'number', '2'],
-      ['pages', 'Pages', 'number', '320'], ['language', 'Language', 'text', 'en'],
-      ['url', 'URL', 'url', 'https://example.test/source'], ['site', 'Site', 'text', 'Example'],
-      ['description', 'Description', 'text', 'First paragraph.\n\nSecond paragraph.'],
-      ['cover', 'Cover', 'text', `/api/library/covers/${'c'.repeat(64)}`],
-      ['siglum', 'Siglum', 'text', 'AbCd'], ['started', 'Started', 'date', '2026-10'],
-      ['finished', 'Finished', 'date', '2026-10-11'],
+      ['subtitle', 'subtitle', 'text', 'A subtitle'], ['firstPublished', 'first published', 'date', '1846'],
+      ['originalLanguage', 'original language', 'text', 'de'], ['published', 'published', 'date', '2024-02-29'],
+      ['publisher', 'publisher', 'text', 'Example press'], ['edition', 'edition', 'text', 'Second'],
+      ['series', 'series', 'text', 'Collected works'], ['number', 'number', 'number', '2'],
+      ['pages', 'pages', 'number', '320'], ['language', 'language', 'text', 'en'],
+      ['url', 'url', 'url', 'https://example.test/source'], ['site', 'site', 'text', 'Example'],
+      ['description', 'description', 'text', 'First paragraph.\n\nSecond paragraph.'],
+      ['cover', 'cover', 'text', `/api/library/covers/${'c'.repeat(64)}`],
+      ['siglum', 'siglum', 'text', 'AbCd'], ['started', 'started', 'date', '2026-10'],
+      ['finished', 'finished', 'date', '2026-10-11'],
     ];
     for (const [field, label, kind, value] of cases) {
       await saveSourceField([doc], instance, field, value);

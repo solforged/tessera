@@ -35,7 +35,7 @@ pub(crate) fn attributes(source: QuerySource) -> Vec<QueryAttribute> {
             ("@holder", "Holder", Instance),
             ("@subject", "Subject", Instance),
             ("@question", "Question", Instance),
-            ("@relation", "Relation", Choice),
+            ("@relation", "Argument", Choice),
             ("@target_holder", "Target holder", Instance),
             ("@cites", "Cites", Instance),
         ],
@@ -76,8 +76,8 @@ pub(crate) fn default_columns(
     let keys: &[&str] = match source {
         QuerySource::Notes => &[],
         QuerySource::Questions => &["@state", "@parent", "@readings", "@current", "@revisit"],
-        QuerySource::Positions => &["@holder", "@subject", "Gist", "Work"],
-        QuerySource::Sources => &["@creator", "Published", "@cited_by"],
+        QuerySource::Positions => &["@holder", "@subject", "gist", "work"],
+        QuerySource::Sources => &["@creator", "published", "@cited_by"],
         QuerySource::Tasks => &["@status", "@due", "@scheduled", "@project"],
         QuerySource::Highlights => &["@source", "@color"],
     };
@@ -131,12 +131,8 @@ fn optional(attrs: &mut Attributes, key: &str, value: Option<String>) {
 }
 fn instance(attrs: &mut Attributes, key: &str, id: &str, titles: &HashMap<String, String>) {
     if let Some(title) = titles.get(id) {
-        push(
-            attrs,
-            key,
-            ReadingValue::Text(title.clone()),
-            Some(id.into()),
-        );
+        let label = crate::fields::target_label(title, &mut |id| titles.get(id).cloned());
+        push(attrs, key, ReadingValue::Text(label), Some(id.into()));
     }
 }
 

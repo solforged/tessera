@@ -421,12 +421,12 @@ Each kind has its own value editor, the same in outlines and tables:
 | Kind | Click | ⌘-click |
 |---|---|---|
 | Choice | The pill opens its options: type to filter, Create option for a new name, Clear | Opens the option beside |
-| Instance | The pill opens its page; the blank space after it, or Enter on the selected value, opens a picker of the target types | Opens the page beside |
+| Relation | The pill opens its target; the blank space after it, or Enter on the selected value, opens a picker of the target types | Opens the target beside |
 | Date | Opens the date picker at the value; a year or year-month can still be typed | |
 | Checkbox | A control that writes `yes` or `no`; other spellings stay text | |
 | Text, number, URL, identifier | Edits the text | |
 
-Choice and instance values never show their reference text. Their pills sit centered on the label's line. Insert below (`o`, or the block menu) on a choice or instance value adds a blank value and opens its picker. Leaving a blank value that is not the entry's first removes it. A value its kind cannot read keeps its text with the tables' dotted `--warning` underline and the problem in its tooltip; identifiers and target constraints are checked only in tables and on field pages.
+Choice and relation values never show their reference text. Their pills sit centered on the label's line. Insert below (`o`, or the block menu) on a choice or relation value adds a blank value and opens its picker. Leaving a blank value that is not the entry's first removes it. A value its kind cannot read keeps its text with the tables' dotted `--warning` underline and the problem in its tooltip; identifiers and target constraints are checked only in tables and on field pages.
 
 ### Field area
 
@@ -434,7 +434,7 @@ Every block or page with field entries or template fields has a field bed at res
 
 - On a page, an Add field line in mono apparatus closes the area, followed by a small gap before the notes.
 - On a nested block, `+ Field` appears at the end of its last field row while the block or one of its fields is hovered, selected or edited, without changing any row's height.
-- A page or block without fields adds one from Add field… in its page or block menu, or with `Name::`.
+- A page or block without fields adds one from Add field… in its page or block menu, or with `name::`.
 
 Slots read as suggestions: the name in `--faint` and no value text. On a page, slot names take the specimen block's mono apparatus without the icon, the value reads `Add…` in `--faint`, and a dotted hairline follows each slot. Slots share the field labels' edge and sit on the canvas outside the row's hover and selection. A slot adds the entry with a blank value and opens its kind's editor; a checkbox slot adds a ticked value.
 
@@ -446,7 +446,7 @@ Hide and template changes from the field menu belong to the field and the type r
 
 Inserting or removing a value transfers its area and measured height in one layout update, without briefly shrinking or growing the scrollable page.
 
-Clicking a value or pressing Enter on a selected field enters filling mode for that owner. Tab and Shift-Tab move through its fields and missing slots in recipe or template order, creating an entry only when reached. Shift-Enter adds a newline. Enter on an empty value leaves for the next ordinary row under the owner; Escape leaves without moving. Each value keeps its normal undo grouping. Outside filling mode, Tab and Shift-Tab still indent and outdent ordinary outline rows.
+Clicking a value or pressing Enter on a selected field enters filling mode for that owner. Tab and Shift-Tab move through its fields and missing slots in recipe or template order, creating an entry only when reached. Shift-Enter adds a newline. Enter on an empty value leaves for the next ordinary row under the owner. While its value picker has a query or an arrow-key highlight, Enter picks instead. Escape leaves without moving. Each value keeps its normal undo grouping. Outside filling mode, Tab and Shift-Tab still indent and outdent ordinary outline rows.
 
 ### Capability metadata
 
@@ -585,7 +585,7 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 | `#name` | Type: picks a page used as a type, or creates one |
 | `@` | When: `@fri` schedules, `@by fri` or `@due fri` sets a deadline; Tab flips the field, Enter picks |
 | `/` | Every block verb: statuses, schedule, deadline, priority, repeat, clock, project, headings, references, types, cards |
-| `Name::`, `::` at block start | Field entry; `::` alone picks the field |
+| `name::`, `::` at block start | Field entry; `::` alone picks the field |
 | `[] `, `# ` | Todo, heading; on a line that is already a task, `[] ` just disappears |
 | `>>`, `<<`, `<>`, `>>>`, `>>1.`, `;;`, `{{c1::}}` | Cards; ⌘⇧C wraps the selection in a cloze |
 
@@ -613,11 +613,11 @@ A page made for a tag or by Add type goes away again once no tag, manual type or
 
 #### Field shorthand
 
-`Name::` reads as a field label while it is typed: the field icon, the name in `--muted`, and a tinted hint at the end, New field for a name no field has or the field's kind until a value is typed.
+`name::` reads as a field label while it is typed: the field icon, the name in `--muted`, and a tinted hint at the end. A name no field has reads New field, then New number field or the kind its value suggests once one is typed. A known field shows its kind until a value is typed. Leaving the first value of a field just made this way sets that kind and shows a notice, such as page count is now a number field, with Undo.
 
 Space straight after `::`, or Tab anywhere in the name, makes the entry at once and puts the caret in its value; leaving the block converts it as before. `::` at the start of a block opens a field picker listing each field with its kind and Create field for a new name, and picking makes the entry the same way. Conversion, including its first empty value, is one undo step.
 
-The picker puts the owner's missing template fields first, in template order, and fields the owner already has last. A choice field's value offers its options as you type, with Add option for a new one. A new date entry opens the date picker for its value, and a new instance entry opens page completion inside `[[]]`.
+The picker puts the owner's missing template fields first, in template order, and fields the owner already has last. A choice field's value offers its options as you type, with Add option for a new one. A new date entry opens the date picker for its value, and a new relation entry opens the relation picker.
 
 #### Slash commands
 
@@ -699,7 +699,7 @@ Escape closes the topmost one and returns focus to the editor or outline that ow
 | Find or create: pages, blocks and explicit page creation; `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Below the global search trigger, 560 px |
 | Dedicated command palette | Picker, grouped by action section, with shortcuts; disabled reasons appear on the selected row and remain available to assistive technology | Top center, 560 px |
 | [Add to today](surfaces/journal.md) (⌘E) | One capture line under a mono rubric, its completions in a picker beneath, key hints and Add on a hairline | Top center, 560 px; a bottom sheet on the cover |
-| `[[`, `((`, `#`, `Name::` completion and Add type | Picker | Below the opening brackets, the caret or the block |
+| `[[`, `((`, `#`, `name::` completion and Add type | Picker | Below the opening brackets, the caret or the block |
 | `@` dates and `/` commands | Picker without an input; the block text is the query, sections label `/` rows, faster keys at the right | Below the token |
 | Leader, status and priority menus | Menu; leader letters at the right and pressed directly | Below the row |
 | Add filter | Picker in three steps: field, condition, value; Backspace on an empty query steps back | Below its trigger |

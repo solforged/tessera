@@ -6,7 +6,7 @@ import { DatePicker } from '../tasks/DatePicker';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
-import { InstancePicker } from './InstancePicker';
+import { RelationPicker } from './RelationPicker';
 import { choiceRows } from './value-options';
 import type { ChoiceRow } from './value-options';
 
@@ -25,6 +25,8 @@ export function writeFieldValue(doc: PageDocument, target: { field: FieldDefinit
 
 export function ValueEditor(props: {
   anchor: PopupAnchor; field: FieldDefinition; text: string; notebook: NotebookClient; contextDate: string;
+  /** The block that owns the value, so a relation picker can lead with its page and leave it out. */
+  owner?: { id: string; page: string };
   onWrite(text: string): void | Promise<void>; onDismiss(): void; onError(message: string): void;
   onCreateOption(text: string): Promise<void>;
 }) {
@@ -56,7 +58,7 @@ export function ValueEditor(props: {
       onPick={row => void choose(row)} onDismiss={props.onDismiss} empty="No matching options."
       row={row => row.kind === 'option' ? <><Icon name={row.option.id === current() ? 'check' : 'bullet'} /><span class="picker-text">{row.option.text}</span><Show when={row.option.id === current()}><span class="picker-meta">Current</span></Show></>
         : row.kind === 'create' ? <><Icon name="plus" /><span class="picker-text">Add option “{row.text}”</span></> : <><Icon name="close" /><span class="picker-text">Clear</span></>} /></Match>
-    <Match when={props.field.kind === 'instance'}><InstancePicker anchor={props.anchor} field={props.field} notebook={props.notebook} current={current()}
+    <Match when={props.field.kind === 'instance'}><RelationPicker anchor={props.anchor} field={props.field} notebook={props.notebook} current={current()} owner={props.owner}
       onPick={async page => { await props.onWrite(`[[${page.id}]]`); props.onDismiss(); }} onDismiss={props.onDismiss} onError={props.onError} /></Match>
     <Match when={props.field.kind === 'date'}><DatePicker notebook={props.notebook} anchor={props.anchor} label={props.field.name} value={props.text || null} partialDates contextDate={props.contextDate}
       onSelect={value => props.onWrite(value.date ?? '')} onDismiss={props.onDismiss} /></Match>

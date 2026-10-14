@@ -186,7 +186,7 @@ fn editing_current_author_values_and_linked_people_changes_the_default_siglum() 
         .unwrap()
         .fields
         .into_iter()
-        .find(|f| f.definition.name == "Author")
+        .find(|f| f.definition.name.eq_ignore_ascii_case("author"))
         .unwrap()
         .definition
         .id;

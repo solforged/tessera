@@ -9,7 +9,7 @@ import type { Operation } from '../api/types';
 import { createNotebookClient } from '../document/index';
 import type { Notebook } from '../document/index';
 import { ensureField } from '../outline/source-fields';
-import { changeFieldKind, choicePreview, createFieldEntry, createOptionValue, makeFieldOption, fieldImpact, applyFieldImpact } from './commands';
+import { changeFieldKind, choicePreview, createFieldEntry, createOptionValue, createTemplateField, makeFieldOption, fieldImpact, applyFieldImpact } from './commands';
 
 // Real subprocess startup and document I/O require the platform clock, not fake timers.
 async function eventually(predicate: () => boolean) {
@@ -96,6 +96,15 @@ test('field conversion, repair and option creation each have a single exact undo
       expect(shorthand.id).not.toBe(blank);
       expect((await api.block(blank)).text).toBe('');
       expect((await api.fields()).fields.every(field => field.name.trim())).toBe(true);
+      const templateType = ulid();
+      await notebook.commit([{ op: 'create_page', id: templateType, title: 'Template proof type' }]);
+      const templated = await createTemplateField(notebook, await api.type(templateType), 'Template proof', 'choice');
+      const [templateField] = (await api.type(templateType)).fields;
+      expect((await api.fields()).fields.find(field => field.id === templateField)).toMatchObject({ name: 'Template proof', kind: 'choice' });
+      await templated.undo();
+      expect((await api.type(templateType)).fields).toEqual([]);
+      expect((await api.fields()).fields.some(field => field.id === templateField)).toBe(false);
+      await expect(createTemplateField(notebook, await api.type(templateType), 'phase', 'text')).rejects.toThrow('already exists');
       const survivor = (await createFieldEntry(notebook, doc, notes[0]!, 'Survivor', 'text')).field;
       await notebook.commit([{ op: 'edit_text', id: values[0]!, base_revision: (await api.block(values[0]!)).revision, text: 'First meaning' }]);
       const typeId = ulid(); const viewId = ulid(); const secondViewId = ulid();

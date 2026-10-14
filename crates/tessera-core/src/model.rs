@@ -995,6 +995,9 @@ pub struct FieldDefinition {
     pub options: Vec<FieldOption>,
     #[serde(default)]
     pub targets: Vec<String>,
+    /// Created by the app and named by it: the name cannot change except in case.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub built_in: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

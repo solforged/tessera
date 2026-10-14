@@ -1,6 +1,7 @@
 import type { FieldDefinition, FieldKind, Filter, FilterOp, Query, SortKey } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { parseCardText } from '../review/card-text';
+import { targetLabel } from '../outline/names';
 
 export const filterLabels: Record<FilterOp, string> = {
   is: 'is', is_not: 'is not', contains: 'contains', gt: '>', gte: '≥', lt: '<', lte: '≤', present: 'has the field', set: 'has a value', empty: 'is empty',
@@ -124,7 +125,7 @@ export function filterLabel(filter: Filter, fields: readonly FieldDefinition[], 
   const definition = fields.find(field => field.id === filter.field);
   const name = definition?.name ?? names?.[filter.field] ?? 'Missing field';
   const value = definition?.kind === 'instance' && (filter.op === 'is' || filter.op === 'is_not') && filter.value
-    ? notebook.lookup(filter.value)()?.text ?? filter.value
+    ? (target => !target ? filter.value : target.kind === 'page' ? target.text : targetLabel(target.text, id => notebook.lookup(id)) || 'Empty block')(notebook.lookup(filter.value)())
     : definition?.kind === 'choice' && definition.id.startsWith('@') ? definition.options.find(option => option.id === filter.value)?.text ?? filter.value : filter.value;
   if (filter.field === '@resolved' && (filter.op === 'is' || filter.op === 'is_not') && (value === 'true' || value === 'false')) {
     return (value === 'true') === (filter.op === 'is') ? 'Resolved' : 'Not resolved';

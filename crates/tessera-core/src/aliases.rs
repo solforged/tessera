@@ -150,11 +150,11 @@ impl Notebook {
             return Ok(None);
         }
         let mut planner = Planner::new(self)?;
-        let field = planner.field("Aliases", FieldKind::Text);
+        let field = planner.field("aliases", FieldKind::Text);
         let definitions = crate::fields::definitions(&self.conn)?;
         let gloss = definitions
             .iter()
-            .find(|definition| definition.name.eq_ignore_ascii_case("Gloss"));
+            .find(|definition| definition.name.eq_ignore_ascii_case("gloss"));
         let entries = self
             .conn
             .prepare_cached(
@@ -213,27 +213,24 @@ impl Notebook {
         .map(Some)
     }
 
-    /// Populate an empty Person, Group or Concept template without changing existing templates.
+    /// Populate an empty built-in type's template from its schema without changing existing templates.
     pub fn apply_starting_template(
         &mut self,
         type_id: &str,
         actor: Actor,
     ) -> Result<Option<Committed>> {
         let page = self.alias_page(type_id)?;
-        let labels: &[(&str, FieldKind)] = match fold(&page.text).as_str() {
-            "person" => &[
-                ("Aliases", FieldKind::Text),
-                ("Lived", FieldKind::Text),
-                ("Affiliated with", FieldKind::Instance),
-            ],
-            "group" => &[("Aliases", FieldKind::Text), ("Active", FieldKind::Text)],
-            "concept" => &[
-                ("Aliases", FieldKind::Text),
-                ("Coined by", FieldKind::Instance),
-                ("Coined in", FieldKind::Instance),
-            ],
-            _ => return Ok(None),
-        };
+        let labels: Vec<(&str, FieldKind)> = crate::built_in::schema(&fold(&page.text))
+            .iter()
+            .map(|(name, _)| {
+                let field =
+                    crate::built_in::field_named(name).expect("schemas name built-in fields");
+                (field.name, field.kind)
+            })
+            .collect();
+        if labels.is_empty() {
+            return Ok(None);
+        }
         let has_fields: bool = self.conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM type_fields WHERE type_id = ?1)",
             [type_id],

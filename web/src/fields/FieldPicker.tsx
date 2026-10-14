@@ -37,5 +37,5 @@ export function FieldPicker(props: {
     row={row => row.kind === 'field'
       ? <><Icon name="field" /><span class="picker-text">{row.field.name}</span><span class="picker-meta">{kindLabels[row.field.kind]}</span></>
       : <><Icon name="plus" /><span class="picker-text">{row.kind === 'as' ? `Create field “${row.name}” as…` : `Create text field “${row.name}”`}</span></>}
-    empty={props.exclude?.size ? 'No other fields.' : 'No fields yet.'} />}>{name => <Menu anchor={props.anchor} label="Kind" header={<div class="menu-section">Create field “{name}” as…</div>} onDismiss={props.onDismiss} items={fieldKinds.map(kind => ({ label: kindLabels[kind], action: () => props.onCreate?.(name, kind) }))} />}</Show>;
+    empty={query().trim() ? 'No matching fields.' : props.exclude?.size ? 'No other fields.' : 'No fields yet.'} />}>{name => <Menu anchor={props.anchor} label="Kind" header={<div class="menu-section">Create field “{name}” as…</div>} onDismiss={props.onDismiss} items={fieldKinds.map(kind => ({ label: kindLabels[kind], action: () => props.onCreate?.(name, kind) }))} />}</Show>;
 }

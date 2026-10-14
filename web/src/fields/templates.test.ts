@@ -25,9 +25,10 @@ describe('entryAnchor', () => {
 
 describe('startingTemplateFor', () => {
   test('offers the specified names and fields for each starting template', () => {
-    expect(startingTemplateFor('Person')).toEqual({ title: 'Person', fields: ['Aliases', 'Lived', 'Affiliated with'] });
-    expect(startingTemplateFor('Group')).toEqual({ title: 'Group', fields: ['Aliases', 'Active'] });
-    expect(startingTemplateFor('Concept')).toEqual({ title: 'Concept', fields: ['Aliases', 'Coined by', 'Coined in'] });
+    expect(startingTemplateFor('Person')).toEqual({ title: 'Person', fields: ['aliases', 'lived', 'affiliated with'] });
+    expect(startingTemplateFor('Group')).toEqual({ title: 'Group', fields: ['aliases', 'active'] });
+    expect(startingTemplateFor('Concept')).toEqual({ title: 'Concept', fields: ['aliases', 'coined by', 'coined in'] });
+    expect(startingTemplateFor('Book')?.fields[0]).toBe('author');
   });
 
   test('folds case, surrounding whitespace and composed or decomposed diacritics', () => {

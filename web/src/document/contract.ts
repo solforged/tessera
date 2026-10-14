@@ -376,6 +376,8 @@ export interface NotebookClient {
   journal(date: string, signal?: AbortSignal): Promise<string>;
   /** A new page; fails when the title is taken (ignoring case). */
   createPage(title: string): Promise<string>;
+  /** Resolves once pending edits, including just-created pages, have reached the service. */
+  flush(): Promise<void>;
   /** The page with this title, created if missing (for tags). */
   pageByTitle(title: string, create: boolean): Promise<string | null>;
   /** Permanently merge two pages after saving their pending edits; resolves after acknowledgement. */

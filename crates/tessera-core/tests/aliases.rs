@@ -144,7 +144,7 @@ fn aliases_ignore_hidden_pages_entries_values_and_nested_fields() {
     }
     let archived_revision = nb.block(&id(2)).unwrap().revision;
     let deleted_revision = nb.block(&id(3)).unwrap().revision;
-    let field = field_id(&nb, "Aliases");
+    let field = field_id(&nb, "aliases");
     let value = nb
         .page(&id(1))
         .unwrap()
@@ -276,7 +276,7 @@ fn kind_index_merges_alias_targets_filters_redundancy_and_sorts_by_sort_as() {
         "Philippus Aureolus Theophrastus Bombastus von Hohenheim",
     );
     let fields = nb.fields().unwrap().page_id;
-    let aliases = field_id(&nb, "Aliases");
+    let aliases = field_id(&nb, "aliases");
     apply(
         &mut nb,
         vec![
@@ -369,7 +369,7 @@ fn add_alias_is_one_attributed_batch_and_idempotent() {
     let changes = nb.changes_since(before, 10).unwrap();
     assert_eq!(changes.len(), 1);
     assert_eq!(changes[0].actor, actor);
-    let field = field_id(&nb, "Aliases");
+    let field = field_id(&nb, "aliases");
     let view = nb.page(&id(1)).unwrap();
     assert_eq!(view.rows[0].block.text, format!("[[{field}]]"));
     assert_eq!(view.rows[1].block.text, "Tully");
@@ -465,20 +465,20 @@ fn starting_templates_use_existing_fields_and_preserve_authored_templates() {
             1,
             vec![
                 ("Aliases", FieldKind::Text),
-                ("Lived", FieldKind::Text),
-                ("Affiliated with", FieldKind::Instance),
+                ("lived", FieldKind::Span),
+                ("affiliated with", FieldKind::Instance),
             ],
         ),
         (
             2,
-            vec![("Aliases", FieldKind::Text), ("Active", FieldKind::Text)],
+            vec![("Aliases", FieldKind::Text), ("active", FieldKind::Span)],
         ),
         (
             3,
             vec![
                 ("Aliases", FieldKind::Text),
-                ("Coined by", FieldKind::Instance),
-                ("Coined in", FieldKind::Instance),
+                ("coined by", FieldKind::Instance),
+                ("coined in", FieldKind::Instance),
             ],
         ),
     ] {
@@ -571,7 +571,7 @@ fn ingest_resolves_aliases_preserves_ambiguity_and_turns_creator_names_around() 
     let plan = nb.plan_source_record(&metadata).unwrap();
     let source = plan.source_id;
     apply(&mut nb, plan.operations);
-    let author = field_id(&nb, "Author");
+    let author = field_id(&nb, "author");
     let view = nb.page(&source).unwrap();
     let entry = view
         .rows

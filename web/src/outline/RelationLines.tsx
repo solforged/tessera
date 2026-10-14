@@ -39,7 +39,7 @@ export function IncomingRelations(props: RelationProps & { target: string; versi
     return props.notebook.api.relations({ target: props.target }, request.signal);
   });
   return <Show when={props.enabled !== false}>
-    <Show when={!rows.error} fallback={<div class="relation-line" role="status">Relations unavailable.</div>}><IncomingRelationLine rows={rows() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+    <Show when={!rows.error} fallback={<div class="relation-line" role="status">Arguments unavailable.</div>}><IncomingRelationLine rows={rows() ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>
   </Show>;
 }
 

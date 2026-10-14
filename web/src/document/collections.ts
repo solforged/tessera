@@ -43,7 +43,7 @@ async function ensureCollectionsField(notebook: NotebookClient, pending: Plan, r
   const id = existing?.id ?? ulid();
   let fieldRevision = existing?.revision ?? 1;
   if (!existing) {
-    inserted(pending, { op: 'insert', id, parent_id: register.page_id, after: null, text: 'Collections', heading: null });
+    inserted(pending, { op: 'insert', id, parent_id: register.page_id, after: null, text: 'collections', heading: null });
     pending.operations.push({ op: 'set_field_kind', id, base_revision: 1, kind: 'instance' });
     fieldRevision = 2;
   } else if (existing.kind !== 'instance') {

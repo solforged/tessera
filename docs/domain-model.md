@@ -180,10 +180,10 @@ A type is an ordinary page used as the target of memberships. A block can have m
 A field definition is a block under the live page titled `Fields`, the system page every notebook has:
 
 - Its name is the block's text.
-- Its kind is text, number, date, span, checkbox, choice, instance, URL or identifier; the default is text.
+- Its kind is text, number, date, span, checkbox, choice, relation, URL or identifier; the default is text. Relation is stored as `instance`.
 - Choice options are child blocks of the definition.
 
-A field entry is a block whose whole text is one reference to a definition, rendering as its name. The entry's parent owns the field; its children are the values. Typing `Author::` in the editor produces an entry.
+A field entry is a block whose whole text is one reference to a definition, rendering as its name. The entry's parent owns the field; its children are the values. Typing `author::` in the editor produces an entry. A name no field has creates one spelled as typed, and an existing name matches regardless of case. The new field's kind comes from its first value. A whole reference makes it a relation, or a date when it names a journal day. A calendar date, a number or an `http(s)` address makes it a date, number or URL, and anything else leaves it text. A value typed before conversion sets the kind at creation. Otherwise leaving the first nonblank value sets it, with an Undo that returns the field to text.
 
 Each definition has a `hide` setting for outlines. `never` is the default and shows entries and faint missing template slots, on a page at rest and on a nested owner while it is focused. `when_empty` hides entries with no values or only blank values and omits missing slots; `always` hides entries and slots regardless of values. Editing or selecting an entry or its values keeps it visible, as does revealing the owner's hidden fields in that pane. Tables, queries, field pages, the Fields register and exports ignore this setting.
 
@@ -198,10 +198,13 @@ Values are plain blocks read through the field's kind. A value that does not fit
 | Date | Links to a journal day or spells out the date. A bare year or year-month is valid for sources dated no more precisely. |
 | Span | Keeps the written historical notation and reads an inclusive year range. BCE years are negative; unknown bounds are open. |
 | Choice | Links to its option. |
+| Relation | Links to a live block: a page, a journal day or a block inside a page. With Links to types, the target must be a member of one, by tag or manually. |
 | URL | An absolute `http` or `https` address. |
 | Identifier | Reads an ISBN, DOI or arXiv ID in its usual spellings. Normalizes to `isbn:` with 13 digits, lowercase `doi:` or `arxiv:`, so the same work matches however it was written. |
 
-Changing a field's kind opens a reviewed interpretation map of every distinct written value. Choice mappings reuse or create options, and several spellings can share one option. Instance mappings propose only a unique exact title or alias; creating a page requires an explicit choice. Ambiguous and unreadable values stay as written. Applying the map and kind is one undoable change across every owner. Owner counts include empty entries and count each owning block once. Archived or deleted entries and owners do not count.
+A relation target's label is its first line as plain text: trailing tags are dropped, inner tags read as their titles and references as their labels. Sorting, contains filters, group headings, card rendering and exports use that label.
+
+Changing a field's kind opens a reviewed interpretation map of every distinct written value. Choice mappings reuse or create options, and several spellings can share one option. Relation mappings propose only a page with a unique exact title or alias; creating a page requires an explicit choice, and the new page joins the field's Links to type when it has exactly one. Ambiguous and unreadable values stay as written. Applying the map and kind is one undoable change across every owner. Owner counts include empty entries and count each owning block once. Archived or deleted entries and owners do not count.
 
 Renaming to another definition's name offers a merge preview with affected owners, pages, templates, saved views and conflicts. A merge redirects entries, template slots and saved view references to the surviving definition. It keeps conflicting entries side by side and moves option blocks without changing their identities. Filters, sort keys, column widths, grouping, collapsed headings and phone card fields stay in their original order. One undo restores both definitions, their entries and the exact saved queries.
 
@@ -237,7 +240,7 @@ A query selects notes, questions, positions, sources, tasks or highlights with `
 
 Missing and unreadable values sort last. Fields used by filters remain table columns even when all their values are empty.
 
-Instance equality and inequality compare the selected page's ID, not its label. A saved filter keeps its members when that page is renamed. Older label-only filters migrate when the title identifies one page; an unresolved value matches nothing and must be selected again.
+Relation equality and inequality compare the selected target's ID, not its label. A saved filter keeps its members when that target is renamed or edited. Older label-only filters migrate when the title identifies one page; an unresolved value matches nothing and must be selected again.
 
 Attributes use a leading `@` wherever a field key is accepted, including filters, sorts, columns and grouping. Their values are derived and read-only; they have no value block IDs. Unknown attributes, including one from another source, are validation errors.
 
@@ -256,7 +259,7 @@ Positions' `@question` includes their subject when it is a live question and eve
 
 Date filters accept `today`, `-30d` and `+7d`, resolved in the notebook's time zone on each read. A filter such as `{"field":"@last_assessed","op":"lt","value":"-30d","or_empty":true}` also matches an absent value. Saved filters keep the relative expression, not its current date.
 
-Grouping uses `group: {key, collapsed?}` and returns distinct row IDs and counts under every applicable heading, including None for empty values. Counts cover the full match before pagination. Instance headings use target IDs, so renaming a target keeps the collapsed group identity.
+Grouping uses `group: {key, collapsed?}` and returns distinct row IDs and counts under every applicable heading, including None for empty values. Counts cover the full match before pagination. Relation headings use target IDs, so renaming a target keeps the collapsed group identity.
 
 A view is a saved query with a name and a revision. Views are not blocks; saving and deleting them are operations like any other, so they are attributed and undoable. A type table is the unsaved query for that type's members.
 
@@ -474,7 +477,7 @@ Compare question focus is view state, never notebook content. It shows the persp
 
 A criterion cell is identified by its position and field IDs. A refreshed position read preserves its focused cell; keyboard commit returns focus to that cell for the next history command.
 
-Criterion cells use the definition's kind and the field bed's shared value editors. Choice and Instance selections write target references, Date uses its calendar for readable or empty values, and Checkbox writes `yes` or `no`. Span values retain their written notation in the text editor.
+Criterion cells use the definition's kind and the field bed's shared value editors. Choice and Relation selections write target references, Date uses its calendar for readable or empty values, and Checkbox writes `yes` or `no`. Span values retain their written notation in the text editor.
 
 Quoted criterion values keep the ordinary block's frozen quote capability and `((ID))` text. A newly inserted value and its snapshot share one document change, including the field entry when it is missing.
 
@@ -488,9 +491,9 @@ A page's gloss is an entry for the Gloss field among its top-level blocks: the o
 
 These map the three kinds of knowledge in the [vision](vision.md): a fact is an ordinary block, with a passage when it came from reading; someone else's view is a position; your own conclusion is an assessment. A perspective lens is a view of positions grouped by holder.
 
-### Relations
+### Arguments
 
-A relation capability marks an ordinary block as an authored argument edge. Its stored kind is `supports`, `disputes`, `qualifies` or `answers`. The block's text and children hold the reasoning and may cite passages. An edge cannot also be a position, question or assessment. Relations are never inferred from wording, link labels or differences between readings.
+An argument capability, stored as a relation, marks an ordinary block as an authored argument edge. Its stored kind is `supports`, `disputes`, `qualifies` or `answers`. The block's text and children hold the reasoning and may cite passages. An edge cannot also be a position, question or assessment. Relations are never inferred from wording, link labels or differences between readings.
 
 The endpoints are derived from the block's text and place, never stored:
 
@@ -501,9 +504,11 @@ An edge with no target or a deleted target shows a problem. An `answers` edge al
 
 Relation reads filter by kind, source, target, source holder or target holder, with at least one filter. A holder filter matches a position held by that page or the holder page itself. Results include the edge, both endpoints with their containing pages, each position endpoint's holder and any problem. Moving an edge or changing its first link changes its derived endpoints.
 
+Arguments and relation fields stay separate. An argument's source is derived from its place, so under a plain tagged block it would be the page root, not that block. Arguments also carry fixed meanings that Perspectives reads. A relation field is named by its author, starts at the block that owns it and feeds tables and lenses. A `qualifies` field and a Qualifies… argument therefore appear on different surfaces.
+
 ## Projects
 
-A project capability gives a block an outcome, an optional deadline and active, done or canceled status. Tasks belong by ancestry or by an explicit `Project` instance field whose value references a block with an active project capability. The explicit field wins over ancestry; otherwise nested tasks report their nearest active project. A link in task prose does not assign membership. Removing a field assignment restores ancestry membership, if any. A completed project's capability remains active until explicitly removed. Completing a project does not complete its tasks or reassess questions beneath it. Removing the capability retains its history and block identity.
+A project capability gives a block an outcome, an optional deadline and active, done or canceled status. Tasks belong by ancestry or by an explicit `Project` relation field whose value references a block with an active project capability. The explicit field wins over ancestry; otherwise nested tasks report their nearest active project. A link in task prose does not assign membership. Removing a field assignment restores ancestry membership, if any. A completed project's capability remains active until explicitly removed. Completing a project does not complete its tasks or reassess questions beneath it. Removing the capability retains its history and block identity.
 
 ## Notes
 
@@ -541,24 +546,28 @@ Types you define are also kinds, listed after the built-ins:
 
 A source's form is a built-in Form choice field: book, chapter, article, paper, report, post, thread, video or web page, with more options added as for any choice field. Lookup and ingestion fill it, and export writes it as the CSL type and BibTeX entry type.
 
-Person, Group and Concept start with templates, filled in only when wanted:
+Built-in kinds start with templates, filled in only when wanted. Their fields are built in: the core owns their lowercase names, kinds and Links to types.
 
 | Kind | Template fields |
 |---|---|
-| Person | Aliases, Lived, Affiliated with (an instance of Group) |
-| Group | Aliases, Active |
-| Concept | Aliases, Coined by (an instance of Person), Coined in (an instance of Source) |
+| person | aliases, lived (span), affiliated with (a relation to Group) |
+| group | aliases, active (span) |
+| concept | aliases, coined by (a relation to Person or Group), coined in (a relation) |
+| book | author (required; a relation to Person or Group), editor, translator, published, publisher, identifier, language |
+| article | author, site, published, url |
 
 - A new type page with one of these titles gets its template. An existing page with an empty template offers it instead.
+- Required is rare: only a book requires author. Opening the notebook adds a missing author to Book's template; every other template field can be removed or reordered.
+- A built-in field cannot be renamed, only recased. Opening the notebook recases older Title Case names, such as Author, and gives a built-in relation with no Links to types the types it expects, where those type pages exist. It never changes a field's kind, so an older `lived` stays text until a reviewed kind change. These are ordinary synced edits.
+- A built-in relation links to its types only where those type pages exist; it never creates Person or Group.
 - A question page uses Add alias, since it has no type to carry a template.
-- Lived and Active start as text. A reviewed kind change can read historical notation such as `c. 1493` and `106–43 BCE` as spans.
 - A Group's members are the people affiliated with it, not a second list.
 - Templates change like any type's and never rewrite notes.
-- Thesis starts without a template until it is settled how a thesis answers a question.
+- Thesis starts without a template. A perspective's holder remains its first link.
 
 ### Aliases
 
-A note's aliases are values of the built-in Aliases field among its top-level blocks, stored like the gloss and available on every page. An alias is a whole other name: Tully for Cicero, sublation for Aufhebung, a short name for a long question.
+A note's aliases are values of the built-in aliases field among its top-level blocks, stored like the gloss and available on every page. An alias is a whole other name: Tully for Cicero, sublation for Aufhebung, a short name for a long question.
 
 Aliases need not be unique; two Plinys may both have Pliny. Matching ignores case, diacritics and apostrophes, treating other punctuation as a space. Thus `J. M. Keynes` and `j m keynes` are one name.
 

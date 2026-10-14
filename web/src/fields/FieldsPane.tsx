@@ -136,7 +136,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
     <div ref={scroll} class="fields-scroll" onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
       <div class="fields-master-detail"><div class="fields-master">
       <Show when={data()}>
-        <Show when={fields().length} fallback={<p class="empty-state">No fields yet. Use New field, or type <code>Name::</code> in a block.</p>}>
+        <Show when={fields().length} fallback={<p class="empty-state">No fields yet. Use New field, or type <code>name::</code> in a block.</p>}>
           <Show when={visibleFields().length} fallback={<p class="empty-state">No matching fields. <Button onClick={() => setSearch('')}>Clear filter</Button></p>}>
             <table class="fields-index"><thead><tr><th scope="col">Name</th><th scope="col" class="fields-kind">Kind</th><th scope="col" class="fields-count">Used by</th><th scope="col">Templates</th></tr></thead><tbody>
               <For each={pageFields()}>{field => <tr tabIndex={0} aria-selected={selected() === field.id} onClick={event => { if (!(event.target as HTMLElement).closest('button')) selectDefinition(field, opensBeside(event)); }} onDblClick={event => openDefinition(field, opensBeside(event))} onKeyDown={event => {

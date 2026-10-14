@@ -72,6 +72,7 @@ function TableContent(props: TablePaneProps) {
   const [result, setResult] = createSignal<QueryResult>();
   const [definitions, setDefinitions] = createSignal<Fields>();
   const [type, setType] = createSignal<Type>();
+  const [indexTotal, setIndexTotal] = createSignal<number>();
   const [noteIndex, setNoteIndex] = createSignal<NoteIndex>();
   const [loading, setLoading] = createSignal(true);
   const [appending, setAppending] = createSignal(false);
@@ -302,6 +303,10 @@ function TableContent(props: TablePaneProps) {
         const [rows, pageType, index] = await Promise.all([api.query({ ...value, offset: 0 }, controller.signal), value.type ? api.type(value.type, controller.signal) : Promise.resolve(undefined), api.noteIndex(controller.signal)]);
         if (controller.signal.aborted) return;
         setType(pageType); setNoteIndex(index);
+        // A member table's Index tab opens this query narrowed to the type's notes, so it counts that narrower set.
+        const kind = value.type && !value.note_kind ? index.kinds.find(kind => kind.type_id === value.type)?.key ?? `type:${value.type}` : null;
+        if (!kind) setIndexTotal(undefined);
+        else void api.query({ ...value, note_kind: kind, offset: 0, limit: 0 }, controller.signal).then(notes => { if (!controller.signal.aborted) setIndexTotal(notes.total); }, () => {});
         if (value.source && !value.columns && !value.type && !value.note_kind && !props.target.viewId && !initialColumns()) {
           setInitialColumns(defaultEntityColumns(value.source, rows));
           reportView(value);
@@ -696,7 +701,7 @@ function TableContent(props: TablePaneProps) {
           <span>{changed() ? 'Modified' : 'Saved view'}</span><Show when={changed()}><Button disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button></Show>
         </Show></div>
       </header>
-      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : result()?.total} tableCount={missingFields().length ? undefined : result()?.total} fieldsCount={type()?.fields.length}
+      <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : query().note_kind ? result()?.total : indexTotal()} tableCount={missingFields().length ? undefined : result()?.total} fieldsCount={type()?.fields.length}
         cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, opensBeside(event))}
         onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}`, viewId: props.target.viewId, query: { ...copyQuery(query()), note_kind: typeKind()?.key ?? `type:${typeId()}`, note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, opensBeside(event))}
         onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, opensBeside(event))}
@@ -733,7 +738,7 @@ function TableContent(props: TablePaneProps) {
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
       {state.kind === 'purpose' && <Popup anchor={state.anchor} label="View purpose" onDismiss={() => setPopup(null)}><form onSubmit={event => { event.preventDefault(); setPopup(null); }}><input class="input" aria-label="View purpose" value={query().purpose ?? ''} maxlength={240} onInput={event => updateQuery({ ...query(), purpose: event.currentTarget.value })} /><div class="popup-actions"><Button type="submit" class="bordered">Done</Button></div></form></Popup>}
-      {state.kind === 'value' && <ValueEditor anchor={state.anchor} field={fieldById(state.field.id) ?? state.field} text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()}
+      {state.kind === 'value' && <ValueEditor anchor={state.anchor} field={fieldById(state.field.id) ?? state.field} owner={{ id: state.row.block.block.id, page: state.row.block.page.id }} text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()}
         onCreateOption={text => writeCell(state.row, state.field, '', state.value, text)}
         onWrite={text => writeCell(state.row, state.field, text, state.value)} onError={message} onDismiss={() => { setPopup(null); requestAnimationFrame(() => focusCell(state.row.block.block.id, state.field.id)); }} />}
       {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={pickerFields()} notebook={props.notebook} initialField={state.field} sheet={narrow()} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}

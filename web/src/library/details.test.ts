@@ -77,7 +77,7 @@ test('saving a title-form creator uses an eligible alias, not a source title or 
   const source = { ...page('Arnold J. Toynbee'), id: '01ARZ3NDEKTSV4RRFFQ69G5FAW' };
   const doc = { pageId: 'book', status: () => 'ready', flush: async () => {}, outline: { children: () => [] } } as unknown as PageDocument;
   let written: SourceDetailsEdit | undefined;
-  const notebook = { changeSequence: () => 0, api: {
+  const notebook = { changeSequence: () => 0, flush: async () => {}, api: {
     fields: async () => ({ page_id: 'fields', fields: [{ id: 'author', name: 'Author', kind: 'instance', targets: [] }] }),
     resolveName: async () => [{ page: source, alias: null }, { page: person, alias: 'Arnold J. Toynbee' }],
     noteKinds: async (id: string) => [{ key: id === person.id ? 'person' : 'source' }],
@@ -99,7 +99,7 @@ test('role changes resolve a title-form creator while preserving the same bare p
     outline: { children: (id: string) => children[id] ?? [] }, block: (id: string) => ({ text: texts[id], archived: false }),
   } as unknown as PageDocument;
   const resolved: string[] = [];
-  const notebook = { changeSequence: () => 0, lookup: () => () => person, api: {
+  const notebook = { changeSequence: () => 0, flush: async () => {}, lookup: () => () => person, api: {
     fields: async () => ({ page_id: 'fields', fields }),
     resolveName: async (name: string) => { resolved.push(name); return [{ page: person, alias: 'Arnold J. Toynbee' }]; },
     noteKinds: async () => [{ key: 'person' }],

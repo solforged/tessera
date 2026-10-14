@@ -8,6 +8,7 @@ import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { FieldPicker } from './FieldPicker';
+import { createTemplateField } from './commands';
 import { kindLabels } from './kinds';
 import { TypePresentation } from './TypePresentation';
 import { entryAnchor, startingTemplateFor } from './templates';
@@ -145,6 +146,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
       </div>
     </div></Show>
     <Show when={picker()}>{anchor => <FieldPicker anchor={anchor()} label="Add field to template" fields={props.fields} exclude={new Set(props.type.fields)}
-      onPick={field => { setPicker(null); void setFields([...props.type.fields, field.id]); }} onDismiss={() => setPicker(null)} />}</Show>
+      onPick={field => { setPicker(null); void setFields([...props.type.fields, field.id]); }}
+      onCreate={(name, kind) => { setPicker(null); void run(() => createTemplateField(props.notebook, props.type, name, kind)); }} onDismiss={() => setPicker(null)} />}</Show>
   </section>;
 }

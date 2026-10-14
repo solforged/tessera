@@ -5,10 +5,13 @@ import type { ChangeEvent, Fields } from '../api/types';
 import { textTokens } from '../document/text-tokens';
 import { foldName } from '../outline/names';
 
+// Mirrors crates/tessera-core/src/built_in.rs `schema`, which the starting-template route applies.
 const startingTemplates = [
-  { title: 'Person', fields: ['Aliases', 'Lived', 'Affiliated with'] },
-  { title: 'Group', fields: ['Aliases', 'Active'] },
-  { title: 'Concept', fields: ['Aliases', 'Coined by', 'Coined in'] },
+  { title: 'Person', fields: ['aliases', 'lived', 'affiliated with'] },
+  { title: 'Group', fields: ['aliases', 'active'] },
+  { title: 'Concept', fields: ['aliases', 'coined by', 'coined in'] },
+  { title: 'Book', fields: ['author', 'editor', 'translator', 'published', 'publisher', 'identifier', 'language'] },
+  { title: 'Article', fields: ['author', 'site', 'published', 'url'] },
 ] as const;
 
 /** Only an empty template offers a starting point; existing field choices always win. */

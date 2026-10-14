@@ -39,9 +39,9 @@ fn creator_title(creator: &ExtractedCreator) -> String {
 fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind, Vec<String>)> {
     let mut values = vec![];
     for (role, label) in [
-        (CreatorRole::Author, "Author"),
-        (CreatorRole::Editor, "Editor"),
-        (CreatorRole::Translator, "Translator"),
+        (CreatorRole::Author, "author"),
+        (CreatorRole::Editor, "editor"),
+        (CreatorRole::Translator, "translator"),
     ] {
         values.push((
             label,
@@ -56,14 +56,14 @@ fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind
         ));
     }
     for (label, kind, value) in [
-        ("Subtitle", FieldKind::Text, &metadata.subtitle),
-        ("Published", FieldKind::Date, &metadata.published),
-        ("Publisher", FieldKind::Text, &metadata.publisher),
-        ("Site", FieldKind::Text, &metadata.site),
-        ("Volume", FieldKind::Text, &metadata.volume),
-        ("Issue", FieldKind::Text, &metadata.issue),
-        ("Page range", FieldKind::Text, &metadata.page_range),
-        ("Language", FieldKind::Text, &metadata.language),
+        ("subtitle", FieldKind::Text, &metadata.subtitle),
+        ("published", FieldKind::Date, &metadata.published),
+        ("publisher", FieldKind::Text, &metadata.publisher),
+        ("site", FieldKind::Text, &metadata.site),
+        ("volume", FieldKind::Text, &metadata.volume),
+        ("issue", FieldKind::Text, &metadata.issue),
+        ("page range", FieldKind::Text, &metadata.page_range),
+        ("language", FieldKind::Text, &metadata.language),
     ] {
         values.push((
             label,
@@ -72,7 +72,7 @@ fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind
                 .iter()
                 .filter(|s| !s.trim().is_empty())
                 .map(|value| {
-                    if label == "Language" {
+                    if label == "language" {
                         normalize_language_name(value).to_owned()
                     } else {
                         value.clone()
@@ -82,7 +82,7 @@ fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind
         ));
     }
     values.push((
-        "Identifier",
+        "identifier",
         FieldKind::Identifier,
         metadata
             .identifiers
@@ -91,7 +91,7 @@ fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind
             .collect(),
     ));
     values.push((
-        "URL",
+        "url",
         FieldKind::Url,
         metadata.url.iter().cloned().collect(),
     ));
@@ -100,7 +100,7 @@ fn metadata_values(metadata: &ExtractedMetadata) -> Vec<(&'static str, FieldKind
         .as_ref()
         .filter(|s| s.starts_with("/api/library/covers/"))
     {
-        values.push(("Cover", FieldKind::Text, vec![cover.clone()]));
+        values.push(("cover", FieldKind::Text, vec![cover.clone()]));
     }
     values
 }
@@ -260,6 +260,31 @@ impl<'a> Planner<'a> {
             base_revision: 1,
             kind,
         });
+        // A built-in relation links to its types where those pages already exist; it never creates them.
+        let targets: Vec<String> = crate::built_in::field_named(label)
+            .filter(|_| kind == FieldKind::Instance)
+            .map_or(&[][..], |field| field.targets)
+            .iter()
+            .filter_map(|title| {
+                self.pages
+                    .get(&title.to_lowercase())
+                    .map(|page| page.0.clone())
+                    .or_else(|| {
+                        self.notebook
+                            .page_by_title(title)
+                            .ok()
+                            .flatten()
+                            .map(|page| page.id)
+                    })
+            })
+            .collect();
+        if !targets.is_empty() {
+            self.operations.push(Operation::SetFieldTargets {
+                id: id.clone(),
+                base_revision: 2,
+                targets: targets.clone(),
+            });
+        }
         self.fields.insert(
             key,
             crate::FieldDefinition {
@@ -269,9 +294,10 @@ impl<'a> Planner<'a> {
                 hide: crate::FieldHide::Never,
                 role: crate::FieldRole::Attribute,
                 archived: false,
-                revision: 2,
+                revision: if targets.is_empty() { 2 } else { 3 },
                 options: vec![],
-                targets: vec![],
+                targets,
+                built_in: crate::built_in::field_named(label).is_some(),
             },
         );
         id
@@ -368,9 +394,9 @@ impl<'a> Planner<'a> {
                 continue;
             }
             let role = match *label {
-                "Author" => Some(CreatorRole::Author),
-                "Editor" => Some(CreatorRole::Editor),
-                "Translator" => Some(CreatorRole::Translator),
+                "author" => Some(CreatorRole::Author),
+                "editor" => Some(CreatorRole::Editor),
+                "translator" => Some(CreatorRole::Translator),
                 _ => None,
             };
             let mut creators = metadata
@@ -414,7 +440,7 @@ impl<'a> Planner<'a> {
                     }
                 };
                 if let Some(id) = page {
-                    if create && matches!(*label, "Author" | "Editor" | "Translator") {
+                    if create && matches!(*label, "author" | "editor" | "translator") {
                         let revision = self
                             .pages
                             .values()
@@ -434,29 +460,18 @@ impl<'a> Planner<'a> {
         Ok(values)
     }
     fn template(&mut self, format: SourceFormat) -> Result<String> {
-        let (title, labels) = match format {
-            SourceFormat::Epub | SourceFormat::Record => (
-                "Book",
-                vec![
-                    ("Author", FieldKind::Instance),
-                    ("Editor", FieldKind::Instance),
-                    ("Translator", FieldKind::Instance),
-                    ("Published", FieldKind::Date),
-                    ("Publisher", FieldKind::Text),
-                    ("Identifier", FieldKind::Identifier),
-                    ("Language", FieldKind::Text),
-                ],
-            ),
-            SourceFormat::Article => (
-                "Article",
-                vec![
-                    ("Author", FieldKind::Instance),
-                    ("Site", FieldKind::Text),
-                    ("Published", FieldKind::Date),
-                    ("URL", FieldKind::Url),
-                ],
-            ),
+        let title = match format {
+            SourceFormat::Epub | SourceFormat::Record => "Book",
+            SourceFormat::Article => "Article",
         };
+        let labels: Vec<(&str, FieldKind)> = crate::built_in::schema(&title.to_lowercase())
+            .iter()
+            .map(|(name, _)| {
+                let field =
+                    crate::built_in::field_named(name).expect("schemas name built-in fields");
+                (field.name, field.kind)
+            })
+            .collect();
         let (id, revision) = self.page(title)?;
         let has: bool = self.notebook.conn.query_row(
             "SELECT EXISTS(
@@ -479,7 +494,7 @@ impl<'a> Planner<'a> {
             self.pages.insert(title.to_lowercase(), (id, revision + 1));
         }
         for (label, _) in labels {
-            if matches!(label, "Author" | "Editor" | "Translator") {
+            if matches!(label, "author" | "editor" | "translator") {
                 self.constrain_creator_field(label)?;
             }
         }
@@ -624,7 +639,7 @@ impl Notebook {
                 continue;
             }
             let field = planner.field(label, kind);
-            if matches!(label, "Author" | "Editor" | "Translator") {
+            if matches!(label, "author" | "editor" | "translator") {
                 planner.constrain_creator_field(label)?;
             }
             let entry = crate::notebook::new_ulid().to_string();
@@ -835,7 +850,7 @@ impl Notebook {
                 continue;
             }
             let field = planner.field(label, kind);
-            if matches!(label, "Author" | "Editor" | "Translator") {
+            if matches!(label, "author" | "editor" | "translator") {
                 planner.constrain_creator_field(label)?;
             }
             let entry: Option<String> = self

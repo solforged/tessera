@@ -4,6 +4,7 @@
 mod agent;
 mod aliases;
 mod backup;
+mod built_in;
 pub mod calendar;
 pub mod capabilities;
 mod card_query;

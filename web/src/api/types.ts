@@ -330,7 +330,7 @@ export interface QueryAttributeValue { text: string; reading: Reading }
 export interface QueryAttribute { key: string; name: string; kind: FieldKind }
 export interface QueryGroup { key: string; title: string; target: string | null; row_ids: string[]; count: number }
 export interface QueryRow { block: BlockInPage; values: Record<string, FieldValue[]>; attributes?: Record<string, QueryAttributeValue[]> }
-export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[]; targets: string[]; hide?: FieldHide; role?: FieldRole; archived?: boolean }
+export interface FieldDefinition { id: string; name: string; kind: FieldKind; revision: number; options: { id: string; text: string }[]; targets: string[]; hide?: FieldHide; role?: FieldRole; archived?: boolean; /** Created and named by the app: only its case can change. */ built_in?: boolean }
 export interface QueryResult { fields: FieldDefinition[]; columns: string[]; rows: QueryRow[]; total: number; note_groups?: NoteGroup[]; attributes?: QueryAttribute[]; groups?: QueryGroup[] }
 export interface FieldSummary extends FieldDefinition { owners: number; types: { id: string; name: string }[] }
 export interface Fields { page_id: string; fields: FieldSummary[] }

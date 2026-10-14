@@ -37,7 +37,7 @@ export function TaskProjectControl(props: { notebook: NotebookClient; doc: PageD
           { op: 'set_project', id: projectId, base_revision: revision, project: { status: 'active', outcome: '', deadline: null } },
         ], 'New project');
       }
-      const field = projectId ? await ensureField(props.notebook, 'Project', 'instance') : projects.metadata()?.fields.find(field => field.name.toLowerCase() === 'project' && field.kind === 'instance');
+      const field = projectId ? await ensureField(props.notebook, 'project', 'instance') : projects.metadata()?.fields.find(field => field.name.toLowerCase() === 'project' && field.kind === 'instance');
       if (field) {
         if (field.kind !== 'instance') throw new Error('Project must be an instance field.');
         const result = props.doc.edit({ kind: 'taskProject', id: props.id, fieldId: field.id, projectId });
