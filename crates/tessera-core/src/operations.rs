@@ -1779,6 +1779,14 @@ impl Engine<'_, '_> {
                 let current = self.checked(id, *base_revision, index, false)?;
                 self.tx.execute("INSERT INTO fields(block_id, kind) VALUES (?1, ?2) ON CONFLICT(block_id) DO UPDATE SET kind = excluded.kind",
                     params![id, kind.as_str()])?;
+                // A built-in field that becomes a relation links to its built-in types at once, as opening would.
+                if *kind == crate::FieldKind::Instance
+                    && let Some(field) = crate::built_in::field_named(&current.block.text)
+                    && crate::fields::targets(self.tx, id)?.is_empty()
+                {
+                    let targets = crate::built_in::targets(self.tx, field)?;
+                    crate::fields::file_targets(self.tx, id, &targets)?;
+                }
                 self.bump(&current, true)
             }
             Operation::SetFieldHide {
@@ -1854,22 +1862,20 @@ impl Engine<'_, '_> {
                 }
                 let mut unique = HashSet::with_capacity(targets.len());
                 for target in targets {
-                    let block = self.live(target)?;
-                    if block.block.kind != BlockKind::Page || block.block.archived {
-                        return Err(validation("target type must be a live page"));
-                    }
                     if !unique.insert(target) {
                         return Err(validation("duplicate field target"));
                     }
                 }
-                self.tx
-                    .execute("DELETE FROM field_targets WHERE field_id = ?1", [id])?;
-                let mut insert = self.tx.prepare_cached(
-                    "INSERT INTO field_targets(field_id, type_id, position) VALUES (?1, ?2, ?3)",
-                )?;
-                for (position, target) in targets.iter().enumerate() {
-                    insert.execute(params![id, target, position as i64])?;
+                for target in targets
+                    .iter()
+                    .filter(|target| *target != crate::fields::SOURCE_TARGET)
+                {
+                    let block = self.live(target)?;
+                    if block.block.kind != BlockKind::Page || block.block.archived {
+                        return Err(validation("target type must be a live page"));
+                    }
                 }
+                crate::fields::file_targets(self.tx, id, targets)?;
                 self.bump(&current, true)
             }
             Operation::SetTypeFields {

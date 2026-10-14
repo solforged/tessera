@@ -341,11 +341,38 @@ pub(crate) fn rebuild(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
+/// The Links to entry for sources, which are a capability rather than a type page; named like their note kind.
+pub const SOURCE_TARGET: &str = "source";
+
+/// A relation's Links to entries: [`SOURCE_TARGET`] first when it links to sources, then its type pages.
 pub(crate) fn targets(conn: &Connection, id: &str) -> Result<Vec<String>> {
     Ok(conn
-        .prepare_cached("SELECT type_id FROM field_targets WHERE field_id = ?1 ORDER BY position")?
-        .query_map([id], |row| row.get(0))?
+        .prepare_cached(
+            "SELECT ?2 FROM fields WHERE block_id = ?1 AND links_sources = 1
+             UNION ALL SELECT * FROM (SELECT type_id FROM field_targets WHERE field_id = ?1 ORDER BY position)",
+        )?
+        .query_map(params![id, SOURCE_TARGET], |row| row.get(0))?
         .collect::<rusqlite::Result<_>>()?)
+}
+
+/// Replaces a relation's Links to with checked `targets`, [`SOURCE_TARGET`] among them or not.
+pub(crate) fn file_targets(conn: &Connection, id: &str, targets: &[String]) -> Result<()> {
+    conn.execute(
+        "UPDATE fields SET links_sources = ?2 WHERE block_id = ?1",
+        params![id, targets.iter().any(|target| target == SOURCE_TARGET)],
+    )?;
+    conn.execute("DELETE FROM field_targets WHERE field_id = ?1", [id])?;
+    let mut insert = conn.prepare_cached(
+        "INSERT INTO field_targets(field_id, type_id, position) VALUES (?1, ?2, ?3)",
+    )?;
+    for (position, target) in targets
+        .iter()
+        .filter(|target| *target != SOURCE_TARGET)
+        .enumerate()
+    {
+        insert.execute(params![id, target, position as i64])?;
+    }
+    Ok(())
 }
 
 pub(crate) fn definitions(conn: &Connection) -> Result<Vec<FieldDefinition>> {
@@ -571,6 +598,15 @@ impl Notebook {
             .pop()
             .ok_or_else(|| not_found(id))?;
         let kind = kind.unwrap_or(definition.kind);
+        let mut definition = definition;
+        // A built-in field previewed as a relation reads against the Links to that changing its kind files.
+        if kind == FieldKind::Instance
+            && definition.kind != kind
+            && definition.targets.is_empty()
+            && let Some(field) = crate::built_in::field_named(&definition.name)
+        {
+            definition.targets = crate::built_in::targets(&self.conn, field)?;
+        }
         let option_uses = if kind == FieldKind::Choice {
             definition
                 .options
@@ -854,22 +890,24 @@ pub(crate) fn constrained_reading(
         target: Some(id), ..
     } = &reading
     {
+        // The definition's own targets, which a kind preview may fill before they are filed.
+        let targets = serde_json::json!(definition.targets).to_string();
         let matches: bool = conn
             .prepare_cached(
-                "SELECT EXISTS(SELECT 1 FROM memberships m
-             JOIN field_targets t ON t.type_id = m.type_id
-             JOIN blocks ty ON ty.id = t.type_id
-             WHERE m.block_id = ?1 AND t.field_id = ?2
-             AND ty.deletion_id IS NULL AND ty.archived = 0)",
+                "SELECT EXISTS(SELECT 1 FROM memberships m JOIN blocks ty ON ty.id = m.type_id
+             WHERE m.block_id = ?1 AND m.type_id IN (SELECT value FROM json_each(?2))
+             AND ty.deletion_id IS NULL AND ty.archived = 0)
+             OR (?3 IN (SELECT value FROM json_each(?2))
+                 AND EXISTS(SELECT 1 FROM sources WHERE block_id = ?1 AND active = 1))",
             )?
-            .query_row(params![id, definition.id], |row| row.get(0))?;
+            .query_row(params![id, targets, SOURCE_TARGET], |row| row.get(0))?;
         if !matches {
             let names = conn
                 .prepare_cached(
-                    "SELECT b.text FROM field_targets t JOIN blocks b ON b.id = t.type_id
-                 WHERE t.field_id = ?1 ORDER BY t.position",
+                    "SELECT COALESCE(b.text, t.value) FROM json_each(?1) t
+                 LEFT JOIN blocks b ON b.id = t.value ORDER BY t.key",
                 )?
-                .query_map([&definition.id], |row| row.get::<_, String>(0))?
+                .query_map([&targets], |row| row.get::<_, String>(0))?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             return Ok(Reading::Problem {
                 ok: false,

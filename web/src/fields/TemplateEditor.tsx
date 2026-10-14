@@ -15,6 +15,7 @@ import { fieldKinds, kindLabels, kindNoun } from './kinds';
 import { TypePresentation } from './TypePresentation';
 import { requiredIds, requiredReason } from './required';
 import { entryAnchor, startingTemplateFor } from './templates';
+import { linksToSummary } from './targets';
 import './fields.css';
 
 interface Gap { owner: string; page: string; fields: string[] }
@@ -78,7 +79,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
     remember(`${field.name} is now a ${kindNoun(kind)} field.`)(await changeFieldKind(props.notebook, detail, {}));
   });
   const kindSummary = (field: FieldDefinition) => field.kind === 'instance'
-    ? `${kindLabels.instance} → ${field.targets.map(id => props.notebook.lookup(id)()?.text ?? '…').join(', ') || 'any block'}`
+    ? `${kindLabels.instance} → ${linksToSummary(props.notebook, field.targets, 'any block')}`
     : field.kind === 'choice' ? `${kindLabels.choice} · ${field.options.length} ${field.options.length === 1 ? 'option' : 'options'}` : kindLabels[field.kind];
   const setFields = (fields: string[]) => run(() => props.notebook.commit([{ op: 'set_type_fields', type_id: props.type.page.id, base_revision: props.type.page.revision, fields }], 'Change type template'));
   function move(index: number, by: -1 | 1) {
@@ -187,7 +188,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
       ]} />;
     }}</Show>}</Show>
     <Show when={linksMenu()}>{menu => <Show when={byId().get(menu().id)}>{field => <LinksToPopup anchor={menu().anchor} notebook={props.notebook} targets={field().targets} disabled={busy()} onDismiss={() => setLinksMenu(null)}
-      onApply={targets => { const current = field(); setLinksMenu(null); void run(async () => remember(`${current.name} links to ${targets.map(id => props.notebook.lookup(id)()?.text ?? '…').join(', ') || 'any block'}.`)(await setFieldTargets(props.notebook, current, targets))); }} />}</Show>}</Show>
+      onApply={targets => { const current = field(); setLinksMenu(null); void run(async () => remember(`${current.name} links to ${linksToSummary(props.notebook, targets, 'any block')}.`)(await setFieldTargets(props.notebook, current, targets))); }} />}</Show>}</Show>
     <Show when={picker()}>{anchor => <FieldPicker anchor={anchor()} label="Add field to template" fields={props.fields} exclude={new Set(props.type.fields)}
       onPick={field => { setPicker(null); void setFields([...props.type.fields, field.id]); }}
       onCreate={(name, kind) => { setPicker(null); void run(() => createTemplateField(props.notebook, props.type, name, kind)); }} onDismiss={() => setPicker(null)} />}</Show>

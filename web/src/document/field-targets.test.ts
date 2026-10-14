@@ -9,6 +9,7 @@ import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import { createInstance, instancePages, relationCandidates, relationMembers } from '../fields/instances';
 import { changeFieldKind } from '../fields/commands';
+import { SOURCE_TARGET, sourceOperation } from '../fields/targets';
 
 // This integration test waits for a real service and document I/O, which fake timers cannot drive.
 async function eventually(predicate: () => boolean) {
@@ -89,6 +90,59 @@ test('target edits undo and redo, while instance choices follow actual page memb
       await mapped.redo();
       expect((await api.fieldDetail(mentor)).problems_total).toBe(0);
     } finally { doc.release(); }
+  } finally {
+    await notebook?.dispose(); process.kill(); await process.exited; await rm(directory, { recursive: true, force: true });
+  }
+}, 20000);
+
+test('work becomes a relation to Sources, and its review makes created pages sources', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'tessera-source-targets-test-'));
+  const root = resolve(import.meta.dir, '../../..');
+  const listener = Bun.listen({ hostname: '127.0.0.1', port: 0, socket: { data() {} } });
+  const port = listener.port!; listener.stop(true);
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const api = createApi(baseUrl);
+  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  let notebook: Notebook | undefined;
+  try {
+    const deadline = Date.now() + 5000;
+    while (true) {
+      try { await api.notebook(); break; }
+      catch { if (Date.now() > deadline) throw new Error('Service did not start.'); await Bun.sleep(20); }
+    }
+    const info = await api.notebook();
+    notebook = createNotebookClient({ baseUrl, notebookId: info.id, sessionId: ulid(), databaseName: `source-targets-${ulid()}` });
+    await notebook.ready;
+    const fields = await api.fields();
+    const book = ulid(); const plain = ulid(); const work = ulid(); const owner = ulid();
+    const [linked, linkedValue, written, writtenValue] = [ulid(), ulid(), ulid(), ulid()];
+    await notebook.commit([
+      { op: 'create_page', id: book, title: 'The Structure of Scientific Revolutions' }, sourceOperation(book, 1),
+      { op: 'create_page', id: plain, title: 'Kuhn' }, { op: 'create_page', id: owner, title: 'Paradigms' },
+      { op: 'insert', id: work, parent_id: fields.page_id, after: null, text: 'work', heading: null },
+      { op: 'insert', id: linked, parent_id: owner, after: null, text: `[[${work}]]`, heading: null },
+      { op: 'insert', id: linkedValue, parent_id: linked, after: null, text: `[[${book}||p. 12]]`, heading: null },
+      { op: 'insert', id: written, parent_id: owner, after: linked, text: `[[${work}]]`, heading: null },
+      { op: 'insert', id: writtenValue, parent_id: written, after: null, text: 'Kuhn 1962', heading: null },
+    ]);
+    expect((await relationMembers(notebook, [SOURCE_TARGET])).pages.map(page => page.id)).toEqual([book]);
+
+    // The preview reads values against Sources: the linked source maps across, the plain text needs one.
+    const preview = await api.fieldDetail(work, 'instance');
+    expect(preview.field.targets).toEqual([SOURCE_TARGET]);
+    expect(preview.problems_total).toBe(1);
+    const change = await changeFieldKind(notebook, preview, { 'Kuhn 1962': { mode: 'create', value: 'Kuhn 1962' } });
+    const after = await api.fieldDetail(work);
+    expect([after.field.kind, after.field.targets, after.problems_total]).toEqual(['instance', [SOURCE_TARGET], 0]);
+    await change.undo();
+    expect((await api.fieldDetail(work)).field.kind).toBe('text');
+    await change.redo();
+    expect((await api.fieldDetail(work)).problems_total).toBe(0);
+    expect((await relationMembers(notebook, [SOURCE_TARGET])).pages.map(page => page.text).sort()).toEqual(['Kuhn 1962', 'The Structure of Scientific Revolutions']);
+
+    // The picker's Create source makes one too.
+    const created = await createInstance(notebook, 'Against Method', undefined, true);
+    expect((await relationMembers(notebook, [SOURCE_TARGET])).pages.map(page => page.id)).toContain(created.id);
   } finally {
     await notebook?.dispose(); process.kill(); await process.exited; await rm(directory, { recursive: true, force: true });
   }

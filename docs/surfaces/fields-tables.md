@@ -61,17 +61,17 @@ Creating a definition always uses a new block ID. Blank outline rows under Field
 
 Changing kind opens an interpretation map on the field page before applying. Register rows, the inspector and a note's field menu open the same map. It lists every distinct written value and its use count under Mapped values, Readable as written, or Ambiguous or unreadable.
 
-Choice rows have an editable option name and a mapping checkbox. Existing options are reused; several written values can share one name. Unchecking a row leaves it as written. Relation rows propose a page only when its title or alias matches exactly and uniquely. Choose page adjusts the target; Create page explicitly requests creation during Apply and files the page under the field's only Links to type. Blocks are chosen by hand after the change. Other kinds show their readings, including inclusive year bounds for Span.
+Choice rows have an editable option name and a mapping checkbox. Existing options are reused; several written values can share one name. Unchecking a row leaves it as written. Relation rows propose a page only when its title or alias matches exactly and uniquely. Choose page adjusts the target; Create page explicitly requests creation during Apply and files the page under the field's only Links to type, or makes it a source when that is Source. Blocks are chosen by hand after the change. Other kinds show their readings, including inclusive year bounds for Span.
 
 Apply changes the kind and all reviewed mappings in one undoable edit. Unmapped values stay as written and show a problem when unreadable. Owners and child notes stay in place. Cancel writes nothing.
 
 ## Links to
 
-Relation definitions show **Links to** below Kind, both on their page and in the Fields inspector. The type checklist applies as one undoable change; no selected type reads **Any block**. Members of the selected types qualify whether they are pages or tagged blocks inside a page. A reference outside the selected types stays written and reads as a problem.
+Relation definitions show **Links to** below Kind, both on their page and in the Fields inspector. The checklist offers Source first, then the types, and applies as one undoable change; no selection reads **Any block**. Members of the selected types qualify whether they are pages or tagged blocks inside a page, and Source admits any source. A reference outside the selected types stays written and reads as a problem.
 
 Library Author, Editor and Translator start with Person and Group targets. Import and the one-time notebook backfill file untyped creator pages as Person without changing pages already filed elsewhere.
 
-Metadata suggestions, field-slot pickers and value pickers for such a field show members of the target types. Page titles and aliases match with the notebook's name folding; an exact alias match does not offer duplicate creation. Blocks match by label and show their page beside it. Blocks on the owner's page lead under **On this page**, and the owner is never offered. A query that names no page exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together. A type with block members offers no creation.
+Metadata suggestions, field-slot pickers and value pickers for such a field show members of the target types. Page titles and aliases match with the notebook's name folding; an exact alias match does not offer duplicate creation. Blocks match by label and show their page beside it. Blocks on the owner's page lead under **On this page**, and the owner is never offered. A query that names no page exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together. A field that links to Source offers **Create source “Title”**, a manual record in the Inbox. A type with block members offers no creation.
 
 Without Links to types, the picker offers pages, and from the third character also blocks found by search under **Blocks**.
 

@@ -2,8 +2,9 @@ import { ulid } from 'ulid';
 import type { Block, BlockInPage } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { completeNames, foldName, targetLabel } from '../outline/names';
+import { SOURCE_TARGET, sourceOperation } from './targets';
 
-/** Members of a field's target types: pages, and blocks with their containing page. */
+/** Members of a field's target types, and sources when it links to them: pages, and blocks with their containing page. */
 export interface RelationMembers { pages: Block[]; blocks: BlockInPage[] }
 
 /** Target membership is read from the model, not inferred from a page's title. */
@@ -14,7 +15,9 @@ export async function relationMembers(notebook: NotebookClient, targets: readonl
   await Promise.all(targets.map(async type => {
     let offset = 0;
     while (true) {
-      const result = await notebook.api.query({ type, text: null, filters: [], sort: [], limit: 2000, offset });
+      const result = await notebook.api.query(type === SOURCE_TARGET
+        ? { type: null, note_kind: SOURCE_TARGET, text: null, filters: [], sort: [], limit: 2000, offset }
+        : { type, text: null, filters: [], sort: [], limit: 2000, offset });
       for (const row of result.rows) {
         const block = row.block.block;
         if (block.archived) continue;
@@ -58,12 +61,13 @@ export async function relationCandidates(notebook: NotebookClient, members: Rela
   return { rows: [...here, ...pages, ...blocks.filter(row => !row.here)], canCreate: names.canCreate && !members.blocks.length };
 }
 
-/** Creation and filing travel together, including when the picker is used offline. */
-export async function createInstance(notebook: NotebookClient, title: string, typeTitle?: string): Promise<Block> {
+/** Creation and filing travel together, including when the picker is used offline. A page made for Source becomes one. */
+export async function createInstance(notebook: NotebookClient, title: string, typeTitle?: string, source = false): Promise<Block> {
   const id = ulid();
   await notebook.commit([
     { op: 'create_page', id, title: title.trim() },
     ...(typeTitle ? [{ op: 'add_type' as const, id, base_revision: 1, title: typeTitle }] : []),
+    ...(source ? [sourceOperation(id, 1)] : []),
   ], 'Create linked page');
   return notebook.api.block(id);
 }

@@ -84,6 +84,7 @@ pub use card_templates::{
     CardTemplateProvenance, CardTemplateWaiting, TemplateLoadDay,
 };
 pub use error::{Error, Result};
+pub use fields::SOURCE_TARGET;
 pub use migrate::SCHEMA_VERSION;
 pub use model::{
     Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, ChangeStamp, Committed,

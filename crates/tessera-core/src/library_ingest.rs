@@ -265,7 +265,10 @@ impl<'a> Planner<'a> {
             .filter(|_| kind == FieldKind::Instance)
             .map_or(&[][..], |field| field.targets)
             .iter()
-            .filter_map(|title| {
+            .filter_map(|&title| {
+                if title == crate::fields::SOURCE_TARGET {
+                    return Some(title.to_owned());
+                }
                 self.pages
                     .get(&title.to_lowercase())
                     .map(|page| page.0.clone())

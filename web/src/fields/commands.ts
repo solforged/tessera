@@ -4,8 +4,9 @@ import type { DocumentChange, NotebookClient, PageDocument } from '../document/c
 import { fieldEntryId, queryFieldIds, remapQueryField } from '../table/query';
 import { documentReady } from '../outline/source-fields';
 import { fieldNameProblem } from './kinds';
+import { SOURCE_TARGET, sourceOperation } from './targets';
 
-type Write = Extract<Operation, { op: 'insert' | 'create_page' | 'edit_text' | 'set_field_kind' | 'set_field_targets' | 'set_type_fields' | 'set_archived' | 'move' | 'delete' | 'restore' | 'add_type' | 'remove_type' }> | (Extract<Operation, { op: 'save_view' }> & { base_revision: number });
+type Write = Extract<Operation, { op: 'insert' | 'create_page' | 'edit_text' | 'set_field_kind' | 'set_field_targets' | 'set_type_fields' | 'set_archived' | 'move' | 'delete' | 'restore' | 'add_type' | 'remove_type' | 'set_source' }> | (Extract<Operation, { op: 'save_view' }> & { base_revision: number });
 interface Step { forward: Write; backward: Write }
 const revision = (receipt: Committed, id: string) => {
   const value = receipt.revisions.find(value => value.id === id);
@@ -68,9 +69,11 @@ export async function changeFieldKind(notebook: NotebookClient, detail: FieldDet
   });
   const options = new Map(detail.field.options.map(option => [option.text.trim().toLocaleLowerCase(), option.id]));
   const created = new Map<string, string>();
-  // A created page joins the field's only target type, so it reads as a member at once; with several, the choice is the author's.
+  // A created page joins the field's only target type, or becomes a source, so it reads as a member at once; with
+  // several, the choice is the author's.
   const [only, ...others] = detail.kind === 'instance' ? detail.field.targets : [];
-  const fileUnder = only && !others.length && Object.values(convert).some(mapping => mapping.mode === 'create') ? (await notebook.api.block(only)).text : null;
+  const sole = only && !others.length && Object.values(convert).some(mapping => mapping.mode === 'create') ? only : null;
+  const fileUnder = sole && sole !== SOURCE_TARGET ? (await notebook.api.block(sole)).text : null;
   let after = detail.field.options.at(-1)?.id ?? null;
   for (const row of detail.interpretations) {
     const mapping = convert[row.text];
@@ -89,6 +92,7 @@ export async function changeFieldKind(notebook: NotebookClient, detail: FieldDet
       if (!created.has(title)) {
         steps.push({ forward: { op: 'create_page', id: target, title }, backward: { op: 'delete', id: target, base_revision: 0 } });
         if (fileUnder) steps.push({ forward: { op: 'add_type', id: target, base_revision: 1, title: fileUnder }, backward: { op: 'remove_type', id: target, base_revision: 0, title: fileUnder } });
+        if (sole === SOURCE_TARGET) steps.push({ forward: sourceOperation(target, 1), backward: { op: 'set_source', id: target, base_revision: 0, source: null } });
         created.set(title, target); pages.add(target);
       }
     } else target = mapping.value;

@@ -1,4 +1,6 @@
-use tessera_core::{Actor, Batch, Error, FieldKind, Notebook, Operation, Reading, library::*};
+use tessera_core::{
+    Actor, Batch, Error, FieldKind, Notebook, Operation, Reading, SOURCE_TARGET, library::*,
+};
 
 fn id(n: u128) -> String {
     ulid::Ulid::from(n).to_string()
@@ -485,4 +487,121 @@ fn required_fields_count_members_without_a_value_and_stay_in_the_template() {
     assert_eq!(nb.type_info(&id(1)).unwrap().fields, [id(11), author]);
     // Other types carry no requirement.
     assert!(nb.type_info(&id(2)).unwrap().required.is_empty());
+}
+
+#[test]
+fn sources_are_a_links_to_choice_beside_types_and_built_in_work_links_to_them() {
+    let (dir, mut nb) = fixture();
+    let op = target(&nb, vec![id(2), SOURCE_TARGET.into()]);
+    nb.apply(&batch(vec![op])).unwrap();
+    let detail = nb.field_detail(&id(10), None, None).unwrap();
+    // Sources come first, whatever order they were chosen in.
+    assert_eq!(
+        detail.field.definition.targets,
+        [SOURCE_TARGET.to_owned(), id(2)]
+    );
+    assert_eq!(
+        detail.problems[0].value.reading,
+        Reading::Problem {
+            ok: false,
+            problem: "Not a source or person".into()
+        }
+    );
+    nb.apply(&batch(vec![Operation::SetSource {
+        id: id(4),
+        base_revision: nb.block(&id(4)).unwrap().revision,
+        source: Some(SourceState {
+            format: SourceFormat::Record,
+            state: ReadingState::Inbox,
+            origin: None,
+            match_key: None,
+            citation_key: None,
+        }),
+    }]))
+    .unwrap();
+    assert!(
+        nb.field_detail(&id(10), None, None)
+            .unwrap()
+            .problems
+            .is_empty()
+    );
+    let op = target(&nb, vec![SOURCE_TARGET.into(), SOURCE_TARGET.into()]);
+    assert!(matches!(
+        nb.apply(&batch(vec![op])),
+        Err(Error::Validation { .. })
+    ));
+    let op = target(&nb, vec![]);
+    nb.apply(&batch(vec![op])).unwrap();
+    let definition = nb
+        .field_detail(&id(10), None, None)
+        .unwrap()
+        .field
+        .definition;
+    assert!(definition.targets.is_empty());
+
+    // Opening files Sources on built-in relations that have no Links to, but never changes a kind.
+    let fields = nb.fields().unwrap().page_id;
+    nb.apply(&batch(vec![
+        child(30, &fields, "coined in"),
+        Operation::SetFieldKind {
+            id: id(30),
+            base_revision: 1,
+            kind: FieldKind::Instance,
+        },
+        child(31, &fields, "work"),
+    ]))
+    .unwrap();
+    drop(nb);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let definition = |nb: &Notebook, n| {
+        nb.field_detail(&id(n), None, None)
+            .unwrap()
+            .field
+            .definition
+    };
+    assert_eq!(definition(&nb, 30).targets, [SOURCE_TARGET]);
+    let work = definition(&nb, 31);
+    assert_eq!((work.kind, work.targets.len()), (FieldKind::Text, 0));
+
+    // Previewing work as a relation reads its values against Sources, so the review shows which are not.
+    nb.apply(&batch(vec![
+        page(5, "Not a source"),
+        child(40, &id(1), "A reading"),
+        child(41, &id(40), &format!("[[{}]]", id(31))),
+        child(42, &id(41), &format!("[[{}||p. 12]]", id(4))),
+        child(43, &id(40), &format!("[[{}]]", id(31))),
+        child(44, &id(43), &format!("[[{}]]", id(5))),
+        child(45, &id(40), &format!("[[{}]]", id(31))),
+        child(46, &id(45), "Kuhn 1962"),
+    ]))
+    .unwrap();
+    let preview = nb
+        .field_detail(&id(31), Some(FieldKind::Instance), None)
+        .unwrap();
+    assert_eq!(preview.field.definition.targets, [SOURCE_TARGET]);
+    let mut problems: Vec<_> = preview
+        .interpretations
+        .iter()
+        .filter_map(|row| match &row.reading {
+            Reading::Problem { problem, .. } => Some((row.text.as_str(), problem.as_str())),
+            Reading::Value { .. } => None,
+        })
+        .collect();
+    problems.sort();
+    let unlinked = format!("[[{}]]", id(5));
+    assert_eq!(
+        problems,
+        [
+            ("Kuhn 1962", "not a reference"),
+            (unlinked.as_str(), "Not a source")
+        ]
+    );
+    // Changing the kind files them at once, as opening would.
+    nb.apply(&batch(vec![Operation::SetFieldKind {
+        id: id(31),
+        base_revision: work.revision,
+        kind: FieldKind::Instance,
+    }]))
+    .unwrap();
+    assert_eq!(definition(&nb, 31).targets, [SOURCE_TARGET]);
 }

@@ -198,7 +198,7 @@ Values are plain blocks read through the field's kind. A value that does not fit
 | Date | Links to a journal day or spells out the date. A bare year or year-month is valid for sources dated no more precisely. |
 | Span | Keeps the written historical notation and reads an inclusive year range. BCE years are negative; unknown bounds are open. |
 | Choice | Links to its option. |
-| Relation | Links to a live block: a page, a journal day or a block inside a page. With Links to types, the target must be a member of one, by tag or manually. |
+| Relation | Links to a live block: a page, a journal day or a block inside a page. With Links to types, the target must be a member of one, by tag or manually. Links to can also name Source, which any page with a source capability meets. |
 | URL | An absolute `http` or `https` address. |
 | Identifier | Reads an ISBN, DOI or arXiv ID in its usual spellings. Normalizes to `isbn:` with 13 digits, lowercase `doi:` or `arxiv:`, so the same work matches however it was written. |
 
@@ -206,7 +206,7 @@ A relation target's label is its first line as plain text: trailing tags are dro
 
 A relation reads from both ends. Its target lists each owner whose value is exactly a reference to it, as `← qualifies` followed by the owners' labels, with no inverse name to define. A reference inside longer text stays a mention. Archived definitions and hidden owners or values are left out. author, editor, translator and collections read back elsewhere, as a person's Works and a collection's members, so the target's line omits them.
 
-Changing a field's kind opens a reviewed interpretation map of every distinct written value. Choice mappings reuse or create options, and several spellings can share one option. Relation mappings propose only a page with a unique exact title or alias; creating a page requires an explicit choice, and the new page joins the field's Links to type when it has exactly one. Ambiguous and unreadable values stay as written. Applying the map and kind is one undoable change across every owner. Owner counts include empty entries and count each owning block once. Archived or deleted entries and owners do not count.
+Changing a field's kind opens a reviewed interpretation map of every distinct written value. Choice mappings reuse or create options, and several spellings can share one option. Relation mappings propose only a page with a unique exact title or alias; creating a page requires an explicit choice, and the new page joins the field's Links to type when it has exactly one, or becomes a source when that one is Source. Ambiguous and unreadable values stay as written. Applying the map and kind is one undoable change across every owner. Owner counts include empty entries and count each owning block once. Archived or deleted entries and owners do not count.
 
 Renaming to another definition's name offers a merge preview with affected owners, pages, templates, saved views and conflicts. A merge redirects entries, template slots and saved view references to the surviving definition. It keeps conflicting entries side by side and moves option blocks without changing their identities. Filters, sort keys, column widths, grouping, collapsed headings and phone card fields stay in their original order. One undo restores both definitions, their entries and the exact saved queries.
 
@@ -465,7 +465,7 @@ Change holder and File under write the first and second link tokens through pick
 A position can therefore sit beneath a source-page highlight and still be filed under its concept. Its fields are ordinary children, by convention:
 
 - **Gist:** its one-line summary.
-- **Work:** the primary work it names, which gives its siglum; otherwise the first passage cited beneath it.
+- **Work:** the primary work it names, which gives its siglum; otherwise the first passage cited beneath it. The built-in `work` field is a relation to Source. An older text Work keeps its kind until a reviewed kind change maps its values.
 - **Account:** the secondary account, such as a position as another writer presents it. It shows under its own label, separate from Work and cited evidence.
 - Whatever criteria positions on one subject share.
 
@@ -556,14 +556,14 @@ Built-in kinds start with templates, filled in only when wanted. Their fields ar
 |---|---|
 | person | aliases, lived (span), affiliated with (a relation to Group) |
 | group | aliases, active (span) |
-| concept | aliases, coined by (a relation to Person or Group), coined in (a relation) |
+| concept | aliases, coined by (a relation to Person or Group), coined in (a relation to Source) |
 | book | author (required; a relation to Person or Group), editor, translator, published, publisher, identifier, language |
 | article | author, site, published, url |
 
 - A new type page with one of these titles gets its template. An existing page with an empty template offers it instead.
 - Required is rare: only a book requires author. Opening the notebook adds a missing author to Book's template; every other template field can be removed or reordered.
 - Required asks for attention and never refuses a note. A required field stays in its template: a change that drops it is refused with the reason, such as “Books require author.” A member without a nonblank value is incomplete. Its slot shows whatever the field's Hide setting, and the type reads each required field with a count of the members that lack it, which is the field's `empty` filter.
-- A built-in field cannot be renamed, only recased. Opening the notebook recases older Title Case names, such as Author, and gives a built-in relation with no Links to types the types it expects, where those type pages exist. It never changes a field's kind, so an older `lived` stays text until a reviewed kind change. These are ordinary synced edits.
+- A built-in field cannot be renamed, only recased. Opening the notebook recases older Title Case names, such as Author, and gives a built-in relation with no Links to types the types it expects, where those type pages exist. A built-in field changed to a relation gets them in the same change. Opening never changes a field's kind, so an older `lived` stays text until a reviewed kind change. These are ordinary synced edits.
 - A built-in relation links to its types only where those type pages exist; it never creates Person or Group.
 - A question page uses Add alias, since it has no type to carry a template.
 - A Group's members are the people affiliated with it, read back on its page as `← affiliated with`, not a second list.

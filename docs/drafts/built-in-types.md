@@ -68,7 +68,7 @@ A definition may declare what it counts as, from a fixed vocabulary the core ext
 Built in stage 1 as `ensure_built_in_fields`, a synced, operation-based change like the library creator backfill. It needs no setting: once everything is in place it finds nothing to do.
 
 - **When it runs:** on open, and after a sync clone is adopted.
-- **For each live built-in definition**, it recases the name and gives a relation with no Links to types the types it expects, where those pages exist.
+- **For each live built-in definition**, it recases the name and gives a relation with no Links to types the types it expects, where those pages exist. Source is always there. A kind change to relation files them too.
 - **For each built-in type page that exists**, it appends missing required fields to the template. Expected fields still arrive only with a starting template.
 - **It never changes an existing field's kind,** which stays a reviewed interpretation. A notebook whose `lived` is text keeps it.
 - Still to come: running when a built-in type page is created. Counts-as needs no ensuring, since built-in fields read theirs from the schema.

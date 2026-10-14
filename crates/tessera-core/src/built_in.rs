@@ -6,13 +6,15 @@ use std::collections::HashMap;
 use rusqlite::{Connection, OptionalExtension};
 
 use crate::FieldKind::{self, Date, Identifier, Instance, Number, Span, Text, Url};
+use crate::fields::SOURCE_TARGET;
 use crate::library_ingest::Planner;
 use crate::{Actor, Batch, CountsAs, Notebook, Operation, Result};
 
 pub(crate) struct BuiltInField {
     pub name: &'static str,
     pub kind: FieldKind,
-    /// Titles of the types a relation links to, filed only where those type pages exist.
+    /// Titles of the types a relation links to, filed only where those type pages exist, or
+    /// [`SOURCE_TARGET`] for sources, which every notebook can link to.
     pub targets: &'static [&'static str],
     /// What its values count as; fixed, like its name.
     pub counts_as: Option<CountsAs>,
@@ -88,12 +90,16 @@ pub(crate) const FIELDS: &[BuiltInField] = &[
     },
     person("coined by", CREATORS, CountsAs::Originator),
     BuiltInField {
+        targets: &[SOURCE_TARGET],
         counts_as: Some(CountsAs::Originator),
         ..field("coined in", Instance)
     },
     field("gist", Text),
     field("gloss", Text),
-    field("work", Text),
+    BuiltInField {
+        targets: &[SOURCE_TARGET],
+        ..field("work", Instance)
+    },
     field("account", Text),
     field("project", Instance),
 ];
@@ -146,6 +152,25 @@ pub(crate) fn field_named(name: &str) -> Option<&'static BuiltInField> {
     FIELDS
         .iter()
         .find(|field| field.name.eq_ignore_ascii_case(name))
+}
+
+/// The Links to a built-in relation files: Sources, and those of its types whose pages exist.
+pub(crate) fn targets(conn: &Connection, field: &BuiltInField) -> Result<Vec<String>> {
+    let mut page = conn.prepare_cached(
+        "SELECT id FROM blocks WHERE kind = 'page' AND title_key = ?1 AND deletion_id IS NULL AND archived = 0",
+    )?;
+    let mut targets = Vec::with_capacity(field.targets.len());
+    for &title in field.targets {
+        if title == SOURCE_TARGET {
+            targets.push(title.to_owned());
+        } else if let Some(id) = page
+            .query_row([title.to_lowercase()], |row| row.get(0))
+            .optional()?
+        {
+            targets.push(id);
+        }
+    }
+    Ok(targets)
 }
 
 /// Renaming a built-in field is refused; changing only its case is not, so older names can become lowercase.
@@ -273,12 +298,7 @@ impl Notebook {
                 *revision += 1;
             }
             if definition.kind == Instance && definition.targets.is_empty() {
-                let targets = field
-                    .targets
-                    .iter()
-                    .filter_map(|title| self.page_by_title(title).transpose())
-                    .map(|page| page.map(|page| page.id))
-                    .collect::<Result<Vec<_>>>()?;
+                let targets = targets(&self.conn, field)?;
                 if !targets.is_empty() {
                     operations.push(Operation::SetFieldTargets {
                         id: definition.id.clone(),
