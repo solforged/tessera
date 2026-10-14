@@ -167,6 +167,18 @@ function TableContent(props: TablePaneProps) {
   });
   const attributes = createMemo(() => attributeDefinitions(query().source).map(field => field.id === '@kind' ? { ...field, options: (noteIndex()?.kinds ?? []).map(kind => ({ id: kind.key, text: kind.name })) } : field));
   const pickerFields = createMemo(() => [...attributes(), ...fields()]);
+  /** Sort, Group and Filters offer the type's own fields first, then built-in attributes, then the rest of the notebook's fields. */
+  const fieldGroups = createMemo(() => {
+    const template = new Set(query().type ? type()?.fields ?? [] : []);
+    const own = fields().filter(field => template.has(field.id)).sort((a, b) => [...template].indexOf(a.id) - [...template].indexOf(b.id));
+    return [
+      { section: 'Type template', fields: own },
+      { section: 'Built in', fields: attributes() },
+      { section: own.length ? 'Other fields' : 'Fields', fields: fields().filter(field => !template.has(field.id)) },
+    ].filter(group => group.fields.length);
+  });
+  const fieldItems = (item: (field: FieldDefinition) => Omit<MenuItem, 'label' | 'section'>, omit?: string) =>
+    fieldGroups().flatMap(group => group.fields.filter(field => field.id !== omit).map((field): MenuItem => ({ label: field.name, section: group.section, ...item(field) })));
   const columnChoices = createMemo(() => pickerFields().filter(field => field.id !== '@title' && field.name.toLocaleLowerCase().includes(columnSearch().toLocaleLowerCase())));
   const fieldById = (id: string) => pickerFields().find(field => field.id === id);
   const fieldName = (id: string) => fieldById(id)?.name ?? query().field_names?.[id] ?? 'Missing field';
@@ -494,10 +506,12 @@ function TableContent(props: TablePaneProps) {
       { label: 'New field…', disabledReason: !query().type ? 'Open a type to add fields' : undefined, action: () => { anchor.focus({ preventScroll: true }); setPopup({ kind: 'name', anchor, action: 'field', addColumn: true }); } },
     ] });
   };
-  const sortMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Sort', items: pickerFields().map(field => ({ label: field.name, action: () => updateQuery(chooseSort(query(), { by: 'field', field: field.id })) })) });
+  // A field already sorted on is checked; choosing it again flips its direction.
+  const sortMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Sort', items: fieldItems(field => ({ checked: query().sort.some(key => key.by === 'field' && key.field === field.id), action: () => updateQuery(chooseSort(query(), { by: 'field', field: field.id })) })) });
   const groupMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Group', items: [
     { label: 'No grouping', checked: !query().group, action: () => updateQuery({ ...query(), group: undefined, ...(query().note_view ? { note_view: { ...query().note_view!, grouping: 'letter' } } : {}) }) },
-    ...pickerFields().map(field => ({ label: field.name, checked: query().group?.key === field.id, action: () => updateQuery({ ...query(), group: { key: field.id, collapsed: [] }, ...(query().note_view ? { note_view: { ...query().note_view!, grouping: field.id.startsWith('@') ? 'letter' : `field:${field.id}` } } : {}) }) })),
+    // Every title is its own group, so Title is not offered.
+    ...fieldItems(field => ({ checked: query().group?.key === field.id, action: () => updateQuery({ ...query(), group: { key: field.id, collapsed: [] }, ...(query().note_view ? { note_view: { ...query().note_view!, grouping: field.id.startsWith('@') ? 'letter' : `field:${field.id}` } } : {}) }) }), '@title'),
   ] });
   const sourceMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Source', items: querySources.map(source => ({
     label: source.name, checked: (query().source ?? 'notes') === source.key, action: () => {
@@ -736,7 +750,7 @@ function TableContent(props: TablePaneProps) {
       {state.kind === 'value' && <ValueEditor anchor={state.anchor} field={fieldById(state.field.id) ?? state.field} text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()}
         onCreateOption={text => writeCell(state.row, state.field, '', state.value, text)}
         onWrite={text => writeCell(state.row, state.field, text, state.value)} onError={message} onDismiss={() => { setPopup(null); requestAnimationFrame(() => focusCell(state.row.block.block.id, state.field.id)); }} />}
-      {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={pickerFields()} notebook={props.notebook} initialField={state.field} sheet={narrow()} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}
+      {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={fieldGroups().flatMap(group => group.fields)} notebook={props.notebook} initialField={state.field} sheet={narrow()} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}
       {state.kind === 'name' && <NamePopup anchor={state.anchor} action={state.action} name={state.action === 'rename' ? saved()?.name ?? '' : ''} onDismiss={() => setPopup(null)} onSave={async name => { if (state.action === 'field') await createField(name, !!state.addColumn); else await saveView(name, state.action === 'rename'); }} />}
       {state.kind === 'embed-page' && <EmbedOnPagePicker anchor={state.anchor} view={state.view} notebook={props.notebook} onOpen={props.onOpen} onDismiss={() => setPopup(null)} />}
       {state.kind === 'delete' && <Popup anchor={state.anchor} label="Delete table view?" onDismiss={() => { if (!deleting()) setPopup(null); }}>

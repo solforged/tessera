@@ -1,17 +1,17 @@
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import type { FieldDefinition, Filter, FilterOp } from '../api/types';
+import type { FieldDefinition, FieldKind, Filter, FilterOp } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { instancePages } from '../fields/instances';
 import { completeNames } from '../outline/names';
-import { partialDatePlaceholder } from '../fields/kinds';
+import { kindLabels, partialDatePlaceholder } from '../fields/kinds';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { filterOperatorLabel, filterOperators } from './query';
 
-type FilterRow = { kind: 'field'; id: string; name: string } | { kind: 'new-field'; name: string } | { kind: 'op'; op: FilterOp } | { kind: 'value'; value: string; label: string };
+type FilterRow = { kind: 'field'; id: string; name: string; type: FieldKind } | { kind: 'new-field'; name: string } | { kind: 'op'; op: FilterOp } | { kind: 'value'; value: string; label: string };
 /** Three picker steps: field, operator, value. A chip trail above the rows shows what is chosen so far; Backspace on an empty query steps back. */
 export function FilterPopup(props: { anchor: HTMLElement; fields: readonly FieldDefinition[]; notebook: NotebookClient; initialField: string; initialFilter?: Filter; label?: string; sheet?: boolean; onDismiss(): void; onNewField?(name: string): Promise<string>; onAdd(filter: Filter): void }) {
   const initialField = props.initialFilter?.field ?? props.initialField;
@@ -58,7 +58,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
   const valueError = createMemo(() => identity() && (pages.error || names.error) ? 'Could not load matching pages.' : '');
   const rows = createMemo((): FilterRow[] => {
     if (step() === 'field') {
-      const matching = props.fields.filter(candidate => candidate.name.toLocaleLowerCase().includes(needle())).map((candidate): FilterRow => ({ kind: 'field', id: candidate.id, name: candidate.name }));
+      const matching = props.fields.filter(candidate => candidate.name.toLocaleLowerCase().includes(needle())).map((candidate): FilterRow => ({ kind: 'field', id: candidate.id, name: candidate.name, type: candidate.kind }));
       const exact = props.fields.some(candidate => candidate.name.toLocaleLowerCase() === needle());
       return props.onNewField && query().trim() && !exact ? [...matching, { kind: 'new-field', name: query().trim() }] : matching;
     }
@@ -111,7 +111,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
       return true;
     }}
     busy={busy() || !!(identity() && (pages.loading || names.loading))} error={error() || valueError() || undefined} empty={step() === 'value' ? identity() ? unresolved() || 'No matching pages.' : definition()?.kind === 'choice' ? 'No matching options.' : 'Type a value.' : 'No matches.'}
-    row={row => row.kind === 'field' ? <><Icon name="field" /><span class="picker-text">{row.name}</span></>
+    row={row => row.kind === 'field' ? <><Icon name="field" /><span class="picker-text">{row.name}</span><span class="picker-meta">{kindLabels[row.type]}</span></>
       : row.kind === 'new-field' ? <><Icon name="plus" /><span class="picker-text">New field “{row.name}”</span></>
         : row.kind === 'op' ? <span class="picker-text">{filterOperatorLabel(row.op, definition()?.kind)}</span>
           : <span class="picker-text">{row.label}</span>} />}>

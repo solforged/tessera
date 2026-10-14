@@ -125,6 +125,8 @@ Enter returns focus to the committed cell before its save finishes. ⌘Z then un
 
 The source chip, Search rows, Filters, Sort, Group and Columns align to the register. Applied filter and numbered sort chips sit beneath the controls and remove with their own ×. Chips wrap on narrow panes. A new sort follows the existing keys rather than replacing the primary key. Its left arrow raises its priority.
 
+Sort, Group and Filters list the type template's fields first, then built-in attributes, then the notebook's other fields. Sort and Group head each run with its section and check the fields in use; choosing a sorted field again flips its direction. Filters names each field's kind at the row's end.
+
 Filter and sort chips wait for field definitions before naming their fields, so loading does not briefly label a saved field as missing.
 
 Filters offer conditions by kind. Choice and Instance offer **is**, **is not**, **has a value** and **is empty**; Choice selects an existing option, while Instance selects a page from the field's target types. Text, URL and Identifier also offer **contains** and **has the field**; Number and Date add **>**, **≥**, **<** and **≤**. Checkbox offers **is checked** and **is not checked**. **Has the field** means an entry exists, even blank; **has a value** means at least one authored value is nonblank, including problem readings; **is empty** means none is nonblank. Presence is offered separately on scalar kinds, not on Choice, Instance or Checkbox. Instance filters store page IDs and their chips follow current titles. A legacy unresolved instance value is marked in the picker and needs a page selection.
@@ -135,7 +137,7 @@ Choice sorts follow the options' order on the field page, first option first whe
 
 Span sorts compare start year, then end year. Open starts sort first and open ends last among equal starts. Unreadable and empty values follow readable spans. Span filters offer overlaps, before and after; overlap includes both boundary years. Cells keep the authored notation.
 
-Group offers attributes and fields. A heading shows its label and distinct row count; clicking it collapses or reopens its rows. Collapsed heading keys travel with the saved recipe.
+Group offers attributes and fields, except Title, which would make every row its own group. A heading shows its label and distinct row count; clicking it collapses or reopens its rows. Collapsed heading keys travel with the saved recipe.
 
 ### Perspective layouts
 
