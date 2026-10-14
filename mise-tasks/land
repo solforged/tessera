@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+#MISE description="Open a pull request for HEAD that fast-forwards main once CI passes"
+#USAGE arg "[branch]" help="Branch to push HEAD to. Defaults to omp/<short HEAD>."
+#USAGE flag "--title <title>" help="Pull request title. Defaults to the subject of HEAD when it is the only new commit."
+#USAGE flag "--issue <number>" help="Issue the pull request closes"
+#USAGE flag "--wait" help="Wait until main is at HEAD"
+#
+# main accepts no direct pushes. This pushes HEAD to a branch and opens a pull
+# request with the fast-forward label; .github/workflows/fast-forward.yml moves
+# main to HEAD when CI passes, keeping every commit as written and signed. HEAD
+# must sit on origin/main's tip; rebase first if main moved.
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+git fetch -q origin main
+head=$(git rev-parse HEAD)
+if [ "$head" = "$(git rev-parse origin/main)" ]; then
+  echo "land: HEAD is already origin/main" >&2
+  exit 1
+fi
+if ! git merge-base --is-ancestor origin/main HEAD; then
+  echo "land: origin/main is not an ancestor of HEAD; rebase onto origin/main first" >&2
+  exit 1
+fi
+
+branch=${usage_branch:-omp/$(git rev-parse --short HEAD)}
+count=$(git rev-list --count origin/main..HEAD)
+title=${usage_title:-}
+if [ -z "$title" ]; then
+  if [ "$count" -eq 1 ]; then
+    title=$(git log -1 --format=%s HEAD)
+  else
+    echo "land: $count commits; pass --title" >&2
+    exit 1
+  fi
+fi
+body=$(git log --reverse --format='- %s' origin/main..HEAD)
+if [ -n "${usage_issue:-}" ]; then
+  body=$(printf '%s\n\nCloses #%s\n' "$body" "$usage_issue")
+fi
+
+git push -q origin "HEAD:refs/heads/$branch"
+existing=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number // empty')
+if [ -n "$existing" ]; then
+  gh pr edit "$existing" --add-label fast-forward >/dev/null
+  pr=$existing
+  echo "land: updated #$pr"
+else
+  url=$(gh pr create --base main --head "$branch" --title "$title" --body "$body" --label fast-forward)
+  pr=${url##*/}
+  echo "land: opened $url"
+fi
+
+if [ "${usage_wait:-false}" = false ]; then
+  echo "land: main moves to ${head:0:7} when CI passes. Watch: gh pr checks $pr --watch"
+  exit 0
+fi
+
+# CI takes about ten minutes; the fast-forward follows within a minute.
+while :; do
+  main=$(git ls-remote origin refs/heads/main | cut -f1)
+  if [ "$main" = "$head" ]; then
+    echo "land: main is at ${head:0:7}"
+    exit 0
+  fi
+  state=$(gh pr view "$pr" --json state,headRefOid --jq '.state + " " + .headRefOid')
+  if [ "${state%% *}" != OPEN ] || [ "${state#* }" != "$head" ]; then
+    echo "land: #$pr is ${state%% *} at ${state#* }, and main is not at ${head:0:7}" >&2
+    exit 1
+  fi
+  if gh pr checks "$pr" --required --json bucket --jq '.[].bucket' 2>/dev/null | grep -qx fail; then
+    echo "land: a required check failed on #$pr" >&2
+    gh pr checks "$pr" --required >&2 || true
+    exit 1
+  fi
+  git fetch -q origin main
+  if ! git merge-base --is-ancestor origin/main "$head"; then
+    echo "land: main moved to $(git rev-parse --short origin/main); rebase onto origin/main and run land again" >&2
+    exit 1
+  fi
+  sleep 30
+done

@@ -5,10 +5,33 @@ Tessera has three publishes. They are not interchangeable.
 | Publish | Who it is for | Command |
 |---|---|---|
 | GitHub release | Anyone downloading the app | `mise run release:cut -- <version> --push` |
-| Browser demo | Anyone trying it at <https://tessera.solforged.io> | A green CI run on `main`, or a manual dispatch |
+| Browser demo | Anyone trying it at <https://tessera.solforged.io> | Landing a pull request on `main`, or a manual dispatch |
 | This Mac, and the tailnet APK | The machine you are using | `mise run ship` and `mise run android:publish` |
 
 `ship` and `android:publish` build one commit into the local app or the tailnet download page. They do not create a GitHub release, and a GitHub release does not replace the app on this Mac.
+
+## Land a change on main
+
+`main` takes no direct pushes and no merge or squash commits. A change lands through a pull request whose head is moved onto `main` as it is, so every commit keeps its SHA and signature.
+
+```sh
+git fetch && git rebase origin/main
+mise run land                       # one commit: its subject is the title
+mise run land -- --title "fix(review): …" --issue 12 --wait
+```
+
+`land` pushes `HEAD` to `omp/<short sha>` (or the branch you name) and opens a pull request with the `fast-forward` label. [`.github/workflows/fast-forward.yml`](../.github/workflows/fast-forward.yml) moves `main` to that head when CI passes on it, deletes the branch, and deploys the demo. `--wait` returns once `main` is there, and fails if a required check fails or `main` moves underneath.
+
+Two rulesets guard `main`:
+
+| Ruleset | Rules | Bypass |
+|---|---|---|
+| `green` | Signed commits, linear history, no force-push or deletion, and the seven CI checks on the new head | Nobody |
+| `reviewed` | Changes arrive through a pull request | GitHub Actions, which the fast-forward workflow uses |
+
+If `main` moves before CI finishes, the workflow comments on the pull request instead of landing it. Rebase onto `origin/main` and run `land` again; the new head lands when its CI passes. A pull request without the label, or a draft, waits until the label is added or it is marked ready. CI runs once per pull request push; branches without a pull request do not run CI.
+
+Use an issue for a user-visible bug or feature and pass `--issue`, so the pull request closes it. Chores, docs and lockfile updates need no issue.
 
 ## Cut a version
 
@@ -31,7 +54,7 @@ mise run release:cut -- 0.4.0
 mise run release:cut -- 0.4.0 --push
 ```
 
-Without `--push`, the tag stays local. With `--push`, the task fast-forwards `main` and pushes `v0.4.0`. [`.github/workflows/release.yml`](../.github/workflows/release.yml) creates the release. Do not run `gh release create`.
+Without `--push`, the tag stays local. With `--push`, the task lands the version commit through `mise run land -- omp/release-<version> --wait`, then pushes `v0.4.0` at that same commit. [`.github/workflows/release.yml`](../.github/workflows/release.yml) creates the release. Do not run `gh release create`.
 
 The workflow refuses a tag whose version does not match `Cargo.toml`, or whose changelog section is missing or still marked draft. It publishes the notes from that section, then uploads `SHA256SUMS` after every asset is present. A failed macOS, Linux or Android job leaves the release in place, marks it incomplete and fails the workflow.
 
@@ -49,7 +72,7 @@ The workflow refuses a tag whose version does not match `Cargo.toml`, or whose c
 
 ## Browser demo
 
-[`.github/workflows/demo.yml`](../.github/workflows/demo.yml) deploys `main` only after the CI workflow succeeds. A red CI run leaves the previous demo in place. The deploy then requests the new deployment and <https://tessera.solforged.io>, and fails if either page does not contain Tessera.
+[`.github/workflows/demo.yml`](../.github/workflows/demo.yml) deploys each commit the fast-forward workflow moves `main` to, after CI passed on it. A red CI run never lands, so the previous demo stays. The deploy then requests <https://tessera.solforged.io> and fails if it does not serve this build's entry script. A failed deploy opens one issue labelled `demo-deploy`, or comments on the open one, and the next good deploy closes it.
 
 To publish a chosen commit, or to put the demo back on an earlier one:
 

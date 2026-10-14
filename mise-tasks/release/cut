@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #MISE description="Commit the version bump, tag it, and optionally push the release"
 #USAGE arg "<version>" help="Version to tag, such as 0.4.0"
-#USAGE flag "--push" help="Push the commit and tag. This starts the GitHub release."
+#USAGE flag "--push" help="Land the commit on main through a pull request, then push the tag. This starts the GitHub release."
 #
 # Refuses a dirty tree other than the version files, a draft changelog, and a
 # tag that already exists. Without --push, the tag stays local.
@@ -60,16 +60,9 @@ if [ "$push" = false ]; then
   exit 0
 fi
 
-git fetch origin main
-if ! git merge-base --is-ancestor origin/main HEAD; then
-  echo "release:cut: origin/main is not an ancestor of HEAD; rebase before pushing" >&2
-  exit 1
-fi
-branch=$(git symbolic-ref -q --short HEAD || true)
-if [ "$branch" = main ]; then
-  git push origin main
-else
-  git push origin HEAD:main
-fi
+# main moves only by fast-forwarding to a pull request head that passed CI,
+# so the version commit lands through one and keeps its SHA; the tag then
+# names the commit main is at.
+mise run land -- "omp/release-$version" --wait
 git push origin "$tag"
 echo "release:cut: pushed $tag. The release workflow publishes the assets."
