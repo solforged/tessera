@@ -31,6 +31,10 @@
 .type-table th .button { justify-content: flex-start; width: 100%; min-width: 0; color: inherit; font: inherit; letter-spacing: inherit; min-height: var(--target-size); padding-inline: 0; overflow-wrap: anywhere; }
 .type-table tbody tr:hover td { background: var(--hover); }
 .type-table .table-title-column { width: var(--table-title-width); position: sticky; left: 0; z-index: 1; background: var(--canvas); border-right: var(--rule-width) solid var(--line); padding-left: var(--space-8); padding-right: var(--space-32); }
+/* A header's hover band and click target span its whole column, inset alike from each rule; the label keeps the cells' text edges. */
+.type-table thead th { --header-start: var(--space-12); --header-end: var(--space-12); }
+.type-table thead .table-title-column { --header-start: var(--space-8); --header-end: var(--space-32); }
+.type-table thead th > .button { width: calc(100% + var(--header-start) + var(--header-end) - 2 * var(--space-4)); margin-inline: calc(var(--space-4) - var(--header-start)) calc(var(--space-4) - var(--header-end)); padding-inline: calc(var(--header-start) - var(--space-4)) calc(var(--header-end) - var(--space-4)); }
 .type-table th.table-title-column { z-index: 3; }
 .type-table tbody tr:hover .table-title-column { background: var(--hover); }
 .table-cell { white-space: pre-wrap; }
