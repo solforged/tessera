@@ -136,18 +136,23 @@
 .reader-image img:hover { filter: none; }
 .reader-passage .reader-inline-link, .reader-passage a { display: inline; min-height: 0; font: inherit; color: var(--accent); padding: 0; border: 0; border-radius: 0; background: transparent; text-decoration: underline; white-space: inherit; }
 .reader-passage sup { font-size: var(--text-meta); line-height: var(--line-meta); }
-/* Highlights are ink, not boxes: a band under the lower half of each line, as a highlighter drawn under the words, so capitals and ascenders keep the canvas and neighbouring lines stay apart. A hovered highlight and its partner deepen the band. */
-.reader-highlight { --band-hue: var(--text); --band-mix: 26%; --band-deep: 40%; --band: color-mix(in srgb, var(--band-hue) var(--band-mix), transparent); background: linear-gradient(transparent 55%, var(--band) 55%, var(--band) 92%, transparent 92%) no-repeat; cursor: pointer; }
+/* Highlights are ink, not boxes: a band under the lower half of each line, as a highlighter drawn under the words, so capitals and ascenders keep the canvas and neighbouring lines stay apart. The band is cloned onto every line. A hovered highlight and its partner deepen the band. Coloured ink keeps the hue and lifts it off the canvas; a flat percentage stain dies into midnight. */
+.reader-highlight { --band-hue: var(--text); --band-mix: 26%; --band-deep: 40%; --band-l: var(--highlight-ink-l); --band: color-mix(in srgb, var(--band-hue) var(--band-mix), transparent); box-decoration-break: clone; -webkit-box-decoration-break: clone; background: linear-gradient(transparent 55%, var(--band) 55%, var(--band) 92%, transparent 92%) no-repeat; cursor: pointer; }
 /* A new highlight draws its band under the words once, left to right, as the pen would; across lines it runs line by line. */
 .reader-highlight-ink { animation: ink var(--motion-ink) var(--motion-ease) both; }
 @keyframes ink { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
-.reader-highlight-yellow { --band-hue: var(--highlight-yellow); --band-mix: 42%; --band-deep: 62%; }
-.reader-highlight-green { --band-hue: var(--highlight-green); --band-mix: 42%; --band-deep: 62%; }
-.reader-highlight-blue { --band-hue: var(--highlight-blue); --band-mix: 42%; --band-deep: 62%; }
-.reader-highlight-red { --band-hue: var(--highlight-red); --band-mix: 42%; --band-deep: 62%; }
-.reader-highlight-purple { --band-hue: var(--highlight-purple); --band-mix: 42%; --band-deep: 62%; }
+.reader-highlight-yellow,
+.reader-highlight-green,
+.reader-highlight-blue,
+.reader-highlight-red,
+.reader-highlight-purple { --band: oklch(from var(--band-hue) var(--band-l) calc(c * var(--highlight-ink-chroma)) h); }
+.reader-highlight-yellow { --band-hue: var(--highlight-yellow); }
+.reader-highlight-green { --band-hue: var(--highlight-green); }
+.reader-highlight-blue { --band-hue: var(--highlight-blue); }
+.reader-highlight-red { --band-hue: var(--highlight-red); }
+.reader-highlight-purple { --band-hue: var(--highlight-purple); }
 .reader-highlight-overlap { text-decoration: underline double var(--accent); text-underline-offset: var(--space-4); }
-.reader-highlight-linked { --band-mix: var(--band-deep); }
+.reader-highlight-linked { --band-mix: var(--band-deep); --band-l: var(--highlight-ink-deep); }
 .reader-highlight-note.button { display: inline-flex; vertical-align: -0.125em; width: auto; height: 1em; min-height: 0; margin-inline: var(--space-2); padding: 0; border-radius: 0; background: transparent; color: var(--faint); }
 .reader-highlight-note.button:hover { color: var(--accent); background: transparent; }
 .reader-highlight-note .icon { width: 1em; height: 1em; }

@@ -6,6 +6,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ## Unreleased
 
+### Fixed
+
+- Reader highlight colors stay nameable on the midnight canvas: the band under the line keeps its hue instead of fading into a faint stain.
 ## 0.4.0, 2026-10-14
 
 ### Added
