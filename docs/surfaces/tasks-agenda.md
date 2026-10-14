@@ -167,7 +167,7 @@ The glyph completes on the displayed agenda date, including from lookahead, or r
 
 Planned rows reschedule without dragging:
 
-- On hover or focus, quiet mono Today and Tomorrow and a calendar button take the provenance's place, each omitted when it would change nothing.
+- On hover or focus, quiet mono Today and Tomorrow and a calendar button take the provenance's place, each omitted when it would change nothing. In a pane under 560 px only the calendar button fits there, so only it shows.
 - On touch only the calendar button shows, beside the planning facts.
 
 | Focused-row key | Action |

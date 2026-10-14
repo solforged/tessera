@@ -138,6 +138,8 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
 .agenda-section-actions .button:hover:not(:disabled) { color: var(--text); }
 /* A phone or half pane keeps the heading's rule and count on one line and puts the moves beneath, under Overdue. */
 @container agenda-pane (max-width: 560px) {
+  /* The provenance's narrow column holds only the date button, so Today and Tomorrow never cover the task. */
+  .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
   .agenda-section-heading:has(> .agenda-section-actions) { flex-wrap: wrap; row-gap: 0; }
   .agenda-section-actions { flex-basis: 100%; margin: calc(-1 * var(--space-8)) 0 0 calc(-1 * var(--space-4)); }
 }
@@ -219,6 +221,10 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .journal-trail-segment.button::before { content: ''; position: absolute; inset-block: 0; left: 50%; width: max(100%, 40px); transform: translateX(-50%); }
   .journal-ledger-day.button, .journal-week-number.button { min-height: 40px; }
   .journal-week-ledger .journal-ledger-day { min-height: 64px; }
+}
+/* Today's ledger in a narrow pane keeps only the date button, as the Agenda does. */
+@container outline-pane (max-width: 560px) {
+  .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
 }
 @container outline-pane (max-width: 640px) {
   .journal-quarter-ledger { grid-template-columns: 1fr; }
