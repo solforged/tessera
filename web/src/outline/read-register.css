@@ -1,6 +1,6 @@
 .outline-pane[data-projection="read"] > .outline-list { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .outline-pane[data-projection="read"] > .outline-apparatus { display: none; }
-.outline-pane[data-projection="read"] > .outline-heading { margin-inline: auto; }
+.outline-pane[data-projection="read"] > :is(.outline-heading, .related-sections, .add-first-block) { margin-inline: auto; }
 .reading-register { font-family: var(--font-display); font-size: var(--text-body); line-height: var(--line-body); }
 .reading-register .outline-row { position: relative; inset: auto; transform: none; padding-left: 0; border-left: 0; min-width: 0; }
 .reading-register .outline-row::before { display: none; }
