@@ -8,7 +8,6 @@ import { plural } from '../sync/state';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
-import { Popup } from '../ui/Popup';
 import { fieldKinds, fieldNameProblem, kindLabels } from './kinds';
 import { fieldHide, fieldHides, hideLabels } from './hide';
 import type { FieldHide } from './hide';
@@ -16,6 +15,7 @@ import { fieldRole, fieldRoles, roleDescriptions, roleLabels } from './roles';
 import type { FieldRole } from './roles';
 import './field-page.css';
 import { ChoiceConversion, readingLabel } from './ChoiceConversion';
+import { LinksToPopup } from './LinksToPopup';
 import { changeFieldKind, choicePreview, makeFieldOption, fieldImpact, applyFieldImpact } from './commands';
 import type { InterpretationMap, FieldImpact } from './commands';
 import { FieldImpactPreview } from './FieldImpactPreview';
@@ -55,7 +55,6 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [adding, setAdding] = createSignal(false);
   const [option, setOption] = createSignal('');
   const [targetsMenu, setTargetsMenu] = createSignal<HTMLElement | null>(null);
-  const [targetsDraft, setTargetsDraft] = createSignal<string[]>([]);
   const [mappings, setMappings] = createSignal<InterpretationMap>({});
   const [impact, setImpact] = createSignal<FieldImpact>();
   const [register] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.fields());
@@ -64,7 +63,6 @@ export function FieldDetails(props: FieldDetailsProps) {
   createEffect(on(() => props.fieldId, () => setRemoved(false)));
   const previewKey = createMemo(() => `${props.fieldId}:${props.previewKind ?? ''}`);
   createEffect(on(previewKey, () => { setMappings({}); setImpact(undefined); }));
-  const [types] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.types());
   createEffect(on(() => props.notebook.changeSequence(), () => {
     const timer = setTimeout(() => setVersion(value => value + 1), 150);
     onCleanup(() => clearTimeout(timer));
@@ -97,11 +95,6 @@ export function FieldDetails(props: FieldDetailsProps) {
   const data = createMemo(() => {
     const detail = rawData();
     return detail && props.previewKind ? choicePreview(detail, mappings()) : detail;
-  });
-  const targetTypes = createMemo(() => {
-    const pages = new Map((types() ?? []).map(type => [type.page.id, type.page]));
-    for (const page of props.notebook.roots()) if (page.kind === 'page' && !page.archived && (['person', 'group'].includes(page.text.toLowerCase()) || data()?.field.targets.includes(page.id))) pages.set(page.id, page);
-    return [...pages.values()].sort((a, b) => a.text.localeCompare(b.text));
   });
   let article!: HTMLElement;
   let openedSection = '';
@@ -173,10 +166,10 @@ export function FieldDetails(props: FieldDetailsProps) {
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
   };
-  const applyTargets = async () => {
+  const applyTargets = async (targets: string[]) => {
     const value = data(); const doc = props.document;
     if (!value || !doc || !ready()) return;
-    const result = doc.edit({ kind: 'fieldTargets', definition: value.field, targets: targetsDraft() });
+    const result = doc.edit({ kind: 'fieldTargets', definition: value.field, targets });
     if (!result.ok) { setError(result.reason); return; }
     setTargetsMenu(null); setApplying(true);
     article.focus({ preventScroll: true });
@@ -253,7 +246,7 @@ export function FieldDetails(props: FieldDetailsProps) {
       <Show when={impact()}>{current => <FieldImpactPreview impact={current()} fields={register()?.fields ?? []} busy={applying()} onTarget={target => void previewImpact(target)} onApply={action => void applyImpact(action)} onCancel={() => setImpact(undefined)} />}</Show>
       <p class="field-summary">{kindLabels[value().field.kind]} · {plural(value().owners_total, 'owner')} · {plural(value().values_total, 'value')}</p>
       <div class="field-kind-row"><span>{preview() ? 'Change kind' : 'Kind'}</span><Show when={preview()}><span class="field-apparatus">{kindLabels[value().field.kind]} →</span></Show><Button class="bordered" aria-label={`Kind for ${value().field.name}: ${kindLabels[value().kind]}`} aria-haspopup="menu" aria-expanded={!!menu()} disabled={applying()} onClick={event => setMenu(event.currentTarget)}>{kindLabels[value().kind]} <Icon name="down" /></Button></div>
-      <Show when={value().kind === 'instance' && !preview()}><div class="field-kind-row" data-field-section="targets"><span>Links to</span><Button class="bordered" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!targetsMenu()} onClick={event => { setTargetsDraft([...value().field.targets]); setTargetsMenu(event.currentTarget); }}>{value().field.targets.map(id => props.notebook.lookup(id)()?.text ?? id).join(', ') || 'Any block'} <Icon name="down" /></Button></div></Show>
+      <Show when={value().kind === 'instance' && !preview()}><div class="field-kind-row" data-field-section="targets"><span>Links to</span><Button class="bordered" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!targetsMenu()} onClick={event => setTargetsMenu(event.currentTarget)}>{value().field.targets.map(id => props.notebook.lookup(id)()?.text ?? id).join(', ') || 'Any block'} <Icon name="down" /></Button></div></Show>
       <div class="field-kind-row"><span>Hide</span><Button class="bordered" aria-label={`Hide for ${value().field.name}: ${hideLabels[fieldHide(value().field)]}`} aria-haspopup="menu" aria-expanded={!!hideMenu()} disabled={!ready()} onClick={event => setHideMenu(event.currentTarget)}>{hideLabels[fieldHide(value().field)]} <Icon name="down" /></Button></div>
       <p class="field-note">{fieldHide(value().field) === 'never' ? 'Shown even when empty.' : fieldHide(value().field) === 'when_empty' ? 'Hidden in notes while empty.' : 'Hidden in notes; tables still show it.'}</p>
       <div class="field-kind-row"><span>Role</span><Button class="bordered" aria-label={`Role for ${value().field.name}: ${roleLabels[fieldRole(value().field)]}`} aria-haspopup="menu" aria-expanded={!!roleMenu()} disabled={!ready()} onClick={event => setRoleMenu(event.currentTarget)}>{roleLabels[fieldRole(value().field)]} <Icon name="down" /></Button></div>
@@ -283,12 +276,7 @@ export function FieldDetails(props: FieldDetailsProps) {
       <Show when={menu()}>{anchor => <Menu anchor={anchor()} label={`Kind for ${value().field.name}`} onDismiss={() => setMenu(null)} items={fieldKinds.map(kind => ({ label: kindLabels[kind], icon: kind === value().kind ? 'check' : undefined, action: () => { setEditing(null); props.onPreview(kind === value().field.kind ? undefined : kind); } }))} />}</Show>
       <Show when={hideMenu()}>{anchor => <Menu anchor={anchor()} label={`Hide for ${value().field.name}`} onDismiss={() => setHideMenu(null)} items={fieldHides.map(hide => ({ label: hideLabels[hide], checked: hide === fieldHide(value().field), action: () => { void applyHide(hide); } }))} />}</Show>
       <Show when={roleMenu()}>{anchor => <Menu anchor={anchor()} label={`Role for ${value().field.name}`} onDismiss={() => setRoleMenu(null)} items={fieldRoles.map(role => ({ label: roleLabels[role], checked: role === fieldRole(value().field), action: () => { void applyRole(role); } }))} />}</Show>
-      <Show when={targetsMenu()}>{anchor => <Popup anchor={anchor()} label="Links to" onDismiss={() => setTargetsMenu(null)}>
-        <h2 class="popup-title">Links to</h2><p class="field-note">No selection means Any block.</p>
-        <Show when={types.error}><p class="error" role="alert">Could not load types.</p></Show>
-        <For each={targetTypes()}>{type => <label class="menu-item"><input type="checkbox" checked={targetsDraft().includes(type.id)} onChange={event => setTargetsDraft(previous => event.currentTarget.checked ? [...previous, type.id] : previous.filter(id => id !== type.id))} />{type.text}</label>}</For>
-        <div class="popup-actions"><Button onClick={() => setTargetsMenu(null)}>Cancel</Button><Button class="bordered" disabled={!ready()} onClick={() => void applyTargets()}>Apply</Button></div>
-      </Popup>}</Show>
+      <Show when={targetsMenu()}>{anchor => <LinksToPopup anchor={anchor()} notebook={props.notebook} targets={value().field.targets} disabled={!ready()} onApply={targets => void applyTargets(targets)} onDismiss={() => setTargetsMenu(null)} />}</Show>
     </>}</Show>
   </article>;
 }

@@ -1,15 +1,17 @@
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import { ulid } from 'ulid';
-import type { FieldDefinition, FieldSummary, Operation, Type } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { FieldDefinition, FieldKind, FieldSummary, Operation, Type } from '../api/types';
+import type { DocumentChange, NotebookClient } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { besideHint, opensBeside } from '../shell/beside';
 import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { Menu } from '../ui/Menu';
 import { FieldPicker } from './FieldPicker';
-import { createTemplateField } from './commands';
-import { kindLabels } from './kinds';
+import { LinksToPopup } from './LinksToPopup';
+import { changeFieldKind, createTemplateField, renameField, setFieldTargets } from './commands';
+import { fieldKinds, kindLabels, kindNoun } from './kinds';
 import { TypePresentation } from './TypePresentation';
 import { entryAnchor, startingTemplateFor } from './templates';
 import './fields.css';
@@ -30,17 +32,24 @@ async function templateGaps(notebook: NotebookClient, type: Type): Promise<Gap[]
 }
 
 /**
- * A type page's template: its fields in order, which its tables show first and its members' sheets offer. Fill
- * missing fields gives every member an empty entry for each template field it lacks, in one command that Undo
- * removes again while those entries are still empty.
+ * A type's fields, edited the same way on its page and in its register: each row renames its field, changes its
+ * kind and Links to, and reorders or removes it, while the field page keeps the rest. Fill missing fields gives
+ * every member an empty entry for each template field it lacks, in one command that Undo removes again while those
+ * entries are still empty.
  */
-export function TemplateEditor(props: { type: Type; fields: readonly FieldDefinition[]; notebook: NotebookClient; onError(message: string): void; register?: { fields: readonly FieldSummary[]; pageId: string; onOpen(target: OpenTarget, beside: boolean): void } }) {
+export function TemplateEditor(props: { type: Type; fields: readonly FieldDefinition[]; notebook: NotebookClient; onError(message: string): void; onOpen(target: OpenTarget, beside: boolean): void; register?: { fields: readonly FieldSummary[]; pageId: string } }) {
   const [open, setOpen] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   const [picker, setPicker] = createSignal<HTMLElement | null>(null);
   const [filled, setFilled] = createSignal<Filled | null>(null);
   const byId = createMemo(() => new Map(props.fields.map(field => [field.id, field])));
-  const summaries = createMemo(() => new Map(props.register?.fields.map(field => [field.id, field]) ?? []));
+  // The type page has no register of its own; it reads usage once its template is open.
+  const [ownSummaries] = createResource(() => !props.register && open() && props.notebook.changeSequence(), () => props.notebook.api.fields());
+  const summaries = createMemo(() => new Map((props.register?.fields ?? ownSummaries()?.fields ?? []).map(field => [field.id, field])));
+  const [renaming, setRenaming] = createSignal<{ id: string; text: string } | null>(null);
+  const [kindMenu, setKindMenu] = createSignal<{ id: string; anchor: HTMLElement } | null>(null);
+  const [linksMenu, setLinksMenu] = createSignal<{ id: string; anchor: HTMLElement } | null>(null);
+  const [changed, setChanged] = createSignal<{ label: string; change: DocumentChange } | null>(null);
   const template = () => props.type.fields.filter(id => byId().has(id));
   const starting = createMemo(() => startingTemplateFor(props.type.page.text, props.type.fields));
   // The count is a guide, recounted when the template or membership changes; Fill recounts before it writes.
@@ -51,6 +60,24 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
     setBusy(true);
     try { await action(); } catch (error) { props.onError(error instanceof Error ? error.message : String(error)); } finally { setBusy(false); }
   }
+  const remember = (label: string) => (change: DocumentChange) => { setChanged({ label, change }); setFilled(null); };
+  const rename = () => run(async () => {
+    const edit = renaming(); const field = edit && byId().get(edit.id);
+    if (!edit || !field) return;
+    const name = edit.text.trim();
+    setRenaming(null);
+    if (name === field.name) return;
+    remember(`${field.name} renamed to ${name}.`)(await renameField(props.notebook, field, name));
+  });
+  /** A kind every value already reads as applies in place; otherwise the field page reviews the values first. */
+  const changeKind = (field: FieldDefinition, kind: FieldKind, beside: boolean) => run(async () => {
+    const detail = await props.notebook.api.fieldDetail(field.id, kind);
+    if (detail.problems_total) { props.onOpen({ kind: 'field', fieldId: field.id, previewKind: kind }, beside); return; }
+    remember(`${field.name} is now a ${kindNoun(kind)} field.`)(await changeFieldKind(props.notebook, detail, {}));
+  });
+  const kindSummary = (field: FieldDefinition) => field.kind === 'instance'
+    ? `${kindLabels.instance} → ${field.targets.map(id => props.notebook.lookup(id)()?.text ?? '…').join(', ') || 'any block'}`
+    : field.kind === 'choice' ? `${kindLabels.choice} · ${field.options.length} ${field.options.length === 1 ? 'option' : 'options'}` : kindLabels[field.kind];
   const setFields = (fields: string[]) => run(() => props.notebook.commit([{ op: 'set_type_fields', type_id: props.type.page.id, base_revision: props.type.page.revision, fields }], 'Change type template'));
   function move(index: number, by: -1 | 1) {
     const fields = [...props.type.fields];
@@ -102,6 +129,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
   });
 
   const fieldActions = (id: string, index: number) => <span class="template-field-actions">
+    <Button icon="edit" label={byId().get(id)!.built_in ? `${byId().get(id)!.name} is built in and cannot be renamed.` : `Rename ${byId().get(id)!.name}`} disabled={busy() || !!byId().get(id)!.built_in} onClick={() => setRenaming({ id, text: byId().get(id)!.name })} />
     <Button icon="up" label={`Move ${byId().get(id)!.name} up`} disabled={busy() || index === 0} onClick={() => move(props.type.fields.indexOf(id), -1)} />
     <Button icon="down" label={`Move ${byId().get(id)!.name} down`} disabled={busy() || index === template().length - 1} onClick={() => move(props.type.fields.indexOf(id), 1)} />
     <Button icon="close" label={`Remove ${byId().get(id)!.name} from template`} disabled={busy()} onClick={() => void setFields(props.type.fields.filter(field => field !== id))} />
@@ -118,25 +146,26 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
         <span class="template-note">{suggestion().fields.join(' · ')}</span>
       </div>}</Show>
       <Show when={template().length} fallback={<p class="template-note">Fields added here become this type’s table columns and wait as empty slots on its blocks.</p>}>
-        <Show when={props.register} fallback={<ol class="template-fields">
-          <For each={template()}>{(id, index) => <li class="template-field">
-            <Icon name="field" /><span class="template-field-name">{byId().get(id)!.name}</span><span class="template-field-kind">{kindLabels[byId().get(id)!.kind]}</span>
-            {fieldActions(id, index())}
-          </li>}</For>
-        </ol>}>{register => <table class="template-field-table">
+        <table class="template-field-table">
           <colgroup><col class="template-name-column" /><col class="template-kind-column" /><col class="template-usage-column" /><col class="template-actions-column" /></colgroup>
           <thead><tr><th scope="col">Name</th><th scope="col">Kind</th><th scope="col">Used by</th><th scope="col"><span class="visually-hidden">Field actions</span></th></tr></thead>
-          <tbody><For each={template()}>{(id, index) => <tr>
-            <td><Button class="template-definition" onClick={event => register().onOpen({ kind: 'field', fieldId: id }, opensBeside(event))}>{byId().get(id)!.name}</Button></td>
-            <td class="template-field-kind">{kindLabels[byId().get(id)!.kind]}</td>
-            <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span title="No block uses this field yet">Unused</span>}><Button title={`Blocks using ${byId().get(id)!.name}: ${summaries().get(id)!.owners} · ${besideHint}`} onClick={event => register().onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{summaries().get(id)!.owners}</Button></Show></td>
+          <tbody><For each={template()}>{(id, index) => <Show when={byId().get(id)}>{field => <tr>
+            <td><Show when={renaming()?.id === id} fallback={<Button class="template-definition" title={`Open ${field().name} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'field', fieldId: id }, opensBeside(event))}>{field().name}</Button>}>
+              <form class="template-rename" onSubmit={event => { event.preventDefault(); void rename(); }}><input class="input" aria-label={`New name for ${field().name}`} value={renaming()!.text} onInput={event => setRenaming({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setRenaming(null); } }} onBlur={() => { if (renaming()?.id === id) void rename(); }} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} /></form>
+            </Show></td>
+            <td class="template-field-kind"><Button class="template-kind" aria-haspopup="menu" aria-expanded={kindMenu()?.id === id} aria-label={`Kind for ${field().name}: ${kindSummary(field())}`} disabled={busy()} onClick={event => setKindMenu({ id, anchor: event.currentTarget })}>{kindSummary(field())} <Icon name="down" /></Button></td>
+            <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span title="No block uses this field yet">Unused</span>}><Button title={`Blocks using ${field().name}: ${summaries().get(id)!.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{summaries().get(id)!.owners}</Button></Show></td>
             <td>{fieldActions(id, index())}</td>
-          </tr>}</For></tbody>
-        </table>}</Show>
+          </tr>}</Show>}</For></tbody>
+        </table>
       </Show>
       <div class="template-actions">
         <Button icon="plus" disabled={busy()} aria-haspopup="dialog" aria-expanded={!!picker()} onClick={event => setPicker(event.currentTarget)}>Add field</Button>
-        <Show when={filled()} fallback={<Show when={missing()}>
+        <Show when={changed()}>{done => <>
+          <span class="template-gap" role="status">{done().label}</span>
+          <Button disabled={busy()} onClick={() => void run(async () => { await done().change.undo(); setChanged(null); })}>Undo</Button>
+        </>}</Show>
+        <Show when={filled()} fallback={<Show when={missing() && !changed()}>
           <span class="template-gap">{gaps()!.length} {gaps()!.length === 1 ? 'block lacks' : 'blocks lack'} {missing()} {missing() === 1 ? 'field' : 'fields'}</span>
           <Button class="bordered" disabled={busy()} onClick={() => void fill()}>Fill missing fields</Button>
         </Show>}>{done => <>
@@ -145,6 +174,18 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
         </>}</Show>
       </div>
     </div></Show>
+    <Show when={kindMenu()}>{menu => <Show when={byId().get(menu().id)}>{field => {
+      // The menu closes before an item runs, so items keep their own copy of the row they belong to.
+      const { anchor } = menu(); const current = field();
+      return <Menu anchor={anchor} label={`Kind for ${current.name}`} onDismiss={() => setKindMenu(null)} items={[
+        ...fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === current.kind, action: () => { if (kind !== current.kind) void changeKind(current, kind, false); } })),
+        ...(current.kind === 'instance' ? [{ label: 'Links to…', divider: true, action: () => setLinksMenu({ id: current.id, anchor }) }] : []),
+        ...(current.kind === 'choice' ? [{ label: 'Options…', divider: true, action: () => props.onOpen({ kind: 'field', fieldId: current.id, section: 'options' }, false) }] : []),
+        { label: 'Open field page', divider: current.kind !== 'instance' && current.kind !== 'choice', action: () => props.onOpen({ kind: 'field', fieldId: current.id }, false) },
+      ]} />;
+    }}</Show>}</Show>
+    <Show when={linksMenu()}>{menu => <Show when={byId().get(menu().id)}>{field => <LinksToPopup anchor={menu().anchor} notebook={props.notebook} targets={field().targets} disabled={busy()} onDismiss={() => setLinksMenu(null)}
+      onApply={targets => { const current = field(); setLinksMenu(null); void run(async () => remember(`${current.name} links to ${targets.map(id => props.notebook.lookup(id)()?.text ?? '…').join(', ') || 'any block'}.`)(await setFieldTargets(props.notebook, current, targets))); }} />}</Show>}</Show>
     <Show when={picker()}>{anchor => <FieldPicker anchor={anchor()} label="Add field to template" fields={props.fields} exclude={new Set(props.type.fields)}
       onPick={field => { setPicker(null); void setFields([...props.type.fields, field.id]); }}
       onCreate={(name, kind) => { setPicker(null); void run(() => createTemplateField(props.notebook, props.type, name, kind)); }} onDismiss={() => setPicker(null)} />}</Show>

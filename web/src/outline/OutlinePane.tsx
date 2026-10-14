@@ -1624,7 +1624,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={isReadingSubject(doc) && !reading() && !zoom()}><div class="reading-register-actions"><span class="reading-counts">{readingCounts(register().slips)}</span><Show when={localPositions() > 1}><Button onClick={() => props.onProjection?.('compare')}>Compare</Button></Show><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add perspective</Button></div></Show>
       <RowRelations id={zoom() ?? props.pageId} />
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
-        <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} />
+        <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} onOpen={props.onOpen} />
       </Show>}</Show>
       <Show when={doc.root()?.source && !positionZoom()}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
         fields={definitions()} compact={!!zoom()} ready={pageReady()} onReady={setSourceHeaderReady} onEditDetails={() => setSourceDetailsOpen(true)}

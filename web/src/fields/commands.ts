@@ -5,7 +5,7 @@ import { fieldEntryId, queryFieldIds, remapQueryField } from '../table/query';
 import { documentReady } from '../outline/source-fields';
 import { fieldNameProblem } from './kinds';
 
-type Write = Extract<Operation, { op: 'insert' | 'create_page' | 'edit_text' | 'set_field_kind' | 'set_type_fields' | 'set_archived' | 'move' | 'delete' | 'restore' | 'add_type' | 'remove_type' }> | (Extract<Operation, { op: 'save_view' }> & { base_revision: number });
+type Write = Extract<Operation, { op: 'insert' | 'create_page' | 'edit_text' | 'set_field_kind' | 'set_field_targets' | 'set_type_fields' | 'set_archived' | 'move' | 'delete' | 'restore' | 'add_type' | 'remove_type' }> | (Extract<Operation, { op: 'save_view' }> & { base_revision: number });
 interface Step { forward: Write; backward: Write }
 const revision = (receipt: Committed, id: string) => {
   const value = receipt.revisions.find(value => value.id === id);
@@ -121,6 +121,25 @@ export async function setFreshFieldKind(notebook: NotebookClient, fieldId: strin
     forward: { op: 'set_field_kind', id: fieldId, base_revision: definition.revision, kind },
     backward: { op: 'set_field_kind', id: fieldId, base_revision: 0, kind: 'text' },
   }], [definition.page_id], 'Set field kind');
+}
+
+/** A field renamed in place; the caller has already refused names another field holds. */
+export async function renameField(notebook: NotebookClient, field: FieldDefinition, name: string): Promise<DocumentChange> {
+  const register = await notebook.api.fields();
+  const problem = fieldNameProblem(name, register.fields, field.id);
+  if (problem) throw new Error(problem);
+  const steps: Step[] = [];
+  replace(steps, { id: field.id, text: field.name, revision: field.revision }, name.trim());
+  return commit(notebook, steps, [register.page_id], 'Rename field');
+}
+
+/** A relation field's Links to types; none means any block. */
+export async function setFieldTargets(notebook: NotebookClient, field: FieldDefinition, targets: string[]): Promise<DocumentChange> {
+  const register = await notebook.api.fields();
+  return commit(notebook, [{
+    forward: { op: 'set_field_targets', id: field.id, base_revision: field.revision, targets },
+    backward: { op: 'set_field_targets', id: field.id, base_revision: 0, targets: field.targets },
+  }], [register.page_id], 'Set field targets');
 }
 
 /** An existing field placed last in a type's template; Undo restores the template it had. */
