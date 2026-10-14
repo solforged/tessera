@@ -15,7 +15,8 @@ export function paneTargetIdentity(target: OpenTarget): string {
     case 'index': return `index:${target.key}`;
     // A Library tab swaps the panel in place (crossfade); only arriving at the Library is a navigation.
     case 'library': return 'library';
-    case 'agenda': return `agenda:${target.mode ?? 'agenda'}:${target.date ?? ''}:${target.viewId ?? ''}`;
+    // Day, Week and Tasks fade their panel in; only a new date or view arrives as a navigation.
+    case 'agenda': return `agenda:${target.date ?? ''}:${target.viewId ?? ''}`;
     case 'review': return `review:${target.deckId ?? ''}`;
     default: return target.kind;
   }
