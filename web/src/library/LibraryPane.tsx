@@ -813,10 +813,10 @@ export function LibraryPane(props: LibraryPaneProps) {
   function viewMenu(value: LibraryView, anchor: HTMLElement) {
     setPopup({ kind: 'menu', anchor, label: 'Library view actions', items: [
       { label: 'Rename', action: () => setPopup({ kind: 'name', anchor, saved: value, id: value.id }) },
-      { label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view', icon: 'trash', danger: true, action: () => { setCommandError(''); if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, saved: value }); else void deleteView(value); } },
-      { label: 'Export BibTeX', action: () => { void downloadQuery('bibtex', value.query); } },
-      { label: 'Export CSL JSON', action: () => { void downloadQuery('csl', value.query); } },
-      { label: 'Export Markdown', action: () => { void downloadQuery('markdown', value.query); } },
+      { label: 'Export BibTeX', divider: true, icon: 'download', action: () => { void downloadQuery('bibtex', value.query); } },
+      { label: 'Export CSL JSON', icon: 'download', action: () => { void downloadQuery('csl', value.query); } },
+      { label: 'Export Markdown', icon: 'download', action: () => { void downloadQuery('markdown', value.query); } },
+      { label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view', divider: true, icon: 'trash', danger: true, action: () => { setCommandError(''); if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, saved: value }); else void deleteView(value); } },
     ] });
   }
   async function downloadQuery(format: ExportFormat, query: LibraryQuery) {
@@ -867,10 +867,10 @@ export function LibraryPane(props: LibraryPaneProps) {
         section: 'Collections', label: `Remove from ${collection.text}`,
         action: () => { void collectionActions.run(`Removed from ${collection.text}`, () => changeCollectionMembers(props.notebook, collection.id, [row.page.id], false)); },
       })),
-      { label: 'Export BibTeX', section: coverLayout() ? 'Export' : undefined, icon: 'download', action: () => { void download('bibtex', [row.page.id]); } },
+      { label: 'Export BibTeX', section: coverLayout() ? 'Export' : undefined, divider: !coverLayout(), icon: 'download', action: () => { void download('bibtex', [row.page.id]); } },
       { label: 'Export CSL JSON', icon: 'download', action: () => { void download('csl', [row.page.id]); } },
       { label: 'Export Markdown', icon: 'download', action: () => { void download('markdown', [row.page.id]); } },
-      { label: 'Delete…', section: coverLayout() ? 'Delete' : undefined, icon: 'trash', danger: true, disabledReason: saving() ? 'Saving…' : undefined, action: () => confirmDelete(anchor, [row]) },
+      { label: 'Delete…', section: coverLayout() ? 'Delete' : undefined, divider: !coverLayout(), icon: 'trash', danger: true, disabledReason: saving() ? 'Saving…' : undefined, action: () => confirmDelete(anchor, [row]) },
     ] });
   }
   function rowKey(event: KeyboardEvent, target: OpenTarget) {
