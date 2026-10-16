@@ -49,18 +49,24 @@ export class Outbox {
     this.writes = write.catch(this.failed);
     return write;
   }
+  private intakeKey(command: NotebookCommand) {
+    return `tessera-outbox:${this.notebookId}:${command.capture ? 'capture' : this.sessionId}:${command.id}`;
+  }
   put(command: Command) {
     // Snapshot now, before a later keystroke can mutate the queued command.
     const value = structuredClone(command);
     return this.enqueue(async db => {
       await db.put('commands', { key: this.commandKey(value), command: value });
-      if (value.kind === 'notebook' && value.capture) this.intake?.removeItem(`tessera-outbox:${this.notebookId}:capture:${value.id}`);
+      if (value.kind === 'notebook') {
+        const key = this.intakeKey(value);
+        if (value.frozen || this.intake?.getItem(key) === JSON.stringify(value)) this.intake?.removeItem(key);
+      }
     });
   }
-  /** A tiny synchronous intake lets a submitted line clear without waiting for an IndexedDB transaction. */
+  /** Synchronous intake protects accepted commands until IndexedDB has their latest snapshot. */
   accept(command: NotebookCommand): Promise<void> {
     if (!this.intake) return this.put(command);
-    this.intake.setItem(`tessera-outbox:${this.notebookId}:capture:${command.id}`, JSON.stringify(command));
+    this.intake.setItem(this.intakeKey(command), JSON.stringify(command));
     return Promise.resolve();
   }
   private commandKey(command: Command) {
@@ -98,6 +104,7 @@ export class Outbox {
       void tx.store.delete(`${this.notebookId}:capture:${id}`);
       await tx.done;
       this.intake?.removeItem(`tessera-outbox:${this.notebookId}:capture:${id}`);
+      this.intake?.removeItem(`tessera-outbox:${this.notebookId}:${this.sessionId}:${id}`);
     });
   }
   private pagePrefix(id: string) { return `${this.notebookId}:${id}:`; }
@@ -173,6 +180,11 @@ export class Outbox {
     if (!this.locks) return;
     const prefix = `${this.notebookId}:`;
     const owners = new Set((await db.getAllKeys('commands')).filter(key => key.startsWith(prefix)).map(key => key.slice(prefix.length, key.lastIndexOf(':'))));
+    const intakePrefix = `tessera-outbox:${this.notebookId}:`;
+    if (this.intake) for (let index = 0; index < this.intake.length; index++) {
+      const key = this.intake.key(index);
+      if (key?.startsWith(intakePrefix)) owners.add(key.slice(intakePrefix.length, key.lastIndexOf(':')));
+    }
     for (const owner of owners) {
       if (owner === this.sessionId || owner === 'capture') continue;
       await this.locks.request(this.lockName(owner), { ifAvailable: true }, async lock => {
@@ -185,7 +197,17 @@ export class Outbox {
           void tx.store.put({ key: this.commandKey(row.command), command: row.command });
           void tx.store.delete(row.key);
         }
+        const intakeKeys: string[] = [];
+        if (this.intake) for (let index = 0; index < this.intake.length; index++) {
+          const key = this.intake.key(index);
+          if (!key?.startsWith(`${intakePrefix}${owner}:`)) continue;
+          const command: NotebookCommand = JSON.parse(this.intake.getItem(key)!);
+          const target = this.commandKey(command), stored = await tx.store.get(target);
+          if (!stored?.command.frozen) void tx.store.put({ key: target, command });
+          intakeKeys.push(key);
+        }
         await tx.done;
+        for (const key of intakeKeys) this.intake?.removeItem(key);
       });
     }
   }
@@ -196,12 +218,12 @@ export class Outbox {
       await this.recoverClosedWindows(db);
       const prefix = `${this.notebookId}:${this.sessionId}:`;
       const commands = new Map((await db.getAll('commands')).filter(row => row.key.startsWith(prefix) || row.key.startsWith(`${this.notebookId}:capture:`)).map(row => [row.command.id, row.command]));
-      const intakePrefix = `tessera-outbox:${this.notebookId}:capture:`;
+      const intakePrefixes = [`tessera-outbox:${this.notebookId}:capture:`, `tessera-outbox:${this.notebookId}:${this.sessionId}:`];
       if (this.intake) for (let index = 0; index < this.intake.length; index++) {
         const key = this.intake.key(index);
-        if (!key?.startsWith(intakePrefix)) continue;
+        if (!key || !intakePrefixes.some(prefix => key.startsWith(prefix))) continue;
         const command: NotebookCommand = JSON.parse(this.intake.getItem(key)!);
-        if (!commands.has(command.id)) commands.set(command.id, command);
+        if (!commands.get(command.id)?.frozen) commands.set(command.id, command);
       }
       const tickets = (await db.getAll('tickets')).filter(row => row.key.startsWith(`${this.notebookId}:`));
       const roots = (await db.get('notebooks', this.notebookId))?.roots ?? [];

@@ -111,7 +111,7 @@ A value click, or Enter on a selected field, begins filling that owner. Tab and 
 
 Every field commit returns keyboard ownership to its value editor, its selected value row or the next slot, never the page body. Accepting a Choice or Relation keeps filling mode active, so Tab still advances without changing the value's parent. Tab commits a valid Date draft before moving; an invalid draft stays open with its error. At either end of the owner's slots, Tab keeps the current row selected. Undo and Redo restore a controlled value's row without reopening its picker.
 
-Creating a text field opens its first value editor and keeps immediate typing and Backspace corrections through the pending handoff. Saving or canceling a definition or option rename returns focus to the field page, so its history shortcuts remain available.
+Creating a text field opens its first value editor and keeps immediate typing and Backspace corrections through the pending handoff. Its accepted text enters the local outbox behind creation, so Escape ends editing without discarding it and reloading before the response still restores the value. Saving or canceling a definition or option rename returns focus to the field page, so its history shortcuts remain available.
 
 Commands → Add field targets the selected block, or the page when no block is selected, and names that context in the palette.
 

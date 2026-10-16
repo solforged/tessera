@@ -74,7 +74,15 @@ test('field conversion, repair and option creation each have a single exact undo
       doc.redo(); await doc.flush();
       expect((await api.fieldDetail(field)).problems_total).toBe(1);
 
-      const fresh = await createFieldEntry(notebook, doc, notes[0]!, 'Phase', 'choice');
+      let pendingValue!: string;
+      const creating = createFieldEntry(notebook, doc, await api.fields(), notes[0]!, 'Pending text', 'text', id => { pendingValue = id; });
+      const firstInput = notebook.queueCreatedValueText(pendingValue, notes[0]!, 'pending accepted valueX');
+      const correctedInput = notebook.queueCreatedValueText(pendingValue, notes[0]!, 'pending accepted value');
+      await Promise.all([creating, firstInput, correctedInput]);
+      expect((await api.block(pendingValue)).text).toBe('pending accepted value');
+      expect((await api.block(pendingValue)).revision).toBe(2);
+
+      const fresh = await createFieldEntry(notebook, doc, await api.fields(), notes[0]!, 'Phase', 'choice');
       expect(fresh.field.id).not.toBe(blank);
       expect((await api.block(blank)).text).toBe('');
       expect(fresh.field.kind).toBe('choice');
@@ -127,7 +135,7 @@ test('field conversion, repair and option creation each have a single exact undo
       expect((await api.type(templateType)).fields).toEqual([]);
       expect((await api.fields()).fields.some(field => field.id === templateField)).toBe(false);
       await expect(createTemplateField(notebook, await api.type(templateType), 'phase', 'text')).rejects.toThrow('already exists');
-      const survivor = (await createFieldEntry(notebook, doc, notes[0]!, 'Survivor', 'text')).field;
+      const survivor = (await createFieldEntry(notebook, doc, await api.fields(), notes[0]!, 'Survivor', 'text')).field;
       await notebook.commit([{ op: 'edit_text', id: values[0]!, base_revision: (await api.block(values[0]!)).revision, text: 'First meaning' }]);
       const typeId = ulid(); const viewId = ulid(); const secondViewId = ulid();
       await notebook.commit([

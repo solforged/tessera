@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { expect, test } from 'bun:test';
 import { deleteDB, openDB } from 'idb';
 import { ulid } from 'ulid';
-import type { Block, BlockCapabilities, PageView, TaskState } from '../api/types';
+import type { Block, BlockCapabilities, Operation, PageView, TaskState } from '../api/types';
 import { Outbox } from './outbox';
 import type { NotebookCommand, PageCommand } from './types';
 
@@ -239,4 +239,46 @@ test('closed-window drafts are claimed once without adopting a live window’s c
     expect((await live.load()).commands).toEqual([active]);
     expect(errors).toEqual([]);
   } finally { await first.close(); await live.close(); await next.close(); await other.close(); await deleteDB(database); }
+});
+
+test('closed-window intake keeps the latest deferred value after an older IndexedDB snapshot', async () => {
+  const database = `outbox-created-value-${ulid()}`;
+  const entries = new Map<string, string>(), held = new Set<string>();
+  const intake = {
+    get length() { return entries.size; },
+    key: (index: number) => [...entries.keys()][index] ?? null,
+    getItem: (key: string) => entries.get(key) ?? null,
+    setItem: (key: string, value: string) => { entries.set(key, value); },
+    removeItem: (key: string) => { entries.delete(key); },
+  };
+  const locks = {
+    async request<T>(name: string, options: LockOptions | LockGrantedCallback<T>, granted?: LockGrantedCallback<T>) {
+      const callback = typeof options === 'function' ? options : granted!;
+      if (held.has(name)) return callback(null);
+      held.add(name);
+      try { return await callback({ name, mode: 'exclusive' }); }
+      finally { held.delete(name); }
+    },
+  } as Pick<LockManager, 'request'>;
+  const errors: unknown[] = [];
+  const first = new Outbox('notebook', 'closed', error => errors.push(error), database, intake, locks);
+  const next = new Outbox('notebook', 'next', error => errors.push(error), database, intake, locks);
+  const create: NotebookCommand = { kind: 'notebook', id: ulid(), order: 1, pageId: null, operations: [{ op: 'insert', id: 'value', parent_id: 'entry', after: null, text: '', heading: null }], actions: [], inverse: [], before: null, after: null, frozen: '{"immutable":"create"}' };
+  const text: NotebookCommand = { kind: 'notebook', id: ulid(), order: 2, pageId: null, operations: [{ op: 'edit_text', id: 'value', base_revision: 1, text: 'old draft' }], createdValueText: { id: 'value', pageId: 'page', before: '' }, actions: [], inverse: [], before: null, after: null };
+  try {
+    await first.load();
+    await first.accept(create);
+    await first.accept(text);
+    const older = first.put(text);
+    (text.operations[0] as Extract<Operation, { op: 'edit_text' }>).text = 'pending accepted value';
+    await first.accept(text);
+    await older;
+    await first.close();
+    expect((await next.load()).commands).toEqual([create, text]);
+    const frozen = { ...text, frozen: '{"immutable":"latest value"}' };
+    await next.put(frozen);
+    expect((await next.load()).commands).toEqual([create, frozen]);
+    expect(entries.size).toBe(0);
+    expect(errors).toEqual([]);
+  } finally { await first.close(); await next.close(); await deleteDB(database); }
 });

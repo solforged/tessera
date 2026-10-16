@@ -57,7 +57,7 @@ function createSubjectCriteria(
 
 /** Every eligible owner has one stable field area, independent of selection and editing. */
 export function createFieldSheet(context: Pick<OutlineContext,
-  | 'doc' | 'props' | 'definitionsById' | 'definitions' | 'indices' | 'selected' | 'editing' | 'zoom'
+  | 'doc' | 'props' | 'fields' | 'disposed' | 'definitionsById' | 'definitions' | 'indices' | 'selected' | 'editing' | 'zoom'
   | 'folds' | 'apply' | 'setMessage' | 'showNotice' | 'templateFor' | 'requiredFor' | 'baseDepth' | 'setSelected' | 'editAt' | 'rowFocus'
 >, options: {
   offerValue(id: string, field: FieldDefinition): void;
@@ -268,17 +268,42 @@ export function createFieldSheet(context: Pick<OutlineContext,
   // A source's catalogue fields belong to its header and card, so its own Add field never offers or creates them.
   async function create(owner: string, name: string, kind: FieldKind) {
     if (doc.block(owner)?.source && isCatalogueField(name)) { context.showNotice(`Edit ${name.trim()} in the source's details.`); return; }
-    const pending = ['text', 'number', 'span', 'url', 'identifier'].includes(kind) ? pendingCaretInput.prepare() : undefined;
+    const register = context.fields.error ? undefined : context.fields();
+    if (!register) { setMessage('Field definitions are unavailable. Try again when connected.'); return; }
+    let createdValue!: string, left = false, write: Promise<void> | undefined;
+    const pending = ['text', 'number', 'span', 'url', 'identifier'].includes(kind) ? pendingCaretInput.prepare({
+      onText: text => {
+        write = props.notebook.queueCreatedValueText(createdValue, doc.pageId, text);
+        void write.catch(error => setMessage(error instanceof Error ? error.message : String(error)));
+      },
+      onLeave: () => { left = true; },
+    }) : undefined;
     cancelCreationInput = pending;
     try {
-      const { field, value, change } = await createFieldEntry(props.notebook, doc, owner, name, kind);
+      const { field, value, change } = await createFieldEntry(props.notebook, doc, register, owner, name, kind, valueId => { createdValue = valueId; });
+      // New input can extend a write already in flight. Hand off only after the latest accepted prefix is committed.
+      for (let current = write; current; current = write !== current ? write : undefined) await current;
+      if (context.disposed) return;
       options.onField(field);
-      setFilling(owner);
+      if (pending?.signal.aborted && !left) return;
+      const bufferedText = write ? doc.block(value)?.text : '';
+      if (bufferedText) {
+        let expected = bufferedText;
+        const replace = async (text: string) => {
+          await doc.flush();
+          const block = doc.block(value);
+          if (!block || block.text !== expected) throw new Error('The field value changed. Nothing was overwritten.');
+          await props.notebook.commit([{ op: 'edit_text', id: value, base_revision: block.revision, text }], 'Edit new field value', [doc.pageId]);
+          expected = text;
+        };
+        doc.rememberChange({ undo: () => replace(''), redo: () => replace(bufferedText) });
+      }
+      setFilling(left ? null : owner);
       context.setSelected(value);
       if (pending && !pending.signal.aborted) pendingCaretInput.begin(props.pane, value);
-      if (kind === 'checkbox') context.rowFocus(value);
-      else context.editAt(value, 0, true);
-      context.showNotice(`${field.name} created.`, change.undo);
+      if (kind === 'checkbox' || left) context.rowFocus(value);
+      else context.editAt(value, doc.block(value)?.text.length ?? 0, true);
+      context.showNotice(`${field.name} created.`, bufferedText ? undefined : change.undo);
     } catch (error) { pending?.(); setMessage(error instanceof Error ? error.message : String(error)); }
   }
   function fill(entry: string) {

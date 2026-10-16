@@ -104,6 +104,8 @@ export interface NotebookCommand extends CommandRecord {
   operations: Operation[];
   /** Prepared into one frozen batch only after earlier commands have committed. */
   capture?: CaptureIntent;
+  /** Coalescing text behind an already queued value insertion; frozen requests stay immutable. */
+  createdValueText?: { id: string; pageId: string; before: string };
   reason?: string;
   /** Pages whose structure or explicit memberships must be refreshed after acknowledgement/replay. */
   refreshPages?: string[];

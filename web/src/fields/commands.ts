@@ -1,5 +1,5 @@
 import { ulid } from 'ulid';
-import type { Block, Committed, FieldChoiceCandidate, FieldDefinition, FieldDetail, FieldKind, Operation, PageView, Type, View } from '../api/types';
+import type { Block, Committed, FieldChoiceCandidate, FieldDefinition, FieldDetail, FieldKind, Fields, Operation, PageView, Type, View } from '../api/types';
 import type { DocumentChange, NotebookClient, PageDocument } from '../document/contract';
 import { fieldEntryId, queryFieldIds, remapQueryField } from '../table/query';
 import { documentReady } from '../outline/source-fields';
@@ -171,16 +171,17 @@ export async function createTemplateField(notebook: NotebookClient, type: Type, 
   return commit(notebook, steps, [register.page_id, type.page.id], 'Create template field');
 }
 
-export async function createFieldEntry(notebook: NotebookClient, doc: PageDocument, owner: string, name: string, kind: FieldKind) {
-  await doc.flush();
-  const register = await notebook.api.fields();
-  if (register.fields.some(field => field.name.trim().toLowerCase() === name.trim().toLowerCase())) throw new Error('A field with this name already exists.');
+export async function createFieldEntry(notebook: NotebookClient, doc: PageDocument, register: Fields, owner: string, name: string, kind: FieldKind, onPrepared?: (valueId: string) => void) {
+  const problem = fieldNameProblem(name, register.fields);
+  if (problem) throw new Error(problem);
   const steps: Step[] = [];
   const id = insert(steps, register.page_id, name.trim());
   if (kind !== 'text') steps.push({ forward: { op: 'set_field_kind', id, base_revision: 1, kind }, backward: { op: 'set_field_kind', id, base_revision: 0, kind: 'text' } });
   const entry = insert(steps, owner, `[[${id}]]`, doc.outline.children(owner).at(-1) ?? null);
   const value = insert(steps, entry, kind === 'checkbox' ? 'yes' : '');
-  const change = doc.rememberChange(await commit(notebook, steps, [register.page_id, doc.pageId], 'Create field'));
+  const pending = commit(notebook, steps, [register.page_id, doc.pageId], 'Create field');
+  onPrepared?.(value);
+  const change = doc.rememberChange(await pending);
   const field = (await notebook.api.fields()).fields.find(field => field.id === id)!;
   return { field, value, change };
 }

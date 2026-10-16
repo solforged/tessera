@@ -6,7 +6,7 @@ const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 function createPendingCaretInput() {
   let cancel = () => {};
   let bind: ((pane: string, blockId: string) => void) | undefined;
-  const prepare = () => {
+  const prepare = (callbacks?: { onText?(text: string): void; onLeave?(): void }) => {
     cancel();
     let text = '', composing = false, disposed = false, accepting = true;
     let destination: { pane: string; blockId: string } | undefined;
@@ -28,7 +28,7 @@ function createPendingCaretInput() {
       const view = EditorView.findFromDOM(focused);
       if (!view?.hasFocus) return;
       cancel();
-      if (text) view.dispatch(view.state.replaceSelection(text), { userEvent: 'input.type' });
+      if (text && !callbacks?.onText) view.dispatch(view.state.replaceSelection(text), { userEvent: 'input.type' });
     };
     bind = (pane, blockId) => { destination = { pane, blockId }; queueMicrotask(deliver); };
     const backspace = () => {
@@ -47,7 +47,7 @@ function createPendingCaretInput() {
     }, options);
     window.addEventListener('keydown', event => {
       if (disposed) return;
-      if (event.key === 'Escape') { stop(); return; }
+      if (event.key === 'Escape') { callbacks?.onLeave?.(); stop(); return; }
       if (event.target !== document.body && event.target !== document.documentElement) {
         // An editable owns its own input; never capture or redirect it.
         if (event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]')) cancel();
@@ -65,6 +65,7 @@ function createPendingCaretInput() {
         deliver();
         return;
       }
+      callbacks?.onText?.(text);
       event.preventDefault();
       event.stopImmediatePropagation();
     }, options);
@@ -74,6 +75,7 @@ function createPendingCaretInput() {
       if (event.inputType === 'deleteContentBackward') backspace();
       else if (event.inputType === 'insertText' && event.data) text += event.data;
       else { accepting = false; deliver(); return; }
+      callbacks?.onText?.(text);
       event.preventDefault();
       event.stopImmediatePropagation();
     }, options);

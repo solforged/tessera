@@ -364,6 +364,8 @@ export interface NotebookClient {
   readonly api: ApiClient;
   /** Durable notebook command; structural writes name pages whose outlines must refresh before acknowledgement is exposed. */
   commit(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[]): Promise<Committed>;
+  /** Keep text for a value whose creation is already queued, before its editor can mount. */
+  queueCreatedValueText(valueId: string, pageId: string, text: string): Promise<void>;
   /** Resolves once the capture is in the outbox, not when the service acknowledges it. */
   appendCapture(text: string, task: TaskState | null, picked?: readonly [string, string][]): Promise<void>;
   /** One acknowledged transaction across pages, with exact field-level undo/redo. */

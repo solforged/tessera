@@ -414,6 +414,36 @@ export class Notebook implements NotebookClient, DocumentHost {
   async commit(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[]): Promise<Committed> {
     return this.commitOperations(operations, reason, refreshPages);
   }
+  async queueCreatedValueText(valueId: string, pageId: string, text: string): Promise<void> {
+    if (this.closed || !this.outbox) throw new Error('Recovery storage has not opened.');
+    const tail = this.queue.at(-1);
+    let command: NotebookCommand;
+    if (tail?.kind === 'notebook' && tail.createdValueText?.id === valueId && !tail.frozen) {
+      command = tail;
+      (command.operations[0] as Extract<Operation, { op: 'edit_text' }>).text = text;
+    } else {
+      const previous = [...this.queue].reverse().find((item): item is NotebookCommand => item.kind === 'notebook' && item.createdValueText?.id === valueId);
+      const operation = previous?.operations[0] as Extract<Operation, { op: 'edit_text' }> | undefined;
+      const saved = this.docs.get(pageId)?.baseBlocks.get(valueId);
+      const before = operation?.text ?? saved?.text ?? '';
+      const revision = operation ? operation.base_revision + Number(operation.text !== previous!.createdValueText!.before) : saved?.revision ?? 1;
+      command = {
+        kind: 'notebook', id: ulid(), order: ++this.order, pageId: null,
+        createdValueText: { id: valueId, pageId, before },
+        operations: [{ op: 'edit_text', id: valueId, base_revision: revision, text }],
+        reason: 'Fill new field', refreshPages: [pageId], actions: [], inverse: [], before: null, after: null,
+      };
+      this.queue.push(command);
+    }
+    const waiter = this.commandWaiters.get(command.id) ?? Promise.withResolvers<Committed>();
+    this.commandWaiters.set(command.id, waiter);
+    this.persisted.delete(command.id);
+    this.touch();
+    await this.outbox.accept(command);
+    await this.persist(command);
+    this.schedule(0);
+    await waiter.promise;
+  }
   private async commitOperations(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[], retainRejection = true): Promise<Committed> {
     const id = ulid();
     const frozen = JSON.stringify({ actor: { kind: 'client', name: this.actorName }, idempotency_key: id, reason, operations });
@@ -426,7 +456,9 @@ export class Notebook implements NotebookClient, DocumentHost {
     this.commandWaiters.set(id, waiter);
     this.queue.push(command);
     this.touch();
-    void this.persist(command).then(() => this.schedule(0));
+    try {
+      void this.outbox!.accept(command).then(() => this.persist(command)).then(() => this.schedule(0)).catch(error => this.storageFailed(error));
+    } catch (error) { this.storageFailed(error); }
     return waiter.promise.catch(async (error: unknown) => {
       // These awaited field transactions never adopted optimistic document state.
       // Keep their failed draft in the editor, not as a stale shared recovery command.
@@ -1096,6 +1128,10 @@ export class Notebook implements NotebookClient, DocumentHost {
         command.frozen = frozen.frozen;
         command.operations = frozen.operations;
         command.refreshPages = frozen.refreshPages;
+      }
+      if (!command.frozen) {
+        command.frozen = JSON.stringify({ actor: { kind: 'client', name: this.actorName }, idempotency_key: command.id, reason: command.reason, operations: command.operations });
+        await this.persist(command);
       }
       if (!this.persisted.has(command.id)) await this.persist(command);
       if (!this.persisted.has(command.id)) return false;

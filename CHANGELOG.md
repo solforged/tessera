@@ -26,6 +26,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Kept accepted Compare cell drafts through reloads during slow reference lookups.
 - Queued table Undo and Redo in key order instead of dropping shortcuts while a prior history step was saving.
 - Made type-table row creation undoable in one step, with redo restoring the same page, memberships and children.
+- Preserved text typed into a new field when Escape or reload interrupted its pending creation.
 - Made Unicode title-key upgrades safe to replay during notebook recovery.
 - Restored original row identities and order when undoing a paste over selected rows, including rows previously moved by cut and paste.
 - Preserved adjacent authored external links and their captions in table source registers.
