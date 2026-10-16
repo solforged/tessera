@@ -38,13 +38,14 @@ export async function instancePages(notebook: NotebookClient, targets: readonly 
 
 /** A relation picker row: a page, or a block named by its label and placed by its page. */
 export interface RelationCandidate { block: Block; page: Block | null; label: string; alias: string | null; here: boolean }
+export interface RelationCandidates { rows: RelationCandidate[]; canCreate: boolean }
 
 /**
  * Candidates for a relation value. With target types, their members match by name, pages by title or alias
  * and blocks by label. Without types, pages match as before and blocks come from search once the query has
  * a few characters. Blocks on the owner's page lead; the owner itself is never offered.
  */
-export async function relationCandidates(notebook: NotebookClient, members: RelationMembers, targeted: boolean, query: string, owner?: { id: string; page: string }): Promise<{ rows: RelationCandidate[]; canCreate: boolean }> {
+export async function relationCandidates(notebook: NotebookClient, members: RelationMembers, targeted: boolean, query: string, owner?: { id: string; page: string }): Promise<RelationCandidates> {
   const lookup: NotebookClient['lookup'] = id => notebook.lookup(id);
   const needle = foldName(query);
   const names = await completeNames(notebook, query, members.pages);

@@ -75,6 +75,8 @@ Library Author, Editor and Translator start with Person and Group targets. Impor
 
 Metadata suggestions, field-slot pickers and value pickers for such a field show members of the target types. Page titles and aliases match with the notebook's name folding; an exact alias match does not offer duplicate creation. Blocks match by label and show their page beside it. Blocks on the owner's page lead under **On this page**, and the owner is never offered. A query that names no page exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together. A field that links to Source offers **Create source “Title”**, a manual record in the Inbox. A type with block members offers no creation.
 
+Enter commits the relation query as it is written at that moment, including before its candidates arrive. A pending query never permits accepting an older query's highlighted target.
+
 Without Links to types, the picker offers pages, and from the third character also blocks found by search under **Blocks**.
 
 ## Type page template
