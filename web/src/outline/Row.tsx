@@ -208,6 +208,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       onPointerEnter={() => { setLinkedCitation(block()?.citations[0]?.id ?? null); if (!propsRow.natural) sheet.hover(id()); }} onPointerLeave={() => { setLinkedCitation(null); sheet.hover(null); }}
       style={{ transform: propsRow.natural ? undefined : `translateY(${propsRow.item!().start - margin()}px)`, '--depth': propsRow.natural ? 0 : depth(), '--quote-color': localCitation()?.color ? `var(--highlight-${localCitation()!.color})` : 'var(--faint)' }}>
       <RowPrelude id={id()} />
+      <Show when={!propsRow.natural && depth() > 4}><span class="row-depth" aria-hidden="true" title={`Nesting depth ${depth()}`}>{depth()}</span></Show>
       <Show when={sourceDetails().chapters.get(id())}>{title => <div class="outline-chapter-label">{title()}</div>}</Show>
       <Show when={rowSources().length}><span class="row-sigla"><For each={rowSources()}>{source => <span class="row-siglum" title={props.notebook.lookup(source)()?.text}>{sigla().get(source)}</span>}</For></span></Show>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onPointerDown={event => drag.start(event, id())} onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>

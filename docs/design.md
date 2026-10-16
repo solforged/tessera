@@ -298,7 +298,7 @@ Settings opens from the Tessera menu. File offers New Page, Open Today, Import B
 
 Outline content is at most 760 px, centered, so a note's title sits where every other screen's title does. A gutter of two pointer targets (48 px, 64 px on touch) hangs left of it for row controls. Panes share the width; text never shrinks to fit.
 
-Visual indentation stops at eight levels or one quarter of the pane's content width, whichever is smaller, so deeply nested text retains a readable measure. Ancestor threads and field slots share that cap; stored depth, row accessibility levels, folding and zoom keep the full hierarchy.
+The first four visual depths have equal indentation steps; subsequent steps get progressively smaller, approaching but never reaching eight normal steps or one quarter of the pane's content width, whichever is smaller. A bare mono nesting-depth number in the left gutter identifies each compressed row. Ancestor threads retain the first four levels, and field slots use the same compressed positions. Stored depth, row accessibility levels, folding and zoom keep the full hierarchy.
 
 ### Find or create
 
@@ -377,7 +377,7 @@ Structural edits finish any pending fold animation before unfolding and editing 
 
 The bullet is a filled dot in `--faint`, 24 px target, gilt on hover and selection. Click or ⌘. to zoom (⌘⇧. zooms out), drag to move. The page title aligns with the bullet column; below 600 px the bullet is the first thing in the row, just inside the title's edge.
 
-[Journal days](surfaces/journal.md) show bullets; [titled pages](surfaces/notes.md) read as prose. On a prose page the bullet rests hidden and returns on hover or selection, where it still zooms and drags, and a collapsed block keeps its ringed bullet. Depth shows as 1 px `--line` threads under each ancestor's bullet column.
+[Journal days](surfaces/journal.md) show bullets; [titled pages](surfaces/notes.md) read as prose. On a prose page the bullet rests hidden and returns on hover or selection, where it still zooms and drags, and a collapsed block keeps its ringed bullet. Depth starts as 1 px `--line` threads under the first four ancestors' bullet columns; deeper rows retain their compressed indentation and mono depth cue.
 
 Show bullets and Hide bullets under Appearance… in the page menu override a page's default; overrides are stored per notebook with the pins. Appearance also holds Show archived or Hide archived. Editing, keys and export are the same in both.
 

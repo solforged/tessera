@@ -18,6 +18,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Kept deep outline levels distinguishable with compressed indentation and mono nesting-depth cues.
 - Made Unicode title-key upgrades safe to replay during notebook recovery.
 - Restored original row identities and order when undoing a paste over selected rows, including rows previously moved by cut and paste.
 - Preserved adjacent authored external links and their captions in table source registers.

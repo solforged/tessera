@@ -77,10 +77,13 @@
 .outline-dragging, .outline-dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
 .outline-motion-group { position: absolute; inset: 0; pointer-events: none; }
 .outline-motion-group > .outline-row { pointer-events: auto; }
-/* Indentation is a reading aid, not a depth limit: deep rows retain the text measure. */
-.outline-row { --indent-limit: min(calc(8 * var(--indent-width)), 25cqi); --row-indent: min(calc(var(--depth) * var(--indent-width)), var(--indent-limit)); display: flex; align-items: flex-start; position: absolute; top: 0; left: 0; right: 0; min-height: var(--row-height); padding-block: var(--space-2); padding-left: var(--row-indent); border-left: 2px solid transparent; border-radius: var(--radius-control); transition: background-color var(--motion-fast) var(--motion-ease); }
+/* Equal steps for four levels, then diminishing steps retain both depth and a readable measure. */
+.outline-row { --indent-unit: min(var(--indent-width), calc(25cqi / 8)); --depth-tail: max(0, calc(var(--depth) - 4)); --row-indent: calc(var(--indent-unit) * (min(var(--depth), 4) + 4 * var(--depth-tail) / (var(--depth-tail) + 4))); display: flex; align-items: flex-start; position: absolute; top: 0; left: 0; right: 0; min-height: var(--row-height); padding-block: var(--space-2); padding-left: var(--row-indent); border-left: 2px solid transparent; border-radius: var(--radius-control); transition: background-color var(--motion-fast) var(--motion-ease); }
 .outline-row:hover { background: var(--hover); }
 .outline-row:is(.row-selected, .row-covered) { background: var(--selection); border-left-color: var(--accent); }
+.row-depth { position: absolute; top: var(--space-2); left: calc(var(--row-indent) - var(--target-size)); width: var(--target-size); padding-right: var(--space-4); background: var(--canvas); color: var(--faint); font: var(--apparatus); line-height: var(--line-body); text-align: right; pointer-events: none; }
+.outline-row:hover > .row-depth { background: var(--hover); }
+.outline-row:is(.row-selected, .row-covered) > .row-depth { background: var(--selection); }
 .outline-row .icon-button { width: var(--target-size); height: var(--target-size); min-width: var(--target-size); padding: var(--space-4); flex: none; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--faint); display: inline-flex; align-items: center; justify-content: center; transition: color var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease); }
 .outline-row .icon-button:hover { color: var(--text); background: var(--selection); }
 .row-menu, .row-fold { opacity: 0; }
@@ -100,7 +103,7 @@
    their marker, since it is the only sign of hidden children. */
 [data-page-style="prose"] .row-bullet:not(.bullet-collapsed) { opacity: 0; }
 [data-page-style="prose"] .outline-row:is(:hover, .row-selected) .row-bullet { opacity: 1; }
-[data-page-style="prose"] .outline-row::before { content: ''; position: absolute; top: 0; bottom: 0; left: calc(2.5 * var(--target-size)); width: max(0px, calc(min(calc((var(--depth) - 1) * var(--indent-width)), calc(var(--indent-limit) - var(--indent-width))) + var(--rule-width))); background: repeating-linear-gradient(to right, var(--line) 0 var(--rule-width), transparent var(--rule-width) var(--indent-width)); pointer-events: none; }
+[data-page-style="prose"] .outline-row::before { content: ''; position: absolute; top: 0; bottom: 0; left: calc(2.5 * var(--target-size)); width: max(0px, calc((min(var(--depth), 4) - 1) * var(--indent-unit) + var(--rule-width))); background: repeating-linear-gradient(to right, var(--line) 0 var(--rule-width), transparent var(--rule-width) var(--indent-unit)); pointer-events: none; }
 .outline-body { min-width: 0; flex: 1; padding-right: var(--space-8); overflow-wrap: anywhere; }
 .static-text { white-space: pre-wrap; min-height: var(--line-body); }
 .inline-code { font-family: var(--font-mono); font-size: 0.9em; background: var(--hover); border-radius: var(--radius-control); padding-inline: var(--space-2); }
@@ -221,7 +224,7 @@
 /* Every owner's missing template fields stay below its last entry, independent of selection.
    Slots span the canvas so the anchor row's hover and selection stay on its own line. */
 .outline-row:has(> .field-slots) { flex-wrap: wrap; padding-bottom: 0; }
-.field-slots { --slot-indent: min(calc(var(--slot-depth) * var(--indent-width)), min(calc(8 * var(--indent-width)), 25cqi)); position: relative; flex: 0 0 calc(100% + var(--row-indent, 0px) + 2px); display: flex; flex-direction: column; box-sizing: border-box; margin: var(--space-2) 0 0 calc(-2px - var(--row-indent, 0px)); padding: 0 0 var(--space-2) calc(2px + var(--gutter) + var(--slot-indent)); background: var(--canvas); }
+.field-slots { --indent-unit: min(var(--indent-width), calc(25cqi / 8)); --slot-tail: max(0, calc(var(--slot-depth) - 4)); --slot-indent: calc(var(--indent-unit) * (min(var(--slot-depth), 4) + 4 * var(--slot-tail) / (var(--slot-tail) + 4))); position: relative; flex: 0 0 calc(100% + var(--row-indent, 0px) + 2px); display: flex; flex-direction: column; box-sizing: border-box; margin: var(--space-2) 0 0 calc(-2px - var(--row-indent, 0px)); padding: 0 0 var(--space-2) calc(2px + var(--gutter) + var(--slot-indent)); background: var(--canvas); }
 .outline-heading > .field-slots { margin-left: 0; padding-left: calc(2px + var(--slot-indent)); }
 @container outline-pane (max-width: 856px) {
   .outline-heading > .field-slots { padding-left: calc(2px + var(--gutter) + var(--slot-indent)); }
