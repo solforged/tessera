@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { Compartment, EditorState } from '@codemirror/state';
-import { emphasisChange, fieldDraftDecorations, fieldEntryExtension, pairInput, pairSelection, referenceDecorations, vimUndoKey } from './editor';
+import { emphasisChange, fieldDraftDecorations, fieldEntryExtension, graphemeBoundary, graphemeSelection, pairInput, pairSelection, referenceDecorations, vimUndoKey } from './editor';
 import type { NameMatch } from '../api/types';
 
 test('emphasis wraps and unwraps selected source, including combined bold and italic', () => {
@@ -42,6 +42,29 @@ test('resolver reconfiguration updates atomic eligibility without rewriting the 
   const removed = renamed.update({ effects: resolver.reconfigure(fieldEntryExtension(() => undefined)), selection: { anchor: 2 } }).state;
   expect(removed.selection.main.head).toBe(2);
   expect(removed.doc.toString()).toBe(text);
+});
+
+describe('extended grapheme selection boundaries', () => {
+  for (const cluster of ['क्षि', '👍🏽', 'e\u0301', '👨‍👩‍👧‍👦', '🇮🇳']) {
+    test(`navigation and selections keep ${cluster} intact`, () => {
+      const text = `A${cluster}B`, end = 1 + cluster.length;
+      const state = EditorState.create({ doc: text, selection: { anchor: 1 }, extensions: graphemeSelection });
+      expect(state.update({ selection: { anchor: 2 } }).state.selection.main.head).toBe(end);
+      const right = EditorState.create({ doc: text, selection: { anchor: end }, extensions: graphemeSelection });
+      expect(right.update({ selection: { anchor: end - 1 } }).state.selection.main.head).toBe(1);
+      const range = state.update({ selection: { anchor: 2, head: text.length } }).state.selection.main;
+      expect([range.from, range.to]).toEqual([1, text.length]);
+      expect(graphemeBoundary(text, 2, false)).toBe(1);
+      expect(graphemeBoundary(text, 2, true)).toBe(end);
+    });
+  }
+
+  test('composition text is not rewritten while it is being authored', () => {
+    const state = EditorState.create({ doc: 'AB', selection: { anchor: 1 }, extensions: graphemeSelection });
+    const next = state.update({ changes: { from: 1, insert: 'क्' }, selection: { anchor: 2 } }).state;
+    expect(next.doc.toString()).toBe('Aक्B');
+    expect(next.selection.main.head).toBe(2);
+  });
 });
 
 // The existing Bun suite has no DOM implementation. Exercise the same builder

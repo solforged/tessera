@@ -1,11 +1,12 @@
 import { EditorSelection } from '@codemirror/state';
+import { Direction } from '@codemirror/view';
 import type { EditorView } from '@codemirror/view';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import type { PageDocument } from '../document/contract';
 import { referenceBeside } from '../document/text-tokens';
 import { boundaryDeletion } from '../document/outline-mechanics';
 import type { OutlineContext } from './context';
-import { applyBracketInput } from './editor';
+import { applyBracketInput, graphemeBoundary } from './editor';
 
 /** Only an additional blank leaf value is disposable; the entry's first value is always kept. */
 export function emptyExtraValuePrevious(doc: Pick<PageDocument, 'block' | 'outline' | 'isArchived'>, id: string, definitions: ReadonlyMap<string, unknown>): string | null {
@@ -44,7 +45,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
   function resetVerticalGoal() { preferredX = undefined; }
   function clearNavigationRange(event: KeyboardEvent) {
     if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) return;
-    setRowRange(null);
+    if (editing() || !event.shiftKey) setRowRange(null);
     if (!event.shiftKey) setTextRange(null);
   }
   function pruneEmptyValue(id: string): string | null {
@@ -71,11 +72,18 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
       : ids()[Math.max(0, Math.min(ids().length - 1, index + direction))];
     if (id) rowFocus(id, extend);
   }
-  function split(_view: EditorView) {
+  function split(view: EditorView) {
     if (editing() && commitFieldEntry(editing()!)) return;
+    if (!textRange()) {
+      const selection = view.state.selection.main;
+      const text = view.state.doc.toString();
+      const head = graphemeBoundary(text, selection.head, selection.empty || selection.head > selection.anchor);
+      const anchor = selection.empty ? head : graphemeBoundary(text, selection.anchor, selection.anchor > selection.head);
+      if (head !== selection.head || anchor !== selection.anchor) view.dispatch({ selection: EditorSelection.range(anchor, head) });
+    }
     replaceSelection('', 'split');
   }
-  function backspace(view: EditorView, forward = false) {
+  function backspace(view: EditorView, forward = false, wholeGrapheme = true) {
     if (textRange()) { deleteTextRange(); return true; }
     const id = editing();
     if (!id) return false;
@@ -90,7 +98,14 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
       replaceSelection('', 'text', { anchor: { id, offset: token.start }, head: { id, offset: token.end } }, { anchor: at, head: at });
       return true;
     }
-    if (selection.head !== (forward ? view.state.doc.length : 0)) return false;
+    if (selection.head !== (forward ? view.state.doc.length : 0)) {
+      if (!wholeGrapheme) return false;
+      const text = view.state.doc.toString();
+      const segment = graphemes.segment(text).containing(forward ? selection.head : selection.head - 1)!;
+      const from = segment.index, to = from + segment.segment.length;
+      view.dispatch({ changes: { from, to, insert: '' }, selection: { anchor: from }, userEvent: 'delete' });
+      return true;
+    }
     const row = indices().get(id) ?? 0;
     const previous = ids()[row - 1] ?? null;
     const intent = boundaryDeletion(doc, id, forward ? 'forward' : 'backward', previous, inlineFields(), zoom());
@@ -117,8 +132,29 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
       if (selection.goalColumn !== goal) view.dispatch({ selection: EditorSelection.range(selection.anchor, selection.head, goal) });
     }
     const last = view.coordsAtPos(view.state.doc.length);
-    const boundary = event.key === 'ArrowLeft' ? head === 0 : event.key === 'ArrowRight' ? head === view.state.doc.length
-      : direction < 0 ? !!rect && !!first && rect.top <= first.top + 2 : !!rect && !!last && rect.bottom >= last.bottom - 2;
+    if (!vertical) {
+      const selection = view.state.selection.main;
+      // Line-boundary commands can attach an LTR start/end association to an RTL edge.
+      // Probe the actual bidi span, rather than treating that association as a row exit.
+      const cursor = EditorSelection.cursor(head, 0, selection.bidiLevel ?? undefined);
+      const forward = (event.key === 'ArrowRight') === (view.textDirectionAt(head) === Direction.LTR);
+      let target = view.moveByChar(cursor, forward);
+      if (target.head !== head) {
+        const line = view.state.doc.lineAt(head);
+        // CM represents a visual line end with a logical endpoint sentinel. Resolve it
+        // back to the displayed edge before the next key or an insertion uses the offset.
+        if (target.bidiLevel === null && (target.head === line.from || target.head === line.to)) {
+          target = view.moveToLineBoundary(target, forward, true);
+        }
+        view.dispatch({
+          selection: event.shiftKey ? EditorSelection.range(selection.anchor, target.head, undefined, target.bidiLevel ?? undefined, target.assoc) : target,
+          scrollIntoView: true,
+          userEvent: 'select.keyboard',
+        });
+        return true;
+      }
+    }
+    const boundary = !vertical || (direction < 0 ? !!rect && !!first && rect.top <= first.top + 2 : !!rect && !!last && rect.bottom >= last.bottom - 2);
     if (!boundary) return false;
     const index = indices().get(editing() ?? '') ?? -1;
     const id = ids()[index + direction];
@@ -137,6 +173,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
           if (x !== undefined) target = context.editor.view.posAtCoords({ x, y: (edge.top + edge.bottom) / 2 }) ?? offset;
         }
       }
+      target = graphemeBoundary(context.editor.view.state.doc.toString(), target, direction > 0);
       if (vertical || event.shiftKey) {
         const targetView = context.editor.view;
         const goal = vertical && x !== undefined ? x - targetView.contentDOM.getBoundingClientRect().left : undefined;
@@ -181,8 +218,8 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
       return true;
     }
     if (event.key === 'Tab') { apply({ kind: event.shiftKey ? 'outdent' : 'indent', ids: [editing()!] }); return true; }
-    if (event.key === 'Backspace') return backspace(view);
-    if (event.key === 'Delete') return backspace(view, true);
+    if (event.key === 'Backspace') return backspace(view, false, !event.altKey && !event.metaKey && !event.ctrlKey);
+    if (event.key === 'Delete') return backspace(view, true, !event.altKey && !event.metaKey && !event.ctrlKey);
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && !event.altKey && !event.metaKey && !event.ctrlKey) {
       return crossArrow(event, view);
     }

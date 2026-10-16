@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { EditorSelection, EditorState } from '@codemirror/state';
-import type { TransactionSpec } from '@codemirror/state';
+import type { SelectionRange, TransactionSpec } from '@codemirror/state';
+import { Direction } from '@codemirror/view';
 import type { EditorView } from '@codemirror/view';
 import type { TextRange } from '../document/contract';
 import { createOutlineKeyboard } from './keyboard';
@@ -8,9 +9,15 @@ import { createOutlineKeyboard } from './keyboard';
 function navigationHarness(texts: string[], origins = texts.map(() => 100)) {
   let row = 0;
   let textRange: TextRange | null = null;
-  let state = EditorState.create({ doc: texts[row], selection: EditorSelection.cursor(10) });
+  let state = EditorState.create({ doc: texts[row], selection: EditorSelection.cursor(Math.min(10, texts[row]!.length)) });
   const view = {
     get state() { return state; },
+    textDirectionAt: () => Direction.LTR,
+    moveByChar: (range: SelectionRange, forward: boolean) => EditorSelection.cursor(Math.max(0, Math.min(state.doc.length, range.head + (forward ? 1 : -1)))),
+    moveToLineBoundary: (range: SelectionRange, forward: boolean) => {
+      const line = state.doc.lineAt(range.head);
+      return EditorSelection.cursor(forward ? line.to : line.from);
+    },
     contentDOM: { getBoundingClientRect: () => ({ left: origins[row] }) },
     coordsAtPos: (offset: number) => ({ left: origins[row]! + offset * 10, right: origins[row]! + offset * 10, top: row * 30, bottom: row * 30 + 24 }),
     posAtCoords: ({ x }: { x: number }) => Math.max(0, Math.min(state.doc.length, Math.round((x - origins[row]!) / 10))),
@@ -30,6 +37,7 @@ function navigationHarness(texts: string[], origins = texts.map(() => 100)) {
       state = EditorState.create({ doc: texts[row], selection: EditorSelection.cursor(offset) });
     },
     commitFieldEntry: () => false,
+    replaceSelection: () => {},
     textRange: () => textRange,
     rowRange: () => null,
     setTextRange: (range: TextRange | null) => { textRange = range; },
@@ -41,9 +49,11 @@ function navigationHarness(texts: string[], origins = texts.map(() => 100)) {
   } as unknown as Parameters<typeof createOutlineKeyboard>[0]);
   return {
     keyboard,
+    view,
     position: () => ({ row, offset: state.selection.main.head }),
+    text: () => state.doc.toString(),
     remount: (offset = state.selection.main.head) => { state = EditorState.create({ doc: texts[row], selection: EditorSelection.cursor(offset) }); },
-    select: (anchor: number, head: number) => { state = state.update({ selection: EditorSelection.range(anchor, head) }).state; },
+    select: (anchor: number, head: number, assoc = 0) => { state = state.update({ selection: EditorSelection.range(anchor, head, undefined, undefined, assoc) }).state; },
     setRange: (range: TextRange | null) => { textRange = range; },
     range: () => textRange,
     press: async (key: string, modifiers: Partial<KeyboardEvent> = {}) => {
@@ -152,4 +162,34 @@ describe('native and cross-row selection ownership', () => {
     await harness.press('Home', { shiftKey: true, metaKey: true });
     expect(harness.range()).toEqual(range);
   });
+});
+
+describe('grapheme deletion', () => {
+  for (const cluster of ['क्षि', '👍🏽', 'e\u0301', '👨‍👩‍👧‍👦', '🇮🇳']) {
+    test(`Backspace and Delete each remove all of ${cluster}`, async () => {
+      for (const key of ['Backspace', 'Delete']) {
+        const harness = navigationHarness([`A${cluster}B`]);
+        harness.remount(key === 'Backspace' ? 1 + cluster.length : 1);
+        expect(await harness.press(key)).toBe(true);
+        expect(harness.text()).toBe('AB');
+        expect(harness.position()).toEqual({ row: 0, offset: 1 });
+      }
+    });
+  }
+});
+
+test('an RTL edge with a line-start association still moves into its visual text', async () => {
+  const harness = navigationHarness(['BEFORE', 'العربية', 'AFTER']);
+  await harness.press('ArrowDown');
+  harness.select(0, 0, -1);
+  harness.view.moveByChar = range => range.assoc < 0 ? range : EditorSelection.cursor(1, -1, 1);
+  expect(await harness.press('ArrowLeft')).toBe(true);
+  expect(harness.position()).toEqual({ row: 1, offset: 1 });
+});
+
+test('Enter normalizes an interior caret left by a text write before splitting', () => {
+  const harness = navigationHarness(['Aक्षिB']);
+  harness.remount(3);
+  harness.keyboard.split(harness.view);
+  expect(harness.position()).toEqual({ row: 0, offset: 5 });
 });

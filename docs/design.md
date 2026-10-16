@@ -558,6 +558,8 @@ Structural edits and paste keep the top visible row at its screen position, then
 
 Each split and its new task, or exit from a field value, is one undo step. Empty tasks in other states or with children follow the task Enter rule and keep their original status and planning facts. Enter never cuts a `[[reference]]` or `#tag`: with the caret inside one, as in a query kept with Escape, the split falls just after it. A selection reaching into one replaces the whole token.
 
+Caret navigation and block splits stay on extended-grapheme boundaries. Backspace and forward Delete remove the same whole user-perceived character, including combining marks, emoji modifiers and conjuncts.
+
 **Backspace**
 
 At the start, Backspace merges into the previous visible row (a sibling's last unfolded descendant, never a folded hidden row); the merged block's children follow it. A first child with no previous sibling outdents instead.
@@ -577,7 +579,7 @@ Headings likewise drop their style first. Backspace straight after a reference, 
 **Delete, arrows and tree commands**
 
 - Delete at the end joins the next sibling, appending its children in order. At a zoomed root it does nothing, so it never merges a sibling outside the zoomed subtree.
-- Arrows at a row boundary cross to the neighboring row keeping the screen column, including across field gutters. The pane retains the preferred column through shorter rows and editor remounts until another key, a pointer action or a text edit resets it. Escape keeps the caret offset so the next Enter or `i` resumes there.
+- Arrows at a visual row boundary cross to the neighboring row keeping the screen column, including across field gutters. Bidirectional text uses the editor's visual movement, not logical string endpoints, to find that boundary. The pane retains the preferred column through shorter rows and editor remounts until another key, a pointer action or a text edit resets it. Escape keeps the caret offset so the next Enter or `i` resumes there.
 - Indent, outdent and move act on the selection's roots with their subtrees, never leave the zoomed subtree, and are silent no-ops without a history entry at a boundary (no previous sibling, top level, first or last sibling). Outdent leaves the following siblings under their original parent. A multi-row selection survives the command and its undo or redo.
 - Outdenting a single empty, childless todo without planning facts, as Enter leaves after a task, keeps it a todo only when it lands below a task. Below a plain line it becomes a plain line in the same undo step, so a heading typed after a task list is not a task.
 - Delete of a subtree selects the previous visible survivor; folding a descendant selects the folded parent; zooming out selects the block being left. A hidden or remotely deleted edited or selected row selects the previous visible survivor, or the next when none precedes it, and keeps outline keyboard ownership.

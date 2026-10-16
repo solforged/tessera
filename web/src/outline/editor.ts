@@ -14,6 +14,28 @@ import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { glyphElement } from '../ui/glyphs';
 import type { Token } from '../document/text-tokens';
 
+const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/** Keep UTF-16 editor positions on extended-grapheme boundaries, including Indic conjuncts. */
+export function graphemeBoundary(text: string, offset: number, forward: boolean): number {
+  const segment = graphemes.segment(text).containing(offset);
+  return !segment || segment.index === offset ? offset : forward ? segment.index + segment.segment.length : segment.index;
+}
+
+export const graphemeSelection = EditorState.transactionFilter.of(transaction => {
+  // Composition and ordinary input own their in-progress text; normalize navigation, not writes.
+  if (!transaction.selection || transaction.docChanged) return transaction;
+  const text = transaction.state.doc.toString();
+  const ranges = transaction.selection.ranges.map((range, index) => {
+    const previous = transaction.startState.selection.ranges[index] ?? transaction.startState.selection.main;
+    const head = graphemeBoundary(text, range.head, range.empty ? range.head >= previous.head : range.head > range.anchor);
+    const anchor = range.empty ? head : graphemeBoundary(text, range.anchor, range.anchor > range.head);
+    return EditorSelection.range(anchor, head, range.goalColumn, range.bidiLevel ?? undefined, range.assoc);
+  });
+  const selection = EditorSelection.create(ranges, transaction.selection.mainIndex);
+  return selection.eq(transaction.selection, true) ? transaction : [transaction, { selection, sequential: true }];
+});
+
 type FieldResolver = (id: string) => string | undefined;
 type FieldKindResolver = (name: string) => FieldKind | undefined;
 const fieldName = Facet.define<FieldResolver, FieldResolver>({ combine: values => values.at(-1) ?? (() => undefined) });
@@ -337,6 +359,7 @@ export class PaneEditor {
   constructor(private readonly hooks: EditorHooks) {
     this.view = new EditorView({ state: EditorState.create({ extensions: [
       EditorView.lineWrapping,
+      graphemeSelection,
       drawSelection(),
       references(hooks),
       EditorView.inputHandler.of((view, from, to, text) => hooks.input(view, from, to, text)),
