@@ -1097,7 +1097,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         command.operations = frozen.operations;
         command.refreshPages = frozen.refreshPages;
       }
-      await this.persist(command);
+      if (!this.persisted.has(command.id)) await this.persist(command);
       if (!this.persisted.has(command.id)) return false;
       this.activeCommand = command.id; this.touch();
       const ack = await this.api.submitFrozen(command.frozen!);
@@ -1243,9 +1243,12 @@ export class Notebook implements NotebookClient, DocumentHost {
             const compiled = this.compile(command, doc);
             command.frozen = JSON.stringify(compiled.batch);
             command.deleted = compiled.deleted;
+            await this.persist(command);
+          } else if (!this.persisted.has(command.id)) {
+            await this.persist(command);
           }
-          // Even an uncertain retry passes through persistence before it can hit the network.
-          await this.persist(command);
+          // A recovered frozen request is already durable. Retrying it must not
+          // temporarily remove its edits from the locally queued count.
           if (!this.persisted.has(command.id)) break;
           this.activeCommand = command.id;
           this.touch();
