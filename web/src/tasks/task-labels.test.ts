@@ -101,6 +101,19 @@ describe('groupDayAgenda', () => {
     ]);
   });
 
+  test('completion history does not hide the next recurrence or its later Doing state', () => {
+    const history = item('repeat', ['recently_completed'], { status: 'done', scheduled: '2026-10-01', completed_on: '2026-10-10' });
+    const live = item('repeat', ['scheduled'], { scheduled: '2026-10-11' });
+    const next = groupDayAgenda([history], [live], '2026-10-10');
+    expect(next.done).toEqual([history]);
+    expect(next.upcoming[0]!.rows).toEqual([live]);
+    const doing = { ...live, task: { ...live.task, status: 'doing' as const }, reasons: ['in_progress' as const] };
+    const active = groupDayAgenda([history, doing], [doing], '2026-10-10');
+    expect(active.done).toEqual([history]);
+    expect(active.planned).toEqual([doing]);
+    expect(active.upcoming).toEqual([]);
+  });
+
   test('moving the displayed day brings that day into the main section and advances the seven-day boundary', () => {
     const next = item('next', ['scheduled'], { scheduled: '2026-10-11' });
     const eighth = item('eighth', ['scheduled'], { scheduled: '2026-10-18' });

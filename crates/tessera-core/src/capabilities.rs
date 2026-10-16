@@ -539,6 +539,7 @@ pub enum AgendaReason {
     Warning,
     Overdue,
     Unplanned,
+    InProgress,
     RecentlyCompleted,
 }
 

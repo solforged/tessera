@@ -49,6 +49,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Grouped cross-block replacement typing into one undo step and kept separate Vim commands in separate undo groups.
 - Outdented mixed-depth selections relative to each root's own parent and disabled sibling-only move commands for mixed-parent selections.
 - Kept structured cut/paste undo from generating redundant move inverses that the service rejected.
+- Kept recurring task completion history separate from its next plan and live Doing state in Agenda.
 - Labeled empty tasks in Today's next-task preview instead of leaving a bare “Next:”.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.
 - Replaced selected row ranges on paste and preserved native headings, nested lists, tasks, table rows, image URLs and labeled links from external HTML and Markdown.

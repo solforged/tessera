@@ -320,7 +320,7 @@ Clocked work sessions retain their start, end, note and revision. Only one unrev
 
 Task queries compose source type/text/field constraints with task status, priority, project ancestry and independent date ranges. Unfinished-or-recent selection includes unfinished tasks or an unreversed completion in the inclusive context-date range. Filtering precedes the outer result limit. The client query line resolves type and project titles to canonical IDs and relative dates to civil dates; field predicates remain separate from its text syntax. Named task views retain the full query, including its date context, rather than a textual query.
 
-An agenda takes the displayed civil date, never an implicit device date. It merges schedule, deadline, warning, overdue, unplanned and completion reasons into one row per canonical source. A completion on that date uses the latest occurrence's planning snapshot and a done projection, not the next recurring plan. Canceled tasks are excluded. Opening a row edits the original block; the journal contains no copied tasks.
+An agenda takes the displayed civil date, never an implicit device date. It merges schedule, deadline, warning, overdue, unplanned and in-progress reasons into one live row per canonical source. A completion on that date separately shows the latest occurrence's planning snapshot as done history; it never replaces the live task's advanced plan or current status. Canceled tasks are excluded. Opening a row edits the original block; the journal contains no copied tasks.
 
 ## Investigations
 

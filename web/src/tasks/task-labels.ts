@@ -108,7 +108,8 @@ export function groupDayAgenda(items: readonly AgendaItem[], futureRows: readonl
   const future = (row: TaskRow | AgendaItem) => !isFinished(row.task) && row.task.status !== 'doing'
     && (!row.task.scheduled || row.task.scheduled > date) && (!row.task.deadline || row.task.deadline > date);
   const planned = groups.planned.filter(row => !future(row));
-  const listed = new Set([...groups.overdue, ...planned, ...groups.done].map(row => row.source.block.id));
+  // A completed occurrence must not suppress the same source's next live plan.
+  const listed = new Set([...groups.overdue, ...planned].map(row => row.source.block.id));
   const upcoming = new Map<string, TaskRow | AgendaItem>();
   for (const row of [...groups.planned.filter(future), ...futureRows]) {
     if (!isFinished(row.task) && !listed.has(row.source.block.id)) upcoming.set(row.source.block.id, row);

@@ -441,7 +441,7 @@ fn agenda_uses_displayed_day_all_reasons_and_only_applicable_clock_labels() {
 }
 
 #[test]
-fn historical_journal_projects_latest_occurrence_without_advanced_recurrence_or_duplicates() {
+fn agenda_keeps_latest_occurrence_separate_from_the_live_recurrence() {
     let (_dir, mut nb) = fixture();
     apply(
         &mut nb,
@@ -486,8 +486,12 @@ fn historical_journal_projects_latest_occurrence_without_advanced_recurrence_or_
     assert_eq!(recent.rows[0].task.scheduled.as_deref(), Some("2026-10-03"));
     assert_eq!(recent.rows[0].task.deadline.as_deref(), Some("2026-10-02"));
     let agenda = nb.agenda("2026-10-03").unwrap();
-    assert_eq!(agenda.items.len(), 1);
-    let row = &agenda.items[0];
+    assert_eq!(agenda.items.len(), 2);
+    let row = agenda
+        .items
+        .iter()
+        .find(|row| row.reasons.contains(&AgendaReason::RecentlyCompleted))
+        .unwrap();
     assert_eq!(row.source.block.id, id(10));
     assert_eq!(row.source.page.id, id(2));
     assert_eq!(row.task.status, TaskStatus::Done);
@@ -504,17 +508,28 @@ fn historical_journal_projects_latest_occurrence_without_advanced_recurrence_or_
         ]
     );
     assert_eq!(row.time.as_deref(), Some("11:00"));
+    let live = agenda
+        .items
+        .iter()
+        .find(|row| !row.reasons.contains(&AgendaReason::RecentlyCompleted))
+        .unwrap();
+    assert_eq!(live.task, recent.rows[0].task);
     reverse(&mut nb, 10, 100);
     let first = nb.agenda("2026-10-03").unwrap();
-    assert_eq!(first.items[0].task.scheduled.as_deref(), Some("2026-10-01"));
+    let first = first
+        .items
+        .iter()
+        .find(|row| row.reasons.contains(&AgendaReason::RecentlyCompleted))
+        .unwrap();
+    assert_eq!(first.task.scheduled.as_deref(), Some("2026-10-01"));
     let mut changed = planned(Some("2026-10-20"), None);
     changed.scheduled_time = Some("01:00".into());
     set_task(&mut nb, 10, Some(changed));
     let historical = nb.agenda("2026-10-03").unwrap();
     assert_eq!(historical.items[0].source.block.id, id(10));
-    assert_eq!(historical.items[0].task, first.items[0].task);
-    assert_eq!(historical.items[0].reasons, first.items[0].reasons);
-    assert_eq!(historical.items[0].time, first.items[0].time);
+    assert_eq!(historical.items[0].task, first.task);
+    assert_eq!(historical.items[0].reasons, first.reasons);
+    assert_eq!(historical.items[0].time, first.time);
     set_task(
         &mut nb,
         10,
@@ -549,6 +564,43 @@ fn agenda_ignores_future_and_reversed_completions_and_keeps_reopened_history() {
                 && row.task.completed_on.as_deref() == Some("2026-10-03"))
     );
     assert_eq!(agenda_ids(nb.agenda("2026-10-04").unwrap()), vec![id(10)]);
+}
+
+#[test]
+fn agenda_keeps_repeating_doing_work_with_its_completed_history() {
+    let (_dir, mut nb) = fixture();
+    for (value, mode, unit, next) in [
+        (10, RepeatMode::AfterCompletion, RepeatUnit::Day, "2026-10-04"),
+        (11, RepeatMode::CatchUp, RepeatUnit::Week, "2026-10-08"),
+    ] {
+        let mut state = planned(Some("2026-10-01"), None);
+        state.repeater = Some(Repeater {
+            every: 1,
+            unit,
+            mode,
+        });
+        task(&mut nb, value, state);
+        complete(&mut nb, value, value + 100, "2026-10-03");
+        let mut live = nb.capabilities(&id(value)).unwrap().task.unwrap();
+        assert_eq!(live.scheduled.as_deref(), Some(next));
+        live.status = TaskStatus::Doing;
+        set_task(&mut nb, value, Some(live.clone()));
+        let rows = nb.agenda("2026-10-03").unwrap().items;
+        let rows: Vec<_> = rows
+            .iter()
+            .filter(|row| row.source.block.id == id(value))
+            .collect();
+        assert_eq!(rows.len(), 2);
+        assert!(
+            rows.iter()
+                .any(|row| row.task == live && row.reasons.contains(&AgendaReason::InProgress))
+        );
+        assert!(
+            rows.iter().any(|row| row.task.status == TaskStatus::Done
+                && row.task.scheduled.as_deref() == Some("2026-10-01")
+                && row.reasons.contains(&AgendaReason::RecentlyCompleted))
+        );
+    }
 }
 
 #[test]

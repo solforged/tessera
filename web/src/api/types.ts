@@ -573,7 +573,7 @@ export interface TaskQuery {
 
 export interface TaskRow { source: BlockInPage; task: TaskState; project_id: string | null; section_id: string | null; section_text: string | null }
 export interface TaskQueryResult { rows: TaskRow[]; total: number }
-export type AgendaReason = 'scheduled' | 'deadline' | 'warning' | 'overdue' | 'unplanned' | 'recently_completed';
+export type AgendaReason = 'scheduled' | 'deadline' | 'warning' | 'overdue' | 'unplanned' | 'in_progress' | 'recently_completed';
 
 export interface AgendaItem {
   source: BlockInPage;

@@ -244,6 +244,9 @@ fn agenda_plan(state: &TaskState, date: &str) -> Result<(Vec<AgendaReason>, Opti
     if state.scheduled.is_none() && state.deadline.is_none() {
         reasons.push(AgendaReason::Unplanned);
     }
+    if state.status == TaskStatus::Doing {
+        reasons.push(AgendaReason::InProgress);
+    }
     let scheduled_time = scheduled
         .then_some(state.scheduled_time.as_deref())
         .flatten();
@@ -412,9 +415,9 @@ impl Notebook {
         Ok(TaskQueryResult { rows, total })
     }
 
-    /// The displayed civil date is authoritative. Currently cancelled tasks are
-    /// excluded; a latest same-day occurrence takes precedence over mutable state
-    /// and supplies all planning for one historical, projected-done source row.
+    /// The displayed civil date is authoritative. Completion history keeps its
+    /// planning snapshot separately from the canonical task's current open work.
+    /// Currently cancelled tasks are excluded.
     pub fn agenda(&self, date: &str) -> Result<Agenda> {
         validate_civil_date(date)?;
         let mut completed = self.conn.prepare_cached(
@@ -429,18 +432,24 @@ impl Notebook {
             if row.task.status == TaskStatus::Cancelled {
                 continue;
             }
-            let occurrence = completed.remove(&row.source.block.id);
-            if occurrence.is_none() && !unfinished(row.task.status) {
-                continue;
-            }
-            let historical = occurrence.is_some();
-            let mut task = occurrence.unwrap_or(row.task);
-            let (mut reasons, time) = agenda_plan(&task, date)?;
-            if historical {
+            if let Some(mut task) = completed.remove(&row.source.block.id) {
                 task.status = TaskStatus::Done;
                 task.completed_on = Some(date.to_owned());
+                let (mut reasons, time) = agenda_plan(&task, date)?;
                 reasons.push(AgendaReason::RecentlyCompleted);
+                items.push(AgendaItem {
+                    source: row.source.clone(),
+                    task,
+                    reasons,
+                    time,
+                    project_id: row.project_id.clone(),
+                });
             }
+            if !unfinished(row.task.status) {
+                continue;
+            }
+            let task = row.task;
+            let (reasons, time) = agenda_plan(&task, date)?;
             if !reasons.is_empty() {
                 items.push(AgendaItem {
                     source: row.source,

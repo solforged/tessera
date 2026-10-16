@@ -79,7 +79,7 @@ Completion uses the displayed [journal](journal.md) or agenda date. A repeat cou
 - Clearing the last date clears the repeat.
 - Each repeat mode explains itself under the mode choice.
 - Repeating tasks retain their source identity and advance their plan. The advanced facts glow once and announce the next date.
-- History on an earlier day shows that occurrence's plan, not the next repeat.
+- Completion history shows that occurrence's plan, not the next repeat. It stays separate from the live task: the next occurrence remains in lookahead, and Doing work remains in the day's open work.
 
 A running work session requires an explicit stop, with Stop and complete offered as one atomic action.
 
@@ -199,7 +199,7 @@ The Overdue heading ends in All to today and All to tomorrow. Each moves every u
 
 In an Agenda pane narrower than 560 px the two moves sit on their own line beneath the heading, aligned with Overdue, so the rule and count keep their room.
 
-Next 7 days groups compact rows by their earliest future schedule or deadline, and excludes tasks already listed as overdue or planned. A task appears only once across these sections, even when both planning dates contribute to the strip. Collapsed Unplanned and Done groups retain undated work and completion history.
+Next 7 days groups compact rows by their earliest future schedule or deadline, and excludes tasks already listed as overdue or planned. A live task appears only once across these sections, even when both planning dates contribute to the strip. Collapsed Unplanned and Done groups retain undated work and completion history; a completed occurrence never suppresses its source's live task.
 
 Opening a row still opens its source. ⌘-click opens it beside (Ctrl-click off Mac). Completion and planning never insert copies into the journal.
 
