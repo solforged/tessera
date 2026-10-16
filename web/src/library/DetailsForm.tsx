@@ -17,6 +17,7 @@ export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: Note
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const [creators, setCreators] = createSignal<ExtractedCreator[]>(props.metadata.creators.map(creator => ({ ...creator })));
+  let composing = false;
   const patch = (key: keyof ExtractedMetadata, text: string) => setValue(previous => ({ ...previous, [key]: text || null }));
   const patchCreator = (index: number, change: Partial<ExtractedCreator>) => setCreators(previous => previous.map((row, at) => at === index ? { ...row, ...change } : row));
   const [definitions] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.fields());
@@ -47,7 +48,9 @@ export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: Note
     catch (error) { setError(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
   }
-  return <form class="library-details" onSubmit={event => { event.preventDefault(); void submit(); }}>
+  return <form class="library-details" onCompositionStart={() => { composing = true; }} onCompositionEnd={() => { composing = false; }} onKeyDown={event => {
+    if (event.key === 'Enter' && (composing || event.isComposing || event.keyCode === 229)) event.preventDefault();
+  }} onSubmit={event => { event.preventDefault(); if (!composing) void submit(); }}>
     <For each={textFields}>{([key, label]) => <label class="library-details-row"><span>{label}</span><input class="input" aria-label={label} required={key === 'title'} value={value()[key] ?? ''} disabled={busy()} onInput={event => patch(key, event.currentTarget.value)} /></label>}</For>
     <div class="library-details-row" role="group" aria-label="Creators"><span>Creators</span><div class="library-creators">
       <Index each={creators()}>{(creator, index) => {

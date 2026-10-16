@@ -146,7 +146,7 @@ Snapshots are deduplicated by the original file's bytes. Re-adding an unchanged 
 
 ### Manual details
 
-The manual details form remains in Add only: labeled rows, Creator name fields with Author, Editor and Translator tabs, Add creator, and the existing “Same as X?” reuse suggestion. Below 600 px, each creator's name spans the field width, with role tabs and Remove on the next row. Published accepts `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; adding a record saves its fields together.
+The manual details form remains in Add only: labeled rows, Creator name fields with Author, Editor and Translator tabs, Add creator, and the existing “Same as X?” reuse suggestion. Below 600 px, each creator's name spans the field width, with role tabs and Remove on the next row. Published accepts `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; adding a record saves its fields together. Enter while composing accepts the input candidate without submitting the record.
 
 ## Inspector
 
