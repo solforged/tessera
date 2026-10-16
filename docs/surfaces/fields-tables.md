@@ -121,7 +121,7 @@ A saved view with a detached or deleted field names the remembered field and off
 
 A type with a required field that some rows lack adds `· 3 need author` after the member count, counted within the table's own query. It adds that field's `is empty` filter to the filters already set. An empty required cell reads faint mono `needed`.
 
-A type shares `Index N`, `Table N`, `Fields N` and `Cards N` tabs with its [index](notes.md#finding-aid) and template registers. Fields switches the same pane to that type's ordered template; its type crumb opens the ordinary type page.
+A type shares `Index N`, `Table N`, `Fields N` and `Cards N` tabs with its [index](notes.md#finding-aid) and template registers. Index and Table count the query retained when switching modes, not the unfiltered type total; Index counts notes only. Fields switches the same pane to that type's ordered template; its type crumb opens the ordinary type page.
 
 ### Delete view
 

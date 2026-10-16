@@ -292,7 +292,7 @@ function KindIndexPane(props: IndexPaneProps) {
         <Show when={noteMode() && !missingFields().length}><RequiredGaps gaps={incomplete.latest?.map(field => ({ field_id: field.field_id, missing: field.owners.size }))} name={fieldName} onShow={showMissing} /></Show>
         <Show when={groups().length}><NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} members={index.latest?.notes} /></Show>
       </div>
-      <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={type.latest?.members} fieldsCount={type()?.fields.length}
+      <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={missingFields().length ? undefined : count()} fieldsCount={type()?.fields.length}
         cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: id() }, opensBeside(event))}
         onIndex={() => { scroll.scrollTop = 0; }} onTable={openTable}
         onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, opensBeside(event))} />}</Show>

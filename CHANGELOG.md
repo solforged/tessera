@@ -34,6 +34,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Routed Undo to page deletion while it is the window's latest action, without stealing a newer edit's history.
 - Made a merged note's promised title alias durable in the same operation as the merge.
 - Preserved merged pages' type memberships on the surviving note without duplicates.
+- Counted the retained query in inactive Index and Table tabs instead of the whole type.
 - Kept table commits from taking focus back after navigation, preserved immediate Undo while saving, and kept bottom-row edits visible.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.
 - Replaced selected row ranges on paste and preserved native headings, nested lists, tasks, table rows, image URLs and labeled links from external HTML and Markdown.
