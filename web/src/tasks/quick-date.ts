@@ -7,8 +7,8 @@ export interface DateSuggestion { label: string; date: string; time: string | nu
 
 export const newTask = (): TaskState => ({ status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null });
 
-/** References and fences shield drafts; inline code requires a matching closing run. */
-export function insideProtectedSyntax(text: string, at: number): boolean {
+/** Typing guards include open code drafts; stored text shields only matched inline code. */
+export function insideProtectedSyntax(text: string, at: number, purpose: 'typing' | 'stored' = 'typing'): boolean {
   for (let cursor = 0; cursor < at;) {
     if (text[cursor] === '\\') { cursor += 2; continue; }
     if (text.startsWith('[[', cursor)) {
@@ -27,7 +27,7 @@ export function insideProtectedSyntax(text: string, at: number): boolean {
     const count = end - cursor;
     const newline = text.indexOf('\n', end);
     const openingEnd = newline < 0 ? text.length : newline;
-    if (count >= 3 && fenceStart && (marker === '~' || newline >= 0 && !text.slice(end, openingEnd).includes('`'))) {
+    if (count >= 3 && fenceStart && (marker === '~' || (purpose === 'typing' || newline >= 0) && !text.slice(end, openingEnd).includes('`'))) {
       const close = new RegExp(`^[ ]{0,3}${marker}{${count},}[ \\t\\r]*$`);
       cursor = Math.min(openingEnd + 1, text.length);
       while (cursor < text.length) {
@@ -41,7 +41,7 @@ export function insideProtectedSyntax(text: string, at: number): boolean {
       cursor = end;
       for (;;) {
         const start = text.indexOf('`', cursor);
-        if (start < 0) { cursor = end; break; }
+        if (start < 0) { cursor = purpose === 'typing' ? text.length : end; break; }
         cursor = start;
         while (text[cursor] === '`') cursor++;
         if (cursor - start === count) break;

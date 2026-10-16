@@ -88,7 +88,7 @@ describe('an open reference completion', () => {
 });
 
 describe('typed completion triggers', () => {
-  test('does not open page or block reference completion inside matched code', () => {
+  test('does not open page or block reference completion inside matched or open code drafts', () => {
     for (const text of ['`co[[QA Inline]]de`', '``co[[QA Inline]]de``', '`co((QA Inline))de`', '~~~\n[[QA Inline]]\n~~~']) {
       const marker = text.includes('[[') ? '[[' : '((';
       expect(referenceCompletionAt(text, text.indexOf(marker) + marker.length + 'QA Inline'.length)).toBeNull();
@@ -97,7 +97,7 @@ describe('typed completion triggers', () => {
     expect(referenceCompletionAt(text, text.length - 2)).toEqual({ from: 7, to: text.length - 2, query: 'QA Inline', blocks: false });
     expect(referenceCompletionAt('[[outer|((inner))]]', 14)).toBeNull();
     const unmatched = 'it`s about [[Polybius]]';
-    expect(referenceCompletionAt(unmatched, unmatched.length - 2)?.query).toBe('Polybius');
+    expect(referenceCompletionAt(unmatched, unmatched.length - 2)).toBeNull();
   });
 
   test('reserves modified Enter and Tab for their editing chords', () => {

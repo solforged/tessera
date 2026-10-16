@@ -21,7 +21,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Applied an outline's Undo notice directly from ⌘Z, including after its pane became the only remaining pane.
 - Kept deep outline levels distinguishable with compressed indentation and mono nesting-depth cues.
 - Kept deleted-holder names in perspective dossier headings and zoom breadcrumbs, including panes opened beside and restored after reload.
-- Kept unmatched inline backticks literal without suppressing following tags, references or typed triggers.
+- Kept unmatched inline backticks literal for saved tags and references while suppressing completions inside code being typed.
 - Kept tags and references inside inline code literal in server indexing and title resolution.
 - Kept accepted Compare cell drafts through reloads during slow reference lookups.
 - Queued table Undo and Redo in key order instead of dropping shortcuts while a prior history step was saving.

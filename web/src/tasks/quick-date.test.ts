@@ -84,12 +84,12 @@ describe('date completion tokens', () => {
     expect(atEnd(String.raw`Read \[[literal @tomorrow`)?.query).toBe('tomorrow');
   });
 
-  test('protects matched inline code and leaves unmatched or escaped backticks literal', () => {
+  test('protects matched and open inline code drafts while respecting escaped backticks', () => {
     for (const text of ['Read ` @today`', 'Read ``literal ` @today``', 'Read ```literal ` @today```']) {
       expect(atEnd(text)).toBeNull();
     }
     for (const text of ['Read ` @today', 'Read ``literal ` @today', 'Read ```literal ` @today', '```literal @today']) {
-      expect(atEnd(text)?.query).toBe('today');
+      expect(atEnd(text)).toBeNull();
     }
     expect(atEnd('Read `@today` @tomorrow')?.query).toBe('tomorrow');
     expect(atEnd('Read ``literal ` code`` @tomorrow')?.query).toBe('tomorrow');

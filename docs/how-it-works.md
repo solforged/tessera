@@ -149,6 +149,8 @@ HTTP and HTTPS URLs render as external links in outline rows and table cells. Ca
 
 Only backtick runs with a closing run of the same length shield their contents from server tag and link derivation and web tokenization. An unmatched run is literal text, so later tags and references stay live. Tags in matched code create no type page or membership, and references in matched code create no links, backlinks or automatic title targets. Tag renames and link rewrites preserve those literal occurrences.
 
+Typing-time guards also treat an open, unclosed backtick run before the caret as a code draft: slash, date, reference and type completions stay closed there. That draft-only protection does not change stored-text tokenization or server derivation; after leaving the row, tags and references after an unmatched backtick remain live.
+
 Find highlights use the same case, diacritic, apostrophe and punctuation folding as name matching. Every matched query word maps back to the original UTF-16 range, including combining marks and text after emoji; highlighting never replaces the authored glyphs.
 
 Tags address page titles. Derivation lowercases titles, deduplicates text memberships and creates missing type pages on live tag writes. Type-page renames can rewrite incoming tags and manual-membership titles; receipt `text_rewrites` updates the browser and undo history. Code: `crates/tessera-core/src/storage.rs:295` (`resolve_type`); `crates/tessera-core/src/operations.rs` (`prepare_tag_rename`, `rewrite_incoming_tags`, `derive_tags`); `web/src/document/page-document.ts` (`recordRewrites`).
