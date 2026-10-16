@@ -209,7 +209,7 @@ test('closed-window drafts are claimed once without adopting a live window’s c
   const database = `outbox-ownership-${ulid()}`;
   const held = new Set<string>();
   const locks = {
-    async request(name: string, options: LockOptions | LockGrantedCallback, granted?: LockGrantedCallback) {
+    async request<T>(name: string, options: LockOptions | LockGrantedCallback<T>, granted?: LockGrantedCallback<T>) {
       const callback = typeof options === 'function' ? options : granted!;
       if (held.has(name)) return callback(null);
       held.add(name);
