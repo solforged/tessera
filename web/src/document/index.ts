@@ -1748,7 +1748,6 @@ export class Notebook implements NotebookClient, DocumentHost {
       op: 'merge_page', source_id: from, source_revision: source.revision,
       destination_id: into, destination_revision: destination.revision,
     }]);
-    try { await this.api.addAlias(into, source.text); } catch { /* The merge is already committed. */ }
   }
   async deletePage(pageId: string) {
     await this.ready;

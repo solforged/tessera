@@ -29,6 +29,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Made Tab and Shift-Tab advance between Compare cell editors without waiting for slow saves.
 - Kept each pane's Read, Outline and Compare projection independent when showing the same page.
 - Preserved Compare cell text entered while hand-typed references were resolving.
+- Made a merged note's promised title alias durable in the same operation as the merge.
 - Preserved merged pages' type memberships on the surviving note without duplicates.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.
 - Replaced selected row ranges on paste and preserved native headings, nested lists, tasks, table rows, image URLs and labeled links from external HTML and Markdown.

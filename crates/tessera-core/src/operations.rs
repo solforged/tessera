@@ -1467,6 +1467,19 @@ impl Engine<'_, '_> {
              SELECT ?1, title_key, type_id, 1, title FROM memberships WHERE block_id = ?2",
             params![destination.block.id, source.block.id],
         )?;
+        let mut next_id = 0;
+        let aliases = crate::aliases::plan_alias(
+            self.tx,
+            &self.live(&destination.block.id)?.block,
+            &source.block.text,
+            || {
+                next_id += 1;
+                derived_id(&["merge-alias", self.change_id, &source.block.id, &next_id.to_string()])
+            },
+        )?;
+        for operation in aliases {
+            self.apply_operation(&operation, self.op_index)?;
+        }
         let current = self.live(&destination.block.id)?;
         self.bump(&current, true)?;
         self.delete(&source.block.id)

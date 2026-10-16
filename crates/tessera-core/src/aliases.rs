@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use rusqlite::{OptionalExtension, params};
+use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use unicode_normalization::{UnicodeNormalization, char::is_combining_mark};
 
@@ -46,6 +46,78 @@ pub(crate) fn fold(value: &str) -> String {
     } else {
         folded.to_lowercase()
     }
+}
+
+/// Plan ordinary alias blocks against the current transaction, including an
+/// absent definition. Merge uses deterministic IDs so replicas share identities.
+pub(crate) fn plan_alias(
+    conn: &Connection,
+    page: &Block,
+    name: &str,
+    mut new_id: impl FnMut() -> String,
+) -> Result<Vec<Operation>> {
+    let key = fold(name);
+    if key.is_empty() || key == fold(&page.text) {
+        return Ok(Vec::new());
+    }
+    let definitions = crate::fields::definitions(conn)?;
+    let mut operations = Vec::new();
+    let field = if let Some(field) = definitions.iter().find(|field| field.name.eq_ignore_ascii_case("aliases")) {
+        field.id.clone()
+    } else {
+        let parent = crate::fields::page_id(conn)?
+            .ok_or_else(|| validation("The Fields page is missing."))?;
+        let after = conn.query_row(
+            "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
+             ORDER BY ordinal DESC, id DESC LIMIT 1",
+            [&parent], |row| row.get(0),
+        ).optional()?;
+        let id = new_id();
+        operations.push(Operation::Insert {
+            id: id.clone(), parent_id: parent, after, text: "aliases".into(), heading: None,
+        });
+        id
+    };
+    let entries = conn.prepare_cached(
+        "SELECT id, text FROM blocks WHERE parent_id = ?1
+         AND deletion_id IS NULL AND archived = 0 ORDER BY ordinal, id",
+    )?.query_map([&page.id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    // Inspect the blocks themselves: merge may have moved values in this
+    // transaction, before the field-value index is derived.
+    for (entry, text) in &entries {
+        if crate::fields::reference(text) != Some(field.as_str()) {
+            continue;
+        }
+        let values = conn.prepare_cached(
+            "SELECT text FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL AND archived = 0",
+        )?.query_map([entry], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        if values.iter().any(|value| fold(value) == key) {
+            return Ok(Vec::new());
+        }
+    }
+    let entry = if let Some((id, _)) = entries.iter().find(|(_, text)| crate::fields::reference(text) == Some(field.as_str())) {
+        id.clone()
+    } else {
+        let id = new_id();
+        let after = definitions.iter().find(|field| field.name.eq_ignore_ascii_case("gloss"))
+            .and_then(|gloss| entries.iter().find(|(_, text)| crate::fields::reference(text) == Some(gloss.id.as_str())))
+            .map(|(id, _)| id.clone());
+        operations.push(Operation::Insert {
+            id: id.clone(), parent_id: page.id.clone(), after, text: format!("[[{field}]]"), heading: None,
+        });
+        id
+    };
+    let after = conn.query_row(
+        "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
+         ORDER BY ordinal DESC, id DESC LIMIT 1",
+        [&entry], |row| row.get(0),
+    ).optional()?;
+    operations.push(Operation::Insert {
+        id: new_id(), parent_id: entry, after, text: name.into(), heading: None,
+    });
+    Ok(operations)
 }
 
 impl Notebook {
@@ -139,71 +211,10 @@ impl Notebook {
         actor: Actor,
     ) -> Result<Option<Committed>> {
         let page = self.alias_page(page_id)?;
-        let key = fold(name);
-        if key.is_empty()
-            || key == fold(&page.text)
-            || self
-                .named_page_values("aliases", Some(page_id))?
-                .get(page_id)
-                .is_some_and(|aliases| aliases.iter().any(|alias| fold(alias) == key))
-        {
+        let operations = plan_alias(&self.conn, &page, name, || crate::notebook::new_ulid().to_string())?;
+        if operations.is_empty() {
             return Ok(None);
         }
-        let mut planner = Planner::new(self)?;
-        let field = planner.field("aliases", FieldKind::Text);
-        let definitions = crate::fields::definitions(&self.conn)?;
-        let gloss = definitions
-            .iter()
-            .find(|definition| definition.name.eq_ignore_ascii_case("gloss"));
-        let entries = self
-            .conn
-            .prepare_cached(
-                "SELECT id, text FROM blocks WHERE parent_id = ?1
-                 AND deletion_id IS NULL AND archived = 0 ORDER BY ordinal, id",
-            )?
-            .query_map([page_id], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-            })?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        let entry = entries
-            .iter()
-            .find(|(_, text)| crate::fields::reference(text) == Some(field.as_str()));
-        let entry_id = if let Some((id, _)) = entry {
-            id.clone()
-        } else {
-            let id = crate::notebook::new_ulid().to_string();
-            let after = gloss.and_then(|gloss| {
-                entries
-                    .iter()
-                    .find(|(_, text)| crate::fields::reference(text) == Some(gloss.id.as_str()))
-                    .map(|(id, _)| id.clone())
-            });
-            planner.operations.push(Operation::Insert {
-                id: id.clone(),
-                parent_id: page_id.into(),
-                after,
-                text: format!("[[{field}]]"),
-                heading: None,
-            });
-            id
-        };
-        let after = self
-            .conn
-            .query_row(
-                "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
-             ORDER BY ordinal DESC, id DESC LIMIT 1",
-                [&entry_id],
-                |row| row.get(0),
-            )
-            .optional()?;
-        planner.operations.push(Operation::Insert {
-            id: crate::notebook::new_ulid().to_string(),
-            parent_id: entry_id,
-            after,
-            text: name.into(),
-            heading: None,
-        });
-        let operations = planner.operations;
         self.apply(&Batch {
             actor,
             reason: None,

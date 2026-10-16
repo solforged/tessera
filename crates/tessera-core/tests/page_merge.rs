@@ -201,6 +201,21 @@ fn merge_retains_and_deduplicates_the_source_pages_types() {
 }
 
 #[test]
+fn merge_commits_the_title_alias_with_its_blocks_and_replays_once() {
+    let (dir, mut nb) = fixture();
+    let mut request = batch(vec![merge(&nb, &id(1), &id(2))]);
+    request.idempotency_key = Some("merge-title-alias".into());
+    let committed = nb.apply(&request).unwrap();
+    assert_eq!(nb.page_aliases(&id(2)).unwrap(), vec!["Draft"]);
+    let page = nb.page(&id(2)).unwrap();
+    assert!(page.rows.iter().all(|row| committed.revisions.iter().any(|revision| revision.id == row.block.id)));
+    drop(nb);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    assert_eq!(nb.page_aliases(&id(2)).unwrap(), vec!["Draft"]);
+    assert_replay(&mut nb, &request, &committed);
+}
+
+#[test]
 fn merge_rewrites_mixed_links_aliases_tags_and_manual_memberships_and_replays() {
     let (dir, mut nb) = fixture();
     let mixed = format!(
@@ -326,8 +341,9 @@ fn merge_moves_live_subtrees_to_destination_end_with_identity_and_order() {
     let operation = merge(&nb, &id(1), &id(2));
     apply(&mut nb, vec![operation]);
     let rows = nb.page(&id(2)).unwrap().rows;
+    assert_eq!(rows[1].block.text, "Draft");
     assert_eq!(
-        rows.iter()
+        rows.iter().skip(2)
             .map(|row| (row.block.id.clone(), row.depth))
             .collect::<Vec<_>>(),
         vec![
@@ -387,8 +403,9 @@ fn matching_field_rows_append_values_redirect_row_references_and_replay() {
     request.idempotency_key = Some("merge-fields".into());
     let first = nb.apply(&request).unwrap();
     let rows = nb.page(&id(2)).unwrap().rows;
+    assert_eq!(rows[1].block.text, "Draft");
     assert_eq!(
-        rows.iter()
+        rows.iter().skip(2)
             .map(|row| (row.block.id.clone(), row.depth))
             .collect::<Vec<_>>(),
         vec![

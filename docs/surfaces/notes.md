@@ -161,7 +161,7 @@ At a note's top level, populated Aliases entries stay out of the outline while t
 
 A hand-typed `[[Name]]` that two or more pages answer to stays unlinked and reads in `--warning` with a dotted underline and a small `?`. Clicking it lists the pages and Create page; the choice links it with the typed wording kept. Imported creators with a shared name read the same way.
 
-Merging leaves the merged page's title as an alias, which the confirmation states in one sentence.
+Merging leaves the merged page's title as an alias and retains both pages' types, without duplicates. The alias, memberships, moved blocks and redirected references commit together; the confirmation states that the title stays as an alias.
 
 Unavailable Merge into items name the protected page capability or history, such as a spread, rather than referring to root state.
 
