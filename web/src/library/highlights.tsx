@@ -63,7 +63,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
     const id = row.citation.block_id, pageId = row.block.page.id;
     const document = await loadDocument(pageId);
     const hasNote = notes(document, id).some(child => !!document.block(child)?.text.trim());
-    const run = async (action: 'note' | 'card' | 'triage' | 'remove', confirmed = false) => {
+    const run = async (action: 'note' | 'card' | 'triage' | 'remove', confirmed = false, caretSignal?: AbortSignal) => {
       await documentReady(document);
       if (disposed) return;
       if (action === 'card') {
@@ -105,7 +105,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       setLastDocument(document);
       if (action === 'remove') onRemoved?.();
       // The child is already in the shared local document. Delivery must not hold up typing.
-      if (caretId) onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: 0 }, true);
+      if (caretId && !caretSignal?.aborted) onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: 0 }, true);
       await document.flush();
       if (disposed) return;
       if (action === 'triage') onProcessed?.(row);
@@ -113,7 +113,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
     const fail = (reason: unknown) => { if (!disposed) onError(reason instanceof Error ? reason.message : String(reason)); };
     const fire = (action: Parameters<typeof run>[0]) => {
       const cancelInput = action === 'note' ? pendingCaretInput.prepare() : undefined;
-      void run(action).catch(reason => { cancelInput?.(); fail(reason); });
+      void run(action, false, cancelInput?.signal).catch(reason => { cancelInput?.(); fail(reason); });
     };
     const tag = () => { setLastDocument(document); tagPrompt.open(document, id); };
     const color = document.block(id)?.citations.find(citation => citation.id === row.citation.id)?.color ?? null;
@@ -179,9 +179,9 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
           if (!result.ok) throw new Error(result.reason);
           const id = result.created[0]!;
           setLastDocument(doc);
-          await doc.flush();
-          if (!disposed) onOpen({ kind: 'page', pageId: draft.row.block.page.id, blockId: parentId, caretId: id, caretOffset: 0 }, true);
+          if (!disposed && !cancelInput.signal.aborted) onOpen({ kind: 'page', pageId: draft.row.block.page.id, blockId: parentId, caretId: id, caretOffset: 0 }, true);
           else cancelInput();
+          await doc.flush();
         } catch (reason) { cancelInput(); throw reason; }
       }} />}</Show></>,
     canUndo: () => lastDocument()?.canUndo() ?? false,

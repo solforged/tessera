@@ -147,7 +147,7 @@ Pane destinations enter on target identity, not on document updates. A navigatio
 
 An explicit editing destination skips the pane-turn snapshot and activates its live caret immediately. A zoomed editor with local text does not wait for catalog metadata before accepting input. The source header and field apparatus keep their space hidden until their metadata is ready.
 
-Plain text typed during the brief caret handoff is delivered once at the requested caret. Another pointer action or navigation cancels that handoff. Composition and modifier shortcuts are not replayed.
+Typed text and Backspace corrections during a caret handoff wait for the requested editor, not a delivery timeout. Pointer actions, navigation, Escape or focus moving to another editable cancel the handoff. Other editing keys and shortcuts end collection and retain native handling; the captured prefix still reaches the requested caret once. Composition and shortcuts are never replayed.
 
 Surfaces mark what the motion waits for. A lazily loaded surface counts as pending until it renders, and a surface root carries `data-pane-pending` while it has nothing of its target to show. The reader instead carries `data-pane-loading`: restoring its position needs animation frames, which a held transition never gives, so the leaf turns at once and its text fades in where it lands. Agenda, Review, Compare, filing queue and type-view mode panels fade in over `--motion-ui` when their tab is chosen; the outgoing panel is not copied, so a long list costs nothing to leave and input belongs to the new panel immediately.
 

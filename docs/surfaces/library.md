@@ -253,9 +253,9 @@ The shared highlight menu keeps the quotation, color choices, note and card acti
 
 ### Make card
 
-Make card opens a deliberate front/back draft with the quotation in Back and source context above it. It creates no empty syntax block and shows no initial invalid-state warning. Cancel leaves no card behind. Successful delivery creates one child under the highlight, retains document Undo and reveals its refreshed outline. Unresolved delivery keeps the form busy rather than permitting duplicate insertion.
+Make card opens a deliberate front/back draft with the quotation in Back and source context above it. It creates no empty syntax block and shows no initial invalid-state warning. Cancel leaves no card behind. Submitting creates one child locally and opens its editor before acknowledgment. The form stays busy until delivery settles, preventing duplicate submission and keeping errors in the draft.
 
-Plain text typed while the saved card's editor is opening reaches its caret once, including during acknowledgment.
+Typing during opening, including Backspace corrections, reaches its caret once even when acknowledgment is slow.
 
 ### Empty queues
 
