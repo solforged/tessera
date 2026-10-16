@@ -130,6 +130,8 @@ A block's card count opens its cards. Each row puts the kind in the same faint c
 
 The popup's Review, Shift-click on the count and the block menu's Review cards start a review of that block's active cards, due or not, titled by the block's subject. ⌘-click on Review opens it beside (Ctrl-click off Mac). An open review shows the same Finish or abandon prompt as switching decks before the block review starts; asking again for the block already under review returns to it. Review is disabled when every card is paused.
 
+The block request is consumed once; later session snapshots and reloads resume that session without starting or re-requesting its source review.
+
 ## Done summary and deck forms
 
 The Done summary returns to the shared page insets and responsive title scale, with section gaps between its grade strip, counts, forecast and missed cards. Its header no longer says in progress.

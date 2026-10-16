@@ -143,7 +143,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   }
 
   function publish() {
-    if (!disposed) props.onViewChange({ ...props.view, deckId: deckId(), sessionId: sessionId(), selection: selection(), scroll: scroll?.scrollTop ?? props.view.scroll });
+    if (!disposed) untrack(() => props.onViewChange({ ...props.view, blockId: blockRequest() ?? undefined, deckId: deckId(), sessionId: sessionId(), selection: selection(), scroll: scroll?.scrollTop ?? props.view.scroll }));
   }
 
   function moveTo(target: Destination) {
@@ -172,14 +172,14 @@ function CardReviewPane(props: ReviewPaneProps) {
 
   createEffect(on(() => [deckId(), sessionId(), selection(), props.notebook.changeSequence(), props.notebook.todayDate(), commandState(), retry()] as const, () => { void refresh(); }));
   createEffect(on(() => props.view.blockId, id => { if (id) setBlockRequest(id); }, { defer: true }));
-  // A block request waits for the pane's first read, so an open review is known before it is left.
-  createEffect(() => {
-    const id = blockRequest();
-    if (!id || !ready() || loading() || locked()) return;
+  // Consume this navigation request before publishing: retaining blockId would enqueue it again on every view update.
+  // Track only readiness here; reading and publishing shell state must not subscribe this effect to its own output.
+  createEffect(on(() => [blockRequest(), ready(), loading(), locked()] as const, ([id, isReady, isLoading, isLocked]) => {
+    if (!id || !isReady || isLoading || isLocked) return;
     setBlockRequest(null);
     publish();
-    untrack(() => reviewBlock(id));
-  });
+    reviewBlock(id);
+  }));
   createEffect(on(shown, value => {
     if (!value) return;
     setAnswerRevealed(false);
