@@ -17,17 +17,15 @@ export function textTokens(text: string): Token[] {
   const result: Token[] = [];
   const pattern = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{M}\p{N}_])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{M}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)|(`+)|\[([^\[\]\r\n]+)\]\((?=https?:\/\/)/giu;
   let offset = 0;
-  let ignoredUntil = 0;
-  for (const match of text.matchAll(pattern)) {
+  for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
     const start = match.index;
-    if (start < ignoredUntil) continue;
     if (match[6]) {
       const marker = match[6];
       let close = start + marker.length;
       for (;;) {
         close = text.indexOf(marker, close);
-        if (close < 0) { ignoredUntil = text.length; break; }
-        if (text[close - 1] !== '`' && text[close + marker.length] !== '`') { ignoredUntil = close + marker.length; break; }
+        if (close < 0) { pattern.lastIndex = text.length; break; }
+        if (text[close - 1] !== '`' && text[close + marker.length] !== '`') { pattern.lastIndex = close + marker.length; break; }
         close += marker.length;
       }
       continue;
@@ -40,7 +38,7 @@ export function textTokens(text: string): Token[] {
         else if (text.startsWith(']]', cursor)) { depth--; cursor += 2; }
         else cursor++;
       }
-      ignoredUntil = cursor;
+      pattern.lastIndex = cursor;
       continue;
     }
     if (match[7] !== undefined) {
@@ -55,7 +53,7 @@ export function textTokens(text: string): Token[] {
       if (text[cursor] !== ')') continue;
       if (start > offset) result.push({ start: offset, end: start, kind: 'text', value: text.slice(offset, start) });
       result.push({ start, end: cursor + 1, kind: 'url', value: text.slice(urlStart, cursor), alias: match[7], labelStart: start + 1 });
-      offset = ignoredUntil = cursor + 1;
+      offset = pattern.lastIndex = cursor + 1;
       continue;
     }
     if (start > offset) result.push({ start: offset, end: start, kind: 'text', value: text.slice(offset, start) });

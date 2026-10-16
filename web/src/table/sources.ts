@@ -53,8 +53,8 @@ export function sourceText(text: string): SourceText {
   for (let index = 0; index < tokens.length; index++) {
     const token = tokens[index]!;
     if (token.kind !== 'url' || token.start < offset) continue;
-    const markdown = markdownLink(text, token.start, token.end);
-    const href = text.slice(token.start, markdown?.hrefEnd ?? token.end);
+    const markdown = token.alias === undefined ? markdownLink(text, token.start, token.end) : undefined;
+    const href = markdown ? text.slice(token.start, markdown.hrefEnd) : token.value;
     // An ordinary source value can also be written as "Authored title: URL".
     const prefix = text.slice(0, token.start).trim();
     const labelled = !markdown && offset === 0 && !text.slice(token.end).trim() && prefix.endsWith(':') ? prefix.slice(0, -1).trim() : '';
@@ -65,7 +65,7 @@ export function sourceText(text: string): SourceText {
       hostname = url.hostname;
       bareLabel = `${url.hostname}${url.pathname === '/' ? '' : url.pathname}${url.search}${url.hash}`;
     } catch { /* Invalid URL readings retain their original destination and warning. */ }
-    sources.push({ href, label: markdown?.label || labelled || bareLabel, hostname });
+    sources.push({ href, label: token.alias || markdown?.label || labelled || bareLabel, hostname });
     remainder.push(labelled ? '' : text.slice(offset, markdown?.start ?? token.start));
     offset = markdown?.end ?? token.end;
     // Adjacent Markdown links can share one URL token; revisit its unconsumed tail.

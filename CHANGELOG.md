@@ -18,6 +18,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Preserved adjacent authored external links and their captions in table source registers.
 - Recovered locally queued edits from closed browser windows without replaying another open window's drafts.
 - Kept cached outlines visible offline and refreshed Revisit and Index after reconnecting, without false errors on new notes.
 - Reported Saving rather than Saved while text was still queued or awaiting the service's acknowledgment.

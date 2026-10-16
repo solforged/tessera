@@ -60,6 +60,14 @@ describe('table register presentation', () => {
     expect(sourceDefinition(['author'], fields)).toBeUndefined();
     expect(rowSources(row('note', 'page'), source)).toEqual([]);
   });
+  test('derives source labels and destinations from canonical external-link tokens', () => {
+    const source = sourceDefinition(['source'], fields);
+    const sources = rowSources(row('note', 'page', { source: ['[[https://example.org/a|First]] [[https://example.org/a|Second]]'] }), source);
+    expect(sources.map(value => [value.href, value.label, value.hostname])).toEqual([
+      ['https://example.org/a', 'First', 'example.org'],
+      ['https://example.org/a', 'Second', 'example.org'],
+    ]);
+  });
   test('cards prioritise choice and source, respecting hidden and empty fields', () => {
     const note = row('note', 'page', { title: ['Subtitle'], area: ['Architecture'], source: ['https://example.org'], author: ['[[author]]'] });
     const source = sourceDefinition(['source'], fields);
