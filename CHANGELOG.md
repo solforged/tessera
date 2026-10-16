@@ -14,6 +14,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 - Skipped punctuation-only fragments in revealed review cards' following context.
 - Suspended selection tools behind reader popups and sheets without clearing selected text.
+- Kept citation jumps below the reader's top fade without shifting restored positions.
 - Kept reader shortcuts from intercepting focused controls.
 - Listed page-turn, color and selection-clearing keys in Reader actions.
 - Clarified that Left/Right arrows turn pages while Up/Down scroll in Scroll layout.

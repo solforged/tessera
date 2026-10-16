@@ -702,7 +702,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   /** Resolves true once the passage is on screen, false when disposed or overtaken by another jump. */
-  async function jump(ordinal: number, options: { offset?: number; character?: number; titlePage?: boolean } = {}): Promise<boolean> {
+  async function jump(ordinal: number, options: { offset?: number; character?: number; titlePage?: boolean; reveal?: boolean } = {}): Promise<boolean> {
     void savePosition();
     const token = ++jumpVersion, epoch = generation;
     restoring = true; userScroll = false; clearTimeout(positionTimer); setSelection(null);
@@ -733,7 +733,11 @@ export function ReaderPane(props: ReaderPaneProps) {
       if (row) for (const { node, start } of passageText(row)) {
         if (options.character >= start + node.length) continue;
         const rect = characterRect(node, options.character - start);
-        if (rect) scroll.scrollTop += rect.top - scroll.getBoundingClientRect().top;
+        // Citation reveals clear the top fade; position restoration keeps its exact character anchor.
+        const top = scroll.getBoundingClientRect().top;
+        const chrome = options.reveal && chromeOverlays() && !chromeHidden() ? Math.max(0, header.getBoundingClientRect().bottom - top) : 0;
+        const inset = options.reveal ? chrome + cssValue('--space-24') + cssValue('--space-4') : 0;
+        if (rect) scroll.scrollTop += rect.top - top - inset;
         break;
       }
     } else if (options.offset) scroll.scrollTop -= options.offset;
@@ -961,7 +965,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       await locate(citation.end.passage_id);
       const ordinal = await locate(citation.start.passage_id);
       if (ordinal === null) throw new Error('Passage not found.');
-      await jump(ordinal, { character: citation.start.offset });
+      await jump(ordinal, { character: citation.start.offset, reveal: true });
       if (!disposed) {
         clearTimeout(flashTimer); setFlash(citation);
         flashTimer = window.setTimeout(() => setFlash(null), 1500);
@@ -1331,6 +1335,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       await jump(ordinal, {
         offset: target.at || citation || initialView.ordinal < 0 ? 0 : initialView.offset,
         character: citation?.start.offset,
+        reveal: !!citation,
         titlePage: ordinal === 0 && initialView.ordinal < 0 && !target.at && !citation,
       });
       if (citation) flashTimer = window.setTimeout(() => setFlash(null), 1500);

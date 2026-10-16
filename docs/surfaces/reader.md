@@ -94,7 +94,7 @@ On touch, settings open as a bottom sheet. Short landscape screens put the setti
 
 ## Contents, highlights and find
 
-Contents opens on the current section, marked with a check, when no persistent margin is visible. With the margin visible, Contents focuses its current entry (or the first entry before reading begins) instead of opening a duplicate floating list. The Highlights picker lists each highlight's color, quote and section. Choosing a highlight reveals its marked words, including when its paragraph spans several pages. Find marks matches, counts passages and labels each result with its passage number and section.
+Contents opens on the current section, marked with a check, when no persistent margin is visible. With the margin visible, Contents focuses its current entry (or the first entry before reading begins) instead of opening a duplicate floating list. The Highlights picker lists each highlight's color, quote and section. Choosing a highlight reveals its marked words, including when its paragraph spans several pages. In Scroll, citation jumps leave the marked line below the top fade. Find marks matches, counts passages and labels each result with its passage number and section.
 
 On the touch cover, Contents and Highlights open as bottom sheets without focusing the query field or opening the keyboard. Contents keeps the current entry in view. Reader picker choices and progress chapter rows are at least 44 px high on touch. On narrow screens, highlight locations sit below their quotes rather than sharing a line.
 
