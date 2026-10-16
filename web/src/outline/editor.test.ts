@@ -1,7 +1,16 @@
 import { describe, expect, test } from 'bun:test';
 import { Compartment, EditorState } from '@codemirror/state';
-import { fieldDraftDecorations, fieldEntryExtension, pairInput, pairSelection, referenceDecorations, vimUndoKey } from './editor';
+import { emphasisChange, fieldDraftDecorations, fieldEntryExtension, pairInput, pairSelection, referenceDecorations, vimUndoKey } from './editor';
 import type { NameMatch } from '../api/types';
+
+test('emphasis wraps and unwraps selected source, including combined bold and italic', () => {
+  expect(emphasisChange('a word z', 2, 6, '**')).toEqual({ from: 2, to: 6, insert: '**word**', anchor: 4, head: 8 });
+  expect(emphasisChange('a **word** z', 4, 8, '**')).toEqual({ from: 2, to: 10, insert: 'word', anchor: 2, head: 6 });
+  expect(emphasisChange('a **word** z', 2, 10, '**')).toEqual({ from: 2, to: 10, insert: 'word', anchor: 2, head: 6 });
+  expect(emphasisChange('**word**', 2, 6, '*').insert).toBe('*word*');
+  expect(emphasisChange('***word***', 3, 7, '*')).toEqual({ from: 2, to: 8, insert: 'word', anchor: 2, head: 6 });
+  expect(emphasisChange('text', 4, 4, '*')).toEqual({ from: 4, to: 4, insert: '**', anchor: 5, head: 5 });
+});
 
 test('known whole-field references keep raw copy text and reject interior carets', () => {
   for (const text of ['[[area]]', '  [[area|Alias]]  ']) {

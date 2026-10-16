@@ -77,7 +77,7 @@ export function targetLabel(text: string, lookup: NotebookClient['lookup'], seen
 }
 
 function plainToken(token: Token, lookup: NotebookClient['lookup'], seen: ReadonlySet<string>): string {
-  return isViewReference(token) ? token.alias || 'Saved view' : isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${token.value}` : token.value;
+  return isViewReference(token) ? token.alias || 'Saved view' : isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${token.value}` : token.kind === 'url' ? token.alias ?? token.value : token.value;
 }
 
 /** The shared live display pipeline used by reference labels, breadcrumbs and field previews. */

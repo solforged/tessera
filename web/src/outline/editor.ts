@@ -294,6 +294,32 @@ export function vimUndoKey(
     && !input.operator && !input.motion && !input.registerName;
 }
 
+/** Toggle authored emphasis without changing the selected words or surrounding source. */
+export function emphasisChange(text: string, from: number, to: number, marker: '*' | '**') {
+  const width = marker.length;
+  const hasMarker = (value: string, end: boolean) => {
+    const run = (end ? /\*+$/ : /^\*+/).exec(value)?.[0].length ?? 0;
+    return width === 1 ? run % 2 === 1 : run >= 2;
+  };
+  if (to - from >= width * 2 && hasMarker(text.slice(from, to), false) && hasMarker(text.slice(from, to), true)) {
+    const insert = text.slice(from + width, to - width);
+    return { from, to, insert, anchor: from, head: from + insert.length };
+  }
+  if (hasMarker(text.slice(0, from), true) && hasMarker(text.slice(to), false)) {
+    return { from: from - width, to: to + width, insert: text.slice(from, to), anchor: from - width, head: to - width };
+  }
+  return { from, to, insert: marker + text.slice(from, to) + marker, anchor: from + width, head: to + width };
+}
+
+function toggleEmphasis(view: EditorView, marker: '*' | '**'): boolean {
+  if (view.state.readOnly || view.state.selection.ranges.length !== 1) return false;
+  const selection = view.state.selection.main;
+  const change = emphasisChange(view.state.doc.toString(), selection.from, selection.to, marker);
+  view.dispatch({ changes: { from: change.from, to: change.to, insert: change.insert },
+    selection: { anchor: change.anchor, head: change.head }, userEvent: 'input.emphasis' });
+  return true;
+}
+
 /** Vim loads on first use; most sessions never turn it on. */
 let vimModule: Promise<typeof VimModule> | undefined;
 /** A single retained CM instance moves between row hosts; composition never moves it. */
@@ -316,6 +342,10 @@ export class PaneEditor {
       EditorView.inputHandler.of((view, from, to, text) => hooks.input(view, from, to, text)),
       bracketPairs,
       draftReference,
+      keymap.of([
+        { key: 'Mod-b', run: view => toggleEmphasis(view, '**'), preventDefault: true },
+        { key: 'Mod-i', run: view => toggleEmphasis(view, '*'), preventDefault: true },
+      ]),
       keymap.of(standardKeymap),
       EditorView.theme({
         '&': { background: 'transparent', color: 'inherit', font: 'inherit' },

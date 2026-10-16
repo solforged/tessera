@@ -214,6 +214,17 @@ fn title_references_link_existing_and_new_pages_like_the_editor() {
 }
 
 #[test]
+fn external_captions_stay_authored_without_creating_pages_or_block_links() {
+    let (_dir, mut nb) = fixture();
+    let text = "[[https://example.org/a|caption]] and [label](https://example.org/b)";
+    let receipt = run(&mut nb, &note(page("External links"), vec![block(text, vec![])]));
+    assert_eq!(receipt.created_pages.len(), 1);
+    let saved = nb.page(&receipt.created_pages[0].id).unwrap();
+    assert_eq!(saved.rows[0].block.text, text);
+    assert!(saved.targets.is_empty());
+}
+
+#[test]
 fn add_note_resolves_titles_without_losing_labels_or_locators() {
     let (_dir, mut nb) = fixture();
     dune(&mut nb);

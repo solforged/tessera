@@ -406,6 +406,8 @@ Text is the block body. References render inline in the accent without an underl
 
 References to blocks that contain references use the same live display pipeline: the outer label reads the inner labels, not stored IDs. Quote summaries, breadcrumbs and field-kind previews use that pipeline too.
 
+At rest, `**bold**`, `*italic*` and inline backticks render as bold, italic and code. `[label](https://example.org)` and `[[https://example.org|label]]` show the authored label as an external link. Editing shows their unchanged source; clicking formatted prose places the caret at its source position.
+
 Type pills follow the text at meta size. Clicking a pill opens a menu: open the table, open the type page, remove a manual membership. A text membership says so instead of offering removal.
 
 ### Field entries
@@ -658,6 +660,8 @@ Chords are for what happens constantly. ⌘ acts on the current block:
 | ⌘. | Zoom in |
 | ⌘⇧. | Zoom out |
 | ⌘⇧T | Open the table |
+| ⌘B | Wrap or unwrap the selected text in bold while editing |
+| ⌘I | Wrap or unwrap the selected text in italic while editing |
 
 ⌃⇧ is shell navigation. ⌥↑ and ⌥↓ move blocks. No ⌥-letter chords: on macOS they type accented letters.
 

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { isStableReference, isViewReference, quoteTarget, referenceBeside, textTokens } from './text-tokens';
+import { inlineTokens, isStableReference, isViewReference, quoteTarget, referenceBeside, textTokens } from './text-tokens';
 
 describe('reference locators', () => {
   test('uses the first and last pipes, preserving pipes within labels', () => {
@@ -24,6 +24,32 @@ test('nested bracket expressions stay wholly literal without resolving inner tit
     expect(textTokens(text).filter(token => token.kind === 'reference').map(token => token.id)).toEqual(value === '[[a [[b]]' ? [] : ['valid']);
     expect(textTokens(text).map(token => text.slice(token.start, token.end)).join('')).toBe(text);
   }
+});
+
+test('reading emphasis and code preserve exact source spans and shield code syntax', () => {
+  const source = '**bold** *italic* `#tag [[Name]]` ***both***';
+  const tokens = inlineTokens(source);
+  expect(tokens.filter(token => token.formats?.length).map(token => [token.value, token.formats])).toEqual([
+    ['bold', ['bold']], ['italic', ['italic']], ['#tag [[Name]]', ['code']], ['both', ['bold', 'italic']],
+  ]);
+  for (const token of tokens) expect(source.slice(token.start, token.end)).toBe(token.value);
+  expect(textTokens('`#tag [[Name]]`').every(token => token.kind === 'text')).toBe(true);
+  expect(inlineTokens('**[[id|label]]**').find(token => token.kind === 'reference')?.formats).toEqual(['bold']);
+  expect(inlineTokens('**unfinished').map(token => token.value).join('')).toBe('**unfinished');
+});
+
+test('authored external captions use one URL token without becoming page references', () => {
+  for (const [source, caption] of [
+    ['[label](https://example.org/Topic_(a_(b)))', 'label'],
+    ['[[https://example.org/a|caption]]', 'caption'],
+  ]) {
+    const [token] = textTokens(source!);
+    expect(token?.kind).toBe('url');
+    expect(token?.alias).toBe(caption);
+    expect(token?.end).toBe(source!.length);
+    expect(source!.slice(token!.labelStart, token!.labelStart! + caption!.length)).toBe(caption);
+  }
+  expect(textTokens('[a](https://a.org)[b](https://b.org)').filter(token => token.kind === 'url').map(token => token.alias)).toEqual(['a', 'b']);
 });
 
 test('saved view targets keep their name and never become block targets', () => {

@@ -1,5 +1,6 @@
 import { opensBeside } from '../shell/beside';
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
+import type { JSX } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import type { Block, FieldDefinition } from '../api/types';
 import type { OpenTarget } from '../shell/contract';
@@ -12,8 +13,8 @@ import type { NameMatch } from '../api/types';
 import { cardMarks, cardOperators } from '../review/card-text';
 import type { CardMark } from '../review/card-text';
 
-import { isStableReference, isViewReference, quoteTarget, textTokens } from '../document/text-tokens';
-import type { Token } from '../document/text-tokens';
+import { inlineTokens, isStableReference, isViewReference, quoteTarget, textTokens } from '../document/text-tokens';
+import type { InlineToken } from '../document/text-tokens';
 
 interface Props {
   text: string;
@@ -30,8 +31,8 @@ interface Props {
   citationApparatus?: boolean;
 }
 
-interface DisplayToken extends Token { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean; matches?: NameMatch[] }
-interface TokenGroup { mark?: CardMark; tokens: Token[] }
+interface DisplayToken extends InlineToken { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean; matches?: NameMatch[] }
+interface TokenGroup { mark?: CardMark; tokens: InlineToken[] }
 
 /** A whole-row `((ID))` reads as a quote of its target wherever a block shows as text: backlinks, breadcrumbs, search. */
 export function BlockText(props: Props) {
@@ -50,11 +51,10 @@ function TokenText(props: Props) {
   const [views] = createResource(() => textTokens(props.text).some(isViewReference) ? props.notebook.changeSequence() : false, () => props.notebook.api.views());
   // Card syntax reads the same everywhere text is shown; mapped literals keep caret positions exact around it.
   const marks = createMemo(() => cardMarks(props.text));
-  const mapped = () => props.cards || marks().length > 0;
   const groups = createMemo(() => {
     const result: TokenGroup[] = [];
     const add = (start: number, end: number, mark?: CardMark) => {
-      const tokens = textTokens(props.text.slice(start, end)).map(token => ({ ...token, start: token.start + start, end: token.end + start }));
+      const tokens = inlineTokens(props.text.slice(start, end)).map(token => ({ ...token, start: token.start + start, end: token.end + start, ...(token.labelStart === undefined ? {} : { labelStart: token.labelStart + start }) }));
       result.push({ mark, tokens });
     };
     let offset = 0;
@@ -75,7 +75,7 @@ function TokenText(props: Props) {
       const literal = group.mark?.kind !== 'operator' && (token.kind === 'text' || token.kind === 'reference' && !isStableReference(token) && !isViewReference(token) && !ambiguous);
       const target = isStableReference(token) ? props.notebook.lookup(token.id!)() : undefined;
       const field = props.field?.id === token.id ? props.field : undefined;
-      const baseLabel = isViewReference(token) ? views()?.find(view => view.id === token.id)?.name || token.alias || 'Saved view' : ambiguous ? token.alias || token.id! : group.mark?.kind === 'operator' || literal || token.kind === 'url' ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id));
+      const baseLabel = isViewReference(token) ? views()?.find(view => view.id === token.id)?.name || token.alias || 'Saved view' : ambiguous ? token.alias || token.id! : token.kind === 'url' ? token.alias ?? token.value : group.mark?.kind === 'operator' || literal ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id));
       const source = props.citationApparatus ? citationSources()?.get(token.id!) : undefined;
       const label = (source?.siglum ?? baseLabel) + (!literal && token.locator ? `${source ? ' · ' : '\u2009'}${token.locator}` : '');
       const result: DisplayToken = { ...token, label, target, literal, visibleStart, matches: ambiguous ? resolved : undefined };
@@ -121,10 +121,17 @@ function TokenText(props: Props) {
     const block = token.target;
     if (block) props.onOpen?.({ kind: 'page', pageId: block.page_id, blockId: block.kind === 'block' ? block.id : undefined }, opensBeside(event));
   }
+  function formatted(token: DisplayToken, content: JSX.Element): JSX.Element {
+    for (const format of token.formats ?? []) {
+      const child = content;
+      content = format === 'bold' ? <strong>{child}</strong> : format === 'italic' ? <em>{child}</em> : <code class="inline-code">{child}</code>;
+    }
+    return content;
+  }
   function renderTokens(tokens: DisplayToken[]) {
-    return <For each={tokens}>{token => <>
+    return <For each={tokens}>{token => formatted(token, <>
       <Show when={token.literal}>
-        <Show when={mapped()} fallback={text(token)}><span data-source-start={token.start} data-source-end={token.end} data-source-literal>{text(token)}</span></Show>
+        <span data-source-start={token.start} data-source-end={token.end} data-source-literal>{text(token)}</span>
       </Show>
       <Show when={!token.literal && token.kind === 'reference'}>
         <Show when={props.interactive !== false || token.matches && props.blockId} fallback={<span class="outline-reference" classList={{ 'outline-reference-ambiguous': !!token.matches, 'outline-citation': !!citationSources()?.has(token.id!) && !!(token.alias || token.locator) }} data-source-start={token.start} data-source-end={token.end} data-reference={isStableReference(token) ? token.id : undefined}>
@@ -142,9 +149,9 @@ function TokenText(props: Props) {
         </Show>
       </Show>
       <Show when={token.kind === 'url'}>
-        <Show when={props.interactive !== false} fallback={<span class="reference-url" data-source-start={token.start} data-source-end={token.end}>{text(token)}</span>}>
+        <Show when={props.interactive !== false} fallback={<span class="reference-url" data-source-start={token.labelStart ?? token.start} data-source-end={token.labelStart === undefined ? token.end : token.labelStart + token.label.length} data-source-literal>{text(token)}</span>}>
           <a class="reference-url" href={token.value} target="_blank" rel="noopener noreferrer" data-source-start={token.start} data-source-end={token.end}
-            onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>{text(token)}</a>
+            onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}><span data-source-start={token.labelStart ?? token.start} data-source-end={(token.labelStart ?? token.start) + token.label.length} data-source-literal>{text(token)}</span></a>
         </Show>
       </Show>
       <Show when={token.kind === 'tag'}>
@@ -152,7 +159,7 @@ function TokenText(props: Props) {
           <TypePill title={token.value} notebook={props.notebook} onOpen={props.onOpen} start={token.start} end={token.end}>{text(token)}</TypePill>
         </Show>
       </Show>
-    </>}</For>;
+    </>)}</For>;
   }
   return <><For each={displayed()}>{group => {
     const mark = group.mark;
