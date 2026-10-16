@@ -38,6 +38,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const [creating, setCreating] = createSignal(false);
   const [createError, setCreateError] = createSignal('');
   let disposed = false;
+  let queryInput: HTMLInputElement | undefined;
   onCleanup(() => { disposed = true; });
   const mode = () => query().startsWith('>') ? 'commands' : 'search';
   const text = () => mode() === 'commands' ? query().slice(1).trim() : query().trim();
@@ -230,11 +231,12 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   return <Picker<Entry> anchor={props.anchor} placement="top" width={mode() === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${mode() === 'search' ? 'palette-search' : ''}`} onDismiss={props.onDismiss}
     style={{ '--visual-viewport-height': `${viewportSize().height}px`, '--visual-viewport-top': `${viewportSize().top}px` }}
     query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find or create a page' : 'Find a command'}
+    inputRef={input => { queryInput = input; }}
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
     queryActions={<Button class="find-cancel" onClick={props.onDismiss}>Cancel</Button>}
     preview={<Show when={mode() === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
     onSelect={setSelectedEntry}
-    status={<><Show when={mode() === 'search'}><div class="find-scopes" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); }}>{value}</Button>}</For></div></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
+    status={<><Show when={mode() === 'search'}><div class="find-scopes" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); queryInput?.focus({ preventScroll: true }); }}>{value}</Button>}</For></div></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
     items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'more' ? `more:${entry.page.id}` : entry.kind === 'command' ? entry.command.id : entry.kind === 'highlight' ? entry.row.citation.id : entry.kind === 'passage' ? entry.hit.passage.id : 'create'}
     section={sectionsWithCounts}
     disabledReason={entry => creating() ? 'Creating page…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}

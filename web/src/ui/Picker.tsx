@@ -18,6 +18,7 @@ export interface PickerProps<T> {
   query: string;
   onQuery(value: string): void;
   placeholder: string;
+  inputRef?(input: HTMLInputElement): void;
   /** Shown before the input, such as a mode chip. */
   prefix?: JSX.Element;
   /** Controls after the input; omitted by ordinary pickers. */
@@ -100,12 +101,12 @@ export function Picker<T>(props: PickerProps<T>) {
     </div>;
   };
   const keydown = (event: KeyboardEvent) => {
-    if (event.isComposing) return;
+    if (event.isComposing || event.keyCode === 229) return;
     const count = props.items.length;
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
       setSelected(index => count ? (index + (event.key === 'ArrowDown' ? 1 : -1) + count) % count : 0);
-    } else if (event.key === 'Home' || event.key === 'End') {
+    } else if ((event.key === 'Home' || event.key === 'End') && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
       event.preventDefault(); setSelected(event.key === 'Home' ? 0 : Math.max(0, count - 1));
     } else if (event.key === 'Enter') {
       event.preventDefault(); const item = current(); if (item !== undefined) pick(item, event); else props.onPendingPick?.(event);
@@ -117,7 +118,7 @@ export function Picker<T>(props: PickerProps<T>) {
   return <Popup anchor={props.anchor} placement={props.placement} fitContent={props.fitContent} autofocus={props.autofocus} onDismiss={props.onDismiss} label={props.label} width={props.width ?? 560} class={`picker ${props.class ?? ''}`} style={props.style}>
     <div class="picker-query" onKeyDown={keydown}>
       {props.prefix}
-      <input ref={input} class="picker-input" aria-label={props.label} placeholder={props.placeholder} value={props.query} onInput={event => props.onQuery(event.currentTarget.value)} />
+      <input ref={element => { input = element; props.inputRef?.(element); }} class="picker-input" aria-label={props.label} placeholder={props.placeholder} value={props.query} onInput={event => props.onQuery(event.currentTarget.value)} />
       {props.queryActions}
     </div>
     {props.status}

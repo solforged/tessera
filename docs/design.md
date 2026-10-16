@@ -323,7 +323,7 @@ At wide widths the finder has equal index and preview halves: page titles with t
 On the touch cover Find and Commands occupy the keyboard-resized visual viewport, with results growing upward from the bottom field, the best match nearest the thumb and Cancel at the right. Find puts scope chips immediately above the field. The writing pane also fits this viewport and reveals the active caret; Agenda capture stays above the keyboard, and date pickers keep their actions visible while their body scrolls.
 
 - Enter opens or creates in the invoking pane; passages and highlights open at their place in the [reader](surfaces/reader.md), and ⌘Enter opens beside. Enter during a pending search waits for that query's results; editing the query, changing scope or closing cancels that intent.
-- Arrows select and Escape closes. Creation errors keep the entered title intact.
+- Arrows select and Escape closes. Only plain Home and End select the first and last result; modified chords retain native query editing. Scope chips return focus to the query. Creation errors keep the entered title intact.
 - Tab drills into page-result children and Shift-Tab returns; a drilled search never offers root-page creation.
 - New page remains a command with a direct title form anchored below search, not a separate rail button.
 
