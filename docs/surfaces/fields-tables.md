@@ -200,6 +200,12 @@ Changing the column selection returns the grid to its left edge. Entering an inl
 
 ⌘Z and ⌘⇧Z in the table undo and redo its value edits. Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
 
+### Managing rows
+
+Type tables offer New type… (using the type's name) in their header. It uses the Index's new-note form to create and file a typed page in one change, or file an existing page. Creation stays in the table and selects its title; a new page excluded by the current query gets an Open note notice instead of changing the filters.
+
+Each row's actions menu offers Open, Open beside, Rename… and Delete… last. Rename edits the title in its cell; F2 on a focused title does the same. Enter or leaving the input saves, Escape cancels, and the change joins the table's undo history. Ordinary title click and Enter still open the row. Delete confirms the page and all its blocks, or the tagged block and its children, and offers Undo using the page-deletion toast or the table's block history.
+
 ### Columns
 
 Columns start with the type template's fields, then fields present on all members of the type or the view's base membership, including blank entries. Search rows, filter predicates and pagination never remove or reorder these columns. Field-only views use owners of any named filter field as their base membership. Fields used by filters remain available even when every value is empty.

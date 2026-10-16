@@ -468,7 +468,7 @@ const gistPrompt: Record<'type' | 'question' | 'project', (noun: string) => stri
 };
 
 /** Names a page, optionally with its gist, and files it under the kind in one acknowledged batch. Pages with a similar title are offered first, so an existing page is filed or opened instead of duplicated. */
-function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'project'; anchor: HTMLElement; notebook: NotebookClient; members: ReadonlySet<string>; onDismiss(): void; onOpen(pageId: string, beside: boolean): void }) {
+export function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'project'; anchor: HTMLElement; notebook: NotebookClient; members: ReadonlySet<string>; onDismiss(): void; onOpen(pageId: string, beside: boolean): void }) {
   const [title, setTitle] = createSignal('');
   const [gist, setGist] = createSignal('');
   const [busy, setBusy] = createSignal(false);

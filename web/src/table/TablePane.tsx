@@ -23,6 +23,7 @@ import { createOptionValue } from '../fields/commands';
 import { missingFilter, requiredIds, requiredReason } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
 import { noteKindIcon } from '../notes/kinds';
+import { NewKindNote } from '../notes/IndexPane';
 import { NoteFind } from '../notes/NoteFind';
 import { autoPlural } from '../fields/presentation';
 import { FilterPopup } from './FilterPopup';
@@ -43,6 +44,7 @@ export interface TablePaneProps {
   pane: PaneId; target: TableTarget; view: TableViewState; notebook: NotebookClient; active: boolean; neighbour?: boolean;
   onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void;
   onTargetChange(target: TableTarget): void; onViewChange(view: TableViewState): void;
+  onDeletePages?(pages: { id: string; title: string }[]): Promise<void>;
 }
 type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label: string; header?: JSX.Element }
   | { kind: 'filter'; anchor: HTMLElement; field: string }
@@ -51,6 +53,8 @@ type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label:
   | { kind: 'purpose'; anchor: HTMLElement }
   | { kind: 'sources'; anchor: HTMLElement; label: string; sources: TableSource[] }
   | { kind: 'delete'; anchor: HTMLElement; view: View }
+  | { kind: 'new-row'; anchor: HTMLElement }
+  | { kind: 'delete-row'; anchor: HTMLElement; row: QueryRow }
   | { kind: 'embed-page'; anchor: HTMLElement; view: View }
   | { kind: 'value'; anchor: HTMLElement; row: QueryRow; field: FieldDefinition; value?: FieldValue }
   | null;
@@ -92,6 +96,9 @@ function TableContent(props: TablePaneProps) {
   const [focused, setFocused] = createSignal<TableCell>({ rowId: null, fieldId: null });
   const [selectedRow, setSelectedRow] = createSignal<string | null>(null);
   const [editing, setEditing] = createSignal<{ row: QueryRow; field: FieldDefinition; text: string } | null>(null);
+  const [renaming, setRenaming] = createSignal<{ row: QueryRow; text: string } | null>(null);
+  const [rowNotice, setRowNotice] = createSignal<{ id: string; title: string }>();
+  const [rowUndo, setRowUndo] = createSignal(false);
   const [deleted, setDeleted] = createSignal<View | null>(null);
   const [deleting, setDeleting] = createSignal(false);
   const [savedRevision, setSavedRevision] = createSignal(0);
@@ -106,6 +113,12 @@ function TableContent(props: TablePaneProps) {
   const pendingWrites = new Set<Promise<void>>();
   const focusCell = (rowId: string | null, fieldId: string | null, takeFocus = true) => {
     if (!rowId) return;
+    if (narrow()) {
+      const card = region?.querySelector<HTMLElement>(`.table-card[data-block-id="${rowId}"]:not([hidden]) .table-card-title`);
+      if (takeFocus) card?.focus({ preventScroll: true });
+      card?.scrollIntoView({ block: 'nearest' });
+      return;
+    }
     const cell = region?.querySelector<HTMLElement>(`tr[data-block-id="${rowId}"]:not([hidden]) ${fieldId ? `[data-field-id="${fieldId}"]` : '.table-title-column.table-cell'}`);
     if (takeFocus) cell?.focus({ preventScroll: true });
     if (cell && grid.offsetWidth) {
@@ -211,6 +224,10 @@ function TableContent(props: TablePaneProps) {
   const showRefs = () => !!sourceField() && visibleColumns().includes(sourceField()!.id) && !hiddenFields().includes(refsColumn);
   const sourcesByRow = createMemo(() => new Map((result()?.rows ?? []).map(row => [row.block.block.id, rowSources(row, sourceField())])));
   const typeKind = () => query().note_kind || query().type ? noteIndex()?.kinds.find(kind => query().note_kind ? kind.key === query().note_kind : kind.type_id === query().type) : undefined;
+  const rowKind = () => {
+    const current = type(); if (!query().type || !current || query().source && query().source !== 'notes') return undefined;
+    return typeKind() ?? { key: `type:${current.page.id}`, name: current.page.text, plural: current.plural ?? autoPlural(current.page.text), icon: current.icon, type_id: current.page.id };
+  };
   const columnWidth = (id: string) => {
     const width = resizingWidths()[id] ?? query().columns?.find(column => column.key === id)?.width;
     if (width) return `${width}px`;
@@ -416,7 +433,7 @@ function TableContent(props: TablePaneProps) {
       const next = { ...value, query: copyQuery(query()), revision: value.revision + 1 };
       await submit({ op: 'save_view', id: value.id, base_revision: value.revision, name: value.name, query: next.query });
       history.push({ kind: 'view', before: value, after: next, revision: next.revision }); undone.length = 0;
-      setViewUndo(true); setSaved(next);
+      setViewUndo(true); setRowUndo(false); setSaved(next);
       await refetchViews();
     } finally { setSavingView(false); }
   };
@@ -545,6 +562,69 @@ function TableContent(props: TablePaneProps) {
       }).catch(message);
     } else props.onOpen({ kind: 'page', pageId: row.block.page.id, ...(row.block.block.kind === 'block' ? { blockId: row.block.block.id } : {}) }, alongside);
   };
+  const startRename = (row: QueryRow) => {
+    setPopup(null); setError(''); setRowNotice(undefined);
+    setSelectedRow(row.block.block.id);
+    setRenaming({ row, text: props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text });
+  };
+  const commitTitle = async (returnFocus = false) => {
+    const current = renaming(); if (!current) return;
+    const text = current.text.trim();
+    if (!text) { setError('A title cannot be empty.'); return; }
+    const id = current.row.block.block.id;
+    const duplicate = current.row.block.block.kind !== 'block' && props.notebook.roots().some(root => root.id !== id && root.text.toLocaleLowerCase() === text.toLocaleLowerCase());
+    if (duplicate) { setError('A page already has that title.'); return; }
+    setRenaming(null);
+    if (returnFocus) focusCell(id, null);
+    const pending = withDocument(current.row.block.page.id, async doc => {
+      if (doc.block(id)?.text === text) return;
+      const changed = doc.edit({ kind: 'text', id, text });
+      if (!changed.ok) throw new Error(changed.reason);
+      history.push({ kind: 'cell', doc, rowId: id, fieldId: null }); undone.length = 0; setViewUndo(false); setRowUndo(false);
+      await doc.flush(); await refreshCells();
+    });
+    pendingWrites.add(pending);
+    try { await pending; }
+    catch (reason) { message(reason); }
+    finally { pendingWrites.delete(pending); }
+  };
+  const deleteRow = async (row: QueryRow) => {
+    if (deleting()) return;
+    setDeleting(true); setError(''); setRowNotice(undefined);
+    const block = row.block.block;
+    try {
+      if (block.kind !== 'block') {
+        if (!props.onDeletePages) throw new Error('Page deletion is unavailable.');
+        await props.onDeletePages([{ id: block.id, title: block.text }]);
+      } else await withDocument(row.block.page.id, async doc => {
+        const removed = doc.edit({ kind: 'delete', ids: [block.id] });
+        if (!removed.ok) throw new Error(removed.reason);
+        history.push({ kind: 'cell', doc, rowId: block.id, fieldId: null }); undone.length = 0; setViewUndo(false);
+        await doc.flush(); setRowUndo(true);
+      });
+      setPopup(null); await refreshCells();
+      focusCell(focused().rowId, focused().fieldId);
+    } catch (reason) { message(reason); }
+    finally { setDeleting(false); }
+  };
+  const rowMenu = (row: QueryRow, anchor: HTMLElement) => {
+    setSelectedRow(row.block.block.id);
+    setPopup({ kind: 'menu', anchor, label: 'Row actions', header: <><div class="table-popup-heading">Row actions</div><div class="table-popup-note">{plainText(row.block.block.text, id => props.notebook.lookup(id))}</div></>, items: [
+      { label: 'Open', action: () => openRow(row, false) },
+      { label: 'Open beside', action: () => openRow(row, true) },
+      { label: 'Rename…', action: () => startRename(row) },
+      { label: 'Delete…', icon: 'trash', danger: true, disabledReason: row.block.block.kind !== 'block' && !props.onDeletePages ? 'Page deletion is unavailable.' : undefined, action: () => { setError(''); setPopup({ kind: 'delete-row', anchor, row }); } },
+    ] });
+  };
+  const revealNewRow = async (id: string, beside: boolean) => {
+    setPopup(null);
+    if (beside) { props.onOpen({ kind: 'page', pageId: id }, true); return; }
+    await refreshCells();
+    const row = result()?.rows.find(row => row.block.block.id === id);
+    setRowNotice({ id, title: props.notebook.lookup(id)()?.text ?? row?.block.block.text ?? 'Note' });
+    if (row) { setFocused({ rowId: id, fieldId: null }); setSelectedRow(id); focusCell(id, null); }
+    else region.focus({ preventScroll: true });
+  };
   const openField = (row: QueryRow, field: FieldDefinition) => {
     void withDocument(row.block.page.id, doc => {
       const owner = row.block.block;
@@ -568,7 +648,7 @@ function TableContent(props: TablePaneProps) {
       const target = { field, ownerId: row.block.block.id, valueId: value?.id };
       if (option) await createOptionValue(props.notebook, doc, target, option);
       else writeFieldValue(doc, target, text);
-      history.push({ kind: 'cell', doc, rowId: row.block.block.id, fieldId: field.id }); undone.length = 0; setViewUndo(false);
+      history.push({ kind: 'cell', doc, rowId: row.block.block.id, fieldId: field.id }); undone.length = 0; setViewUndo(false); setRowUndo(false);
       await doc.flush();
       await refreshCells();
     });
@@ -631,7 +711,7 @@ function TableContent(props: TablePaneProps) {
           if (previous.kind === 'view' && previous.before.id === entry.before.id) { previous.revision = entry.revision; break; }
         }
       }
-      setViewUndo(history.at(-1)?.kind === 'view');
+      setViewUndo(history.at(-1)?.kind === 'view'); setRowUndo(false);
     } finally { setReplaying(false); }
   };
   const keydown = (event: KeyboardEvent) => {
@@ -645,6 +725,7 @@ function TableContent(props: TablePaneProps) {
     const columnIndex = current.fieldId ? columns.indexOf(current.fieldId) + 1 : 0;
     const row = rows[rowIndex];
     if (event.key === 'Escape') { region.focus(); event.preventDefault(); return; }
+    if (event.key === 'F2' && !current.fieldId && row && rowKind()) { event.preventDefault(); startRename(row); return; }
     const field = current.fieldId ? fieldById(current.fieldId) : undefined;
     if ((event.key === 'Enter' || event.key === ' ' && field?.kind === 'checkbox') && row) {
       if (!current.fieldId) openRow(row, listOpensBeside(event, !!props.neighbour));
@@ -672,6 +753,13 @@ function TableContent(props: TablePaneProps) {
     const filters = query().filters.filter(filter => !(filter.field === field && filter.op === 'empty'));
     updateQuery({ ...query(), filters: [...filters, missingFilter(field)], offset: 0 });
   };
+  const renderTitle = (row: QueryRow, phone = false) => <Show when={phone === narrow() && renaming()?.row.block.block.id === row.block.block.id} fallback={<TableCellText>{expanded => <BlockText text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, expanded)} notebook={props.notebook} interactive={false} cards />}</TableCellText>}>
+    <input class="input table-cell-input" aria-label="Edit row title" value={renaming()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus({ preventScroll: true }); input.select(); })} onInput={event => { const text = event.currentTarget.value; setRenaming(current => current ? { ...current, text } : null); setError(''); }} onKeyDown={event => {
+      if (event.isComposing) return;
+      if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void commitTitle(true); }
+      else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setRenaming(null); focusCell(row.block.block.id, null); }
+    }} onBlur={() => { void commitTitle(); }} />
+  </Show>;
   const renderCell = (row: QueryRow, id: string) => {
     const field = () => fieldById(id); const current = () => editing();
     return <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={required().has(id) && !row.values[id]?.length ? <span class="table-needed">needed</span> : renderValue(row, field(), id === sourceField()?.id)}>
@@ -741,6 +829,7 @@ function TableContent(props: TablePaneProps) {
         <div class="table-view-status"><Show when={props.target.viewId && saved()} fallback={<Show when={result()}>{rows => <>{membersLabel(rows().total)}</>}</Show>}>
           <span>{changed() ? 'Modified' : 'Saved view'}</span><Show when={changed()}><Button disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button></Show>
         </Show><RequiredGaps gaps={gaps.latest} name={id => fieldById(id)?.name} onShow={showMissing} /></div>
+        <Show when={rowKind()}>{kind => <Button class="bordered" icon="plus" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'new-row', anchor: event.currentTarget })}>New {kind().name.toLocaleLowerCase()}…</Button>}</Show>
       </header>
       <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : query().note_kind ? result()?.total : indexTotal()} tableCount={missingFields().length ? undefined : result()?.total} fieldsCount={type()?.fields.length}
         cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, opensBeside(event))}
@@ -756,16 +845,18 @@ function TableContent(props: TablePaneProps) {
       <Show when={definitions() && missingFields().length}><MissingFields fields={missingFields()} busy={savingView()} onRemove={id => { void removeMissingField(id).catch(message); }} /></Show>
       <div class="table-scroll-frame">
       <div ref={scroll} class="table-scroll" onScroll={() => { cancelAnimationFrame(scrollReport); scrollReport = requestAnimationFrame(() => { reportView(); measureEdge(); }); }}>
-        <ViewBody neighbour={props.neighbour} query={query()} result={result() ?? { fields: fields(), columns: [], rows: [], total: 0 }} notebook={props.notebook} onOpen={props.onOpen} onQueryChange={updateQuery} onEdited={doc => { history.push({ kind: 'cell', doc, rowId: null, fieldId: null }); undone.length = 0; setViewUndo(false); }}
+        <ViewBody neighbour={props.neighbour} query={query()} result={result() ?? { fields: fields(), columns: [], rows: [], total: 0 }} notebook={props.notebook} onOpen={props.onOpen} onQueryChange={updateQuery} onEdited={doc => { history.push({ kind: 'cell', doc, rowId: null, fieldId: null }); undone.length = 0; setViewUndo(false); setRowUndo(false); }}
           onUndo={redo => { void replayCell(redo).catch(message); }}
-          table={() => <TableGrid neighbour={props.neighbour} gridRef={element => { grid = element; }} rows={groupedRows()} columns={visibleColumns()} notebook={props.notebook} field={fieldById} fieldName={fieldName} columnWidth={columnWidth} selected={selectedRow()} focused={focused()} tagged={members().taggedGroup} grouped={!!query().group} onFocus={(row, fieldId) => { setFocused({ rowId: row.block.block.id, fieldId }); setSelectedRow(row.block.block.id); }} onOpen={openRow} onGroup={toggleGroup} onHeader={columnMenu} onResize={resizeColumn} onMove={(from, to) => moveColumn(from, 1, to)} onClickCell={(row, field, anchor) => { if (field.kind === 'checkbox') startEdit(row, field, anchor); }} onEdit={(row, field, anchor) => { if (field.kind !== 'checkbox') startEdit(row, field, anchor); }} title={row => <TableCellText>{expanded => <BlockText text={preview(props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text, expanded)} notebook={props.notebook} interactive={false} cards />}</TableCellText>} cell={renderCell} cardFields={phoneFields} cardCell={renderCardCell} refs={showRefs()} refsHeading={`Derived from ${sourceField()?.name ?? 'Source'}`} reference={renderRefs} />} />
+          table={() => <TableGrid neighbour={props.neighbour} gridRef={element => { grid = element; }} rows={groupedRows()} columns={visibleColumns()} notebook={props.notebook} field={fieldById} fieldName={fieldName} columnWidth={columnWidth} selected={selectedRow()} focused={focused()} tagged={members().taggedGroup} grouped={!!query().group} onFocus={(row, fieldId) => { setFocused({ rowId: row.block.block.id, fieldId }); setSelectedRow(row.block.block.id); }} onOpen={openRow} onRowMenu={rowKind() ? rowMenu : undefined} editingTitle={renaming()?.row.block.block.id} onGroup={toggleGroup} onHeader={columnMenu} onResize={resizeColumn} onMove={(from, to) => moveColumn(from, 1, to)} onClickCell={(row, field, anchor) => { if (field.kind === 'checkbox') startEdit(row, field, anchor); }} onEdit={(row, field, anchor) => { if (field.kind !== 'checkbox') startEdit(row, field, anchor); }} title={renderTitle} cell={renderCell} cardFields={phoneFields} cardCell={renderCardCell} refs={showRefs()} refsHeading={`Derived from ${sourceField()?.name ?? 'Source'}`} reference={renderRefs} />} />
         <Show when={!loading() && !error() && !missingFields().length && !members().rows.length}><div class="table-empty"><p>{query().filters.length || query().text || query().links?.length || query().from?.length || query().cites?.length ? `No ${sourceName(query().source).toLocaleLowerCase()} match ${[...query().filters.map(filter => filterLabel(filter, pickerFields(), props.notebook, query().field_names)), ...(query().text ? [`“${query().text}”`] : []), ...(['links', 'from', 'cites'] as const).flatMap(key => query()[key]?.length ? [key] : [])].join(', ')}.` : `No ${sourceName(query().source).toLocaleLowerCase()} yet.`}</p><Show when={query().filters.length || query().text || query().links?.length || query().from?.length || query().cites?.length}><Button class="bordered" onClick={() => { setSearch(''); updateQuery({ ...query(), filters: [], text: null, links: [], from: [], cites: [] }); }}>Clear filters</Button></Show></div></Show>
       </div>
       <Show when={edge().hidden}><div class="table-more-right" style={{ height: `${edge().height}px` }}><Button class="table-more-columns" label={`Scroll to ${edge().hidden} more ${edge().hidden === 1 ? 'column' : 'columns'}`} onClick={showMoreColumns}>+{edge().hidden} <Icon name="right" /></Button></div></Show>
       </div>
-      <footer class="table-footer" classList={{ 'table-footer-action': !!error() || !!deleted() || viewUndo() || canAppend() || !!missingFields().length }} role="status"><Show when={deleted()} fallback={<>
+      <footer class="table-footer" classList={{ 'table-footer-action': !!error() || !!deleted() || viewUndo() || rowUndo() || !!rowNotice() || canAppend() || !!missingFields().length }} role="status"><Show when={deleted()} fallback={<>
         <span>{loading() ? 'Loading…' : error() || (missingFields().length ? 'Results paused; remove the missing field or undo its deletion.' : `${(result()?.rows.length ?? 0).toLocaleString()} of ${membersLabel(result()?.total ?? 0)}`)}</span>
         <Show when={!loading() && canAppend()}><span aria-hidden="true">·</span><Button class="table-show-more" disabled={appending()} aria-busy={appending()} onClick={() => { void appendRows(); }}>Show {pageSize().toLocaleString()} more</Button></Show>
+        <Show when={rowUndo()}><span>Row deleted ·</span><Button disabled={replaying()} onClick={() => { setRowUndo(false); void replayCell(false).catch(message); }}>Undo</Button></Show>
+        <Show when={rowNotice()}>{note => <><span>· {note().title}{result()?.rows.some(row => row.block.block.id === note().id) ? ' is in this table.' : ' was filed under this type but does not match the current view.'}</span><Button onClick={event => props.onOpen({ kind: 'page', pageId: note().id }, opensBeside(event))}>Open note</Button><Button label="Dismiss row notice" onClick={() => setRowNotice(undefined)}>×</Button></>}</Show>
         <Show when={viewUndo()}><span>View saved ·</span><Button disabled={replaying()} onClick={() => { void replayCell(false).catch(message); }}>Undo</Button></Show>
       </>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>
     </div>
@@ -778,6 +869,12 @@ function TableContent(props: TablePaneProps) {
     </Popup>}</Show>
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
+      {state.kind === 'new-row' && rowKind() && <NewKindNote kind={rowKind()!} mode="type" anchor={state.anchor} notebook={props.notebook} members={new Set((result()?.rows ?? []).filter(row => row.block.block.kind !== 'block').map(row => row.block.block.id))} onDismiss={() => setPopup(null)} onOpen={(id, beside) => { void revealNewRow(id, beside).catch(message); }} />}
+      {state.kind === 'delete-row' && <Popup anchor={state.anchor} label={state.row.block.block.kind === 'block' ? 'Delete block' : 'Delete page'} onDismiss={() => { if (!deleting()) setPopup(null); }}>
+        <p>Delete “{plainText(state.row.block.block.text, id => props.notebook.lookup(id))}” and all its {state.row.block.block.kind === 'block' ? 'children' : 'blocks'}?</p><p class="muted">You can undo this deletion.</p>
+        <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
+        <div class="popup-actions"><Button disabled={deleting()} onClick={() => setPopup(null)}>Cancel</Button><Button class="bordered danger" disabled={deleting()} onClick={() => { void deleteRow(state.row); }}>Delete {state.row.block.block.kind === 'block' ? 'block' : 'page'}</Button></div>
+      </Popup>}
       {state.kind === 'purpose' && <Popup anchor={state.anchor} label="View purpose" onDismiss={() => setPopup(null)}><form onSubmit={event => { event.preventDefault(); setPopup(null); }}><input class="input" aria-label="View purpose" value={query().purpose ?? ''} maxlength={240} onInput={event => updateQuery({ ...query(), purpose: event.currentTarget.value })} /><div class="popup-actions"><Button type="submit" class="bordered">Done</Button></div></form></Popup>}
       {state.kind === 'value' && <ValueEditor anchor={state.anchor} field={fieldById(state.field.id) ?? state.field} owner={{ id: state.row.block.block.id, page: state.row.block.page.id }} text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()}
         onCreateOption={text => writeCell(state.row, state.field, '', state.value, text)}
