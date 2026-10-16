@@ -110,7 +110,7 @@ export class Document implements PageDocument {
   }
   saveState() { return this.host.state(this.pageId); }
   saveMessage() { return this.host.message(this.pageId); }
-  async flush() { await this.historyPending; await this.host.flushPage(this.pageId); }
+  async flush() { while (this.historyPending) await this.historyPending; await this.host.flushPage(this.pageId); }
   holdTag(id: string, typing: boolean) { this.host.holdTag(this.pageId, id, typing); }
   canUndo() { this.historyVersion[0](); return this.status() === 'ready' && !this.historyPending && this.undoStack.length > 0; }
   canRedo() { this.historyVersion[0](); return this.status() === 'ready' && !this.historyPending && this.redoStack.length > 0; }
@@ -1868,14 +1868,22 @@ export class Document implements PageDocument {
   removeType(blockId: string, title: string): EditResult {
     return this.edit({ kind: 'removeType', id: blockId, title });
   }
-  rememberChange(change: DocumentChange): DocumentChange {
+  rememberChange(change: DocumentChange | Promise<DocumentChange>): DocumentChange {
     const entry: HistoryEntry = { forward: [], inverse: [], before: null, after: null, commandId: '', commands: new Set(), applied: true, retained: true };
+    const ready = Promise.resolve(change);
+    void ready.catch(() => {
+      this.undoStack = this.undoStack.filter(item => item !== entry);
+      this.redoStack = this.redoStack.filter(item => item !== entry);
+      entry.retained = false;
+      this.pruneHistory(entry);
+      this.historyVersion[1](value => value + 1);
+    });
     const travel = (undo: boolean): Promise<void> => {
       if (this.historyPending) return this.historyPending.then(() => travel(undo));
       const from = undo ? this.undoStack : this.redoStack;
       const to = undo ? this.redoStack : this.undoStack;
       if (!from.includes(entry)) return Promise.resolve();
-      const pending = (undo ? change.undo() : change.redo()).then(() => {
+      const pending = ready.then(change => undo ? change.undo() : change.redo()).then(() => {
         from.splice(from.indexOf(entry), 1);
         entry.applied = !undo;
         to.push(entry);
@@ -1899,7 +1907,11 @@ export class Document implements PageDocument {
     return entry.external;
   }
   private travel(undo: boolean): HistoryCaret | null {
-    if (this.historyPending) return null;
+    if (this.historyPending) {
+      const resume = () => { this.travel(undo); };
+      void this.historyPending.then(resume, resume);
+      return null;
+    }
     this.lastTextEditAt = 0;
     const from = undo ? this.undoStack : this.redoStack;
     const to = undo ? this.redoStack : this.undoStack;

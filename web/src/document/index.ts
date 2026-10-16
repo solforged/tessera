@@ -582,7 +582,8 @@ export class Notebook implements NotebookClient, DocumentHost {
       const pages = [first.page_id, destinationId];
       const opened = pages.map(pageId => this.open(pageId) as Document);
       try {
-        await Promise.all(opened.map(async doc => { if (doc.status() === 'loading') await doc.reload(false); await doc.flush(); }));
+        // A pending move may already own the page's external history boundary.
+        await Promise.all(opened.map(async doc => { if (doc.status() === 'loading') await doc.reload(false); await this.flushPage(doc.pageId); }));
         const source = await this.api.page(first.page_id);
         const destination = await this.api.block(destinationId);
         if (destination.kind !== 'page') throw new Error('Choose a titled page.');

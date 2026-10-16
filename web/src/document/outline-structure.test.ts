@@ -7,7 +7,7 @@ import type { Subprocess } from 'bun';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
 import type { Operation } from '../api/types';
-import type { Edit, PageDocument } from './contract';
+import type { DocumentChange, Edit, PageDocument } from './contract';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import { outlineDrop } from '../outline/drag';
@@ -167,6 +167,45 @@ describe('outline structural boundaries', () => {
     expect((await api.page(target)).rows.map(row => row.block.id)).toEqual([destination]);
     await change.redo();
     expect((await api.page(target)).rows.map(row => ({ id: row.block.id, parent: row.block.parent_id }))).toEqual(moved);
+  });
+
+  test.each([
+    { keys: ['undo'] },
+    { keys: ['undo', 'redo'] },
+    { keys: ['undo', 'redo', 'undo'] },
+  ] satisfies { keys: ('undo' | 'redo')[] }[])('pending cross-page history preserves earlier text and replays $keys in order', async ({ keys }) => {
+    const { doc, instance, ids } = await fixture();
+    expect(doc.edit({ kind: 'text', id: ids.D!, text: 'Earlier survivor typing' }).ok).toBe(true);
+    await instance.flush();
+    const before = tree(doc);
+    const target = ulid(), destination = ulid();
+    await api.submit({ actor: { kind: 'person' }, operations: [
+      { op: 'create_page', id: target, title: `Pending move ${target}` },
+      { op: 'insert', id: destination, parent_id: target, after: null, text: 'Destination', heading: null },
+    ] });
+    doc.rememberChange(instance.moveBlocks([ids.A2!, ids.B!], target));
+    for (const key of keys) doc[key]();
+    await doc.flush();
+    expect((await api.block(ids.D!)).text).toBe('Earlier survivor typing');
+    const moved = keys.at(-1) === 'redo';
+    expect((await api.page(target)).rows.map(row => row.block.id)).toEqual(moved ? [destination, ids.A2!, ids.A2a!, ids.B!, ids.B1!] : [destination]);
+    if (!moved) expect(tree(doc)).toEqual(before);
+  });
+
+  test('a refused pending move removes only its own history boundary', async () => {
+    const { doc, instance, ids } = await fixture();
+    expect(doc.edit({ kind: 'text', id: ids.D!, text: 'Earlier survivor typing' }).ok).toBe(true);
+    await instance.flush();
+    const pending = Promise.withResolvers<DocumentChange>();
+    doc.rememberChange(pending.promise);
+    doc.undo();
+    const drained = doc.flush();
+    pending.reject(new Error('Move refused'));
+    await expect(drained).rejects.toThrow('Move refused');
+    expect(doc.block(ids.D!)?.text).toBe('Earlier survivor typing');
+    doc.undo();
+    await doc.flush();
+    expect((await api.block(ids.D!)).text).toBe('D');
   });
 
   test('a child drop moves selected roots with their subtrees in one undo step', async () => {

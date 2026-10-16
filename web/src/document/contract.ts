@@ -336,8 +336,8 @@ export interface PageDocument {
   edit(edit: Edit, caretBefore?: HistoryCaret | null): EditResult;
   /** Accept authored text now, then amend that same undoable commit until its async work finishes. */
   beginTextCommit(write: (edit: PageDocument['edit']) => EditResult): PendingTextCommit;
-  /** Attach an acknowledged cross-page change to this pane's undo/redo history. */
-  rememberChange(change: DocumentChange): DocumentChange;
+  /** Reserve a cross-page change's undo boundary immediately; Undo waits for a pending change to finish. */
+  rememberChange(change: DocumentChange | Promise<DocumentChange>): DocumentChange;
   /** Renames a page. Journal titles cannot change. */
   rename(title: string): EditResult;
   addType(blockId: string, title: string): EditResult;

@@ -23,11 +23,18 @@ export function createMoveToPage(context: Pick<OutlineContext, 'props' | 'doc' |
         if (busy()) return;
         setBusy(true); setError('');
         try {
-          const change = await context.props.notebook.moveBlocks(current.ids, pageId);
-          const history = context.doc.rememberChange(change);
+          const pending = context.props.notebook.moveBlocks(current.ids, pageId);
+          let applied = true;
+          const history = context.doc.rememberChange(pending.then(change => ({
+            undo: async () => { await change.undo(); applied = false; },
+            redo: async () => { await change.redo(); applied = true; },
+          })));
+          await pending;
+          await context.doc.flush();
           setState(undefined);
           context.restoreFocus();
-          context.showNotice(`Moved to ${title}`, history.undo);
+          if (applied) context.showNotice(`Moved to ${title}`, history.undo);
+          else context.showNotice('Move undone');
         } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
         finally { setBusy(false); }
       };
