@@ -42,6 +42,11 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
   // The editor remounts when a row changes, so its selection cannot own a cross-row navigation goal.
   let preferredX: number | undefined;
   function resetVerticalGoal() { preferredX = undefined; }
+  function clearNavigationRange(event: KeyboardEvent) {
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'].includes(event.key)) return;
+    setRowRange(null);
+    if (!event.shiftKey) setTextRange(null);
+  }
   function pruneEmptyValue(id: string): string | null {
     const previous = emptyExtraValuePrevious(doc, id, context.definitionsById());
     if (!previous) return null;
@@ -97,6 +102,8 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     return true;
   }
   function crossArrow(event: KeyboardEvent, view: EditorView) {
+    // Let the editor collapse its own selection before considering a neighboring row.
+    if (!event.shiftKey && !view.state.selection.main.empty) return false;
     const direction = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
     const head = view.state.selection.main.head;
     const rect = view.coordsAtPos(head);
@@ -160,6 +167,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     if (forgetReferenceSpace(event) || slashKey(event) || dateKey(event) || popupKey(event) || fieldKey(event, view)) return true;
     if (commonKey(event)) return true;
     if (editing() && fillingKey(event, editing()!)) return true;
+    clearNavigationRange(event);
     if (event.key === 'Escape' && (!props.vim || context.editor?.mode() === 'normal')) { const id = editing(); if (id) rowFocus(pruneEmptyValue(id) ?? id); return true; }
     if (props.vim && context.editor?.mode() !== 'insert') {
       if (event.key === ' ' && context.editor?.mode() === 'normal' && editing() && !event.metaKey && !event.ctrlKey && !event.altKey) { leaderMenu(editing()!); return true; }
@@ -176,7 +184,6 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     if (event.key === 'Backspace') return backspace(view);
     if (event.key === 'Delete') return backspace(view, true);
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key) && !event.altKey && !event.metaKey && !event.ctrlKey) {
-      if (!event.shiftKey) setTextRange(null);
       return crossArrow(event, view);
     }
     return false;
@@ -241,6 +248,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     if (textRange() && (event.key === 'Backspace' || event.key === 'Delete')) { deleteTextRange(); handled = true; }
     if (!handled) handled = commonKey(event);
     if (!handled && selected() && !rowRange() && !textRange()) handled = fillingKey(event, selected()!);
+    if (!handled) clearNavigationRange(event);
     if (!handled && (event.key === '[' || event.key === ']') && !event.metaKey && !event.ctrlKey && !event.altKey && !depthReason()) { stepDepth(event.key === '[' ? -1 : 1); handled = true; }
     if (!handled && !selected() && !textRange()) {
       if (!event.metaKey && !event.ctrlKey && !event.altKey && ['ArrowDown', 'ArrowUp', 'j', 'k'].includes(event.key)) {

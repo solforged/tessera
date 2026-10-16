@@ -519,6 +519,8 @@ Rows highlight on hover with `--hover`; selection uses `--selection` plus the ac
 
 Shift-click on another row selects the range from the current row; Shift-click inside the block being edited extends its text selection instead.
 
+Non-Shift caret navigation, including modified arrows and Home/End, clears any cross-row text range before the editor moves. A native text selection collapses inside its row before an arrow can cross to another row; Shift navigation retains the range's anchor.
+
 ⌘A in row-selection mode selects all visible outline rows. Backspace and forward Delete remove a row range, and either removes a single selected row when Vim is off.
 
 Copy and cut act on a single selected row or range and include every descendant, folded or archived, as indented plain text plus Tessera's structured clipboard format. Structured paste inserts intact subtrees at the destination depth: copy creates new identities with task state and card syntax, while cut within the same notebook restores and moves the original identities, capabilities, planning and work or review history.

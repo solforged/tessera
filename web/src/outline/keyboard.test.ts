@@ -2,10 +2,12 @@ import { describe, expect, test } from 'bun:test';
 import { EditorSelection, EditorState } from '@codemirror/state';
 import type { TransactionSpec } from '@codemirror/state';
 import type { EditorView } from '@codemirror/view';
+import type { TextRange } from '../document/contract';
 import { createOutlineKeyboard } from './keyboard';
 
 function navigationHarness(texts: string[], origins = texts.map(() => 100)) {
   let row = 0;
+  let textRange: TextRange | null = null;
   let state = EditorState.create({ doc: texts[row], selection: EditorSelection.cursor(10) });
   const view = {
     get state() { return state; },
@@ -28,9 +30,10 @@ function navigationHarness(texts: string[], origins = texts.map(() => 100)) {
       state = EditorState.create({ doc: texts[row], selection: EditorSelection.cursor(offset) });
     },
     commitFieldEntry: () => false,
-    textRange: () => null,
+    textRange: () => textRange,
     rowRange: () => null,
-    setTextRange: () => {},
+    setTextRange: (range: TextRange | null) => { textRange = range; },
+    setRowRange: () => {},
     forgetReferenceSpace: () => false,
     slashKey: () => false,
     dateKey: () => false,
@@ -40,8 +43,11 @@ function navigationHarness(texts: string[], origins = texts.map(() => 100)) {
     keyboard,
     position: () => ({ row, offset: state.selection.main.head }),
     remount: (offset = state.selection.main.head) => { state = EditorState.create({ doc: texts[row], selection: EditorSelection.cursor(offset) }); },
-    press: async (key: string) => {
-      const handled = keyboard.editorKey({ key, code: '', shiftKey: false, metaKey: false, ctrlKey: false, altKey: false } as KeyboardEvent, view);
+    select: (anchor: number, head: number) => { state = state.update({ selection: EditorSelection.range(anchor, head) }).state; },
+    setRange: (range: TextRange | null) => { textRange = range; },
+    range: () => textRange,
+    press: async (key: string, modifiers: Partial<KeyboardEvent> = {}) => {
+      const handled = keyboard.editorKey({ key, code: '', shiftKey: false, metaKey: false, ctrlKey: false, altKey: false, ...modifiers } as KeyboardEvent, view);
       await Promise.resolve();
       return handled;
     },
@@ -112,5 +118,38 @@ describe('field filling after a picker commit', () => {
     tab();
     tab(true);
     expect(edits).toEqual(['indent', 'outdent']);
+  });
+});
+
+describe('native and cross-row selection ownership', () => {
+  test('non-Shift navigation clears a cross-row range even with modifiers', async () => {
+    for (const key of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown']) {
+      for (const modifier of [{}, { metaKey: true }, { ctrlKey: true }, { altKey: true }]) {
+        // Alt-Up/Down move the selected roots, rather than navigating the caret.
+        if (modifier.altKey && (key === 'ArrowUp' || key === 'ArrowDown')) continue;
+        const harness = navigationHarness(['abcdefghijabcdefghij', 'next row']);
+        harness.setRange({ anchor: { id: '1', offset: 1 }, head: { id: '0', offset: 10 } });
+        await harness.press(key, modifier);
+        expect(harness.range()).toBeNull();
+      }
+    }
+  });
+
+  test('a selected row collapses inside its editor instead of crossing to its neighbor', async () => {
+    const harness = navigationHarness(['abcdefghijabcdefghij', 'next row']);
+    harness.select(0, 20);
+    expect(await harness.press('ArrowRight')).toBe(false);
+    expect(harness.position()).toEqual({ row: 0, offset: 20 });
+    harness.select(20, 0);
+    expect(await harness.press('ArrowLeft')).toBe(false);
+    expect(harness.position()).toEqual({ row: 0, offset: 0 });
+  });
+
+  test('Shift navigation retains the cross-row anchor', async () => {
+    const harness = navigationHarness(['abcdefghijabcdefghij', 'next row']);
+    const range = { anchor: { id: '1', offset: 1 }, head: { id: '0', offset: 10 } };
+    harness.setRange(range);
+    await harness.press('Home', { shiftKey: true, metaKey: true });
+    expect(harness.range()).toEqual(range);
   });
 });
