@@ -607,6 +607,7 @@ export class Document implements PageDocument {
         if (!base) for (let ancestor: string | null = action.parentId; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(action.id); break; }
         const inverse: Action = { kind: 'move', id: action.id, parentId: index.parentOf(action.id), after: index.previousSibling(action.id) };
         const after = action.after && index.parentOf(action.after) === action.parentId ? action.after : null;
+        if (inverse.parentId === action.parentId && inverse.after === after) return [];
         index.move(action.id, action.parentId, after);
         this.changed(action.id, { parent_id: action.parentId }, base);
         return [inverse];

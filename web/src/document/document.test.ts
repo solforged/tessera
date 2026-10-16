@@ -1545,6 +1545,33 @@ describe('real notebook operations and recovery', () => {
     destination.doc.release();
   });
 
+  test('cross-page multi-root cut paste undo and redo preserve the original identities', async () => {
+    const instance = await client();
+    const source = await page(instance, 'Parent');
+    const child = success(source.doc.edit({ kind: 'insert', parentId: source.first, after: null, text: 'Child' })).created[0]!;
+    const sibling = success(source.doc.edit({ kind: 'insert', parentId: source.id, after: source.first, text: 'Sibling' })).created[0]!;
+    success(source.doc.edit({ kind: 'insert', parentId: source.id, after: sibling, text: 'Tail' }));
+    await instance.flush();
+    const content = source.doc.clipboard([source.first, sibling], true);
+    success(source.doc.edit({ kind: 'delete', ids: [source.first, sibling] }));
+    const destination = await page(instance, 'Destination');
+    const ready = await destination.doc.prepareClipboard(content);
+    const at = { id: destination.first, offset: 'Destination'.length };
+    success(destination.doc.edit({ kind: 'pasteBlocks', range: { anchor: at, head: at }, between: [], content: ready }, at));
+    await instance.flush();
+    const moved = [destination.first, source.first, child, sibling];
+    expect((await api.page(destination.id)).rows.map(row => row.block.id)).toEqual(moved);
+    destination.doc.undo();
+    await instance.flush();
+    expect((await api.page(destination.id)).rows.map(row => row.block.id)).toEqual([destination.first]);
+    destination.doc.redo();
+    await instance.flush();
+    expect((await api.page(destination.id)).rows.map(row => row.block.id)).toEqual(moved);
+    expect((await api.page(source.id)).rows.map(row => row.block.text)).toEqual(['Tail']);
+    source.doc.release();
+    destination.doc.release();
+  });
+
   test('copying a completed task makes a distinct task without borrowing its work history', async () => {
     const instance = await client();
     const source = await page(instance, 'Finished work');
