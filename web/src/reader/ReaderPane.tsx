@@ -914,7 +914,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (!back) return;
     try {
       if (paged() && back.page) { pageAnchor = back.page; await relayoutPages(); }
-      else if (!await jump(back.ordinal, back.offset)) return;
+      else if (!await jump(back.ordinal, { offset: back.offset })) return;
       setNoteReturn(null); setCursor(null); showChrome(false);
       await nextFrame();
       const passage = [...scroll.querySelectorAll<HTMLElement>('[data-passage-id]')].find(row => row.dataset.passageId === back.passageId);
