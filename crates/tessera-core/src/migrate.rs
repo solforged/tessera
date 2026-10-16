@@ -4,7 +4,7 @@ use crate::error::{Error, Result};
 use crate::notebook::now_ms;
 use crate::storage::derive_memberships;
 
-const UNICODE_TITLE_KEYS: &str = include_str!("../migrations/050_unicode_title_keys.sql");
+const UNICODE_TITLE_KEYS: &str = include_str!("../migrations/047_unicode_title_keys.sql");
 
 /// Ordered schema migrations. Version N is the Nth entry; never edit or
 /// reorder a released entry, only append.
