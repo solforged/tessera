@@ -216,7 +216,7 @@ fn title_references_link_existing_and_new_pages_like_the_editor() {
 #[test]
 fn external_captions_stay_authored_without_creating_pages_or_block_links() {
     let (_dir, mut nb) = fixture();
-    let text = "[[https://example.org/a|caption]] and [label](https://example.org/b)";
+    let text = "[[HTTPS://example.org/a|caption]] and [label](https://example.org/b)";
     let receipt = run(&mut nb, &note(page("External links"), vec![block(text, vec![])]));
     assert_eq!(receipt.created_pages.len(), 1);
     let saved = nb.page(&receipt.created_pages[0].id).unwrap();

@@ -15,7 +15,7 @@ export function quoteTarget(text: string): string | null {
 
 export function textTokens(text: string): Token[] {
   const result: Token[] = [];
-  const pattern = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{M}\p{N}_])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{M}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)|(`+)|\[([^\[\]\r\n]+)\]\((?=https?:\/\/)/gu;
+  const pattern = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{M}\p{N}_])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{M}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)|(`+)|\[([^\[\]\r\n]+)\]\((?=https?:\/\/)/giu;
   let offset = 0;
   let ignoredUntil = 0;
   for (const match of text.matchAll(pattern)) {
@@ -73,7 +73,7 @@ export function textTokens(text: string): Token[] {
     const separator = tail?.lastIndexOf('|') ?? -1;
     const view = match[1]?.match(/^view:([0-7][0-9A-HJKMNP-TV-Z]{25})$/);
     result.push(match[1] !== undefined
-      ? /^https?:\/\/[^\s<>"']+$/.test(match[1]) && tail !== undefined
+      ? /^https?:\/\/[^\s<>"']+$/i.test(match[1]) && tail !== undefined
         ? { start, end, kind: 'url', value: match[1], alias: tail, labelStart: start + 2 + match[1].length + 1 }
         : { start, end, kind: 'reference', value, id: view?.[1] ?? match[1], ...(view ? { targetKind: 'view' as const } : {}), alias: separator < 0 ? tail : tail!.slice(0, separator), ...(separator < 0 ? {} : { locator: tail!.slice(separator + 1) }) }
       : match[5] !== undefined ? { start, end, kind: 'url', value }

@@ -1589,8 +1589,12 @@ impl Notebook {
             let title = target.trim();
             let resolved = if tag
                 || title.is_empty()
-                || target.starts_with("https://")
-                || target.starts_with("http://")
+                || target
+                    .get(..8)
+                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case("https://"))
+                || target
+                    .get(..7)
+                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case("http://"))
                 || title.contains(['[', ']', '\n', '\r'])
                 || alias.is_some_and(|alias| alias.contains(']'))
                 || validate_id(target).is_ok()

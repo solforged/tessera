@@ -42,6 +42,7 @@ test('authored external captions use one URL token without becoming page referen
   for (const [source, caption] of [
     ['[label](https://example.org/Topic_(a_(b)))', 'label'],
     ['[[https://example.org/a|caption]]', 'caption'],
+    ['[[HTTPS://example.org/a|uppercase]]', 'uppercase'],
   ]) {
     const [token] = textTokens(source!);
     expect(token?.kind).toBe('url');
