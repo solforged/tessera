@@ -110,7 +110,8 @@ function TableContent(props: TablePaneProps) {
   const documents = new Map<string, PageDocument>();
   const history: TableEdit[] = [];
   const undone: typeof history = [];
-  onCleanup(() => { for (const doc of documents.values()) doc.release(); });
+  let replayQueue = Promise.resolve();
+  onCleanup(() => { void replayQueue.then(() => { for (const doc of documents.values()) doc.release(); }); });
   const pendingWrites = new Set<Promise<void>>();
   const focusCell = (rowId: string | null, fieldId: string | null, takeFocus = true) => {
     if (!rowId) return;
@@ -430,13 +431,16 @@ function TableContent(props: TablePaneProps) {
   const saveChanges = async () => {
     const value = saved(); if (!value || savingView() || !changed()) return;
     setSavingView(true);
-    try {
+    const pending = (async () => {
       const next = { ...value, query: copyQuery(query()), revision: value.revision + 1 };
       await submit({ op: 'save_view', id: value.id, base_revision: value.revision, name: value.name, query: next.query });
       history.push({ kind: 'view', before: value, after: next, revision: next.revision }); undone.length = 0;
       setViewUndo(true); setRowUndo(false); setSaved(next);
       await refetchViews();
-    } finally { setSavingView(false); }
+    })();
+    pendingWrites.add(pending);
+    try { await pending; }
+    finally { pendingWrites.delete(pending); setSavingView(false); }
   };
   const removeMissingField = async (id: string) => {
     updateQuery(removeQueryField(query(), id));
@@ -679,8 +683,7 @@ function TableContent(props: TablePaneProps) {
       catch (reason) { message(reason); }
     }
   };
-  const replayCell = async (redo: boolean) => {
-    if (replaying() || savingView()) return;
+  const runReplay = async (redo: boolean) => {
     setReplaying(true);
     try {
       // A first write may still be opening its page document. Undo follows that
@@ -723,6 +726,11 @@ function TableContent(props: TablePaneProps) {
       }
       setViewUndo(history.at(-1)?.kind === 'view'); setRowUndo(false);
     } finally { setReplaying(false); }
+  };
+  const replayCell = (redo: boolean): Promise<void> => {
+    const result = replayQueue.then(() => runReplay(redo));
+    replayQueue = result.then(() => undefined, () => undefined);
+    return result;
   };
   const keydown = (event: KeyboardEvent) => {
     if (event.isComposing || event.target instanceof HTMLElement && event.target.closest('input, select, textarea, [contenteditable="true"]')) return;

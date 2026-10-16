@@ -212,7 +212,7 @@ Cell focus follows the member and field, whether a note or a tagged block, so an
 
 Changing the column selection returns the grid to its left edge. Entering an inline editor preserves that scroll position; keyboard focus reveals its cell beside the sticky title and below the sticky header. Committing keeps the focused cell visible, including at the bottom of the grid.
 
-⌘Z and ⌘⇧Z in the table undo and redo its value edits. Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
+⌘Z and ⌘⇧Z in the table undo and redo its value edits. Repeated Undo and Redo are applied in the order pressed, including while a previous save or history step is pending. Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
 
 ### Managing rows
 
