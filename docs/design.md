@@ -694,7 +694,7 @@ Floating layers open below the element or caret that opened them, with a 4 px ga
 
 Fixed forms opt into intrinsic-height fitting and choose the larger space when they cannot fit below; growing result lists keep the stable-placement policy. Find or create opens beneath the global search trigger; the dedicated command palette centers near the top of the viewport.
 
-Escape closes the topmost one and returns focus to the editor or outline that owned the keyboard before a mouse-opened menu, not its trigger. Closing retires input handlers immediately; only an inert, accessibility-hidden visual remains for the brief exit animation. It has no IDs and cannot steal focus from a successor popup. Reduced motion removes it immediately.
+Escape closes the topmost one and returns focus to the editor or outline that owned the keyboard before a mouse-opened menu, not its trigger. Closing retires the panel's input handlers immediately, leaving an inert, accessibility-hidden visual for the brief exit animation. A transparent shield absorbs pointer input in its original area until the exit ends, so a repeated tap cannot reach the surface underneath. The rest of the screen, focus and keyboard handling stay available. The retired panel has no IDs and cannot steal focus from a successor popup. Reduced motion removes it immediately.
 
 Bottom sheets share a grab area and an accessible Close button. Dragging downward from the grab area dismisses the sheet; dragging within its contents keeps the content's own scrolling behavior.
 

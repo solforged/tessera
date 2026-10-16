@@ -12,6 +12,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Kept repeated taps on closing popups and sheets from editing controls underneath.
 - Preserved immediate typing and Backspace corrections through slow highlight note and card delivery.
 - Kept source-note catalog apparatus hidden until its metadata finished loading.
 - Skipped punctuation-only fragments in revealed review cards' following context.

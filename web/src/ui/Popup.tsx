@@ -34,6 +34,14 @@ const stack: symbol[] = [];
 let mountVersion = 0;
 
 function retirePanel(panel: HTMLDivElement) {
+  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+  if (motion.matches) {
+    panel.remove();
+    return;
+  }
+  // Portal may already have detached its wrapper; reconnect before measuring the retiring panel.
+  document.body.append(panel);
+  const zIndex = getComputedStyle(panel).zIndex;
   panel.classList.remove('popup', 'popup-enter');
   panel.classList.add('popup-exit');
   panel.inert = true;
@@ -41,14 +49,7 @@ function retirePanel(panel: HTMLDivElement) {
   panel.removeAttribute('id');
   for (const element of panel.querySelectorAll('[id]')) element.removeAttribute('id');
 
-  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  if (motion.matches) {
-    panel.remove();
-    return;
-  }
-
-  // Portal has removed its wrapper; keep only the already-disposed DOM panel.
-  document.body.append(panel);
+  const bounds = panel.getBoundingClientRect();
   const animation = panel.getAnimations().find(animation => animation instanceof CSSAnimation && (animation.animationName === 'popup-out' || animation.animationName === 'sheet-out'));
   const timing = animation?.effect?.getComputedTiming();
   const duration = timing?.activeDuration;
@@ -58,6 +59,22 @@ function retirePanel(panel: HTMLDivElement) {
     return;
   }
 
+  // The inert visual moves away. Keep its original footprint hit-testable until the exit ends,
+  // without taking focus or stopping input anywhere else (including the action's destination).
+  const shield = document.createElement('div');
+  shield.className = 'popup-exit-shield';
+  shield.setAttribute('aria-hidden', 'true');
+  Object.assign(shield.style, { left: `${bounds.left}px`, top: `${bounds.top}px`, width: `${bounds.width}px`, height: `${bounds.height}px`, zIndex });
+  document.body.append(shield);
+  const swallow = (event: Event) => {
+    if (event.target !== shield) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+  };
+  const events = ['pointerdown', 'pointermove', 'pointerup', 'pointercancel', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu', 'touchstart', 'touchmove', 'touchend', 'touchcancel', 'wheel'] as const;
+  // Capture before document-level outside-dismiss and selection handlers can interpret a trailing tap.
+  for (const type of events) window.addEventListener(type, swallow, { capture: true, passive: false });
+
   let removed = false;
   let timer = 0;
   const remove = () => {
@@ -65,6 +82,8 @@ function retirePanel(panel: HTMLDivElement) {
     removed = true;
     window.clearTimeout(timer);
     motion.removeEventListener('change', motionChanged);
+    for (const type of events) window.removeEventListener(type, swallow, true);
+    shield.remove();
     panel.remove();
     animation.cancel();
   };

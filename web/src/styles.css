@@ -41,6 +41,7 @@ a { color: var(--accent); }
 :is(.popup, .popup-exit)::before { content: ''; position: absolute; top: 0; left: var(--space-12); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
 .popup-enter { animation: popup-in var(--motion-ui) var(--motion-ease) both; }
 .popup-exit { z-index: 49; pointer-events: none; animation: popup-out var(--motion-fast) var(--motion-ease) both; }
+.popup-exit-shield { position: fixed; pointer-events: auto; touch-action: none; }
 @keyframes popup-in { from { opacity: 0; transform: translateY(calc(-1 * var(--motion-distance))); } to { opacity: 1; transform: translateY(0); } }
 @keyframes popup-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(calc(-1 * var(--motion-distance))); } }
 /* A sheet rises from the bottom edge at full width, its top corners rounded, clear of the home indicator. */
