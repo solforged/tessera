@@ -4,6 +4,7 @@ import type { ApiClient } from '../api/client';
 import type { Citation, HighlightRow, TocEntry } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
+import { pendingCaretInput } from '../shell/pending-caret';
 import { documentReady } from '../tasks/JournalAgenda';
 import { CardComposer } from '../review/CardComposer';
 import { parseCardText } from '../review/card-text';
@@ -110,7 +111,10 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       if (action === 'triage') onProcessed?.(row);
     };
     const fail = (reason: unknown) => { if (!disposed) onError(reason instanceof Error ? reason.message : String(reason)); };
-    const fire = (action: Parameters<typeof run>[0]) => { void run(action).catch(fail); };
+    const fire = (action: Parameters<typeof run>[0]) => {
+      const cancelInput = action === 'note' ? pendingCaretInput.prepare() : undefined;
+      void run(action).catch(reason => { cancelInput?.(); fail(reason); });
+    };
     const tag = () => { setLastDocument(document); tagPrompt.open(document, id); };
     const color = document.block(id)?.citations.find(citation => citation.id === row.citation.id)?.color ?? null;
     const setColor = (color: Citation['color']) => {
@@ -167,14 +171,18 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
     }}</Show><Show keyed when={cardDraft()}>{draft => <CardComposer anchor={draft.anchor} initialBack={draft.row.citation.quote}
       context={<p class="muted">{draft.row.source_title} · ¶{draft.row.citation.ordinal + 1}</p>} onDismiss={() => setCardDraft(undefined)}
       onSave={async text => {
-        const doc = draft.document, parentId = draft.row.citation.block_id;
-        await documentReady(doc);
-        const result = doc.edit({ kind: 'insert', parentId, after: doc.outline.children(parentId).at(-1) ?? null, text });
-        if (!result.ok) throw new Error(result.reason);
-        const id = result.created[0]!;
-        setLastDocument(doc);
-        await doc.flush();
-        if (!disposed) onOpen({ kind: 'page', pageId: draft.row.block.page.id, blockId: parentId, caretId: id, caretOffset: 0 }, true);
+        const cancelInput = pendingCaretInput.prepare();
+        try {
+          const doc = draft.document, parentId = draft.row.citation.block_id;
+          await documentReady(doc);
+          const result = doc.edit({ kind: 'insert', parentId, after: doc.outline.children(parentId).at(-1) ?? null, text });
+          if (!result.ok) throw new Error(result.reason);
+          const id = result.created[0]!;
+          setLastDocument(doc);
+          await doc.flush();
+          if (!disposed) onOpen({ kind: 'page', pageId: draft.row.block.page.id, blockId: parentId, caretId: id, caretOffset: 0 }, true);
+          else cancelInput();
+        } catch (reason) { cancelInput(); throw reason; }
       }} />}</Show></>,
     canUndo: () => lastDocument()?.canUndo() ?? false,
     undo: async () => {

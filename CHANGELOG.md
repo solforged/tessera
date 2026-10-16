@@ -12,7 +12,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
-- Preserved the start of immediate typing when adding or opening a highlight note.
+- Preserved immediate typing through highlight note and card editor delivery.
+- Kept source-note catalog apparatus hidden until its metadata finished loading.
 - Skipped punctuation-only fragments in revealed review cards' following context.
 - Suspended selection tools behind reader popups and sheets without clearing selected text.
 - Kept citation jumps below the reader's top fade without shifting restored positions.

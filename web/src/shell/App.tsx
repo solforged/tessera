@@ -24,6 +24,7 @@ import { Popup } from '../ui/Popup';
 import { createPaneMotion, navigatePane, paneTargetIdentity } from '../ui/pane-motion';
 import { installTabRule } from '../ui/tab-rule';
 import { createVisualViewport } from '../ui/visual-viewport';
+import { pendingCaretInput } from './pending-caret';
 import { Calendar } from './Calendar';
 import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
@@ -233,7 +234,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     delete pendingJournals[pane];
     return navigationRequests[pane] = (navigationRequests[pane] ?? 0) + 1;
   };
-  onCleanup(() => { for (const pane of order()) cancelNavigation(pane); });
+  onCleanup(() => { pendingCaretInput.cancel(); for (const pane of order()) cancelNavigation(pane); });
   const focusPane = (pane: PaneId) => {
     const epoch = ++focusEpoch;
     requestAnimationFrame(() => {
@@ -255,6 +256,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     // Explicit editing requests activate their destination, even when a list reuses a folded neighbour.
     const keepFocus = beside && !!slot.existing && !(target.kind === 'page' && target.caretId) && !!listKinds[entry(owner)?.target.kind ?? 'page'];
     const request = cancelNavigation(pane);
+    if (target.kind === 'page' && target.caretId) pendingCaretInput.begin(pane, target.caretId);
+    else pendingCaretInput.cancel();
     if (target.kind === 'agenda' && target.viewId && !target.query) {
       void notebook.api.taskView(target.viewId).then(saved => {
         if (request === navigationRequests[pane]) open({ ...target, query: saved.query, date: target.date ?? saved.query.context_date }, beside, owner, restore, insertAt);
@@ -329,6 +332,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const travel = (pane: PaneId, delta: number) => {
     const session = sessions()[pane]; if (!session) return; const index = session.index + delta;
     if (index < 0 || index >= session.entries.length) return;
+    pendingCaretInput.cancel();
     cancelNavigation(pane);
     navigatePane(pane, delta < 0 ? 'back' : 'forward', () => {
       // A second Back pressed before the first turn applied steps from where the first one lands.

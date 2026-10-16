@@ -484,6 +484,7 @@ function Pane(props: OutlinePaneProps) {
   const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
   const [sourceHeaderReady, setSourceHeaderReady] = createSignal(false);
+  const sourceApparatusReady = () => sourceHeaderReady() && !!(fields.error || fields.latest);
   // Top-level notes reveal their kinds and aliases with the title and opening rows.
   const isNote = () => !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
   const [noteKinds] = createResource(() => isNote() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
@@ -493,8 +494,7 @@ function Pane(props: OutlinePaneProps) {
   // the title's "Loading…" placeholder otherwise flashes for a frame on every page open.
   // An explicit editing destination already has local text. Catalog metadata must not hide its live caret.
   const pageReady = () => doc.status() !== 'loading' && (!!(initial.edit && zoom() && initial.caret && doc.block(initial.caret.id))
-    || (!doc.root()?.source || sourceHeaderReady()
-      && !!(fields.error || fields()) && (!!zoom() || !!(sourceHighlights.error || sourceHighlights())))
+    || (!doc.root()?.source || sourceApparatusReady() && (!!zoom() || !!(sourceHighlights.error || sourceHighlights())))
       && (!isNote() || !!(fields.error || fields.latest) && !!(noteKinds.error || noteKinds.latest)));
   const filedElsewhere = createMemo(() => (sourceHighlights.error ? [] : sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId && (!sourceColors().length || !!row.color && sourceColors().includes(row.color)))
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset));
@@ -1609,7 +1609,7 @@ function Pane(props: OutlinePaneProps) {
       }}>{sectionName() || 'Opening'}</Button></div></Show>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} relations={holderRelations()} sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))} onOpen={props.onOpen} /></Show>
     <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} onClose={() => setSourceDetailsOpen(false)} /></Show>
-    <div ref={heading} class="outline-heading">
+    <div ref={heading} class="outline-heading" style={{ visibility: doc.root()?.source && !sourceApparatusReady() ? 'hidden' : undefined }}>
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{rootTitle()}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</button></>}</For></nav></Show>
       <Show when={isNote()}><NoteEyebrow kinds={noteKinds.error ? undefined : noteKinds.latest} onOpen={props.onOpen} /></Show>
       <Show when={positionZoom()}>{id => <div class="position-dossier">
@@ -1645,7 +1645,7 @@ function Pane(props: OutlinePaneProps) {
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} onOpen={props.onOpen} />
       </Show>}</Show>
       <Show when={doc.root()?.source && !positionZoom()}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
-        fields={definitions()} compact={!!zoom()} ready={pageReady()} onReady={setSourceHeaderReady} onEditDetails={() => setSourceDetailsOpen(true)}
+        fields={definitions()} compact={!!zoom()} ready={pageReady() && sourceApparatusReady()} onReady={setSourceHeaderReady} onEditDetails={() => setSourceDetailsOpen(true)}
         highlights={zoom() || sourceHighlights.error ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={visible => { setSourceFieldsVisible(visible); scheduleReport(); }} /></Show>
       <Show when={doc.root()?.templateCards}><CardSummary blockId={props.pageId} cards={[]} templateCount={doc.root()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={!zoom()}><projectSummary.Summary /></Show>
