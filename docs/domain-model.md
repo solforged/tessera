@@ -212,6 +212,8 @@ Renaming to another definition's name offers a merge preview with affected owner
 
 Deleting a definition first shows its impact, including affected views by name. Archive hides it from field pickers but keeps values and views readable. Detach turns its values into ordinary `Name: value` blocks, retaining their child notes. Delete values requires explicit confirmation and removes their subtrees. Each action has one undo, including when the definition was archived first.
 
+Detaching a choice definition materializes its option labels in the ordinary values before removing the options. Deleting an in-use choice option likewise keeps its labels as written problem values after an impact confirmation. Both preserve value identities and child notes, and Undo restores the exact references.
+
 Spans accept years and ranges, `c.`, `fl.`, `b.`, `d.`, decades, centuries and `?` for open ends. For example, `c. 200–118 BCE` reads from -200 through -118, and `fl. 1340s` reads from 1340 through 1349. Approximation markers do not invent a wider range. A birth has an open end; a death has an open start. Year zero and reversed ranges are unreadable. Span sorting compares start year, then end year; open bounds extend to infinity. Filters compare inclusive overlap, strictly before or strictly after another span.
 
 Date precision and sorting:

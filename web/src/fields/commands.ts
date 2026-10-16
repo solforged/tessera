@@ -5,6 +5,8 @@ import { fieldEntryId, queryFieldIds, remapQueryField } from '../table/query';
 import { documentReady } from '../outline/source-fields';
 import { fieldNameProblem } from './kinds';
 import { SOURCE_TARGET, sourceOperation } from './targets';
+import { isStableReference, textTokens } from '../document/text-tokens';
+import { targetLabel } from '../outline/names';
 
 type Write = Extract<Operation, { op: 'insert' | 'create_page' | 'edit_text' | 'set_field_kind' | 'set_field_targets' | 'set_type_fields' | 'set_archived' | 'move' | 'delete' | 'restore' | 'add_type' | 'remove_type' | 'set_source' }> | (Extract<Operation, { op: 'save_view' }> & { base_revision: number });
 interface Step { forward: Write; backward: Write }
@@ -243,10 +245,56 @@ export async function fieldImpact(notebook: NotebookClient, id: string, target?:
   return { detail, definition, entries, pages, templates, views: views.filter(view => queryFieldIds(view.query).includes(id)), target: survivor, conflicts: entries.filter(entry => targetOwners.has(entry.parent_id)) };
 }
 
+/** Replace only references whose options are about to disappear; unrelated links stay live. */
+function withoutOptions(text: string, labels: ReadonlyMap<string, string>): string {
+  let result = '', offset = 0;
+  for (const token of textTokens(text)) {
+    if (!isStableReference(token) || !labels.has(token.id!)) continue;
+    result += text.slice(offset, token.start) + labels.get(token.id!)! + (token.locator ? `\u2009${token.locator}` : '');
+    offset = token.end;
+  }
+  return result + text.slice(offset);
+}
+
+function optionLabels(pages: readonly PageView[], options: readonly { id: string; text: string }[]): Map<string, string> {
+  const blocks = new Map(pages.flatMap(page => [page.root, ...page.rows.map(row => row.block), ...page.targets]).map(block => [block.id, block]));
+  return new Map(options.map(option => [option.id, targetLabel(option.text, id => () => blocks.get(id) ?? null) || 'Empty option']));
+}
+
+export interface OptionImpact {
+  roots: Block[];
+  values: { block: Block; text: string; owner: string }[];
+}
+
+/** Snapshot every affected value before offering the same revision-guarded deletion to mouse and keyboard. */
+export async function optionImpact(notebook: NotebookClient, roots: Block[], fields: readonly FieldDefinition[]): Promise<OptionImpact> {
+  const selected = new Set(roots.map(block => block.id));
+  const choices = fields.filter(field => field.kind === 'choice' && field.options.some(option => selected.has(option.id)));
+  const details = await Promise.all(choices.map(field => notebook.api.fieldDetail(field.id)));
+  const entries = await Promise.all([...new Set(details.flatMap(detail => detail.entries))].map(id => notebook.api.block(id)));
+  const pages = await Promise.all([...new Set([...entries, ...roots].map(block => block.page_id))].map(id => notebook.api.page(id)));
+  const owners = new Map(entries.map(entry => [entry.id, entry.parent_id!]));
+  const labels = optionLabels(pages, choices.flatMap(field => field.options.filter(option => selected.has(option.id))));
+  const values = pages.flatMap(page => page.rows.flatMap(({ block }) => {
+    const owner = owners.get(block.parent_id ?? '');
+    const text = withoutOptions(block.text, labels);
+    return owner && text !== block.text ? [{ block, text, owner }] : [];
+  }));
+  return { roots, values };
+}
+
+export async function deleteFieldOptions(notebook: NotebookClient, impact: OptionImpact): Promise<DocumentChange> {
+  const steps: Step[] = [];
+  for (const value of impact.values) replace(steps, value.block, value.text);
+  for (const root of impact.roots) steps.push({ forward: { op: 'delete', id: root.id, base_revision: root.revision }, backward: { op: 'delete', id: root.id, base_revision: 0 } });
+  return commit(notebook, steps, [...new Set([...impact.roots, ...impact.values.map(value => value.block)].map(block => block.page_id))], 'Delete choice options');
+}
+
 export async function applyFieldImpact(notebook: NotebookClient, impact: FieldImpact, action: 'archive' | 'merge' | 'detach' | 'delete'): Promise<DocumentChange> {
   const { definition, entries, templates, target } = impact;
   const steps: Step[] = [];
   const pages = new Set(impact.pages.map(page => page.root.id));
+  const labels = optionLabels(impact.pages, impact.detail.field.options);
   // Save before deleting the definition; inverse order restores it before restoring recipes.
   if (action !== 'archive') for (const view of impact.views) {
     steps.push({
@@ -266,7 +314,7 @@ export async function applyFieldImpact(notebook: NotebookClient, impact: FieldIm
         let after = entry.id;
         for (let index = 0; index < children.length; index++) {
           const value = children[index]!;
-          replace(steps, value, `${definition.text}: ${value.text}`);
+          replace(steps, value, `${definition.text}: ${withoutOptions(value.text, labels)}`);
           steps.push({
             forward: { op: 'move', id: value.id, base_revision: value.revision, parent_id: entry.parent_id!, after },
             backward: { op: 'move', id: value.id, base_revision: 0, parent_id: entry.id, after: null },

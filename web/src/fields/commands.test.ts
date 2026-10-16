@@ -9,7 +9,7 @@ import type { Operation } from '../api/types';
 import { createNotebookClient } from '../document/index';
 import type { Notebook } from '../document/index';
 import { ensureField } from '../outline/source-fields';
-import { changeFieldKind, choicePreview, createFieldEntry, createOptionValue, createTemplateField, makeFieldOption, fieldImpact, applyFieldImpact } from './commands';
+import { changeFieldKind, choicePreview, createFieldEntry, createOptionValue, createTemplateField, makeFieldOption, fieldImpact, applyFieldImpact, optionImpact, deleteFieldOptions } from './commands';
 
 // Real subprocess startup and document I/O require the platform clock, not fake timers.
 async function eventually(predicate: () => boolean) {
@@ -91,6 +91,28 @@ test('field conversion, repair and option creation each have a single exact undo
       expect((await api.fieldDetail(fresh.field.id)).field.options).toHaveLength(0);
       expect((await api.block(fresh.value)).text).toBe('');
       doc.redo(); await doc.flush();
+      expect((await api.fieldDetail(fresh.field.id)).problems_total).toBe(0);
+      const optionId = (await api.fieldDetail(fresh.field.id)).field.options[0]!.id;
+      const childNote = ulid();
+      await notebook.commit([{ op: 'insert', id: childNote, parent_id: fresh.value, after: null, text: 'Keep the classification notes.', heading: null }]);
+      const optionDeletion = await optionImpact(notebook, [await api.block(optionId)], (await api.fields()).fields);
+      expect(optionDeletion.values.map(value => value.owner)).toEqual([notes[0]!]);
+      const deletedOption = await deleteFieldOptions(notebook, optionDeletion);
+      expect((await api.block(fresh.value)).text).toBe('First option');
+      expect((await api.fieldDetail(fresh.field.id)).problems_total).toBe(1);
+      expect((await api.block(childNote)).parent_id).toBe(fresh.value);
+      await deletedOption.undo();
+      expect((await api.block(fresh.value)).text).toBe(`[[${optionId}]]`);
+      expect((await api.fieldDetail(fresh.field.id)).problems_total).toBe(0);
+      await deletedOption.redo();
+      expect((await api.block(fresh.value)).text).toBe('First option');
+      await deletedOption.undo();
+      const detachedChoice = await applyFieldImpact(notebook, await fieldImpact(notebook, fresh.field.id), 'detach');
+      expect((await api.block(fresh.value)).text).toBe('Phase: First option');
+      expect((await api.block(fresh.value)).parent_id).toBe(notes[0]!);
+      expect((await api.block(childNote)).parent_id).toBe(fresh.value);
+      await detachedChoice.undo();
+      expect((await api.block(fresh.value)).text).toBe(`[[${optionId}]]`);
       expect((await api.fieldDetail(fresh.field.id)).problems_total).toBe(0);
       const shorthand = await ensureField(notebook, 'New shorthand field');
       expect(shorthand.id).not.toBe(blank);

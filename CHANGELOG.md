@@ -43,6 +43,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Capped deep outline indentation and its field rails without changing the stored hierarchy.
 - Kept caret navigation and splits outside grapheme clusters, made deletion consistent in both directions, and respected bidirectional row edges.
 - Cleared cross-row text selections on modified caret navigation and kept selection-collapsing arrows in their own row.
+- Preserved readable choice labels when detaching definitions or deleting in-use options, with an impact confirmation and exact Undo for option deletion.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.
 - Replaced selected row ranges on paste and preserved native headings, nested lists, tasks, table rows, image URLs and labeled links from external HTML and Markdown.
 - Preserved immediate typing and Backspace corrections through slow highlight note and card delivery.

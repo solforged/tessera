@@ -20,6 +20,8 @@ import { addRelationReason, relationKinds, relationLabels, relationReason } from
 import { currentReading } from '../document/types';
 import { questionDescriptions, questionVerbs } from './question-verbs';
 import { deskTarget } from '../desk/query';
+import { deleteFieldOptions, optionImpact } from '../fields/commands';
+import { plural } from '../sync/state';
 
 export function createOutlineCommands(context: Pick<OutlineContext,
   | 'doc' | 'editing' | 'commitFieldEntry' | 'props' | 'selected'
@@ -282,9 +284,26 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'archive', title: 'Archive / unarchive block', section: 'Outline', run: () => selected() && apply({ kind: 'archive', id: selected()!, archived: !doc.block(selected()!)?.archived }, false) },
     { id: 'show-archived', title: 'Show / hide archived blocks', section: 'View', run: () => { anchored(() => setShowArchived(value => !value)); scheduleReport(); } },
     { id: 'delete', title: 'Delete selected subtrees', section: 'Outline', keys: ['Backspace', 'dd'], run: () => {
-      const definition = roots().find(id => context.definitionsById().has(id));
+      const selectedRoots = roots();
+      const definition = selectedRoots.find(id => context.definitionsById().has(id));
       if (definition) { props.onOpen({ kind: 'field', fieldId: definition }, false); setMessage('Review the impact with Delete definition.'); return; }
-      apply({ kind: 'delete', ids: roots() }, false);
+      const options = context.fields()?.fields.filter(field => field.kind === 'choice').flatMap(field => field.options) ?? [];
+      if (!options.some(option => selectedRoots.includes(option.id))) { apply({ kind: 'delete', ids: selectedRoots }, false); return; }
+      void (async () => {
+        await doc.flush();
+        const impact = await optionImpact(props.notebook, await Promise.all(selectedRoots.map(id => props.notebook.api.block(id))), context.fields()?.fields ?? []);
+        const remove = async () => {
+          doc.rememberChange(await deleteFieldOptions(props.notebook, impact));
+          setMessage('Choice options deleted; written labels kept.');
+        };
+        if (!impact.values.length) { await remove(); return; }
+        const anchor = rowAnchor(selectedRoots[0]!);
+        if (!anchor) return;
+        setMenu({ anchor, label: 'Delete choice options', title: 'Delete choice options?', context: `${plural(impact.values.length, 'value')} · ${plural(new Set(impact.values.map(value => value.owner)).size, 'owner')}. Labels and child notes stay.`, items: [
+          { label: 'Cancel', action: () => {} },
+          { label: 'Delete options', danger: true, action: () => { void remove().catch(reason => setMessage(reason instanceof Error ? reason.message : String(reason))); } },
+        ] });
+      })().catch(reason => setMessage(reason instanceof Error ? reason.message : String(reason)));
     } },
     { id: 'undo', title: 'Undo', section: 'Editing', keys: ['⌘Z', 'u'], disabledReason: () => doc.canUndo() ? undefined : 'Nothing to undo.', run: () => undo() },
     { id: 'redo', title: 'Redo', section: 'Editing', keys: ['⌘⇧Z', '⌃R'], disabledReason: () => doc.canRedo() ? undefined : 'Nothing to redo.', run: () => undo(true) },

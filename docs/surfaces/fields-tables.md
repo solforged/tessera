@@ -40,7 +40,7 @@ Kind, Hide, Role and Counts as are nested drill-ins with nine kinds, three hide 
 
 Rename uses New field's case-insensitive duplicate rule. A built-in field's Rename is disabled and names the reason, since the app finds it by name. An existing name opens Merge into with affected owners, pages, templates, saved views and conflicting values. Apply keeps conflicts as separate entries under the surviving definition and redirects every saved recipe to that definition. Column widths and collapsed groups are preserved. Undo restores the original fields and exact saved recipes.
 
-Delete definition opens an impact preview, listing affected views by name. Archive keeps values and views readable and hides the definition from pickers. Merge into opens the same merge preview. Detach keeps values as ordinary `Name: value` blocks with their child notes. Delete values requires a separate confirmation checkbox. Every action offers one Undo, including detaching or deleting an archived definition.
+Delete definition opens an impact preview, listing affected views by name. Archive keeps values and views readable and hides the definition from pickers. Merge into opens the same merge preview. Detach keeps values as ordinary `Name: value` blocks with their child notes, replacing links to the definition's choice options with their readable labels before removing the options. Delete values requires a separate confirmation checkbox. Every action offers one Undo, including detaching or deleting an archived definition.
 
 Numbered sections follow with rubric numerals and hairlines, starting at 01 and numbering only sections shown (non-choice definitions omit Options):
 
@@ -52,6 +52,8 @@ Numbered sections follow with rubric numerals and hairlines, starting at 01 and 
 | Problem values | The written text in rubric beside its owner and the problem. Choice rows offer Make option: create or reuse the matching option and link every matching value in one undoable change. The help reads “Make it an option, or open its owner to edit it.” |
 
 Blocks in the pane header opens the definition in the Fields page, where names and options remain ordinary blocks. Edit definitions opens the Fields page.
+
+Deleting an in-use choice option from Blocks opens an impact confirmation with the affected value and owner counts. Continuing keeps its labels as written problem values, with their child notes, rather than unresolved option IDs. One Undo restores the options and the exact original values.
 
 Choice and relation value pickers check the current value, expose it as selected and start the keyboard cursor there. An unmatched choice query offers `Add option “Y”`; adding the option and selecting it are one undoable change, including in tables. A note's Add field picker offers `Create text field “X”` and `Create field “X” as…`; the latter opens Text, Number, Date, Span, Checkbox, Choice, Relation, URL and Identifier. The definition, chosen kind and entry are created together. A new Choice field opens its value picker so its first option can be added there.
 
