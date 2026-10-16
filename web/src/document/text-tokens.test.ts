@@ -43,12 +43,12 @@ test('authored external captions use one URL token without becoming page referen
     ['[label](https://example.org/Topic_(a_(b)))', 'label'],
     ['[[https://example.org/a|caption]]', 'caption'],
     ['[[HTTPS://example.org/a|uppercase]]', 'uppercase'],
-  ]) {
-    const [token] = textTokens(source!);
+  ] as const) {
+    const [token] = textTokens(source);
     expect(token?.kind).toBe('url');
     expect(token?.alias).toBe(caption);
-    expect(token?.end).toBe(source!.length);
-    expect(source!.slice(token!.labelStart, token!.labelStart! + caption!.length)).toBe(caption);
+    expect(token?.end).toBe(source.length);
+    expect(source.slice(token!.labelStart, token!.labelStart! + caption.length)).toBe(caption);
   }
   expect(textTokens('[a](https://a.org)[b](https://b.org)').filter(token => token.kind === 'url').map(token => token.alias)).toEqual(['a', 'b']);
 });
