@@ -1209,9 +1209,11 @@ export class Document implements PageDocument {
       if (!roots.length || roots.length !== ids.length) throw new Error('The selected rows changed before paste.');
       const first = this.snapshot(roots[0]!);
       for (const id of roots) this.guardHide(id);
-      insert(first.parent_id!, this.outline.previousSibling(first.id), '');
-      const insertion = actions.at(-1) as Extract<Action, { kind: 'insert' }>;
+      const after = this.outline.previousSibling(first.id);
+      // Capture deletion inverses before a replacement can become their predecessor.
       for (const root of roots) actions.push({ kind: 'delete', id: root });
+      insert(first.parent_id!, after, '');
+      const insertion = actions.at(-1) as Extract<Action, { kind: 'insert' }>;
       return insertion.block;
     };
     try {

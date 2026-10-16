@@ -19,6 +19,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 ### Fixed
 
 - Made Unicode title-key upgrades safe to replay during notebook recovery.
+- Restored original row identities and order when undoing a paste over selected rows, including rows previously moved by cut and paste.
 - Preserved adjacent authored external links and their captions in table source registers.
 - Recovered locally queued edits from closed browser windows without replaying another open window's drafts.
 - Kept cached outlines visible offline and refreshed Revisit and Index after reconnecting, without false errors on new notes.

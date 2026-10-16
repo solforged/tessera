@@ -92,25 +92,33 @@ test('nested paste redo restores preorder and depths before any reload', async (
   }
 });
 
-test('pasting over selected roots replaces their complete subtrees in one undo step', async () => {
-  const { client, doc, first, pageId } = await fixture('Alpha');
-  const hidden = insert(doc, first, null, 'Folded child');
-  const beta = insert(doc, pageId, first, 'Beta');
-  success(doc.edit({ kind: 'task', id: beta, value: newTask() }));
-  const gamma = insert(doc, pageId, beta, 'Gamma');
-  await client.flush();
-  const range = { anchor: { id: first, offset: 0 }, head: { id: beta, offset: 4 } };
-  success(doc.edit({ kind: 'pasteRows', range, between: [], replaceRoots: [first, beta], rows: markdownPasteRows('Replacement') }, range.head));
-  expect(snapshot(doc).map(row => row.text)).toEqual(['Replacement', 'Gamma']);
-  await client.flush();
-  doc.undo();
-  expect(snapshot(doc).map(row => row.id)).toEqual([first, hidden, beta, gamma]);
-  expect(doc.block(beta)?.task?.status).toBe('todo');
-  await client.flush();
-  doc.redo();
-  await client.flush();
-  expect(snapshot(doc).map(row => row.text)).toEqual(['Replacement', 'Gamma']);
-  expect(client.queuedChanges()).toBe(0);
+test('row replacement undo restores persisted identities before and after paste acknowledgment', async () => {
+  for (const settlePaste of [false, true]) {
+    const { client, doc, first, pageId } = await fixture('Alpha');
+    const hidden = insert(doc, first, null, 'Folded child');
+    const beta = insert(doc, pageId, first, 'Beta');
+    success(doc.edit({ kind: 'task', id: beta, value: newTask() }));
+    const gamma = insert(doc, pageId, beta, 'Gamma');
+    await client.flush();
+    const range = { anchor: { id: first, offset: 0 }, head: { id: beta, offset: 4 } };
+    const pasted = success(doc.edit({ kind: 'pasteRows', range, between: [], replaceRoots: [first, beta], rows: markdownPasteRows('Replacement') }, range.head));
+    const replacement = pasted.caret!.id;
+    expect(snapshot(doc).map(row => row.text)).toEqual(['Replacement', 'Gamma']);
+    if (settlePaste) await client.flush();
+    for (let repeat = 0; repeat < 2; repeat++) {
+      doc.undo();
+      await client.flush();
+      expect(snapshot(doc).map(row => row.id)).toEqual([first, hidden, beta, gamma]);
+      expect(doc.block(beta)?.task?.status).toBe('todo');
+      expect((await api.page(pageId)).rows.map(row => [row.block.id, row.block.text, row.depth])).toEqual([
+        [first, 'Alpha', 0], [hidden, 'Folded child', 1], [beta, 'Beta', 0], [gamma, 'Gamma', 0],
+      ]);
+      doc.redo();
+      await client.flush();
+      expect((await api.page(pageId)).rows.map(row => [row.block.id, row.block.text])).toEqual([[replacement, 'Replacement'], [gamma, 'Gamma']]);
+      expect(client.queuedChanges()).toBe(0);
+    }
+  }
 });
 
 test('Markdown paste persists native headings and nested open and completed tasks atomically', async () => {
@@ -158,6 +166,35 @@ test('structured row replacement keeps copied native metadata and never reparses
   doc.undo();
   await client.flush();
   expect(snapshot(doc).map(row => row.id)).toEqual([first, beta, gamma]);
+});
+
+test('replacement undo restores rows that were previously cut and pasted with their identities', async () => {
+  const { client, doc, first, pageId } = await fixture('Alpha');
+  const beta = insert(doc, pageId, first, 'Beta');
+  const gamma = insert(doc, pageId, beta, 'Gamma');
+  const delta = insert(doc, pageId, gamma, 'Delta');
+  await client.flush();
+  const content = doc.clipboard([first, beta], true);
+  success(doc.edit({ kind: 'delete', ids: [first, beta] }));
+  await client.flush();
+  const ready = await doc.prepareClipboard(content);
+  const at = { id: delta, offset: 0 };
+  success(doc.edit({ kind: 'pasteBlocks', range: { anchor: at, head: at }, between: [], content: ready }, at));
+  await client.flush();
+  expect(snapshot(doc).map(row => row.id)).toEqual([gamma, first, beta, delta]);
+  const range = { anchor: { id: first, offset: 0 }, head: { id: beta, offset: 4 } };
+  const pasted = success(doc.edit({ kind: 'pasteRows', range, between: [], replaceRoots: [first, beta], rows: markdownPasteRows('Replacement') }, range.head));
+  await client.flush();
+  doc.undo();
+  await client.flush();
+  expect((await api.page(pageId)).rows.map(row => [row.block.id, row.block.text])).toEqual([
+    [gamma, 'Gamma'], [first, 'Alpha'], [beta, 'Beta'], [delta, 'Delta'],
+  ]);
+  doc.redo();
+  await client.flush();
+  expect((await api.page(pageId)).rows.map(row => [row.block.id, row.block.text])).toEqual([
+    [gamma, 'Gamma'], [pasted.caret!.id, 'Replacement'], [delta, 'Delta'],
+  ]);
 });
 
 test('typing redo restores the caret after the inserted character', async () => {
