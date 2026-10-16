@@ -462,7 +462,7 @@ mod tests {
                 params![owner, title.to_lowercase(), id, title],
             ).unwrap();
         }
-        conn.pragma_update(None, "user_version", previous_version).unwrap();
+        conn.pragma_update(None, "user_version", previous_version as u32).unwrap();
         migrate(&mut conn).unwrap();
         let titles = conn.prepare(
             "SELECT id, text, title_key FROM blocks WHERE id IN (?1, ?2) ORDER BY id"
