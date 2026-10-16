@@ -18,10 +18,14 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
   const [history, setHistory] = createSignal<DocumentChange>();
   const [undone, setUndone] = createSignal(false);
   createEffect(() => {
-    const id = props.id; props.notebook.changeSequence();
+    const id = props.id;
+    props.notebook.changeSequence(); props.notebook.connection();
+    // A newly created page is editable before the service has acknowledged its root.
+    if (props.notebook.lookup(id)()?.revision === 0) return;
     const controller = new AbortController();
     void props.notebook.api.capabilities(id, controller.signal).then(value => {
       if (controller.signal.aborted) return;
+      setError('');
       setNote(value.note ?? workingNote());
       setChanged(value.note_changed ?? false);
       setDate(value.question ? value.question.state.review_on : value.note?.revisit_on ?? null);

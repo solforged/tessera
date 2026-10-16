@@ -36,7 +36,7 @@ export function indexKindTarget(kind: IndexKind): OpenTarget {
 export function noteIndex(notebook: NotebookClient): Accessor<NoteIndex | undefined> {
   const [index, setIndex] = createSignal<NoteIndex>();
   createEffect(() => {
-    notebook.changeSequence(); notebook.lastChange();
+    notebook.changeSequence(); notebook.lastChange(); notebook.connection();
     const controller = new AbortController();
     const timer = setTimeout(() => {
       notebook.api.noteIndex(controller.signal).then(value => { if (!controller.signal.aborted) setIndex(value); }, () => { if (!controller.signal.aborted) setIndex(undefined); });

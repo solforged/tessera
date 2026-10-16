@@ -127,7 +127,7 @@ Sources is a bibliography, not a second reading shelf. It shows siglum, source t
 
 A note at its top level shows its kinds above the title in rubric mono capitals, separated by a faint slash (`PERSON / ECONOMIST`). Each opens that kind's finding aid.
 
-The note waits for its kinds and alias fields before appearing. Its title, aliases and opening rows appear together; background refreshes keep the current note visible.
+The note waits for its kinds and alias fields before appearing. Its title, aliases and opening rows appear together; background refreshes keep the current note visible. Offline, cached notes remain visible and editable without that metadata. Reconnecting refreshes the note's apparatus and the sidebar Index, and new notes wait for their creation to commit before reading Revisit.
 
 The title wraps within its available header width, including unbroken names and URLs, without overlapping the header actions.
 
