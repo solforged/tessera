@@ -467,7 +467,10 @@ export class Notebook implements NotebookClient, DocumentHost {
     this.queue.push(command);
     this.touch();
     try {
-      void this.outbox!.accept(command).then(() => this.persist(command)).then(() => this.schedule(0)).catch(error => this.storageFailed(error));
+      const accepted = this.outbox!.accept(command);
+      // Queue the IndexedDB write before flush can inspect the outbox's persistence barrier.
+      void this.persist(command).then(() => this.schedule(0));
+      void accepted.catch(error => this.storageFailed(error));
     } catch (error) { this.storageFailed(error); }
     return waiter.promise.catch(async (error: unknown) => {
       // These awaited field transactions never adopted optimistic document state.
