@@ -176,7 +176,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'copy-page-reference', title: 'Copy page reference', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => copy(`[[${props.pageId}]]`) },
     { id: 'rename', title: 'Rename page', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
     { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
-    { id: 'add-field-root', title: 'Add field…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pickField(props.pageId, context.heading) },
+    { id: 'add-field-root', title: 'Add field…', section: selected() ? 'Block' : 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => { const owner = selected() ?? props.pageId; pickField(owner, rowAnchor(owner) ?? context.heading); } },
     { id: 'types-root', title: 'Page types…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pageTypes() },
     { id: 'add-type-root', title: 'Add page type…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: addPageType },
     { id: 'remove-type-root', title: 'Remove page type…', section: 'Page', disabledReason: () => !doc.root()?.manual_types.length ? 'This page has no manual types.' : undefined, run: () => pageTypes(true) },
@@ -311,7 +311,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ...command,
       id: `outline.${props.pane}.${command.id}`,
       disabledReason: () => !props.active ? 'This pane is not active.' : command.disabledReason?.() ?? (command.section !== 'Page' && !['first-row', 'zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) && !selected() ? 'Select a block first.' : undefined),
-      ...(['change-holder', 'file-under', 'use-place', 'integrate'].includes(command.id) ? { capture: (): Command => {
+      ...(['add-field-root', 'change-holder', 'file-under', 'use-place', 'integrate'].includes(command.id) ? { capture: (): Command => {
         const id = selected();
         const bound = commandsFor(() => id).find(candidate => candidate.id === command.id)!;
         const label = id ? plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)) : '';

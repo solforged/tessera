@@ -109,6 +109,8 @@ Every field commit returns keyboard ownership to its value editor, its selected 
 
 Creating a text field opens its first value editor and keeps immediate typing and Backspace corrections through the pending handoff. Saving or canceling a definition or option rename returns focus to the field page, so its history shortcuts remain available.
 
+Commands → Add field targets the selected block, or the page when no block is selected, and names that context in the palette.
+
 In Read, filling a field value that its holder-scoped register does not display switches to Outline and edits that same value; it never transfers typing to another row.
 
 For a perspective, Add field begins with From this recipe: missing Gist, Work, then the subject's explicit or derived criteria. The recipe suggests, never requires.
