@@ -120,6 +120,7 @@ export interface HistoryEntry {
   applied: boolean;
   retained: boolean;
   external?: DocumentChange;
+  typing?: { id: string; group?: number };
   rewrites?: Map<string, { before: Extract<Action, { kind: 'text' }>; after: Extract<Action, { kind: 'text' }> }>;
 }
 export interface Compiled { batch: Batch; deleted: string[] }

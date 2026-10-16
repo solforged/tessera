@@ -1381,6 +1381,41 @@ describe('real notebook operations and recovery', () => {
     }
   });
 
+  test('continuous typing after a cross-block replacement undoes and redoes the whole gesture', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'alpha one');
+    const middle = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'beta two' })).created[0]!;
+    const last = success(doc.edit({ kind: 'insert', parentId: id, after: middle, text: 'gamma three' })).created[0]!;
+    await instance.flush();
+    const range = { anchor: { id: first, offset: 2 }, head: { id: last, offset: 2 } };
+    success(doc.edit({ kind: 'replaceRange', range, between: [middle], text: 'R', mode: 'text' }, range.head));
+    for (const word of ['RE', 'REP', 'REPLACED']) {
+      success(doc.edit({ kind: 'text', id: first, text: `al${word}mma three` }));
+      await instance.flush();
+    }
+    doc.undo();
+    await instance.flush();
+    expect((await api.page(id)).rows.map(row => row.block.text)).toEqual(['alpha one', 'beta two', 'gamma three']);
+    doc.redo();
+    await instance.flush();
+    expect((await api.page(id)).rows.map(row => row.block.text)).toEqual(['alREPLACEDmma three']);
+    doc.release();
+  });
+
+  test('distinct Vim command groups never coalesce even before either command saves', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'LineOne\nLineTwo\nLineThree');
+    success(doc.edit({ kind: 'text', id: first, text: 'LineTwo\nLineThree', group: 1 }));
+    success(doc.edit({ kind: 'text', id: first, text: 'LineThree', group: 2 }));
+    doc.undo();
+    await instance.flush();
+    expect((await api.page(id)).rows.map(row => row.block.text)).toEqual(['LineTwo\nLineThree']);
+    doc.undo();
+    await instance.flush();
+    expect((await api.page(id)).rows.map(row => row.block.text)).toEqual(['LineOne\nLineTwo\nLineThree']);
+    doc.release();
+  });
+
   test('single-block multiline replacement preserves suffix and indentation in one undo step', async () => {
     const instance = await client();
     const { doc, first, id } = await page(instance, 'abc');

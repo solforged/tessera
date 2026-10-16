@@ -1755,28 +1755,34 @@ export class Document implements PageDocument {
       const selection = caretBefore?.selection;
       const treeMove = edit.kind === 'indent' || edit.kind === 'outdent' || edit.kind === 'move' || edit.kind === 'moveTo';
       const after: HistoryCaret | null = caret && treeMove && selection ? { ...caret, selection: { ...selection } } : caret;
-      const command = this.host.enqueue(this, actions, inverse, before, after, edit.kind === 'text' && edit.heading === undefined);
       const last = this.undoStack.at(-1);
-      const textGroup = edit.kind === 'text' && edit.heading === undefined && last?.forward.length === 1 && last.forward[0]!.kind === 'text' && last.forward[0]!.id === edit.id && Date.now() - this.lastTextEditAt < 1000;
+      const typing = edit.kind === 'text' && edit.heading === undefined
+        ? { id: edit.id, group: edit.group }
+        : edit.kind === 'replaceRange' && edit.mode === 'text' && edit.text && caret ? { id: caret.id } : undefined;
+      const textGroup = edit.kind === 'text' && typing && last?.typing?.id === typing.id
+        && last.typing.group === typing.group && Date.now() - this.lastTextEditAt < 1000;
+      const command = this.host.enqueue(this, actions, inverse, before, after, !!textGroup);
       let entry: HistoryEntry;
       if (last && (last.commandId === command.id || textGroup)) {
         entry = last;
-        const expected = entry.forward[0]?.kind === 'text' ? entry.forward[0].expectedText : undefined;
-        entry.forward = command.actions.map(action => action.kind === 'text' ? { ...action, expectedText: expected ?? action.expectedText } : action);
+        const tail = entry.forward.at(-1);
+        if (edit.kind === 'text' && tail?.kind === 'text' && tail.id === edit.id) tail.text = edit.text;
+        else entry.forward.push(...actions);
         if (edit.kind === 'text') for (const action of entry.inverse) {
-          if (action.kind === 'text' && action.id === edit.id) action.expectedText = edit.text;
+          if (action.kind === 'text' && action.id === edit.id) { action.expectedText = edit.text; break; }
         }
         entry.after = after;
       }
       else { entry = { forward: actions, inverse, before, after, commandId: command.id, commands: new Set(), applied: true, retained: true }; this.undoStack.push(entry); }
       this.rememberHistory(command, entry, false);
-      this.lastTextEditAt = edit.kind === 'text' && edit.heading === undefined ? Date.now() : 0;
+      this.lastTextEditAt = typing ? Date.now() : 0;
       const discarded = this.redoStack;
       this.redoStack = [];
       for (const entry of discarded) { entry.retained = false; this.pruneHistory(entry); }
       this.historyVersion[1](value => value + 1);
       return { ok: true, caret, created };
     } catch (error) { return { ok: false, reason: error instanceof Error ? error.message : String(error) }; }
+      entry.typing = typing;
   }
   rename(title: string): EditResult {
     if (this.root()?.kind !== 'page') return { ok: false, reason: 'Journal dates cannot be renamed.' };

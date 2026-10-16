@@ -45,6 +45,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Cleared cross-row text selections on modified caret navigation and kept selection-collapsing arrows in their own row.
 - Preserved readable choice labels when detaching definitions or deleting in-use options, with an impact confirmation and exact Undo for option deletion.
 - Kept deleted perspective holders' last-known names and explained how to repair their attribution, with affected perspective counts before page deletion.
+- Grouped cross-block replacement typing into one undo step and kept separate Vim commands in separate undo groups.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.
 - Replaced selected row ranges on paste and preserved native headings, nested lists, tasks, table rows, image URLs and labeled links from external HTML and Markdown.
 - Preserved immediate typing and Backspace corrections through slow highlight note and card delivery.

@@ -562,6 +562,8 @@ Each split and its new task, or exit from a field value, is one undo step. Empty
 
 Caret navigation and block splits stay on extended-grapheme boundaries. Backspace and forward Delete remove the same whole user-perceived character, including combining marks, emoji modifiers and conjuncts.
 
+Continuous typing over a selection, including one across blocks, is one undo step that restores its text and block boundaries.
+
 **Backspace**
 
 At the start, Backspace merges into the previous visible row (a sibling's last unfolded descendant, never a folded hidden row); the merged block's children follow it. A first child with no previous sibling outdents instead.
@@ -671,7 +673,7 @@ Chords are for what happens constantly. ⌘ acts on the current block:
 
 ⌃⇧ is shell navigation. ⌥↑ and ⌥↓ move blocks. No ⌥-letter chords: on macOS they type accented letters.
 
-Insert newline and Split block are available in the palette only while editing a block. In Vim, plain `u` invokes notebook undo only in normal mode with no pending command; visual `u`, modified keys and pending commands stay with Vim.
+Insert newline and Split block are available in the palette only while editing a block. In Vim, plain `u` invokes notebook undo only in normal mode with no pending command; visual `u`, modified keys and pending commands stay with Vim. Completed Vim commands and insert sessions have separate undo groups.
 
 ### Leader
 

@@ -287,7 +287,7 @@ const draftReference = StateField.define<DecorationSet>({
 });
 
 export interface EditorHooks {
-  text(text: string, caret: Caret): void;
+  text(text: string, caret: Caret, group?: number): void;
   /** Typed or composed text before the editor inserts it; true when the hook applied it itself. */
   input(view: EditorView, from: number, to: number, text: string): boolean;
   label(id: string): string | undefined;
@@ -355,6 +355,7 @@ export class PaneEditor {
   private useVim = false;
   private wantVim = false;
   private vimApi: typeof VimModule | null = null;
+  private vimGroup = 0;
 
   constructor(private readonly hooks: EditorHooks) {
     this.view = new EditorView({ state: EditorState.create({ extensions: [
@@ -394,7 +395,7 @@ export class PaneEditor {
       })),
       EditorView.updateListener.of(update => {
         const caret = { id: this.id, offset: update.state.selection.main.head };
-        if (!this.replacing && this.id && update.docChanged) this.hooks.text(update.state.doc.toString(), caret);
+        if (!this.replacing && this.id && update.docChanged) this.hooks.text(update.state.doc.toString(), caret, this.useVim ? this.vimGroup : undefined);
         if (!this.replacing && this.id && (update.selectionSet || update.docChanged)) this.hooks.selection(caret);
         this.reportMode();
       }),
@@ -425,6 +426,8 @@ export class PaneEditor {
       this.vimApi = api;
       this.useVim = true;
       this.view.dispatch({ effects: this.vimConfig.reconfigure(api.vim()) });
+      // Vim's completed commands and insert sessions are semantic undo boundaries.
+      api.getCM(this.view)?.on('vim-command-done', () => { this.vimGroup++; });
       this.reportMode();
     });
   }

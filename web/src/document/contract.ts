@@ -139,7 +139,7 @@ export type Edit =
    * block coalesce into one undo step. `heading`, when present, sets the
    * heading in the same undo step (the `# ` input rule).
    */
-  | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null; caret?: number }
+  | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null; caret?: number; group?: number }
   /** An explicit holder/subject change never coalesces with typing or another picker choice. */
   | { kind: 'positionLinks'; id: string; text: string }
   /** Resolve a version kept beside its original, in one batch and undo step. */

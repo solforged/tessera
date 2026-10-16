@@ -1415,7 +1415,7 @@ function Pane(props: OutlinePaneProps) {
           if (replacement && editing() === id) { setEditing(null); setSelected(replacement); setCaret({ id: replacement, offset: 0 }); }
         });
       },
-      text: (text, at) => measure('typing', () => {
+      text: (text, at, group) => measure('typing', () => {
         resetVerticalGoal();
         if (compositionSelection) return;
         const heading = headingPrefix(text, at.offset);
@@ -1428,7 +1428,7 @@ function Pane(props: OutlinePaneProps) {
           }
           return;
         } else if (taskPrefix(text, at)) return;
-        else { const result = doc.edit({ kind: 'text', id: at.id, text, caret: at.offset }, caret()); if (!result.ok) setMessage(result.reason); }
+        else { const result = doc.edit({ kind: 'text', id: at.id, text, caret: at.offset, group }, caret()); if (!result.ok) setMessage(result.reason); }
         doc.holdTag(at.id, !!typeTokenAt(text, at.offset));
         updateCompletion(text, at, true);
         updateTriggers(text, at);
