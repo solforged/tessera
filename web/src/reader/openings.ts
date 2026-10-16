@@ -43,7 +43,7 @@ export const isFrontMatter = (title: string) => { const key = normalizeTitle(tit
 export function isProseExcerpt(entry: TocEntry, passage: { kind: string; text: string } | undefined, next: TocEntry | undefined): boolean {
   const prefix = entry.title.match(/^(.*?)(?:…|\.\.\.)$/s)?.[1]?.trimEnd();
   return !!prefix && !!passage && passage.kind !== 'heading' && passage.text.length > prefix.length && passage.text.startsWith(prefix)
-    && entry.ordinal !== null && next?.ordinal === entry.ordinal + 1;
+    && passage.text.trim() !== entry.title.trim() && entry.ordinal !== null && next?.ordinal === entry.ordinal + 1;
 }
 
 /** `XIV`, `14` or `fourteen` as a number; null for anything else. */

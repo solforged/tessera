@@ -77,6 +77,7 @@ test('old inferred contents excerpts stay prose without hiding an editorial head
   expect(isProseExcerpt(inferred, { ...prose, kind: 'heading' }, next)).toBe(false);
   expect(isProseExcerpt(inferred, prose, entry('Chapter 2', 20))).toBe(false);
   expect(isProseExcerpt(entry('The end…', 6), { kind: 'paragraph', text: 'The end…' }, next)).toBe(false);
+  expect(isProseExcerpt(entry('The end...', 6), { kind: 'paragraph', text: 'The end... ' }, next)).toBe(false);
   const entries = [inferred, next, entry('Chapter 2', 20)];
   expect([...chapterOpenings(entries.filter((value, index) => !isProseExcerpt(value, value.ordinal === 6 ? prose : undefined, entries[index + 1])), book).keys()]).toEqual([7, 20]);
 });
