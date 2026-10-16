@@ -70,6 +70,8 @@ Contents entries that only repeat the book's title, running heads the file marke
 
 Reader settings are a device preference shared by every reader pane. Saved choices are preserved. Changing a setting keeps the first visible passage in place. Switching from Pages to Scroll keeps the first visible character, including within a long passage.
 
+On touch, settings open as a bottom sheet. Short landscape screens put the setting groups in one horizontally scrolling row so the reading page remains visible above them.
+
 | Setting | Choices | Default |
 | --- | --- | --- |
 | Layout | Scroll; Pages | Scroll |
@@ -93,6 +95,8 @@ Reader settings are a device preference shared by every reader pane. Saved choic
 ## Contents, highlights and find
 
 Contents opens on the current section, marked with a check, when no persistent margin is visible. With the margin visible, Contents focuses its current entry (or the first entry before reading begins) instead of opening a duplicate floating list. The Highlights picker lists each highlight's color, quote and section. Choosing a highlight reveals its marked words, including when its paragraph spans several pages. Find marks matches, counts passages and labels each result with its passage number and section.
+
+On the touch cover, Contents and Highlights open as bottom sheets without focusing the query field or opening the keyboard. Contents keeps the current entry in view. Reader picker choices and progress chapter rows are at least 44 px high on touch. On narrow screens, highlight locations sit below their quotes rather than sharing a line.
 
 Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty. Inferred spine entries leave out isolated epigraph quotations rather than turning their prose into chapter titles. A passage's tooltip names its number and section: `Passage 37 · Chapter 1`.
 
@@ -187,7 +191,7 @@ Full screen, the corner-arrows button after `Aa` or `F`, turns the whole app win
 | Mouse | The toolbar and book map at the foot fade 2.5 s after the pointer rests and return when it moves. The line under the map stays. | Everything keeps its room, so the text never moves. |
 | Touch, in full screen or on the cover screen | A tap in the middle of the page, not on a highlight, link or button, fades or returns the toolbar and book map with the cover screen's masthead and pane tabs. | The masthead, toolbar and book map lie over the page, painted the screen's full width with the text fading into them. Once they fade, the page has the screen from the top band's top to the line under the map. |
 
-On Android the status and navigation bars leave and return with the controls, and a swipe from the screen's edge shows them for a moment. The native app keeps that bar mode through folding and keyboard changes. Closing a note after folding returns both bars to the reader's current mode. Full screen on a touch screen 600 px or wider also gives the page the status bar's room, and the toolbar returns below the bar. The cover screen keeps that room for its camera.
+On Android the status and navigation bars leave and return with the active reader's controls, and a swipe from the screen's edge shows them for a moment. Inactive readers never hide the system bars or working-pane tabs. The native app keeps that bar mode through folding and keyboard changes. Closing a note after folding returns both bars to the reader's current mode. Full screen on a touch screen 600 px or wider also gives the page the status bar's room, and the toolbar returns below the bar. The cover screen keeps that room for its camera.
 
 On touch the controls also fade on their own when the book has opened, a page turns, a jump lands or the page is scrolled, so they never cover what is read next.
 
@@ -222,6 +226,7 @@ Highlights are ink, not boxes. A band of their color sits under the lower half o
 Hovering a highlight deepens the band of every range it covers to lightness 0.60 by night and 0.84 by day, or to 40% without a color. One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu. ⌘-click opens its block beside the reader (Ctrl-click off Mac).
 
 Removing a highlight offers Undo in a notice for eight seconds, held while hovered or focused. Undo last edit remains in Reader actions after the notice leaves.
+On the touch cover, the existing-highlight menu opens as a bottom sheet with 44 px color buttons and action rows.
 
 ### Overlapping highlights
 
@@ -238,6 +243,8 @@ The cover screen is a touch screen under 600 px. Its shell rules are in [design]
 An open book reads edge to edge without the pane header or the nav. A back arrow and the book's name head the page above the reader toolbar. Full screen is left out because nothing remains to hide.
 
 The back arrow returns through the pane's history, or opens the source page when the reader was the first entry. Unfolding brings the usual shell back around the same page.
+
+Entering the cover reader changes the workspace gutters at once, before restoring and revealing the page. The shell's margin animation never changes the reading width during that reveal.
 
 ### Touch selection
 

@@ -49,6 +49,7 @@ export const readerStyle = () => ({
 export function ReaderSettingsPopup(props: { anchor: HTMLElement; sheet: boolean; onDismiss(): void }) {
   const sizeIndex = () => sizes.indexOf(readerSettings().size);
   return <Popup anchor={props.anchor} placement={props.sheet ? 'sheet' : 'anchor'} label="Reader settings" class="reader-settings" onDismiss={props.onDismiss}>
+    <div class="reader-settings-body">
     <div class="reader-setting"><span>Layout</span><div class="mode-tabs" role="group" aria-label="Layout"><For each={Object.keys(layouts) as (keyof typeof layouts)[]}>{layout =>
       <Button aria-pressed={readerSettings().layout === layout} onClick={() => setSettings({ layout })}>{layouts[layout]}</Button>
     }</For></div></div>
@@ -67,5 +68,6 @@ export function ReaderSettingsPopup(props: { anchor: HTMLElement; sheet: boolean
     <div class="reader-setting"><span>Line spacing</span><div class="mode-tabs" role="group" aria-label="Line spacing"><For each={Object.keys(spacings) as (keyof typeof spacings)[]}>{spacing =>
       <Button aria-pressed={readerSettings().spacing === spacing} onClick={() => setSettings({ spacing })}>{spacing}</Button>
     }</For></div></div>
+    </div>
   </Popup>;
 }

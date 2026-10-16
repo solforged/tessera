@@ -229,6 +229,8 @@ Color and tag filters open a labeled sheet; No color matches unassigned citation
 
 The selected passage keeps these actions visible in its dock. On a fine pointer their buttons show the hints in the shared sans key style; touch hides them.
 
+On touch, the dock's icon-only secondary actions keep a nonshrinking 44 px target even when the neighboring text needs more room.
+
 | Action | Hint |
 | --- | --- |
 | Mark processed | E |

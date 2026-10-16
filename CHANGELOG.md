@@ -44,6 +44,15 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Selected the sentence on the current page instead of rewinding a continued paragraph.
 - Cleared stale full-screen history markers after reload so Back exited on its next use.
 - Deferred reader row measurements to prevent resize-observer loops during restoration and keyboard resizing.
+- Opened cover-reader Contents and Highlights as bottom sheets without raising the keyboard.
+- Enlarged touch reader navigation and progress chapter rows to 44 px.
+- Kept highlight locations readable on their own line in narrow reader pickers.
+- Kept reading text visible above settings on short landscape screens.
+- Added shared Close and drag-down dismissal controls to bottom sheets.
+- Restored pane tabs and Android bars when an inactive reader kept its chrome hidden.
+- Removed cover-reader width animation during page restoration and reveal.
+- Preserved the Library highlights dock's More actions touch target.
+- Presented existing-highlight actions with full-size touch controls on the cover.
 - Table row titles use Piazzolla, matching page titles and the phone ledger. Gloss and other authored cells stay in Plex.
 - Selecting text and typing `[[` or `((` surrounds it, so the selection becomes a link or block reference instead of being replaced.
 - Reader highlight colors stay nameable on the midnight canvas: the band under the line keeps its hue instead of fading into a faint stain.

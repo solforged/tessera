@@ -177,6 +177,11 @@
 .reader-highlight-quote, .reader-highlight-section { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-highlight-quote { flex: 0 1 auto; font-family: var(--font-display); font-variation-settings: var(--optical-quote); }
 .reader-highlight-section { flex: 0 2 auto; min-width: 0; max-width: 35%; margin-left: auto; color: var(--faint); }
+@media (max-width: 599px) {
+  .reader-highlight-entry { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-8); row-gap: var(--space-2); padding-block: var(--space-4); }
+  .reader-highlight-entry > .highlight-color-dot { grid-row: 1 / 3; }
+  .reader-highlight-section { grid-column: 2; max-width: none; margin-left: 0; font: var(--apparatus); }
+}
 .reader-search-match { background: var(--selection); color: var(--accent); }
 /* The result count is apparatus, like every other count, in mono with tabular figures. */
 .reader-find-status { margin: 0; padding: var(--space-8) var(--space-12); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
@@ -250,11 +255,18 @@
 .reader-setting .button { font-weight: var(--weight-body); }
 .reader-setting output { min-width: var(--space-24); text-align: center; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 /* As a sheet across a touch screen, the settings keep to a column rather than spanning it. */
-.reader-settings.popup-sheet > .reader-setting { width: 100%; max-width: calc(var(--measure) * .6); margin-inline: auto; }
+.reader-settings.popup-sheet .reader-setting { width: 100%; max-width: calc(var(--measure) * .6); margin-inline: auto; }
+/* A short landscape keeps the controls in one scrollable row, leaving real text above the sheet. */
+@media (min-width: 600px) and (max-height: 560px) {
+  .reader-settings.popup-sheet .reader-settings-body { display: flex; gap: var(--space-16); overflow-x: auto; }
+  .reader-settings.popup-sheet .reader-setting { flex: none; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: var(--space-4); width: auto; max-width: none; margin: 0; }
+}
 /* A fingertip reaches every reading control: on touch screens the toolbar, the settings and the note sheet's buttons are full
    touch targets, and the note marks in the text and the progress at the foot reach as far without growing. */
 @media (pointer: coarse) {
   :is(.reader-header, .reader-masthead, .reader-setting, .reader-compose-heading) .button { min-width: var(--touch-target); min-height: var(--touch-target); }
+  .reader-picker .picker-row, .progress-card-chapter-row.button { min-height: var(--touch-target); }
+  .menu-sheet .highlight-menu-colors .button { flex: none; min-width: var(--touch-target); min-height: var(--touch-target); }
   /* The targets carry their own room, so the toolbar closes its gaps and the running head keeps its width. */
   .reader-header { gap: var(--space-2); }
   :is(.reader-highlight-note, .reader-folio-book).button { position: relative; }

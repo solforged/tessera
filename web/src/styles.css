@@ -47,6 +47,12 @@ a { color: var(--accent); }
 .popup-sheet { max-width: none; border-width: 1px 0 0; border-radius: var(--radius-popup) var(--radius-popup) 0 0; padding: var(--space-16) var(--space-16) calc(var(--space-16) + var(--bottom-inset)); }
 .popup-sheet.popup-enter { animation-name: sheet-in; }
 .popup-sheet.popup-exit { animation-name: sheet-out; }
+.popup-sheet-tools { display: flex; flex: none; align-items: center; gap: var(--space-8); margin-bottom: var(--space-8); }
+.popup-sheet-grab { display: flex; flex: 1; align-items: center; justify-content: center; min-height: var(--touch-target); touch-action: none; cursor: grab; }
+.popup-sheet-grab::before { content: ''; width: var(--space-32); height: var(--space-4); border-radius: var(--radius-pill); background: var(--faint); }
+.popup-sheet-close.button { flex: none; min-width: var(--touch-target); min-height: var(--touch-target); }
+.popup-sheet-dragging { user-select: none; }
+.popup-sheet-dragging .popup-sheet-grab { cursor: grabbing; }
 @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes sheet-out { from { transform: translateY(0); } to { transform: translateY(100%); } }
 .menu { min-width: 220px; }
@@ -202,7 +208,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .sidebar-collapsed .workspace { margin-left: var(--space-12); }
 .pane-tabs { display: none; align-items: stretch; gap: var(--space-8); padding-inline: var(--space-8) var(--space-4); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); transition: opacity var(--motion-ui) var(--motion-ease); }
 /* While a book reads with its chrome away, the pane tabs fade with it and keep their room, so the page never moves. */
-.app:has(.reader-chrome-hidden) .pane-tabs { opacity: 0; pointer-events: none; }
+.app:has(.pane.active .reader-chrome-hidden) .pane-tabs { opacity: 0; pointer-events: none; }
 /* Pane tabs use the mode-tab vocabulary: mono labels, a rubric pane number, and the gilt rule under the current pane. */
 .pane-tab-strip.tab-strip { flex: 1; min-width: 0; box-shadow: none; }
 .pane-tab-strip > .button { flex: 1 1 0; min-width: 0; justify-content: flex-start; gap: var(--space-8); }
@@ -348,6 +354,10 @@ details[open]::details-content { opacity: 1; block-size: auto; }
 .calendar-today { display: flex; margin: 8px auto 0; }
 /* Picker: input on top, 28 px rows below. Palettes centre near the top of the viewport. */
 .picker { padding: 0; }
+.picker.popup-sheet { display: flex; flex-direction: column; padding-bottom: var(--bottom-inset); }
+.picker.popup-sheet > :not(.picker-list) { flex-shrink: 0; }
+.picker.popup-sheet > .popup-sheet-tools { padding-inline: var(--space-12); margin-bottom: 0; }
+.picker.popup-sheet > .picker-list { min-height: 0; }
 .picker-query { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-8) var(--space-12); border-bottom: 1px solid var(--line); }
 .picker-prefix { color: var(--muted); }
 .picker-input { flex: 1; min-width: 0; border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; font-size: var(--text-body); line-height: var(--line-body); }
@@ -477,7 +487,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .app.keyboard-open .bottom-nav, .app.is-immersive .bottom-nav, .app.is-reading .bottom-nav { display: none; }
   /* A book reads edge to edge, under its own masthead rather than the pane header. */
   .app.is-reading .pane.active > .pane-header { display: none; }
-  .app.is-reading .workspace { margin: 0; border: 0; border-radius: 0; background: var(--canvas); }
+  .app.is-reading .workspace { margin: 0; border: 0; border-radius: 0; background: var(--canvas); transition: none; }
   .undo-toast { bottom: calc(var(--bottom-nav-height) + 12px + var(--bottom-inset)); }
   .sidebar-masthead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2) var(--space-8); margin-bottom: var(--space-8); padding: var(--space-4) 0 var(--space-12) calc(var(--space-8) + 2 * var(--rule-width)); border-bottom: var(--rule-width) solid var(--line); }
   /* A long notebook name shortens; the count after it stays whole. */

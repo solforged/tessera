@@ -692,6 +692,8 @@ Fixed forms opt into intrinsic-height fitting and choose the larger space when t
 
 Escape closes the topmost one and returns focus to the editor or outline that owned the keyboard before a mouse-opened menu, not its trigger. Closing retires input handlers immediately; only an inert, accessibility-hidden visual remains for the brief exit animation. It has no IDs and cannot steal focus from a successor popup. Reduced motion removes it immediately.
 
+Bottom sheets share a grab area and an accessible Close button. Dragging downward from the grab area dismisses the sheet; dragging within its contents keeps the content's own scrolling behavior.
+
 ### Shared popup patterns
 
 - **Menu:** 28 px desktop rows with a label and shortcut at the right; an icon column is reserved whenever any item has one. Cleaned action menus use hairline dividers and keep danger last. Piazzolla titles have Close; a drill-in replaces the rows with its title and Back, including ArrowRight to enter and ArrowLeft or Backspace to return. Context is at most two mono lines. Titled menus become bottom sheets with 44 px rows on coarse phones below 600 px. Dedicated selectors may retain section labels. Existing information headers remain above root rows, with their buttons in the arrow-key order.

@@ -172,6 +172,7 @@
 .library-highlight-filter-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8); margin-top: var(--space-24); }
 @media (pointer: coarse) {
   .library-highlight-dock .button, .library-highlight-filter-colors .button { min-height: 44px; }
+  .library-highlight-secondary .button.icon-only { flex-shrink: 0; min-width: var(--touch-target); }
   .library-highlight-dock kbd { display: none; }
 }
 @container library-pane (max-width: 719px) {

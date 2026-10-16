@@ -53,7 +53,7 @@ export function Menu(props: {
     return first?.disabledReason && rest.length && rest.every(item => item.disabledReason === first.disabledReason) ? first.disabledReason : undefined;
   };
   const reasonFor = (index: number) => sharedReason() ? `${reasonId}-shared` : `${reasonId}-${index}`;
-  const sheet = () => props.placement === undefined && props.title !== undefined && phoneSheet();
+  const sheet = () => props.placement === 'sheet' || props.placement === undefined && props.title !== undefined && phoneSheet();
   let body!: HTMLDivElement;
   const focusRow = (index: number) => queueMicrotask(() => {
     const rows = Array.from(body.querySelectorAll<HTMLButtonElement>('.menu-item'));
@@ -95,7 +95,7 @@ export function Menu(props: {
       <Show when={props.title !== undefined}>
         <header class="menu-head">
           <h2>{page()?.title ?? props.title}</h2>
-          <Show when={pages().length} fallback={<button type="button" class="menu-head-control" tabIndex={-1} onClick={() => props.onDismiss()}>Close</button>}>
+          <Show when={pages().length} fallback={<Show when={!sheet()}><button type="button" class="menu-head-control" tabIndex={-1} onClick={() => props.onDismiss()}>Close</button></Show>}>
             <button type="button" class="menu-head-control" tabIndex={-1} onClick={event => back(event.detail === 0)}><Icon name="left" />Back</button>
           </Show>
           <Show when={props.context}><div class="menu-context">{props.context}</div></Show>

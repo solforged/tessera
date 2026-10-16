@@ -1,8 +1,9 @@
-import { createEffect, createSignal, onCleanup, onMount } from 'solid-js';
+import { createEffect, createSignal, onCleanup, onMount, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { visualViewportBounds } from './visual-viewport';
 import { anchoredPopupPosition, popupBounds } from './popup-position';
+import { Button } from './Button';
 
 export type PopupAnchor = HTMLElement | DOMRect | (() => DOMRect | null);
 /** `anchor` hangs the panel off its trigger; `top` centres it near the top of the viewport, for palettes; `sheet` rises
@@ -48,7 +49,7 @@ function retirePanel(panel: HTMLDivElement) {
 
   // Portal has removed its wrapper; keep only the already-disposed DOM panel.
   document.body.append(panel);
-  const animation = panel.getAnimations().find(animation => animation instanceof CSSAnimation && animation.animationName === 'popup-out');
+  const animation = panel.getAnimations().find(animation => animation instanceof CSSAnimation && (animation.animationName === 'popup-out' || animation.animationName === 'sheet-out'));
   const timing = animation?.effect?.getComputedTiming();
   const duration = timing?.activeDuration;
   const end = timing?.endTime;
@@ -79,6 +80,8 @@ export function Popup(props: PopupProps) {
   const token = Symbol('popup');
   let panel!: HTMLDivElement;
   const [position, setPosition] = createSignal<{ left: number; top: number; height: number; visible: boolean; clipped?: boolean }>({ left: 8, top: 8, height: 0, visible: false });
+  const [dragDistance, setDragDistance] = createSignal(0);
+  let drag: { pointer: number; y: number } | undefined;
   const focused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   // Mouse-opened controls borrow the pane's keyboard owner, not the trigger that the click focused.
   // Nested popups still return to the control in their parent popup.
@@ -103,13 +106,27 @@ export function Popup(props: PopupProps) {
   let size: { width: number; height: number } | undefined;
   // A menu keeps the side of its trigger it first opened on, so drilling in or out never jumps it across the row.
   let side: 'above' | 'below' | undefined;
+  const contentHeight = () => {
+    if (!props.fitContent && props.placement !== 'sheet') return panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
+    // Measure the full body without losing scroll positions when it temporarily expands.
+    const scrolled: [Element, number, number][] = [[panel, panel.scrollTop, panel.scrollLeft]];
+    for (const element of panel.querySelectorAll('*')) {
+      if (element.scrollTop || element.scrollLeft) scrolled.push([element, element.scrollTop, element.scrollLeft]);
+    }
+    const maxHeight = panel.style.maxHeight;
+    panel.style.maxHeight = 'none';
+    const height = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
+    panel.style.maxHeight = maxHeight;
+    for (const [element, top, left] of scrolled) { element.scrollTop = top; element.scrollLeft = left; }
+    return height;
+  };
   const place = () => {
     if (disposed || props.ready === false) return;
     const viewport = popupBounds(visualViewportBounds(), props.placement === undefined || props.placement === 'anchor' ? props.bounds?.() : null);
     if (props.placement === 'sheet') {
       // A menu sheet may rise to just under the top bar so a full page menu needs no inner scroll; forms keep 85%.
       const cap = props.role === 'menu' ? viewport.height - 32 : Math.round(viewport.height * 0.85);
-      const height = Math.min(panel.scrollHeight + panel.offsetHeight - panel.clientHeight, cap);
+      const height = Math.min(contentHeight(), cap);
       setPosition({ left: viewport.left, top: viewport.bottom - height, height, visible: true, clipped: panel.scrollHeight > height });
       return;
     }
@@ -125,23 +142,9 @@ export function Popup(props: PopupProps) {
     const rect = anchorRect();
     if (!rect) return;
     if (!props.fixedSize) size = undefined;
-    let contentHeight: number;
-    if (props.fixedSize && size?.width === width) contentHeight = size.height;
-    else if (props.fitContent) {
-      // Measure the full body without losing scroll positions when it temporarily expands.
-      const scrolled: [Element, number, number][] = [[panel, panel.scrollTop, panel.scrollLeft]];
-      for (const element of panel.querySelectorAll('*')) {
-        if (element.scrollTop || element.scrollLeft) scrolled.push([element, element.scrollTop, element.scrollLeft]);
-      }
-      const maxHeight = panel.style.maxHeight;
-      panel.style.maxHeight = 'none';
-      contentHeight = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
-      panel.style.maxHeight = maxHeight;
-      for (const [element, top, left] of scrolled) { element.scrollTop = top; element.scrollLeft = left; }
-    // scrollHeight leaves out the border that max-height includes; without it a short menu scrolls by 2 px and WebKit shows a scrollbar.
-    } else contentHeight = panel.scrollHeight + panel.offsetHeight - panel.clientHeight;
-    if (props.fixedSize && size?.width !== width) size = { width, height: contentHeight };
-    const placed = anchoredPopupPosition(rect, viewport, width, contentHeight, props.role === 'menu' ? Infinity : 560, props.role === 'menu' ? side : undefined);
+    const height = props.fixedSize && size?.width === width ? size.height : contentHeight();
+    if (props.fixedSize && size?.width !== width) size = { width, height };
+    const placed = anchoredPopupPosition(rect, viewport, width, height, props.role === 'menu' ? Infinity : 560, props.role === 'menu' ? side : undefined);
     if (props.role === 'menu') side ??= placed.side;
     setPosition(placed);
   };
@@ -177,6 +180,21 @@ export function Popup(props: PopupProps) {
     if (props.anchor instanceof HTMLElement && props.anchor.contains(event.target as Node)) return;
     dismiss(false);
   };
+  const dragStart = (event: PointerEvent) => {
+    if (!topmost() || event.button !== 0) return;
+    drag = { pointer: event.pointerId, y: event.clientY };
+    event.currentTarget instanceof HTMLElement && event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+  const dragMove = (event: PointerEvent) => {
+    if (drag?.pointer === event.pointerId) setDragDistance(Math.max(0, event.clientY - drag.y));
+  };
+  const dragEnd = (event: PointerEvent) => {
+    if (drag?.pointer !== event.pointerId) return;
+    drag = undefined;
+    if (event.type === 'pointerup' && dragDistance() >= Math.min(96, panel.offsetHeight / 4)) dismiss(true);
+    if (!disposed) setDragDistance(0);
+  };
   onMount(() => {
     stack.push(token);
     mountVersion++;
@@ -194,7 +212,7 @@ export function Popup(props: PopupProps) {
     // max-height pins the panel, so growth only shows up on its content.
     for (const child of panel.children) observer.observe(child);
     if (props.autofocus !== false) queueMicrotask(() => {
-      if (panel.isConnected && topmost()) (panel.querySelector<HTMLElement>('input, textarea') ?? panel.querySelector<HTMLElement>('button:not(:disabled):not([tabindex="-1"]), [tabindex="0"]'))?.focus();
+      if (panel.isConnected && topmost()) (panel.querySelector<HTMLElement>('input, textarea') ?? panel.querySelector<HTMLElement>('button:not(.popup-sheet-close):not(:disabled):not([tabindex="-1"]), [tabindex="0"]') ?? panel.querySelector<HTMLElement>('.popup-sheet-close'))?.focus();
     });
     onCleanup(() => observer.disconnect());
   });
@@ -213,5 +231,11 @@ export function Popup(props: PopupProps) {
     if (panel && position().visible) retirePanel(panel);
   });
   const width = () => props.placement === 'sheet' ? '100vw' : props.width ? `${Math.max(0, Math.min(props.width, popupBounds(visualViewportBounds(), props.bounds?.()).width - 16))}px` : undefined;
-  return <Portal><div ref={panel} class={`popup${props.placement === 'sheet' ? ' popup-sheet' : ''}${position().visible ? ' popup-enter' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: width(), height: props.fixedSize && position().visible ? `${position().height}px` : undefined, 'max-height': `${position().height}px`, overflow: position().clipped ? 'auto' : undefined, visibility: position().visible ? 'visible' : 'hidden' }}>{props.children}</div></Portal>;
+  return <Portal><div ref={panel} class={`popup${props.placement === 'sheet' ? ' popup-sheet' : ''}${position().visible ? ' popup-enter' : ''}${dragDistance() ? ' popup-sheet-dragging' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: width(), height: props.fixedSize && position().visible ? `${position().height}px` : undefined, 'max-height': `${position().height}px`, overflow: position().clipped ? 'auto' : undefined, visibility: position().visible ? 'visible' : 'hidden', translate: dragDistance() ? `0 ${dragDistance()}px` : undefined }}>
+    <Show when={props.placement === 'sheet'}><div class="popup-sheet-tools">
+      <div class="popup-sheet-grab" aria-hidden="true" onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd} onLostPointerCapture={dragEnd} />
+      <Button class="popup-sheet-close" label={`Close ${props.label}`} onClick={() => dismiss(true)}>Close</Button>
+    </div></Show>
+    {props.children}
+  </div></Portal>;
 }

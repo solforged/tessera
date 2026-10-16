@@ -294,7 +294,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   createEffect(() => { if (props.immersive && !coarsePointer.matches) showChrome(true); });
   // Android's status and navigation bars leave with the chrome and return with it.
   createEffect(() => {
-    if (!chromeHides() || !chromeHidden()) return;
+    if (!props.active || !chromeHides() || !chromeHidden()) return;
     setSystemBarsHidden(true);
     onCleanup(() => setSystemBarsHidden(false));
   });
@@ -1562,13 +1562,13 @@ export function ReaderPane(props: ReaderPaneProps) {
         added={source()?.source.added_at ?? null} onDismiss={() => setPopup(null)}
         onJump={chapter => { const entry = contents().find(value => value.start === chapter.start && value.ordinal !== null); if (entry) void openSection(entry); else setPopup(null); }} /></Show>
       <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" title="Reader actions" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} label="Contents" placeholder="Find a section" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={Math.max(0, toc().indexOf(currentSection()!))}
+      <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Contents" placeholder="Find a section" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={Math.max(0, toc().indexOf(currentSection()!))}
         row={entry => <span class="reader-toc-entry" aria-current={entry === currentSection() ? 'true' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}><span class="reader-toc-check"><Show when={entry === currentSection()}><Icon name="check" /></Show></span><span>{entry.title}</span></span>}
         onPick={entry => { void openSection(entry); }} empty="No sections" onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'highlights'}><Picker class="reader-picker" anchor={state().anchor} label="Highlights" placeholder="Find a highlight" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
+      <Show when={state().kind === 'highlights'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Highlights" placeholder="Find a highlight" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
         row={row => <div class="reader-highlight-entry"><span class={`highlight-color-dot highlight-color-${row.citation.color ?? 'none'}`} aria-hidden="true" /><span class="reader-highlight-quote">{row.citation.quote}</span><span class="reader-highlight-section">{highlightLocation(row.citation, sections())}</span></div>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
         onPick={row => { void jumpHighlight(row.citation); }} onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} header={(() => { const value = state(); return value.kind === 'menu' && value.Header ? <value.Header onDismiss={() => setPopup(null)} /> : undefined; })()} onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} header={(() => { const value = state(); return value.kind === 'menu' && value.Header ? <value.Header onDismiss={() => setPopup(null)} /> : undefined; })()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
         status={<div class="reader-find-status"><span role="status">{hits().length} passages{morePassages() ? ' shown' : ''}</span><Show when={morePassages()}>{' '}<Button disabled={searching()} onClick={() => { void loadSearchPage(); }}>Load more passages</Button></Show></div>}
         row={hit => <span class="reader-search-entry"><span class="reader-search-snippet"><For each={hit.snippet_parts}>{part => part.match ? <mark class="reader-search-match">{part.text}</mark> : part.text}</For></span><span class="reader-highlight-section">Passage {hit.passage.ordinal + 1}<Show when={sectionAt(hit.passage.ordinal)}>{entry => <> · {sectionLabel(entry().title)}</>}</Show></span></span>} busy={searching() && !hits().length} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
