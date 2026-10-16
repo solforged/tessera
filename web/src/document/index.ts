@@ -837,6 +837,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         case 'question':
         case 'quote':
         case 'image':
+        case 'occlusion':
         case 'assessment':
         case 'source':
         case 'cite':
@@ -894,6 +895,11 @@ export class Notebook implements NotebookClient, DocumentHost {
             operations.push({ op: 'set_image', id: action.id, base_revision: block.revision, image: action.value });
             changed = !sameState(value.image ?? null, action.value);
             value.image = action.value;
+          } else if (action.kind === 'occlusion') {
+            if (!sameState(value.occlusion ?? null, action.previous)) throw new Error('These masks are not valid: the image masks changed.');
+            operations.push({ op: 'set_occlusion', id: action.id, base_revision: block.revision, occlusion: action.value });
+            changed = !sameState(value.occlusion ?? null, action.value);
+            value.occlusion = action.value;
           } else if (action.kind === 'assessment') {
             if (!sameState(value.assessment?.state ?? null, action.previous)) throw new Error('Answer changed. Rejected command kept.');
             operations.push({ op: 'set_assessment', id: action.id, base_revision: block.revision, assessment: action.value });

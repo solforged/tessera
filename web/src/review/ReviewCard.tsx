@@ -1,13 +1,13 @@
-import { For, Show, createEffect, createMemo, createSignal, createUniqueId, on, onCleanup, onMount } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createSignal, createUniqueId, on, onCleanup, onMount } from 'solid-js';
 import type { CardRow, Grade } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { BlockBreadcrumb, BlockText } from '../outline/BlockText';
+import { BlockBreadcrumb } from '../outline/BlockText';
 import { besideHint, opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { cardKindLabel, clozeSegments, parseCardText } from './card-text';
-import { CardBack, ClozeText } from './CardSides';
+import { CardBack, CardFront, ClozeText } from './CardSides';
 import { gradeIntervals, gradeLabels } from './query';
 import type { ReviewSource } from './ReviewSource';
 import './review-card.css';
@@ -43,7 +43,8 @@ export function ReviewCard(props: ReviewCardProps) {
   const locked = () => !!props.busy || pending();
   // One size per card: large only when both sides are short, so a short question never outsizes its answer.
   const large = () => !props.item.card.answer_blocks.length && terse(props.item.card.front) && terse(props.item.card.back);
-  const kindLabel = createMemo(() => cardKindLabel(props.item.card, parseCardText(props.item.source.block.text).cards));
+  const [siblings] = createResource(() => props.item.card.kind === 'occlusion' ? props.item.card.source_block_id : false, id => props.notebook.api.sourceCards(id).then(cards => cards.filter(card => card.active)));
+  const kindLabel = createMemo(() => cardKindLabel(props.item.card, siblings() ?? parseCardText(props.item.source.block.text).cards));
   const changed = createMemo(() => {
     const last = props.item.last_review;
     return !!last && (last.shown_front !== props.item.card.front || last.shown_back !== props.item.card.back);
@@ -151,9 +152,9 @@ export function ReviewCard(props: ReviewCardProps) {
     <Show when={props.item.card.template}>{template => <p class="review-card-meta">from #{template().type_name} · {template().name}</p>}</Show>
     <Show when={changed()}><p class="review-card-change-notice">Wording changed since your last review.</p></Show>
     <Show when={gaps()} fallback={<>
-      <section class="review-card-side" classList={{ 'review-card-terse': large() }} aria-label="Front"><Show when={props.item.card.template} fallback={<BlockText text={props.item.card.front} notebook={props.notebook} interactive={false} />}>{props.item.card.front}</Show></section>
+      <section class="review-card-side" classList={{ 'review-card-terse': large() }} aria-label="Front"><CardFront kind={props.item.card.kind} front={props.item.card.front} back={props.item.card.back} plain={!!props.item.card.template} revealed={revealed()} notebook={props.notebook} /></section>
       <Show when={revealedItems() > 0}>
-        <section id={answerId} class="review-card-side review-card-answer" classList={{ 'review-card-terse': large() }} aria-label="Answer"><Show when={props.item.card.template} fallback={<CardBack kind={props.item.card.kind} back={props.item.card.back} blocks={props.item.card.answer_blocks} visibleItems={revealedItems()} notebook={props.notebook} />}>{props.item.card.back}</Show></section>
+        <section id={answerId} class="review-card-side review-card-answer" classList={{ 'review-card-terse': large() }} aria-label="Answer"><Show when={props.item.card.template} fallback={<CardBack kind={props.item.card.kind} front={props.item.card.front} back={props.item.card.back} blocks={props.item.card.answer_blocks} visibleItems={revealedItems()} notebook={props.notebook} />}>{props.item.card.back}</Show></section>
       </Show>
     </>}>{segments => <section id={revealed() ? answerId : undefined} class="review-card-side" classList={{ 'review-card-terse': large() }} aria-label={revealed() ? 'Answer' : 'Front'}>
       <ClozeText segments={segments()} revealed={revealed()} notebook={props.notebook} />
@@ -168,15 +169,15 @@ export function ReviewCard(props: ReviewCardProps) {
           <div class="review-card-comparison-version">
             <h2>Last reviewed</h2>
             <dl>
-              <dt>Front</dt><dd class="review-card-text"><Show when={props.item.card.template} fallback={<BlockText text={last().shown_front} notebook={props.notebook} interactive={false} />}>{last().shown_front}</Show></dd>
-              <dt>Answer</dt><dd class="review-card-text"><CardBack plain={!!props.item.card.template} kind={props.item.card.kind} back={last().shown_back} notebook={props.notebook} /></dd>
+              <dt>Front</dt><dd class="review-card-text"><CardFront kind={props.item.card.kind} front={last().shown_front} back={last().shown_back} plain={!!props.item.card.template} notebook={props.notebook} /></dd>
+              <dt>Answer</dt><dd class="review-card-text"><CardBack plain={!!props.item.card.template} kind={props.item.card.kind} front={last().shown_front} back={last().shown_back} notebook={props.notebook} /></dd>
             </dl>
           </div>
           <div class="review-card-comparison-version">
             <h2>Current</h2>
             <dl>
-              <dt>Front</dt><dd class="review-card-text"><Show when={props.item.card.template} fallback={<BlockText text={props.item.card.front} notebook={props.notebook} interactive={false} />}>{props.item.card.front}</Show></dd>
-              <dt>Answer</dt><dd class="review-card-text"><CardBack plain={!!props.item.card.template} kind={props.item.card.kind} back={props.item.card.back} blocks={props.item.card.answer_blocks} notebook={props.notebook} /></dd>
+              <dt>Front</dt><dd class="review-card-text"><CardFront kind={props.item.card.kind} front={props.item.card.front} back={props.item.card.back} plain={!!props.item.card.template} notebook={props.notebook} /></dd>
+              <dt>Answer</dt><dd class="review-card-text"><CardBack plain={!!props.item.card.template} kind={props.item.card.kind} front={props.item.card.front} back={props.item.card.back} blocks={props.item.card.answer_blocks} notebook={props.notebook} /></dd>
             </dl>
           </div>
         </div>

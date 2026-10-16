@@ -73,11 +73,13 @@ export interface ViewState {
   edit?: boolean;
   /** One-shot reveal highlight; caret and scroll retain the location after this is consumed. Never persisted. */
   reveal?: string;
+  /** One-shot request to open this image block's mask editor. */
+  editOcclusion?: string;
 }
 
 export type OpenTarget =
   /** `blockId` zooms; `caretId` (default `blockId`) receives the caret at `caretOffset` (default 0). `readAt` opens unzoomed in Read and reveals that reading without editing. */
-  | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number; readAt?: string; journalPeriod?: 'week' | 'month' | 'quarter' | 'year' }
+  | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number; readAt?: string; editOcclusion?: boolean; journalPeriod?: 'week' | 'month' | 'quarter' | 'year' }
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
   | { kind: 'agenda'; date?: string; mode?: AgendaViewState['mode']; viewId?: string; query?: TaskQuery }
   /** `blockId` starts a review of that block's cards. */

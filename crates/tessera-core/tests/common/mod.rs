@@ -48,5 +48,15 @@ pub fn restore_pre_spreads(conn: &Connection) {
 
 /// Before schema 48, image blocks had no retained capability table.
 pub fn restore_pre_images(conn: &Connection) {
+    restore_pre_occlusions(conn);
     conn.execute_batch("DROP TABLE images;").unwrap();
+}
+
+/// Before schema 49, image masks had no capability table.
+pub fn restore_pre_occlusions(conn: &Connection) {
+    conn.execute_batch("DROP TABLE occlusions;").unwrap();
+    let migration = include_str!("../../migrations/049_occlusions.sql");
+    let rebuild = &migration[migration.find("CREATE TABLE card_units_occlusion").unwrap()..];
+    conn.execute_batch(&rebuild.replace(", 'occlusion'", ""))
+        .unwrap();
 }

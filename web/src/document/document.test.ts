@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import type { Subprocess } from 'bun';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
-import type { Batch, ChangeEvent, FieldKind, Operation, SourceState, TaskState } from '../api/types';
+import type { Batch, ChangeEvent, FieldKind, Occlusion, Operation, SourceState, TaskState } from '../api/types';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, NewCitation, PageDocument } from './contract';
@@ -4194,5 +4194,38 @@ test('images insert, place, remove and clipboard round trip in single undo steps
   await instance.flush();
   doc.undo(); await instance.flush();
   expect(doc.edit({ kind: 'merge', sourceId: first, destinationId: placed[0]! }).ok).toBe(false);
+  doc.release();
+});
+
+test('image mask edits undo atomically and clipboard keeps masks only with same-notebook images', async () => {
+  const instance = await client();
+  const { doc, first } = await page(instance, 'Diagram');
+  const image = await api.uploadImage(new Blob([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII='), c => c.charCodeAt(0))]));
+  success(doc.edit({ kind: 'image', id: first, image })); await doc.flush();
+  const occlusion: Occlusion = { mode: 'hide_all', groups: [{ id: 'group', hint: 'Hint', answer: 'Answer' }], masks: [{ id: 'mask', group: 'group', shape: 'ellipse', x: .1, y: .2, w: .3, h: .4 }] };
+  success(doc.edit({ kind: 'occlusion', id: first, occlusion })); await doc.flush();
+  expect(doc.block(first)?.occlusion).toEqual(occlusion);
+  expect((await api.sourceCards(first)).filter(card => card.active)).toHaveLength(1);
+  doc.undo(); await doc.flush();
+  expect(doc.block(first)?.occlusion).toBeNull();
+  expect(doc.block(first)?.image).toEqual(image);
+  expect((await api.sourceCards(first)).filter(card => card.active)).toHaveLength(0);
+  doc.redo(); await doc.flush();
+  expect(doc.block(first)?.occlusion).toEqual(occlusion);
+  const content = parseBlockClipboard(JSON.stringify(doc.clipboard([first])))!;
+  for (const sameNotebook of [true, false]) {
+    const destination = await page(instance, '');
+    const at = { id: destination.first, offset: 0 };
+    const pasted = success(destination.doc.edit({ kind: 'pasteBlocks', range: { anchor: at, head: at }, between: [], content: { ...content, scope: sameNotebook ? content.scope : 'other-notebook' } })).created[0]!;
+    await destination.doc.flush();
+    expect(destination.doc.block(pasted)?.occlusion).toEqual(sameNotebook ? occlusion : null);
+    expect((await api.sourceCards(pasted)).filter(card => card.active)).toHaveLength(sameNotebook ? 1 : 0);
+    destination.doc.release();
+  }
+  success(doc.edit({ kind: 'image', id: first, image: null })); await doc.flush();
+  expect(doc.block(first)?.occlusion).toEqual(occlusion);
+  expect((await api.sourceCards(first)).filter(card => card.active)).toHaveLength(0);
+  doc.undo(); await doc.flush();
+  expect((await api.sourceCards(first)).filter(card => card.active)).toHaveLength(1);
   doc.release();
 });

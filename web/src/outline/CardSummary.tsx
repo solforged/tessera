@@ -4,13 +4,14 @@ import { ulid } from 'ulid';
 import type { CardUnit } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import type { ParsedCard } from '../review/card-text';
-import { cardKindLabel, clozeSegments } from '../review/card-text';
+import { cardKindLabel, clozeSegments, occlusionSubject } from '../review/card-text';
 import { CardBack, ClozeText } from '../review/CardSides';
 import { formatInterval } from '../review/query';
 import type { OpenTarget } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import { BlockText } from './BlockText';
+import { OcclusionFigure } from '../review/OcclusionFigure';
 
 export function CardSummary(props: { blockId: string; cards: ParsedCard[]; templateCount?: number; notebook: NotebookClient; register?: (control: { open(anchor: HTMLElement): void } | undefined) => void; onOpen(target: OpenTarget, beside: boolean): void }) {
   const keys = createMemo(() => props.cards.map(card => card.key).join('\n'));
@@ -151,7 +152,7 @@ function CardPreview(props: { card: CardUnit; notebook: NotebookClient }) {
     return parts?.map(part => 'text' in part ? part.text : part.answer).join('') === props.card.back ? parts : null;
   });
   const hidden = () => Math.max(0, props.card.answer_blocks.length - previewItems);
-  return <Show when={segments()} fallback={<>
+  return <Show when={props.card.kind === 'occlusion'} fallback={<Show when={segments()} fallback={<>
     <div class="outline-cards-front"><BlockText text={props.card.front} notebook={props.notebook} interactive={false} /></div>
     <div class="outline-cards-answer">
       <CardBack kind={props.card.kind} back={props.card.back} blocks={props.card.answer_blocks.slice(0, previewItems)} notebook={props.notebook} />
@@ -160,5 +161,8 @@ function CardPreview(props: { card: CardUnit; notebook: NotebookClient }) {
   </>}>{parts => <>
     <div class="outline-cards-front"><ClozeText segments={parts()} revealed={false} notebook={props.notebook} /></div>
     <div class="outline-cards-answer"><ClozeText segments={parts()} revealed notebook={props.notebook} /></div>
-  </>}</Show>;
+  </>}</Show>}>
+    <OcclusionFigure front={props.card.front} back={props.card.back} thumbnail revealed notebook={props.notebook} />
+    <div class="outline-cards-answer">{occlusionSubject(props.card)}</div>
+  </Show>;
 }

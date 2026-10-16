@@ -312,7 +312,7 @@ pub struct StagedSnapshot {
     pub existing: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct IngestPlan {
     pub source_id: String,
     pub created: bool,

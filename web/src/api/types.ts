@@ -125,6 +125,7 @@ export type Operation =
   | { op: 'restore_revisit'; id: string; base_revision: number; state: RevisitSnapshot; event_id: string | null }
   | { op: 'set_quote'; id: string; base_revision: number; quote: QuoteState | null }
   | { op: 'set_image'; id: string; base_revision: number; image: ImageRef | null }
+  | { op: 'set_occlusion'; id: string; base_revision: number; occlusion: Occlusion | null }
   | { op: 'set_question'; id: string; base_revision: number; question: QuestionState | null }
   | { op: 'set_assessment'; id: string; base_revision: number; assessment: AssessmentState | null }
   | { op: 'start_work'; id: string; base_revision: number; session_id: string; started_at: number; note: string }
@@ -465,6 +466,11 @@ export interface BlockCapabilities { block_id: string; task: TaskState | null; p
 export interface BlockCapabilities { spread?: boolean }
 export interface ImageRef { sha256: string; media_type: string; width: number; height: number }
 export interface BlockCapabilities { image?: ImageRef | null }
+export interface Rect { x: number; y: number; w: number; h: number }
+export interface OcclusionGroup { id: string; hint?: string; answer?: string; area?: Rect }
+export interface OcclusionMask extends Rect { id: string; group: string; shape: 'rect' | 'ellipse' }
+export interface Occlusion { mode: 'hide_one' | 'hide_all'; groups: OcclusionGroup[]; masks: OcclusionMask[] }
+export interface BlockCapabilities { occlusion?: Occlusion | null }
 
 export interface WorkSession {
   id: string;
@@ -476,7 +482,7 @@ export interface WorkSession {
   revision: number;
 }
 
-export type CardKind = 'forward' | 'reverse' | 'cloze' | 'multiline' | 'list' | 'descriptor';
+export type CardKind = 'forward' | 'reverse' | 'cloze' | 'multiline' | 'list' | 'descriptor' | 'occlusion';
 export type Grade = 'again' | 'hard' | 'good' | 'easy';
 
 export interface SchedulingState {
@@ -506,6 +512,7 @@ export interface CardUnit {
   revision: number;
   schedule: SchedulingState;
   template: CardTemplateProvenance | null;
+  occlusion_index?: number;
 }
 
 export interface CardTemplateState { type_id: string; name: string; front: string; back: string; applied: boolean; new_per_day: number }

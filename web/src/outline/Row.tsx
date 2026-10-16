@@ -5,7 +5,7 @@ import type { VirtualItem } from '@tanstack/solid-virtual';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { linkedCitation, setLinkedCitation } from '../library/highlights';
 import { highlightProse } from '../library/query';
-import { cardSubject, parseCardText } from '../review/card-text';
+import { cardSubject, occlusionCards, parseCardText } from '../review/card-text';
 import { TaskStatusButton } from '../tasks/TaskControls';
 import { createTaskProjects } from '../projects/task-project';
 import { RunningClock } from '../tasks/WorkSessions';
@@ -183,7 +183,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       const parentText = doc.block(parent())?.text;
       return parentText !== undefined && !cardSubject(parentText);
     });
-    const derivedCards = createMemo(() => orphanDescriptor() ? [] : cards().cards);
+    const derivedCards = createMemo(() => [...(orphanDescriptor() ? [] : cards().cards), ...occlusionCards(block()?.image, block()?.occlusion)]);
     const cardProblems = createMemo(() => orphanDescriptor() ? [{ message: 'A descriptor needs a parent with text.' }] : cards().problems);
     const cardCount = () => derivedCards().length + (block()?.templateCards ?? 0);
     const cardMark = () => !block()?.task && cardCount() > 0;

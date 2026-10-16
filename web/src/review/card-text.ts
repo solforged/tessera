@@ -1,4 +1,4 @@
-import type { CardKind } from '../api/types';
+import type { CardKind, CardUnit, ImageRef, Occlusion, OcclusionMask, Rect } from '../api/types';
 
 export interface ParsedCard { key: string; kind: CardKind; front: string; back: string }
 export interface CardProblem { message: string; start: number; end: number }
@@ -267,11 +267,16 @@ export function cardSubject(text: string): string {
   return card.kind === 'reverse' || card.kind === 'cloze' ? card.back : card.front;
 }
 
-const kindLabels: Record<CardKind, string> = { forward: 'Forward', reverse: 'Reverse', cloze: 'Cloze', multiline: 'Multi-line', list: 'List', descriptor: 'Descriptor' };
+const kindLabels: Record<CardKind, string> = { forward: 'Forward', reverse: 'Reverse', cloze: 'Cloze', multiline: 'Multi-line', list: 'List', descriptor: 'Descriptor', occlusion: 'OCCLUSION' };
 
 /** A card's kind as review and the outline name it. A cloze carries its number
  * only when its block makes several clozes. */
-export function cardKindLabel(card: { kind: CardKind; key: string }, siblings: readonly { kind: CardKind }[]): string {
+export function cardKindLabel(card: { kind: CardKind; key: string; occlusion_index?: number }, siblings: readonly { kind: CardKind; key?: string }[]): string {
+  if (card.kind === 'occlusion') {
+    const groups = siblings.filter(sibling => sibling.kind === 'occlusion');
+    const index = card.occlusion_index ?? groups.findIndex(group => group.key === card.key);
+    return groups.length > 1 ? `OCCLUSION ${index + 1}` : 'OCCLUSION';
+  }
   if (card.kind !== 'cloze' || siblings.filter(sibling => sibling.kind === 'cloze').length < 2) return kindLabels[card.kind];
   return `Cloze ${card.key.slice('cloze:c'.length)}`;
 }
@@ -303,4 +308,42 @@ export function clozeSegments(text: string, key: string): ClozeSegment[] | null 
   const tail = segments[segments.length - 1];
   if (tail && 'text' in tail) tail.text = tail.text.replace(/\p{White_Space}+$/u, '');
   return segments.filter(segment => !('text' in segment) || segment.text);
+}
+
+export type CardMask = Pick<OcclusionMask, 'shape' | 'x' | 'y' | 'w' | 'h'>;
+export interface OcclusionFront { image: ImageRef; mode: Occlusion['mode']; area?: Rect; tested: CardMask[]; hint?: string; covered: CardMask[] }
+export interface OcclusionSides { front: OcclusionFront; back: { answer?: string } }
+const validRect = (value: unknown): value is Rect => {
+  if (!value || typeof value !== 'object') return false;
+  const rect = value as Rect;
+  return [rect.x, rect.y, rect.w, rect.h].every(Number.isFinite) && rect.x >= 0 && rect.y >= 0 && rect.w >= .005 && rect.h >= .005 && rect.x + rect.w <= 1 && rect.y + rect.h <= 1;
+};
+/** Stored evidence can outlive client versions; malformed sides never escape into prose or throw. */
+export function occlusionSides(card: { front: string; back: string }): OcclusionSides | null {
+  try {
+    const front = JSON.parse(card.front) as OcclusionFront, back = JSON.parse(card.back) as OcclusionSides['back'];
+    const masks = (value: unknown): value is CardMask[] => Array.isArray(value) && value.every(mask => validRect(mask) && 'shape' in mask && (mask.shape === 'rect' || mask.shape === 'ellipse'));
+    if (!front || !back || typeof back !== 'object' || !front.image || !/^[a-f0-9]{64}$/.test(front.image.sha256) || typeof front.image.media_type !== 'string'
+      || !Number.isFinite(front.image.width) || front.image.width <= 0 || !Number.isFinite(front.image.height) || front.image.height <= 0
+      || !['hide_one', 'hide_all'].includes(front.mode) || !masks(front.tested) || !masks(front.covered)
+      || front.area !== undefined && !validRect(front.area) || front.hint !== undefined && typeof front.hint !== 'string'
+      || back.answer !== undefined && typeof back.answer !== 'string') return null;
+    return { front, back };
+  } catch { return null; }
+}
+export function groupLetter(index: number): string {
+  let result = '';
+  do { result = String.fromCharCode(65 + index % 26) + result; index = Math.floor(index / 26) - 1; } while (index >= 0);
+  return result;
+}
+export function occlusionSubject(card: Pick<CardUnit, 'front' | 'back' | 'occlusion_index'>): string {
+  return occlusionSides(card)?.back.answer ?? `Mask ${groupLetter(card.occlusion_index ?? 0)}`;
+}
+export function occlusionCards(image: ImageRef | null | undefined, state: Occlusion | null | undefined): ParsedCard[] {
+  if (!image || !state) return [];
+  const geometry = ({ shape, x, y, w, h }: OcclusionMask): CardMask => ({ shape, x, y, w, h });
+  return state.groups.map(group => ({ key: `occlusion:${group.id}`, kind: 'occlusion', front: JSON.stringify({
+    image, mode: state.mode, ...(group.area ? { area: group.area } : {}), tested: state.masks.filter(mask => mask.group === group.id).map(geometry),
+    ...(group.hint ? { hint: group.hint } : {}), covered: state.mode === 'hide_all' ? state.masks.filter(mask => mask.group !== group.id).map(geometry) : [],
+  }), back: JSON.stringify(group.answer ? { answer: group.answer } : {}) }));
 }

@@ -737,9 +737,19 @@ The front must be non-empty. `::` remains field shorthand. A source block uses o
 
 Escapes, code and references shield literal syntax. Mixed or malformed operators produce diagnostics, not guessed cards.
 
+### Image occlusion
+
+An image block can also hold masks, drawn over the image in fractions of its size so they survive a replacement at another resolution. Masks are rectangles or ellipses and belong to groups; each group is one card, so masks in the same group are hidden and tested together, and group order gives the letters A, B, C and the card order. A group may have a hint, shown on its masks, an answer, shown after reveal and used wherever the card is read as text, and an area that crops the image the card shows.
+
+- **Hide one** covers only the tested group; the rest of the image stays readable.
+- **Hide all** also covers every other group, so changing any group's masks changes every card on the image.
+- Hints and answers hold at most 200 characters. An image holds at most 100 groups and 300 masks.
+- Removing the image keeps the masks but retires their cards; restoring it brings them back with their progress.
+- Masks need an image: `Add an image before drawing masks.` Anything else that cannot be stored is refused as `These masks are not valid:` followed by the reason.
+
 ### Identity and eligibility
 
-A source block plus a role key (`forward`, `reverse`, `cloze:c1`, `multiline`, `list`, `descriptor`) identifies a card. Wording and child edits therefore keep progress.
+A source block plus a role key (`forward`, `reverse`, `cloze:c1`, `multiline`, `list`, `descriptor`, `occlusion:<group>`) identifies a card. Wording and child edits therefore keep progress, and an occlusion card keeps its progress while its group exists, including after a group is removed and restored.
 
 Only authored non-root block text derives syntax cards; page titles and journal dates do not. Applied type templates are the exception: each member, including a page, can supply a unit keyed by its identity and `tpl:<templateId>`.
 

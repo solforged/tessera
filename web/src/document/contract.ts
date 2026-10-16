@@ -23,7 +23,7 @@ import type { AssessmentInfo, AssessmentState, QuestionInfo, QuestionState, Quot
 import type { ApiClient } from '../api/client';
 import type { CardTemplate, CardTemplateState } from '../api/types';
 import type { BlockCapabilities } from '../api/types';
-import type { ImageRef } from '../api/types';
+import type { ImageRef, Occlusion } from '../api/types';
 
 import type { LiveSubtree } from './subtrees';
 /** A position in a block's text, in UTF-16 code units. */
@@ -59,6 +59,7 @@ export interface BlockState {
   readonly assessment: AssessmentInfo | null;
   readonly quote: QuoteState | null;
   readonly image: ImageRef | null;
+  readonly occlusion: Occlusion | null;
   readonly mergeProtected: boolean;
   readonly reviewedCards: boolean;
   readonly templateCards?: number;
@@ -206,6 +207,7 @@ export type Edit =
   /** A new block, optionally with a frozen quote captured in the same undo step. */
   | { kind: 'insert'; parentId: string; after: string | null; text?: string; quote?: QuoteState }
   | { kind: 'image'; id: string; image: ImageRef | null }
+  | { kind: 'occlusion'; id: string; occlusion: Occlusion | null }
   | { kind: 'insertImages'; parentId: string; after: string | null; images: ImageRef[] }
   | { kind: 'placeImages'; targetId: string; images: ImageRef[] }
   /** Backspace at the start: append `sourceId` to `destinationId`, which keeps its ID. */

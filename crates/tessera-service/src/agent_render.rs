@@ -147,7 +147,12 @@ pub fn render(
             note.extend(capability_details(caps));
         }
         for card in cards.get(row.block.id.as_str()).into_iter().flatten() {
-            note.push(card_label(card, context.clock));
+            let label = card_label(card, context.clock);
+            note.push(if card.kind == CardKind::Occlusion {
+                format!("{label}: {}", card_answer(card))
+            } else {
+                label
+            });
         }
         text.push_str(&format!(
             "{indent}- {marker}{heading}{body}{archived} <!-- {} -->\n",
@@ -377,6 +382,12 @@ fn capability_details(caps: &BlockCapabilities) -> Vec<String> {
 /// A card's ID, kind, template and scheduling state.
 pub fn card_label(card: &CardUnit, clock: &Clock) -> String {
     let mut label = format!("card {} {}", card.id, name(card.kind));
+    if card.kind == CardKind::Occlusion {
+        label.push(' ');
+        label.push_str(&tessera_core::occlusion::group_letter(
+            card.occlusion_index.unwrap_or(0),
+        ));
+    }
     if let Some(template) = &card.template {
         label.push_str(&format!(" from template {:?}", template.name));
     }
@@ -396,9 +407,32 @@ pub fn card_state(card: &CardUnit, clock: &Clock) -> String {
     }
 }
 
+pub fn card_front(card: &CardUnit) -> String {
+    if card.kind == CardKind::Occlusion {
+        format!(
+            "occlusion {}",
+            tessera_core::occlusion::group_letter(card.occlusion_index.unwrap_or(0))
+        )
+    } else {
+        one_line(&card.front)
+    }
+}
+
 /// A card's answer: its back, or for child-answer cards, whose back is
 /// serialized data, their answer blocks.
 pub fn card_answer(card: &CardUnit) -> String {
+    if card.kind == CardKind::Occlusion {
+        return serde_json::from_str::<tessera_core::occlusion::OcclusionBack>(&card.back)
+            .ok()
+            .and_then(|back| back.answer)
+            .or_else(|| {
+                serde_json::from_str::<tessera_core::occlusion::OcclusionFront>(&card.front)
+                    .ok()
+                    .and_then(|front| front.hint)
+            })
+            .map(|text| one_line(&text))
+            .unwrap_or_default();
+    }
     if !matches!(card.kind, CardKind::Multiline | CardKind::List) {
         return one_line(&card.back);
     }
@@ -650,5 +684,29 @@ mod tests {
         assert!(output.contains(&format!("relation answers target {}", id(1))));
         assert!(output.contains("question as its target"));
         assert!(output.contains("[[Person]]"));
+    }
+
+    #[test]
+    fn occlusion_text_names_the_group_and_answer_without_serialized_sides() {
+        let mut card: CardUnit = serde_json::from_value(serde_json::json!({
+            "id": "card", "source_block_id": "source", "key": "occlusion:group",
+            "kind": "occlusion", "active": true, "held": false, "definition_revision": 1,
+            "front": serde_json::json!({
+                "image": { "sha256": "a".repeat(64), "media_type": "image/png", "width": 800, "height": 600 },
+                "mode": "hide_one", "tested": [{"shape": "rect", "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}],
+                "hint": "Hint", "covered": []
+            }).to_string(),
+            "back": "{\"answer\":\"Answer\"}", "answer_blocks": [], "revision": 1,
+            "schedule": tessera_core::scheduler::new_card(0), "occlusion_index": 1
+        })).unwrap();
+        let clock = Clock {
+            zone: jiff::tz::TimeZone::UTC,
+            today: "2026-10-16".into(),
+        };
+        assert_eq!(card_front(&card), "occlusion B");
+        assert_eq!(card_label(&card, &clock), "card card occlusion B new");
+        assert_eq!(card_answer(&card), "Answer");
+        card.back = "{}".into();
+        assert_eq!(card_answer(&card), "Hint");
     }
 }

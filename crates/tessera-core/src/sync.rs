@@ -31,7 +31,7 @@ pub use replica::{KeptCopy, OfflineFiles, RejectedChange, ReplicaConflicts};
 
 /// A change a replica sends to its hub: the batch as it was made there, its
 /// stamp, and the text of each block it rewrites as it was before.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PushedChange {
     pub stamp: ChangeStamp,
     pub batch: Batch,
@@ -124,7 +124,7 @@ pub struct ResourceRow {
 }
 
 /// A replica's unconfirmed changes and the snapshots they reference.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Outbox {
     pub device_id: String,
     pub confirmed_seq: i64,

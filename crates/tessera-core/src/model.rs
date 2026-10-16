@@ -63,7 +63,7 @@ pub enum Actor {
 /// so a retried creation can be recognised instead of duplicated. Every
 /// operation on an existing block names the revision it was based on; a
 /// mismatch fails the whole batch and writes nothing.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Operation {
     SettleSyncCopy {
@@ -357,6 +357,11 @@ pub enum Operation {
         base_revision: i64,
         image: Option<crate::capabilities::ImageRef>,
     },
+    SetOcclusion {
+        id: String,
+        base_revision: i64,
+        occlusion: Option<crate::occlusion::Occlusion>,
+    },
     SetQuestion {
         id: String,
         base_revision: i64,
@@ -473,7 +478,7 @@ pub enum Operation {
 }
 
 /// Operations committed together or not at all.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Batch {
     pub actor: Actor,
     #[serde(default)]
@@ -514,7 +519,7 @@ pub struct TextRewrite {
 }
 
 /// The result of a committed batch.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Committed {
     /// Position in the notebook's change sequence.
     pub seq: i64,
@@ -600,7 +605,7 @@ pub struct QuoteStatus {
 }
 
 /// Everything needed to show one page.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PageView {
     pub root: Block,
     /// Explicit tags on the page itself, separate from descendant memberships.
@@ -628,7 +633,7 @@ pub struct BlockInPage {
 }
 
 /// One committed batch, for clients catching up after `seq`.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ChangeEvent {
     pub seq: i64,
     pub actor: Actor,

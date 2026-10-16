@@ -12,7 +12,7 @@ use tessera_core::{
 
 use super::notes::{clock, page_cards};
 use super::query::filters;
-use super::render::{Clock, card_answer, card_label, location, name, one_line};
+use super::render::{Clock, card_answer, card_front, card_label, location, name};
 use super::{Api, Session, boolean, choice, describe, integer, limit, required, segment, string};
 
 impl Session<'_> {
@@ -231,7 +231,7 @@ async fn queue(api: &Api, arguments: &Value, clock: &Clock) -> anyhow::Result<St
         text.push_str(&format!(
             "- {}: {} → {} (block {}) {}",
             card_label(&row.card, clock),
-            one_line(&row.card.front),
+            card_front(&row.card),
             card_answer(&row.card),
             row.source.block.id,
             location(&row.source.page)
@@ -305,7 +305,7 @@ fn unit_list(cards: &[CardUnit], clock: &Clock, empty: &str) -> String {
             format!(
                 "- {}: {} → {} (block {})\n",
                 card_label(card, clock),
-                one_line(&card.front),
+                card_front(card),
                 card_answer(card),
                 card.source_block_id
             )

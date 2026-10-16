@@ -28,6 +28,7 @@ mod note_query;
 mod notebook;
 mod notes;
 mod notes_summary;
+pub mod occlusion;
 mod operations;
 mod ownership;
 mod position_store;

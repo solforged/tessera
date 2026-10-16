@@ -231,6 +231,7 @@ impl FieldChanges {
             | Operation::SetQuestion { .. }
             | Operation::SetQuote { .. }
             | Operation::SetImage { .. }
+            | Operation::SetOcclusion { .. }
             | Operation::SetAssessment { .. }
             | Operation::StartWork { .. }
             | Operation::StopWork { .. }

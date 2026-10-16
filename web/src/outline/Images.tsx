@@ -1,4 +1,4 @@
-import { Show, createSignal, onCleanup, onMount } from 'solid-js';
+import { Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import type { ImageRef } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -7,16 +7,18 @@ import type { OutlineDropIndicator } from './drag';
 import { NotebookImage } from '../ui/NotebookImage';
 import { Button } from '../ui/Button';
 import { BlockText } from './BlockText';
+import { OcclusionEditor } from '../review/OcclusionEditor';
 import './image.css';
 
 /** The whole image at the largest size the screen allows, with its caption beneath; Escape or Close returns to the outline. */
-export function ImageViewer(props: { image: ImageRef; caption: string; notebook: NotebookClient; onClose(): void }) {
+export function ImageViewer(props: { image: ImageRef; caption: string; notebook: NotebookClient; onClose(): void; onEditMasks(): void }) {
   let root!: HTMLDialogElement;
   onMount(() => root.showModal());
   return <Portal><dialog ref={root} class="image-viewer" aria-label={props.caption || 'Image'} onCancel={event => { event.preventDefault(); props.onClose(); }}
     onClick={event => { if (event.target === event.currentTarget || (event.target as Element).classList.contains('image-viewer-stage')) props.onClose(); }}>
     <header class="image-viewer-header">
       <p class="image-viewer-caption"><Show when={props.caption} fallback="Image"><BlockText text={props.caption} notebook={props.notebook} interactive={false} /></Show></p>
+      <Button onClick={() => props.onEditMasks()}>Edit masks</Button>
       <Button onClick={() => props.onClose()}>Close</Button>
     </header>
     <div class="image-viewer-stage"><NotebookImage image={props.image} api={props.notebook.api} alt={props.caption} /></div>
@@ -29,6 +31,7 @@ export function createOutlineImages(context: Pick<OutlineContext, 'doc' | 'props
   let input!: HTMLInputElement;
   let choice: { id: string; replace: boolean } | undefined;
   const [viewer, setViewer] = createSignal<string>();
+  const [editor, setEditor] = createSignal<string>();
   const [indicator, setIndicator] = createSignal<OutlineDropIndicator | null>(null);
   const failure = (error: unknown) => { if (!context.disposed) context.setMessage(error instanceof Error ? error.message : String(error)); };
   async function uploadImages(files: readonly File[], targetId?: string, replace = false) {
@@ -47,6 +50,12 @@ export function createOutlineImages(context: Pick<OutlineContext, 'doc' | 'props
   }
   function chooseImage(id: string, replace = false) { choice = { id, replace }; input.value = ''; input.click(); }
   function openImage(id: string) { if (context.doc.block(id)?.image) setViewer(id); }
+  function editOcclusion(id: string) { if (context.doc.block(id)?.image) { setViewer(undefined); setEditor(id); } }
+  let requested: string | undefined;
+  createEffect(() => {
+    const id = context.props.view.editOcclusion;
+    if (id && id !== requested && context.doc.block(id)?.image) { requested = id; editOcclusion(id); }
+  });
   const target = (event: DragEvent) => (event.target instanceof Element ? event.target.closest<HTMLElement>('[data-block-id]') : null)?.dataset.blockId;
   const hasFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files');
   function dragOver(event: DragEvent) {
@@ -80,13 +89,15 @@ export function createOutlineImages(context: Pick<OutlineContext, 'doc' | 'props
   function ImagePopups() {
     const block = () => context.doc.block(viewer() ?? '');
     const close = () => { setViewer(undefined); context.restoreFocus(); };
+    const editing = () => context.doc.block(editor() ?? '');
     return <>
       <input ref={input} hidden type="file" aria-label="Insert image" accept={accepted.join(',')} multiple onChange={event => {
         const selected = choice; choice = undefined;
         if (selected) void uploadImages(Array.from(event.currentTarget.files ?? []), selected.id, selected.replace);
       }} />
-      <Show when={block()?.image}>{image => <ImageViewer image={image()} caption={block()!.text} notebook={context.props.notebook} onClose={close} />}</Show>
+      <Show when={block()?.image}>{image => <ImageViewer image={image()} caption={block()!.text} notebook={context.props.notebook} onClose={close} onEditMasks={() => editOcclusion(viewer()!)} />}</Show>
+      <Show keyed when={editing()}>{block => <Show when={block.image}>{image => <OcclusionEditor id={block.id} image={image()} caption={block.text} state={block.occlusion} notebook={context.props.notebook} doc={context.doc} onClose={() => { setEditor(undefined); context.restoreFocus(); }} />}</Show>}</Show>
     </>;
   }
-  return { uploadImages, chooseImage, openImage, indicator, ImagePopups };
+  return { uploadImages, chooseImage, openImage, editOcclusion, indicator, ImagePopups };
 }

@@ -1234,6 +1234,7 @@ function Pane(props: OutlinePaneProps) {
     apply,
     chooseImage: (id, replace) => images.chooseImage(id, replace),
     openImage: id => images.openImage(id),
+    editOcclusion: id => images.editOcclusion(id),
     uploadImages: (files, targetId) => images.uploadImages(files, targetId),
     zoomTo,
     copy: (text) => copy(text),

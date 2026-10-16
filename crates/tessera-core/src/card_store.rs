@@ -25,6 +25,7 @@ fn kind_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<CardKind>
         "multiline" => Ok(CardKind::Multiline),
         "list" => Ok(CardKind::List),
         "descriptor" => Ok(CardKind::Descriptor),
+        "occlusion" => Ok(CardKind::Occlusion),
         kind => Err(rusqlite::Error::FromSqlConversionFailure(
             offset,
             rusqlite::types::Type::Text,
@@ -44,6 +45,7 @@ fn kind_name(kind: CardKind) -> &'static str {
         CardKind::Multiline => "multiline",
         CardKind::List => "list",
         CardKind::Descriptor => "descriptor",
+        CardKind::Occlusion => "occlusion",
     }
 }
 
@@ -84,6 +86,7 @@ pub(crate) fn card_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Resul
         revision: row.get(offset + 8)?,
         schedule,
         template: None,
+        occlusion_index: None,
     })
 }
 
@@ -216,7 +219,10 @@ pub(crate) fn derive_sources(conn: &Connection, ids: &[String], now: i64) -> Res
     let mut rows = sources.query([&ids])?;
     while let Some(row) = rows.next()? {
         let source_id = text_at(row, 0)?;
-        let parsed = parse_card_text(text_at(row, 1)?);
+        let mut parsed = parse_card_text(text_at(row, 1)?);
+        parsed
+            .cards
+            .extend(crate::occlusion::derive(conn, source_id)?);
         let mut previous = existing.remove(source_id).unwrap_or_default();
         for mut parsed in parsed.cards {
             if matches!(parsed.kind, CardKind::Multiline | CardKind::List) {
@@ -361,6 +367,15 @@ impl Notebook {
             .query_map([id], |row| card_at(row, 0))?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         crate::card_templates::provenance(&self.conn, &mut cards)?;
+        cards.sort_by(|left, right| {
+            if left.kind == CardKind::Occlusion && right.kind == CardKind::Occlusion {
+                left.occlusion_index
+                    .cmp(&right.occlusion_index)
+                    .then_with(|| left.key.cmp(&right.key))
+            } else {
+                left.key.cmp(&right.key)
+            }
+        });
         Ok(cards)
     }
 

@@ -14,6 +14,7 @@ pub enum CardKind {
     Multiline,
     List,
     Descriptor,
+    Occlusion,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

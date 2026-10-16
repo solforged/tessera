@@ -58,11 +58,13 @@ A completed or explicitly closed session with at least one review keeps its coun
 
 The card reads as a quiet sheet on the page rather than a boxed panel. On a fine-pointer device it is headed by the same rubric mark as popups. Its top rule turns gilt only on fine-pointer keyboard focus; touch shows neither this rule nor the rubric, leaving the progress strip alone.
 
-One mono line heads every card: the source at the left, then the kind in faint capitals (`FORWARD`, `REVERSE`, `CLOZE`, `MULTI-LINE`, `LIST`, `DESCRIPTOR`) and Card actions at the right. A cloze is numbered (`CLOZE 2`) only when its block makes several. A cited card's source shows siglum, title, chapter and paragraph and opens that citation. ⌘-click opens it beside (Ctrl-click off Mac). An uncited card's source path opens its block. Card actions holds the same open action, Edit card, which opens the canonical block, and Reset progress, which requires a revealed answer and confirmation.
+One mono line heads every card: the source at the left, then the kind in faint capitals (`FORWARD`, `REVERSE`, `CLOZE`, `MULTI-LINE`, `LIST`, `DESCRIPTOR`, `OCCLUSION`) and Card actions at the right. A cloze or occlusion card is numbered (`CLOZE 2`, `OCCLUSION 2`) only when its block makes several. A cited card's source shows siglum, title, chapter and paragraph and opens that citation. ⌘-click opens it beside (Ctrl-click off Mac). An uncited card's source path opens its block. Card actions holds the same open action, Edit card, which opens the canonical block, and Reset progress, which requires a revealed answer and confirmation. On an occlusion card, Edit card also opens the mask editor.
 
 Cards beneath a highlight inherit the nearest ancestor citation when they have none of their own. Their source line identifies the book and location, not the ancestor quotation. The cited passage and following sentence wait for reveal.
 
 Both sides of a card share one size. When both are 40 characters or fewer on one line, and the answer is not an outline, they are set at 24 px with a 30 px line; otherwise both read at 24 px with a 38 px line. A rule separates ordinary sides. Multi-line answers keep their child outline with faint bullets, and list answers number their items in rubric; both markers sit on the text's baseline. An image block in the answer shows its figure above its caption, at most 40% of the viewport's height. Lists reveal one item at a time, with an `N of M` mono count, and grading waits for the last. Clozes reveal in place with a gilt underline, so the sentence appears once; until then a gap reads `[…]`, or `[hint]`, in muted italic.
+
+An occlusion card shows its image, cropped to the group's area when it has one, at most 70% of the viewport's height so the grades stay on screen on a phone. The tested masks are filled gilt with the hint centered in them. In Hide all, the other groups' masks are filled with the canvas and outlined with a hairline. Revealing removes the tested masks and rings each uncovered shape with a 2 px gilt stroke, the way a cloze reveals in place, and the answer follows below.
 
 Once revealed, a cited card shows prose following its quotation from the snapshot's real passages. It skips punctuation-only remainders and keeps the beginning of long sentences, like the reader's note sheet.
 
@@ -93,7 +95,7 @@ Scheduling is FSRS-6 at 90% retention in whole days. Buttons show the next inter
 
 ### Changed cards and reset
 
-A source or schedule change invalidates the shown snapshot and requires Review current card before grading. Changed wording retains identity and progress. The card shows the last reviewed text beside its current text, with Keep progress and Start over choices. Reset progress requires confirmation and keeps review history.
+A source or schedule change invalidates the shown snapshot and requires Review current card before grading. Changed wording retains identity and progress. The card shows the last reviewed text beside its current text and offers Keep progress or Start over. An occlusion card changes when its masks, area, hint, answer, mode or image change, and in Hide all also when another group's masks do; its comparison shows the last reviewed and current images side by side. Reset progress requires confirmation and keeps review history.
 
 ### Finish, abandon and undo
 
@@ -126,7 +128,7 @@ Disable pauses a template's cards and keeps their progress. In Review a template
 
 ## Cards popup
 
-A block's card count opens its cards. Each row puts the kind in the same faint capitals in a fixed column, so every card's text starts at one edge, then the front, the answer in `--muted` and the due state. Clozes show their gaps and gilt answers as Review does. Multi-line and list answers show as their outline, at most five items, then `N more`. A template card reads `TEMPLATE` with its `#Vocab · Recognition` provenance under the text.
+A block's card count opens its cards. Each row puts the kind in the same faint capitals in a fixed column, so every card's text starts at one edge, then the front, the answer in `--muted` and the due state. Clozes show their gaps and gilt answers as Review does. Multi-line and list answers show as their outline, at most five items, then `N more`. An occlusion card shows a thumbnail of its tested area and its answer, or `Mask A` when it has none. A template card reads `TEMPLATE` with its `#Vocab · Recognition` provenance under the text.
 
 The popup's Review, Shift-click on the count and the block menu's Review cards start a review of that block's active cards, due or not, titled by the block's subject. ⌘-click on Review opens it beside (Ctrl-click off Mac). An open review shows the same Finish or abandon prompt as switching decks before the block review starts; asking again for the block already under review returns to it. Review is disabled when every card is paused.
 

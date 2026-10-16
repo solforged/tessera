@@ -56,6 +56,7 @@ export interface OutlineContext {
   openMoveToPage: () => void;
   chooseImage: (id: string, replace?: boolean) => void;
   openImage: (id: string) => void;
+  editOcclusion: (id: string) => void;
   uploadImages: (files: readonly File[], targetId?: string) => Promise<void>;
   positionReason: (id: string) => string | undefined;
   placeReason: (id: string) => string | undefined;

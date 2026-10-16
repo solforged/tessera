@@ -323,7 +323,7 @@ pub struct ImageRef {
     pub height: u32,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BlockCapabilities {
     pub block_id: String,
     pub task: Option<TaskState>,
@@ -346,6 +346,8 @@ pub struct BlockCapabilities {
     pub quote: Option<crate::QuoteState>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub image: Option<ImageRef>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub occlusion: Option<crate::occlusion::Occlusion>,
     #[serde(default)]
     pub source: Option<crate::library::SourceRecord>,
     #[serde(default)]
@@ -396,6 +398,8 @@ pub struct CardUnit {
     pub schedule: SchedulingState,
     #[serde(default)]
     pub template: Option<crate::CardTemplateProvenance>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub occlusion_index: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

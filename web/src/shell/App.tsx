@@ -288,7 +288,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       return;
     }
     // Explicit caret, reading and journal ledger requests rebuild even when the same page is already open beside.
-    const samePage = target.kind === 'page' && !target.caretId && !target.readAt && !target.journalPeriod && current?.target.kind === 'page' && current.target.pageId === target.pageId && 'zoom' in current.view && current.view.zoom === (target.blockId ?? null);
+    const samePage = target.kind === 'page' && !target.caretId && !target.readAt && !target.editOcclusion && !target.journalPeriod && current?.target.kind === 'page' && current.target.pageId === target.pageId && 'zoom' in current.view && current.view.zoom === (target.blockId ?? null);
     if (!beside || !samePage) {
       const date = target.kind === 'agenda' ? target.date ?? target.query?.context_date ?? todayDate() : '';
       const view: PaneView = restore ? snapshotView(restore) : target.kind === 'table'
@@ -300,7 +300,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', filters: { people: [], decades: [], years: [], publishers: [], languages: [] }, group: 'year', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
                   : target.readAt ? { zoom: null, caret: { id: target.readAt, offset: 0 }, scroll: { id: target.readAt, offset: 0 }, folds: null, showArchived: false, projection: 'read', reveal: target.readAt }
-                    : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, projection: pagePresentations()[target.pageId]?.projection, ...(target.blockId && target.caretId ? { edit: true } : {}) };
+                    : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, projection: pagePresentations()[target.pageId]?.projection, ...(target.blockId && target.caretId ? { edit: true } : {}), ...(target.editOcclusion && target.blockId ? { editOcclusion: target.blockId } : {}) };
       // Editing needs its live caret now, not after the outgoing view-transition snapshot.
       const arriveAtTarget = () => {
         batch(() => {

@@ -492,6 +492,13 @@ Clicking the figure opens the viewer: the image as large as the screen allows on
 
 Backspace at the start of a caption, or at the start of the row after an image, selects the image row instead of merging; Delete at the end of a caption does nothing. Enter at the start of a nonempty caption opens an empty row after the image.
 
+The mask editor turns an image into [occlusion cards](domain-model.md#image-occlusion). It opens from the Image manager (Draw masks… or Edit masks…), Edit masks in the viewer, Image occlusion in the card menu, the Edit image masks command, and Edit card on an occlusion card in Review. Like the viewer it takes the screen. The caption and Close sit above a toolbar of three groups: the shape for new masks (Rectangle, Ellipse), the mode (Hide one, Hide all), and Group, Ungroup, Area and Delete. Below the image come the selected group's Hint and Answer fields, then a mono count such as `2 cards · 3 masks` beside Cancel and Save. Masks are gilt and translucent while editing, each marked with its group's mono letter.
+
+- Drag on the image to draw a mask in a new group. Click a mask to select its group; Shift-click, or a long press on touch, adds a group. Drag a selection to move it, its corners to resize, and Alt-drag to copy a mask into the same group.
+- Group merges the selected groups into the first; Ungroup gives each selected mask its own group. Area, then a drag, crops what the selected group's card shows.
+- Delete or Backspace removes the selected masks, and the arrow keys nudge them by 1% of the image (5% with Shift). ⌘Z and ⌘⇧Z undo and redo within the editor.
+- Escape clears the selection, then closes; with unsaved changes it asks Discard changes to these masks?, with Keep editing and Discard. Save is one undo step in the outline, and a refused save keeps the draft with its reason.
+
 ### Cards
 
 [Cards](surfaces/cards-review.md) show their syntax quietly outside editing: `>>`, `<<` and `<>` become →, ← and ↔ in `--faint`, and cloze answers carry a dotted accent underline with the hint in their tooltip. Clicking places the caret at the same source offset.

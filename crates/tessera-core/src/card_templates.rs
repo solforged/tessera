@@ -477,6 +477,7 @@ pub(crate) fn derive(
 }
 
 pub(crate) fn provenance(conn: &Connection, cards: &mut [CardUnit]) -> Result<()> {
+    crate::occlusion::hydrate_cards(conn, cards)?;
     let ids: Vec<_> = cards
         .iter()
         .filter_map(|c| c.key.strip_prefix("tpl:"))

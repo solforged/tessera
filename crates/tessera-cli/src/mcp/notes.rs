@@ -11,7 +11,7 @@ use tessera_core::{
 
 use super::outline::{note_problems, outline, text_problems};
 use super::render::{
-    Clock, PageContext, age, card_answer, card_label, kind_label, location, one_line, quoted,
+    Clock, PageContext, age, card_answer, card_front, card_label, kind_label, location, quoted,
     render, snippet,
 };
 use super::{Api, Session, boolean, describe, integer, required, segment, string};
@@ -290,7 +290,7 @@ async fn card_report(api: &Api, cards: &[CardUnit]) -> anyhow::Result<String> {
                 "{} on block {} shows “{}” and asks for “{}”",
                 card_label(card, &clock),
                 card.source_block_id,
-                snippet(&one_line(&card.front)),
+                snippet(&card_front(card)),
                 snippet(&card_answer(card))
             )
         })

@@ -166,7 +166,7 @@ pub struct AgentRequest {
 }
 
 /// The result of [`Notebook::agent_edit`].
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AgentReceipt {
     /// The change to pass to [`Notebook::undo_agent_change`].
     pub seq: i64,
@@ -203,7 +203,7 @@ pub struct AgentChange {
     pub undone_by: Option<i64>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UndoReceipt {
     pub undone: i64,
     /// Pages the change created that were kept because they are now in use
@@ -1818,6 +1818,9 @@ fn base_revision(operation: &mut Operation) -> Option<(String, &mut i64)> {
             id, base_revision, ..
         }
         | Operation::SetImage {
+            id, base_revision, ..
+        }
+        | Operation::SetOcclusion {
             id, base_revision, ..
         }
         | Operation::RestoreRevisit {

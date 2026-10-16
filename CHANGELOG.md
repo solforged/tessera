@@ -16,6 +16,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Inbox groups by publication year, with a fixed author column and the siglum set aside. Years replace decades on that tab's rail, and failed imports open under a heading instead of a collapsed disclosure.
 - Added inline, keyboard-reachable status and priority triage to Agenda task rows.
 - Image blocks: paste, drop or insert a PNG, JPEG, WebP or GIF as its own block, with the block's text as its caption. Images open full screen, sync between devices, and show in multi-line and list card answers.
+- Image occlusion cards: draw rectangle and ellipse masks over an image block, group them into cards with a hint, answer and crop, and review them in Hide one or Hide all mode with the uncovered areas ringed on reveal.
 
 ### Fixed
 

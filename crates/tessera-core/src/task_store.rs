@@ -355,6 +355,7 @@ macro_rules! capability_rows {
               OR EXISTS(SELECT 1 FROM positions pos WHERE pos.block_id=b.id)
               OR EXISTS(SELECT 1 FROM relations r WHERE r.block_id=b.id)
               OR EXISTS(SELECT 1 FROM images i WHERE i.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM occlusions o WHERE o.block_id=b.id)
               OR EXISTS(SELECT 1 FROM questions q WHERE q.block_id=b.id)
               OR EXISTS(SELECT 1 FROM spreads sp WHERE sp.block_id=b.id)
               OR EXISTS(SELECT 1 FROM note_states n WHERE n.block_id=b.id)
@@ -415,6 +416,7 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
         relation: None,
         quote,
         image: None,
+        occlusion: None,
         history,
         reviewed_cards,
         template_cards: row.get::<_, i64>(6)? as usize,
@@ -447,7 +449,13 @@ pub(crate) fn capabilities_for(
     )?;
     crate::image_store::hydrate(
         conn,
-        crate::revisit_store::hydrate(conn, crate::relation_store::hydrate(conn, capabilities)?)?,
+        crate::occlusion::hydrate(
+            conn,
+            crate::revisit_store::hydrate(
+                conn,
+                crate::relation_store::hydrate(conn, capabilities)?,
+            )?,
+        )?,
     )
 }
 
@@ -474,7 +482,13 @@ pub(crate) fn page_capabilities(
     )?;
     crate::image_store::hydrate(
         conn,
-        crate::revisit_store::hydrate(conn, crate::relation_store::hydrate(conn, capabilities)?)?,
+        crate::occlusion::hydrate(
+            conn,
+            crate::revisit_store::hydrate(
+                conn,
+                crate::relation_store::hydrate(conn, capabilities)?,
+            )?,
+        )?,
     )
 }
 

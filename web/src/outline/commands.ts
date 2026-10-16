@@ -35,7 +35,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   | 'setZoom' | 'selectedSet' | 'sourceResets' | 'setCompletionIndex' | 'setCompletion'
   | 'rowAnchor' | 'rewriteEditing' | 'activeRange'
   | 'fields' | 'definitionsById' | 'pickField' | 'showNotice' | 'openRelation' | 'openMoveToPage' | 'positionReason' | 'placeReason' | 'usePlace'
-  | 'chooseImage' | 'openImage'
+  | 'chooseImage' | 'openImage' | 'editOcclusion'
   | 'fields' | 'definitionsById' | 'pickField' | 'showNotice' | 'openRelation' | 'positionReason' | 'placeReason' | 'usePlace'
 >) {
   const {
@@ -246,6 +246,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openSelected(true, selected()) },
     { id: 'copy-reference', title: 'Copy block reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
     { id: 'make-image', title: 'Insert image', section: 'Editing', run: () => context.chooseImage(selected() ?? zoom() ?? doc.pageId) },
+    { id: 'edit-occlusion', title: 'Edit image masks', section: 'Editing', disabledReason: () => selected() && doc.block(selected()!)?.image ? undefined : 'Add an image before drawing masks.', run: () => selected() && context.editOcclusion(selected()!) },
     { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
     { id: 'remove-task', title: 'Remove task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)) },
     { id: 'toggle-task', title: 'Complete or reopen task', section: 'Outline', keys: ['⌘Enter'], run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)) },
@@ -383,7 +384,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       const choice = investigation.find(item => item.label === `Make ${kind}`);
       return choice && { ...choice, label: kind === 'question' ? 'Question' : 'Assessment', secondary: undefined };
     };
-    const hasCards = parseCardText(entry.text).cards.length > 0;
+    const hasCards = parseCardText(entry.text).cards.length > 0 || !!(entry.image && entry.occlusion?.groups.length);
     const sourceItems = [
       ...sourceResets(id),
       ...(entry.citations.length ? [{ label: 'Remove citation', divider: true, danger: true, action: () => apply({ kind: 'uncite', id, citationIds: entry.citations.map(citation => citation.id) }, false) }] : []),
@@ -391,6 +392,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const managers: MenuItem[] = [
       ...(entry.image ? [group('Image…', 'Image', () => [
         { label: 'Open image', action: () => context.openImage(id) },
+        { label: entry.occlusion?.masks.length ? 'Edit masks…' : 'Draw masks…', action: () => context.editOcclusion(id) },
         { label: 'Replace image…', action: () => context.chooseImage(id, true) },
         { label: 'Remove image', action: () => apply({ kind: 'image', id, image: null }, false) },
       ])] : []),
@@ -523,7 +525,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ['c', 'Card', 'forward'], ['r', 'Reverse', 'reverse'], ['b', 'Reversible', 'both'],
       ['m', 'Multi-line', 'multiline'], ['l', 'List', 'list'], ['d', 'Descriptor', 'descriptor'], ['z', 'Cloze', 'cloze'],
     ];
-    return kinds.map(([key, label, kind]) => ({ key, shortcut: key, label, action: () => addCard(id, kind) }));
+    return [...kinds.map(([key, label, kind]) => ({ key, shortcut: key, label, action: () => addCard(id, kind) })),
+      ...(doc.block(id)?.image ? [{ key: 'i', shortcut: 'i', label: 'Image occlusion', action: () => context.editOcclusion(id) }] : [])];
   }
   function cardMenu(id: string) {
     keyboardMenu(id, 'Cards', cardItems(id));

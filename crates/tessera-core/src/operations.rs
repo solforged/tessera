@@ -2221,6 +2221,19 @@ impl Engine<'_, '_> {
                 }
                 Ok(())
             }
+            Operation::SetOcclusion {
+                id,
+                base_revision,
+                occlusion,
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                if crate::occlusion::set(self.tx, id, occlusion.as_ref())? {
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(id.clone());
+                    self.card_sources.insert(id.clone());
+                }
+                Ok(())
+            }
             Operation::SetQuestion {
                 id, base_revision, ..
             }

@@ -102,7 +102,9 @@ impl Notebook {
             ", e.id, e.card_id, e.session_id, e.kind, e.grade, e.shown_front,
                 e.shown_back, e.definition_revision, e.scheduler_version,
                 e.before_state, e.after_state, e.created_at, e.change_seq, totals.total,
-                t.id, t.name, t.type_id, tp.text
+                t.id, t.name, t.type_id, tp.text,
+                (SELECT CAST(g.key AS INTEGER) FROM occlusions o, json_each(o.state, '$.groups') g
+                 WHERE o.block_id = c.source_block_id AND c.key = 'occlusion:' || json_extract(g.value, '$.id'))
             FROM (SELECT COUNT(*) AS total FROM queue) totals
             LEFT JOIN selected s ON 1
             LEFT JOIN card_units c ON c.id = s.id
@@ -137,6 +139,7 @@ impl Notebook {
                 Some(review_event_at(row, 31)?)
             };
             let mut card = card_at(row, 0)?;
+            card.occlusion_index = row.get::<_, Option<i64>>(49)?.map(|index| index as usize);
             if let Some(id) = row.get::<_, Option<String>>(45)? {
                 card.template = Some(crate::CardTemplateProvenance {
                     id,

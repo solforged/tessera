@@ -43,7 +43,7 @@ export interface DocumentHost {
 }
 type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] } & { history: boolean };
 interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
-const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, keptCopy: block.kept_copy, manual_types: [], task: null, project: null, position: null, relation: null, question: null, quote: null, image: null, assessment: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
+const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, keptCopy: block.kept_copy, manual_types: [], task: null, project: null, position: null, relation: null, question: null, quote: null, image: null, occlusion: null, assessment: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
 /** The reference or tag holding `offset` strictly inside it, where Enter must not cut. */
 const splitToken = (text: string, offset: number) =>
   textTokens(text).find(token => (token.kind === 'reference' || token.kind === 'tag') && offset > token.start && offset < token.end);
@@ -173,9 +173,9 @@ export class Document implements PageDocument {
     const image = capability.image ?? null;
     this.trackInvestigation(capability);
     this.markArchived(block.id, block.archived);
-    if (cell) cell.set({ ...stateOf(block), ...sidecar, image, manual_types, pending, conflict: cell.state.conflict });
+    if (cell) cell.set({ ...stateOf(block), ...sidecar, image, occlusion: capability.occlusion ?? null, manual_types, pending, conflict: cell.state.conflict });
     else {
-      const [state, set] = createStore<MutableBlockState>({ ...stateOf(block), ...sidecar, image, manual_types, pending });
+      const [state, set] = createStore<MutableBlockState>({ ...stateOf(block), ...sidecar, image, occlusion: capability.occlusion ?? null, manual_types, pending });
       this.cells.set(block.id, { state, set });
       this.presenceChanged(block.id);
     }
@@ -199,7 +199,7 @@ export class Document implements PageDocument {
   }
   capabilities(id: string, base = false): BlockCapabilities {
     const cell = !base && this.cells.get(id)?.state;
-    const value = cell ? { block_id: id, task: cell.task, project: cell.project, position: cell.position, relation: cell.relation, spread: cell.spread ?? false, question: cell.question, quote: cell.quote, image: cell.image, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards, template_cards: cell.templateCards ?? 0 } : this.baseCapabilities.get(id);
+    const value = cell ? { block_id: id, task: cell.task, project: cell.project, position: cell.position, relation: cell.relation, spread: cell.spread ?? false, question: cell.question, quote: cell.quote, image: cell.image, occlusion: cell.occlusion, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards, template_cards: cell.templateCards ?? 0 } : this.baseCapabilities.get(id);
     // Most blocks have no capabilities; a fresh empty value needs no defensive copy.
     return value ? JSON.parse(JSON.stringify(value)) as BlockCapabilities : emptyCapabilities(id);
   }
@@ -233,7 +233,7 @@ export class Document implements PageDocument {
     if (!base) this.trackInvestigation(value);
     if (base) this.baseCapabilities.set(value.block_id, value);
     else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, relation: value.relation ?? null, spread: value.spread ?? false, question: value.question ?? null, quote: value.quote ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0, pending: true });
-    if (!base) this.cells.get(value.block_id)?.set({ image: value.image ?? null });
+    if (!base) this.cells.get(value.block_id)?.set({ image: value.image ?? null, occlusion: value.occlusion ?? null });
   }
   private guardMerge(id: string) {
     const value = this.capabilities(id);
@@ -260,7 +260,7 @@ export class Document implements PageDocument {
       this.baseCapabilities.set(value.block_id, structuredClone(value));
       this.syncGeneration++;
       this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, relation: value.relation ?? null, spread: value.spread ?? false, question: value.question ?? null, quote: value.quote ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0 });
-      this.cells.get(value.block_id)?.set({ image: value.image ?? null });
+      this.cells.get(value.block_id)?.set({ image: value.image ?? null, occlusion: value.occlusion ?? null });
       this.trackInvestigation(value);
       received.add(value.block_id);
     }
@@ -396,6 +396,13 @@ export class Document implements PageDocument {
         const value = this.capabilities(action.id, base);
         const previous = value.image ?? null;
         value.image = action.value;
+        this.updateCapabilities(value, base);
+        return [{ ...action, value: previous, previous: action.value }];
+      }
+      case 'occlusion': {
+        const value = this.capabilities(action.id, base);
+        const previous = value.occlusion ?? null;
+        value.occlusion = action.value;
         this.updateCapabilities(value, base);
         return [{ ...action, value: previous, previous: action.value }];
       }
@@ -1669,6 +1676,14 @@ export class Document implements PageDocument {
           actions.push({ kind: 'image', id: edit.id, value: edit.image, previous, baseRevision: block.revision });
           break;
         }
+        case 'occlusion': {
+          const block = this.snapshot(edit.id);
+          const previous = this.capabilities(edit.id).occlusion ?? null;
+          if (sameState(previous, edit.occlusion)) break;
+          if (edit.occlusion && !this.capabilities(edit.id).image) throw new Error('Add an image before drawing masks.');
+          actions.push({ kind: 'occlusion', id: edit.id, value: structuredClone(edit.occlusion), previous, baseRevision: block.revision });
+          break;
+        }
         case 'insertImages':
         case 'placeImages': {
           const target = edit.kind === 'placeImages' ? this.snapshot(edit.targetId) : null;
@@ -1832,6 +1847,7 @@ export class Document implements PageDocument {
               if (!parent) throw new Error('The clipboard hierarchy is invalid.');
               const id = insert(parent, item.depth ? previous.get(parent) ?? null : after, item.block.text, item.block.heading);
               if (content.scope === this.host.clipboardScope() && item.capabilities.image) actions.push({ kind: 'image', id, value: structuredClone(item.capabilities.image), previous: null, baseRevision: 0 });
+              if (content.scope === this.host.clipboardScope() && item.capabilities.image && item.capabilities.occlusion) actions.push({ kind: 'occlusion', id, value: structuredClone(item.capabilities.occlusion), previous: null, baseRevision: 0 });
               if (item.capabilities.task) {
                 const task = item.capabilities.task;
                 const value = task.status === 'done' ? { ...task, status: 'todo' as const, completed_on: null } : task;
