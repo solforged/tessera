@@ -50,10 +50,7 @@ export function CardTemplatesPane(props: Props) {
   const [forecast, { refetch: refetchForecast }] = createResource(() => props.applyId ? [props.applyId, version()] as const : false,
     ([id]) => props.notebook.api.cardTemplateForecast(id));
   const first = () => templates()[0];
-  const fields = createMemo(() => {
-    const byId = new Map(data.latest?.fields.map(field => [field.id, field]));
-    return (data.latest?.type.fields ?? []).flatMap(id => byId.get(id) ?? []);
-  });
+  const fields = createMemo(() => (data.latest?.fields ?? []).filter(field => !field.archived && field.name.trim()));
   const total = () => templates().reduce((sum, template) => sum + template.ready, 0);
   createEffect(() => {
     if (!data.latest || restored) return;

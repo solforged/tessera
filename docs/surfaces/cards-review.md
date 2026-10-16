@@ -111,7 +111,7 @@ Each template is a numbered section with:
 
 - Its Piazzolla name and Enabled or `Draft · not in review`.
 - Front and Back patterns whose field references show as mono chips; typing `{` opens the field picker.
-- `Uses 2 of 5 fields` and a New per day input.
+- `Uses 2 of 5 fields` and a New per day input. The total and Fields available to patterns use the same live field catalog as the pattern picker, not only the type's explicit template slots.
 - Beside them, a preview of the first ready member: the front in large Piazzolla over a hairline and the back.
 
 Enable… opens the Apply view, in this order:
