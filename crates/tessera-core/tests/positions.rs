@@ -216,7 +216,10 @@ fn position_links_derive_holder_subject_and_follow_text_edits() {
 fn deleted_holder_keeps_renamed_attribution_and_an_accurate_repair_problem() {
     let (dir, mut nb) = fixture();
     let op = set(&nb, 10, true);
-    apply(&mut nb, vec![op, insert(20, 10, None, "Keep this research.")]);
+    apply(
+        &mut nb,
+        vec![op, insert(20, 10, None, "Keep this research.")],
+    );
     edit(&mut nb, 2, "Renamed holder 二");
     let base_revision = nb.block(&id(2)).unwrap().revision;
     let deleted = apply(
@@ -255,7 +258,12 @@ fn deleted_holder_keeps_renamed_attribution_and_an_accurate_repair_problem() {
         vec![Operation::Restore {
             id: id(2),
             deletion_id: deleted.deletions[0].clone(),
-            revision: deleted.revisions.iter().find(|row| row.id == id(2)).unwrap().revision,
+            revision: deleted
+                .revisions
+                .iter()
+                .find(|row| row.id == id(2))
+                .unwrap()
+                .revision,
         }],
     );
     assert_eq!(info(&nb, 10).holder_id, Some(id(2)));

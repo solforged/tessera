@@ -570,7 +570,12 @@ fn agenda_ignores_future_and_reversed_completions_and_keeps_reopened_history() {
 fn agenda_keeps_repeating_doing_work_with_its_completed_history() {
     let (_dir, mut nb) = fixture();
     for (value, mode, unit, next) in [
-        (10, RepeatMode::AfterCompletion, RepeatUnit::Day, "2026-10-04"),
+        (
+            10,
+            RepeatMode::AfterCompletion,
+            RepeatUnit::Day,
+            "2026-10-04",
+        ),
         (11, RepeatMode::CatchUp, RepeatUnit::Week, "2026-10-08"),
     ] {
         let mut state = planned(Some("2026-10-01"), None);
@@ -595,11 +600,9 @@ fn agenda_keeps_repeating_doing_work_with_its_completed_history() {
             rows.iter()
                 .any(|row| row.task == live && row.reasons.contains(&AgendaReason::InProgress))
         );
-        assert!(
-            rows.iter().any(|row| row.task.status == TaskStatus::Done
-                && row.task.scheduled.as_deref() == Some("2026-10-01")
-                && row.reasons.contains(&AgendaReason::RecentlyCompleted))
-        );
+        assert!(rows.iter().any(|row| row.task.status == TaskStatus::Done
+            && row.task.scheduled.as_deref() == Some("2026-10-01")
+            && row.reasons.contains(&AgendaReason::RecentlyCompleted)));
     }
 }
 

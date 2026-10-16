@@ -95,7 +95,11 @@ pub(crate) fn derive(
                 text: crate::fields::target_label(
                     deleted_text.as_deref().unwrap_or_default(),
                     &mut |target| {
-                        labels.query_row([target], |row| row.get(0)).optional().ok().flatten()
+                        labels
+                            .query_row([target], |row| row.get(0))
+                            .optional()
+                            .ok()
+                            .flatten()
                     },
                 ),
             })
@@ -107,7 +111,10 @@ pub(crate) fn derive(
             None => crate::question_store::nearest_question_ancestor(conn, &id)?.unwrap_or(page),
         };
         let problem = if deleted_holder.is_some() {
-            Some("The linked holder was deleted. Change holder to repair this attribution.".to_owned())
+            Some(
+                "The linked holder was deleted. Change holder to repair this attribution."
+                    .to_owned(),
+            )
         } else {
             match (&holder_id, entity) {
                 (None, _) => Some(NO_HOLDER.to_owned()),

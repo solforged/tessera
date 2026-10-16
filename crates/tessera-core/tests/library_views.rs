@@ -227,12 +227,21 @@ fn library_and_source_tables_file_accented_titles_with_their_base_letters() {
         if direction == tessera_core::Direction::Desc {
             expected.reverse();
         }
-        let library = n.library(&LibraryQuery {
-            sort: LibrarySort::Title,
-            direction,
-            ..Default::default()
-        }).unwrap();
-        assert_eq!(library.rows.iter().map(|row| row.page.id.clone()).collect::<Vec<_>>(), expected);
+        let library = n
+            .library(&LibraryQuery {
+                sort: LibrarySort::Title,
+                direction,
+                ..Default::default()
+            })
+            .unwrap();
+        assert_eq!(
+            library
+                .rows
+                .iter()
+                .map(|row| row.page.id.clone())
+                .collect::<Vec<_>>(),
+            expected
+        );
         for sort in [
             serde_json::json!({"by": "title", "field": null, "direction": direction}),
             serde_json::json!({"by": "field", "field": "@title", "direction": direction}),
@@ -241,8 +250,17 @@ fn library_and_source_tables_file_accented_titles_with_their_base_letters() {
                 "source": "sources",
                 "filters": [],
                 "sort": [sort],
-            })).unwrap();
-            assert_eq!(n.query(&query).unwrap().rows.iter().map(|row| row.block.block.id.clone()).collect::<Vec<_>>(), expected);
+            }))
+            .unwrap();
+            assert_eq!(
+                n.query(&query)
+                    .unwrap()
+                    .rows
+                    .iter()
+                    .map(|row| row.block.block.id.clone())
+                    .collect::<Vec<_>>(),
+                expected
+            );
         }
     }
 }

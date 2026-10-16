@@ -689,7 +689,11 @@ impl Notebook {
                 crate::library_store::validate_color(Some(color))?;
             }
         }
-        let tags: Vec<_> = query.tags.iter().map(|tag| crate::storage::title_key(tag)).collect();
+        let tags: Vec<_> = query
+            .tags
+            .iter()
+            .map(|tag| crate::storage::title_key(tag))
+            .collect();
         let citations = citations(&self.conn, ids, None, true, None)?;
         let ids_json = ids.map(json);
         let mut statement = self.conn.prepare_cached(concat!(
@@ -1134,45 +1138,47 @@ impl Notebook {
             languages: value_facets(languages),
         };
         if query.sort == LibrarySort::Title {
-            rows.sort_by_cached_key(|row| (crate::aliases::fold(&row.page.text), row.page.id.clone()));
+            rows.sort_by_cached_key(|row| {
+                (crate::aliases::fold(&row.page.text), row.page.id.clone())
+            });
             if query.direction == Direction::Desc {
                 rows.reverse();
             }
         } else {
-        rows.sort_by(|a, b| {
-            let cmp = match query.sort {
-                LibrarySort::Added => a.source.added_at.cmp(&b.source.added_at),
-                LibrarySort::Title => unreachable!("title sort keys are cached"),
-                LibrarySort::Author => a
-                    .creators
-                    .first()
-                    .map(|s| crate::library_ingest::family_name(s))
-                    .into_iter()
-                    .flat_map(str::chars)
-                    .flat_map(char::to_lowercase)
-                    .cmp(
-                        b.creators
-                            .first()
-                            .map(|s| crate::library_ingest::family_name(s))
-                            .into_iter()
-                            .flat_map(str::chars)
-                            .flat_map(char::to_lowercase),
-                    ),
-                LibrarySort::Year => a
-                    .published
-                    .as_deref()
-                    .and_then(|s| s.get(..4))
-                    .cmp(&b.published.as_deref().and_then(|s| s.get(..4))),
-                LibrarySort::LastRead => a.source.last_read_at.cmp(&b.source.last_read_at),
-                LibrarySort::Progress => a.progress.total_cmp(&b.progress),
-            }
-            .then_with(|| a.page.id.cmp(&b.page.id));
-            if query.direction == Direction::Desc {
-                cmp.reverse()
-            } else {
-                cmp
-            }
-        });
+            rows.sort_by(|a, b| {
+                let cmp = match query.sort {
+                    LibrarySort::Added => a.source.added_at.cmp(&b.source.added_at),
+                    LibrarySort::Title => unreachable!("title sort keys are cached"),
+                    LibrarySort::Author => a
+                        .creators
+                        .first()
+                        .map(|s| crate::library_ingest::family_name(s))
+                        .into_iter()
+                        .flat_map(str::chars)
+                        .flat_map(char::to_lowercase)
+                        .cmp(
+                            b.creators
+                                .first()
+                                .map(|s| crate::library_ingest::family_name(s))
+                                .into_iter()
+                                .flat_map(str::chars)
+                                .flat_map(char::to_lowercase),
+                        ),
+                    LibrarySort::Year => a
+                        .published
+                        .as_deref()
+                        .and_then(|s| s.get(..4))
+                        .cmp(&b.published.as_deref().and_then(|s| s.get(..4))),
+                    LibrarySort::LastRead => a.source.last_read_at.cmp(&b.source.last_read_at),
+                    LibrarySort::Progress => a.progress.total_cmp(&b.progress),
+                }
+                .then_with(|| a.page.id.cmp(&b.page.id));
+                if query.direction == Direction::Desc {
+                    cmp.reverse()
+                } else {
+                    cmp
+                }
+            });
         }
         let total = rows.len();
         rows.truncate(limit);

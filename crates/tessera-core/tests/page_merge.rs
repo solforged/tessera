@@ -195,7 +195,13 @@ fn merge_retains_and_deduplicates_the_source_pages_types() {
     for title in ["Concept", "Person"] {
         let kind = nb.page_by_title(title).unwrap().unwrap();
         let members = nb.members(&kind.id, 100).unwrap();
-        assert_eq!(members.iter().filter(|member| member.block.id == id(2)).count(), 1);
+        assert_eq!(
+            members
+                .iter()
+                .filter(|member| member.block.id == id(2))
+                .count(),
+            1
+        );
         assert!(!members.iter().any(|member| member.block.id == id(1)));
     }
 }
@@ -208,7 +214,12 @@ fn merge_commits_the_title_alias_with_its_blocks_and_replays_once() {
     let committed = nb.apply(&request).unwrap();
     assert_eq!(nb.page_aliases(&id(2)).unwrap(), vec!["Draft"]);
     let page = nb.page(&id(2)).unwrap();
-    assert!(page.rows.iter().all(|row| committed.revisions.iter().any(|revision| revision.id == row.block.id)));
+    assert!(page.rows.iter().all(|row| {
+        committed
+            .revisions
+            .iter()
+            .any(|revision| revision.id == row.block.id)
+    }));
     drop(nb);
     let mut nb = Notebook::open(dir.path()).unwrap();
     assert_eq!(nb.page_aliases(&id(2)).unwrap(), vec!["Draft"]);
@@ -219,7 +230,13 @@ fn merge_commits_the_title_alias_with_its_blocks_and_replays_once() {
 fn retained_page_deletions_survive_reopen_but_permanent_merges_are_not_recoverable() {
     let (dir, mut nb) = fixture();
     apply(&mut nb, vec![insert(10, &id(1), None, "retained payload")]);
-    apply(&mut nb, vec![Operation::Delete { id: id(1), base_revision: 1 }]);
+    apply(
+        &mut nb,
+        vec![Operation::Delete {
+            id: id(1),
+            base_revision: 1,
+        }],
+    );
     drop(nb);
     let mut nb = Notebook::open(dir.path()).unwrap();
     let deleted = nb.deleted_pages().unwrap();
@@ -232,10 +249,20 @@ fn retained_page_deletions_survive_reopen_but_permanent_merges_are_not_recoverab
     };
     apply(&mut nb, vec![restore]);
     assert_eq!(nb.block(&id(10)).unwrap().text, "retained payload");
-    assert!(!nb.deleted_pages().unwrap().iter().any(|page| page.block.id == id(1)));
+    assert!(
+        !nb.deleted_pages()
+            .unwrap()
+            .iter()
+            .any(|page| page.block.id == id(1))
+    );
     let operation = merge(&nb, &id(1), &id(2));
     apply(&mut nb, vec![operation]);
-    assert!(!nb.deleted_pages().unwrap().iter().any(|page| page.block.id == id(1)));
+    assert!(
+        !nb.deleted_pages()
+            .unwrap()
+            .iter()
+            .any(|page| page.block.id == id(1))
+    );
 }
 
 #[test]
@@ -366,7 +393,8 @@ fn merge_moves_live_subtrees_to_destination_end_with_identity_and_order() {
     let rows = nb.page(&id(2)).unwrap().rows;
     assert_eq!(rows[1].block.text, "Draft");
     assert_eq!(
-        rows.iter().skip(2)
+        rows.iter()
+            .skip(2)
             .map(|row| (row.block.id.clone(), row.depth))
             .collect::<Vec<_>>(),
         vec![
@@ -428,7 +456,8 @@ fn matching_field_rows_append_values_redirect_row_references_and_replay() {
     let rows = nb.page(&id(2)).unwrap().rows;
     assert_eq!(rows[1].block.text, "Draft");
     assert_eq!(
-        rows.iter().skip(2)
+        rows.iter()
+            .skip(2)
             .map(|row| (row.block.id.clone(), row.depth))
             .collect::<Vec<_>>(),
         vec![

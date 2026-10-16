@@ -102,7 +102,9 @@ impl Notebook {
     /// Retained page and journal deletions, newest first, including other windows.
     pub fn deleted_pages(&self) -> Result<Vec<DeletedPage>> {
         let mut statement = self.conn.prepare_cached(concat!(
-            "SELECT ", block_columns!("b"), ", b.deletion_id, d.created_at FROM blocks b
+            "SELECT ",
+            block_columns!("b"),
+            ", b.deletion_id, d.created_at FROM blocks b
              JOIN deletion_events d ON d.id = b.deletion_id
              JOIN changes c ON c.seq = d.change_seq
              WHERE b.parent_id IS NULL AND b.kind IN ('page', 'journal')
@@ -111,11 +113,15 @@ impl Notebook {
                  AND json_extract(operation.value, '$.id') = b.id)
              ORDER BY d.created_at DESC, d.change_seq DESC, b.id",
         ))?;
-        Ok(statement.query_map([], |row| Ok(DeletedPage {
-            block: block_at(row, 0)?,
-            deletion_id: row.get(10)?,
-            deleted_at: row.get(11)?,
-        }))?.collect::<rusqlite::Result<_>>()?)
+        Ok(statement
+            .query_map([], |row| {
+                Ok(DeletedPage {
+                    block: block_at(row, 0)?,
+                    deletion_id: row.get(10)?,
+                    deleted_at: row.get(11)?,
+                })
+            })?
+            .collect::<rusqlite::Result<_>>()?)
     }
 
     /// Read one live block, including an archived block.
@@ -333,7 +339,9 @@ impl Notebook {
         let mut rows = statement.query([crate::storage::title_key(title)])?;
         let page = rows.next()?.map(|row| block_at(row, 0)).transpose()?;
         if rows.next()?.is_some() {
-            return Err(crate::storage::validation(format!("ambiguous page title: {title}")));
+            return Err(crate::storage::validation(format!(
+                "ambiguous page title: {title}"
+            )));
         }
         Ok(page)
     }
@@ -479,7 +487,10 @@ impl Notebook {
                 .into_iter()
                 .filter(|hit| !seen.contains(hit.block.id.as_str()))
                 .take(limit - result.len())
-                .map(|hit| Completion { block: hit.block, alias: None })
+                .map(|hit| Completion {
+                    block: hit.block,
+                    alias: None,
+                })
                 .collect::<Vec<_>>();
             result.extend(additional);
             return Ok(result);
@@ -561,19 +572,30 @@ impl Notebook {
         if query.is_empty() || limit == 0 {
             return Ok(Vec::new());
         }
-        Ok(self.conn.prepare_cached(concat!(
-            hidden_blocks!(),
-            " SELECT ", block_columns!("b"), ", ", block_columns!("p"),
-            " FROM search_blocks s JOIN blocks b ON b.id = s.block_id
+        Ok(self
+            .conn
+            .prepare_cached(concat!(
+                hidden_blocks!(),
+                " SELECT ",
+                block_columns!("b"),
+                ", ",
+                block_columns!("p"),
+                " FROM search_blocks s JOIN blocks b ON b.id = s.block_id
               JOIN blocks p ON p.id = b.page_id
               WHERE instr(s.text, ?1) > 0 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
                 AND b.rowid NOT IN (SELECT rowid FROM hidden)
-                AND b.id NOT IN (", alias_values!(), ")
+                AND b.id NOT IN (",
+                alias_values!(),
+                ")
               ORDER BY CASE b.kind WHEN 'page' THEN 0 ELSE 1 END, b.id LIMIT ?2"
-        ))?.query_map(params![query, sql_limit(limit)], |row| Ok(BlockInPage {
-            block: block_at(row, 0)?,
-            page: block_at(row, 10)?,
-        }))?.collect::<rusqlite::Result<_>>()?)
+            ))?
+            .query_map(params![query, sql_limit(limit)], |row| {
+                Ok(BlockInPage {
+                    block: block_at(row, 0)?,
+                    page: block_at(row, 10)?,
+                })
+            })?
+            .collect::<rusqlite::Result<_>>()?)
     }
 
     /// Local editor arrival cursor. Hub sequence numbers may change on rebase.

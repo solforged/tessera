@@ -1015,17 +1015,16 @@ fn sort_value(
             match value {
                 Reading::Problem { .. } => return None,
                 Reading::Value { value, .. } => match value {
-                    ReadingValue::Text(text) => SortValue::Text(
-                        if field == "@title" {
-                            crate::aliases::fold(text)
-                        } else if definition.is_some_and(|definition| definition.kind == FieldKind::Date)
-                            && text.len() < 4
-                        {
-                            format!("{text:0>4}")
-                        } else {
-                            text.to_lowercase()
-                        },
-                    ),
+                    ReadingValue::Text(text) => SortValue::Text(if field == "@title" {
+                        crate::aliases::fold(text)
+                    } else if definition
+                        .is_some_and(|definition| definition.kind == FieldKind::Date)
+                        && text.len() < 4
+                    {
+                        format!("{text:0>4}")
+                    } else {
+                        text.to_lowercase()
+                    }),
                     ReadingValue::Number(n) => SortValue::Number(*n),
                     ReadingValue::Checkbox(b) => SortValue::Checkbox(*b),
                     ReadingValue::Span(span) => SortValue::Span(

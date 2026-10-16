@@ -1,5 +1,5 @@
-use rusqlite::{Connection, OptionalExtension};
 use caseless::Caseless;
+use rusqlite::{Connection, OptionalExtension};
 use unicode_normalization::UnicodeNormalization;
 
 use crate::{Block, BlockKind, Error, Result, Revision};
@@ -208,13 +208,20 @@ pub(crate) fn inline_code_spans(text: &str) -> impl Iterator<Item = std::ops::Ra
                 continue;
             }
             let url = |value: &str| {
-                value.get(..7).is_some_and(|prefix| prefix.eq_ignore_ascii_case("http://"))
-                    || value.get(..8).is_some_and(|prefix| prefix.eq_ignore_ascii_case("https://"))
+                value
+                    .get(..7)
+                    .is_some_and(|prefix| prefix.eq_ignore_ascii_case("http://"))
+                    || value
+                        .get(..8)
+                        .is_some_and(|prefix| prefix.eq_ignore_ascii_case("https://"))
             };
             if rest.starts_with('[') && !rest.starts_with("[[") {
                 if let Some(end) = rest.find("](") {
                     let label = &rest[1..end];
-                    if !label.is_empty() && !label.contains(['[', ']', '\r', '\n']) && url(&rest[end + 2..]) {
+                    if !label.is_empty()
+                        && !label.contains(['[', ']', '\r', '\n'])
+                        && url(&rest[end + 2..])
+                    {
                         cursor += end + 2;
                         let mut depth = 0;
                         while cursor < text.len() {
@@ -237,7 +244,9 @@ pub(crate) fn inline_code_spans(text: &str) -> impl Iterator<Item = std::ops::Ra
                 }
             }
             if url(rest) {
-                cursor += rest.find(|ch: char| ch.is_whitespace() || matches!(ch, '<' | '>' | '"' | '\'')).unwrap_or(rest.len());
+                cursor += rest
+                    .find(|ch: char| ch.is_whitespace() || matches!(ch, '<' | '>' | '"' | '\''))
+                    .unwrap_or(rest.len());
                 continue;
             }
             if rest.starts_with('`') {
@@ -247,7 +256,10 @@ pub(crate) fn inline_code_spans(text: &str) -> impl Iterator<Item = std::ops::Ra
                 let mut closing = opening_end;
                 while let Some(next) = text[closing..].find('`') {
                     closing += next;
-                    let count = text[closing..].bytes().take_while(|&byte| byte == b'`').count();
+                    let count = text[closing..]
+                        .bytes()
+                        .take_while(|&byte| byte == b'`')
+                        .count();
                     closing += count;
                     if count == width {
                         cursor = closing;
@@ -368,15 +380,11 @@ pub(crate) fn tag_tokens(text: &str) -> impl Iterator<Item = TagToken<'_>> {
                 }
             }
             cursor = start + 1;
-            if text[..start]
-                .chars()
-                .next_back()
-                .is_some_and(|ch| {
-                    ch.is_alphanumeric()
-                        || unicode_normalization::char::is_combining_mark(ch)
-                        || ch == '_'
-                })
-            {
+            if text[..start].chars().next_back().is_some_and(|ch| {
+                ch.is_alphanumeric()
+                    || unicode_normalization::char::is_combining_mark(ch)
+                    || ch == '_'
+            }) {
                 continue;
             }
             let rest = &text[cursor..];

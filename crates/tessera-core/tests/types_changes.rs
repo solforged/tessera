@@ -128,10 +128,20 @@ fn inline_code_never_creates_type_pages_and_removes_a_previously_active_tag() {
     let mut nb = Notebook::open(dir.path()).unwrap();
     apply(
         &mut nb,
-        vec![page(1, "Notes"), insert(10, 1, "`#CodeOnly`"), insert(11, 1, "#Active")],
+        vec![
+            page(1, "Notes"),
+            insert(10, 1, "`#CodeOnly`"),
+            insert(11, 1, "#Active"),
+        ],
     );
     assert!(nb.page_by_title("CodeOnly").unwrap().is_none());
-    assert!(nb.page(&id(1)).unwrap().targets.iter().all(|target| target.text != "CodeOnly"));
+    assert!(
+        nb.page(&id(1))
+            .unwrap()
+            .targets
+            .iter()
+            .all(|target| target.text != "CodeOnly")
+    );
     let active = nb.page_by_title("Active").unwrap().unwrap();
     assert_eq!(nb.members(&active.id, 10).unwrap().len(), 1);
     apply(&mut nb, vec![edit(11, 1, "`#Active`")]);

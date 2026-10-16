@@ -62,26 +62,40 @@ pub(crate) fn plan_alias(
     }
     let definitions = crate::fields::definitions(conn)?;
     let mut operations = Vec::new();
-    let field = if let Some(field) = definitions.iter().find(|field| field.name.eq_ignore_ascii_case("aliases")) {
+    let field = if let Some(field) = definitions
+        .iter()
+        .find(|field| field.name.eq_ignore_ascii_case("aliases"))
+    {
         field.id.clone()
     } else {
         let parent = crate::fields::page_id(conn)?
             .ok_or_else(|| validation("The Fields page is missing."))?;
-        let after = conn.query_row(
-            "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
+        let after = conn
+            .query_row(
+                "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
              ORDER BY ordinal DESC, id DESC LIMIT 1",
-            [&parent], |row| row.get(0),
-        ).optional()?;
+                [&parent],
+                |row| row.get(0),
+            )
+            .optional()?;
         let id = new_id();
         operations.push(Operation::Insert {
-            id: id.clone(), parent_id: parent, after, text: "aliases".into(), heading: None,
+            id: id.clone(),
+            parent_id: parent,
+            after,
+            text: "aliases".into(),
+            heading: None,
         });
         id
     };
-    let entries = conn.prepare_cached(
-        "SELECT id, text FROM blocks WHERE parent_id = ?1
+    let entries = conn
+        .prepare_cached(
+            "SELECT id, text FROM blocks WHERE parent_id = ?1
          AND deletion_id IS NULL AND archived = 0 ORDER BY ordinal, id",
-    )?.query_map([&page.id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
+        )?
+        .query_map([&page.id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
         .collect::<rusqlite::Result<Vec<_>>>()?;
     // Inspect the blocks themselves: merge may have moved values in this
     // transaction, before the field-value index is derived.
@@ -97,25 +111,45 @@ pub(crate) fn plan_alias(
             return Ok(Vec::new());
         }
     }
-    let entry = if let Some((id, _)) = entries.iter().find(|(_, text)| crate::fields::reference(text) == Some(field.as_str())) {
+    let entry = if let Some((id, _)) = entries
+        .iter()
+        .find(|(_, text)| crate::fields::reference(text) == Some(field.as_str()))
+    {
         id.clone()
     } else {
         let id = new_id();
-        let after = definitions.iter().find(|field| field.name.eq_ignore_ascii_case("gloss"))
-            .and_then(|gloss| entries.iter().find(|(_, text)| crate::fields::reference(text) == Some(gloss.id.as_str())))
+        let after = definitions
+            .iter()
+            .find(|field| field.name.eq_ignore_ascii_case("gloss"))
+            .and_then(|gloss| {
+                entries
+                    .iter()
+                    .find(|(_, text)| crate::fields::reference(text) == Some(gloss.id.as_str()))
+            })
             .map(|(id, _)| id.clone());
         operations.push(Operation::Insert {
-            id: id.clone(), parent_id: page.id.clone(), after, text: format!("[[{field}]]"), heading: None,
+            id: id.clone(),
+            parent_id: page.id.clone(),
+            after,
+            text: format!("[[{field}]]"),
+            heading: None,
         });
         id
     };
-    let after = conn.query_row(
-        "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
+    let after = conn
+        .query_row(
+            "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
          ORDER BY ordinal DESC, id DESC LIMIT 1",
-        [&entry], |row| row.get(0),
-    ).optional()?;
+            [&entry],
+            |row| row.get(0),
+        )
+        .optional()?;
     operations.push(Operation::Insert {
-        id: new_id(), parent_id: entry, after, text: name.into(), heading: None,
+        id: new_id(),
+        parent_id: entry,
+        after,
+        text: name.into(),
+        heading: None,
     });
     Ok(operations)
 }
@@ -211,7 +245,9 @@ impl Notebook {
         actor: Actor,
     ) -> Result<Option<Committed>> {
         let page = self.alias_page(page_id)?;
-        let operations = plan_alias(&self.conn, &page, name, || crate::notebook::new_ulid().to_string())?;
+        let operations = plan_alias(&self.conn, &page, name, || {
+            crate::notebook::new_ulid().to_string()
+        })?;
         if operations.is_empty() {
             return Ok(None);
         }

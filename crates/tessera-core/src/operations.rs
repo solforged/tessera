@@ -979,8 +979,8 @@ impl Engine<'_, '_> {
         if current.block.text == text {
             return Ok(());
         }
-        let title_key = (current.block.kind == BlockKind::Page)
-            .then(|| crate::storage::title_key(text));
+        let title_key =
+            (current.block.kind == BlockKind::Page).then(|| crate::storage::title_key(text));
         let old_key = title_key
             .as_ref()
             .map(|_| crate::storage::title_key(&current.block.text));
@@ -1096,7 +1096,8 @@ impl Engine<'_, '_> {
                     "UPDATE blocks SET deletion_id = NULL, ordinal = ?1, revision = revision + 1, updated_at = ?2 WHERE id = ?3",
                 )?.execute(params![ordinal, self.now, id])?;
                 if row.block.kind == BlockKind::Page {
-                    self.changed_titles.insert(crate::storage::title_key(&row.block.text));
+                    self.changed_titles
+                        .insert(crate::storage::title_key(&row.block.text));
                 }
                 self.touch(&id, revision + 1);
                 self.removed.remove(&id);
@@ -1475,7 +1476,12 @@ impl Engine<'_, '_> {
             &source.block.text,
             || {
                 next_id += 1;
-                derived_id(&["merge-alias", self.change_id, &source.block.id, &next_id.to_string()])
+                derived_id(&[
+                    "merge-alias",
+                    self.change_id,
+                    &source.block.id,
+                    &next_id.to_string(),
+                ])
             },
         )?;
         for operation in aliases {

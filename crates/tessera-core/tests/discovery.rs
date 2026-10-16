@@ -315,16 +315,28 @@ fn punctuation_and_emoji_search_match_literally_without_empty_alias_prefixes() {
             insert(12, 1, "hidden 👩🏽‍💻"),
         ],
     );
-    notebook.add_alias(&id(2), "Unrelated", Actor::Person).unwrap();
+    notebook
+        .add_alias(&id(2), "Unrelated", Actor::Person)
+        .unwrap();
     let operation = archive(&notebook, 12, true);
     apply(&mut notebook, vec![operation]);
     for (query, expected) in [("👩🏽‍💻", 10), ("_", 11), ("*", 11), ("\\", 11)] {
         assert_eq!(
-            notebook.search(query, 20).unwrap().iter().map(|hit| hit.block.id.clone()).collect::<Vec<_>>(),
+            notebook
+                .search(query, 20)
+                .unwrap()
+                .iter()
+                .map(|hit| hit.block.id.clone())
+                .collect::<Vec<_>>(),
             vec![id(expected)]
         );
         assert_eq!(
-            notebook.complete(query, 20).unwrap().iter().map(|hit| hit.block.id.clone()).collect::<Vec<_>>(),
+            notebook
+                .complete(query, 20)
+                .unwrap()
+                .iter()
+                .map(|hit| hit.block.id.clone())
+                .collect::<Vec<_>>(),
             vec![id(expected)]
         );
     }
@@ -342,21 +354,37 @@ fn page_identity_uses_canonical_unicode_case_folding_without_rewriting_titles() 
         ("ΟΣ", "οσ"),
         ("Straße", "STRASSE"),
         ("İstanbul", "i\u{307}stanbul"),
-    ].into_iter().enumerate() {
+    ]
+    .into_iter()
+    .enumerate()
+    {
         let value = index as u128 + 1;
         apply(&mut notebook, vec![page(value, title)]);
-        assert_eq!(notebook.page_by_title(equivalent).unwrap().unwrap().id, id(value));
-        assert_eq!(notebook.complete(equivalent, 20).unwrap()[0].block.id, id(value));
+        assert_eq!(
+            notebook.page_by_title(equivalent).unwrap().unwrap().id,
+            id(value)
+        );
+        assert_eq!(
+            notebook.complete(equivalent, 20).unwrap()[0].block.id,
+            id(value)
+        );
         assert_eq!(notebook.block(&id(value)).unwrap().text, title);
-        assert!(notebook.apply(&Batch {
-            actor: Actor::Person,
-            reason: None,
-            idempotency_key: None,
-            operations: vec![page(value + 100, equivalent)],
-        }).is_err());
+        assert!(
+            notebook
+                .apply(&Batch {
+                    actor: Actor::Person,
+                    reason: None,
+                    idempotency_key: None,
+                    operations: vec![page(value + 100, equivalent)],
+                })
+                .is_err()
+        );
     }
     assert!(notebook.page_by_title("cafe").unwrap().is_none());
     assert_eq!(notebook.page_by_title("ος").unwrap().unwrap().id, id(2));
-    apply(&mut notebook, vec![page(10, "Tags"), insert(11, 10, "member #[[οσ]]")]);
+    apply(
+        &mut notebook,
+        vec![page(10, "Tags"), insert(11, 10, "member #[[οσ]]")],
+    );
     assert_eq!(notebook.members(&id(2), 20).unwrap()[0].block.id, id(11));
 }

@@ -1316,8 +1316,12 @@ async fn resolve_name(
         .map(Json)
 }
 
-async fn deleted_pages(State(state): State<AppState>) -> Result<Json<Vec<tessera_core::DeletedPage>>, ApiError> {
-    run(&state, |notebook| notebook.deleted_pages()).await.map(Json)
+async fn deleted_pages(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<tessera_core::DeletedPage>>, ApiError> {
+    run(&state, |notebook| notebook.deleted_pages())
+        .await
+        .map(Json)
 }
 
 #[derive(Deserialize)]

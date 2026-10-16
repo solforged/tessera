@@ -495,7 +495,8 @@ impl<'a> Planner<'a> {
                 base_revision: revision,
                 fields,
             });
-            self.pages.insert(crate::storage::title_key(title), (id, revision + 1));
+            self.pages
+                .insert(crate::storage::title_key(title), (id, revision + 1));
         }
         for (label, _) in labels {
             if matches!(label, "author" | "editor" | "translator") {
@@ -506,7 +507,9 @@ impl<'a> Planner<'a> {
     }
     fn unique_title(&self, title: &str, disambiguator: &str) -> Result<String> {
         let available = |candidate: &str| -> Result<bool> {
-            Ok(!self.pages.contains_key(&crate::storage::title_key(candidate))
+            Ok(!self
+                .pages
+                .contains_key(&crate::storage::title_key(candidate))
                 && self.notebook.page_by_title(candidate)?.is_none())
         };
         if available(title)? {

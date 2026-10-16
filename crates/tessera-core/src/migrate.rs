@@ -442,14 +442,21 @@ mod tests {
     fn unicode_title_upgrade_preserves_legacy_collisions_and_membership_targets() {
         assert_eq!(caseless::UNICODE_VERSION, (16, 0, 0));
         let mut conn = Connection::open_in_memory().unwrap();
-        let previous_version = MIGRATIONS.iter().position(|sql| *sql == UNICODE_TITLE_KEYS).unwrap();
+        let previous_version = MIGRATIONS
+            .iter()
+            .position(|sql| *sql == UNICODE_TITLE_KEYS)
+            .unwrap();
         for sql in &MIGRATIONS[..previous_version] {
             conn.execute_batch(sql).unwrap();
         }
         let first = ulid::Ulid::from(1_u128).to_string();
         let second = ulid::Ulid::from(2_u128).to_string();
         let owner = ulid::Ulid::from(3_u128).to_string();
-        for (id, text) in [(&first, "café"), (&second, "cafe\u{301}"), (&owner, "Owner")] {
+        for (id, text) in [
+            (&first, "café"),
+            (&second, "cafe\u{301}"),
+            (&owner, "Owner"),
+        ] {
             conn.execute(
                 "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
                  VALUES (?1, 'page', ?1, 1024, ?2, ?3, 1, 0, 0)",
@@ -462,22 +469,39 @@ mod tests {
                 params![owner, title.to_lowercase(), id, title],
             ).unwrap();
         }
-        conn.pragma_update(None, "user_version", previous_version as u32).unwrap();
+        conn.pragma_update(None, "user_version", previous_version as u32)
+            .unwrap();
         migrate(&mut conn).unwrap();
-        conn.pragma_update(None, "user_version", previous_version as u32).unwrap();
+        conn.pragma_update(None, "user_version", previous_version as u32)
+            .unwrap();
         migrate(&mut conn).unwrap();
-        let titles = conn.prepare(
-            "SELECT id, text, title_key FROM blocks WHERE id IN (?1, ?2) ORDER BY id"
-        ).unwrap().query_map(params![first, second], |row| Ok((
-            row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?
-        ))).unwrap().collect::<rusqlite::Result<Vec<_>>>().unwrap();
-        assert_eq!(titles, vec![
-            (first.clone(), "café".into(), "café".into()),
-            (second.clone(), "cafe\u{301}".into(), "café".into()),
-        ]);
-        let targets = conn.prepare("SELECT type_id FROM memberships WHERE block_id = ?1 ORDER BY type_id")
-            .unwrap().query_map([owner], |row| row.get::<_, String>(0)).unwrap()
-            .collect::<rusqlite::Result<Vec<_>>>().unwrap();
+        let titles = conn
+            .prepare("SELECT id, text, title_key FROM blocks WHERE id IN (?1, ?2) ORDER BY id")
+            .unwrap()
+            .query_map(params![first, second], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap();
+        assert_eq!(
+            titles,
+            vec![
+                (first.clone(), "café".into(), "café".into()),
+                (second.clone(), "cafe\u{301}".into(), "café".into()),
+            ]
+        );
+        let targets = conn
+            .prepare("SELECT type_id FROM memberships WHERE block_id = ?1 ORDER BY type_id")
+            .unwrap()
+            .query_map([owner], |row| row.get::<_, String>(0))
+            .unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .unwrap();
         assert_eq!(targets, vec![first, second]);
         assert!(conn.execute(
             "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
