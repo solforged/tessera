@@ -468,7 +468,7 @@ const gistPrompt: Record<'type' | 'question' | 'project', (noun: string) => stri
 };
 
 /** Names a page, optionally with its gist, and files it under the kind in one acknowledged batch. Pages with a similar title are offered first, so an existing page is filed or opened instead of duplicated. */
-export function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'project'; anchor: HTMLElement; notebook: NotebookClient; members: ReadonlySet<string>; onDismiss(): void; onOpen(pageId: string, beside: boolean): void }) {
+export function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'project'; anchor: HTMLElement; notebook: NotebookClient; members: ReadonlySet<string>; onDismiss(): void; onCreated?(pageId: string): void; onOpen(pageId: string, beside: boolean): void }) {
   const [title, setTitle] = createSignal('');
   const [gist, setGist] = createSignal('');
   const [busy, setBusy] = createSignal(false);
@@ -506,6 +506,7 @@ export function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' |
             : [{ op: 'set_project' as const, id, base_revision: revision, project: { status: 'active' as const, outcome: '', deadline: null } }]),
       ];
       await props.notebook.commit(operations, `New ${noun}`);
+      if (!pageId) props.onCreated?.(id);
       props.onOpen(id, beside);
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { doc?.release(); setBusy(false); }

@@ -407,7 +407,8 @@ export interface NotebookClient {
   pageByTitle(title: string, create: boolean): Promise<string | null>;
   /** Permanently merge two pages after saving their pending edits; resolves after acknowledgement. */
   mergePage(from: string, into: string): Promise<void>;
-  deletePage(pageId: string): Promise<void>;
+  /** Retain local edit history when undoing creation, so redo can replay later edits after restoration. */
+  deletePage(pageId: string, options?: { retainHistory?: boolean }): Promise<void>;
   /** Restore a retained page deletion, including one from before reload or another window. */
   restorePage(pageId: string): Promise<void>;
   /**

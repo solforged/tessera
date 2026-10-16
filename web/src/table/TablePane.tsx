@@ -65,6 +65,7 @@ const refsColumn = '$refs';
 const membersLabel = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'member' : 'members'}`;
 
 type TableEdit = { kind: 'cell'; doc: PageDocument; rowId: string | null; fieldId: string | null }
+  | { kind: 'created-row'; pageId: string }
   | { kind: 'view'; before: View; after: View; revision: number };
 export function TablePane(props: TablePaneProps) {
   return <Show when={props.view.query.layout === 'desk'} fallback={<TableContent {...props} />}><DeskPane {...props} /></Show>;
@@ -696,6 +697,15 @@ function TableContent(props: TablePaneProps) {
           setSaved({ ...value, revision: entry.revision });
         }
         await refetchViews();
+      } else if (entry.kind === 'created-row') {
+        if (redo) await props.notebook.restorePage(entry.pageId);
+        else await props.notebook.deletePage(entry.pageId, { retainHistory: true });
+        setRowNotice(undefined);
+        await refreshCells();
+        const next = redo ? { rowId: entry.pageId, fieldId: null } : retainCell(focused(), navigableRows(), visibleColumns());
+        setFocused(next); setSelectedRow(next.rowId);
+        if (next.rowId) focusCell(next.rowId, next.fieldId);
+        else region.focus({ preventScroll: true });
       } else {
         redo ? entry.doc.redo() : entry.doc.undo();
         await entry.doc.flush();
@@ -871,7 +881,7 @@ function TableContent(props: TablePaneProps) {
     </Popup>}</Show>
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
-      {state.kind === 'new-row' && rowKind() && <NewKindNote kind={rowKind()!} mode="type" anchor={state.anchor} notebook={props.notebook} members={new Set((result()?.rows ?? []).filter(row => row.block.block.kind !== 'block').map(row => row.block.block.id))} onDismiss={() => setPopup(null)} onOpen={(id, beside) => { void revealNewRow(id, beside).catch(message); }} />}
+      {state.kind === 'new-row' && rowKind() && <NewKindNote kind={rowKind()!} mode="type" anchor={state.anchor} notebook={props.notebook} members={new Set((result()?.rows ?? []).filter(row => row.block.block.kind !== 'block').map(row => row.block.block.id))} onDismiss={() => setPopup(null)} onCreated={pageId => { history.push({ kind: 'created-row', pageId }); undone.length = 0; setViewUndo(false); setRowUndo(false); }} onOpen={(id, beside) => { void revealNewRow(id, beside).catch(message); }} />}
       {state.kind === 'delete-row' && <Popup anchor={state.anchor} placement={narrow() ? 'sheet' : 'anchor'} label={state.row.block.block.kind === 'block' ? 'Delete block' : 'Delete page'} onDismiss={() => { if (!deleting()) setPopup(null); }}>
         <p>Delete “{plainText(state.row.block.block.text, id => props.notebook.lookup(id))}” and all its {state.row.block.block.kind === 'block' ? 'children' : 'blocks'}?</p><p class="muted">You can undo this deletion.</p>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>

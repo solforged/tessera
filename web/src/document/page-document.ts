@@ -73,6 +73,8 @@ export class Document implements PageDocument {
   private historyVersion = createSignal(0);
   private historyNotice = createSignal('');
   private historyPending: Promise<void> | null = null;
+  /** Notebook-owned opt-in for a created page's temporary deletion during undo. */
+  retainHistoryOnDelete = false;
   historyMessage = this.historyNotice[0];
   private resolving = new Set<string>();
   private conflicts = new Set<string>();
@@ -110,8 +112,8 @@ export class Document implements PageDocument {
   saveMessage() { return this.host.message(this.pageId); }
   async flush() { await this.historyPending; await this.host.flushPage(this.pageId); }
   holdTag(id: string, typing: boolean) { this.host.holdTag(this.pageId, id, typing); }
-  canUndo() { this.historyVersion[0](); return !this.historyPending && this.undoStack.length > 0; }
-  canRedo() { this.historyVersion[0](); return !this.historyPending && this.redoStack.length > 0; }
+  canUndo() { this.historyVersion[0](); return this.status() === 'ready' && !this.historyPending && this.undoStack.length > 0; }
+  canRedo() { this.historyVersion[0](); return this.status() === 'ready' && !this.historyPending && this.redoStack.length > 0; }
   release() { this.host.release(this); }
   async reload(conflicts = true) {
     try {
@@ -145,10 +147,12 @@ export class Document implements PageDocument {
       this.conflicts.clear();
       this.resolving.clear();
       this.conflictVersion[1](value => value + 1);
-      this.undoStack = [];
-      this.redoStack = [];
-      this.historyCommands.clear();
-      this.guardHistories.clear();
+      if (!this.retainHistoryOnDelete) {
+        this.undoStack = [];
+        this.redoStack = [];
+        this.historyCommands.clear();
+        this.guardHistories.clear();
+      }
       this.historyVersion[1](value => value + 1);
       for (const id of ids) this.presenceChanged(id);
       this.host.publish(null, this.pageId);
@@ -804,7 +808,7 @@ export class Document implements PageDocument {
       }
       this.refreshPending(touched);
       if (command.actions.some(action => action.kind === 'delete' && action.id === this.pageId)) this.markMissing();
-      if (command.actions.some(action => action.kind === 'restore' && action.id === this.pageId)) { this.loadStatus[1]('ready'); this.loadMessage[1](''); }
+      if (command.actions.some(action => action.kind === 'restore' && action.id === this.pageId)) { this.retainHistoryOnDelete = false; this.loadStatus[1]('ready'); this.loadMessage[1](''); }
     });
   }
   private rememberHistory(command: Command, entry: HistoryEntry, undo: boolean, travel = false) {

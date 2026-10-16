@@ -2339,10 +2339,37 @@ describe('real notebook operations and recovery', () => {
     await instance.deletePage(id);
     expect(instance.roots().some(root => root.id === id)).toBe(false);
     expect(doc.status()).toBe('missing');
+    expect(doc.canUndo()).toBe(false);
+    expect(doc.canRedo()).toBe(false);
     await instance.restorePage(id);
     expect((await api.page(id)).rows.map(row => row.block.id)).toEqual([first]);
     expect(doc.status()).toBe('ready');
     expect(doc.block(first)?.text).toBe('keep this ID');
+  });
+
+  test('created-page undo retains later edit redo through deletion and restoration', async () => {
+    const instance = await client();
+    const { doc, id, first } = await page(instance, 'keep this child');
+    const original = doc.block(id)!.text;
+    const renamed = `${original} renamed`;
+    success(doc.edit({ kind: 'text', id, text: renamed }));
+    await doc.flush();
+    doc.undo();
+    await doc.flush();
+    expect(doc.block(id)?.text).toBe(original);
+    expect(doc.canRedo()).toBe(true);
+    await instance.deletePage(id, { retainHistory: true });
+    expect(doc.status()).toBe('missing');
+    expect(doc.canUndo()).toBe(false);
+    expect(doc.canRedo()).toBe(false);
+    await instance.restorePage(id);
+    expect(doc.canRedo()).toBe(true);
+    doc.redo();
+    await doc.flush();
+    expect((await api.page(id)).root.text).toBe(renamed);
+    expect((await api.page(id)).rows.map(row => row.block.id)).toEqual([first]);
+    expect(doc.block(first)?.text).toBe('keep this child');
+    doc.release();
   });
 
   test('tag-created pages enter the notebook cache and root list after acknowledgement', async () => {

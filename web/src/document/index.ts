@@ -1809,16 +1809,20 @@ export class Notebook implements NotebookClient, DocumentHost {
       destination_id: into, destination_revision: destination.revision,
     }]);
   }
-  async deletePage(pageId: string) {
+  async deletePage(pageId: string, options?: { retainHistory?: boolean }) {
     await this.ready;
     const doc = this.open(pageId) as Document;
     try {
       if (doc.status() !== 'ready') await doc.reload();
+      doc.retainHistoryOnDelete = options?.retainHistory ?? false;
       const action: Action = { kind: 'delete', id: pageId };
       const inverse = doc.apply(action);
       this.deletedPages.set(pageId, inverse[0]!);
       this.enqueue(doc, [action], inverse, null, null, false);
       await this.flush();
+    } catch (error) {
+      doc.retainHistoryOnDelete = false;
+      throw error;
     } finally { doc.release(); }
   }
   async restorePage(pageId: string) {
