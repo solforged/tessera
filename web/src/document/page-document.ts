@@ -5,7 +5,7 @@ import type { SetStoreFunction } from 'solid-js/store';
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
 import type { Batch, Block, BlockCapabilities, Committed, PageView, QuoteState, TextRewrite, WorkSession } from '../api/types';
-import type { BlockClipboard, BlockState, Caret, DocumentChange, Edit, EditResult, HistoryCaret, PageDocument, PasteRow, SaveState, SourceDetailsEdit, TextRange } from './contract';
+import type { BlockClipboard, BlockState, Caret, DocumentChange, Edit, EditResult, HistoryCaret, PageDocument, PasteRow, PendingTextCommit, SaveState, SourceDetailsEdit, TextRange } from './contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
 import { currentReading, emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
@@ -67,6 +67,7 @@ export class Document implements PageDocument {
   private loadMessage = createSignal('');
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
+  private textCommit: { entry?: HistoryEntry } | undefined;
   private historyCommands = new Map<string, { entry: HistoryEntry; undo: boolean; travel: boolean }>();
   private guardHistories = new Map<string, Set<HistoryEntry>>();
   private historyVersion = createSignal(0);
@@ -1013,6 +1014,30 @@ export class Document implements PageDocument {
       throw new Error('Unsupported source action.');
     }));
   }
+  beginTextCommit(write: (edit: PageDocument['edit']) => EditResult): PendingTextCommit {
+    const group: { entry?: HistoryEntry } = {};
+    let finished = false;
+    const apply = (edit: Edit, before?: HistoryCaret | null) => {
+      if (finished || group.entry && (!group.entry.applied || !group.entry.retained)) return { ok: false, reason: 'This cell commit is no longer active.' } as const;
+      const previous = this.textCommit;
+      this.textCommit = group;
+      try { return this.edit(edit, before); }
+      finally { this.textCommit = previous; }
+    };
+    const result = write(apply);
+    const id = result.ok ? result.caret?.id : undefined;
+    let expected = id ? this.block(id)?.text : undefined;
+    return {
+      result,
+      replace: text => {
+        if (!id || this.block(id)?.text !== expected) return { ok: false, reason: 'The cell changed elsewhere before its reference lookup finished.' };
+        const result = apply({ kind: 'text', id, text });
+        if (result.ok) expected = text;
+        return result;
+      },
+      finish: () => { finished = true; },
+    };
+  }
   edit(edit: Edit, caretBefore: HistoryCaret | null = null): EditResult {
     if (this.status() !== 'ready') return { ok: false, reason: 'This page is not ready.' };
     const actions: Action[] = [];
@@ -1766,11 +1791,11 @@ export class Document implements PageDocument {
       const selection = caretBefore?.selection;
       const treeMove = edit.kind === 'indent' || edit.kind === 'outdent' || edit.kind === 'move' || edit.kind === 'moveTo';
       const after: HistoryCaret | null = caret && treeMove && selection ? { ...caret, selection: { ...selection } } : caret;
-      const last = this.undoStack.at(-1);
+      const last = this.textCommit?.entry ?? this.undoStack.at(-1);
       const typing = edit.kind === 'text' && edit.heading === undefined
         ? { id: edit.id, group: edit.group }
         : edit.kind === 'replaceRange' && edit.mode === 'text' && edit.text && caret ? { id: caret.id } : undefined;
-      const textGroup = edit.kind === 'text' && typing && last?.typing?.id === typing.id
+      const textGroup = !!this.textCommit?.entry || !this.textCommit && edit.kind === 'text' && typing && last?.typing?.id === typing.id
         && last.typing.group === typing.group && Date.now() - this.lastTextEditAt < 1000;
       const command = this.host.enqueue(this, actions, inverse, before, after, !!textGroup);
       let entry: HistoryEntry;
@@ -1786,6 +1811,7 @@ export class Document implements PageDocument {
         entry.typing = typing;
       }
       else { entry = { forward: actions, inverse, before, after, commandId: command.id, commands: new Set(), applied: true, retained: true, typing }; this.undoStack.push(entry); }
+      if (this.textCommit) this.textCommit.entry = entry;
       this.rememberHistory(command, entry, false);
       this.lastTextEditAt = typing ? Date.now() : 0;
       const discarded = this.redoStack;

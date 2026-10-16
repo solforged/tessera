@@ -22,6 +22,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Kept deleted-holder names in perspective dossier headings and zoom breadcrumbs, including panes opened beside and restored after reload.
 - Kept unmatched inline backticks literal without suppressing following tags, references or typed triggers.
 - Kept tags and references inside inline code literal in server indexing and title resolution.
+- Kept accepted Compare cell drafts through reloads during slow reference lookups.
 - Made Unicode title-key upgrades safe to replay during notebook recovery.
 - Restored original row identities and order when undoing a paste over selected rows, including rows previously moved by cut and paste.
 - Preserved adjacent authored external links and their captions in table source registers.

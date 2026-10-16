@@ -1,6 +1,6 @@
 import { createMemo, createSignal, Match, Show, Switch } from 'solid-js';
 import type { FieldDefinition } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { Edit, NotebookClient, PageDocument } from '../document/contract';
 import { fieldEntryId } from '../table/query';
 import { DatePicker } from '../tasks/DatePicker';
 import { Icon } from '../ui/Icon';
@@ -11,14 +11,16 @@ import { choiceRows } from './value-options';
 import type { ChoiceRow } from './value-options';
 
 /** One value write for both outlines and tables. Blank readings keep their block. */
-export function writeFieldValue(doc: PageDocument, target: { field: FieldDefinition; ownerId: string; valueId?: string }, text: string) {
+export function writeFieldValue(doc: PageDocument, target: { field: FieldDefinition; ownerId: string; valueId?: string }, text: string, edit?: PageDocument['edit']) {
   let valueId = target.valueId;
   const entryId = valueId ? undefined : doc.outline.children(target.ownerId).find(id => !doc.isArchived(id) && fieldEntryId(doc.block(id)?.text ?? '') === target.field.id);
   if (entryId) valueId = doc.outline.children(entryId).find(id => !doc.isArchived(id) && !doc.block(id)?.text.trim());
   // A picker choice is a complete edit, not a keystroke to coalesce with the preceding value.
-  const result = valueId ? doc.edit({ kind: 'replaceRange', range: { anchor: { id: valueId, offset: 0 }, head: { id: valueId, offset: doc.block(valueId)?.text.length ?? 0 } }, between: [], mode: 'text', text }, { id: valueId, offset: 0 })
-    : entryId ? doc.edit({ kind: 'insert', parentId: entryId, after: doc.outline.children(entryId).at(-1) ?? null, text })
-    : doc.edit({ kind: 'addFieldEntries', parentId: target.ownerId, after: doc.outline.children(target.ownerId).at(-1) ?? null, entries: [{ fieldId: target.field.id, value: text }] });
+  const change: Edit = valueId ? { kind: 'replaceRange', range: { anchor: { id: valueId, offset: 0 }, head: { id: valueId, offset: doc.block(valueId)?.text.length ?? 0 } }, between: [], mode: 'text', text }
+    : entryId ? { kind: 'insert', parentId: entryId, after: doc.outline.children(entryId).at(-1) ?? null, text }
+    : { kind: 'addFieldEntries', parentId: target.ownerId, after: doc.outline.children(target.ownerId).at(-1) ?? null, entries: [{ fieldId: target.field.id, value: text }] };
+  const before = valueId ? { id: valueId, offset: 0 } : undefined;
+  const result = edit ? edit(change, before) : doc.edit(change, before);
   if (!result.ok) throw new Error(result.reason);
   return result;
 }

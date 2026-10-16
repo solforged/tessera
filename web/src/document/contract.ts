@@ -279,6 +279,13 @@ export type EditResult =
   | { ok: true; caret: Caret | null; created: string[] }
   | { ok: false; reason: string };
 
+/** A cell accepted before async name resolution: each replacement uses the normal durable outbox and one history entry. */
+export interface PendingTextCommit {
+  readonly result: EditResult;
+  replace(text: string): EditResult;
+  finish(): void;
+}
+
 /** Where undo or redo leaves the user: a caret, plus the text or row selection to restore if there was one. */
 export type HistoryCaret = Caret & { range?: TextRange; selection?: { anchor: string; head: string } };
 
@@ -317,6 +324,8 @@ export interface PageDocument {
 
   /** `caretBefore` is restored by undo. */
   edit(edit: Edit, caretBefore?: HistoryCaret | null): EditResult;
+  /** Accept authored text now, then amend that same undoable commit until its async work finishes. */
+  beginTextCommit(write: (edit: PageDocument['edit']) => EditResult): PendingTextCommit;
   /** Attach an acknowledged cross-page change to this pane's undo/redo history. */
   rememberChange(change: DocumentChange): DocumentChange;
   /** Renames a page. Journal titles cannot change. */

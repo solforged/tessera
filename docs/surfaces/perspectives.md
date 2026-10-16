@@ -126,7 +126,7 @@ Choice and Relation cells use the field bed's option and relation pickers, writi
 
 Span and other text cells use the outline's CodeMirror block editor, including paired references, completion, Unicode and composition. Spans keep their written historical notation. Enter commits, Shift-Enter adds a newline and Escape cancels. Saving resolves hand-typed `[[Title]]` references by title or alias, retaining the authored spelling, as in the outline. Shared names stay unlinked rather than choosing a page.
 
-Text accepted while a hand-typed reference is resolving remains part of the cell's commit, including references added during that lookup.
+Text accepted while a hand-typed reference is resolving remains part of the cell's commit, including references added during that lookup. Enter puts the literal authored value in the notebook's durable outbox before resolving names, and accepted edits during resolution update that same page-history entry. Reloading during the lookup recovers or commits the literal value rather than losing it; a later edit can finish resolving its references.
 
 A whole-cell `((` choice captures the same frozen quote as the outline, with `((ID))` text and dated Quote attribution. Inline `((` inserts a live reference. Quote text, snapshot and any missing field structure commit together; undo and redo preserve the snapshot.
 

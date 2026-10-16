@@ -1403,6 +1403,48 @@ describe('real notebook operations and recovery', () => {
     doc.release();
   });
 
+  test('a pending cell keeps its field creation and later normalization in one undo entry across other edits', async () => {
+    const instance = await client();
+    const fields = await api.fields(), register = instance.open(fields.page_id);
+    await eventually(() => register.status() === 'ready', register.statusMessage());
+    const field = success(register.edit({ kind: 'addField', name: `Pending cell ${++serial}`, value: 'text' })).created[0]!;
+    await instance.flush();
+    const { id, doc, first } = await page(instance, 'owner');
+    const pending = doc.beginTextCommit(edit => edit({ kind: 'addFieldEntries', parentId: first, after: null, entries: [{ fieldId: field, value: '[[Title]]' }] }));
+    const value = success(pending.result).caret!.id;
+    success(pending.replace('[[Title]] accepted'));
+    await instance.flush();
+    success(doc.edit({ kind: 'text', id: first, text: 'unrelated edit' }));
+    await instance.flush();
+    success(pending.replace(`[[${id}|Title]] accepted`));
+    pending.finish();
+    await instance.flush();
+    expect((await api.block(value)).text).toBe(`[[${id}|Title]] accepted`);
+    doc.undo();
+    await instance.flush();
+    expect((await api.block(first)).text).toBe('owner');
+    expect(doc.block(value)?.text).toBe(`[[${id}|Title]] accepted`);
+    doc.undo();
+    await instance.flush();
+    expect(doc.outline.children(first)).toEqual([]);
+    doc.redo();
+    await instance.flush();
+    expect(doc.block(value)?.text).toBe(`[[${id}|Title]] accepted`);
+    expect(pending.replace('too late').ok).toBe(false);
+    doc.release(); register.release();
+  });
+
+  test('pending text normalization refuses to overwrite a later edit to its value', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'saved');
+    const pending = doc.beginTextCommit(edit => edit({ kind: 'text', id: first, text: '[[Title]]' }));
+    success(pending.result);
+    success(doc.edit({ kind: 'text', id: first, text: 'changed elsewhere' }));
+    expect(pending.replace('resolved').ok).toBe(false);
+    expect(doc.block(first)?.text).toBe('changed elsewhere');
+    pending.finish(); doc.release();
+  });
+
   test('distinct Vim command groups never coalesce even before either command saves', async () => {
     const instance = await client();
     const { doc, first, id } = await page(instance, 'LineOne\nLineTwo\nLineThree');
@@ -1917,6 +1959,27 @@ describe('real notebook operations and recovery', () => {
       await recovered.flush();
       expect((await api.block(first)).text).toBe('queued offline');
       expect(recovered.queuedChanges()).toBe(0);
+    } finally { globalThis.fetch = actualFetch; }
+  });
+
+  test('reload recovers accepted pending cell text and suffixes through the ordinary outbox', async () => {
+    const session = `pending-cell-${++serial}`, instance = await client(session);
+    const { id, doc, first } = await page(instance, 'saved');
+    globalThis.fetch = Object.assign(async (_input: RequestInfo | URL, _init?: RequestInit): Promise<Response> => { throw new TypeError('Offline'); }, { preconnect: actualFetch.preconnect });
+    try {
+      const pending = doc.beginTextCommit(edit => edit({ kind: 'replaceRange', range: { anchor: { id: first, offset: 0 }, head: { id: first, offset: 5 } }, between: [], mode: 'text', text: '[[Title]]' }));
+      success(pending.result);
+      success(pending.replace('[[Title]] visible before reload'));
+      await instance.flush();
+      await instance.dispose();
+      const recovered = await client(session), reopened = recovered.open(id);
+      await eventually(() => reopened.status() === 'ready', 'pending cell did not recover');
+      expect(reopened.block(first)?.text).toBe('[[Title]] visible before reload');
+      globalThis.fetch = actualFetch;
+      recovered.retry();
+      await recovered.flush();
+      expect((await api.block(first)).text).toBe('[[Title]] visible before reload');
+      reopened.release();
     } finally { globalThis.fetch = actualFetch; }
   });
 
