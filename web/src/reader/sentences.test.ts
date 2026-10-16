@@ -20,6 +20,18 @@ describe('reader sentences', () => {
     expect(sentenceRanges(text)).toEqual([{ start: 2, end: 17 }, { start: 20, end: 36 }]);
     expect(sentenceRanges(' \n\t ')).toEqual([]);
   });
+  test('keeps a leading paragraph numeral with the opening prose sentence', () => {
+    const text = '  XXIV. Remember what is in thy power. Leave the rest.';
+    const ranges = sentenceRanges(text);
+    expect(ranges.map(range => text.slice(range.start, range.end))).toEqual(['XXIV. Remember what is in thy power.', 'Leave the rest.']);
+    expect(sentenceAt(text, 2)).toEqual(ranges[0]!);
+    const numbered = [{ ...passages[0]!, text }];
+    const selection = { start: { passage_id: 'p0', offset: 2 }, end: { passage_id: 'p0', offset: ranges[0]!.end } };
+    expect(shrinkSelection(extendSelection(selection, numbered), numbered)).toEqual(selection);
+    expect(shrinkSelection(selection, numbered)).toBe(selection);
+    expect(sentenceRanges('XIII.')).toEqual([{ start: 0, end: 5 }]);
+    expect(sentenceRanges('I remember. Another thought.')).toHaveLength(2);
+  });
   test('finds a sentence at UTF-16 offsets and chooses the next sentence in a gap', () => {
     const text = passages[3]!.text;
     expect(sentenceAt(text, 6)).toEqual({ start: 0, end: 17 });

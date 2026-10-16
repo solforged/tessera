@@ -28,6 +28,11 @@ export function sentenceRanges(text: string): SentenceRange[] {
     }
     append(start, text.length);
   }
+  // A numbered paragraph's opening marker belongs to its prose, not to a sentence of its own.
+  if (ranges.length > 1 && /^(?:[IVXLCDM]+|\d+)[.)]$/u.test(text.slice(ranges[0]!.start, ranges[0]!.end))) {
+    ranges[1]!.start = ranges[0]!.start;
+    ranges.shift();
+  }
   return ranges;
 }
 

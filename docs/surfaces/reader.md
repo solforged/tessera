@@ -15,7 +15,7 @@ One toolbar line sits at the reading measure and spans the spread in [Pages](#pa
 3. Find in source.
 4. `Aa`, for reader settings.
 5. Full screen.
-6. An actions menu: Open source page, then every reader shortcut with its key.
+6. An actions menu: Open source page, then reader shortcuts with their keys, including the five highlight colors and page-turn keys in Pages. Commands that need a selection say so.
 
 Progress sits at the foot, under the text. The [book map](#book-map) sits above one mono line: the chapter's numeral and italic title, its time left, and `N% · time left in the book` at the right. The last item opens the [progress card](#progress-card). The chapter name is absent in front matter and in a foot narrower than 460 px, where the toolbar names it. In Pages, the foot spans the spread as the toolbar does.
 
@@ -160,7 +160,7 @@ The foot line adds `p. N of M` within the chapter after the chapter's time left.
 | Input | Behavior |
 | --- | --- |
 | Mouse | Previous and next arrows in `--faint` sit at the page edges, 8 px outside the text and gilt on hover, hidden at the first and last page of the book. The mouse wheel turns pages. |
-| Keyboard | Arrow keys, Page Up and Down, Space and Shift+Space back turn pages. |
+| Keyboard | Left/Right arrows, Page Up and Down, Space and Shift+Space back turn pages when focus is outside an interactive control. Up/Down retain their normal scrolling behavior in Scroll layout. |
 | Touch drag | A finger carries the page sideways and the next one follows it in. A drag past a quarter of the page or a flick turns it; a shorter one springs back. At the book's first or last page the page only gives a little. |
 | Touch tap | A tap in the outer sixth of the page turns it, unless it lands on a highlight, link or button. The edge arrows are left out. |
 
@@ -207,6 +207,8 @@ Selecting text shows a small toolbar beside the selection, centered on it and be
 
 An empty note does not mark the highlight processed. On touch, Highlight and note opens the [note sheet](#highlight-and-note-sheet) instead.
 
+Select sentence (`S`) includes a leading paragraph number, such as `XXIV.`, with the opening prose sentence. The number is not a sentence of its own.
+
 ### Highlight ink and interaction
 
 Highlights are ink, not boxes. A band of their color sits under the lower half of each line, from 55% to 92% of the line box, and is cloned onto every line. On the midnight canvas the band is that hue at lightness 0.54 with its chroma raised by a quarter, so the color can be named; on vellum it is the same hue at lightness 0.90. Without a color, a neutral 26% `--text` band is used. Capitals and ascenders keep the canvas and neighboring lines stay apart.
@@ -244,7 +246,9 @@ On a touch screen, Highlight and note keeps the passage in view instead of openi
 
 Below, on `--surface`, sit "A thought on this passage" with one way back beside it, the note field and the save state in `--muted`.
 
-The note is the highlight's child block and saves as it is typed. The button reads Back to reading while the note is empty and becomes a gilt Keep note once there is text; Escape does the same. Leaving with nothing typed removes the empty note; the highlight stays.
+The note is the highlight's child block and saves as it is typed. The button reads Back to reading while the note is empty and becomes a gilt Keep note once there is text; Escape, Android Back after the keyboard closes, and browser Back do the same. Back closes the sheet before leaving reader full screen. Leaving with nothing typed removes the empty note; the highlight stays.
+
+The sheet contains keyboard focus and makes the reader behind it inert. Tab and Shift+Tab cycle between the note field and its button. Closing restores focus to the initiating control, or the reader if that control has gone.
 
 When the keyboard takes room, the passage scrolls so the whole quotation and as much of the lead-in as fits stay visible, and the byline goes.
 

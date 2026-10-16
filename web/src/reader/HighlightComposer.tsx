@@ -1,4 +1,4 @@
-import { Show, createSignal, onCleanup, onMount } from 'solid-js';
+import { Show, createSignal, createUniqueId, onCleanup, onMount } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import type { NotebookClient } from '../document/contract';
 import { formatProgress } from '../library/query';
@@ -28,8 +28,18 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
   const [ready, setReady] = createSignal(false);
   const [closing, setClosing] = createSignal(false);
   const [error, setError] = createSignal('');
-  let input!: HTMLTextAreaElement, context!: HTMLElement, quote!: HTMLQuoteElement, root!: HTMLDivElement;
+  let input!: HTMLTextAreaElement, context!: HTMLElement, quote!: HTMLQuoteElement, root!: HTMLDialogElement;
   let disposed = false;
+  const historyKey = createUniqueId();
+  const prior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const reader = document.querySelector<HTMLElement>('.pane.active .reader-scroll');
+  let historyOwned = false;
+  const historyMoved = (event: PopStateEvent) => {
+    if (!historyOwned || event.state?.tesseraComposer === historyKey) return;
+    historyOwned = false;
+    event.stopImmediatePropagation();
+    void close();
+  };
   const failed = (reason: unknown) => { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); };
   /** The whole quotation and as much of the lead-in as fits; the sentence after it scrolls into view. */
   const fit = () => {
@@ -39,6 +49,17 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
   };
 
   onMount(() => {
+    root.showModal();
+    history.pushState({ ...history.state, tesseraComposer: historyKey }, '');
+    historyOwned = true;
+    window.addEventListener('popstate', historyMoved, true);
+    onCleanup(() => {
+      window.removeEventListener('popstate', historyMoved, true);
+      if (historyOwned && history.state?.tesseraComposer === historyKey) history.back();
+      root.close();
+      const target = prior?.isConnected && prior !== document.body ? prior : reader;
+      if (target?.isConnected && !target.closest('[inert]')) target.focus({ preventScroll: true });
+    });
     const observer = new ResizeObserver(fit);
     observer.observe(context);
     onCleanup(() => observer.disconnect());
@@ -72,12 +93,28 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
       root.classList.add('reader-compose-leaving');
       await root.getAnimations().find(animation => animation instanceof CSSAnimation && animation.animationName === 'fade-out')?.finished.catch(() => undefined);
       if (!disposed) props.onClose();
-    } catch (reason) { failed(reason); setClosing(false); }
+    } catch (reason) {
+      failed(reason); setClosing(false);
+      if (!historyOwned) {
+        history.pushState({ ...history.state, tesseraComposer: historyKey }, '');
+        historyOwned = true;
+      }
+    }
   }
 
   const status = () => error() || (ready() ? doc.saveMessage() : 'Loading…');
-  return <Portal><div ref={root} class="reader-compose" style={readerStyle()} role="dialog" aria-modal="true" aria-label="Note on this passage"
-    onKeyDown={event => { if (event.key === 'Escape' && !event.isComposing) { event.preventDefault(); void close(); } }}>
+  return <Portal><dialog ref={root} class="reader-compose" style={readerStyle()} aria-label="Note on this passage"
+    onCancel={event => { event.preventDefault(); void close(); }}
+    onKeyDown={event => {
+      if (event.isComposing) return;
+      if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); void close(); }
+      else if (event.key === 'Tab') {
+        const controls = [...root.querySelectorAll<HTMLElement>('button:not(:disabled), textarea:not(:disabled)')];
+        const index = controls.indexOf(document.activeElement as HTMLElement);
+        event.preventDefault();
+        controls[(index + (event.shiftKey ? -1 : 1) + controls.length) % controls.length]?.focus();
+      }
+    }}>
     <header class="reader-compose-header">
       <h2>{props.draft.title}</h2>
       <Show when={props.draft.byline}><p>{props.draft.byline}</p></Show>
@@ -99,5 +136,5 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
         value={text()} onInput={event => write(event.currentTarget.value)} />
       <p class="reader-compose-status" role="status" classList={{ error: !!error() }}>{status()}</p>
     </section>
-  </div></Portal>;
+  </dialog></Portal>;
 }

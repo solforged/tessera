@@ -999,10 +999,10 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   function readerKeyBlocked(event: KeyboardEvent, shifted = false) {
-    if (!props.active || loading() || popup() || editing() || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return true;
+    if (!props.active || loading() || popup() || composing() || editing() || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return true;
     if (event.shiftKey && !shifted && event.key !== '{' && event.key !== '}') return true;
     const target = event.target;
-    return target instanceof Element && (!!target.closest('input, textarea') || target instanceof HTMLElement && target.isContentEditable);
+    return target instanceof Element && (!!target.closest('button, a[href], input, textarea, select, summary, [role="button"], [role="link"], [role="menuitem"]') || target instanceof HTMLElement && target.isContentEditable);
   }
 
   function visibleCursor() {
@@ -1102,7 +1102,13 @@ export function ReaderPane(props: ReaderPaneProps) {
       { label: 'Shrink by passage', shortcut: '{', disabledReason: needsSelection, action: () => { void resizeSelection(false, 'passage'); } },
       { label: 'Highlight', shortcut: 'H', disabledReason: needsSelection, action: () => { void highlight(false); } },
       { label: 'Highlight and note', shortcut: 'N', disabledReason: needsSelection, action: () => { void highlight(true); } },
-      { label: props.immersive ? 'Exit full screen' : 'Full screen', shortcut: 'F', action: () => props.onImmersive(!props.immersive) },
+      { label: 'Highlight color', shortcut: '1–5', submenu: () => ({ title: 'Highlight color', items: highlightColors.map((color, index): MenuItem => ({ label: color[0]!.toUpperCase() + color.slice(1), shortcut: String(index + 1), disabledReason: needsSelection, action: () => { void highlight(false, color); } })) }) },
+      { label: 'Clear selection', shortcut: 'Esc', disabledReason: needsSelection, action: () => { keyboardVersion++; setSelection(null); window.getSelection()?.removeAllRanges(); } },
+      ...(paged() ? [
+        { label: 'Next page', section: 'Pages', shortcut: '→ / Page Down / Space', action: () => { void turn(1); } },
+        { label: 'Previous page', shortcut: '← / Page Up / Shift+Space', action: () => { void turn(-1); } },
+      ] : []),
+      { label: props.immersive ? 'Exit full screen' : 'Full screen', shortcut: props.immersive ? 'F / Esc' : 'F', action: () => props.onImmersive(!props.immersive) },
     ];
   });
   const trackBeside = (event: KeyboardEvent) => { besidePressed = opensBeside(event); };
@@ -1110,7 +1116,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const pointerDown = (event: PointerEvent) => { besidePressed = opensBeside(event); dismissingTap = !!popup() || window.getSelection()?.isCollapsed === false; };
 
   const readerKey = (event: KeyboardEvent) => {
-    if (props.active && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z' && !(event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]'))) {
+    if (props.active && !composing() && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z' && !(event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]'))) {
       event.preventDefault(); event.stopImmediatePropagation();
       if (event.shiftKey) readerDocument.redo(); else readerDocument.undo();
       void readerDocument.flush().catch(reason => setError(String(reason)));
@@ -1431,7 +1437,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={state().kind === 'progress'}><ProgressCard anchor={state().anchor} sheet={coverReading()} chapters={mapChapters()} length={currentSnapshot()?.text_length ?? 0} at={here()} highlights={marks()}
         added={source()?.source.added_at ?? null} onDismiss={() => setPopup(null)}
         onJump={chapter => { const entry = contents().find(value => value.start === chapter.start && value.ordinal !== null); if (entry) void openSection(entry); else setPopup(null); }} /></Show>
-      <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" title="Reader actions" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} label="Contents" placeholder="Find a section" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={Math.max(0, toc().indexOf(currentSection()!))}
         row={entry => <span class="reader-toc-entry" aria-current={entry === currentSection() ? 'true' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}><span class="reader-toc-check"><Show when={entry === currentSection()}><Icon name="check" /></Show></span><span>{entry.title}</span></span>}
         onPick={entry => { void openSection(entry); }} empty="No sections" onDismiss={() => setPopup(null)} /></Show>
