@@ -6,8 +6,7 @@ import { besideHint, opensBeside } from '../shell/beside';
 import { BlockText } from '../outline/BlockText';
 import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
-import { exactRepeats } from './criteria';
-import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
+import { exactRepeats, linkedCriteriaDraft } from './criteria';
 import { CriteriaCellEditor } from './CriteriaCellEditor';
 import { quoteTarget } from '../document/text-tokens';
 import { Quote, createQuoteStatus } from '../outline/Quote';
@@ -56,10 +55,12 @@ export function CriteriaMatrix(props: {
     if (!doc || doc.status() !== 'ready') { setError('The perspective is still loading.'); return; }
     if (!field) { setError('The criterion is still loading.'); return; }
     if (!current.value && !textDraft.trim() && !option) { finishEditing(cell); return; }
+    current.text = textDraft;
     setSaving(true);
     try {
-      const text = option ? '' : withLinkedTitles(textDraft, await titleTargets(props.notebook, typedTitles(textDraft)));
+      const text = option ? '' : await linkedCriteriaDraft(props.notebook, textDraft, () => current.text);
       if (editing() !== current) return;
+      if (quote && quoteTarget(text) !== quote.target_id) quote = undefined;
       if (!option && current.value && doc.block(current.value)?.text === text && !quote) { finishEditing(cell); return; }
       if (option) await createOptionValue(props.notebook, doc, { field, ownerId: current.position, valueId: current.value ?? undefined }, option);
       else if (quote) {
@@ -117,7 +118,7 @@ export function CriteriaMatrix(props: {
         <Switch>
           <Match when={field()?.kind === 'checkbox'}><span class="criteria-hint" role="status">Saving…</span></Match>
           <Match when={hasValueEditor(field(), edit().text, props.notebook.todayDate())}><ValueEditor anchor={cell} field={field()!} text={edit().text} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={text => commit(text, cell)} onCreateOption={text => commit('', cell, undefined, text)} onError={setError} onDismiss={() => finishEditing(cell)} /></Match>
-          <Match when={true}><CriteriaCellEditor id={edit().value ?? edit().position} text={edit().text} label={`Edit ${fieldName(cellProps.field)} · ${props.holder(rowById().get(cellProps.id)!)}`} notebook={props.notebook} onCommit={(text, restoreFocus, quote) => void commit(text, restoreFocus ? cell : undefined, quote)} onCancel={() => finishEditing(cell)} /></Match>
+          <Match when={true}><CriteriaCellEditor id={edit().value ?? edit().position} text={edit().text} label={`Edit ${fieldName(cellProps.field)} · ${props.holder(rowById().get(cellProps.id)!)}`} notebook={props.notebook} onChange={text => { edit().text = text; }} onCommit={(text, restoreFocus, quote) => void commit(text, restoreFocus ? cell : undefined, quote)} onCancel={() => finishEditing(cell)} /></Match>
         </Switch>
       </>}</Show>
     </div><Show when={repeat()}>{mark => <span class="criteria-exact">≡ {mark().number} · exact repeat</span>}</Show></td>;

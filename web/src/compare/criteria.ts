@@ -1,3 +1,22 @@
+import type { NotebookClient } from '../document/contract';
+import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
+
+/** Keep accepting the live draft while resolving names, including names added during the lookup. */
+export async function linkedCriteriaDraft(notebook: NotebookClient, initial: string, latest: () => string): Promise<string> {
+  let draft = initial;
+  const resolved = new Set<string>(), targets = new Map<string, string>();
+  for (;;) {
+    const titles = typedTitles(draft).filter(title => !resolved.has(title));
+    if (titles.length) {
+      for (const [name, id] of await titleTargets(notebook, titles)) targets.set(name, id);
+      for (const title of titles) resolved.add(title);
+    }
+    const current = latest();
+    if (current === draft) return withLinkedTitles(draft, targets);
+    draft = current;
+  }
+}
+
 export interface ExactRepeat { number: number; criterion: string; text: string; positions: string[] }
 
 /** Equality is only trimmed authored text, never a claim about agreement. Empty cells do not repeat. */

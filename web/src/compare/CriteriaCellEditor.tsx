@@ -16,6 +16,7 @@ export function CriteriaCellEditor(props: {
   id: string; text: string; label: string; notebook: NotebookClient;
   onCommit(text: string, restoreFocus: boolean, quote?: QuoteState): void; onCancel(): void;
   onTab?(text: string, direction: -1 | 1, quote?: QuoteState): void;
+  onChange?(text: string): void;
 }) {
   let host!: HTMLDivElement;
   let editor: PaneEditor;
@@ -63,7 +64,7 @@ export function CriteriaCellEditor(props: {
   }
   onMount(() => {
     editor = new PaneEditor({
-      text: (text, caret) => updateCompletion(text, caret.offset),
+      text: (text, caret) => { props.onChange?.(text); updateCompletion(text, caret.offset); },
       input: () => false,
       label: id => { const target = props.notebook.lookup(id)(); return target ? plainText(target.text, reference => props.notebook.lookup(reference)) : undefined; },
       selection: caret => updateCompletion(editor.view.state.doc.toString(), caret.offset),

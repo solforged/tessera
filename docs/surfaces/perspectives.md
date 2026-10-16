@@ -122,6 +122,8 @@ Choice and Relation cells use the field bed's option and relation pickers, writi
 
 Span and other text cells use the outline's CodeMirror block editor, including paired references, completion, Unicode and composition. Spans keep their written historical notation. Enter commits, Shift-Enter adds a newline and Escape cancels. Saving resolves hand-typed `[[Title]]` references by title or alias, retaining the authored spelling, as in the outline. Shared names stay unlinked rather than choosing a page.
 
+Text accepted while a hand-typed reference is resolving remains part of the cell's commit, including references added during that lookup.
+
 A whole-cell `((` choice captures the same frozen quote as the outline, with `((ID))` text and dated Quote attribution. Inline `((` inserts a live reference. Quote text, snapshot and any missing field structure commit together; undo and redo preserve the snapshot.
 
 Draft undo and redo remain inside the open cell until commit. A committed edit belongs to the perspective's shared page history, so sheet undo and page undo operate on the same change. The sheet routes undo to the last edited page, not a private edit stack.
