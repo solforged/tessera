@@ -298,6 +298,8 @@ Settings opens from the Tessera menu. File offers New Page, Open Today, Import B
 
 Outline content is at most 760 px, centered, so a note's title sits where every other screen's title does. A gutter of two pointer targets (48 px, 64 px on touch) hangs left of it for row controls. Panes share the width; text never shrinks to fit.
 
+Visual indentation stops at eight levels or one quarter of the pane's content width, whichever is smaller, so deeply nested text retains a readable measure. Ancestor threads and field slots share that cap; stored depth, row accessibility levels, folding and zoom keep the full hierarchy.
+
 ### Find or create
 
 One picker searches pages, blocks, highlight quotations and authored text or tags, and the passages inside books; a leading `>` switches to commands. Everything, Highlights, Books and Pages chips filter grouped results under mono headings and live counts, in this order:

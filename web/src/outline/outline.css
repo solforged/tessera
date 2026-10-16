@@ -77,7 +77,8 @@
 .outline-dragging, .outline-dragging * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
 .outline-motion-group { position: absolute; inset: 0; pointer-events: none; }
 .outline-motion-group > .outline-row { pointer-events: auto; }
-.outline-row { display: flex; align-items: flex-start; position: absolute; top: 0; left: 0; right: 0; min-height: var(--row-height); padding-block: var(--space-2); padding-left: calc(var(--depth) * var(--indent-width)); border-left: 2px solid transparent; border-radius: var(--radius-control); transition: background-color var(--motion-fast) var(--motion-ease); }
+/* Indentation is a reading aid, not a depth limit: deep rows retain the text measure. */
+.outline-row { --indent-limit: min(calc(8 * var(--indent-width)), 25cqi); --row-indent: min(calc(var(--depth) * var(--indent-width)), var(--indent-limit)); display: flex; align-items: flex-start; position: absolute; top: 0; left: 0; right: 0; min-height: var(--row-height); padding-block: var(--space-2); padding-left: var(--row-indent); border-left: 2px solid transparent; border-radius: var(--radius-control); transition: background-color var(--motion-fast) var(--motion-ease); }
 .outline-row:hover { background: var(--hover); }
 .outline-row:is(.row-selected, .row-covered) { background: var(--selection); border-left-color: var(--accent); }
 .outline-row .icon-button { width: var(--target-size); height: var(--target-size); min-width: var(--target-size); padding: var(--space-4); flex: none; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--faint); display: inline-flex; align-items: center; justify-content: center; transition: color var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease); }
@@ -99,7 +100,7 @@
    their marker, since it is the only sign of hidden children. */
 [data-page-style="prose"] .row-bullet:not(.bullet-collapsed) { opacity: 0; }
 [data-page-style="prose"] .outline-row:is(:hover, .row-selected) .row-bullet { opacity: 1; }
-[data-page-style="prose"] .outline-row::before { content: ''; position: absolute; top: 0; bottom: 0; left: calc(2.5 * var(--target-size)); width: calc((var(--depth) - 1) * var(--indent-width) + var(--rule-width)); background: repeating-linear-gradient(to right, var(--line) 0 var(--rule-width), transparent var(--rule-width) var(--indent-width)); pointer-events: none; }
+[data-page-style="prose"] .outline-row::before { content: ''; position: absolute; top: 0; bottom: 0; left: calc(2.5 * var(--target-size)); width: max(0px, calc(min(calc((var(--depth) - 1) * var(--indent-width)), calc(var(--indent-limit) - var(--indent-width))) + var(--rule-width))); background: repeating-linear-gradient(to right, var(--line) 0 var(--rule-width), transparent var(--rule-width) var(--indent-width)); pointer-events: none; }
 .outline-body { min-width: 0; flex: 1; padding-right: var(--space-8); overflow-wrap: anywhere; }
 .static-text { white-space: pre-wrap; min-height: var(--line-body); }
 .inline-code { font-family: var(--font-mono); font-size: 0.9em; background: var(--hover); border-radius: var(--radius-control); padding-inline: var(--space-2); }
@@ -220,10 +221,10 @@
 /* Every owner's missing template fields stay below its last entry, independent of selection.
    Slots span the canvas so the anchor row's hover and selection stay on its own line. */
 .outline-row:has(> .field-slots) { flex-wrap: wrap; padding-bottom: 0; }
-.field-slots { position: relative; flex: 0 0 calc(100% + var(--depth) * var(--indent-width) + 2px); display: flex; flex-direction: column; box-sizing: border-box; margin: var(--space-2) 0 0 calc(-2px - var(--depth) * var(--indent-width)); padding: 0 0 var(--space-2) calc(2px + var(--gutter) + var(--slot-depth) * var(--indent-width)); background: var(--canvas); }
-.outline-heading > .field-slots { margin-left: 0; padding-left: calc(2px + var(--slot-depth) * var(--indent-width)); }
+.field-slots { --slot-indent: min(calc(var(--slot-depth) * var(--indent-width)), min(calc(8 * var(--indent-width)), 25cqi)); position: relative; flex: 0 0 calc(100% + var(--row-indent, 0px) + 2px); display: flex; flex-direction: column; box-sizing: border-box; margin: var(--space-2) 0 0 calc(-2px - var(--row-indent, 0px)); padding: 0 0 var(--space-2) calc(2px + var(--gutter) + var(--slot-indent)); background: var(--canvas); }
+.outline-heading > .field-slots { margin-left: 0; padding-left: calc(2px + var(--slot-indent)); }
 @container outline-pane (max-width: 856px) {
-  .outline-heading > .field-slots { padding-left: calc(2px + var(--gutter) + var(--slot-depth) * var(--indent-width)); }
+  .outline-heading > .field-slots { padding-left: calc(2px + var(--gutter) + var(--slot-indent)); }
 }
 .field-slot { display: flex; align-items: center; min-height: var(--row-height); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--faint); font: inherit; text-align: left; cursor: pointer; transition: color var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
 .field-slot:is(:hover, :focus-visible) { background: var(--hover); color: var(--muted); }
@@ -379,8 +380,8 @@
   .outline-row:not(:focus-within, .row-selected) :is(.row-menu, .row-fold), .outline-row .row-fold.fold-empty { display: none; }
   /* Threads and field slots measure from the bullet, which is now the first control. */
   [data-page-style="prose"] .outline-row::before { left: calc(0.5 * var(--target-size)); }
-  .field-slots { order: 3; padding-left: calc(2px + var(--slot-depth) * var(--indent-width)); }
-  .outline-heading > .field-slots { padding-left: calc(2px + var(--slot-depth) * var(--indent-width)); }
+  .field-slots { order: 3; padding-left: calc(2px + var(--slot-indent)); }
+  .outline-heading > .field-slots { padding-left: calc(2px + var(--slot-indent)); }
   /* Field names keep a narrower column, so values are not pushed past the middle of the screen. */
   .outline-field-label { flex-basis: calc(var(--target-size) + var(--space-48) * 2); width: calc(var(--target-size) + var(--space-48) * 2); }
   .field-slot-label { flex-basis: calc(var(--target-size) + var(--space-48) * 2); }
