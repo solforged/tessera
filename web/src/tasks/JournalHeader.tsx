@@ -123,7 +123,7 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
           <span class="journal-tile-heading"><span>Agenda</span><Icon name="down" class="journal-tile-chevron" /></span>
           <Show when={agendaSummary()} fallback={deskError() ? <span class="journal-tile-meta journal-tile-unavailable">Agenda unavailable</span> : <Placeholder />}>{summary => <>
             <span class="journal-tile-count">{summary().planned}<small>today · <span classList={{ 'agenda-late': summary().overdue > 0 }}>{summary().overdue} overdue</span></small></span>
-            <span class="journal-tile-meta"><Show when={summary().next} fallback={summary().planned ? 'Nothing else planned today' : 'Nothing planned today'}>{next => <>Next: <BlockText text={next().source.block.text} notebook={props.notebook} interactive={false} />{next().time ? ` · ${next().time}` : ''}</>}</Show></span>
+            <span class="journal-tile-meta"><Show when={summary().next} fallback={summary().planned ? 'Nothing else planned today' : 'Nothing planned today'}>{next => <>Next: <BlockText text={next().source.block.text || 'Empty task'} notebook={props.notebook} interactive={false} />{next().time ? ` · ${next().time}` : ''}</>}</Show></span>
           </>}</Show>
         </Button>
         <Button class="journal-tile" aria-busy={!desk() && !deskError()} onClick={() => props.onOpen({ kind: 'review' }, false)}>

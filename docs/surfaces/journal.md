@@ -90,7 +90,7 @@ A journal narrower than 640 px uses one ruled list of compact Agenda, Review and
 
 ### Agenda tile
 
-Agenda counts the items in the [Agenda pane's Today section](tasks-agenda.md#groups) separately from Overdue and shows the next timed or untimed item. Its chevron folds today's tasks open beneath the tiles, open by default and remembered per device.
+Agenda counts the items in the [Agenda pane's Today section](tasks-agenda.md#groups) separately from Overdue and shows the next timed or untimed item. A task without authored text reads `Empty task`, as in Agenda rows. Its chevron folds today's tasks open beneath the tiles, open by default and remembered per device.
 
 That ledger uses the [Day rows](tasks-agenda.md#rows), with their time gutter, completion, [rescheduling keys and now rule](tasks-agenda.md#rescheduling), and ends in `Open agenda ›`. Tasks written in this journal are left out, since the outline below already shows them with their plan: a muted `N more in the journal below` follows the rows, or `N planned in the journal below` replaces Nothing planned today. Carried work collapses to one `N carried over` line in `--danger` that expands in place, with Move to today at its end and the [same Undo line](tasks-agenda.md#groups).
 
