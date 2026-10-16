@@ -38,6 +38,16 @@ test('reading emphasis and code preserve exact source spans and shield code synt
   expect(inlineTokens('**unfinished').map(token => token.value).join('')).toBe('**unfinished');
 });
 
+test('inline code uses exact backtick runs and leaves adjacent semantic tokens active', () => {
+  for (const marker of ['`', '``', '```']) {
+    const text = `${marker}#Hidden [[id]]${marker} #Visible [[id]]`;
+    expect(textTokens(text).filter(token => token.kind !== 'text').map(token => token.value)).toEqual(['Visible', '[[id]]']);
+  }
+  for (const text of ['`#Hidden [[id]]', '``#Hidden ` [[id]]``', '`#Hidden `` [[id]]`']) {
+    expect(textTokens(text).every(token => token.kind === 'text')).toBe(true);
+  }
+});
+
 test('authored external captions use one URL token without becoming page references', () => {
   for (const [source, caption] of [
     ['[label](https://example.org/Topic_(a_(b)))', 'label'],

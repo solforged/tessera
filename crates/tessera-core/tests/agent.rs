@@ -225,6 +225,20 @@ fn external_captions_stay_authored_without_creating_pages_or_block_links() {
 }
 
 #[test]
+fn inline_code_keeps_title_references_and_tags_literal_in_agent_notes() {
+    let (_dir, mut nb) = fixture();
+    let text = "`#CodeType [[CodePage]]` and ``[[OtherPage]] ` #OtherType``";
+    let receipt = run(&mut nb, &note(page("Code examples"), vec![block(text, vec![])]));
+    assert_eq!(receipt.created_pages.len(), 1);
+    let saved = nb.page(&receipt.created_pages[0].id).unwrap();
+    assert_eq!(saved.rows[0].block.text, text);
+    assert!(saved.targets.is_empty());
+    for title in ["CodeType", "CodePage", "OtherPage", "OtherType"] {
+        assert!(nb.page_by_title(title).unwrap().is_none());
+    }
+}
+
+#[test]
 fn add_note_resolves_titles_without_losing_labels_or_locators() {
     let (_dir, mut nb) = fixture();
     dune(&mut nb);

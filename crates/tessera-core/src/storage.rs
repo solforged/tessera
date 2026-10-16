@@ -184,10 +184,88 @@ pub(crate) fn quote_target(text: &str) -> Option<&str> {
     validate_id(target).is_ok().then_some(target)
 }
 
+/// The web tokenizer shields matching backtick runs, or the remainder for an
+/// unfinished run. Backticks inside a reference or URL belong to that token.
+pub(crate) fn inline_code_spans(text: &str) -> impl Iterator<Item = std::ops::Range<usize>> {
+    let mut cursor = 0;
+    std::iter::from_fn(move || {
+        while cursor < text.len() {
+            let rest = &text[cursor..];
+            if rest.starts_with("[[") && rest.contains("]]") {
+                let mut depth = 1;
+                cursor += 2;
+                while cursor < text.len() && depth != 0 {
+                    if text[cursor..].starts_with("[[") {
+                        depth += 1;
+                        cursor += 2;
+                    } else if text[cursor..].starts_with("]]") {
+                        depth -= 1;
+                        cursor += 2;
+                    } else {
+                        cursor += text[cursor..].chars().next().expect("in bounds").len_utf8();
+                    }
+                }
+                continue;
+            }
+            let url = |value: &str| {
+                value.get(..7).is_some_and(|prefix| prefix.eq_ignore_ascii_case("http://"))
+                    || value.get(..8).is_some_and(|prefix| prefix.eq_ignore_ascii_case("https://"))
+            };
+            if rest.starts_with('[') && !rest.starts_with("[[") {
+                if let Some(end) = rest.find("](") {
+                    let label = &rest[1..end];
+                    if !label.is_empty() && !label.contains(['[', ']', '\r', '\n']) && url(&rest[end + 2..]) {
+                        cursor += end + 2;
+                        let mut depth = 0;
+                        while cursor < text.len() {
+                            let ch = text[cursor..].chars().next().expect("in bounds");
+                            if ch.is_whitespace() || matches!(ch, '<' | '>' | '"' | '\'') {
+                                break;
+                            }
+                            cursor += ch.len_utf8();
+                            if ch == '(' {
+                                depth += 1;
+                            } else if ch == ')' {
+                                if depth == 0 {
+                                    break;
+                                }
+                                depth -= 1;
+                            }
+                        }
+                        continue;
+                    }
+                }
+            }
+            if url(rest) {
+                cursor += rest.find(|ch: char| ch.is_whitespace() || matches!(ch, '<' | '>' | '"' | '\'')).unwrap_or(rest.len());
+                continue;
+            }
+            if rest.starts_with('`') {
+                let start = cursor;
+                let width = rest.bytes().take_while(|&byte| byte == b'`').count();
+                cursor += width;
+                while let Some(next) = text[cursor..].find('`') {
+                    cursor += next;
+                    let count = text[cursor..].bytes().take_while(|&byte| byte == b'`').count();
+                    cursor += count;
+                    if count == width {
+                        return Some(start..cursor);
+                    }
+                }
+                cursor = text.len();
+                return Some(start..cursor);
+            }
+            cursor += rest.chars().next().expect("in bounds").len_utf8();
+        }
+        None
+    })
+}
+
 /// Share reference recognition between indexing and merge rewriting. Tags
 /// containing brackets are title references, not block ID references.
 fn link_tokens(text: &str) -> impl Iterator<Item = LinkToken<'_>> {
     let mut cursor = 0;
+    let mut code = inline_code_spans(text).peekable();
     let mut quote = quote_target(text).map(|target| {
         let start = text.len() - text.trim_start().len() + 2;
         LinkToken {
@@ -202,8 +280,15 @@ fn link_tokens(text: &str) -> impl Iterator<Item = LinkToken<'_>> {
             cursor = text.len();
             return Some(token);
         }
-        while let Some(relative) = text[cursor..].find("[[") {
+        'references: while let Some(relative) = text[cursor..].find("[[") {
             let start = cursor + relative;
+            while code.peek().is_some_and(|span| span.start <= start) {
+                let span = code.next().expect("peeked span");
+                if start < span.end {
+                    cursor = span.end;
+                    continue 'references;
+                }
+            }
             let prefix = &text[..start];
             let is_tag = prefix.strip_suffix('#').is_some_and(|before| {
                 before
@@ -269,9 +354,17 @@ fn bare_tag_character(ch: char) -> bool {
 /// The same borrowed token spans drive membership derivation and rename.
 pub(crate) fn tag_tokens(text: &str) -> impl Iterator<Item = TagToken<'_>> {
     let mut cursor = 0;
+    let mut code = inline_code_spans(text).peekable();
     std::iter::from_fn(move || {
-        while let Some(relative) = text[cursor..].find('#') {
+        'tags: while let Some(relative) = text[cursor..].find('#') {
             let start = cursor + relative;
+            while code.peek().is_some_and(|span| span.start <= start) {
+                let span = code.next().expect("peeked span");
+                if start < span.end {
+                    cursor = span.end;
+                    continue 'tags;
+                }
+            }
             cursor = start + 1;
             if text[..start]
                 .chars()
@@ -463,7 +556,37 @@ pub(crate) fn resolve_type(
 
 #[cfg(test)]
 mod reference_tests {
-    use super::{link_tokens, reference_parts, rewrite_links};
+    use super::{inline_code_spans, link_tokens, reference_parts, rewrite_links, tag_names};
+
+    #[test]
+    fn code_spans_shield_tags_links_and_rewrites_with_exact_backtick_runs() {
+        let id = "00000000000000000000000001";
+        for marker in ["`", "``", "```"] {
+            let text = format!("{marker}#Hidden [[{id}]]{marker} #Visible [[{id}]]");
+            assert_eq!(tag_names(&text).collect::<Vec<_>>(), ["Visible"]);
+            assert_eq!(link_tokens(&text).count(), 1);
+            assert_eq!(
+                rewrite_links(&text, id, "00000000000000000000000002").unwrap(),
+                format!("{marker}#Hidden [[{id}]]{marker} #Visible [[00000000000000000000000002]]")
+            );
+        }
+        for text in [
+            format!("`#Hidden [[{id}]]"),
+            format!("``#Hidden ` [[{id}]]``"),
+            format!("`#Hidden `` [[{id}]]`"),
+        ] {
+            assert!(tag_names(&text).next().is_none());
+            assert!(link_tokens(&text).next().is_none());
+        }
+        for text in [
+            "[[name|`label]] #Visible",
+            "[label `code](https://example.org) #Visible",
+            "https://example.org/`path #Visible",
+            "#[[type `name]] #Visible",
+        ] {
+            assert!(inline_code_spans(text).next().is_none());
+        }
+    }
 
     #[test]
     fn labels_and_locators_split_at_the_first_and_last_pipe() {

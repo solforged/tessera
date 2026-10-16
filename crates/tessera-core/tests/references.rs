@@ -55,6 +55,24 @@ fn delete(nb: &mut Notebook, value: u128) {
 }
 
 #[test]
+fn canonical_references_inside_inline_code_have_no_links_or_backlinks() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Target"),
+            page(2, "Notes"),
+            insert(10, 2, None, &format!("`[[{}]]`", id(1))),
+            insert(11, 2, None, &format!("[[{}]]", id(1))),
+        ],
+    );
+    let backlinks = nb.backlinks(&id(1), 10).unwrap();
+    assert_eq!(backlinks.len(), 1);
+    assert_eq!(backlinks[0].source.id, id(11));
+}
+
+#[test]
 fn page_references_group_child_targets_and_limit_sources_in_outline_preorder() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();

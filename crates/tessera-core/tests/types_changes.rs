@@ -123,6 +123,22 @@ fn unicode_bare_tags_keep_marks_and_rename_the_complete_authored_name() {
 }
 
 #[test]
+fn inline_code_never_creates_type_pages_and_removes_a_previously_active_tag() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut nb,
+        vec![page(1, "Notes"), insert(10, 1, "`#CodeOnly`"), insert(11, 1, "#Active")],
+    );
+    assert!(nb.page_by_title("CodeOnly").unwrap().is_none());
+    assert!(nb.page(&id(1)).unwrap().targets.iter().all(|target| target.text != "CodeOnly"));
+    let active = nb.page_by_title("Active").unwrap().unwrap();
+    assert_eq!(nb.members(&active.id, 10).unwrap().len(), 1);
+    apply(&mut nb, vec![edit(11, 1, "`#Active`")]);
+    assert!(nb.members(&active.id, 10).unwrap().is_empty());
+}
+
+#[test]
 fn explicit_type_page_later_in_batch_wins_and_failed_batches_leave_no_generated_pages() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();

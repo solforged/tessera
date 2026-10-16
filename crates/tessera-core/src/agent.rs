@@ -1573,7 +1573,13 @@ impl Notebook {
     fn link_titles(&self, plan: &mut Plan, text: &str) -> Result<String> {
         let mut linked = String::with_capacity(text.len());
         let mut rest = text;
+        let mut code = crate::storage::inline_code_spans(text).peekable();
         while let Some(start) = rest.find("[[") {
+            let absolute_start = text.len() - rest.len() + start;
+            while code.peek().is_some_and(|span| span.end <= absolute_start) {
+                code.next();
+            }
+            let in_code = code.peek().is_some_and(|span| span.start <= absolute_start);
             let (before, opened) = rest.split_at(start);
             let Some(end) = opened[2..].find("]]") else {
                 break;
@@ -1587,7 +1593,8 @@ impl Notebook {
             });
             let (target, alias, locator) = crate::storage::reference_parts(reference);
             let title = target.trim();
-            let resolved = if tag
+            let resolved = if in_code
+                || tag
                 || title.is_empty()
                 || target
                     .get(..8)
