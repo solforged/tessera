@@ -1,5 +1,5 @@
 import type { Caret } from '../document/contract';
-import { BLOCK_CLIPBOARD_MIME, clipboardPlainText, clipboardText, parseBlockClipboard } from '../document/clipboard';
+import { BLOCK_CLIPBOARD_MIME, clipboardPasteRows, clipboardPlainText, clipboardText, clipboardUrl, externalLink, parseBlockClipboard } from '../document/clipboard';
 import { offsetAtPoint } from './BlockText';
 import { orderedRange, selectedText, selectionIds } from './visibility';
 import type { OutlineContext } from './context';
@@ -86,9 +86,19 @@ export function createOutlineInteractions(context: Pick<OutlineContext,
     const text = clipboardPlainText(data);
     event.preventDefault();
     event.stopImmediatePropagation();
-    if (!content && text === null) return;
-    if (!content) { replaceSelection(text!, 'paste'); return; }
-    const intent = { kind: 'pasteBlocks' as const, range, between: selectionIds(ids(), range).slice(1, -1), content, zoomRoot: zoom() };
+    const rows = content ? null : clipboardPasteRows(data);
+    if (!content && rows === null) return;
+    const replaceRoots = !editing() && (rowRange() || selected()) ? roots() : undefined;
+    if (!content) {
+      const url = text === null ? null : clipboardUrl(text.trim());
+      if (!replaceRoots && url && range.anchor.id === range.head.id && range.anchor.offset !== range.head.offset) {
+        const caption = selectedText(doc, ids(), range);
+        if (!/[\r\n]/.test(caption)) { replaceSelection(externalLink(url, caption), 'text', range); return; }
+      }
+      apply({ kind: 'pasteRows', range, between: selectionIds(ids(), range).slice(1, -1), rows: rows!, replaceRoots, zoomRoot: zoom() }, true);
+      return;
+    }
+    const intent = { kind: 'pasteBlocks' as const, range, between: selectionIds(ids(), range).slice(1, -1), content, replaceRoots, zoomRoot: zoom() };
     if (!content.cut) { apply(intent, true); return; }
     const anchorText = doc.block(range.anchor.id)?.text, headText = doc.block(range.head.id)?.text;
     void doc.prepareClipboard(content).then(ready => {
@@ -96,7 +106,8 @@ export function createOutlineInteractions(context: Pick<OutlineContext,
       const current = activeRange();
       if (!current || current.anchor.id !== range.anchor.id || current.anchor.offset !== range.anchor.offset
         || current.head.id !== range.head.id || current.head.offset !== range.head.offset
-        || doc.block(range.anchor.id)?.text !== anchorText || doc.block(range.head.id)?.text !== headText) {
+        || doc.block(range.anchor.id)?.text !== anchorText || doc.block(range.head.id)?.text !== headText
+        || replaceRoots && (editing() || roots().join('\u0000') !== replaceRoots.join('\u0000'))) {
         setMessage('The selection changed before paste. Try pasting again.');
         return;
       }

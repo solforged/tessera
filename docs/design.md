@@ -521,7 +521,11 @@ Shift-click on another row selects the range from the current row; Shift-click i
 
 Copy and cut act on a single selected row or range and include every descendant, folded or archived, as indented plain text plus Tessera's structured clipboard format. Structured paste inserts intact subtrees at the destination depth: copy creates new identities with task state and card syntax, while cut within the same notebook restores and moves the original identities, capabilities, planning and work or review history.
 
-A paste without plain text or Tessera block data leaves the selection untouched. A cut still saving in another window waits for a retry without changing the destination; pasting the same cut after its move creates a copy.
+Pasting over selected rows replaces those rows and their subtrees in one undo step. External HTML becomes native content, never stored markup: headings keep their level (up to three), list items become nested rows, table rows keep their cells separated by ` | `, images keep their URL or alt text, and soft breaks stay within their row. Markdown paste consumes heading, bullet, numbered-list and task markers into native rows, headings and task states; fenced code keeps its markers literal.
+
+An external link keeps its target and caption as `[[https://url|caption]]`. Pasting one HTTP or HTTPS URL over selected words in a single row wraps those words as its caption rather than discarding them. Markdown `[caption](url)` and HTML anchors paste into the same spelling. Tessera's structured clipboard data takes precedence over external formats and retains its existing identity and capability rules.
+
+A paste without supported text, HTML or Tessera block data leaves the selection untouched. A cut still saving in another window waits for a retry without changing the destination; pasting the same cut after its move creates a copy.
 
 Opening a page selects nothing, so no row lights up that you did not choose; journals still open editing their last empty block. ↓ or `j` then selects the first visible row and ↑ or `k` the last; other keys wait for a selection. Back and forward restore the row you had selected.
 

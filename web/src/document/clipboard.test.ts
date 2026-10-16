@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { TaskState } from '../api/types';
 import type { BlockClipboard, ClipboardBlock } from './contract';
-import { clipboardPlainText, clipboardText, parseBlockClipboard } from './clipboard';
+import { clipboardPasteRows, clipboardPlainText, clipboardText, clipboardUrl, externalLink, markdownPasteRows, parseBlockClipboard } from './clipboard';
 import { emptyCapabilities } from './types';
 
 const todo: TaskState = { status: 'todo', scheduled: '2026-10-12', scheduled_time: '17:30', deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: 'high', completed_on: null };
@@ -65,4 +65,34 @@ test('absent text/plain is distinct from an explicitly empty plain-text paste', 
   }
   expect(clipboardPlainText({ types: ['text/plain'], getData: () => '' })).toBe('');
   expect(clipboardPlainText({ types: ['text/html', 'text/plain'], getData: type => type === 'text/plain' ? 'Plain text' : '<p>Rich text</p>' })).toBe('Plain text');
+});
+
+test('Markdown paste converts native headings, list indentation, task states and labeled URLs', () => {
+  expect(markdownPasteRows('# Heading\n- Bullet\n  - Child\n1. Numbered\n- [ ] Todo\n[x] Finished\n[Caption](https://example.org/a_(b))')).toEqual([
+    { text: 'Heading', indent: 0, heading: 1, task: null },
+    { text: 'Bullet', indent: 0, heading: null, task: null },
+    { text: 'Child', indent: 2, heading: null, task: null },
+    { text: 'Numbered', indent: 0, heading: null, task: null },
+    { text: 'Todo', indent: 0, heading: null, task: 'todo' },
+    { text: 'Finished', indent: 0, heading: null, task: 'done' },
+    { text: '[[https://example.org/a_(b)|Caption]]', indent: 0, heading: null, task: null },
+  ]);
+});
+
+test('Markdown code fences keep heading and task markers literal', () => {
+  const rows = markdownPasteRows('```\n# Literal\n- [ ] Literal\n```\n## Heading');
+  expect(rows.map(row => row.text)).toEqual(['```', '# Literal', '- [ ] Literal', '```', 'Heading']);
+  expect(rows.map(row => row.heading)).toEqual([null, null, null, null, 2]);
+  expect(rows.every(row => row.task === null)).toBe(true);
+});
+
+test('external links accept only a single HTTP URL and escape native delimiters', () => {
+  expect(clipboardUrl('https://example.org/path')).toBe('https://example.org/path');
+  for (const value of ['javascript:alert(1)', 'data:text/html,hello', 'https://one.test\nhttps://two.test', 'prose https://example.org', 'https://']) expect(clipboardUrl(value)).toBeNull();
+  expect(externalLink('https://example.org/a|b]', 'Caption')).toBe('[[https://example.org/a%7Cb%5D|Caption]]');
+});
+
+test('external Markdown MIME works without text/plain and unsupported clipboard data stays absent', () => {
+  expect(clipboardPasteRows({ types: ['text/markdown'], getData: () => '## Heading' })).toEqual([{ text: 'Heading', indent: 0, heading: 2, task: null }]);
+  expect(clipboardPasteRows({ types: ['image/png'], getData: () => '' })).toBeNull();
 });

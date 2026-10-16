@@ -5,7 +5,7 @@ import type { SetStoreFunction } from 'solid-js/store';
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
 import type { Batch, Block, BlockCapabilities, Committed, PageView, QuoteState, TextRewrite, WorkSession } from '../api/types';
-import type { BlockClipboard, BlockState, Caret, DocumentChange, Edit, EditResult, HistoryCaret, PageDocument, SaveState, SourceDetailsEdit, TextRange } from './contract';
+import type { BlockClipboard, BlockState, Caret, DocumentChange, Edit, EditResult, HistoryCaret, PageDocument, PasteRow, SaveState, SourceDetailsEdit, TextRange } from './contract';
 import { OutlineIndex } from './outline-index';
 import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './types';
 import { currentReading, emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
@@ -17,6 +17,7 @@ import { fieldHide } from '../fields/hide';
 import { countsReason, fieldCounts } from '../fields/counts';
 import { fieldRole } from '../fields/roles';
 import { fieldEntryId } from '../table/query';
+import { markdownPasteRows } from './clipboard';
 
 export interface DocumentHost {
   ready: Promise<void>;
@@ -1098,11 +1099,22 @@ export class Document implements PageDocument {
       if (task) actions.push({ kind: 'task', id, value: newTask(), previous: null, baseRevision: 0 });
       caret = { id, offset: 0 };
     };
-    const paste = (block: Block, prefix: string, suffix: string, text: string, zoomRoot?: string | null) => {
-      const lines = text.replace(/\r\n?/g, '\n').split('\n');
-      if (lines.length === 1) {
-        setText(block, prefix + lines[0]! + suffix);
-        caret = { id: block.id, offset: prefix.length + lines[0]!.length };
+    const paste = (block: Block, prefix: string, suffix: string, rows: PasteRow[], zoomRoot?: string | null) => {
+      if (!rows.length) return;
+      const style = (id: string, row: PasteRow, previousHeading: Block['heading'], revision: number) => {
+        if (row.heading !== null && row.heading !== previousHeading) actions.push({ kind: 'heading', id, heading: row.heading });
+        if (row.task) {
+          const previous = this.block(id)?.task ?? null;
+          const value = previous ?? newTask();
+          if (!previous) actions.push({ kind: 'task', id, value, previous: null, baseRevision: revision });
+          if (row.task === 'done' && value.status !== 'done') actions.push({ kind: 'completeTask', id, occurrenceId: ulid(), completedOn: this.host.todayDate(), previous: value, baseRevision: revision });
+        }
+      };
+      const first = rows[0]!;
+      if (rows.length === 1) {
+        setText(block, prefix + first.text + suffix);
+        if (!prefix) style(block.id, first, block.heading, block.revision);
+        caret = { id: block.id, offset: prefix.length + first.text.length };
         return;
       }
       guardSplit(block, prefix, suffix);
@@ -1111,21 +1123,20 @@ export class Document implements PageDocument {
       created.push(rightId);
       const right: Block = { ...block, id: rightId, text: suffix, revision: 0, heading: block.heading };
       actions.push({ kind: 'split', id: block.id, block: right, left: prefix, right: suffix });
-      setText({ ...block, text: prefix }, prefix + lines[0]!);
+      setText({ ...block, text: prefix }, prefix + first.text);
+      if (!prefix) style(block.id, first, block.heading, block.revision);
       const zoom = zoomRoot === block.id;
-      const stack = [{ width: 0, id: block.id, parentId: zoom ? block.id : block.parent_id! }];
+      const stack = [{ width: first.indent, id: block.id, parentId: zoom ? block.id : block.parent_id! }];
       let zoomAfter: string | null = null;
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i]!;
-        const whitespace = /^\s*/.exec(line)![0];
-        let width = 0;
-        for (const char of whitespace) width += char === '\t' ? 2 : 1;
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i]!;
+        const width = row.indent;
         while (stack.length > 1 && width < stack.at(-1)!.width) stack.pop();
         const previous = stack.at(-1)!;
         const nested = width > previous.width;
         const parentId = nested ? previous.id : previous.parentId;
         const after = zoom && parentId === block.id ? zoomAfter : nested ? null : previous.id;
-        const body = line.slice(whitespace.length) + (i === lines.length - 1 ? suffix : '');
+        const body = row.text + (i === rows.length - 1 ? suffix : '');
         let id: string;
         if (i === 1) {
           id = rightId;
@@ -1133,13 +1144,14 @@ export class Document implements PageDocument {
           setText(right, body);
           if (right.heading !== null) actions.push({ kind: 'heading', id, heading: null });
         } else id = insert(parentId, after, body);
+        style(id, row, null, 0);
         if (zoom && parentId === block.id) zoomAfter = id;
         if (!nested) stack.pop();
         stack.push({ width, id, parentId });
-        caret = { id, offset: line.length - whitespace.length };
+        caret = { id, offset: row.text.length };
       }
     };
-    const replace = (range: TextRange, visible: string[], text: string, mode: 'text' | 'paste' | 'split', zoomRoot?: string | null, fieldEntry?: string | null) => {
+    const replace = (range: TextRange, visible: string[], text: string, mode: 'text' | 'paste' | 'split', zoomRoot?: string | null, fieldEntry?: string | null, rows?: PasteRow[]) => {
       let { anchor: start, head: end } = range;
       if (this.outline.indexOf(start.id) < 0 || this.outline.indexOf(end.id) < 0) throw new Error('A selected block no longer exists.');
       if (this.outline.indexOf(start.id) > this.outline.indexOf(end.id) || start.id === end.id && start.offset > end.offset) [start, end] = [end, start];
@@ -1159,7 +1171,7 @@ export class Document implements PageDocument {
       const between = this.outline.slice(this.outline.indexOf(start.id) + 1, this.outline.indexOf(end.id)).map(row => row.id);
       if (between.length !== visible.length || between.some((id, i) => id !== visible[i])) throw new Error('Expand hidden blocks before deleting this text range.');
       if (start.id !== end.id) this.guardMerge(end.id);
-      const multiline = mode === 'split' || mode === 'paste' && /[\r\n]/.test(text);
+      const multiline = mode === 'split' || mode === 'paste' && (rows ? rows.length > 1 : /[\r\n]/.test(text));
       if (multiline && (parseCardText(first.text).cards.length || start.id !== end.id && parseCardText(last.text).cards.length)
         && !(start.id === end.id && startOffset === endOffset && (endOffset === first.text.length || mode === 'split' && startOffset === 0))) {
         throw new Error('Replace this card in place before splitting its source.');
@@ -1187,8 +1199,18 @@ export class Document implements PageDocument {
       for (const id of deleted) if (id !== end.id) { this.guardHide(id); actions.push({ kind: 'delete', id }); }
       const merged = start.id === end.id ? first : { ...first, text: first.text + last.text };
       if (mode === 'split') split(merged, prefix + text, suffix, zoomRoot, fieldEntry);
-      else if (mode === 'paste') paste(merged, prefix, suffix, text, zoomRoot);
+      else if (mode === 'paste') paste(merged, prefix, suffix, rows ?? markdownPasteRows(text), zoomRoot);
       else { setText(merged, prefix + text + suffix); caret = { id: first.id, offset: prefix.length + text.length }; }
+    };
+    const rowPasteTarget = (ids: string[], zoomRoot?: string | null): Block => {
+      const roots = selected(ids, zoomRoot);
+      if (!roots.length || roots.length !== ids.length) throw new Error('The selected rows changed before paste.');
+      const first = this.snapshot(roots[0]!);
+      for (const id of roots) this.guardHide(id);
+      insert(first.parent_id!, this.outline.previousSibling(first.id), '');
+      const insertion = actions.at(-1) as Extract<Action, { kind: 'insert' }>;
+      for (const root of roots) actions.push({ kind: 'delete', id: root });
+      return insertion.block;
     };
     try {
       switch (edit.kind) {
@@ -1637,24 +1659,38 @@ export class Document implements PageDocument {
           break;
         case 'paste': {
           const block = this.snapshot(edit.at.id);
-          paste(block, block.text.slice(0, edit.at.offset), block.text.slice(edit.at.offset), edit.text);
+          paste(block, block.text.slice(0, edit.at.offset), block.text.slice(edit.at.offset), markdownPasteRows(edit.text));
+          break;
+        }
+        case 'pasteRows': {
+          if (!edit.rows.length) break;
+          if (edit.replaceRoots?.length) paste(rowPasteTarget(edit.replaceRoots, edit.zoomRoot), '', '', edit.rows);
+          else replace(edit.range, edit.between, '', 'paste', edit.zoomRoot, undefined, edit.rows);
           break;
         }
         case 'pasteBlocks': {
           const content = edit.content;
           if (!content.blocks.length) break;
-          let { anchor: start, head: end } = edit.range;
+          const replacing = edit.replaceRoots?.length ? selected(edit.replaceRoots, edit.zoomRoot) : null;
+          if (replacing && replacing.length !== edit.replaceRoots!.length) throw new Error('The selected rows changed before paste.');
+          let { anchor: start, head: end } = replacing
+            ? { anchor: { id: replacing[0]!, offset: 0 }, head: { id: replacing.at(-1)!, offset: this.block(replacing.at(-1)!)!.text.length } }
+            : edit.range;
           if (this.outline.indexOf(start.id) > this.outline.indexOf(end.id) || start.id === end.id && start.offset > end.offset) [start, end] = [end, start];
           const target = this.snapshot(start.id);
           const last = this.snapshot(end.id);
-          const prefix = target.text.slice(0, start.offset);
-          const suffix = last.text.slice(end.offset);
-          const zoom = edit.zoomRoot === target.id;
-          if (!zoom) guardSplit(target, prefix, suffix);
-          replace(edit.range, edit.between, '', 'text', edit.zoomRoot);
+          const prefix = replacing ? '' : target.text.slice(0, start.offset);
+          const suffix = replacing ? '' : last.text.slice(end.offset);
+          const zoom = !replacing && edit.zoomRoot === target.id;
+          if (replacing) {
+            for (const id of replacing) { this.guardHide(id); actions.push({ kind: 'delete', id }); }
+          } else {
+            if (!zoom) guardSplit(target, prefix, suffix);
+            replace(edit.range, edit.between, '', 'text', edit.zoomRoot);
+          }
           const parentId = zoom ? target.id : target.parent_id!;
           const depth = zoom ? this.outline.depth(target.id) + 1 : this.outline.depth(target.id);
-          const emptyLeaf = start.id === end.id && !prefix && !suffix && !zoom
+          const emptyLeaf = !replacing && start.id === end.id && !prefix && !suffix && !zoom
             && !this.outline.children(target.id).length && !this.capabilities(target.id).merge_protected;
           let after = zoom ? null : !prefix || emptyLeaf ? this.outline.previousSibling(target.id) : target.id;
           if (emptyLeaf) actions.push({ kind: 'delete', id: target.id });
@@ -1714,7 +1750,7 @@ export class Document implements PageDocument {
         const undo = this.apply(action);
         if (edit.kind !== 'highlight' || action.kind !== 'cite') inverse.unshift(...undo);
       } });
-      const beforeRange = edit.kind === 'replaceRange' ? edit.selectionBefore ?? edit.range : edit.kind === 'pasteBlocks' ? edit.range : null;
+      const beforeRange = edit.kind === 'replaceRange' ? edit.selectionBefore ?? edit.range : edit.kind === 'pasteBlocks' || edit.kind === 'pasteRows' ? edit.range : null;
       const before: HistoryCaret | null = beforeRange ? { ...(caretBefore ?? beforeRange.head), range: { anchor: { ...beforeRange.anchor }, head: { ...beforeRange.head } } } : caretBefore;
       const selection = caretBefore?.selection;
       const treeMove = edit.kind === 'indent' || edit.kind === 'outdent' || edit.kind === 'move' || edit.kind === 'moveTo';

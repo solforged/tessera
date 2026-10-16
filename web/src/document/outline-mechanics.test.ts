@@ -11,6 +11,7 @@ import type { EditResult, PageDocument } from './contract';
 import { boundaryDeletion } from './outline-mechanics';
 import { editingDepth, inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from '../outline/visibility';
 import { newTask } from '../tasks/quick-date';
+import { markdownPasteRows } from './clipboard';
 
 const port = Bun.env.TESSERA_MECHANICS_TEST_PORT ?? '43862';
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -89,6 +90,74 @@ test('nested paste redo restores preorder and depths before any reload', async (
     await client.flush();
     expect(shape()).toEqual(expected);
   }
+});
+
+test('pasting over selected roots replaces their complete subtrees in one undo step', async () => {
+  const { client, doc, first, pageId } = await fixture('Alpha');
+  const hidden = insert(doc, first, null, 'Folded child');
+  const beta = insert(doc, pageId, first, 'Beta');
+  success(doc.edit({ kind: 'task', id: beta, value: newTask() }));
+  const gamma = insert(doc, pageId, beta, 'Gamma');
+  await client.flush();
+  const range = { anchor: { id: first, offset: 0 }, head: { id: beta, offset: 4 } };
+  success(doc.edit({ kind: 'pasteRows', range, between: [], replaceRoots: [first, beta], rows: markdownPasteRows('Replacement') }, range.head));
+  expect(snapshot(doc).map(row => row.text)).toEqual(['Replacement', 'Gamma']);
+  await client.flush();
+  doc.undo();
+  expect(snapshot(doc).map(row => row.id)).toEqual([first, hidden, beta, gamma]);
+  expect(doc.block(beta)?.task?.status).toBe('todo');
+  await client.flush();
+  doc.redo();
+  await client.flush();
+  expect(snapshot(doc).map(row => row.text)).toEqual(['Replacement', 'Gamma']);
+  expect(client.queuedChanges()).toBe(0);
+});
+
+test('Markdown paste persists native headings and nested open and completed tasks atomically', async () => {
+  const { client, doc, first, pageId } = await fixture('');
+  const at = { id: first, offset: 0 };
+  success(doc.edit({ kind: 'paste', at, text: '## Heading\n- Bullet\n  - [ ] Todo\n- [x] Finished' }, at));
+  const shape = () => Array.from({ length: doc.outline.size() }, (_, i) => {
+    const id = doc.outline.idAt(i), block = doc.block(id)!;
+    return [block.text, doc.outline.depth(id), block.heading, block.task?.status ?? null];
+  });
+  const expected = [['Heading', 0, 2, null], ['Bullet', 0, null, null], ['Todo', 1, null, 'todo'], ['Finished', 0, null, 'done']];
+  expect(shape()).toEqual(expected);
+  await client.flush();
+  const saved = await api.page(pageId);
+  expect(saved.rows.map(row => [row.block.text, row.depth, row.block.heading])).toEqual(expected.map(row => row.slice(0, 3)));
+  doc.undo();
+  await client.flush();
+  expect(snapshot(doc).map(row => row.text)).toEqual(['']);
+  doc.redo();
+  await client.flush();
+  expect(shape()).toEqual(expected);
+  expect(client.queuedChanges()).toBe(0);
+});
+
+test('structured row replacement keeps copied native metadata and never reparses authored markers', async () => {
+  const source = await fixture('# Literal');
+  const child = insert(source.doc, source.first, null, '- Literal child');
+  success(source.doc.edit({ kind: 'heading', id: source.first, level: 2 }));
+  success(source.doc.edit({ kind: 'task', id: child, value: newTask() }));
+  await source.client.flush();
+  const content = source.doc.clipboard([source.first]);
+  const { client, doc, first, pageId } = await fixture('Alpha');
+  const beta = insert(doc, pageId, first, 'Beta');
+  const gamma = insert(doc, pageId, beta, 'Gamma');
+  await client.flush();
+  const range = { anchor: { id: first, offset: 0 }, head: { id: beta, offset: 4 } };
+  const result = success(doc.edit({ kind: 'pasteBlocks', range, between: [], replaceRoots: [first, beta], content }, range.head));
+  expect(snapshot(doc).map(row => row.text)).toEqual(['# Literal', '- Literal child', 'Gamma']);
+  expect(result.created).toHaveLength(2);
+  expect(doc.block(result.created[0]!)?.heading).toBe(2);
+  expect(doc.block(result.created[1]!)?.task?.status).toBe('todo');
+  expect(doc.outline.depth(result.created[1]!)).toBe(1);
+  expect(result.created).not.toContain(source.first);
+  await client.flush();
+  doc.undo();
+  await client.flush();
+  expect(snapshot(doc).map(row => row.id)).toEqual([first, beta, gamma]);
 });
 
 test('typing redo restores the caret after the inserted character', async () => {

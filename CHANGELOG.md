@@ -16,6 +16,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Kept cached outlines visible offline and refreshed Revisit and Index after reconnecting, without false errors on new notes.
 - Reported Saving rather than Saved while text was still queued or awaiting the service's acknowledgment.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.
+- Replaced selected row ranges on paste and preserved native headings, nested lists, tasks, table rows, image URLs and labeled links from external HTML and Markdown.
 - Preserved immediate typing and Backspace corrections through slow highlight note and card delivery.
 - Kept source-note catalog apparatus hidden until its metadata finished loading.
 - Skipped punctuation-only fragments in revealed review cards' following context.

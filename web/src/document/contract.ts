@@ -121,6 +121,14 @@ export interface BlockClipboard {
   blocks: ClipboardBlock[];
 }
 
+/** External clipboard content, expressed only as native text, rows and capabilities. */
+export interface PasteRow {
+  text: string;
+  indent: number;
+  heading: 1 | 2 | 3 | null;
+  task: 'todo' | 'done' | null;
+}
+
 /**
  * Intent-level edits. The document turns each into operations plus an inverse
  * for undo; the outline view never builds operations itself.
@@ -228,8 +236,10 @@ export type Edit =
     }
   /** Paste plain text at a caret; lines become sibling blocks, leading indentation nests them. */
   | { kind: 'paste'; at: Caret; text: string }
+  /** Converted external content; a row selection replaces its complete subtrees. */
+  | { kind: 'pasteRows'; range: TextRange; between: string[]; rows: PasteRow[]; replaceRoots?: string[]; zoomRoot?: string | null }
   /** Insert copied subtrees, or restore and move cut subtrees, without merging their identities into text. */
-  | { kind: 'pasteBlocks'; range: TextRange; between: string[]; content: BlockClipboard; zoomRoot?: string | null }
+  | { kind: 'pasteBlocks'; range: TextRange; between: string[]; content: BlockClipboard; replaceRoots?: string[]; zoomRoot?: string | null }
   | { kind: 'heading'; id: string; level: 1 | 2 | 3 | null }
   /** Append a definition to the Fields page with its kind in one undo step. */
   | { kind: 'addField'; name: string; value: FieldKind; role?: FieldRole }

@@ -864,7 +864,7 @@ function Pane(props: OutlinePaneProps) {
     measure('structural', () => anchored(() => { result = doc.edit(intent, previousCaret ? { ...previousCaret, selection } : null); }));
     if (!result || !result.ok) { focusRestoresPending--; setMessage(result && !result.ok ? result.reason : 'The edit could not be applied.'); return result; }
     setMessage('');
-    if (reading() && (rearrange || ['split', 'insert', 'merge', 'pasteBlocks'].includes(intent.kind) || intent.kind === 'replaceRange' && intent.mode !== 'text')) props.onProjection?.('outline');
+    if (reading() && (rearrange || ['split', 'insert', 'merge', 'pasteBlocks', 'pasteRows'].includes(intent.kind) || intent.kind === 'replaceRange' && intent.mode !== 'text')) props.onProjection?.('outline');
     setTextRange(null);
     if (!rearrange) setRowRange(null);
     const next = result.caret;
