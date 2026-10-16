@@ -49,12 +49,13 @@ test('cross-passage ordering uses ordinals, not passage IDs or offsets alone', (
   expect(groups[0]!.end).toEqual(point(8, 'q'));
 });
 
-test('survivor keeps its colour, or takes the incoming colour when uncoloured', () => {
+test('explicit colour wins a merge, while an ordinary highlight keeps existing ink', () => {
   const first = row('first', 0, 10, 1), second = row('second', 5, 15, 2);
   const group = overlappingHighlights([first, second], ordinals)[0]!;
   expect(mergeMembers(group, 'source', new Set(), 'blue').color).toBe('blue');
   first.citation.color = 'green';
-  expect(mergeMembers(group, 'source', new Set(), 'blue').color).toBe('green');
+  expect(mergeMembers(group, 'source', new Set(), 'blue').color).toBe('blue');
+  expect(mergeMembers(group, 'source', new Set()).color).toBe('green');
   first.citation.color = null; second.citation.color = 'purple';
   expect(mergeMembers(group, 'source', new Set()).color).toBe('purple');
 });

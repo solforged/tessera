@@ -1,4 +1,4 @@
-import { Show, createSignal, createUniqueId, onCleanup, onMount } from 'solid-js';
+import { Show, createEffect, createSignal, createUniqueId, onCleanup, onMount } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import type { NotebookClient } from '../document/contract';
 import { formatProgress } from '../library/query';
@@ -29,7 +29,7 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
   const [closing, setClosing] = createSignal(false);
   const [error, setError] = createSignal('');
   let input!: HTMLTextAreaElement, context!: HTMLElement, quote!: HTMLQuoteElement, root!: HTMLDialogElement;
-  let disposed = false;
+  let disposed = false, leaving = false;
   const historyKey = createUniqueId();
   const prior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   const reader = document.querySelector<HTMLElement>('.pane.active .reader-scroll');
@@ -39,6 +39,12 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
     historyOwned = false;
     event.stopImmediatePropagation();
     void close();
+  };
+  /** A Back that could not close the sheet leaves it open, so Back must reach it again. */
+  const reclaimHistory = () => {
+    if (historyOwned || disposed) return;
+    history.pushState({ ...history.state, tesseraComposer: historyKey }, '');
+    historyOwned = true;
   };
   const failed = (reason: unknown) => { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); };
   /** The whole quotation and as much of the lead-in as fits; the sentence after it scrolls into view. */
@@ -78,28 +84,29 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
     setError(result.ok ? '' : result.reason);
   }
 
-  /** Text is already saved as it is typed; closing removes an empty note, waits for the save, then lets the page show through. */
-  async function close() {
+  /** A locally queued note is kept even without an acknowledgement from the service. */
+  async function leave() {
+    if (leaving) return;
+    leaving = true;
+    input.blur();
+    root.classList.add('reader-compose-leaving');
+    await root.getAnimations().find(animation => animation instanceof CSSAnimation && animation.animationName === 'fade-out')?.finished.catch(() => undefined);
+    if (!disposed) props.onClose();
+  }
+  createEffect(() => {
+    if (!closing()) return;
+    const state = doc.saveState();
+    if (state === 'saved' || state === 'saving' || state === 'offline') void leave();
+    else if (state === 'error' || state === 'conflict') { setError(doc.saveMessage()); setClosing(false); reclaimHistory(); }
+  });
+  function close() {
     if (closing()) return;
-    setClosing(true);
-    try {
-      if (ready() && !text().trim()) {
-        const result = doc.edit({ kind: 'delete', ids: [props.draft.noteId] });
-        if (!result.ok) throw new Error(result.reason);
-      }
-      await doc.flush();
-      if (disposed) return;
-      input.blur();
-      root.classList.add('reader-compose-leaving');
-      await root.getAnimations().find(animation => animation instanceof CSSAnimation && animation.animationName === 'fade-out')?.finished.catch(() => undefined);
-      if (!disposed) props.onClose();
-    } catch (reason) {
-      failed(reason); setClosing(false);
-      if (!historyOwned) {
-        history.pushState({ ...history.state, tesseraComposer: historyKey }, '');
-        historyOwned = true;
-      }
+    if (ready() && !text().trim()) {
+      const result = doc.edit({ kind: 'delete', ids: [props.draft.noteId] });
+      if (!result.ok) { setError(result.reason); reclaimHistory(); return; }
     }
+    setClosing(true);
+    void doc.flush().catch(reason => { failed(reason); if (!disposed) { setClosing(false); reclaimHistory(); } });
   }
 
   const status = () => error() || (ready() ? doc.saveMessage() : 'Loading…');

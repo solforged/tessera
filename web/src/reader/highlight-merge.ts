@@ -39,6 +39,6 @@ export function mergeMembers(group: HighlightGroup, sourceId: string, referenced
   const rest = group.rows.filter(row => row !== survivor);
   const kept = rest.filter(row => row.block.block.page_id !== sourceId || referenced.has(row.block.block.id));
   const removed = rest.filter(row => !kept.includes(row));
-  const color = survivor?.citation.color ?? newColor ?? removed.find(row => row.citation.color)?.citation.color ?? null;
+  const color = newColor ?? survivor?.citation.color ?? removed.find(row => row.citation.color)?.citation.color ?? null;
   return { survivor, kept, removed, color };
 }

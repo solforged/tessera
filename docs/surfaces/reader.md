@@ -203,7 +203,7 @@ The same button, `F`, `Esc` after any selection is cleared, Back on Android and 
 
 ## Selection and highlights
 
-Selecting text shows a small toolbar beside the selection, centered on it and below it when there is no room above. [Touch selection](#touch-selection) docks it in thumb reach instead.
+Selecting text shows a small toolbar beside an endpoint's visible line, above or below it without covering the selected words when space permits. It leaves when the reader becomes inactive or hidden. Scrolling with a mouse clears both the toolbar and the selection. [Touch selection](#touch-selection) docks it in thumb reach instead.
 
 | Action | Key | Result |
 | --- | --- | --- |
@@ -221,9 +221,13 @@ Highlights are ink, not boxes. A band of their color sits under the lower half o
 
 Hovering a highlight deepens the band of every range it covers to lightness 0.60 by night and 0.84 by day, or to 40% without a color. One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu. ⌘-click opens its block beside the reader (Ctrl-click off Mac).
 
+Removing a highlight offers Undo in a notice for eight seconds, held while hovered or focused. Undo last edit remains in Reader actions after the notice leaves.
+
 ### Overlapping highlights
 
 Highlighting a selection that overlaps existing highlights extends the earliest one on the source page to cover the union instead of stacking a new mark.
+
+An explicit color choice colors the resulting union. Highlight and Highlight and note keep the surviving mark's color.
 
 Merge overlapping highlights, in the reader's actions menu, does the same for every overlapping group and reports `Merged N highlights` or `No overlapping highlights`. Highlights cited from other pages are kept and still count toward the union, with `; N cited elsewhere kept` added to the report.
 
@@ -237,7 +241,7 @@ The back arrow returns through the pane's history, or opens the source page when
 
 ### Touch selection
 
-The selection toolbar docks across the foot of the page in thumb reach, clear of the system's own text menu beside the selection. It is no wider than the reading measure, with 44 px buttons sharing the width and no key hints. It moves to the head only when the selection runs down there.
+The selection toolbar docks across the foot of the page in thumb reach, clear of the system's own text menu beside the selection. It is no wider than the rendered reading measure, with 44 px buttons sharing the width and no key hints. It moves to the head only when the selection runs down there. Scrolling keeps the toolbar while text remains selected and updates its placement.
 
 ### Highlight and note sheet
 
@@ -250,9 +254,11 @@ On a touch screen, Highlight and note keeps the passage in view instead of openi
 5. The quotation itself, larger on a highlight tint with a gilt rule.
 6. The sentence after it.
 
+The quotation and its surrounding sentences describe the resulting highlight, including the whole union after an overlap is merged. A punctuation-only tail is skipped in favor of the next textual sentence.
+
 Below, on `--surface`, sit "A thought on this passage" with one way back beside it, the note field and the save state in `--muted`.
 
-The note is the highlight's child block and saves as it is typed. The button reads Back to reading while the note is empty and becomes a gilt Keep note once there is text; Escape, Android Back after the keyboard closes, and browser Back do the same. Back closes the sheet before leaving reader full screen. Leaving with nothing typed removes the empty note; the highlight stays.
+The note is the highlight's child block and saves as it is typed. The button reads Back to reading while the note is empty and becomes a gilt Keep note once there is text; Escape, Android Back after the keyboard closes, and browser Back do the same. Back closes the sheet before leaving reader full screen. Leaving with nothing typed removes the empty note; the highlight stays. Returning waits only until the change is saved or queued locally, not for a service acknowledgement, so offline notes stay kept without blocking reading.
 
 The sheet contains keyboard focus and makes the reader behind it inert. Tab and Shift+Tab cycle between the note field and its button. Closing restores focus to the initiating control, or the reader if that control has gone.
 
@@ -262,6 +268,6 @@ When the keyboard takes room, the passage scrolls so the whole quotation and as 
 
 On a touch screen, Contents and Highlights open without raising the keyboard; their search field takes a tap. `Aa` rises as a sheet from the bottom edge, its rows kept to a column, so the text it changes stays in sight above.
 
-The reader toolbar, the settings and the note sheet's buttons are 44 px touch targets (`--touch-target`). The note mark after a highlight and the progress at the foot reach as far without growing.
+The reader toolbar, the settings and the note sheet's buttons are 44 px touch targets (`--touch-target`). The note mark after a highlight and the progress at the foot reach as far without growing. In Pages, the note mark's target still reaches into the gutter outside the clipped page and takes priority over an edge page turn.
 
 On Android the shell and the note sheet sit below the status bar. The app reports its height itself because the WebView leaves it out of the safe-area insets, and the bar's icons follow the app's theme.

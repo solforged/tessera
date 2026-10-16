@@ -62,7 +62,7 @@ const pageTurns: Record<string, 1 | -1> = { ArrowRight: 1, ArrowLeft: -1, PageDo
 /** A place in the paged flow: a passage and a character offset into its text. */
 type PageAnchor = { ordinal: number; offset: number };
 type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'actions' | 'progress'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean; ordinal?: number; locator?: string } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; Header?: HighlightMenu['Header'] };
-type SelectionToolbar = PassageSelection & { rect: DOMRect; snapshotId: string };
+type SelectionToolbar = PassageSelection & { rect: DOMRect; rects: DOMRect[]; snapshotId: string };
 /** Touch screens write a new highlight's note beside the passage, not in the source page. */
 const coarsePointer = window.matchMedia('(pointer: coarse)');
 /** The cover screen always reads in the reading layout; its chrome toggles with a centre tap, as in full screen. */
@@ -96,6 +96,13 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [editError, setEditError] = createSignal('');
   const [editing, setEditing] = createSignal(false);
   const [mergeMessage, setMergeMessage] = createSignal('');
+  const [removedNotice, setRemovedNotice] = createSignal(false);
+  const [noticeHeld, setNoticeHeld] = createSignal(false);
+  createEffect(() => {
+    if (!removedNotice() || noticeHeld()) return;
+    const timer = setTimeout(() => setRemovedNotice(false), 8000);
+    onCleanup(() => clearTimeout(timer));
+  });
   const readerDocument = props.notebook.open(props.target.sourceId);
   // The source page is the record: renaming the book or editing its creators shows here at once. The snapshot keeps
   // what the file said at import, and stands in only until the page has loaded.
@@ -131,7 +138,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const sections = createMemo(() => contents().filter((entry): entry is HighlightSection => entry.ordinal !== null).sort((a, b) => a.ordinal - b.ordinal));
   const [highlightsLoading, setHighlightsLoading] = createSignal(false);
   const [highlightsError, setHighlightsError] = createSignal('');
-  const actions = createHighlightActions(props.notebook, props.onOpen, setError);
+  const actions = createHighlightActions(props.notebook, props.onOpen, setError, undefined, () => { setNoticeHeld(false); setRemovedNotice(true); });
   const pages = new Map<number, PassagePage>();
   const passages = new Map<number, Passage>();
   const ordinals = new Map<string, number>();
@@ -654,6 +661,17 @@ export function ReaderPane(props: ReaderPaneProps) {
     const sheet = paged() && frame?.isConnected ? frame : undefined;
     const dx = event.clientX - start.x, dy = event.clientY - start.y;
     if (Math.abs(dx) > 8 || Math.abs(dy) > 8 || event.target instanceof Element && event.target.closest('button, a, .reader-highlight')) return;
+    // The page clips its columns, but a note's fingertip target still reaches into the page gutter.
+    if (sheet) {
+      const bounds = sheet.getBoundingClientRect(), target = cssValue('--touch-target');
+      const note = [...scroll.querySelectorAll<HTMLButtonElement>('.reader-highlight-note')].find(button => {
+        const rect = button.getBoundingClientRect();
+        if (rect.right <= bounds.left || rect.left >= bounds.right || rect.bottom <= bounds.top || rect.top >= bounds.bottom) return false;
+        const x = Math.max(0, (target - rect.width) / 2), y = Math.max(0, (target - rect.height) / 2);
+        return event.clientX >= rect.left - x && event.clientX <= rect.right + x && event.clientY >= rect.top - y && event.clientY <= rect.bottom + y;
+      });
+      if (note) { event.preventDefault(); note.click(); return; }
+    }
     if (sheet) {
       const rect = sheet.getBoundingClientRect(), x = event.clientX - rect.left;
       if (x < rect.width / 6) { void turn(-1); return; }
@@ -780,7 +798,10 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (suppressed && userScroll && Math.abs(scroll.scrollTop - jumpOrigin) > scroll.clientHeight) suppressed = false;
     clearTimeout(positionTimer);
     if (!suppressed && userScroll) positionTimer = window.setTimeout(() => { void savePosition(); }, 2000);
-    if (!editing() && !rewritingSelection) setSelection(null);
+    if (!editing() && !rewritingSelection) {
+      if (coarsePointer.matches) selected();
+      else if (selection()) { setSelection(null); window.getSelection()?.removeAllRanges(); }
+    }
     if (userScroll && chromeOverlays()) hideChrome();
   }
 
@@ -923,11 +944,20 @@ export function ReaderPane(props: ReaderPaneProps) {
     } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
   }
 
+  createEffect(() => {
+    if (props.active) return;
+    setSelection(null);
+    const dom = window.getSelection();
+    if (dom?.anchorNode && scroll?.contains(dom.anchorNode)) dom.removeAllRanges();
+  });
+
   function selected() {
     if (editing() || rewritingSelection || popup()?.kind === 'actions') return;
+    if (!props.active || !scroll.getClientRects().length) { setSelection(null); return; }
     const dom = window.getSelection();
     const value = dom && selectionInPassages(scroll, dom, [...passages.values()]);
-    setSelection(value && dom!.rangeCount ? { ...value, rect: dom!.getRangeAt(0).getBoundingClientRect(), snapshotId: snapshot() } : null);
+    const range = value && dom!.rangeCount ? dom!.getRangeAt(0) : null;
+    setSelection(value && range ? { ...value, rect: range.getBoundingClientRect(), rects: [...range.getClientRects()], snapshotId: snapshot() } : null);
     setEditError('');
   }
 
@@ -936,11 +966,13 @@ export function ReaderPane(props: ReaderPaneProps) {
     const first = passages.get(value.first)!, last = passages.get(value.last)!;
     const neighbour = (ordinal: number) => { const passage = passages.get(ordinal); return passage && prose[passage.kind] ? passage.text : ''; };
     const before = first.text.slice(0, value.start.offset), after = last.text.slice(value.end.offset);
+    let following = followOn(after);
+    for (let ordinal = value.last + 1; !following && passages.has(ordinal); ordinal++) following = followOn(neighbour(ordinal));
     const section = sectionAt(value.first)?.title;
     return {
       sourceId: props.target.sourceId, noteId, title: title(), byline: byline(),
       section: section ? sectionLabel(section) : '', progress: share(value.first), quote: value.quote,
-      before: leadIn(before.trim() ? before : neighbour(value.first - 1)), after: followOn(after.trim() ? after : neighbour(value.last + 1)),
+      before: leadIn(before.trim() ? before : neighbour(value.first - 1)), after: following,
     };
   }
 
@@ -1007,10 +1039,11 @@ export function ReaderPane(props: ReaderPaneProps) {
   async function highlight(withNote: boolean, color: Citation['color'] = null) {
     const value = selection();
     if (!value || value.blockedReason || editing()) return;
-    setEditing(true); setEditError('');
+    setEditing(true); setEditError(''); setRemovedNotice(false);
     const sourceId = props.target.sourceId, doc = readerDocument;
     try {
       const plan = await prepareMerges(value, color), range = plan.selectedRange!;
+      if (withNote && coarsePointer.matches) await Promise.all([loadPage(range.first), loadPage(range.last), loadPage(range.last + 1)]);
       const citationId = plan.merges[0]?.citation.id ?? ulid();
       const result = plan.merges.length ? doc.edit({ kind: 'mergeHighlights', merges: plan.merges, note: withNote })
         : doc.edit({ kind: 'highlight', parentId: sourceId, text: range.quote, color, note: withNote, citation: {
@@ -1021,7 +1054,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       await doc.flush();
       if (!disposed) {
         setSelection(null); window.getSelection()?.removeAllRanges();
-        if (withNote && coarsePointer.matches) { composedCitation = citationId; setComposing(noteDraft(value, result.created.at(-1)!)); }
+        if (withNote && coarsePointer.matches) { composedCitation = citationId; setComposing(noteDraft(range, result.created.at(-1)!)); }
         else {
           drawInk(citationId);
           if (withNote) props.onOpen({ kind: 'page', pageId: sourceId, blockId: highlightId, caretId: result.created.at(-1) }, true);
@@ -1120,12 +1153,20 @@ export function ReaderPane(props: ReaderPaneProps) {
     }
     if (range !== value) await writeSelection(range);
   }
+  async function undoHighlight() {
+    setRemovedNotice(false);
+    try {
+      if (actions.canUndo()) await actions.undo();
+      else { readerDocument.undo(); await readerDocument.flush(); }
+    } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
+  }
 
   const readerActions = createMemo<MenuItem[]>(() => {
     const needsSelection = selection() ? undefined : 'Select text first';
     return [
       { label: 'Open source page', icon: 'page', shortcut: `${besideKey} beside`, action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, besidePressed) },
       { label: 'Merge overlapping highlights', icon: 'highlight', disabledReason: editing() ? 'Saving…' : undefined, action: () => { void mergeOverlapping(); } },
+      { label: 'Undo last edit', icon: 'undo', disabledReason: actions.canUndo() || readerDocument.canUndo() ? undefined : 'Nothing to undo', action: () => { void undoHighlight(); } },
       { label: 'Next passage', section: 'Keyboard', shortcut: 'J', action: () => { void moveCursor(1); } },
       { label: 'Previous passage', shortcut: 'K', action: () => { void moveCursor(-1); } },
       { label: 'Select sentence', shortcut: 'S', action: () => { void selectSentence(); } },
@@ -1146,9 +1187,13 @@ export function ReaderPane(props: ReaderPaneProps) {
   });
   const trackBeside = (event: KeyboardEvent) => { besidePressed = opensBeside(event); };
   // Registered before any popup opens, so it sees the popup and selection a tap is about to dismiss.
-  const pointerDown = (event: PointerEvent) => { besidePressed = opensBeside(event); dismissingTap = !!popup() || window.getSelection()?.isCollapsed === false; };
+  const pointerDown = (event: PointerEvent) => {
+    besidePressed = opensBeside(event); dismissingTap = !!popup() || window.getSelection()?.isCollapsed === false;
+    if (!(event.target instanceof Element && event.target.closest('.reader-highlight-undo'))) setRemovedNotice(false);
+  };
 
   const readerKey = (event: KeyboardEvent) => {
+    if (props.active && !(event.target instanceof Element && event.target.closest('.reader-highlight-undo'))) setRemovedNotice(false);
     if (props.active && !composing() && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z' && !(event.target instanceof HTMLElement && event.target.closest('input, textarea, [contenteditable="true"]'))) {
       event.preventDefault(); event.stopImmediatePropagation();
       if (event.shiftKey) readerDocument.redo(); else readerDocument.undo();
@@ -1354,24 +1399,33 @@ export function ReaderPane(props: ReaderPaneProps) {
       const value = selection();
       if (!element || !value) return;
       const viewport = scroll.getBoundingClientRect();
+      if (!props.active || !viewport.width || !viewport.height) { setPlacement(previous => ({ ...previous, visible: false })); return; }
       const left = Math.max(0, viewport.left), right = Math.min(window.innerWidth, viewport.right);
       const top = Math.max(0, viewport.top), bottom = Math.min(window.innerHeight, viewport.bottom);
       const gap = parseFloat(getComputedStyle(element).getPropertyValue('--space-4'));
       // Touch screens dock the toolbar at the foot of the page, in thumb reach and clear of the system's own text menu
       // beside the selection, and at the head only when the selection runs down there. It keeps to the reading measure.
       if (coarsePointer.matches) {
-        const inset = gap * 3, height = element.offsetHeight, foot = bottom - height - gap;
-        const width = Math.min(right - left - 2 * inset, probe.getBoundingClientRect().width);
-        setPlacement({ left: (left + right - width) / 2, top: value.rect.bottom > foot - gap ? top + gap : foot, width, visible: true, docked: true });
+        const height = element.offsetHeight, foot = bottom - height - gap;
+        const measure = (paged() ? frame : scroll.querySelector('.reader-list'))?.getBoundingClientRect();
+        const measureLeft = Math.max(left, measure?.left ?? left), measureRight = Math.min(right, measure?.right ?? right);
+        const width = Math.max(0, Math.min(measureRight - measureLeft, probe.getBoundingClientRect().width));
+        setPlacement({ left: (measureLeft + measureRight - width) / 2, top: value.rect.bottom > foot - gap ? top + gap : foot, width, visible: width > 0, docked: true });
         return;
       }
       const width = Math.min(element.offsetWidth, right - left), height = element.offsetHeight;
-      const above = value.rect.top - height - gap;
-      setPlacement({
-        left: Math.max(left, Math.min((value.rect.left + value.rect.right - width) / 2, right - width)),
-        top: Math.max(top, Math.min(above < top ? value.rect.bottom + gap : above, bottom - height)),
-        width: right - left, visible: true, docked: false,
-      });
+      const rects = value.rects.filter(rect => rect.width > 0 && rect.height > 0 && rect.right > left && rect.left < right && rect.bottom > top && rect.top < bottom);
+      if (!rects.length) { setPlacement(previous => ({ ...previous, visible: false })); return; }
+      // A range can cross columns. Its union is nearly page-height, so anchor beside an endpoint's actual line instead.
+      const candidates = [rects.at(-1)!, rects[0]!].flatMap(rect => {
+        const x = Math.max(left, Math.min((rect.left + rect.right - width) / 2, right - width));
+        return [{ left: x, top: rect.top - height - gap }, { left: x, top: rect.bottom + gap }];
+      }).filter(at => at.top >= top && at.top + height <= bottom);
+      const overlap = (at: { left: number; top: number }) => rects.reduce((area, rect) => area
+        + Math.max(0, Math.min(at.left + width, rect.right) - Math.max(at.left, rect.left))
+        * Math.max(0, Math.min(at.top + height, rect.bottom) - Math.max(at.top, rect.top)), 0);
+      const at = candidates.reduce((best, at) => overlap(at) < overlap(best) ? at : best, candidates[0] ?? { left, top });
+      setPlacement({ ...at, width: right - left, visible: true, docked: false });
     };
     createEffect(place);
     onMount(() => {
@@ -1381,7 +1435,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       onCleanup(() => observer.disconnect());
     });
     return <Portal><div ref={element} class="reader-selection-toolbar" classList={{ 'reader-selection-docked': placement().docked }} role="toolbar" aria-label="Highlight selection"
-      style={{ left: `${placement().left}px`, top: `${placement().top}px`, 'max-width': `${placement().width}px`, width: placement().docked ? `${placement().width}px` : undefined, visibility: placement().visible ? 'visible' : 'hidden' }}
+      style={{ left: `${placement().left}px`, top: `${placement().top}px`, 'max-width': placement().width ? `${placement().width}px` : undefined, width: placement().docked ? `${placement().width}px` : undefined, visibility: placement().visible ? 'visible' : 'hidden' }}
       onPointerDown={event => event.preventDefault()}>
       <div class="reader-selection-actions"><Button icon="highlight" disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(true); }}>Highlight and note <kbd>N</kbd></Button></div>
       <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
@@ -1490,8 +1544,11 @@ export function ReaderPane(props: ReaderPaneProps) {
         <Show when={(() => { const value = state(); return value.kind === 'note' && value.ordinal !== undefined ? value : null; })()}>{note => <Button onClick={() => { void openFootnote(note().ordinal!, note().locator!, note().anchor); }}>Open footnote</Button>}</Show>
       </Popup></Show>
     </>}</Show>
-    <Show when={selection()}><SelectionTools /></Show>
+    <Show when={props.active && selection()}><SelectionTools /></Show>
     <Show when={composing()}>{draft => <HighlightComposer notebook={props.notebook} draft={draft()} onClose={() => { setComposing(null); drawInk(composedCitation); }} />}</Show>
+    <Show when={props.active && removedNotice()}><div class="undo-toast reader-highlight-undo" role="status" onPointerEnter={() => setNoticeHeld(true)} onPointerLeave={() => setNoticeHeld(false)} onFocusIn={() => setNoticeHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNoticeHeld(false); }}>
+      <span>Highlight removed</span><Button icon="undo" disabled={!actions.canUndo()} onClick={() => { void undoHighlight(); }}>Undo</Button><Button icon="close" label="Dismiss highlight removal notice" onClick={() => setRemovedNotice(false)} />
+    </div></Show>
     <actions.Popups />
   </div>;
 }

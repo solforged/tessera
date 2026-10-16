@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Passage } from '../api/types';
-import { extendSelection, sentenceAt, sentenceRanges, shrinkSelection } from './sentences';
+import { extendSelection, followOn, sentenceAt, sentenceRanges, shrinkSelection } from './sentences';
 import type { SentenceSelection } from './sentences';
 
 const passages: Passage[] = ['One sentence. Two sentences! Three sentences?', '  ', '', 'Next 😀 sentence. Last sentence.'].map((text, ordinal) => ({
@@ -48,6 +48,12 @@ describe('reader sentences', () => {
       const text = '  One.two! Three? Four… Five. Last  ';
       expect(sentenceRanges(text).map(range => text.slice(range.start, range.end))).toEqual(['One.two!', 'Three?', 'Four…', 'Five.', 'Last']);
     } finally { Object.defineProperty(Intl, 'Segmenter', descriptor); }
+  });
+  test('following context skips punctuation-only sentence tails', () => {
+    expect(followOn('.')).toBe('');
+    expect(followOn('.” \n The next sentence. Another follows.')).toBe('The next sentence.');
+    expect(followOn('. \n XXVII. Consider the next sentence. Another follows.')).toBe('Consider the next sentence.');
+    expect(followOn(', with more to say. Next sentence.')).toBe(', with more to say.');
   });
 });
 

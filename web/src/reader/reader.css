@@ -192,7 +192,7 @@
 .reader-loading .reader-scroll, .reader-loading .reader-folio { visibility: hidden; }
 /* Once it is, they fade in where they stand, unless the pane navigation held the previous view until they were. */
 .pane-content:not([data-entered]) .reader-pane:not(.reader-loading) :is(.reader-scroll, .reader-folio) { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
-.reader-selection-toolbar { position: fixed; z-index: 100; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-4); font-size: var(--text-control); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
+.reader-selection-toolbar { box-sizing: border-box; position: fixed; z-index: 100; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-4); font-size: var(--text-control); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
 .reader-selection-actions { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .reader-selection-toolbar p { margin: var(--space-4); }
 .reader-selection-toolbar kbd { color: var(--muted); }
@@ -201,6 +201,7 @@
 .reader-selection-docked .reader-selection-actions { flex-wrap: nowrap; }
 .reader-selection-docked .reader-selection-actions > .button { flex: 1; justify-content: center; min-height: var(--touch-target); }
 .reader-selection-docked kbd { display: none; }
+.reader-highlight-undo .button { min-height: var(--touch-target); min-width: var(--touch-target); }
 /* The start of the book: a small cover beside the imprint in mono, the title in display type with its subtitle in italic, the author, a gilt rubric rule, the book's length and where its text begins. */
 .reader-title-block { position: absolute; top: 0; width: 100%; padding-block: calc(var(--reader-size) * 2) calc(var(--reader-size) * 3); font-family: var(--reader-font); }
 .reader-title-page { display: flex; align-items: flex-start; gap: var(--space-24); }

@@ -55,7 +55,10 @@ export function leadIn(text: string): string {
 
 /** The rest of the sentence after a quotation, or the next one; long ones keep their start. */
 export function followOn(text: string): string {
-  const range = sentenceRanges(text)[0];
+  const range = sentenceRanges(text).find(range => {
+    const value = text.slice(range.start, range.end);
+    return /[\p{L}\p{N}]/u.test(value) && !/^[IVXLCDM]+[.)]$/u.test(value);
+  });
   if (!range) return '';
   const value = text.slice(range.start, range.end);
   return value.length > CONTEXT_LENGTH ? `${value.slice(0, CONTEXT_LENGTH).replace(/\s+\S*$/u, '')}…` : value;

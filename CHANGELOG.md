@@ -47,6 +47,16 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Expanded footnote reference touch targets without changing their printed size.
 - Kept suppressed chapter headings hidden and explained when a selection crosses hidden source text.
 - Added Open footnote and a return action so footnote passages can be annotated.
+- Placed cross-column selection tools beside an endpoint's line instead of over the selected text.
+- Dismissed reader selection tools when their pane became inactive or hidden.
+- Honored explicit highlight colors when overlapping marks merged.
+- Let locally queued notes close while offline without waiting for service acknowledgement.
+- Kept touch selection tools available and repositioned them while scrolling.
+- Showed the merged highlight's quotation and context in its note sheet.
+- Kept the touch selection dock within the rendered reading measure.
+- Preserved note marks' full touch targets at clipped page edges.
+- Offered touch-accessible Undo after removing a reader highlight.
+- Skipped punctuation-only fragments in a note sheet's following context.
 
 ## 0.4.0, 2026-10-14
 
