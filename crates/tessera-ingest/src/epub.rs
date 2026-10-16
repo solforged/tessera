@@ -265,6 +265,23 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<ExtractedDocument> {
                 let heading = document
                     .iter()
                     .find(|passage| passage.kind == PassageKind::Heading);
+                // An isolated quotation is an epigraph, not a chapter title.
+                if heading.is_none()
+                    && (document.iter().all(|passage| {
+                        matches!(passage.kind, PassageKind::Image | PassageKind::Quote)
+                    }) || (document
+                        .iter()
+                        .filter(|passage| {
+                            passage.kind != PassageKind::Image && !passage.text.trim().is_empty()
+                        })
+                        .count()
+                        == 1
+                        && [('"', '"'), ('“', '”'), ('‘', '’')].iter().any(|(open, close)| {
+                            first.text.starts_with(*open) && first.text.ends_with(*close)
+                        })))
+                {
+                    return None;
+                }
                 let title = heading.map_or_else(
                     || {
                         let paragraph = document

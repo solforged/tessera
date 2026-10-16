@@ -142,6 +142,8 @@ URL names retain the host and final path identifier (the complete DOI for doi.or
 
 An EPUB creator entry that holds several people (`A; B`, `A & B`, or inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`) becomes one creator each. Calibre's unknown date, `0101-01-01`, is no date. Earlier EPUB imports carrying that sentinel in their extracted metadata read as undated in Library rows, Decades, year sorting, exports, the source header and the catalog card; other ancient dates and authored dates are kept, and stored fields are not rewritten. Browse facets skip blank values.
 
+Snapshots are deduplicated by the original file's bytes. Re-adding an unchanged file reuses its stored passages; parser updates do not reprocess existing snapshots, and there is no reprocess action or parser-version migration.
+
 ### Manual details
 
 The manual details form remains in Add only: labeled rows, Creator name fields with Author, Editor and Translator tabs, Add creator, and the existing “Same as X?” reuse suggestion. Below 600 px, each creator's name spans the field width, with role tabs and Remove on the next row. Published accepts `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; adding a record saves its fields together.
@@ -216,6 +218,8 @@ Highlights is a processing desk: a reading-order queue and selected passage shar
 Sources retain newest-highlight order. Each source's passages retain ordinal and selection-offset order, including distinct overlapping selections. Queue previews clamp to three lines, marked by a 2 px color bar, with the actual paragraph, date, note count and filing page in mono. A quotation that supplies its own chapter title does not repeat that title above it.
 
 The detail shows the full frozen quotation, preserves rewritten block text, and fetches the following passage from the citation's snapshot without moving the reading position.
+
+Markdown export keeps the frozen evidence, authored highlight text, filing tags and child notes. An unchanged quotation appears once; tags or commentary appended to it follow the evidence without repeating the quotation.
 
 On the cover, tapping a queue row opens a dedicated passage state with Back to highlights, Previous and Next. The scrollable passage sits above an always-visible action dock, clear of the bottom nav.
 

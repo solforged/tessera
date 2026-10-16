@@ -439,3 +439,56 @@ fn unstructured_article_creators_keep_person_default_without_name_guessing() {
             .all(|creator| creator.kind == CreatorKind::Person)
     );
 }
+
+#[test]
+fn repeated_line_breaks_form_paragraphs_without_splitting_single_breaks_or_code() {
+    let document = article(
+        r#"<article><div id="opening"><em>First 😀 line.<br>Still first.<br>
+          <br>Second paragraph.</em><br><br><br>Third paragraph.</div>
+          <pre>one<br><br>two</pre></article>"#,
+        "https://example.org/line-breaks",
+    )
+    .unwrap();
+    assert_eq!(
+        document
+            .passages
+            .iter()
+            .map(|passage| passage.text.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "First 😀 line. Still first.",
+            "Second paragraph.",
+            "Third paragraph.",
+            "one\n\ntwo"
+        ]
+    );
+    assert_eq!(document.passages[0].locator, "#opening");
+    for passage in &document.passages[..2] {
+        assert!(passage.marks.iter().any(|mark| {
+            mark.kind == MarkKind::Emphasis
+                && mark.start == 0
+                && mark.end == passage.text.encode_utf16().count() as u32
+        }));
+    }
+    invariants(&document);
+}
+
+#[test]
+fn layout_tables_do_not_flatten_line_break_authored_articles() {
+    let document = article(
+        r#"<html><body><table><tr><td><table><tr><td><font>
+          First paragraph.<br><br>Second paragraph.<br><br>Third paragraph.
+          </font></td></tr></table></td></tr></table></body></html>"#,
+        "https://example.org/layout-table",
+    )
+    .unwrap();
+    assert_eq!(
+        document
+            .passages
+            .iter()
+            .map(|passage| passage.text.as_str())
+            .collect::<Vec<_>>(),
+        ["First paragraph.", "Second paragraph.", "Third paragraph."]
+    );
+    invariants(&document);
+}

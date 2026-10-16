@@ -81,11 +81,12 @@ Reader settings are a device preference shared by every reader pane. Saved choic
 ### Text and media
 
 - Headings scale from the reader size.
-- Footnote references stay live inside highlights. They open the note in a popover with Open footnote to reach its annotatable passage. Back to footnote reference returns to the reading place. On touch screens the superscript keeps its printed size with a 44 px hit area.
+- Footnote references stay live inside highlights. They open the note in a popover with Open footnote to reach its annotatable passage. Back to footnote reference returns to the reading place. On touch screens the superscript keeps its printed size with a 44 px hit area. Imports recognize explicit note markup, numeric superscript links and numeric references whose targets begin with a backlink.
 - Images keep their natural size up to the measure and 70% of the viewport height. On the dark canvas they are dimmed to 85% brightness until hovered.
 - Code sits on `--surface` in a horizontally scrolling block.
 - Quotations take a 2 px `--line` rule at an indent. When quotes outnumber plain paragraphs among the loaded passages, they read as plain paragraphs instead: some EPUBs wrap the whole text in blockquotes.
 - Each highlight has one keyboard target, named by its full quotation, even when its ink crosses formatting or passage boundaries. Enter and Space open its actions. Inline links retain their own keyboard targets.
+- Articles authored with repeated line breaks keep those paragraph boundaries, giving progress and saved positions a passage to follow. A single line break remains inside its paragraph.
 
 [Pages](#pages) has its own image-height limit.
 
@@ -93,7 +94,7 @@ Reader settings are a device preference shared by every reader pane. Saved choic
 
 Contents opens on the current section, marked with a check, when no persistent margin is visible. With the margin visible, Contents focuses its current entry (or the first entry before reading begins) instead of opening a duplicate floating list. The Highlights picker lists each highlight's color, quote and section. Find marks matches, counts passages and labels each result with its passage number and section.
 
-Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty. A passage's tooltip names its number and section: `Passage 37 · Chapter 1`.
+Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty. Inferred spine entries leave out isolated epigraph quotations rather than turning their prose into chapter titles. A passage's tooltip names its number and section: `Passage 37 · Chapter 1`.
 
 ### Contents margin
 

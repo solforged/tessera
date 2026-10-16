@@ -1888,7 +1888,7 @@ fn export_markdown_document_reading_order_notes_and_locations() {
     doc.passages[1].text = "Second evidence #tag".into();
     let (source, snapshot) = ingest(&mut n, &doc, b"markdown");
     let passages = n.passages(&snapshot, 0, 10).unwrap().passages;
-    let later = note(&mut n, &source, "Later highlight");
+    let later = note(&mut n, &source, "evidence #tag #attention");
     apply(
         &mut n,
         vec![Operation::Cite {
@@ -1907,7 +1907,7 @@ fn export_markdown_document_reading_order_notes_and_locations() {
             color: None,
         }],
     );
-    let first = note(&mut n, &source, "Edited highlight, not the frozen quote");
+    let first = note(&mut n, &source, "Edited highlight, not the frozen quote #cosmos");
     cite(&mut n, &first, &snapshot);
     note(&mut n, &first, "Second note");
     let parent = note(&mut n, &first, "First note #tag");
@@ -1948,6 +1948,8 @@ Identifier: isbn:9780262033848
 
 — ¶ 1 · 2026-10-03
 
+Edited highlight, not the frozen quote #cosmos
+
 First note #tag
 
   - Nested note
@@ -1960,8 +1962,36 @@ Second note
 > evidence #tag
 
 — Evidence · 2026-10-03
+
+#attention
 "
     );
+}
+
+#[test]
+fn markdown_keeps_evidence_once_when_highlight_text_is_unchanged() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let (source, snapshot) = ingest(&mut n, &document(), b"unchanged-markdown");
+    let block = note(&mut n, &source, "Temporary");
+    cite(&mut n, &block, &snapshot);
+    let quote = n
+        .highlights(&HighlightQuery::default())
+        .unwrap()
+        .rows
+        .remove(0)
+        .citation
+        .quote;
+    edit(&mut n, &block, &quote);
+    let markdown = n
+        .export(std::slice::from_ref(&source), ExportFormat::Markdown)
+        .unwrap();
+    assert_eq!(markdown.matches("🦉 evidence").count(), 1);
+    assert_eq!(markdown.matches("> Second").count(), 1);
+    let authored = format!("{quote}worthy #tag");
+    edit(&mut n, &block, &authored);
+    let markdown = n.export(&[source], ExportFormat::Markdown).unwrap();
+    assert!(markdown.contains(&authored));
 }
 
 #[test]
@@ -2116,9 +2146,13 @@ Identifier: isbn:9780262033848
 
 — Revised opening · 2026-10-03
 
+Current highlight
+
 > 🦉
 
 — Revised opening · 2026-10-03
+
+Current highlight
 
 ### Earlier snapshot
 
@@ -2127,6 +2161,8 @@ Identifier: isbn:9780262033848
 > Second
 
 — Opening · 2026-10-03
+
+Old highlight
 "
     );
 }

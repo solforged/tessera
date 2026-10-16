@@ -595,3 +595,70 @@ fn unstructured_epub_creator_names_keep_person_default() {
         .unwrap();
     assert_eq!(collective.kind, CreatorKind::Person);
 }
+
+#[test]
+fn numeric_superscript_links_are_notes_but_chapter_links_are_navigation() {
+    let document = epub(&epub2(
+        "",
+        r##"<html><body>
+      <p>Text<sup><a href="#n1">1</a></sup> and <a href="#n2"><sup>20</sup></a>.
+        See <a href="#chapter">2</a> and <sup><a href="#chapter">Chapter two</a></sup>.</p>
+      <p id="n1">First note.</p><p id="n2">Later note.</p><h2 id="chapter">Chapter two</h2>
+      </body></html>"##,
+    ))
+    .unwrap();
+    let marks = &document.passages[0].marks;
+    assert!(matches!(marks[0].kind, MarkKind::NoteRef { .. }));
+    assert!(matches!(marks[1].kind, MarkKind::NoteRef { .. }));
+    assert!(matches!(marks[2].kind, MarkKind::Internal { .. }));
+    assert!(matches!(marks[3].kind, MarkKind::Internal { .. }));
+}
+
+#[test]
+fn numbered_note_classes_and_reciprocal_numeric_backlinks_are_recognized() {
+    let document = epub(&epub2(
+        "",
+        r##"<html><body>
+      <p id="prose">Text <a id="ref1" href="#n1">1</a> and <a href="#n2">20</a>.</p>
+      <p><a href="#chapter">2</a></p>
+      <p id="n1"><a href="#ref1">1.</a> A note with a backlink.</p>
+      <p class="footnote0" id="n2">A later numbered-class note.</p>
+      <h2 id="chapter"><a href="#prose">2</a> Chapter two</h2>
+      </body></html>"##,
+    ))
+    .unwrap();
+    assert!(
+        document.passages[0]
+            .marks
+            .iter()
+            .all(|mark| matches!(mark.kind, MarkKind::NoteRef { .. }))
+    );
+    assert!(matches!(
+        document.passages[1].marks[0].kind,
+        MarkKind::Internal { .. }
+    ));
+    assert!(matches!(
+        document.passages[2].marks[0].kind,
+        MarkKind::Internal { .. }
+    ));
+    assert_eq!(document.passages[3].kind, PassageKind::Footnote);
+}
+
+#[test]
+fn fallback_contents_skip_isolated_epigraphs_but_keep_quoted_chapter_openings() {
+    for body in [
+        r#"<p>"An isolated epigraph."</p>"#,
+        "<blockquote><p>An epigraph.</p><p>Its attribution.</p></blockquote>",
+    ] {
+        let document = epub(&epub2("", &format!("<html><body>{body}</body></html>"))).unwrap();
+        assert!(document.toc.is_empty());
+        assert!(!document.passages.is_empty());
+    }
+    for body in [
+        r#"<p>"A chapter opens with speech."</p><p>Then the story continues.</p>"#,
+        r#"<h1>First chapter</h1><p>"An opening quotation."</p>"#,
+    ] {
+        let document = epub(&epub2("", &format!("<html><body>{body}</body></html>"))).unwrap();
+        assert_eq!(document.toc.len(), 1);
+    }
+}

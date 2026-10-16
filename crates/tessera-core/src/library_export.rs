@@ -690,6 +690,15 @@ impl Notebook {
                     write!(output, "¶ {}", citation.ordinal + 1).expect("String write");
                 }
                 writeln!(output, " · {}", self.today(row.created_at)?).expect("String write");
+                let authored = row.block.block.text.trim();
+                let annotation = authored
+                    .strip_prefix(citation.quote.trim())
+                    .filter(|suffix| suffix.is_empty() || suffix.starts_with(char::is_whitespace))
+                    .unwrap_or(authored)
+                    .trim();
+                if !annotation.is_empty() {
+                    writeln!(output, "\n{annotation}").expect("String write");
+                }
                 markdown_notes(&mut output, &citation.block_id, &children);
             }
         }

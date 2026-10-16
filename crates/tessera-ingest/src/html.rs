@@ -32,7 +32,7 @@ pub(crate) fn is_note(element: ElementRef<'_>) -> bool {
         .is_some_and(|role| matches!(role, "doc-footnote" | "doc-endnote" | "doc-endnotes"))
         || element.value().classes().any(|class| {
             matches!(
-                class,
+                class.trim_end_matches(|ch: char| ch.is_ascii_digit()),
                 "footnote" | "footnotes" | "endnote" | "endnotes" | "footnotes-list"
             )
         })
@@ -103,6 +103,7 @@ struct Text {
     units: u32,
     space: bool,
     marks: Vec<Mark>,
+    line_break: bool,
     active: Vec<usize>,
 }
 
@@ -118,6 +119,7 @@ impl Text {
                 self.units += 1;
                 self.space = false;
             }
+            self.line_break = false;
             let start = self.units;
             self.value.push(ch);
             self.units += ch.len_utf16() as u32;
@@ -318,6 +320,12 @@ impl Passages {
             self.target(id, base, self.passages.len());
         }
         if tag == "br" {
+            if !flow.code && matches!(base, Base::Article { .. }) {
+                if flow.buffer.line_break {
+                    self.emit(flow, base);
+                }
+                flow.buffer.line_break = true;
+            }
             flow.buffer
                 .push(if flow.code { "\n" } else { " " }, flow.code);
         }
@@ -337,6 +345,16 @@ impl Passages {
                             .attr("epub:type")
                             .is_some_and(|v| v.split_whitespace().any(|v| v == "noteref"))
                             || element.value().attr("role") == Some("doc-noteref")
+                            || (numeric_label(element.text().flat_map(str::encode_utf16))
+                                && (element
+                                    .descendants()
+                                    .filter_map(ElementRef::wrap)
+                                    .any(|child| child.value().name() == "sup")
+                                    || element
+                                        .ancestors()
+                                        .filter_map(ElementRef::wrap)
+                                        .take_while(|parent| !is_block(parent.value().name()))
+                                        .any(|parent| parent.value().name() == "sup")))
                         {
                             MarkKind::NoteRef { locator }
                         } else {
@@ -468,7 +486,24 @@ impl Passages {
                 let Some(passage) = self.resolve(target) else {
                     return false;
                 };
-                mark.kind = if explicit_note || passage.kind == PassageKind::Footnote {
+                let backlink = !explicit_note
+                    && passage.kind != PassageKind::Footnote
+                    && mark.start > 0
+                    && numeric_mark(&self.passages[index].text, mark)
+                    && passage.kind != PassageKind::Heading
+                    && passage.marks.iter().any(|back| {
+                        back.start == 0
+                            && numeric_mark(&passage.text, back)
+                            && match &back.kind {
+                                MarkKind::Internal { locator } => {
+                                    self.resolve(locator).is_some_and(|source| {
+                                        source.locator == self.passages[index].locator
+                                    })
+                                }
+                                _ => false,
+                            }
+                    });
+                mark.kind = if explicit_note || passage.kind == PassageKind::Footnote || backlink {
                     MarkKind::NoteRef {
                         locator: passage.locator.clone(),
                     }
@@ -482,6 +517,24 @@ impl Passages {
             self.passages[index].marks = marks;
         }
     }
+}
+
+fn numeric_mark(text: &str, mark: &Mark) -> bool {
+    numeric_label(
+        text.encode_utf16()
+            .skip(mark.start as usize)
+            .take((mark.end - mark.start) as usize),
+    )
+}
+
+fn numeric_label(mut units: impl Iterator<Item = u16>) -> bool {
+    let mut digit = false;
+    units.all(|unit| {
+        digit |= (b'0' as u16..=b'9' as u16).contains(&unit);
+        (b'0' as u16..=b'9' as u16).contains(&unit)
+            || matches!(unit, 32 | 40 | 41 | 46 | 91 | 93)
+    })
+        && digit
 }
 
 fn is_block(tag: &str) -> bool {

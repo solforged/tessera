@@ -25,6 +25,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Preserved literal brackets in passage search and marked only actual full-text matches.
 - Added passage and section labels to Find results so repeated headings have distinct destinations.
 - Fitted chapter openings to short landscape pages without separating their labels, titles and rules.
+- Preserved paragraph boundaries in web articles authored with repeated line breaks so reading progress could advance.
+- Recognized numeric superscript footnote references, reciprocal note backlinks and numbered endnote classes during EPUB import.
+- Excluded isolated epigraph quotations from inferred EPUB chapter lists.
+- Kept authored highlight paraphrases and tags in Markdown exports without repeating unchanged evidence.
 - Table row titles use Piazzolla, matching page titles and the phone ledger. Gloss and other authored cells stay in Plex.
 - Selecting text and typing `[[` or `((` surrounds it, so the selection becomes a link or block reference instead of being replaced.
 - Reader highlight colors stay nameable on the midnight canvas: the band under the line keeps its hue instead of fading into a faint stain.
