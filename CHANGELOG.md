@@ -27,6 +27,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Queued table Undo and Redo in key order instead of dropping shortcuts while a prior history step was saving.
 - Made type-table row creation undoable in one step, with redo restoring the same page, memberships and children.
 - Preserved text typed into a new field when Escape or reload interrupted its pending creation.
+- Kept coalesced new-field keystrokes waiting for the same save receipt.
 - Kept Page menu field additions page-owned while preserving selected-block targeting in Commands.
 - Replayed accepted reference continuations after reload without false conflicts from their own delayed saves.
 - Kept accepted relation queries in the durable outbox and resumed their target selection after reload.

@@ -88,6 +88,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private persisted = new Set<string>();
   private generations = new Map<string, number>();
   private commandWaiters = new Map<string, { resolve(value: Committed): void; reject(error: Error): void }>();
+  private createdValueReceipts = new Map<string, Promise<Committed>>();
   private sourceChangeQueue: Promise<unknown> = Promise.resolve();
   private pageWaiters = new Set<{ pageId: string; ids: Set<string>; resolve(): void; reject(error: Error): void }>();
   // A signal, so rows showing the running clock follow starts and stops from any window.
@@ -436,14 +437,22 @@ export class Notebook implements NotebookClient, DocumentHost {
       };
       this.queue.push(command);
     }
-    const waiter = this.commandWaiters.get(command.id) ?? Promise.withResolvers<Committed>();
-    this.commandWaiters.set(command.id, waiter);
+    let receipt = this.createdValueReceipts.get(command.id);
+    if (!receipt) {
+      const waiter = Promise.withResolvers<Committed>();
+      receipt = waiter.promise;
+      this.createdValueReceipts.set(command.id, receipt);
+      this.commandWaiters.set(command.id, {
+        resolve: value => { this.createdValueReceipts.delete(command.id); waiter.resolve(value); },
+        reject: error => { this.createdValueReceipts.delete(command.id); waiter.reject(error); },
+      });
+    }
     this.persisted.delete(command.id);
     this.touch();
     await this.outbox.accept(command);
     await this.persist(command);
     this.schedule(0);
-    await waiter.promise;
+    await receipt;
   }
   private async commitOperations(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[], retainRejection = true): Promise<Committed> {
     const id = ulid();
