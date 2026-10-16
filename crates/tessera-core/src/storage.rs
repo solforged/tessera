@@ -215,32 +215,33 @@ pub(crate) fn inline_code_spans(text: &str) -> impl Iterator<Item = std::ops::Ra
                         .get(..8)
                         .is_some_and(|prefix| prefix.eq_ignore_ascii_case("https://"))
             };
-            if rest.starts_with('[') && !rest.starts_with("[[") {
-                if let Some(end) = rest.find("](") {
-                    let label = &rest[1..end];
-                    if !label.is_empty()
-                        && !label.contains(['[', ']', '\r', '\n'])
-                        && url(&rest[end + 2..])
-                    {
-                        cursor += end + 2;
-                        let mut depth = 0;
-                        while cursor < text.len() {
-                            let ch = text[cursor..].chars().next().expect("in bounds");
-                            if ch.is_whitespace() || matches!(ch, '<' | '>' | '"' | '\'') {
+            if rest.starts_with('[')
+                && !rest.starts_with("[[")
+                && let Some(end) = rest.find("](")
+            {
+                let label = &rest[1..end];
+                if !label.is_empty()
+                    && !label.contains(['[', ']', '\r', '\n'])
+                    && url(&rest[end + 2..])
+                {
+                    cursor += end + 2;
+                    let mut depth = 0;
+                    while cursor < text.len() {
+                        let ch = text[cursor..].chars().next().expect("in bounds");
+                        if ch.is_whitespace() || matches!(ch, '<' | '>' | '"' | '\'') {
+                            break;
+                        }
+                        cursor += ch.len_utf8();
+                        if ch == '(' {
+                            depth += 1;
+                        } else if ch == ')' {
+                            if depth == 0 {
                                 break;
                             }
-                            cursor += ch.len_utf8();
-                            if ch == '(' {
-                                depth += 1;
-                            } else if ch == ')' {
-                                if depth == 0 {
-                                    break;
-                                }
-                                depth -= 1;
-                            }
+                            depth -= 1;
                         }
-                        continue;
                     }
+                    continue;
                 }
             }
             if url(rest) {
