@@ -1707,11 +1707,26 @@ fn passage_search_preserves_literal_brackets_and_marker_characters() {
     let text = "Structure de la Gaule[1]. \u{1f} \u{1e} \u{1f}\u{1f} \u{1e}\u{1e}";
     doc.passages[0].text = text.into();
     let (source, _) = ingest(&mut n, &doc, b"literal brackets and controls");
-    let hits = n.search_passages("structure", Some(&source), 10, 0).unwrap();
+    let hits = n
+        .search_passages("structure", Some(&source), 10, 0)
+        .unwrap();
     assert_eq!(hits.len(), 1);
     let parts = &hits[0].snippet_parts;
-    assert_eq!(parts.iter().map(|part| part.text.as_str()).collect::<String>(), text);
-    assert_eq!(parts.iter().filter(|part| part.r#match).map(|part| part.text.as_str()).collect::<Vec<_>>(), vec!["Structure"]);
+    assert_eq!(
+        parts
+            .iter()
+            .map(|part| part.text.as_str())
+            .collect::<String>(),
+        text
+    );
+    assert_eq!(
+        parts
+            .iter()
+            .filter(|part| part.r#match)
+            .map(|part| part.text.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Structure"]
+    );
     let wire = serde_json::to_value(&hits[0]).unwrap();
     assert!(wire.get("snippet").is_none());
     assert_eq!(wire["snippet_parts"][0]["match"], true);
@@ -1907,7 +1922,11 @@ fn export_markdown_document_reading_order_notes_and_locations() {
             color: None,
         }],
     );
-    let first = note(&mut n, &source, "Edited highlight, not the frozen quote #cosmos");
+    let first = note(
+        &mut n,
+        &source,
+        "Edited highlight, not the frozen quote #cosmos",
+    );
     cite(&mut n, &first, &snapshot);
     note(&mut n, &first, "Second note");
     let parent = note(&mut n, &first, "First note #tag");

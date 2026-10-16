@@ -218,7 +218,12 @@ async fn search(api: &Api, arguments: &Value) -> anyhow::Result<String> {
                 hit.passage.ordinal,
                 hit.passage.id,
                 hit.source_id,
-                one_line(&hit.snippet_parts.iter().map(|part| part.text.as_str()).collect::<String>())
+                one_line(
+                    &hit.snippet_parts
+                        .iter()
+                        .map(|part| part.text.as_str())
+                        .collect::<String>()
+                )
             )
         })
         .collect())

@@ -531,10 +531,8 @@ fn numeric_label(mut units: impl Iterator<Item = u16>) -> bool {
     let mut digit = false;
     units.all(|unit| {
         digit |= (b'0' as u16..=b'9' as u16).contains(&unit);
-        (b'0' as u16..=b'9' as u16).contains(&unit)
-            || matches!(unit, 32 | 40 | 41 | 46 | 91 | 93)
-    })
-        && digit
+        (b'0' as u16..=b'9' as u16).contains(&unit) || matches!(unit, 32 | 40 | 41 | 46 | 91 | 93)
+    }) && digit
 }
 
 fn is_block(tag: &str) -> bool {

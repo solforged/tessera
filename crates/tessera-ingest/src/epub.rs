@@ -276,9 +276,11 @@ pub(crate) fn extract(bytes: &[u8]) -> Result<ExtractedDocument> {
                         })
                         .count()
                         == 1
-                        && [('"', '"'), ('“', '”'), ('‘', '’')].iter().any(|(open, close)| {
-                            first.text.starts_with(*open) && first.text.ends_with(*close)
-                        })))
+                        && [('"', '"'), ('“', '”'), ('‘', '’')]
+                            .iter()
+                            .any(|(open, close)| {
+                                first.text.starts_with(*open) && first.text.ends_with(*close)
+                            })))
                 {
                     return None;
                 }

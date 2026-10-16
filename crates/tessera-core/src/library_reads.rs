@@ -555,26 +555,40 @@ impl Notebook {
                     },
                 )?
                 .collect::<rusqlite::Result<Vec<_>>>()?;
-            if rows.iter().any(|(hit, _)| hit.passage.text.contains(start.as_str()) || hit.passage.text.contains(end.as_str())) {
+            if rows.iter().any(|(hit, _)| {
+                hit.passage.text.contains(start.as_str()) || hit.passage.text.contains(end.as_str())
+            }) {
                 start.push('\u{1f}');
                 end.push('\u{1e}');
                 continue;
             }
-            return Ok(rows.into_iter().map(|(mut hit, marked)| {
-                for (index, part) in marked.split(start.as_str()).enumerate() {
-                    if index == 0 {
-                        if !part.is_empty() {
-                            hit.snippet_parts.push(SnippetPart { text: part.to_owned(), r#match: false });
-                        }
-                    } else if let Some((matched, rest)) = part.split_once(end.as_str()) {
-                        hit.snippet_parts.push(SnippetPart { text: matched.to_owned(), r#match: true });
-                        if !rest.is_empty() {
-                            hit.snippet_parts.push(SnippetPart { text: rest.to_owned(), r#match: false });
+            return Ok(rows
+                .into_iter()
+                .map(|(mut hit, marked)| {
+                    for (index, part) in marked.split(start.as_str()).enumerate() {
+                        if index == 0 {
+                            if !part.is_empty() {
+                                hit.snippet_parts.push(SnippetPart {
+                                    text: part.to_owned(),
+                                    r#match: false,
+                                });
+                            }
+                        } else if let Some((matched, rest)) = part.split_once(end.as_str()) {
+                            hit.snippet_parts.push(SnippetPart {
+                                text: matched.to_owned(),
+                                r#match: true,
+                            });
+                            if !rest.is_empty() {
+                                hit.snippet_parts.push(SnippetPart {
+                                    text: rest.to_owned(),
+                                    r#match: false,
+                                });
+                            }
                         }
                     }
-                }
-                hit
-            }).collect());
+                    hit
+                })
+                .collect());
         }
     }
     pub fn set_reading_position(
