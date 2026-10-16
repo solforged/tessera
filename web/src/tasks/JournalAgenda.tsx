@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createRoot, createSignal } from 'solid-js';
+import { For, Show, createEffect, createMemo, createRoot, createSignal, onCleanup } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { AgendaItem, TaskRow, WorkSession } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -14,6 +14,7 @@ import { statusIcons, statusLabels } from './TaskControls';
 import { agendaTaskTime, isFinished, relativeDate, taskFacts } from './task-labels';
 import { PriorityBars } from './PriorityBars';
 import { shiftCalendarDate } from './week-calendar';
+import type { TaskSourceHistory } from './source-history';
 import './agenda.css';
 
 /** Resolves once an opened document has loaded; rejects when it is missing or failed. */
@@ -37,6 +38,7 @@ export function TaskSourceRows(props: {
   pageId?: string;
   notebook: NotebookClient;
   disabled?: boolean;
+  history?: TaskSourceHistory;
   /** Day view puts the clock in a fixed gutter and provenance at the trailing edge. */
   timetable?: boolean;
   /** Outline-sorted queries show each contiguous section without changing task order. */
@@ -78,7 +80,7 @@ export function TaskSourceRows(props: {
       const previous = byId().get(ids()[index() - 1]!);
       return row && 'section_id' in row && row.section_id && (!previous || !('section_id' in previous) || previous.section_id !== row.section_id) ? row.section_text : null;
     };
-    return <><Show when={section()}>{text => <li class="agenda-day-section"><h3 class="agenda-lookahead-date"><BlockText text={text()} notebook={props.notebook} interactive={false} /></h3></li>}</Show><TaskSourceRow row={byId().get(id) ?? initial} date={props.date} pageId={props.pageId} notebook={props.notebook} disabled={props.disabled} timetable={props.timetable} plannedDate={props.plannedDate} plan={props.plan} deadlineLabel={props.deadlineLabel} showNow={props.showNow} now={props.now} nowBefore={nowAt() === id} onOpen={props.onOpen} onChanged={props.onChanged} /></>;
+    return <><Show when={section()}>{text => <li class="agenda-day-section"><h3 class="agenda-lookahead-date"><BlockText text={text()} notebook={props.notebook} interactive={false} /></h3></li>}</Show><TaskSourceRow row={byId().get(id) ?? initial} date={props.date} pageId={props.pageId} notebook={props.notebook} disabled={props.disabled} history={props.history} timetable={props.timetable} plannedDate={props.plannedDate} plan={props.plan} deadlineLabel={props.deadlineLabel} showNow={props.showNow} now={props.now} nowBefore={nowAt() === id} onOpen={props.onOpen} onChanged={props.onChanged} /></>;
   }}</For><Show when={nowAt() === 'end'}><li class="agenda-now agenda-now-end" aria-hidden="true"><Show when={props.showNow}><span>{props.now}</span></Show></li></Show></ul>;
 }
 
@@ -95,6 +97,7 @@ function TaskSourceRow(props: {
   pageId?: string;
   notebook: NotebookClient;
   disabled?: boolean;
+  history?: TaskSourceHistory;
   timetable?: boolean;
   plannedDate?: string;
   plan?: boolean;
@@ -118,18 +121,22 @@ function TaskSourceRow(props: {
   /** Opens the canonical source, runs one edit on its task block and saves it. */
   const editSource = async (row: TaskRow | AgendaItem, edit: (doc: PageDocument) => Promise<boolean | void>) => {
     if (busy() || props.disabled) return;
+    item.querySelector<HTMLElement>('.agenda-source')?.focus({ preventScroll: true });
     setBusy(true); setError('');
-    const doc = props.notebook.open(row.source.page.id);
+    const doc = props.history ? null : props.notebook.open(row.source.page.id);
     try {
-      await documentReady(doc);
-      if (await edit(doc) === false) return;
-      await doc.flush();
+      if (props.history) { if (await props.history.edit(row, edit) === false) return; }
+      else {
+        await documentReady(doc!);
+        if (await edit(doc!) === false) return;
+        await doc!.flush();
+      }
       setRunning(null);
       props.onChanged();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      doc.release();
+      doc?.release();
       setBusy(false);
     }
   };
@@ -163,6 +170,16 @@ function TaskSourceRow(props: {
   const tomorrow = () => shiftCalendarDate(today(), 1)!;
   const past = () => !!props.now && unfinished() && props.row.task.status !== 'doing' && !!time() && time()! < props.now;
   let item!: HTMLLIElement;
+  onCleanup(() => {
+    if (!item?.contains(document.activeElement)) return;
+    const scope = item.closest<HTMLElement>('[data-task-rows]');
+    const next = siblingSource(item, 1) ?? siblingSource(item, -1);
+    if (next) next.focus({ preventScroll: true });
+    else {
+      const owner = item.closest<HTMLElement>('.agenda-pane') ?? scope;
+      if (owner) { if (!owner.hasAttribute('tabindex')) owner.tabIndex = -1; owner.focus({ preventScroll: true }); }
+    }
+  });
   const reschedule = (date: string | null, time?: string | null) => {
     if (!date || busy() || props.disabled || !movableTo([props.row], date, time).length) return;
     // The row may leave this list; keep the keyboard, or the picker it opened, on the row after it.
@@ -187,7 +204,7 @@ function TaskSourceRow(props: {
     else return;
     event.preventDefault(); event.stopPropagation();
   };
-  return <li ref={item} class="agenda-row" classList={{ 'agenda-row-timetable': props.timetable, 'agenda-row-past': past(), 'agenda-row-picking': !!picking(), 'agenda-row-completed': historical() || props.row.task.status === 'done', 'agenda-row-cancelled': !historical() && props.row.task.status === 'cancelled' }} aria-busy={busy()} onKeyDown={keydown}>
+  return <li ref={item} class="agenda-row" data-task-id={props.row.source.block.id} classList={{ 'agenda-row-timetable': props.timetable, 'agenda-row-past': past(), 'agenda-row-picking': !!picking(), 'agenda-row-completed': historical() || props.row.task.status === 'done', 'agenda-row-cancelled': !historical() && props.row.task.status === 'cancelled' }} aria-busy={busy()} onKeyDown={keydown}>
     <Show when={props.nowBefore}><span class="agenda-now" aria-hidden="true"><Show when={props.showNow}><span>{props.now}</span></Show></span></Show>
     <Show when={props.timetable}><span class="agenda-time-gutter" classList={{ 'week-ledger-due': !!props.deadlineLabel && !time() && props.row.task.deadline === props.date }}>{time() || (props.deadlineLabel && props.row.task.deadline === props.date ? 'Due' : '')}</span></Show>
     <Show when={!historical()} fallback={<span class="agenda-status task-status-button" data-status="done" aria-label="Done"><Icon name="check" /></span>}>

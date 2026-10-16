@@ -163,6 +163,8 @@ On touch, Agenda task rows and their completion/source controls are at least 44 
 
 The glyph completes on the displayed agenda date, including from lookahead, or reopens a finished task in Tasks. Completed history shows a static check.
 
+Completing or reopening a row uses its source page's undo history. ⌘Z or Ctrl+Z reverses that edit, including its saved occurrence and previous plan; Shift repeats the chord to redo. The keyboard stays on an Agenda row, or on the pane when none remain.
+
 ### Rescheduling
 
 Planned rows reschedule without dragging:

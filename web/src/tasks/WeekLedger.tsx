@@ -8,12 +8,14 @@ import { createClock } from './clock';
 import { spokenJournalDate } from './journal-date';
 import { calendarWeekDates } from './week-calendar';
 import { weekLedgerDays, weekLedgerSummary } from './week-ledger';
+import type { TaskSourceHistory } from './source-history';
 import './week-ledger.css';
 
 export function WeekLedger(props: {
   date: string;
   rows: readonly TaskRow[];
   notebook: NotebookClient;
+  history: TaskSourceHistory;
   loading: boolean;
   disabled: boolean;
   onOpen(target: OpenTarget, beside: boolean): void;
@@ -37,7 +39,7 @@ export function WeekLedger(props: {
           <button type="button" class="week-ledger-heading week-ledger-toggle" aria-expanded={!!expanded()[date]} onClick={() => setExpanded(value => ({ ...value, [date]: !value[date] }))}>{heading}<Icon name={expanded()[date] ? 'down' : 'right'} /></button>
         </Show></h2>
         <Show when={date >= props.notebook.todayDate() || expanded()[date]}>
-          <TaskSourceRows rows={day().rows} date={date} notebook={props.notebook} timetable plan showNow={date === props.notebook.todayDate() && !!day().rows.length} deadlineLabel now={date === props.notebook.todayDate() ? clock() : undefined} disabled={props.disabled} onOpen={props.onOpen} onChanged={props.onChanged} />
+          <TaskSourceRows rows={day().rows} date={date} notebook={props.notebook} history={props.history} timetable plan showNow={date === props.notebook.todayDate() && !!day().rows.length} deadlineLabel now={date === props.notebook.todayDate() ? clock() : undefined} disabled={props.disabled} onOpen={props.onOpen} onChanged={props.onChanged} />
         </Show>
       </section>;
     }}</For>

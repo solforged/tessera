@@ -22,6 +22,7 @@ import { positionRelations, readingPassages } from '../outline/perspectives';
 import { addArrival, embedTarget } from '../outline/streams';
 import { isReadingSubject, readingDisagreementRows, readingRegister } from '../outline/read-register';
 import { changeRevisit } from '../review/revisits';
+import { TaskSourceHistory } from '../tasks/source-history';
 
 const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -2742,6 +2743,32 @@ describe('durable Action and Learning document commands', () => {
     expect(events.find(event => !event.reversed)?.id).not.toBe(firstOccurrence.id);
     expect(doc.block(first)?.task?.scheduled).toBe('2026-10-11');
     shared.release(); other.release();
+  });
+
+  test.each([null, 'fixed', 'after_completion'] as const)('Agenda history queues immediate Undo of a %s completion before source work settles', async mode => {
+    const instance = await client();
+    const { doc, id, first } = await page(instance, 'Complete from Agenda');
+    const planned: TaskState = { ...todo, scheduled: '2026-10-01', repeater: mode ? { mode, every: 1, unit: 'day' } : null };
+    success(doc.edit({ kind: 'task', id: first, value: planned }));
+    await doc.flush();
+    const source = { block: await api.block(first), page: await api.block(id) };
+    const row = { source, task: planned, project_id: null, section_id: null, section_text: null };
+    const history = new TaskSourceHistory(instance);
+    const work = Promise.withResolvers<void>();
+    const completing = history.edit(row, async sourceDoc => {
+      await work.promise;
+      success(sourceDoc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-15' }));
+    });
+    doc.release();
+    const undoing = history.undo();
+    work.resolve();
+    await Promise.all([completing, undoing]);
+    expect((await api.capabilities(first)).task).toEqual(planned);
+    expect((await api.taskOccurrences(first)).every(event => event.reversed)).toBe(true);
+    await history.undo(true);
+    expect((await api.taskOccurrences(first)).filter(event => !event.reversed)).toHaveLength(1);
+    expect((await api.capabilities(first)).task?.scheduled).toBe(mode === 'after_completion' ? '2026-10-16' : mode === 'fixed' ? '2026-10-02' : '2026-10-01');
+    history.dispose();
   });
 
   test('planning is one text/state undo step and reopening undo restores done without new evidence', async () => {
