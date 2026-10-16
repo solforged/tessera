@@ -65,7 +65,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Placed cross-column selection tools beside an endpoint's line instead of over the selected text.
 - Dismissed reader selection tools when their pane became inactive or hidden.
 - Honored explicit highlight colors when overlapping marks merged.
-- Let locally queued notes close while offline without waiting for service acknowledgement.
+- Let locally queued notes close while offline without waiting for service acknowledgment.
 - Kept touch selection tools available and repositioned them while scrolling.
 - Showed the merged highlight's quotation and context in its note sheet.
 - Kept the touch selection dock within the rendered reading measure.

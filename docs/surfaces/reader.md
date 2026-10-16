@@ -265,7 +265,7 @@ The quotation and its surrounding sentences describe the resulting highlight, in
 
 Below, on `--surface`, sit "A thought on this passage" with one way back beside it, the note field and the save state in `--muted`.
 
-The note is the highlight's child block and saves as it is typed. The button reads Back to reading while the note is empty and becomes a gilt Keep note once there is text; Escape, Android Back after the keyboard closes, and browser Back do the same. Back closes the sheet before leaving reader full screen. Leaving with nothing typed removes the empty note; the highlight stays. Returning waits only until the change is saved or queued locally, not for a service acknowledgement, so offline notes stay kept without blocking reading.
+The note is the highlight's child block and saves as it is typed. The button reads Back to reading while the note is empty and becomes a gilt Keep note once there is text; Escape, Android Back after the keyboard closes, and browser Back do the same. Back closes the sheet before leaving reader full screen. Leaving with nothing typed removes the empty note; the highlight stays. Returning waits only until the change is saved or queued locally, not for a service acknowledgment, so offline notes stay kept without blocking reading.
 
 The sheet contains keyboard focus and makes the reader behind it inert. Tab and Shift+Tab cycle between the note field and its button. Closing restores focus to the initiating control, or the reader if that control has gone.
 
