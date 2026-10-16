@@ -11,6 +11,43 @@ export function foldName(value: string): string {
   return value.normalize('NFD').replace(/\p{M}|['’]/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').toLowerCase().trim();
 }
 
+const highlightGraphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/** Match the same folded words as Find, but mark complete glyphs in the authored string. */
+export function foldedHighlights(value: string, query: string): [number, number][] {
+  const terms = foldName(query).split(' ').filter(Boolean);
+  if (!terms.length) return [];
+  const offsets: [number, number][] = [];
+  let gap: [number, number] | undefined;
+  for (const { segment, index } of highlightGraphemes.segment(value)) {
+    const folded = foldName(segment);
+    if (!folded) {
+      if (segment.normalize('NFD').replace(/\p{M}|['’]/gu, '')) gap = [gap?.[0] ?? index, index + segment.length];
+      continue;
+    }
+    if (gap && offsets.length) offsets.push(gap);
+    gap = undefined;
+    for (let i = 0; i < folded.length; i++) offsets.push([index, index + segment.length]);
+  }
+  // Fold the whole string for context-sensitive lowercase forms, not each glyph independently.
+  const folded = foldName(value);
+  const ranges: [number, number][] = [];
+  for (const term of terms) {
+    for (let at = folded.indexOf(term); at >= 0; at = folded.indexOf(term, at + term.length)) {
+      const start = offsets[at], end = offsets[at + term.length - 1];
+      if (start && end) ranges.push([start[0], end[1]]);
+    }
+  }
+  ranges.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const merged: [number, number][] = [];
+  for (const range of ranges) {
+    const previous = merged.at(-1);
+    if (previous && range[0] <= previous[1]) previous[1] = Math.max(previous[1], range[1]);
+    else merged.push(range);
+  }
+  return merged;
+}
+
 interface Resolutions { sequence: number; names: Map<string, Promise<NameMatch[]>> }
 const resolutions = new WeakMap<NotebookClient, Resolutions>();
 

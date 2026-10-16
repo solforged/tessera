@@ -2,10 +2,22 @@ import { describe, expect, test } from 'bun:test';
 import type { Block, NameMatch } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
-import { chooseName, completeNames, foldName, plainText, referenceValue, resolveName, resolvedReferenceText } from './names';
+import { chooseName, completeNames, foldedHighlights, foldName, plainText, referenceValue, resolveName, resolvedReferenceText } from './names';
 import { typedTitles, withLinkedTitles } from './link-titles';
 
 const page = (id: string, text: string): Block => ({ id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 });
+
+test('folded Find highlights map back to complete original glyphs and UTF-16 offsets', () => {
+  for (const text of ['café', 'cafe\u0301', '日本語 देवनागरी ภาษาไทย 👩🏽‍💻 café']) {
+    const ranges = foldedHighlights(text, 'cafe');
+    expect(ranges).toEqual([[text.indexOf('caf'), text.length]]);
+    expect(ranges.map(([a, b]) => text.slice(a, b))).toEqual([text.slice(text.indexOf('caf'))]);
+  }
+  expect(foldedHighlights('Café and déjà vu', 'cafe deja')).toEqual([[0, 4], [9, 13]]);
+  expect(foldedHighlights('Flann O’Brien', 'obrien')).toEqual([[6, 13]]);
+  expect(foldedHighlights('no match', '?!')).toEqual([]);
+  expect(foldedHighlights('ΟΣ', 'ΟΣ')).toEqual([[0, 2]]);
+});
 const match: NameMatch = { page: page('target', 'Cicero'), alias: 'Tully' };
 
 test('plain-text exports and ambiguous-name choices preserve locators', () => {

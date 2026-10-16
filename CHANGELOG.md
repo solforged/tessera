@@ -15,6 +15,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Recovered locally queued edits from closed browser windows without replaying another open window's drafts.
 - Kept cached outlines visible offline and refreshed Revisit and Index after reconnecting, without false errors on new notes.
 - Reported Saving rather than Saved while text was still queued or awaiting the service's acknowledgment.
+- Highlighted folded Find matches on their original accented glyphs in page and block results.
 - Preserved complete Unicode tag names, including combining marks, in rendered pills and server memberships.
 - Rendered inline emphasis, code and external-link captions at rest, and added bold and italic editing shortcuts.
 - Kept nested bracket expressions literal instead of creating truncated page titles.

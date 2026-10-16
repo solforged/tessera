@@ -8,7 +8,7 @@ import { Icon } from '../ui/Icon';
 import { TypePill } from './references';
 import { createCitationSources } from './source-reads';
 import { Menu } from '../ui/Menu';
-import { foldName, nameMenuItems, plainText, referenceLabel, resolveName } from './names';
+import { foldedHighlights, foldName, nameMenuItems, plainText, referenceLabel, resolveName } from './names';
 import type { NameMatch } from '../api/types';
 import { cardMarks, cardOperators } from '../review/card-text';
 import type { CardMark } from '../review/card-text';
@@ -87,8 +87,7 @@ function TokenText(props: Props) {
     const query = props.highlight;
     if (!query) return [];
     const value = displayed().flatMap(group => group.tokens.map(token => token.label)).join('');
-    const pattern = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    return [...value.matchAll(pattern)].map(match => [match.index, match.index + match[0].length] as const);
+    return foldedHighlights(value, query);
   });
   function text(token: DisplayToken) {
     const selection = props.selection;
