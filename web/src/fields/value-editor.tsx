@@ -29,6 +29,7 @@ export function ValueEditor(props: {
   owner?: { id: string; page: string };
   onWrite(text: string): void | Promise<void>; onDismiss(): void; onError(message: string): void;
   onCreateOption(text: string): Promise<void>;
+  onAdvance?(backward: boolean): void;
 }) {
   const [query, setQuery] = createSignal('');
   const [busy, setBusy] = createSignal(false);
@@ -61,6 +62,6 @@ export function ValueEditor(props: {
     <Match when={props.field.kind === 'instance'}><RelationPicker anchor={props.anchor} field={props.field} notebook={props.notebook} current={current()} owner={props.owner}
       onPick={async page => { await props.onWrite(`[[${page.id}]]`); props.onDismiss(); }} onDismiss={props.onDismiss} onError={props.onError} /></Match>
     <Match when={props.field.kind === 'date'}><DatePicker notebook={props.notebook} anchor={props.anchor} label={props.field.name} value={props.text || null} partialDates contextDate={props.contextDate}
-      onSelect={value => props.onWrite(value.date ?? '')} onDismiss={props.onDismiss} /></Match>
+      onSelect={value => props.onWrite(value.date ?? '')} onDismiss={props.onDismiss} onAdvance={props.onAdvance} /></Match>
   </Switch>;
 }

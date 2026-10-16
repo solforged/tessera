@@ -240,6 +240,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     }
     if (textRange() && (event.key === 'Backspace' || event.key === 'Delete')) { deleteTextRange(); handled = true; }
     if (!handled) handled = commonKey(event);
+    if (!handled && selected() && !rowRange() && !textRange()) handled = fillingKey(event, selected()!);
     if (!handled && (event.key === '[' || event.key === ']') && !event.metaKey && !event.ctrlKey && !event.altKey && !depthReason()) { stepDepth(event.key === '[' ? -1 : 1); handled = true; }
     if (!handled && !selected() && !textRange()) {
       if (!event.metaKey && !event.ctrlKey && !event.altKey && ['ArrowDown', 'ArrowUp', 'j', 'k'].includes(event.key)) {

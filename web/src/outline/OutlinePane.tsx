@@ -15,6 +15,7 @@ import { citedSigla } from '../library/sigla';
 import { sourceReadingOrder } from '../library/source-order';
 import { isCatalogueField } from '../library/details';
 import { fieldHide } from '../fields/hide';
+import { hasValueEditor } from '../fields/value-options';
 import { PersonWorks } from '../library/PersonWorks';
 import { NoteAliases, NoteEyebrow, NoteLine } from '../notes/NoteHeader';
 import type { OutlineIndex } from '../document/outline-index';
@@ -767,6 +768,8 @@ function Pane(props: OutlinePaneProps) {
       const slip = register().slips.find(slip => slip.passages.includes(id) || slip.facts.some(field => doc.outline.children(field.entryId).includes(id)));
       if (slip) setReadDisclosures(previous => new Set([...previous, `${slip.id}:${slip.passages.includes(id) ? 'prose' : 'facts'}`]));
     }
+    // A holder-scoped answer may not belong to the Read projection. Reveal its actual editor, never an unrelated survivor.
+    if (reading() && !indices().has(id) && definitionsById().has(fieldEntryId(doc.block(doc.outline.parentOf(id))?.text ?? '') ?? '')) props.onProjection?.('outline');
     // Settle a deferred closing fold before unfolding, so its completion cannot hide the target again.
     finishFoldMotion();
     const ancestors: string[] = [];
@@ -931,7 +934,11 @@ function Pane(props: OutlinePaneProps) {
           scroll.focus({ preventScroll: true });
           scheduleReport();
         } else if (!indices().has(target.id)) selectSurvivor(target.id, before);
-        else {
+        else if (hasValueEditor(definitionsById().get(fieldEntryId(doc.block(doc.outline.parentOf(target.id))?.text ?? '') ?? ''), doc.block(target.id)?.text ?? '', contextDate())) {
+          closeValueEditor();
+          rowFocus(target.id);
+          setCaret({ id: target.id, offset: target.offset });
+        } else {
           editAt(target.id, target.offset, !props.vim, true, false);
           if (result.range) queueMicrotask(() => { if (!disposed && props.active && editing() === target.id) restoreSelection(result.range!); });
         }
@@ -1308,7 +1315,7 @@ function Pane(props: OutlinePaneProps) {
     if (result.caret) requestAnimationFrame(() => editAt(result.caret!.id, 0, true));
   });
   const { openViewEmbed, ViewEmbedPopups } = createViewEmbedActions(context);
-  const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); });
+  const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); }, (id, backward) => fieldSheet.advance(id, backward));
   const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context, (event, id) => fieldSheet.key(event, id));
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);

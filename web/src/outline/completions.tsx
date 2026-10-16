@@ -55,7 +55,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
   | 'investigationItems' | 'markRelation' | 'relationMenu' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus' | 'openRelation' | 'openViewEmbed' | 'placeReason' | 'usePlace'
   | 'showNotice'
->, startFilling: (id: string) => void = () => {}) {
+>, startFilling: (id: string) => void = () => {}, advanceFilling: (id: string, backward: boolean) => void = () => {}) {
   const {
     contextDate, editing, textRange, composition, caret, doc,
     capabilities, setCaret, scheduleReport, setMessage, rowAnchor, editAt, restoreFocus,
@@ -612,9 +612,9 @@ function CompletionPopups(){ return <>
     </Popup></Show>
     <Show keyed when={valueEditor()}>{state => <ValueEditor notebook={props.notebook} anchor={state.anchor} field={definitionsById().get(state.field.id) ?? state.field} text={doc.block(state.id)?.text ?? ''} contextDate={contextDate()}
       owner={(owner => owner ? { id: owner, page: doc.block(owner)?.pageId ?? '' } : undefined)(doc.outline.parentOf(doc.outline.parentOf(state.id)))}
-      onDismiss={() => dismissValueEditor(state.id)} onError={setMessage}
+      onDismiss={() => dismissValueEditor(state.id)} onError={setMessage} onAdvance={backward => advanceFilling(state.id, backward)}
       onCreateOption={async text => { const change = await createOptionValue(props.notebook, doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text); context.showNotice('Option added.', change.undo); }}
-      onWrite={async text => { writeFieldValue(doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text); await doc.flush(); }} />}</Show>
+      onWrite={text => { writeFieldValue(doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text); }} />}</Show>
     <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label={dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'} role="listbox" onDismiss={dismissDate}>
       <div class="picker-list" onMouseDown={event => event.preventDefault()}>
         <div class="picker-row" role="presentation"><span class="picker-text">{dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'}</span><span class="picker-meta"><kbd>Tab</kbd></span></div>

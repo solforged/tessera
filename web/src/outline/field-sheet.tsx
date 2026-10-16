@@ -10,6 +10,7 @@ import { fieldEntryId } from '../table/query';
 import { Icon } from '../ui/Icon';
 import type { OutlineContext } from './context';
 import { createFieldEntry } from '../fields/commands';
+import { pendingCaretInput } from '../shell/pending-caret';
 
 interface SheetState {
   owner: string;
@@ -30,6 +31,7 @@ export interface FieldSheet {
   hover(id: string | null): void;
   fill(entry: string): void;
   start(id: string): boolean;
+  advance(id: string, backward?: boolean): void;
   key(event: KeyboardEvent, id: string): boolean;
   toggle(value: string, checked: boolean): void;
 }
@@ -190,6 +192,16 @@ export function createFieldSheet(context: Pick<OutlineContext,
     if (!value) fill(entry.id);
     else context.editAt(value, doc.block(value)?.text.length ?? 0, true);
   }
+  function advance(id: string, backward = false) {
+    const owner = filling(), field = fieldOf(doc.outline.parentOf(id));
+    if (!owner || !field) return;
+    const state = states().get(owner) ?? stateFor(owner);
+    const order = [...new Set([...state.template, ...state.entries.map(entry => entry.field)])];
+    const next = order[order.indexOf(field.id) + (backward ? -1 : 1)];
+    options.closeControlled();
+    if (next) openField(owner, next);
+    else context.rowFocus(id);
+  }
   function key(event: KeyboardEvent, id: string): boolean {
     const owner = filling();
     const root = zoom();
@@ -199,11 +211,7 @@ export function createFieldSheet(context: Pick<OutlineContext,
     const field = fieldOf(entry);
     if (!field || doc.outline.parentOf(entry) !== owner) { setFilling(null); return false; }
     if (event.key === 'Tab') {
-      const state = states().get(owner) ?? stateFor(owner);
-      const order = [...new Set([...state.template, ...state.entries.map(entry => entry.field)])];
-      const next = order[order.indexOf(field.id) + (event.shiftKey ? -1 : 1)];
-      options.closeControlled();
-      if (next) openField(owner, next);
+      advance(id, event.shiftKey);
       return true;
     }
     if (event.key === 'Escape') {
@@ -229,6 +237,8 @@ export function createFieldSheet(context: Pick<OutlineContext,
   const controlledKey = (event: KeyboardEvent) => {
     const id = options.controlledId();
     if (!id) return;
+    // The date editor validates and commits its draft before advancing the owner's slots.
+    if (event.key === 'Tab' && event.target instanceof Element && event.target.closest('.date-picker')) return;
     const query = event.target instanceof HTMLInputElement && event.target.classList.contains('picker-input') ? event.target : null;
     if (query && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) engaged = id;
     if (event.key === 'Enter' && query && (query.value.trim() || engaged === id)) return;
@@ -246,22 +256,30 @@ export function createFieldSheet(context: Pick<OutlineContext,
     if (value && !checkbox && !valueText) emptySlots.set(value, doc.outline.parentOf(value));
     // Retain a newly chosen hidden field before the queued structural caret restore checks visible rows.
     if (value && fieldHide(field) !== 'never') context.setSelected(value);
+    if (value && (checkbox || valueText)) context.rowFocus(value);
     if (value && !checkbox && !valueText) queueMicrotask(() => options.offerValue(value, field));
   }
   function choose(owner: string, anchor: HTMLElement, field: FieldDefinition) {
     if (field.kind === 'instance') setInstance({ owner, anchor, field });
     else add(owner, field);
   }
+  let cancelCreationInput: (() => void) | undefined;
+  onCleanup(() => cancelCreationInput?.());
   // A source's catalogue fields belong to its header and card, so its own Add field never offers or creates them.
   async function create(owner: string, name: string, kind: FieldKind) {
     if (doc.block(owner)?.source && isCatalogueField(name)) { context.showNotice(`Edit ${name.trim()} in the source's details.`); return; }
+    const pending = ['text', 'number', 'span', 'url', 'identifier'].includes(kind) ? pendingCaretInput.prepare() : undefined;
+    cancelCreationInput = pending;
     try {
       const { field, value, change } = await createFieldEntry(props.notebook, doc, owner, name, kind);
       options.onField(field);
+      setFilling(owner);
       context.setSelected(value);
+      if (pending && !pending.signal.aborted) pendingCaretInput.begin(props.pane, value);
+      if (kind === 'checkbox') context.rowFocus(value);
+      else context.editAt(value, 0, true);
       context.showNotice(`${field.name} created.`, change.undo);
-      if (kind !== 'checkbox') queueMicrotask(() => options.offerValue(value, field));
-    } catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
+    } catch (error) { pending?.(); setMessage(error instanceof Error ? error.message : String(error)); }
   }
   function fill(entry: string) {
     const field = fieldOf(entry);
@@ -307,5 +325,5 @@ export function createFieldSheet(context: Pick<OutlineContext,
       <Show when={instance()}>{value => <RelationPicker anchor={value().anchor} field={value().field} notebook={props.notebook} owner={{ id: value().owner, page: doc.block(value().owner)?.pageId ?? '' }} onDismiss={() => setInstance(null)} onError={setMessage} onPick={page => { add(value().owner, value().field, `[[${page.id}]]`); setInstance(null); }} />}</Show>
     </>;
   }
-  return { FieldSlots, Popups, pick, hover: setHovered, fill, toggle, start, key };
+  return { FieldSlots, Popups, pick, hover: setHovered, fill, toggle, start, key, advance };
 }

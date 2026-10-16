@@ -38,6 +38,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Preserved measured table-cell content through query refreshes so bottom rows no longer jump out of view after committing.
 - Counted the retained query in inactive Index and Table tabs instead of the whole type.
 - Kept table commits from taking focus back after navigation, preserved immediate Undo while saving, and kept bottom-row edits visible.
+- Kept field commits and renames on an explicit keyboard owner, preserved immediate typing into new fields, committed Date drafts on Tab, and preserved field ownership while advancing after picker choices.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.
 - Replaced selected row ranges on paste and preserved native headings, nested lists, tasks, table rows, image URLs and labeled links from external HTML and Markdown.
 - Preserved immediate typing and Backspace corrections through slow highlight note and card delivery.

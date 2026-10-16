@@ -124,6 +124,7 @@ export function FieldDetails(props: FieldDetailsProps) {
   };
   const ownerLink = (owner: FieldOwner, beside: boolean) => props.onOpen({ kind: 'page', pageId: owner.page_id, ...(owner.id !== owner.page_id ? { blockId: owner.id } : {}) }, beside);
   const optionUses = createMemo(() => new Map(data()?.option_uses.map(option => [option.option_id, option.uses])));
+  const finishEditing = () => { article.focus({ preventScroll: true }); setEditing(null); };
   const editText = async () => {
     const edit = editing(); const doc = props.document;
     if (!edit || !doc || !ready()) return;
@@ -135,11 +136,11 @@ export function FieldDetails(props: FieldDetailsProps) {
       if (edit.id === props.fieldId) {
         const fields = await props.notebook.api.fields();
         const existing = fields.fields.find(field => field.id !== edit.id && field.name.trim().toLocaleLowerCase() === text.toLocaleLowerCase());
-        if (existing) { setImpact(await fieldImpact(props.notebook, edit.id, existing.id)); setEditing(null); setError(''); return; }
+        if (existing) { setImpact(await fieldImpact(props.notebook, edit.id, existing.id)); finishEditing(); setError(''); return; }
       }
       const result = doc.edit({ kind: 'text', id: edit.id, text });
       if (!result.ok) { setError(result.reason); return; }
-      setEditing(null); setError('');
+      finishEditing(); setError('');
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
   };
@@ -148,6 +149,7 @@ export function FieldDetails(props: FieldDetailsProps) {
     if (!doc || !ready() || !text) return;
     const result = doc.edit({ kind: 'insert', parentId: props.fieldId, after: doc.outline.children(props.fieldId).at(-1) ?? null, text });
     if (!result.ok) { setError(result.reason); return; }
+    article.focus({ preventScroll: true });
     setOption(''); setAdding(false); setError('');
   };
   const applyKind = async () => {
@@ -229,8 +231,8 @@ export function FieldDetails(props: FieldDetailsProps) {
     finally { setApplying(false); }
   };
   const inlineEdit = (id: string) => <Show when={editing()?.id === id}><form class="field-inline-edit" onSubmit={event => { event.preventDefault(); editText(); }}>
-    <input class="input" aria-label={id === props.fieldId ? 'Field name' : 'Option name'} value={editing()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => setEditing({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') setEditing(null); }} />
-    <Button type="submit" disabled={!ready()}>Save</Button><Button onClick={() => setEditing(null)}>Cancel</Button>
+    <input class="input" aria-label={id === props.fieldId ? 'Field name' : 'Option name'} value={editing()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => setEditing({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') finishEditing(); }} />
+    <Button type="submit" disabled={!ready()}>Save</Button><Button onClick={finishEditing}>Cancel</Button>
   </form></Show>;
   const ledger = (items: FieldValueUse[], after: boolean) => <table class="field-ledger"><thead><tr><th scope="col">Written value</th><th scope="col">Owner</th><th scope="col">{after ? 'After applying' : 'Problem'}</th></tr></thead><tbody>
     <For each={items}>{item => <tr><td classList={{ 'field-rubric': !item.value.reading.ok }}>{plainText(item.value.text, id => props.notebook.lookup(id))}</td><td><Button onClick={event => ownerLink(item.owner, opensBeside(event))}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button></td><td class="field-apparatus">{readingLabel(item.value.reading)}<Show when={!after && data()?.kind === 'choice'}><Button disabled={!ready()} onClick={() => void makeOption(item.value.text)}>Make option</Button></Show></td></tr>}</For>

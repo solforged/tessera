@@ -83,3 +83,34 @@ describe('pane-owned vertical navigation goal', () => {
     expect(harness.position()).toEqual({ row: 1, offset: 17 });
   });
 });
+
+describe('field filling after a picker commit', () => {
+  test('Tab advances a selected value without changing its field ownership', () => {
+    const scroll = {} as HTMLDivElement;
+    const edits: string[] = [];
+    const advances: string[] = [];
+    let filling = true;
+    const keyboard = createOutlineKeyboard({
+      scroll, props: { active: true, vim: false },
+      editing: () => null, selected: () => 'second-author',
+      composition: () => false, textRange: () => null, rowRange: () => null,
+      roots: () => ['second-author'],
+      apply: (intent: { kind: string }) => { edits.push(intent.kind); },
+    } as unknown as Parameters<typeof createOutlineKeyboard>[0], (event, id) => {
+      if (!filling || event.key !== 'Tab') return false;
+      advances.push(`${id}:${event.shiftKey ? 'previous' : 'next'}`);
+      return true;
+    });
+    const tab = (shiftKey = false) => keyboard.structuralKey({
+      target: scroll, key: 'Tab', shiftKey, preventDefault() {},
+    } as unknown as KeyboardEvent);
+    tab();
+    tab(true);
+    expect(advances).toEqual(['second-author:next', 'second-author:previous']);
+    expect(edits).toEqual([]);
+    filling = false;
+    tab();
+    tab(true);
+    expect(edits).toEqual(['indent', 'outdent']);
+  });
+});

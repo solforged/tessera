@@ -27,6 +27,8 @@ export interface DatePickerProps {
   marks?: Record<string, string>;
   onDismiss(): void;
   onSelect(value: { date: string | null; time: string | null }): void | Promise<void>;
+  /** Field filling commits a valid draft before moving to the next or previous slot. */
+  onAdvance?(backward: boolean): void;
 }
 
 export function DatePicker(props: DatePickerProps) {
@@ -44,7 +46,7 @@ export function DatePicker(props: DatePickerProps) {
     setError('');
   }, { defer: true }));
 
-  const select = async (value: { date: string | null; time: string | null }) => {
+  const select = async (value: { date: string | null; time: string | null }, backward?: boolean) => {
     if (busy()) return;
     setBusy(true);
     setError('');
@@ -52,7 +54,10 @@ export function DatePicker(props: DatePickerProps) {
     const draftTime = time();
     try {
       await props.onSelect(value);
-      if (active) props.onDismiss();
+      if (active) {
+        props.onDismiss();
+        if (backward !== undefined) props.onAdvance?.(backward);
+      }
     } catch (reason) {
       if (active) {
         setDate(draftDate);
@@ -63,10 +68,10 @@ export function DatePicker(props: DatePickerProps) {
       if (active) setBusy(false);
     }
   };
-  const apply = (input = date()) => {
+  const apply = (input = date(), backward?: boolean) => {
     if (busy()) return;
     const partial = props.partialDates ? partialFieldDate(input) : null;
-    if (partial) { void select({ date: partial, time: null }); return; }
+    if (partial) { void select({ date: partial, time: null }, backward); return; }
     const parsed = parseTaskDate(input, props.contextDate);
     if (!parsed.ok) { setError(parsed.error); return; }
     if (props.time === undefined && parsed.time !== null) {
@@ -80,7 +85,7 @@ export function DatePicker(props: DatePickerProps) {
       if (!timed.ok) { setError(timed.error); return; }
       clock = timed.time;
     }
-    void select({ date: parsed.date, time: clock });
+    void select({ date: parsed.date, time: clock }, backward);
   };
   const quickPick = (input: string) => {
     if (busy()) return;
@@ -88,6 +93,12 @@ export function DatePicker(props: DatePickerProps) {
     apply(input);
   };
   const keydown = (event: KeyboardEvent) => {
+    if (event.key === 'Tab' && props.onAdvance && !event.isComposing && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      apply(date(), event.shiftKey);
+      return;
+    }
     if (event.key !== 'Enter' || !(event.target instanceof HTMLInputElement) || event.isComposing) return;
     event.preventDefault();
     event.stopPropagation();

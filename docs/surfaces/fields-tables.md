@@ -105,6 +105,12 @@ An owner's populated fields stay visible at rest. Standfirst sentences lead, wit
 
 A value click, or Enter on a selected field, begins filling that owner. Tab and Shift-Tab move through its fields and missing slots in template or recipe order; reaching a missing slot creates its entry and value. Shift-Enter adds a newline. Enter on an empty value leaves for the owner's next ordinary row. While its value picker has a query or an arrow-key highlight, Enter picks instead. Escape leaves without moving. Outside filling mode, Tab and Shift-Tab retain outline indent and outdent. Each value keeps its ordinary undo history.
 
+Every field commit returns keyboard ownership to its value editor, its selected value row or the next slot, never the page body. Accepting a Choice or Relation keeps filling mode active, so Tab still advances without changing the value's parent. Tab commits a valid Date draft before moving; an invalid draft stays open with its error. At either end of the owner's slots, Tab keeps the current row selected. Undo and Redo restore a controlled value's row without reopening its picker.
+
+Creating a text field opens its first value editor and keeps immediate typing and Backspace corrections through the pending handoff. Saving or canceling a definition or option rename returns focus to the field page, so its history shortcuts remain available.
+
+In Read, filling a field value that its holder-scoped register does not display switches to Outline and edits that same value; it never transfers typing to another row.
+
 For a perspective, Add field begins with From this recipe: missing Gist, Work, then the subject's explicit or derived criteria. The recipe suggests, never requires.
 
 ## Tables and views
