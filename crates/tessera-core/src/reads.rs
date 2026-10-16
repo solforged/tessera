@@ -432,7 +432,7 @@ impl Notebook {
         let folded = crate::aliases::fold(query);
         let single_word = !folded.contains(' ');
         let mut aliases = self.aliases_by_page()?;
-        if !aliases.is_empty() {
+        if !folded.is_empty() && !aliases.is_empty() {
             let mut pages = self.conn.prepare_cached(
                 "SELECT id FROM blocks WHERE parent_id IS NULL AND kind = 'page'
                  AND deletion_id IS NULL AND archived = 0 ORDER BY title_key, id",
@@ -467,6 +467,15 @@ impl Notebook {
         }
         let matched = fts_query(query);
         if matched.is_empty() {
+            let seen: HashSet<&str> = result.iter().map(|hit| hit.block.id.as_str()).collect();
+            let additional = self
+                .literal_search(query, limit)?
+                .into_iter()
+                .filter(|hit| !seen.contains(hit.block.id.as_str()))
+                .take(limit - result.len())
+                .map(|hit| Completion { block: hit.block, alias: None })
+                .collect::<Vec<_>>();
+            result.extend(additional);
             return Ok(result);
         }
         let seen: HashSet<&str> = result
@@ -505,8 +514,11 @@ impl Notebook {
 
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<BlockInPage>> {
         let matched = fts_query(query);
-        if matched.is_empty() || limit == 0 {
+        if limit == 0 {
             return Ok(Vec::new());
+        }
+        if matched.is_empty() {
+            return self.literal_search(query, limit);
         }
         let mut statement = self.conn.prepare_cached(concat!(
             hidden_blocks!(),
@@ -534,6 +546,28 @@ impl Notebook {
                 })
             })?
             .collect::<rusqlite::Result<_>>()?)
+    }
+
+    // FTS has no tokens for emoji or punctuation. Search the same live display
+    // text literally instead of treating a folded-empty query as a wildcard.
+    fn literal_search(&self, query: &str, limit: usize) -> Result<Vec<BlockInPage>> {
+        let query = query.trim();
+        if query.is_empty() || limit == 0 {
+            return Ok(Vec::new());
+        }
+        Ok(self.conn.prepare_cached(concat!(
+            hidden_blocks!(),
+            " SELECT ", block_columns!("b"), ", ", block_columns!("p"),
+            " FROM search_blocks s JOIN blocks b ON b.id = s.block_id
+              JOIN blocks p ON p.id = b.page_id
+              WHERE instr(s.text, ?1) > 0 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+                AND b.rowid NOT IN (SELECT rowid FROM hidden)
+                AND b.id NOT IN (", alias_values!(), ")
+              ORDER BY CASE b.kind WHEN 'page' THEN 0 ELSE 1 END, b.id LIMIT ?2"
+        ))?.query_map(params![query, sql_limit(limit)], |row| Ok(BlockInPage {
+            block: block_at(row, 0)?,
+            page: block_at(row, 10)?,
+        }))?.collect::<rusqlite::Result<_>>()?)
     }
 
     /// Local editor arrival cursor. Hub sequence numbers may change on rebase.

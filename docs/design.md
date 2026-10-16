@@ -310,6 +310,8 @@ One picker searches pages, blocks, highlight quotations and authored text or tag
 4. In your books.
 
 A block already shown as a highlight is not repeated among the note results. Other note matches occupy one column, with their text clamped to two lines and the containing page title as mono apparatus beneath.
+Queries with no full-text word tokens, including emoji and punctuation, match authored display text literally and never turn empty name folding into a wildcard.
+
 
 | Result | Search and metadata |
 |---|---|

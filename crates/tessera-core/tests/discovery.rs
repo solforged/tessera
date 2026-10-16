@@ -300,3 +300,35 @@ fn canonical_reference_search_tracks_live_labels_without_rewriting_authored_text
     assert_eq!(hits(&notebook, "Unresolved Plato"), [id(12)]);
     assert_eq!(hits(&notebook, "Aliased Historian"), [id(11)]);
 }
+
+#[test]
+fn punctuation_and_emoji_search_match_literally_without_empty_alias_prefixes() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(directory.path()).unwrap();
+    apply(
+        &mut notebook,
+        vec![
+            page(1, "Notes"),
+            page(2, "Other"),
+            insert(10, 1, "Unicode QA emoji 👩🏽‍💻"),
+            insert(11, 1, "literal _ * \\"),
+            insert(12, 1, "hidden 👩🏽‍💻"),
+        ],
+    );
+    notebook.add_alias(&id(2), "Unrelated", Actor::Person).unwrap();
+    let operation = archive(&notebook, 12, true);
+    apply(&mut notebook, vec![operation]);
+    for (query, expected) in [("👩🏽‍💻", 10), ("_", 11), ("*", 11), ("\\", 11)] {
+        assert_eq!(
+            notebook.search(query, 20).unwrap().iter().map(|hit| hit.block.id.clone()).collect::<Vec<_>>(),
+            vec![id(expected)]
+        );
+        assert_eq!(
+            notebook.complete(query, 20).unwrap().iter().map(|hit| hit.block.id.clone()).collect::<Vec<_>>(),
+            vec![id(expected)]
+        );
+    }
+    assert!(notebook.search("🦊", 20).unwrap().is_empty());
+    assert!(notebook.complete("🦊", 20).unwrap().is_empty());
+    assert!(notebook.search("", 20).unwrap().is_empty());
+}

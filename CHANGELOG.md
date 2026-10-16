@@ -53,6 +53,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Labeled empty tasks in Today's next-task preview instead of leaving a bare “Next:”.
 - Restored Agenda completion Undo and Redo through the source page's history without dropping keyboard focus.
 - Kept recurring task completion history separate from its next plan and live Doing state in Agenda.
+- Found literal emoji and punctuation without matching unrelated page aliases.
 - Returned typing focus after Find scope changes and kept modified Home/End text selection native.
 - Preserved Find's open or create intent when Enter arrives before its query results.
 - Kept New page open when Enter confirms an IME composition.
