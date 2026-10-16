@@ -13,6 +13,7 @@ import { Outbox } from './outbox';
 import type { Action, Command, Compiled, NotebookCommand, PageCommand, Ticket } from './types';
 import { emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
 import { SubtreeCache } from './subtrees';
+import { titleKey } from './title-key';
 export type { NotebookClient, PageDocument, BlockState, Caret, Edit, EditResult, SaveState } from './contract';
 
 export interface NotebookOptions {
@@ -1444,7 +1445,8 @@ export class Notebook implements NotebookClient, DocumentHost {
     return [...this.docs.values()].filter(doc => doc.hasConflict()).map(doc => doc.pageId);
   }
   titleAvailable(title: string, exceptId: string) {
-    return !this.roots().some(root => root.kind === 'page' && root.id !== exceptId && root.text.toLowerCase() === title.toLowerCase());
+    const key = titleKey(title);
+    return !this.roots().some(root => root.kind === 'page' && root.id !== exceptId && titleKey(root.text) === key);
   }
   retry() {
     this.failure = '';

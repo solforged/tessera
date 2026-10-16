@@ -689,7 +689,7 @@ impl Notebook {
                 crate::library_store::validate_color(Some(color))?;
             }
         }
-        let tags: Vec<_> = query.tags.iter().map(|tag| tag.to_lowercase()).collect();
+        let tags: Vec<_> = query.tags.iter().map(|tag| crate::storage::title_key(tag)).collect();
         let citations = citations(&self.conn, ids, None, true, None)?;
         let ids_json = ids.map(json);
         let mut statement = self.conn.prepare_cached(concat!(

@@ -688,7 +688,7 @@ impl Engine<'_, '_> {
                     self.tx.execute(
                         "INSERT OR IGNORE INTO memberships(block_id, title_key, type_id, manual, title)
                          VALUES (?1, ?2, (SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?2), 1, ?3)",
-                        params![id, title.to_lowercase(), title],
+                        params![id, crate::storage::title_key(title), title],
                     )?;
                 }
                 if !manual_rewrites.is_empty() {
@@ -699,7 +699,7 @@ impl Engine<'_, '_> {
                 let text = rewrite_tags(&current.block.text, |title| {
                     // The first captured association owns an original token,
                     // even if another page subsequently reuses that old title.
-                    let folded = (!title.is_ascii()).then(|| title.to_lowercase());
+                    let folded = (!title.is_ascii()).then(|| crate::storage::title_key(title));
                     let replacement = plans.iter().find_map(|index| {
                         let replacement = &replacements[*index];
                         let matches = folded.as_ref().map_or_else(
@@ -854,7 +854,7 @@ impl Engine<'_, '_> {
                      UNION ALL SELECT query FROM task_views UNION ALL SELECT query FROM library_views
                  ) saved, json_tree(saved.query) j WHERE j.type = 'text'"
             )?.query_map([], |row| row.get::<_, String>(0))?
-                .map(|value| value.map(|value| value.to_lowercase()))
+                .map(|value| value.map(|value| crate::storage::title_key(&value)))
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             let mut deleted = false;
             for (id, title) in candidates {
@@ -957,7 +957,7 @@ impl Engine<'_, '_> {
         validate_text(kind, text)?;
         let (kind, title_key) = match kind {
             BlockKind::Block => ("block", None),
-            BlockKind::Page => ("page", Some(text.to_lowercase())),
+            BlockKind::Page => ("page", Some(crate::storage::title_key(text))),
             BlockKind::Journal => ("journal", None),
         };
         self.tx.prepare_cached(
@@ -979,10 +979,11 @@ impl Engine<'_, '_> {
         if current.block.text == text {
             return Ok(());
         }
-        let title_key = (current.block.kind == BlockKind::Page).then(|| text.to_lowercase());
+        let title_key = (current.block.kind == BlockKind::Page)
+            .then(|| crate::storage::title_key(text));
         let old_key = title_key
             .as_ref()
-            .map(|_| current.block.text.to_lowercase());
+            .map(|_| crate::storage::title_key(&current.block.text));
         let rename = if let Some(title_key) = title_key.as_deref() {
             self.prepare_tag_rename(
                 current,
@@ -1055,7 +1056,7 @@ impl Engine<'_, '_> {
         crate::work_store::guard_hide_subtree(self.tx, id)?;
         if current.block.kind == BlockKind::Page {
             self.changed_titles
-                .insert(current.block.text.to_lowercase());
+                .insert(crate::storage::title_key(&current.block.text));
         }
         self.restructured_pages.insert(current.block.page_id);
         let event = self.event(id)?;
@@ -1095,7 +1096,7 @@ impl Engine<'_, '_> {
                     "UPDATE blocks SET deletion_id = NULL, ordinal = ?1, revision = revision + 1, updated_at = ?2 WHERE id = ?3",
                 )?.execute(params![ordinal, self.now, id])?;
                 if row.block.kind == BlockKind::Page {
-                    self.changed_titles.insert(row.block.text.to_lowercase());
+                    self.changed_titles.insert(crate::storage::title_key(&row.block.text));
                 }
                 self.touch(&id, revision + 1);
                 self.removed.remove(&id);
@@ -1422,7 +1423,7 @@ impl Engine<'_, '_> {
                 "a page with citations or a field schema cannot be merged away",
             ));
         }
-        let old_key = source.block.text.to_lowercase();
+        let old_key = crate::storage::title_key(&source.block.text);
         if let Some(mut rename) =
             self.capture_tag_rename(source, &destination.block.text, &old_key)?
         {
@@ -1683,8 +1684,9 @@ impl Engine<'_, '_> {
                 validate_tag_title(title)?;
                 self.tx.execute(
                     "INSERT OR IGNORE INTO memberships(block_id, title_key, type_id, manual, title)
-                     VALUES (?1, ?2, (SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?2), 1, ?3)",
-                    params![id, title.to_lowercase(), title],
+                     SELECT ?1, ?2, (SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?2), 1, ?3
+                     WHERE NOT EXISTS (SELECT 1 FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1)",
+                    params![id, crate::storage::title_key(title), title],
                 )?;
                 self.bump(&current, true)?;
                 self.tags_changed(id);
@@ -1702,7 +1704,7 @@ impl Engine<'_, '_> {
                 validate_tag_title(title)?;
                 let removed = self.tx.execute(
                     "DELETE FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1",
-                    params![id, title.to_lowercase()],
+                    params![id, crate::storage::title_key(title)],
                 )?;
                 if removed == 0 {
                     return Err(validation("type has no manual membership"));

@@ -15,6 +15,7 @@ import { fieldRole, fieldRoles, roleLabels } from './roles';
 import type { FieldRole } from './roles';
 import { fieldKinds, kindLabels } from './kinds';
 import { typeKeys } from './templates';
+import { titleKey } from '../document/title-key';
 
 export function createFieldMenu(context: Pick<OutlineContext,
   'doc' | 'props' | 'fields' | 'definitionsById' | 'setMenu' | 'setMessage' | 'showNotice' | 'apply'
@@ -99,7 +100,7 @@ export function createFieldMenu(context: Pick<OutlineContext,
     const open = (beside = false, extra: { previewKind?: FieldDefinition['kind']; section?: 'options' | 'targets' } = {}) => props.onOpen({ kind: 'field', fieldId: field.id, ...extra }, beside);
     const block = doc.block(owner);
     const keys = typeKeys(block?.text ?? '', block?.manual_types ?? []);
-    const ownerTypes = (types() ?? []).filter(type => keys.includes(type.page.text.toLowerCase()) || keys.includes(type.page.id.toLowerCase()));
+    const ownerTypes = (types() ?? []).filter(type => keys.includes(titleKey(type.page.text)) || keys.includes(type.page.id.toLowerCase()));
     const document = definitionDocument();
     const unavailable = document?.status() !== 'ready' ? 'Field definitions are loading.' : document.saveState() !== 'saved' ? 'Wait for field changes to save.' : undefined;
     setMenu({ anchor, label: field.name, title: field.name, context: (block && plainText(block.text, target => props.notebook.lookup(target))) || field.name, items: [

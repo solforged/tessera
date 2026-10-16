@@ -5,10 +5,11 @@ import { isStableReference, isViewReference, quoteTarget, textTokens } from '../
 import type { MenuItem } from '../ui/Menu';
 import { documentReady } from './source-fields';
 import { cardMarks, cardOperators } from '../review/card-text';
+import { titleKey } from '../document/title-key';
 
 /** Names compare as the core folds them: no case, diacritics or apostrophes, and any other run of spaces or punctuation is one space. */
 export function foldName(value: string): string {
-  return value.normalize('NFD').replace(/\p{M}|['’]/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').toLowerCase().trim();
+  return titleKey(value.normalize('NFD').replace(/\p{M}|['’]/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim());
 }
 
 const highlightGraphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });

@@ -332,7 +332,7 @@ impl Plan {
             id: id.clone(),
             title: title.to_owned(),
         });
-        self.titles.insert(title.to_lowercase(), id.clone());
+        self.titles.insert(crate::storage::title_key(title), id.clone());
         self.created.push(id.clone());
         id
     }
@@ -803,7 +803,7 @@ impl Notebook {
                 let title = title.trim();
                 match self.page_by_title(title)? {
                     Some(page) => {
-                        plan.titles.insert(title.to_lowercase(), page.id.clone());
+                        plan.titles.insert(crate::storage::title_key(title), page.id.clone());
                         let after = self.last_child(&page.id, &page.id)?;
                         (page.id.clone(), page.id, after, page.text)
                     }
@@ -1630,7 +1630,7 @@ impl Notebook {
     }
 
     fn title_target(&self, plan: &mut Plan, title: &str) -> Result<Option<String>> {
-        if let Some(id) = plan.titles.get(&title.to_lowercase()) {
+        if let Some(id) = plan.titles.get(&crate::storage::title_key(title)) {
             return Ok(Some(id.clone()));
         }
         let bytes = title.as_bytes();
@@ -1646,7 +1646,7 @@ impl Notebook {
             });
         }
         if let Some(page) = self.page_by_title(title)? {
-            plan.titles.insert(title.to_lowercase(), page.id.clone());
+            plan.titles.insert(crate::storage::title_key(title), page.id.clone());
             return Ok(Some(page.id));
         }
         Ok(Some(plan.create_page(title)))

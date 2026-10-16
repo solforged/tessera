@@ -1,6 +1,7 @@
 import type { Block, QuoteState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { insideProtectedSyntax } from '../tasks/quick-date';
+import { titleKey } from '../document/title-key';
 
 export interface CapturedQuoteCompletion { text: string; quote: QuoteState }
 
@@ -111,7 +112,7 @@ function rootIndex(roots: readonly Block[]): RootIndex {
     if (block.kind === 'block' || block.parent_id !== null || ids.has(block.id)) continue;
     ids.set(block.id, block);
     if (block.kind === 'page') {
-      titles.set(block.text.toLowerCase(), block);
+      titles.set(titleKey(block.text), block);
     }
   }
   const result = { ids, titles };
@@ -126,12 +127,12 @@ function liveRoot(notebook: NotebookClient, id: string, index: RootIndex): Block
 }
 
 export function cachedExactPage(notebook: NotebookClient, query: string): Block | null {
-  const key = query.trim().toLowerCase();
+  const key = titleKey(query.trim());
   if (!key) return null;
   const index = rootIndex(notebook.roots());
   const candidate = index.titles.get(key);
   if (!candidate) return null;
   const block = liveRoot(notebook, candidate.id, index);
-  return block?.kind === 'page' && block.text.toLowerCase() === key ? block : null;
+  return block?.kind === 'page' && titleKey(block.text) === key ? block : null;
 }
 

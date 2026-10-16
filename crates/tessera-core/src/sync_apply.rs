@@ -223,7 +223,7 @@ impl Notebook {
                     .conn
                     .query_row(
                         "SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?1",
-                        [field(&operation, "title").unwrap_or_default().to_lowercase()],
+                        [crate::storage::title_key(field(&operation, "title").unwrap_or_default())],
                         |row| row.get::<_, String>(0),
                     )
                     .optional()?,

@@ -324,12 +324,18 @@ impl Notebook {
             .optional()?)
     }
 
-    /// Resolve a live named page by its Unicode-lowercase title.
+    /// Resolve a live named page by its NFC, Unicode-casefolded title.
     pub fn page_by_title(&self, title: &str) -> Result<Option<Block>> {
-        Ok(self.conn.prepare_cached(concat!(
+        let mut statement = self.conn.prepare_cached(concat!(
             "SELECT ", block_columns!("b"),
-            " FROM blocks b WHERE b.kind = 'page' AND b.deletion_id IS NULL AND b.title_key = ?1"
-        ))?.query_row([title.to_lowercase()], |row| block_at(row, 0)).optional()?)
+            " FROM blocks b WHERE b.kind = 'page' AND b.deletion_id IS NULL AND b.title_key = ?1 LIMIT 2"
+        ))?;
+        let mut rows = statement.query([crate::storage::title_key(title)])?;
+        let page = rows.next()?.map(|row| block_at(row, 0)).transpose()?;
+        if rows.next()?.is_some() {
+            return Err(crate::storage::validation(format!("ambiguous page title: {title}")));
+        }
+        Ok(page)
     }
 
     /// Distinct visible tagged blocks, with their current source page.
@@ -391,7 +397,7 @@ impl Notebook {
         if limit == 0 {
             return Ok(Vec::new());
         }
-        let prefix = query.to_lowercase();
+        let prefix = crate::storage::title_key(query);
         let end = prefix_end(&prefix);
         let sql = if end.is_some() {
             concat!(

@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import type { ChangeEvent, Fields } from '../api/types';
 import { textTokens } from '../document/text-tokens';
 import { foldName } from '../outline/names';
+import { titleKey } from '../document/title-key';
 
 // Mirrors crates/tessera-core/src/built_in.rs `schema`, which the starting-template route applies.
 const startingTemplates = [
@@ -21,11 +22,11 @@ export function startingTemplateFor(title: string, fields: readonly string[] = [
   return startingTemplates.find(template => template.title.toLowerCase() === key) ?? null;
 }
 
-/** A block's types as lowercase keys: `#tags` in its text, then manual types, each once. */
+/** A block's types as canonical case-folded keys: `#tags`, then manual types, each once. */
 export function typeKeys(text: string, manual: readonly string[]): string[] {
   const keys = new Set<string>();
-  for (const token of textTokens(text)) if (token.kind === 'tag' && token.value.trim()) keys.add(token.value.trim().toLowerCase());
-  for (const title of manual) if (title.trim()) keys.add(title.trim().toLowerCase());
+  for (const token of textTokens(text)) if (token.kind === 'tag' && token.value.trim()) keys.add(titleKey(token.value.trim()));
+  for (const title of manual) if (title.trim()) keys.add(titleKey(title.trim()));
   return [...keys];
 }
 

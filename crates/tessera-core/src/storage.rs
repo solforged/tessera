@@ -1,4 +1,6 @@
 use rusqlite::{Connection, OptionalExtension};
+use caseless::Caseless;
+use unicode_normalization::UnicodeNormalization;
 
 use crate::{Block, BlockKind, Error, Result, Revision};
 
@@ -314,11 +316,19 @@ pub(crate) fn tag_names(text: &str) -> impl Iterator<Item = &str> {
     tag_tokens(text).map(|token| token.title)
 }
 
+/// Unicode 16 default full case folding in NFC; never rewrites authored text.
+pub(crate) fn title_key(title: &str) -> String {
+    if title.is_ascii() {
+        return title.to_ascii_lowercase();
+    }
+    title.nfc().default_case_fold().nfc().collect()
+}
+
 pub(crate) fn tag_title_matches(title: &str, title_key: &str) -> bool {
     if title.is_ascii() && title_key.is_ascii() {
         title.eq_ignore_ascii_case(title_key)
     } else {
-        title.to_lowercase() == title_key
+        self::title_key(title) == title_key
     }
 }
 
@@ -400,7 +410,7 @@ pub(crate) fn derive_memberships(
     let mut created = Vec::new();
     let mut titles = Vec::new();
     for title in tag_names(text) {
-        let title_key = title.to_lowercase();
+        let title_key = self::title_key(title);
         if titles.contains(&title_key) {
             continue;
         }

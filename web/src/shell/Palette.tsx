@@ -16,6 +16,7 @@ import type { Command, CommandRegistry, OpenTarget, PaneId } from './contract';
 import { besideKey, opensBeside } from './beside';
 import { findMatchSegments, paletteRows, type SearchEntry, type SearchHit } from './palette-rows';
 import { citationRange, passageSegments } from '../reader/passages';
+import { titleKey } from '../document/title-key';
 
 type Entry = SearchEntry | { kind: 'command'; command: Command } | { kind: 'create'; title: string }
   | { kind: 'highlight'; row: HighlightRow } | { kind: 'passage'; hit: PassageHit };
@@ -123,7 +124,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
         : (scopedPage()?.rows ?? []).filter(row => row.block.parent_id === parent.block.id).map(row => ({ block: row.block, page: parent.page }));
     const title = text();
     const exact = !parent && title ? cachedExactPage(props.notebook, title)
-      ?? rows.find(hit => hit.block.kind === 'page' && hit.block.text.toLowerCase() === title.toLowerCase())?.block : null;
+      ?? rows.find(hit => hit.block.kind === 'page' && titleKey(hit.block.text) === titleKey(title))?.block : null;
     const result: Entry[] = [];
     if (!parent && (findScope() === 'Everything' || findScope() === 'Highlights') && title) {
       result.push(...(highlights()?.rows ?? []).filter(row => highlightMatches(row, title)).map((row): Entry => ({ kind: 'highlight', row })));

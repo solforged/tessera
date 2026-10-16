@@ -318,7 +318,7 @@ Queries with no full-text word tokens, including emoji and punctuation, match au
 | Highlights | Case-insensitive quotation, authored text and tag matching against up to 500 highlights loaded once per opening |
 | Passages | Search starts after three characters, debounces by 100 ms and cancels superseded requests; up to 40 matches. Source siglum, chapter when available and paragraph number |
 | Books | Actual percentage and highlight count |
-| Pages | Case-insensitive exact title comes first, including a locally created page not yet in server search, and suppresses Create page |
+| Pages | NFC-normalized, Unicode-casefolded exact title comes first, including a locally created page not yet in server search, and suppresses Create page |
 
 At wide widths the finder has equal index and preview halves: page titles with their first lines; block matches in their full surrounding outline, with ancestors dimmed, the target highlighted and scrolled into view; or a passage between its neighbors with highlight ranges and every search term marked. Block previews scroll their outline independently of the page title and opening keys.
 

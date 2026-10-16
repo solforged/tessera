@@ -2304,6 +2304,25 @@ describe('real notebook operations and recovery', () => {
     expect(doc.root()?.text).toBe(before);
   });
 
+  test('canonical spelling and Unicode case variants cannot create or rename a duplicate page', async () => {
+    const instance = await client();
+    const { doc } = await page(instance);
+    for (const [written, equivalent] of [['café', 'cafe\u0301'], ['ΟΣ', 'οσ'], ['Straße', 'STRASSE']]) {
+      const suffix = ` ${++serial}`;
+      const title = written! + suffix, duplicate = equivalent! + suffix;
+      const id = await instance.createPage(title);
+      expect(instance.titleAvailable(duplicate, '')).toBe(false);
+      expect(instance.titleAvailable(duplicate, id)).toBe(true);
+      await expect(instance.createPage(duplicate)).rejects.toThrow('already taken');
+      const before = doc.root()?.text;
+      expect(doc.rename(duplicate).ok).toBe(false);
+      expect(doc.root()?.text).toBe(before);
+      await instance.flush();
+      expect((await api.pageByTitle(duplicate)).id).toBe(id);
+      expect((await api.page(id)).root.text).toBe(title);
+    }
+  });
+
   test('an IndexedDB open failure keeps edits visible without sending an unfrozen request', async () => {
     const id = ulid();
     const first = ulid();

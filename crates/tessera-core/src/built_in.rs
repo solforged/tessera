@@ -164,7 +164,7 @@ pub(crate) fn targets(conn: &Connection, field: &BuiltInField) -> Result<Vec<Str
         if title == SOURCE_TARGET {
             targets.push(title.to_owned());
         } else if let Some(id) = page
-            .query_row([title.to_lowercase()], |row| row.get(0))
+            .query_row([crate::storage::title_key(title)], |row| row.get(0))
             .optional()?
         {
             targets.push(id);

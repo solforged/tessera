@@ -332,3 +332,31 @@ fn punctuation_and_emoji_search_match_literally_without_empty_alias_prefixes() {
     assert!(notebook.complete("🦊", 20).unwrap().is_empty());
     assert!(notebook.search("", 20).unwrap().is_empty());
 }
+
+#[test]
+fn page_identity_uses_canonical_unicode_case_folding_without_rewriting_titles() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(directory.path()).unwrap();
+    for (index, (title, equivalent)) in [
+        ("café", "cafe\u{301}"),
+        ("ΟΣ", "οσ"),
+        ("Straße", "STRASSE"),
+        ("İstanbul", "i\u{307}stanbul"),
+    ].into_iter().enumerate() {
+        let value = index as u128 + 1;
+        apply(&mut notebook, vec![page(value, title)]);
+        assert_eq!(notebook.page_by_title(equivalent).unwrap().unwrap().id, id(value));
+        assert_eq!(notebook.complete(equivalent, 20).unwrap()[0].block.id, id(value));
+        assert_eq!(notebook.block(&id(value)).unwrap().text, title);
+        assert!(notebook.apply(&Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: vec![page(value + 100, equivalent)],
+        }).is_err());
+    }
+    assert!(notebook.page_by_title("cafe").unwrap().is_none());
+    assert_eq!(notebook.page_by_title("ος").unwrap().unwrap().id, id(2));
+    apply(&mut notebook, vec![page(10, "Tags"), insert(11, 10, "member #[[οσ]]")]);
+    assert_eq!(notebook.members(&id(2), 20).unwrap()[0].block.id, id(11));
+}

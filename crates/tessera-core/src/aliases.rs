@@ -44,7 +44,7 @@ pub(crate) fn fold(value: &str) -> String {
         folded.make_ascii_lowercase();
         folded
     } else {
-        folded.to_lowercase()
+        crate::storage::title_key(&folded)
     }
 }
 

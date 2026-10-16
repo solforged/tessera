@@ -3,6 +3,7 @@ import type { DBSchema, IDBPDatabase } from 'idb';
 import type { PageView, Block, BlockCapabilities } from '../api/types';
 import type { Action, Command, NotebookCommand, Ticket } from './types';
 import { OutlineIndex } from './outline-index';
+import { titleKey } from './title-key';
 
 interface NotebookRecord { key: string; roots: Block[] }
 interface PagePatch { sequence: number; actions: Action[]; revisions: Map<string, number> }
@@ -261,10 +262,10 @@ export class Outbox {
           case 'addType':
           case 'removeType': {
             const previous = manualTypes.get(blockId) ?? [];
-            const key = action.title.toLowerCase();
+            const key = titleKey(action.title);
             manualTypes.set(blockId, action.kind === 'addType'
-              ? previous.some(title => title.toLowerCase() === key) ? previous : [...previous, action.title]
-              : previous.filter(title => title.toLowerCase() !== key));
+              ? previous.some(title => titleKey(title) === key) ? previous : [...previous, action.title]
+              : previous.filter(title => titleKey(title) !== key));
             break;
           }
           case 'move':

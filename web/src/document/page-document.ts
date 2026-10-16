@@ -18,6 +18,7 @@ import { countsReason, fieldCounts } from '../fields/counts';
 import { fieldRole } from '../fields/roles';
 import { fieldEntryId } from '../table/query';
 import { markdownPasteRows } from './clipboard';
+import { titleKey } from './title-key';
 
 export interface DocumentHost {
   ready: Promise<void>;
@@ -536,11 +537,11 @@ export class Document implements PageDocument {
       case 'removeType': {
         this.snapshot(action.id, base);
         const previous = base ? this.baseManualTypes.get(action.id) ?? [] : this.cells.get(action.id)!.state.manual_types;
-        const key = action.title.toLowerCase();
-        const old = previous.find(title => title.toLowerCase() === key);
+        const key = titleKey(action.title);
+        const old = previous.find(title => titleKey(title) === key);
         const titles = action.kind === 'addType'
           ? old === undefined ? [...previous, action.title] : [...previous]
-          : previous.filter(title => title.toLowerCase() !== key);
+          : previous.filter(title => titleKey(title) !== key);
         if (base) this.baseManualTypes.set(action.id, titles);
         else this.cells.get(action.id)!.set({ manual_types: titles, pending: true });
         return old === undefined
@@ -1579,7 +1580,7 @@ export class Document implements PageDocument {
           const block = this.block(edit.id);
           if (!block) throw new Error('The block no longer exists.');
           if (!edit.title || edit.title.trim() !== edit.title || /[\[\]\r\n]/.test(edit.title)) throw new Error('Invalid type title.');
-          const exists = block.manual_types.some(title => title.toLowerCase() === edit.title.toLowerCase());
+          const exists = block.manual_types.some(title => titleKey(title) === titleKey(edit.title));
           if (edit.kind === 'addType' && exists) break;
           if (edit.kind === 'removeType' && !exists) throw new Error('From the text. Edit the #tag there to remove it.');
           actions.push({ kind: edit.kind, id: edit.id, title: edit.title });

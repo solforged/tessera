@@ -53,6 +53,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/044_field_spans.sql"),
     include_str!("../migrations/045_field_counts_as.sql"),
     include_str!("../migrations/046_field_links_sources.sql"),
+    include_str!("../migrations/050_unicode_title_keys.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -74,6 +75,13 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
         tx.commit()?;
         return Ok(());
     }
+    tx.create_scalar_function(
+        "tessera_title_key",
+        1,
+        rusqlite::functions::FunctionFlags::SQLITE_UTF8
+            | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+        |context| Ok(crate::storage::title_key(context.get_raw(0).as_str()?)),
+    )?;
     for sql in &MIGRATIONS[found as usize..] {
         tx.execute_batch(sql)?;
     }
@@ -133,6 +141,7 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     }
     tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     tx.commit()?;
+    conn.remove_function("tessera_title_key", 1)?;
     for version in found + 1..=SCHEMA_VERSION {
         tracing::info!(version, "migration applied");
     }
@@ -425,5 +434,51 @@ mod tests {
         assert_eq!(reopened.id, card.id);
         assert_eq!(reopened.revision, card.revision + 1);
         assert_eq!(reopened.definition_revision, card.definition_revision);
+    }
+
+    #[test]
+    fn unicode_title_upgrade_preserves_legacy_collisions_and_membership_targets() {
+        assert_eq!(caseless::UNICODE_VERSION, (16, 0, 0));
+        let mut conn = Connection::open_in_memory().unwrap();
+        for sql in &MIGRATIONS[..MIGRATIONS.len() - 1] {
+            conn.execute_batch(sql).unwrap();
+        }
+        let first = ulid::Ulid::from(1_u128).to_string();
+        let second = ulid::Ulid::from(2_u128).to_string();
+        let owner = ulid::Ulid::from(3_u128).to_string();
+        for (id, text) in [(&first, "café"), (&second, "cafe\u{301}"), (&owner, "Owner")] {
+            conn.execute(
+                "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
+                 VALUES (?1, 'page', ?1, 1024, ?2, ?3, 1, 0, 0)",
+                params![id, text, text.to_lowercase()],
+            ).unwrap();
+        }
+        for (id, title) in [(&first, "café"), (&second, "cafe\u{301}")] {
+            conn.execute(
+                "INSERT INTO memberships(block_id, title_key, type_id, manual, title) VALUES (?1, ?2, ?3, 1, ?4)",
+                params![owner, title.to_lowercase(), id, title],
+            ).unwrap();
+        }
+        conn.pragma_update(None, "user_version", MIGRATIONS.len() - 1).unwrap();
+        migrate(&mut conn).unwrap();
+        let titles = conn.prepare(
+            "SELECT id, text, title_key FROM blocks WHERE id IN (?1, ?2) ORDER BY id"
+        ).unwrap().query_map(params![first, second], |row| Ok((
+            row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?
+        ))).unwrap().collect::<rusqlite::Result<Vec<_>>>().unwrap();
+        assert_eq!(titles, vec![
+            (first.clone(), "café".into(), "café".into()),
+            (second.clone(), "cafe\u{301}".into(), "café".into()),
+        ]);
+        let targets = conn.prepare("SELECT type_id FROM memberships WHERE block_id = ?1 ORDER BY type_id")
+            .unwrap().query_map([owner], |row| row.get::<_, String>(0)).unwrap()
+            .collect::<rusqlite::Result<Vec<_>>>().unwrap();
+        assert_eq!(targets, vec![first, second]);
+        assert!(conn.execute(
+            "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
+             VALUES (?1, 'page', ?1, 1024, 'CAFÉ', 'café', 1, 0, 0)",
+            [ulid::Ulid::from(4_u128).to_string()],
+        ).is_err());
+        migrate(&mut conn).unwrap();
     }
 }

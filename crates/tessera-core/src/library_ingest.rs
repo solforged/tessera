@@ -224,7 +224,7 @@ impl<'a> Planner<'a> {
         })
     }
     fn page(&mut self, title: &str) -> Result<(String, i64)> {
-        let key = title.to_lowercase();
+        let key = crate::storage::title_key(title);
         if let Some(page) = self.pages.get(&key) {
             return Ok(page.clone());
         }
@@ -270,7 +270,7 @@ impl<'a> Planner<'a> {
                     return Some(title.to_owned());
                 }
                 self.pages
-                    .get(&title.to_lowercase())
+                    .get(&crate::storage::title_key(title))
                     .map(|page| page.0.clone())
                     .or_else(|| {
                         self.notebook
@@ -420,7 +420,7 @@ impl<'a> Planner<'a> {
                     [matched] => {
                         let page = self
                             .pages
-                            .entry(value.to_lowercase())
+                            .entry(crate::storage::title_key(value))
                             .or_insert_with(|| (matched.page.id.clone(), matched.page.revision));
                         Some(page.0.clone())
                     }
@@ -495,7 +495,7 @@ impl<'a> Planner<'a> {
                 base_revision: revision,
                 fields,
             });
-            self.pages.insert(title.to_lowercase(), (id, revision + 1));
+            self.pages.insert(crate::storage::title_key(title), (id, revision + 1));
         }
         for (label, _) in labels {
             if matches!(label, "author" | "editor" | "translator") {
@@ -506,7 +506,7 @@ impl<'a> Planner<'a> {
     }
     fn unique_title(&self, title: &str, disambiguator: &str) -> Result<String> {
         let available = |candidate: &str| -> Result<bool> {
-            Ok(!self.pages.contains_key(&candidate.to_lowercase())
+            Ok(!self.pages.contains_key(&crate::storage::title_key(candidate))
                 && self.notebook.page_by_title(candidate)?.is_none())
         };
         if available(title)? {

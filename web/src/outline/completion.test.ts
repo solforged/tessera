@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { completedReference, completionPickKey, completionTakesKey, engagedToken, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { cachedExactPage, completedReference, completionPickKey, completionTakesKey, engagedToken, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt } from './completion';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { foldName } from './names';
 import { typeTokenAt } from './type-completion';
@@ -182,4 +182,14 @@ describe('hand-typed reference linking', () => {
     expect(targets.get(foldName(date))).toBe(journal.id);
     expect(created).toEqual([]);
   });
+});
+
+test('exact title completion uses canonical Unicode case folding without dropping accents', () => {
+  for (const [title, query] of [['café', 'cafe\u0301'], ['ΟΣ', 'οσ'], ['ΟΣ', 'ος'], ['Straße', 'STRASSE'], ['İstanbul', 'i\u0307stanbul']]) {
+    const page = { id: 'page', kind: 'page', parent_id: null, text: title } as Block;
+    const roots = [page];
+    const notebook = { roots: () => roots, lookup: () => () => page } as unknown as NotebookClient;
+    expect(cachedExactPage(notebook, query!)).toBe(page);
+    expect(cachedExactPage(notebook, 'cafe')).toBeNull();
+  }
 });

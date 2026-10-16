@@ -9,7 +9,7 @@ repository.workspace = true
 [dependencies]
 # tzdb-concatenated reads Android's tzdata file; other platforms ignore it.
 jiff = { version = "0.2", default-features = false, features = ["std", "tz-system", "tzdb-zoneinfo", "tzdb-concatenated", "tzdb-bundle-platform"] }
-rusqlite.workspace = true
+rusqlite = { workspace = true, features = ["functions"] }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
@@ -18,6 +18,7 @@ ulid.workspace = true
 tempfile.workspace = true
 deunicode = "1"
 unicode-normalization = "0.1"
+caseless = "=0.2.2"
 isolang = { version = "2.4", default-features = false, features = ["english_names", "list_languages"] }
 tracing.workspace = true
 base64 = "0.22"

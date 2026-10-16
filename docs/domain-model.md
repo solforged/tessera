@@ -129,7 +129,7 @@ Only these words appear in the schema, the API, the code and the interface.
 
 ## Blocks
 
-A block has an ID (ULID), parent, page, ordinal, text, optional heading level (1 to 3), revision, archive flag and an optional deletion event. Roots have no parent. Page titles and journal dates are unique among live roots.
+A block has an ID (ULID), parent, page, ordinal, text, optional heading level (1 to 3), revision, archive flag and an optional deletion event. Roots have no parent. New page titles are unique among live roots under NFC normalization and default full Unicode case folding; accents remain significant and authored spelling is unchanged. Upgrading preserves any legacy equivalent pages and their IDs rather than merging them; a title lookup that would choose between them reports ambiguity. Journal dates are unique among live roots.
 
 Rules:
 
