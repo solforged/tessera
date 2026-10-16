@@ -1313,7 +1313,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     const timer = setTimeout(() => setSlowSave(true), SAVE_NOTICE_DELAY);
     onCleanup(() => clearTimeout(timer));
   });
-  const saveState = () => { const state = doc()?.saveState(); return state === 'queued' || state === 'saving' && !slowSave() ? 'saved' : state; };
+  const saveState = () => doc()?.saveState();
   const status = () => {
     const state = saveState();
     return state === 'conflict' ? 'Conflict · Both versions kept' : state === 'error' ? 'Couldn’t save · Local changes kept' : state === 'offline' ? 'Offline' : 'Saving…';
@@ -1393,7 +1393,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
             onClick={event => { if (depth() === stop && getComputedStyle(event.currentTarget.parentElement!.querySelector('.depth-label')!).display === 'none') setDepthMenu(event.currentTarget); else outlineCommand(`depth-${stop}`)?.run(); }}><Icon name={`depth-${stop}`} /><span class="visually-hidden">{depthLabels[stop]}</span></button>}</For>
           <span class="depth-label" aria-hidden="true">{depthLabels[depth()]}</span>
         </div></Show>
-        <span class="pane-save-state" data-state={saveState()} title={doc()?.saveMessage()}><Show when={saveState() !== 'saved'} fallback={<><span class="save-dot" /><span class="visually-hidden">Saved</span></>}><Icon name={saveState() === 'offline' ? 'offline' : saveState() === 'error' || saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</Show></span>
+        <span class="pane-save-state" data-state={saveState()} title={doc()?.saveMessage()}><Show when={saveState() !== 'saved' && saveState() !== 'queued' && (saveState() !== 'saving' || slowSave())} fallback={<><span class="save-dot" /><span class="visually-hidden">{saveState() === 'saved' ? 'Saved' : 'Saving…'}</span></>}><Icon name={saveState() === 'offline' ? 'offline' : saveState() === 'error' || saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</Show></span>
         <Show when={props.vim && props.active}><span class="vim-mode" data-mode={props.vimMode ?? 'outline'} title={props.vimMode === 'insert' ? 'Vim: typing into the block' : props.vimMode === 'visual' ? 'Vim: selecting text' : props.vimMode === 'normal' ? 'Vim: commands inside the block' : 'Vim: moving between blocks'}>{vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
       <Show when={!pageId() && current().target.kind !== 'field'}><Show when={current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined} fallback={<span class="pane-breadcrumbs">{props.title ?? paneLabel(current().target)}</span>}>{target =>

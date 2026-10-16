@@ -14,6 +14,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 - Recovered locally queued edits from closed browser windows without replaying another open window's drafts.
 - Kept cached outlines visible offline and refreshed Revisit and Index after reconnecting, without false errors on new notes.
+- Reported Saving rather than Saved while text was still queued or awaiting the service's acknowledgment.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.
 - Preserved immediate typing and Backspace corrections through slow highlight note and card delivery.
 - Kept source-note catalog apparatus hidden until its metadata finished loading.

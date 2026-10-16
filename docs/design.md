@@ -240,7 +240,7 @@ Below 840 px of window width the row becomes pane tabs, numbered, over the activ
 
 A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. Breadcrumbs reserve at least twelve mono characters for the current title and ellipsize its ending; ancestors may shrink. Below 840 px of pane width, the depth dial collapses to its current iris, and unavailable projection tabs, Read's reason and the Vim tag step aside. Below 600 px of pane width, ancestors, the kind glyph and unavailable history buttons step aside too. If the remaining controls cannot share a line with the title's minimum, they wrap instead of erasing the title.
 
-On journal days the page menu leaves out what only titled pages can do (Rename, Merge into…, Description, Stream and Question) rather than listing it disabled. Saved shows as a 4 px dot with a hidden label; slow saves, offline and errors speak in sans, errors in `--danger`.
+On journal days the page menu leaves out what only titled pages can do (Rename, Merge into…, Description, Stream and Question) rather than listing it disabled. Saved shows as a 4 px dot with a hidden label only after the service acknowledges the text. Queued and fast saves keep the quiet dot but its hidden label says Saving…; slow saves, offline and errors speak in sans, errors in `--danger`.
 
 The Vim mode shows only in the active pane, as a hairline-boxed mono tag of fixed width:
 
