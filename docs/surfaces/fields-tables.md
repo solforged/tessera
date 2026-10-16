@@ -113,7 +113,7 @@ Every field commit returns keyboard ownership to its value editor, its selected 
 
 Creating a text field opens its first value editor and keeps immediate typing and Backspace corrections through the pending handoff. Its accepted text enters the local outbox behind creation, so Escape ends editing without discarding it and reloading before the response still restores the value. Saving or canceling a definition or option rename returns focus to the field page, so its history shortcuts remain available.
 
-Commands → Add field targets the selected block, or the page when no block is selected, and names that context in the palette.
+Commands → Add field targets the selected block, or the page when no block is selected, and names that context in the palette. Page menu → Add field always targets the page, even while a block or field value is selected.
 
 In Read, filling a field value that its holder-scoped register does not display switches to Outline and edits that same value; it never transfers typing to another row.
 
