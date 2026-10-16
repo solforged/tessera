@@ -160,6 +160,8 @@ Filters offer conditions by kind. Choice and Relation offer **is**, **is not**, 
 Each picker lists the source's attributes before its fields. Holder, Subject, Parent question, Program, Creator and other relation attributes use the same picker as relation fields. Choice attributes offer their written options. Date conditions offer Today, 30 days ago, A week from now or a written date. Before and After also offer Or empty. Relative dates stay relative in saved views.
 
 Choice sorts follow the options' order on the field page, first option first when ascending. Problem values follow all options and empty values come last in either direction. Relation fields sort by their target labels, not authored reference labels.
+Title sorts use the finding aid's case- and diacritic-folded filing key, placing accented Latin titles with their base letters.
+
 
 Span sorts compare start year, then end year. Open starts sort first and open ends last among equal starts. Unreadable and empty values follow readable spans. Span filters offer overlaps, before and after; overlap includes both boundary years. Cells keep the authored notation.
 

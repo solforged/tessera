@@ -1133,10 +1133,16 @@ impl Notebook {
             publishers: value_facets(publishers),
             languages: value_facets(languages),
         };
+        if query.sort == LibrarySort::Title {
+            rows.sort_by_cached_key(|row| (crate::aliases::fold(&row.page.text), row.page.id.clone()));
+            if query.direction == Direction::Desc {
+                rows.reverse();
+            }
+        } else {
         rows.sort_by(|a, b| {
             let cmp = match query.sort {
                 LibrarySort::Added => a.source.added_at.cmp(&b.source.added_at),
-                LibrarySort::Title => a.page.text.to_lowercase().cmp(&b.page.text.to_lowercase()),
+                LibrarySort::Title => unreachable!("title sort keys are cached"),
                 LibrarySort::Author => a
                     .creators
                     .first()
@@ -1167,6 +1173,7 @@ impl Notebook {
                 cmp
             }
         });
+        }
         let total = rows.len();
         rows.truncate(limit);
         // The innermost contents entry at or before the reading position.

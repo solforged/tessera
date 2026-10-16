@@ -990,7 +990,7 @@ fn sort_value(
     option_order: &HashMap<&str, usize>,
 ) -> Option<SortValue> {
     Some(match key.by {
-        SortBy::Title => SortValue::Text(row.block.block.text.to_lowercase()),
+        SortBy::Title => SortValue::Text(crate::aliases::fold(&row.block.block.text)),
         SortBy::Created => SortValue::Timestamp(row.block.block.created_at),
         SortBy::Updated => SortValue::Timestamp(row.block.block.updated_at),
         SortBy::Field => {
@@ -1016,7 +1016,9 @@ fn sort_value(
                 Reading::Problem { .. } => return None,
                 Reading::Value { value, .. } => match value {
                     ReadingValue::Text(text) => SortValue::Text(
-                        if definition.is_some_and(|definition| definition.kind == FieldKind::Date)
+                        if field == "@title" {
+                            crate::aliases::fold(text)
+                        } else if definition.is_some_and(|definition| definition.kind == FieldKind::Date)
                             && text.len() < 4
                         {
                             format!("{text:0>4}")

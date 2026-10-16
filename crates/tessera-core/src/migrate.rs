@@ -4,6 +4,8 @@ use crate::error::{Error, Result};
 use crate::notebook::now_ms;
 use crate::storage::derive_memberships;
 
+const UNICODE_TITLE_KEYS: &str = include_str!("../migrations/050_unicode_title_keys.sql");
+
 /// Ordered schema migrations. Version N is the Nth entry; never edit or
 /// reorder a released entry, only append.
 const MIGRATIONS: &[&str] = &[
@@ -53,7 +55,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/044_field_spans.sql"),
     include_str!("../migrations/045_field_counts_as.sql"),
     include_str!("../migrations/046_field_links_sources.sql"),
-    include_str!("../migrations/050_unicode_title_keys.sql"),
+    UNICODE_TITLE_KEYS,
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -440,7 +442,8 @@ mod tests {
     fn unicode_title_upgrade_preserves_legacy_collisions_and_membership_targets() {
         assert_eq!(caseless::UNICODE_VERSION, (16, 0, 0));
         let mut conn = Connection::open_in_memory().unwrap();
-        for sql in &MIGRATIONS[..MIGRATIONS.len() - 1] {
+        let previous_version = MIGRATIONS.iter().position(|sql| *sql == UNICODE_TITLE_KEYS).unwrap();
+        for sql in &MIGRATIONS[..previous_version] {
             conn.execute_batch(sql).unwrap();
         }
         let first = ulid::Ulid::from(1_u128).to_string();
@@ -459,7 +462,7 @@ mod tests {
                 params![owner, title.to_lowercase(), id, title],
             ).unwrap();
         }
-        conn.pragma_update(None, "user_version", MIGRATIONS.len() - 1).unwrap();
+        conn.pragma_update(None, "user_version", previous_version).unwrap();
         migrate(&mut conn).unwrap();
         let titles = conn.prepare(
             "SELECT id, text, title_key FROM blocks WHERE id IN (?1, ?2) ORDER BY id"

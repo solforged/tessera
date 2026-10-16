@@ -214,3 +214,35 @@ fn completed_jobs_leave_with_their_deleted_source() {
     );
     assert!(n.ingest_job(&gone).is_ok());
 }
+
+#[test]
+fn library_and_source_tables_file_accented_titles_with_their_base_letters() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let z = source(&mut n, "Zana", ReadingState::Reading);
+    let accented = source(&mut n, "Ābhās क", ReadingState::Reading);
+    let a = source(&mut n, "Aava", ReadingState::Reading);
+    for direction in [tessera_core::Direction::Asc, tessera_core::Direction::Desc] {
+        let mut expected = vec![a.clone(), accented.clone(), z.clone()];
+        if direction == tessera_core::Direction::Desc {
+            expected.reverse();
+        }
+        let library = n.library(&LibraryQuery {
+            sort: LibrarySort::Title,
+            direction,
+            ..Default::default()
+        }).unwrap();
+        assert_eq!(library.rows.iter().map(|row| row.page.id.clone()).collect::<Vec<_>>(), expected);
+        for sort in [
+            serde_json::json!({"by": "title", "field": null, "direction": direction}),
+            serde_json::json!({"by": "field", "field": "@title", "direction": direction}),
+        ] {
+            let query = serde_json::from_value(serde_json::json!({
+                "source": "sources",
+                "filters": [],
+                "sort": [sort],
+            })).unwrap();
+            assert_eq!(n.query(&query).unwrap().rows.iter().map(|row| row.block.block.id.clone()).collect::<Vec<_>>(), expected);
+        }
+    }
+}

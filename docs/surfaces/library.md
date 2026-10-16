@@ -59,6 +59,8 @@ The selection checkbox and the actions button sit on the cover's top corners and
 On touch the actions button is an always-visible surface disc. Below 600 px it opens the existing source actions in a sheet above navigation, headed by the title, author and mono imprint and progress. Reading and state actions, exports and deletion are separated by rules. Delete still asks for confirmation.
 
 Arrow keys move one book sideways and to the nearest cover in the next row up or down, across group headings. Home and End go to the ends.
+Title sorting uses the finding aid's case- and diacritic-folded filing key, so accented Latin titles stay with their base letters.
+
 
 ### Group
 
