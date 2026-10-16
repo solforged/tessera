@@ -1,6 +1,7 @@
 package dev.tessera.android
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -27,6 +28,23 @@ class MainActivity : TauriActivity() {
   @Volatile private var systemBottom = 0f
   /** The status bar's height in CSS pixels, also while the reader hides it, so the page never moves. */
   @Volatile private var systemTop = 0f
+  private var systemBarsVisible = true
+  private var imeBottom = 0
+  private val reapplySystemBars = Runnable { applySystemBars() }
+
+  private fun applySystemBars() {
+    // The IME owns the gesture bar while it is open. Restore our mode when it lets go.
+    if (!systemBarsVisible && imeBottom > 0) return
+    val controller = WindowCompat.getInsetsController(window, window.decorView)
+    controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    if (systemBarsVisible) controller.show(WindowInsetsCompat.Type.systemBars()) else controller.hide(WindowInsetsCompat.Type.systemBars())
+  }
+
+  private fun scheduleSystemBars() {
+    // Apply after the current inset/configuration dispatch has handed back control.
+    window.decorView.removeCallbacks(reapplySystemBars)
+    window.decorView.post(reapplySystemBars)
+  }
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
@@ -55,9 +73,8 @@ class MainActivity : TauriActivity() {
       @JavascriptInterface fun bottom(): Float = systemBottom
       @JavascriptInterface fun bars(visible: Boolean) {
         runOnUiThread {
-          val controller = WindowCompat.getInsetsController(window, window.decorView)
-          controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-          if (visible) controller.show(WindowInsetsCompat.Type.systemBars()) else controller.hide(WindowInsetsCompat.Type.systemBars())
+          systemBarsVisible = visible
+          applySystemBars()
         }
       }
       @JavascriptInterface fun lightBars(light: Boolean) {
@@ -89,16 +106,31 @@ class MainActivity : TauriActivity() {
       // Ignoring visibility keeps the room the hidden bars took, so hiding them never reflows the page.
       val top = insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.statusBars()).top / density
       val bottom = if (ime > 0) 0f else insets.getInsetsIgnoringVisibility(WindowInsetsCompat.Type.navigationBars()).bottom / density
+      val geometryChanged = ime != imeBottom || top != systemTop || bottom != systemBottom
+      imeBottom = ime
       if (top != systemTop || bottom != systemBottom) {
         systemTop = top
         systemBottom = bottom
         inboxWebView?.evaluateJavascript("window.dispatchEvent(new Event('tessera-insets'))", null)
       }
+      // Ignore visibility-only changes, so an edge swipe can still reveal transient bars.
+      if (geometryChanged) scheduleSystemBars()
       insets
     }
     if (savedInstanceState == null) {
       receiveCapture(intent)
     }
+  }
+
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    ViewCompat.requestApplyInsets(findViewById(android.R.id.content))
+    scheduleSystemBars()
+  }
+
+  override fun onWindowFocusChanged(hasFocus: Boolean) {
+    super.onWindowFocusChanged(hasFocus)
+    if (hasFocus) scheduleSystemBars()
   }
 
   override fun onNewIntent(intent: Intent) {

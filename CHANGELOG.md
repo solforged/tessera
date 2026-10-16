@@ -18,6 +18,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Kept keyboard focus inside the highlight note sheet and restored it on closing.
 - Made Back close the highlight note sheet before leaving reader full screen.
 - Kept leading paragraph numerals with the opening prose sentence when selecting by sentence.
+- Restored hidden Android reader bars after folding with the note keyboard open.
 - Table row titles use Piazzolla, matching page titles and the phone ledger. Gloss and other authored cells stay in Plex.
 - Selecting text and typing `[[` or `((` surrounds it, so the selection becomes a link or block reference instead of being replaced.
 - Reader highlight colors stay nameable on the midnight canvas: the band under the line keeps its hue instead of fading into a faint stain.
