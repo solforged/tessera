@@ -8,7 +8,7 @@ import { Icon } from '../ui/Icon';
 import { TypePill } from './references';
 import { createCitationSources } from './source-reads';
 import { Menu } from '../ui/Menu';
-import { foldedHighlights, foldName, nameMenuItems, plainText, referenceLabel, resolveName } from './names';
+import { deletedHolderLabel, foldedHighlights, foldName, nameMenuItems, plainText, referenceLabel, resolveName } from './names';
 import type { NameMatch } from '../api/types';
 import { cardMarks, cardOperators } from '../review/card-text';
 import type { CardMark } from '../review/card-text';
@@ -76,7 +76,7 @@ function TokenText(props: Props) {
       const literal = group.mark?.kind !== 'operator' && (token.kind === 'text' || token.kind === 'reference' && !isStableReference(token) && !isViewReference(token) && !ambiguous);
       const target = isStableReference(token) ? props.notebook.lookup(token.id!)() : undefined;
       const field = props.field?.id === token.id ? props.field : undefined;
-      const baseLabel = isViewReference(token) ? views()?.find(view => view.id === token.id)?.name || token.alias || 'Saved view' : ambiguous ? token.alias || token.id! : token.kind === 'url' ? token.alias ?? token.value : group.mark?.kind === 'operator' || literal ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id), undefined, props.deletedHolder && props.deletedHolder.id === token.id ? `${props.deletedHolder.text || 'Unnamed holder'} · Deleted holder` : undefined);
+      const baseLabel = isViewReference(token) ? views()?.find(view => view.id === token.id)?.name || token.alias || 'Saved view' : ambiguous ? token.alias || token.id! : token.kind === 'url' ? token.alias ?? token.value : group.mark?.kind === 'operator' || literal ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id), undefined, props.deletedHolder && props.deletedHolder.id === token.id ? deletedHolderLabel(props.deletedHolder) : undefined);
       const source = props.citationApparatus ? citationSources()?.get(token.id!) : undefined;
       const label = (source?.siglum ?? baseLabel) + (!literal && token.locator ? `${source ? ' · ' : '\u2009'}${token.locator}` : '');
       const result: DisplayToken = { ...token, label, target, literal, visibleStart, matches: ambiguous ? resolved : undefined };

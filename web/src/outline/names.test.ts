@@ -46,6 +46,10 @@ test('deleted attribution labels stay readable without inventing a live referenc
   expect(referenceLabel(token, undefined, lookup, undefined, 'Renamed holder 二 · Deleted holder')).toBe('Renamed holder 二 · Deleted holder');
   expect(referenceLabel(token, null, lookup)).toBe(`Unresolved ${id}`);
   expect(plainText(`[[${id}|Remembered name]]`, lookup)).toBe('Remembered name');
+  const deleted = { id, text: 'Renamed holder 二' };
+  expect(plainText(`[[${id}]]`, lookup, undefined, deleted)).toBe('Renamed holder 二 · Deleted holder');
+  expect(plainText(`[[${id}]] · Preserved gist`, lookup, undefined, deleted)).toBe('Renamed holder 二 · Deleted holder · Preserved gist');
+  expect(plainText('[[01ARZ3NDEKTSV4RRFFQ69G5FAW]]', lookup, undefined, deleted)).toBe('Unresolved 01ARZ3NDEKTSV4RRFFQ69G5FAW');
 });
 
 describe('page names', () => {

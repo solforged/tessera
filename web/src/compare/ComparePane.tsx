@@ -5,6 +5,7 @@ import type { NotebookClient, PageDocument } from '../document/contract';
 import { citedSigla } from '../library/sigla';
 import { createCitedSources } from '../outline/source-reads';
 import { BlockText } from '../outline/BlockText';
+import { deletedHolderLabel } from '../outline/names';
 import { fieldRole } from '../fields/roles';
 import { positionFields, positionRelations, positionSource, readingPassages } from '../outline/perspectives';
 import type { PositionField, ReadingPassage } from '../outline/perspectives';
@@ -110,7 +111,7 @@ export function ComparePane(props: ComparePaneProps) {
   const siglumRecords = createCitedSources(props.notebook, () => [...new Set(perspectives().map(item => item.source).filter(id => id !== null))]);
   const sigla = createMemo(() => citedSigla(siglumRecords()));
   const subject = () => props.notebook.lookup(props.subjectId)();
-  const holderName = (row: PositionRow) => row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? 'Loading holder…' : row.deleted_holder ? `${row.deleted_holder.text || 'Unnamed holder'} · Deleted holder` : 'Unattributed';
+  const holderName = (row: PositionRow) => row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? 'Loading holder…' : row.deleted_holder ? deletedHolderLabel(row.deleted_holder) : 'Unattributed';
   const holder = (perspective: Perspective) => holderName(perspective.row);
   const open = (pageId: string, blockId: string | null, beside: boolean) => props.onOpen({ kind: 'page', pageId, ...(blockId ? { blockId } : {}) }, beside);
   const matrixSiglum = (row: PositionRow) => {

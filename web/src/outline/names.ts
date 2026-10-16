@@ -107,6 +107,11 @@ export function referenceLabel(token: Token, target: Block | null | undefined, l
   return targetLabel(target.text, lookup, new Set([...seen, target.id])) || 'Empty block';
 }
 
+/** One readable attribution for deleted holders in rows, headings and navigation labels. */
+export function deletedHolderLabel(holder: { text: string }): string {
+  return `${holder.text || 'Unnamed holder'} · Deleted holder`;
+}
+
 /** What a reference or relation calls its target, as the core labels it: the first line, its trailing tags dropped and inner tags read as words. */
 export function targetLabel(text: string, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set()): string {
   if (quoteTarget(text)) return plainText(text, lookup, seen);
@@ -115,15 +120,15 @@ export function targetLabel(text: string, lookup: NotebookClient['lookup'], seen
   return tokens.map(token => token.kind === 'tag' ? token.value : plainToken(token, lookup, seen)).join('').trim();
 }
 
-function plainToken(token: Token, lookup: NotebookClient['lookup'], seen: ReadonlySet<string>): string {
-  return isViewReference(token) ? token.alias || 'Saved view' : isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${token.value}` : token.kind === 'url' ? token.alias ?? token.value : token.value;
+function plainToken(token: Token, lookup: NotebookClient['lookup'], seen: ReadonlySet<string>, deletedHolder?: { id: string; text: string } | null): string {
+  return isViewReference(token) ? token.alias || 'Saved view' : isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen, deletedHolder && deletedHolder.id === token.id ? deletedHolderLabel(deletedHolder) : undefined) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${token.value}` : token.kind === 'url' ? token.alias ?? token.value : token.value;
 }
 
 /** The shared live display pipeline used by reference labels, breadcrumbs and field previews. */
-export function plainText(text: string, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set()): string {
+export function plainText(text: string, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set(), deletedHolder?: { id: string; text: string } | null): string {
   const quoted = quoteTarget(text);
-  if (quoted) return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)(), lookup, seen)}”`;
-  return textTokens(text).map(token => plainToken(token, lookup, seen)).join('');
+  if (quoted) return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)(), lookup, seen, deletedHolder && deletedHolder.id === quoted ? deletedHolderLabel(deletedHolder) : undefined)}”`;
+  return textTokens(text).map(token => plainToken(token, lookup, seen, deletedHolder)).join('');
 }
 /** Plain text as a reader sees it: card operators as their arrows and clozes as their answers. Never use it for text that is written back. */
 export function readableText(text: string, lookup: NotebookClient['lookup']): string {
