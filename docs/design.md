@@ -296,7 +296,7 @@ Outline content is at most 760 px, centered, so a note's title sits where every 
 
 ### Find or create
 
-One picker searches pages, blocks, highlight quotes and the passages inside books; a leading `>` switches to commands. Everything, Highlights, Books and Pages chips filter grouped results under mono headings and live counts, in this order:
+One picker searches pages, blocks, highlight quotations and authored text or tags, and the passages inside books; a leading `>` switches to commands. Everything, Highlights, Books and Pages chips filter grouped results under mono headings and live counts, in this order:
 
 1. Highlights.
 2. Pages and notes, or Books when every result is a book page.
@@ -307,7 +307,7 @@ A block already shown as a highlight is not repeated among the note results. Oth
 
 | Result | Search and metadata |
 |---|---|
-| Quotes | Case-insensitive matching against up to 500 highlights loaded once per opening |
+| Highlights | Case-insensitive quotation, authored text and tag matching against up to 500 highlights loaded once per opening |
 | Passages | Search starts after three characters, debounces by 100 ms and cancels superseded requests; up to 40 matches. Source siglum, chapter when available and paragraph number |
 | Books | Actual percentage and highlight count |
 | Pages | Case-insensitive exact title comes first, including a locally created page not yet in server search, and suppresses Create page |

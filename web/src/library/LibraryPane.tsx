@@ -18,7 +18,7 @@ import { Picker } from '../ui/Picker';
 import { downloadBlob } from '../ui/download';
 import { createSlowFlag } from '../ui/loading';
 import { crossfade, glide } from '../ui/pane-motion';
-import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightMeta, importJobName, jobLabel, keepRows, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceAuthor, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightMeta, highlightProse, importJobName, jobLabel, keepRows, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceAuthor, sourceByline, sourceStateOperation, visibleJobs } from './query';
 import { formatSourceValue } from '../outline/source';
 import { createHighlightActions, highlightColors, setLinkedCitation } from './highlights';
 import type { HighlightMenu } from './highlights';
@@ -462,6 +462,9 @@ export function LibraryPane(props: LibraryPaneProps) {
       if (!next && unprocessedOnly()) setHighlightPassageOpen(false);
     });
   });
+  createEffect(on(highlights, result => {
+    if (result) void highlightActions.prepare(result.rows).catch(reason => { if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason)); });
+  }));
 
   function chooseHighlight(row: HighlightRow) {
     setSelectedHighlightId(row.citation.id);
@@ -1013,9 +1016,9 @@ export function LibraryPane(props: LibraryPaneProps) {
           <Show when={row().citation.chapter_title && row().citation.quote.trim() !== row().citation.chapter_title?.trim()}><p class="library-highlight-meta">{row().citation.chapter_title}</p></Show>
         </header>
         <div ref={passageScroll} class="library-passage-scroll">
-          <Show when={row().block.block.text.trim() !== row().citation.quote.trim()}><div class="library-highlight-authored"><BlockText text={row().block.block.text} notebook={props.notebook} interactive={false} /></div></Show>
+          <Show when={highlightProse(row().block.block.text) !== highlightProse(row().citation.quote)}><div class="library-highlight-authored"><BlockText text={highlightProse(row().block.block.text)} notebook={props.notebook} interactive={false} /></div></Show>
           <blockquote class="library-passage-quote" style={colorStyle()}>{row().citation.quote}</blockquote>
-          <p class="library-highlight-meta">{highlightMeta(row(), props.notebook.settings()?.time_zone ?? 'UTC')} · {row().notes ? `${row().notes} ${row().notes === 1 ? 'note' : 'notes'}` : 'No notes'}</p>
+          <p class="library-highlight-meta">{highlightMeta(row(), props.notebook.settings()?.time_zone ?? 'UTC')} · {highlightActions.noteCount(row()) === undefined ? 'Loading notes…' : highlightActions.noteCount(row()) ? `${highlightActions.noteCount(row())} ${highlightActions.noteCount(row()) === 1 ? 'note' : 'notes'}` : 'No notes'}</p>
           <Show when={row().block.page.id !== row().citation.source_id}><Button class="library-highlight-filed" onClick={event => openSource({ kind: 'page', pageId: row().block.page.id, blockId: row().block.block.id }, opensBeside(event))}>In {row().block.page.text}</Button></Show>
           <Show when={row().tags.length}><div class="library-highlight-tags"><For each={row().tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></div></Show>
           <Show when={followingPassage()}><div class="library-passage-context"><h3>Passage continues</h3><p>{followingPassage()}</p></div></Show>
@@ -1024,7 +1027,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         </div>
         <footer class="library-highlight-dock">
           <div class="library-passage-pager"><Button icon="left" shortcut="↑ K" disabled={highlightIndex() <= 0} onClick={() => stepHighlight(-1)}>Previous <kbd>↑ K</kbd></Button><span class="library-highlight-meta">{highlightIndex() + 1} of {highlightQueue().length}</span><Button shortcut="J ↓" disabled={highlightIndex() >= highlightQueue().length - 1} onClick={() => stepHighlight(1)}>Next <kbd>J ↓</kbd><Icon name="right" /></Button></div>
-          <div class="library-highlight-primary"><Button class="bordered library-mark-processed" icon="check" shortcut="E" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'triage'); }}>{row().processed ? 'Mark unprocessed' : 'Mark processed'}<kbd>E</kbd></Button><Button class="bordered" icon="note" shortcut="N" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'note'); }}>{row().notes ? 'Open note' : 'Add note'}<kbd>N</kbd></Button><Button class="bordered" icon="review" shortcut="C" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'card'); }}>Make card<kbd>C</kbd></Button></div>
+          <div class="library-highlight-primary"><Button class="bordered library-mark-processed" icon="check" shortcut="E" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'triage'); }}>{row().processed ? 'Mark unprocessed' : 'Mark processed'}<kbd>E</kbd></Button><Button class="bordered" icon="note" shortcut="N" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'note'); }}>{highlightActions.noteCount(row()) ? 'Open note' : 'Add note'}<kbd>N</kbd></Button><Button class="bordered" icon="review" shortcut="C" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'card'); }}>Make card<kbd>C</kbd></Button></div>
           <div class="library-highlight-secondary">
             <Button icon="tag" shortcut="T" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'tag'); }}>Tag <kbd>T</kbd></Button>
             <Button shortcut="1–5" aria-haspopup="dialog" disabled={highlightBusy()} onClick={event => setPopup({ kind: 'highlight-colors', anchor: event.currentTarget, row: row() })}><span class="library-highlight-color-bar" style={colorStyle()} aria-hidden="true" />Colour <kbd>1–5</kbd></Button>
@@ -1212,7 +1215,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={slowLoad()}><p class="library-message" role="status">Loading…</p></Show>
         <Show when={hasResult() && !error()}>
           <Show when={tab() !== 'highlights'} fallback={
-            <Show when={highlights()?.rows.length} fallback={<div class="library-empty"><p>{highlightEmptyMessage(highlightCount(), unprocessedOnly())}</p><Show when={colors().length || tags().length}><Button onClick={() => update({ colors: [], tags: [], scroll: 0 })}>Clear filters</Button></Show></div>}>
+            <Show when={highlights()?.rows.length} fallback={<div class="library-empty"><p>{highlightEmptyMessage(highlightCount(), unprocessedOnly(), !!(colors().length || tags().length))}</p><Show when={colors().length || tags().length}><Button onClick={() => update({ colors: [], tags: [], scroll: 0 })}>Clear filters</Button></Show></div>}>
               <div class="library-highlights-workbench">
                 <section class="library-highlight-queue" aria-label="Highlight queue">
                   <header class="library-highlight-queue-head"><span>Reading order</span><span>{highlightQueue().length} highlights<Show when={(highlights()?.total ?? 0) > (highlights()?.rows.length ?? 0)}> · {highlights()?.rows.length} of {highlights()?.total} loaded</Show></span></header>
@@ -1225,7 +1228,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                       <div role="list"><For each={chapter.rows}>{row => <div role="listitem" onPointerEnter={() => setLinkedCitation(row.citation.id)} onPointerLeave={() => setLinkedCitation(null)}>
                         <Button class="library-highlight" aria-current={selectedHighlightId() === row.citation.id ? 'true' : undefined} data-library-row={row.citation.id} style={{ '--highlight-bar': row.color ? `var(--highlight-${row.color})` : 'var(--faint)' }} onClick={() => chooseHighlight(row)}>
                           <span class="library-highlight-text">{row.citation.quote}</span>
-                          <span class="library-highlight-details"><span class="library-highlight-meta">{highlightMeta(row, props.notebook.settings()?.time_zone ?? 'UTC')}<Show when={row.notes > 0}> · {row.notes} {row.notes === 1 ? 'note' : 'notes'}</Show><Show when={!unprocessedOnly()}> · {row.processed ? 'Processed' : 'Unprocessed'}</Show></span><Show when={row.block.page.id !== row.citation.source_id}><span class="library-highlight-meta library-highlight-filed">In {row.block.page.text}</span></Show></span>
+                          <span class="library-highlight-details"><span class="library-highlight-meta">{highlightMeta(row, props.notebook.settings()?.time_zone ?? 'UTC')}<Show when={(highlightActions.noteCount(row) ?? 0) > 0}> · {highlightActions.noteCount(row)} {highlightActions.noteCount(row) === 1 ? 'note' : 'notes'}</Show><Show when={!unprocessedOnly()}> · {row.processed ? 'Processed' : 'Unprocessed'}</Show></span><Show when={row.block.page.id !== row.citation.source_id}><span class="library-highlight-meta library-highlight-filed">In {row.block.page.text}</span></Show></span>
                           <Show when={row.tags.length}><span class="library-highlight-tags"><For each={row.tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></span></Show>
                         </Button>
                       </div>}</For></div>

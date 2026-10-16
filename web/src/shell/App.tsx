@@ -252,8 +252,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const open = (target: OpenTarget, beside = false, owner = active(), restore?: PaneView, insertAt?: number) => {
     const slot = insertAt !== undefined ? { index: insertAt, existing: null } : beside ? besideSlot(order(), owner) : { index: -1, existing: owner };
     const pane: PaneId = slot.existing ?? newPaneId();
-    // A list that fills an existing neighbour keeps focus; a new pane, or anything else, takes it.
-    const keepFocus = beside && !!slot.existing && !!listKinds[entry(owner)?.target.kind ?? 'page'];
+    // Explicit editing requests activate their destination, even when a list reuses a folded neighbour.
+    const keepFocus = beside && !!slot.existing && !(target.kind === 'page' && target.caretId) && !!listKinds[entry(owner)?.target.kind ?? 'page'];
     const request = cancelNavigation(pane);
     if (target.kind === 'agenda' && target.viewId && !target.query) {
       void notebook.api.taskView(target.viewId).then(saved => {

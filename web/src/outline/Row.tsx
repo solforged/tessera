@@ -4,6 +4,7 @@ import type { Accessor, Component } from 'solid-js';
 import type { VirtualItem } from '@tanstack/solid-virtual';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { linkedCitation, setLinkedCitation } from '../library/highlights';
+import { highlightProse } from '../library/query';
 import { cardSubject, parseCardText } from '../review/card-text';
 import { TaskStatusButton } from '../tasks/TaskControls';
 import { createTaskProjects } from '../projects/task-project';
@@ -261,7 +262,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           onWrite={() => apply({ kind: 'writeAssessment', parentId: id(), assessedOn: props.notebook.todayDate() }, true)} /></Show>
         <RowRelations id={id()} />
         <Show when={block()?.keptCopy}><KeptCopyActions id={id()} apply={edit => apply(edit, false)} /></Show>
-        <For each={block()?.citations}>{citation => <Show when={block()?.text.trim() !== citation.quote.trim()}>
+        <For each={block()?.citations}>{citation => <Show when={highlightProse(block()?.text ?? '') !== highlightProse(citation.quote)}>
           <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>
         </Show>}</For>
         <Show when={editing() !== id() || cardTextSettled()}><For each={cardProblems()}>{problem => <p class="outline-card-problem" role="status">{problem.message}</p>}</For></Show>

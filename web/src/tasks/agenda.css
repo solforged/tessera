@@ -167,6 +167,7 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 /* Open, Keep and Mute remain the existing actions, in quiet mono at the source line's edge. */
 .resurface-actions { display: flex; align-items: center; gap: var(--space-2); color: var(--faint); }
 .resurface-actions .button { padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); font-weight: var(--weight-body); }
+.resurface-keep-mark { display: inline-flex; width: var(--icon-size); flex: 0 0 var(--icon-size); }
 .resurface-actions .button:hover:not(:disabled) { color: var(--text); }
 
 /* The spoken date is presentation only: journals retain their ISO root and all other pages keep their titles. */

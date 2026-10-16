@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from 'solid-js';
+import { highlightMatches } from '../library/query';
 import { api } from '../api/client';
 import type { Block, BlockInPage, Citation, HighlightRow, LibraryRow, PageView, PassageHit, PassagePage, SourceView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -74,7 +75,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   createEffect(() => {
     const ids = [...new Set([
       ...passageHits().map(hit => hit.source_id),
-      ...(highlights()?.rows ?? []).filter(row => !!text() && row.citation.quote.toLocaleLowerCase().includes(text().toLocaleLowerCase())).map(row => row.citation.source_id),
+      ...(highlights()?.rows ?? []).filter(row => !!text() && highlightMatches(row, text())).map(row => row.citation.source_id),
     ])].filter(id => !sourceCache.has(id));
     if (!ids.length) return;
     const controller = new AbortController();
@@ -123,7 +124,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       ?? rows.find(hit => hit.block.kind === 'page' && hit.block.text.toLowerCase() === title.toLowerCase())?.block : null;
     const result: Entry[] = [];
     if (!parent && (findScope() === 'Everything' || findScope() === 'Highlights') && title) {
-      result.push(...(highlights()?.rows ?? []).filter(row => row.citation.quote.toLocaleLowerCase().includes(title.toLocaleLowerCase())).map((row): Entry => ({ kind: 'highlight', row })));
+      result.push(...(highlights()?.rows ?? []).filter(row => highlightMatches(row, title)).map((row): Entry => ({ kind: 'highlight', row })));
     }
     const shownHighlightBlocks = new Set(result.filter((entry): entry is Extract<Entry, { kind: 'highlight' }> => entry.kind === 'highlight').map(entry => entry.row.block.block.id));
     const allowed = (hit: BlockInPage) => parent || findScope() === 'Everything'

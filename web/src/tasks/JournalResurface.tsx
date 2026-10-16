@@ -115,7 +115,7 @@ export function JournalResurface(props: JournalResurfaceProps) {
             <p class="resurface-meta" title={row().source_title}>{shortSourceTitle(row().source_title)} · {location()}{location().startsWith('¶') ? '' : ` · ¶${row().citation.ordinal + 1}`} · {formatter().format(row().created_at)}</p>
             <div class="resurface-actions">
               <Button disabled={pending()} onClick={() => void act(row(), 'opened')}>Open</Button><span aria-hidden="true">·</span>
-              <Button disabled={pending()} aria-pressed={row().action === 'kept'} onClick={() => void act(row(), 'kept')}><Show when={row().action === 'kept'}><Icon name="check" /></Show>Keep</Button><span aria-hidden="true">·</span>
+              <Button disabled={pending()} aria-pressed={row().action === 'kept'} onClick={() => void act(row(), 'kept')}><span class="resurface-keep-mark" aria-hidden="true"><Show when={row().action === 'kept'}><Icon name="check" /></Show></span>Keep</Button><span aria-hidden="true">·</span>
               <Button disabled={pending()} onClick={() => void act(row(), 'muted')}>Mute</Button>
             </div>
           </div>

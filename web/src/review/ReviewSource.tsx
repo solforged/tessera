@@ -13,7 +13,16 @@ export interface ReviewSource {
 
 /** Citation endpoints and passage slices use the same UTF-16 offsets as the reader. */
 export async function reviewSource(api: ApiClient, row: CardRow): Promise<ReviewSource | null> {
-  const citation = (await api.capabilities(row.source.block.id)).citations?.[0];
+  let block = row.source.block;
+  let citation: Citation | undefined;
+  const seen = new Set<string>();
+  while (!seen.has(block.id)) {
+    seen.add(block.id);
+    citation = (await api.capabilities(block.id)).citations?.[0];
+    if (citation) break;
+    if (!block.parent_id || block.parent_id === block.page_id) return null;
+    block = await api.block(block.parent_id);
+  }
   if (!citation) return null;
   const source = await api.source(citation.source_id);
   let page = await api.passages(citation.snapshot_id, Math.max(0, citation.ordinal - 2), 12);

@@ -60,6 +60,8 @@ The card reads as a quiet sheet on the page rather than a boxed panel. On a fine
 
 One mono line heads every card: the source at the left, then the kind in faint capitals (`FORWARD`, `REVERSE`, `CLOZE`, `MULTI-LINE`, `LIST`, `DESCRIPTOR`) and Card actions at the right. A cloze is numbered (`CLOZE 2`) only when its block makes several. A cited card's source shows siglum, title, chapter and paragraph and opens that citation. ⌘-click opens it beside (Ctrl-click off Mac). An uncited card's source path opens its block. Card actions holds the same open action, Edit card, which opens the canonical block, and Reset progress, which requires a revealed answer and confirmation.
 
+Cards beneath a highlight inherit the nearest ancestor citation when they have none of their own. Their source line identifies the book and location, not the ancestor quotation. The cited passage and following sentence wait for reveal.
+
 Both sides of a card share one size. When both are 40 characters or fewer on one line, and the answer is not an outline, they are set at 24 px with a 30 px line; otherwise both read at 24 px with a 38 px line. A rule separates ordinary sides. Multi-line answers keep their child outline with faint bullets, and list answers number their items in rubric; both markers sit on the text's baseline. Lists reveal one item at a time, with an `N of M` mono count, and grading waits for the last. Clozes reveal in place with a gilt underline, so the sentence appears once; until then a gap reads `[…]`, or `[hint]`, in muted italic.
 
 Once revealed, a cited card shows the following sentence from its snapshot's real passages.

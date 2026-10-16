@@ -217,7 +217,7 @@ Highlights is a processing desk: a reading-order queue and selected passage shar
 
 Sources retain newest-highlight order. Each source's passages retain ordinal and selection-offset order, including distinct overlapping selections. Queue previews clamp to three lines, marked by a 2 px color bar, with the actual paragraph, date, note count and filing page in mono. A quotation that supplies its own chapter title does not repeat that title above it.
 
-The detail shows the full frozen quotation, preserves rewritten block text, and fetches the following passage from the citation's snapshot without moving the reading position.
+The detail shows the full frozen quotation, preserves rewritten block prose, and fetches the following passage from the citation's snapshot without moving the reading position. Filing tags appear once as metadata. Adding a tag alone does not repeat the quotation, here or in the source outline.
 
 Markdown export keeps the frozen evidence, authored highlight text, filing tags and child notes. An unchanged quotation appears once; tags or commentary appended to it follow the evidence without repeating the quotation.
 
@@ -243,13 +243,13 @@ The pager labels show ↑ K and J ↓. The active Highlights pane owns these unm
 
 Mark processed advances to the next unprocessed passage in the scoped queue, wrapping when necessary. In All, processed passages offer Mark unprocessed. Undo uses the retained source document's existing history, from the dock or ⌘Z, not a separate triage history or toast.
 
-A non-empty child note, an active card or an incoming reference processes a highlight unless its explicit triage overrides that state. Tags and color only organize it. Add note opens the first written child or reuses a blank note.
+A non-empty child note, an active card or an incoming reference processes a highlight unless its explicit triage overrides that state. Tags and color only organize it. Note counts exclude card children. Add note opens the first written prose child or reuses a blank note, never a card. Explicit note editing reveals and activates its destination pane.
 
-The shared highlight menu keeps the quotation, color choices, note and card actions, Copy with citation, triage, tags and removal. Library adds Open in reader. Hovering a highlight still links it to the reader and source outline in the other pane without scrolling or taking focus.
+The shared highlight menu keeps the quotation, color choices, note and card actions, Copy with citation, triage, tags and removal. Removing a highlight with written descendants or incoming references asks for confirmation and names both counts. Removal still deletes the subtree and keeps Undo. Library adds Open in reader. Hovering a highlight still links it to the reader and source outline in the other pane without scrolling or taking focus.
 
 ### Make card
 
-Make card opens a deliberate front/back draft with the quotation in Back and source context above it. It creates no empty syntax block and shows no initial invalid-state warning. Cancel leaves no card behind. Successful delivery creates one child under the highlight and opens its refreshed outline. Unresolved delivery keeps the form busy rather than permitting duplicate insertion.
+Make card opens a deliberate front/back draft with the quotation in Back and source context above it. It creates no empty syntax block and shows no initial invalid-state warning. Cancel leaves no card behind. Successful delivery creates one child under the highlight, retains document Undo and reveals its refreshed outline. Unresolved delivery keeps the form busy rather than permitting duplicate insertion.
 
 ### Empty queues
 
@@ -259,6 +259,7 @@ When processing empties the scoped queue, Undo stays in the Highlights toolbar s
 | --- | --- |
 | Notebook with no highlights | "Select text in the reader to add highlights." |
 | Empty Unprocessed queue in a notebook that still has highlights | "No unprocessed highlights." |
+| Empty color or tag filter | "No highlights match these filters." |
 
 ## Source pages
 

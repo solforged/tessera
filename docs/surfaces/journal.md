@@ -117,7 +117,7 @@ Touch journals keep only the bullet left of the text, with the heading and the r
 
 ## From your highlights
 
-Below the outline, From your highlights shows one resurfaced highlight at a time with an `N of M` counter and previous/next controls, preserving Open, Keep, Mute and the device's collapse preference. No reading-session duration, pace or finish estimate is shown.
+Below the outline, From your highlights shows one resurfaced highlight at a time with an `N of M` counter and previous/next controls, preserving Open, Keep, Mute and the device's collapse preference. Keep reserves its checkmark's room, so the actions do not reflow when checked. No reading-session duration, pace or finish estimate is shown.
 
 ## Research to revisit
 

@@ -29,6 +29,15 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Recognized numeric superscript footnote references, reciprocal note backlinks and numbered endnote classes during EPUB import.
 - Excluded isolated epigraph quotations from inferred EPUB chapter lists.
 - Kept authored highlight paraphrases and tags in Markdown exports without repeating unchanged evidence.
+- Resolved ancestor highlight citations in Review without exposing the quotation before reveal.
+- Revealed the destination pane for explicit highlight note editing and card delivery.
+- Excluded card children from highlight note counts and note-editing targets.
+- Confirmed highlight removal with counts of written child blocks and incoming references.
+- Kept highlight card creation in the desk's document Undo history.
+- Named active filters in empty highlight queues.
+- Stopped filing tags from duplicating highlight quotations and tag labels.
+- Included authored annotation text and tags in Highlights search.
+- Reserved the resurfacing Keep checkmark's room to prevent action-row jumps.
 - Table row titles use Piazzolla, matching page titles and the phone ledger. Gloss and other authored cells stay in Plex.
 - Selecting text and typing `[[` or `((` surrounds it, so the selection becomes a link or block reference instead of being replaced.
 - Reader highlight colors stay nameable on the midnight canvas: the band under the line keeps its hue instead of fading into a faint stain.

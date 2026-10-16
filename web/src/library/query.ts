@@ -4,6 +4,7 @@ import { formatSourceValue } from '../outline/source';
 import type { HighlightSection } from './highlights';
 import { referenceValue } from '../outline/names';
 import { sameState } from '../document/types';
+import { textTokens } from '../document/text-tokens';
 
 export function libraryQuery(view: Pick<LibraryViewState, 'tab' | 'text' | 'sort' | 'filters' | 'collection'>): LibraryQuery {
   return {
@@ -85,9 +86,22 @@ export function keepRows(previous: readonly LibraryRow[] | undefined, next: Libr
   });
 }
 
-export function highlightEmptyMessage(total: number | undefined, unprocessedOnly: boolean): string {
+export function highlightEmptyMessage(total: number | undefined, unprocessedOnly: boolean, filtered = false): string {
+  if (filtered) return 'No highlights match these filters.';
   if (total === 0) return 'Select text in the reader to add highlights.';
   return unprocessedOnly ? 'No unprocessed highlights.' : 'No matching highlights.';
+}
+
+/** Filing tags are shown separately from a highlight's authored prose and frozen evidence. */
+export function highlightProse(text: string): string {
+  return textTokens(text).filter(token => token.kind !== 'tag').map(token => text.slice(token.start, token.end)).join('').trim();
+}
+
+export function highlightMatches(row: HighlightRow, query: string): boolean {
+  const text = query.toLocaleLowerCase();
+  return row.citation.quote.toLocaleLowerCase().includes(text)
+    || row.block.block.text.toLocaleLowerCase().includes(text)
+    || row.tags.some(tag => tag.toLocaleLowerCase().includes(text));
 }
 
 export function highlightLocation(citation: Pick<Citation, 'ordinal' | 'chapter_title'>, sections: readonly HighlightSection[]): string {
