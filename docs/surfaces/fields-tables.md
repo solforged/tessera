@@ -204,7 +204,7 @@ Changing the column selection returns the grid to its left edge. Entering an inl
 
 Type tables offer New type… (using the type's name) in their header. It uses the Index's new-note form to create and file a typed page in one change, or file an existing page. Creation stays in the table and selects its title; a new page excluded by the current query gets an Open note notice instead of changing the filters.
 
-Each row's actions menu offers Open, Open beside, Rename… and Delete… last. Rename edits the title in its cell; F2 on a focused title does the same. Enter or leaving the input saves, Escape cancels, and the change joins the table's undo history. Ordinary title click and Enter still open the row. Delete confirms the page and all its blocks, or the tagged block and its children, and offers Undo using the page-deletion toast or the table's block history.
+Each row's titled actions menu offers Open, Open beside, Rename… and Delete… last. It names the row and becomes a bottom sheet on coarse phones. Rename edits the title in its cell; F2 on a focused title does the same. Enter or leaving the input saves, Escape cancels, and the change joins the table's undo history. Ordinary title click and Enter still open the row. Delete confirms the page and all its blocks, or the tagged block and its children, and offers Undo using the page-deletion toast or the table's block history.
 
 ### Columns
 

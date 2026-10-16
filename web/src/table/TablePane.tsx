@@ -46,7 +46,7 @@ export interface TablePaneProps {
   onTargetChange(target: TableTarget): void; onViewChange(view: TableViewState): void;
   onDeletePages?(pages: { id: string; title: string }[]): Promise<void>;
 }
-type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label: string; header?: JSX.Element }
+type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label: string; title?: string; context?: JSX.Element; header?: JSX.Element }
   | { kind: 'filter'; anchor: HTMLElement; field: string }
   | { kind: 'name'; anchor: HTMLElement; action: 'save' | 'rename' | 'field'; addColumn?: boolean }
   | { kind: 'columns'; anchor: HTMLElement; cards?: boolean }
@@ -609,7 +609,7 @@ function TableContent(props: TablePaneProps) {
   };
   const rowMenu = (row: QueryRow, anchor: HTMLElement) => {
     setSelectedRow(row.block.block.id);
-    setPopup({ kind: 'menu', anchor, label: 'Row actions', header: <><div class="table-popup-heading">Row actions</div><div class="table-popup-note">{plainText(row.block.block.text, id => props.notebook.lookup(id))}</div></>, items: [
+    setPopup({ kind: 'menu', anchor, label: 'Row actions', title: 'Row actions', context: plainText(row.block.block.text, id => props.notebook.lookup(id)), items: [
       { label: 'Open', action: () => openRow(row, false) },
       { label: 'Open beside', action: () => openRow(row, true) },
       { label: 'Rename…', action: () => startRename(row) },
@@ -870,9 +870,9 @@ function TableContent(props: TablePaneProps) {
       <div class="popup-actions"><Show when={saved() && changed()}><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button><Button class="bordered" disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button></Show><Button class="bordered" onClick={() => setQuerySheet(null)}>Done</Button></div>
     </Popup>}</Show>
     <Show keyed when={popup()}>{state => <>
-      {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
+      {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
       {state.kind === 'new-row' && rowKind() && <NewKindNote kind={rowKind()!} mode="type" anchor={state.anchor} notebook={props.notebook} members={new Set((result()?.rows ?? []).filter(row => row.block.block.kind !== 'block').map(row => row.block.block.id))} onDismiss={() => setPopup(null)} onOpen={(id, beside) => { void revealNewRow(id, beside).catch(message); }} />}
-      {state.kind === 'delete-row' && <Popup anchor={state.anchor} label={state.row.block.block.kind === 'block' ? 'Delete block' : 'Delete page'} onDismiss={() => { if (!deleting()) setPopup(null); }}>
+      {state.kind === 'delete-row' && <Popup anchor={state.anchor} placement={narrow() ? 'sheet' : 'anchor'} label={state.row.block.block.kind === 'block' ? 'Delete block' : 'Delete page'} onDismiss={() => { if (!deleting()) setPopup(null); }}>
         <p>Delete “{plainText(state.row.block.block.text, id => props.notebook.lookup(id))}” and all its {state.row.block.block.kind === 'block' ? 'children' : 'blocks'}?</p><p class="muted">You can undo this deletion.</p>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
         <div class="popup-actions"><Button disabled={deleting()} onClick={() => setPopup(null)}>Cancel</Button><Button class="bordered danger" disabled={deleting()} onClick={() => { void deleteRow(state.row); }}>Delete {state.row.block.block.kind === 'block' ? 'block' : 'page'}</Button></div>
