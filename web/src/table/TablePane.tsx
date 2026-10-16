@@ -123,7 +123,7 @@ function TableContent(props: TablePaneProps) {
     if (takeFocus) cell?.focus({ preventScroll: true });
     if (cell && grid.offsetWidth) {
       const bounds = cell.getBoundingClientRect(); const frame = scroll.getBoundingClientRect();
-      const header = grid.tHead!.getBoundingClientRect();
+      const header = grid.tHead!.rows[0]!.cells[0]!.getBoundingClientRect();
       if (bounds.top < header.bottom) scroll.scrollTop -= header.bottom - bounds.top;
       else if (bounds.bottom > frame.bottom) scroll.scrollTop += bounds.bottom - frame.bottom;
       if (fieldId) {
@@ -741,7 +741,9 @@ function TableContent(props: TablePaneProps) {
     }
     event.preventDefault();
   };
-  const renderValue = (row: QueryRow, field: FieldDefinition | undefined, hideCount = false) => <Show when={field?.id.startsWith('@')} fallback={<TableFieldValue field={field} values={row.values[field?.id ?? ''] ?? []} notebook={props.notebook} hideCount={hideCount} onPill={(value, anchor, beside) => { if (field) void openPill(row, field, value, anchor, beside).catch(message); }} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: field?.name ?? 'Sources', sources })} />}><TableAttributeValue values={row.attributes?.[field?.id ?? ''] ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>;
+  // Keep value components mounted when definitions refresh: remounting their
+  // measured More controls briefly shrinks the grid and clamps its scroll.
+  const renderValue = (row: QueryRow, id: string, hideCount = false) => <Show when={id.startsWith('@')} fallback={<TableFieldValue field={fieldById(id)} values={row.values[id] ?? []} notebook={props.notebook} hideCount={hideCount || id === sourceField()?.id} onPill={(value, anchor, beside) => { const field = fieldById(id); if (field) void openPill(row, field, value, anchor, beside).catch(message); }} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: fieldById(id)?.name ?? 'Sources', sources })} />}><TableAttributeValue values={row.attributes?.[id] ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>;
   const required = createMemo(() => requiredIds(type()));
   // Counted within this view's scope, which may be narrower than the type, such as its notes.
   const [gaps] = createResource(() => !loading() && type()?.required?.some(field => field.missing > 0) ? [query(), type()!] as const : false, ([value, current]) => Promise.all(current.required.filter(field => field.missing > 0).map(async field => {
@@ -762,7 +764,7 @@ function TableContent(props: TablePaneProps) {
   </Show>;
   const renderCell = (row: QueryRow, id: string) => {
     const field = () => fieldById(id); const current = () => editing();
-    return <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={required().has(id) && !row.values[id]?.length ? <span class="table-needed">needed</span> : renderValue(row, field(), id === sourceField()?.id)}>
+    return <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<Show when={required().has(id) && !row.values[id]?.length} fallback={renderValue(row, id)}><span class="table-needed">needed</span></Show>}>
       <textarea class="input table-cell-input" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field() ? valuePlaceholders[field()!.kind] : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : field()?.kind === 'url' ? 'url' : undefined} rows={Math.min(8, Math.max(1, (current()?.text.match(/\n/g)?.length ?? 0) + 1))} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus({ preventScroll: true }); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
         if (event.isComposing) return;
         if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); void commitEdit(true); }
@@ -770,7 +772,7 @@ function TableContent(props: TablePaneProps) {
       }} onBlur={() => { void commitEdit(); }} />
     </Show>;
   };
-  const renderCardCell = (row: QueryRow, field: FieldDefinition) => <div class={`table-card-field table-kind-${field.kind}`} classList={{ 'table-card-source': field.id === sourceField()?.id, 'table-card-gloss': field.name.trim().toLocaleLowerCase() === 'gloss', 'table-card-grouped-field': !!query().group && field.id === query().group?.key }} role="button" tabIndex={0} aria-label={`Open ${field.name} field`} onClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('button') && !field.id.startsWith('@')) openField(row, field); }} onKeyDown={event => { if ((event.key === 'Enter' || event.key === ' ') && !field.id.startsWith('@')) { event.preventDefault(); event.stopPropagation(); openField(row, field); } }}><span class="table-card-field-name">{field.name}</span>{renderValue(row, field, true)}</div>;
+  const renderCardCell = (row: QueryRow, field: FieldDefinition) => <div class={`table-card-field table-kind-${field.kind}`} classList={{ 'table-card-source': field.id === sourceField()?.id, 'table-card-gloss': field.name.trim().toLocaleLowerCase() === 'gloss', 'table-card-grouped-field': !!query().group && field.id === query().group?.key }} role="button" tabIndex={0} aria-label={`Open ${field.name} field`} onClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('button') && !field.id.startsWith('@')) openField(row, field); }} onKeyDown={event => { if ((event.key === 'Enter' || event.key === ' ') && !field.id.startsWith('@')) { event.preventDefault(); event.stopPropagation(); openField(row, field); } }}><span class="table-card-field-name">{field.name}</span>{renderValue(row, field.id, true)}</div>;
   const renderRefs = (row: QueryRow, phone: boolean) => <Show when={(sourcesByRow().get(row.block.block.id) ?? []).length}>{count => <Button class={`table-source-count${phone ? ' table-card-refs' : ''}`} label={`${count()} ${count() === 1 ? 'reference' : 'references'}`} aria-haspopup="dialog" onClick={event => { event.stopPropagation(); setPopup({ kind: 'sources', anchor: event.currentTarget, label: sourceField()?.name ?? 'Source', sources: sourcesByRow().get(row.block.block.id) ?? [] }); }}>{count()} {phone ? count() === 1 ? 'ref' : 'refs' : ''}</Button>}</Show>;
   const queryToolbar = () => <>
       <Show when={query().note_kind}><NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery} /></Show>
