@@ -1781,8 +1781,9 @@ export class Document implements PageDocument {
           if (action.kind === 'text' && action.id === edit.id) { action.expectedText = edit.text; break; }
         }
         entry.after = after;
+        entry.typing = typing;
       }
-      else { entry = { forward: actions, inverse, before, after, commandId: command.id, commands: new Set(), applied: true, retained: true }; this.undoStack.push(entry); }
+      else { entry = { forward: actions, inverse, before, after, commandId: command.id, commands: new Set(), applied: true, retained: true, typing }; this.undoStack.push(entry); }
       this.rememberHistory(command, entry, false);
       this.lastTextEditAt = typing ? Date.now() : 0;
       const discarded = this.redoStack;
@@ -1791,7 +1792,6 @@ export class Document implements PageDocument {
       this.historyVersion[1](value => value + 1);
       return { ok: true, caret, created };
     } catch (error) { return { ok: false, reason: error instanceof Error ? error.message : String(error) }; }
-      entry.typing = typing;
   }
   rename(title: string): EditResult {
     if (this.root()?.kind !== 'page') return { ok: false, reason: 'Journal dates cannot be renamed.' };
