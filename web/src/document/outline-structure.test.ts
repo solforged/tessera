@@ -122,6 +122,32 @@ describe('outline structural boundaries', () => {
     expect((await api.page(ids.page!)).rows.map(row => ({ id: row.block.id, parentId: row.block.parent_id, depth: row.depth }))).toEqual(after);
   });
 
+  test('mixed-depth outdent lifts each selected root from its own parent', async () => {
+    const { doc, instance, ids } = await fixture();
+    const before = tree(doc);
+    expect(doc.edit({ kind: 'outdent', ids: [ids.A2a!, ids.A3!] }).ok).toBe(true);
+    expect(doc.outline.parentOf(ids.A2a!)).toBe(ids.A!);
+    expect(doc.outline.parentOf(ids.A3!)).toBe(ids.page!);
+    const after = tree(doc);
+    await instance.flush();
+    expect((await api.page(ids.page!)).rows.map(row => ({ id: row.block.id, parentId: row.block.parent_id, depth: row.depth }))).toEqual(after);
+    doc.undo();
+    await instance.flush();
+    expect(tree(doc)).toEqual(before);
+    doc.redo();
+    await instance.flush();
+    expect(tree(doc)).toEqual(after);
+  });
+
+  test('mixed-parent move is a no-op without a failed command or history', async () => {
+    const { doc, instance, ids } = await fixture();
+    const before = tree(doc);
+    for (const direction of ['up', 'down'] as const) expect(doc.edit({ kind: 'move', ids: [ids.A2a!, ids.A3!], direction }).ok).toBe(true);
+    expect(tree(doc)).toEqual(before);
+    expect(instance.queuedChanges()).toBe(0);
+    expect(doc.canUndo()).toBe(false);
+  });
+
   test('a child drop moves selected roots with their subtrees in one undo step', async () => {
     const { doc, instance, ids } = await fixture();
     const before = tree(doc);

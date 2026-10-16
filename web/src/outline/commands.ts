@@ -174,6 +174,11 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       } })),
     ] });
   }
+  const moveReason = () => {
+    const ids = roots();
+    const parent = ids[0] ? doc.outline.parentOf(ids[0]) : null;
+    return ids.some(id => doc.outline.parentOf(id) !== parent) ? 'Select blocks with the same parent to move them up or down.' : undefined;
+  };
   const commandsFor = (selected = context.selected): Command[] => [
     { id: 'copy-page-reference', title: 'Copy page reference', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => copy(`[[${props.pageId}]]`) },
     { id: 'rename', title: 'Rename page', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
@@ -228,8 +233,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'insert-above', title: 'Insert block above', section: 'Editing', keys: ['O'], run: () => { const id = selected(); if (!id) return; const parentId = doc.outline.parentOf(id); const siblings = doc.outline.children(parentId); apply({ kind: 'insert', parentId, after: siblings[siblings.indexOf(id) - 1] ?? null }, true); } },
     { id: 'indent', title: 'Indent blocks', section: 'Outline', keys: ['Tab', '>>'], run: () => apply({ kind: 'indent', ids: roots() }) },
     { id: 'outdent', title: 'Outdent blocks', section: 'Outline', keys: ['⇧Tab', '<<'], run: () => apply({ kind: 'outdent', ids: roots() }) },
-    { id: 'move-up', title: 'Move blocks up', section: 'Outline', keys: ['⌥↑'], run: () => apply({ kind: 'move', ids: roots(), direction: 'up' }) },
-    { id: 'move-down', title: 'Move blocks down', section: 'Outline', keys: ['⌥↓'], run: () => apply({ kind: 'move', ids: roots(), direction: 'down' }) },
+    { id: 'move-up', title: 'Move blocks up', section: 'Outline', keys: ['⌥↑'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'up' }) },
+    { id: 'move-down', title: 'Move blocks down', section: 'Outline', keys: ['⌥↓'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'down' }) },
     { id: 'select', title: 'Select blocks', section: 'Outline', keys: ['V', '⇧↑/↓'], run: () => selected() && rowFocus(selected()!, true) },
     { id: 'select-all', title: 'Select all visible blocks', section: 'Outline', run: () => { const first = ids()[0]; const last = ids().at(-1); if (first && last) { rowFocus(last); setRowRange({ anchor: first, head: last }); } } },
     { id: 'fold', title: 'Fold / unfold children', section: 'View', keys: ['←/→', 'h/l'], run: () => fold(selected() ?? undefined) },

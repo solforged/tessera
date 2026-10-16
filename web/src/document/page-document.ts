@@ -1625,12 +1625,19 @@ export class Document implements PageDocument {
           const ids = selected(edit.ids, edit.zoomRoot);
           if (!ids.length) break;
           const parent = this.outline.parentOf(ids[0]!);
-          if (parent === this.pageId || parent === edit.zoomRoot) break;
-          move(ids, this.outline.parentOf(parent), parent);
+          const groups = new Map<string, string[]>();
+          for (const id of ids) {
+            const owner = this.outline.parentOf(id);
+            if (owner === this.pageId || owner === edit.zoomRoot) continue;
+            const group = groups.get(owner) ?? [];
+            group.push(id);
+            groups.set(owner, group);
+          }
+          for (const [owner, roots] of groups) move(roots, this.outline.parentOf(owner), owner);
           // An empty todo that Enter continued leaves the task list with its indent: below a plain line it becomes a plain line.
           const only = ids.length === 1 ? this.snapshot(ids[0]!) : null;
           const task = only && this.block(only.id)?.task;
-          if (only && task && !only.text && !this.outline.children(only.id).length && !this.block(parent)?.task && sameState(task, newTask()))
+          if (only && groups.size && task && !only.text && !this.outline.children(only.id).length && !this.block(parent)?.task && sameState(task, newTask()))
             actions.push({ kind: 'task', id: only.id, value: null, previous: this.capabilities(only.id).task, baseRevision: only.revision });
           break;
         }
@@ -1638,7 +1645,7 @@ export class Document implements PageDocument {
           const ids = selected(edit.ids, edit.zoomRoot);
           if (!ids.length) break;
           const parent = this.outline.parentOf(ids[0]!);
-          if (ids.some(id => this.outline.parentOf(id) !== parent)) throw new Error('Move selection must contain siblings.');
+          if (ids.some(id => this.outline.parentOf(id) !== parent)) break;
           const siblings = this.outline.children(parent);
           const first = siblings.indexOf(ids[0]!);
           const last = siblings.indexOf(ids.at(-1)!);
