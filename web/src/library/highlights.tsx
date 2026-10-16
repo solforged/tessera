@@ -103,9 +103,10 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       }
       setLastDocument(document);
       if (action === 'remove') onRemoved?.();
+      // The child is already in the shared local document. Delivery must not hold up typing.
+      if (caretId) onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: 0 }, true);
       await document.flush();
       if (disposed) return;
-      if (caretId) onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: 0 }, true);
       if (action === 'triage') onProcessed?.(row);
     };
     const fail = (reason: unknown) => { if (!disposed) onError(reason instanceof Error ? reason.message : String(reason)); };

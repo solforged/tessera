@@ -283,8 +283,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
                   : target.readAt ? { zoom: null, caret: { id: target.readAt, offset: 0 }, scroll: { id: target.readAt, offset: 0 }, folds: null, showArchived: false, reveal: target.readAt }
                     : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, ...(target.blockId && target.caretId ? { edit: true } : {}) };
-      // The pane changes inside the transition, after the outgoing view is captured; focus and Recent follow it.
-      navigatePane(pane, 'forward', () => {
+      // Editing needs its live caret now, not after the outgoing view-transition snapshot.
+      const arriveAtTarget = () => {
         batch(() => {
           if (target.kind === 'page' && target.readAt) setPagePresentations(values => ({ ...values, [target.pageId]: { ...values[target.pageId], projection: 'read' } }));
           setSessions(values => {
@@ -299,7 +299,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           }
         });
         arrive();
-      }, target.kind === 'page' ? target.pageId : undefined);
+      };
+      if (target.kind === 'page' && target.caretId) arriveAtTarget();
+      else navigatePane(pane, 'forward', arriveAtTarget, target.kind === 'page' ? target.pageId : undefined);
     } else arrive();
     function arrive() {
       setSidebar(false);

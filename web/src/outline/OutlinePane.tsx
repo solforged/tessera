@@ -491,9 +491,11 @@ function Pane(props: OutlinePaneProps) {
   // Mount the designed structure for measurement, but reveal it and its portaled dock together.
   // Keep settled resources visible during background refreshes, and paint nothing before the first load:
   // the title's "Loading…" placeholder otherwise flashes for a frame on every page open.
-  const pageReady = () => doc.status() !== 'loading' && (!doc.root()?.source || sourceHeaderReady()
-    && !!(fields.error || fields()) && (!!zoom() || !!(sourceHighlights.error || sourceHighlights())))
-    && (!isNote() || !!(fields.error || fields.latest) && !!(noteKinds.error || noteKinds.latest));
+  // An explicit editing destination already has local text. Catalog metadata must not hide its live caret.
+  const pageReady = () => doc.status() !== 'loading' && (!!(initial.edit && zoom() && initial.caret && doc.block(initial.caret.id))
+    || (!doc.root()?.source || sourceHeaderReady()
+      && !!(fields.error || fields()) && (!!zoom() || !!(sourceHighlights.error || sourceHighlights())))
+      && (!isNote() || !!(fields.error || fields.latest) && !!(noteKinds.error || noteKinds.latest)));
   const filedElsewhere = createMemo(() => (sourceHighlights.error ? [] : sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId && (!sourceColors().length || !!row.color && sourceColors().includes(row.color)))
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset));
   const sourceDetails = createMemo(() => {

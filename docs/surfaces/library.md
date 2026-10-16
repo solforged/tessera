@@ -247,6 +247,8 @@ Mark processed advances to the next unprocessed passage in the scoped queue, wra
 
 A non-empty child note, an active card or an incoming reference processes a highlight unless its explicit triage overrides that state. Tags and color only organize it. Note counts exclude card children. Add note opens the first written prose child or reuses a blank note, never a card. Explicit note editing reveals and activates its destination pane.
 
+Add note and Open note deliver the live caret without waiting for saving, catalog metadata or a pane-turn snapshot. Immediate typing, composition and editing shortcuts belong to the note editor.
+
 The shared highlight menu keeps the quotation, color choices, note and card actions, Copy with citation, triage, tags and removal. Removing a highlight with written descendants or incoming references asks for confirmation and names both counts. Removal still deletes the subtree and keeps Undo. Library adds Open in reader. Hovering a highlight still links it to the reader and source outline in the other pane without scrolling or taking focus.
 
 ### Make card

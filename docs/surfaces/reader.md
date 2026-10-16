@@ -227,6 +227,8 @@ Highlights are ink, not boxes. A band of their color sits under the lower half o
 
 Hovering a highlight deepens the band of every range it covers to lightness 0.60 by night and 0.84 by day, or to 40% without a color. One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu. ⌘-click opens its block beside the reader (Ctrl-click off Mac).
 
+Add note and Open note activate the child editor from the local document immediately. Saving and catalog metadata do not delay typing.
+
 Removing a highlight offers Undo in a notice for eight seconds, held while hovered or focused. Undo last edit remains in Reader actions after the notice leaves.
 On the touch cover, the existing-highlight menu opens as a bottom sheet with 44 px color buttons and action rows.
 
