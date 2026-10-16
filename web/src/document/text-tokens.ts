@@ -17,8 +17,21 @@ export function textTokens(text: string): Token[] {
   const result: Token[] = [];
   const pattern = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{N}_])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)/gu;
   let offset = 0;
+  let ignoredUntil = 0;
   for (const match of text.matchAll(pattern)) {
     const start = match.index;
+    if (start < ignoredUntil) continue;
+    if (match[0].startsWith('[[') && match[0].includes('[[', 2)) {
+      let depth = 1;
+      let cursor = start + 2;
+      while (cursor < text.length && depth) {
+        if (text.startsWith('[[', cursor)) { depth++; cursor += 2; }
+        else if (text.startsWith(']]', cursor)) { depth--; cursor += 2; }
+        else cursor++;
+      }
+      ignoredUntil = cursor;
+      continue;
+    }
     if (start > offset) result.push({ start: offset, end: start, kind: 'text', value: text.slice(offset, start) });
     let value = match[0];
     if (match[5] !== undefined) {

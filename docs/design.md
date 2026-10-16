@@ -613,7 +613,7 @@ The caret lands after the reference, with a space when a word or the end of the 
 
 `[[Title]]` typed by hand, or kept as text with Escape, links the one page whose title or alias is that name once the block is left, keeping the typed wording. A name two or more pages share stays unlinked and is marked; see [Aliases](surfaces/notes.md#aliases). A name no page has creates the page; a date only links a journal that already exists.
 
-A hand-typed reference spanning lines stays literal. Name normalization never removes authored newlines.
+A hand-typed reference spanning lines or containing a nested `[[opener]]` stays wholly literal, including its inner brackets. Name normalization never removes authored newlines.
 
 #### Types
 

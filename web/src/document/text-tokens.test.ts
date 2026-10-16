@@ -18,6 +18,14 @@ describe('reference locators', () => {
   });
 });
 
+test('nested bracket expressions stay wholly literal without resolving inner titles', () => {
+  for (const value of ['[[a [[b]] c]]', '[[a [[b]]]]', '[[a [[b]]', '[[id|a [[b]] c]]']) {
+    const text = `Nested ${value} tail [[valid]]`;
+    expect(textTokens(text).filter(token => token.kind === 'reference').map(token => token.id)).toEqual(value === '[[a [[b]]' ? [] : ['valid']);
+    expect(textTokens(text).map(token => text.slice(token.start, token.end)).join('')).toBe(text);
+  }
+});
+
 test('saved view targets keep their name and never become block targets', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
   const text = `[[view:${id}|Open questions]]`;
