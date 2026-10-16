@@ -195,6 +195,8 @@ Creator links use the holder-link treatment: `--text`, a `--line` underline, and
 
 The person's menu separates Open person, inline Rename person… (with the notebook-wide book count), Merge into… and removal from the current book links.
 
+Move up and Move down in that menu reorder creators within the same role, preserving their links and other roles. With a creator row focused, ⌥↑ and ⌥↓ perform the same moves and keep focus with that creator. Each move uses the inspector's normal save and Undo.
+
 Merge is a short explicit confirmation naming the books and notes that follow, the surviving mark, and the old name that remains as an alias. The existing permanent page-merge command keeps book roles. Add creator offers “Same as X?” without silently treating similarity as identity.
 
 ### Multi-selection

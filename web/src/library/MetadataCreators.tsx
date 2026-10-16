@@ -40,6 +40,7 @@ export function MetadataCreators(props: {
   const [busy, setBusy] = createSignal(false);
   let addRow: HTMLDivElement | undefined;
   let addInput: HTMLInputElement | undefined;
+  let creatorRows!: HTMLDivElement;
   let disposed = false;
   onCleanup(() => { disposed = true; });
   const similar = createMemo(() => similarPages(name(), props.notebook.roots()));
@@ -78,6 +79,20 @@ export function MetadataCreators(props: {
       if (!disposed) { setAdding(false); setName(''); }
     } catch { /* The unsaved creator remains in place. */ }
   }
+  async function move(index: number, direction: -1 | 1) {
+    if (busy() || props.disabled) return;
+    const creator = props.value[index];
+    if (!creator) return;
+    let target = index + direction;
+    while (target >= 0 && target < props.value.length && props.value[target]!.role !== creator.role) target += direction;
+    if (target < 0 || target >= props.value.length) return;
+    const reordered = [...props.value];
+    [reordered[index], reordered[target]] = [reordered[target]!, creator];
+    try {
+      await save(reordered);
+      if (!disposed) creatorRows.children[target]?.querySelector<HTMLButtonElement>('[aria-keyshortcuts]')?.focus({ preventScroll: true });
+    } catch { /* save keeps the failed operation visible in this field. */ }
+  }
   async function rename(id: string, title: string) {
     await props.onChange('Person renamed', counts()?.books ?? props.docs.length, async () => {
       const doc = props.notebook.open(id);
@@ -109,15 +124,22 @@ export function MetadataCreators(props: {
       { label: 'Rename person', section: 'Changes everywhere', disabledReason: creator.id ? undefined : 'This name is not yet linked to a person.', action: () => { setRenaming(creator.id ?? undefined); } },
       { label: 'Merge into…', disabledReason: creator.id ? undefined : 'This name is not yet linked to a person.', action: () => { if (creator.id) { setMergeTarget(undefined); setQuery(''); setMerging({ person: { ...creator, id: creator.id }, anchor }); } } },
       ...roles.map((item, at) => ({ label: item.label, section: at === 0 ? props.docs.length > 1 ? `Role on these ${props.docs.length} sources` : 'Role on this source' : undefined, checked: creator.role === item.role, action: () => { void save(props.value.map((value, i) => i === index ? { ...value, role: item.role } : value)).catch(() => {}); } })),
+      { label: 'Move up', section: `Order among ${creator.role}s`, shortcut: '⌥↑', disabledReason: props.value.slice(0, index).some(value => value.role === creator.role) ? undefined : `Already the first ${creator.role}.`, action: () => { void move(index, -1); } },
+      { label: 'Move down', shortcut: '⌥↓', disabledReason: props.value.slice(index + 1).some(value => value.role === creator.role) ? undefined : `Already the last ${creator.role}.`, action: () => { void move(index, 1); } },
       { label: props.docs.length > 1 ? `Remove from these ${props.docs.length} sources` : 'Remove from this source', section: 'Selected links only', action: () => { void save(props.value.filter((_, i) => i !== index)).catch(() => {}); } },
     ] });
   }
-  return <div class="metadata-creators">
-    <Index each={props.value}>{(creator, index) => <div class="metadata-creator">
+  return <div ref={creatorRows} class="metadata-creators">
+    <Index each={props.value}>{(creator, index) => <div class="metadata-creator" onKeyDown={event => {
+      if (event.defaultPrevented || event.isComposing || !event.altKey || event.metaKey || event.ctrlKey || event.shiftKey || (event.target as Element).closest('input, textarea, [contenteditable]')) return;
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault(); event.stopPropagation(); void move(index, event.key === 'ArrowUp' ? -1 : 1);
+      }
+    }}>
       <Show when={renaming() === creator().id && !!creator().id} fallback={<div class="metadata-creator-line">
         <Show when={creator().id} fallback={<span>{creator().name}</span>}><Button class="metadata-person-link" onClick={event => props.onOpen({ kind: 'page', pageId: creator().id! }, opensBeside(event))}>{creator().name}</Button></Show>
         <Button class="metadata-role" disabled={busy() || props.disabled} aria-haspopup="menu" aria-label={`Role for ${creator().name}`} onClick={event => setMenu({ anchor: event.currentTarget, label: `Role for ${creator().name}`, items: roles.map(item => ({ label: item.label, checked: creator().role === item.role, action: () => { void save(props.value.map((value, i) => i === index ? { ...value, role: item.role } : value)).catch(() => {}); } })) })}>{roles.find(item => item.role === creator().role)?.label}<Icon name="down" /></Button>
-        <Button icon="more" label={`Actions for ${creator().name}`} disabled={busy() || props.disabled} onClick={event => actions(creator(), index, event.currentTarget)} />
+        <Button icon="more" label={`Actions for ${creator().name}`} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" disabled={busy() || props.disabled} onClick={event => actions(creator(), index, event.currentTarget)} />
       </div>}>
         <MetadataField label="Person name" startEditing values={[creator().name]} disabled={busy() || props.disabled} scope={`Renames this person everywhere, not only on the selection. ${countText()}`} hint={<p class="metadata-hint">{countText()}. Every book and note linking this person follows the new name.</p>} onSave={value => rename(creator().id!, String(value))} onCancel={() => setRenaming(undefined)} onError={props.onError} />
       </Show>
