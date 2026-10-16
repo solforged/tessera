@@ -83,6 +83,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Preserved continuation typing and Backspace after accepting reference queries before search or page creation finished, including an immediate Escape.
 - Paired Reference slash-command brackets just like the typed `[[` trigger.
 - Resolved rapid relation-picker Enter from the accepted query instead of stale candidates.
+- Showed incoming relations whose owner text contains a link, such as a meeting listed under a person's Attendees, instead of dropping them with an error.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.
 - Replaced selected row ranges on paste and preserved native headings, nested lists, tasks, table rows, image URLs and labeled links from external HTML and Markdown.
 - Preserved immediate typing and Backspace corrections through slow highlight note and card delivery.

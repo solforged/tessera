@@ -47,7 +47,7 @@ export function IncomingFieldLine(props: RelationProps & { rows: readonly Incomi
     return [...byField.values()];
   });
   const [expanded, setExpanded] = createSignal(new Set<string>());
-  const label = (owner: FieldOwner) => targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, props.notebook.lookup) || 'Empty block';
+  const label = (owner: FieldOwner) => targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, id => props.notebook.lookup(id)) || 'Empty block';
   return <Show when={groups().length}><div class="relation-line incoming-fields" onMouseDown={event => event.stopPropagation()}>
     <For each={groups()}>{(group, index) => {
       const shown = () => expanded().has(group.id) ? group.owners : group.owners.slice(0, ownersShown);
