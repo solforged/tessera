@@ -53,6 +53,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Labeled empty tasks in Today's next-task preview instead of leaving a bare “Next:”.
 - Restored Agenda completion Undo and Redo through the source page's history without dropping keyboard focus.
 - Kept recurring task completion history separate from its next plan and live Doing state in Agenda.
+- Kept New page open when Enter confirms an IME composition.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.
 - Replaced selected row ranges on paste and preserved native headings, nested lists, tasks, table rows, image URLs and labeled links from external HTML and Markdown.
 - Preserved immediate typing and Backspace corrections through slow highlight note and card delivery.
