@@ -62,6 +62,8 @@ export interface ViewState {
   showArchived: boolean;
   /** How much of a titled page shows; absent means full. */
   depth?: Depth;
+  /** Current projection belongs to this pane's visit; page presentation supplies only a new visit's default. */
+  projection?: PageProjection;
   /** Catalogue metadata visibility in a source outline; absent means hidden. */
   sourceFieldsVisible?: boolean;
   /** Page-only disclosures and comparison choices never change the document. */

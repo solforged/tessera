@@ -197,7 +197,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const [popup, setPopup] = createSignal<PopupState>(null);
   const [pinned, setPinned] = createSignal<string[]>([]);
   const [pinnedViews, setPinnedViews] = createSignal<string[]>([]);
-  // Projection and the Outline's bullet option are device-local page presentation.
+  // Device-local defaults for new page visits, and the Outline's shared bullet option.
   const [pagePresentations, setPagePresentations] = createSignal<Record<string, PagePresentation>>({});
   const [recent, setRecent] = createSignal<string[]>([]);
   const [navigationId, setNavigationId] = createSignal<string | null>(null);
@@ -284,8 +284,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
               : target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'spread' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', filters: { people: [], decades: [], years: [], publishers: [], languages: [] }, group: 'year', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
-                  : target.readAt ? { zoom: null, caret: { id: target.readAt, offset: 0 }, scroll: { id: target.readAt, offset: 0 }, folds: null, showArchived: false, reveal: target.readAt }
-                    : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, ...(target.blockId && target.caretId ? { edit: true } : {}) };
+                  : target.readAt ? { zoom: null, caret: { id: target.readAt, offset: 0 }, scroll: { id: target.readAt, offset: 0 }, folds: null, showArchived: false, projection: 'read', reveal: target.readAt }
+                    : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, projection: pagePresentations()[target.pageId]?.projection, ...(target.blockId && target.caretId ? { edit: true } : {}) };
       // Editing needs its live caret now, not after the outgoing view-transition snapshot.
       const arriveAtTarget = () => {
         batch(() => {
@@ -1232,8 +1232,12 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   const projection = createMemo<PageProjection>(() => {
     if (readerTarget()) return 'read';
     if (outlineView().zoom) return 'outline';
-    const value = presentation().projection ?? defaultProjection();
+    const value = outlineView().projection ?? presentation().projection ?? defaultProjection();
     return value === 'read' && readableSource() ? 'outline' : value;
+  });
+  createEffect(() => {
+    if (current().target.kind !== 'page' || doc()?.status() !== 'ready' || outlineView().projection !== undefined) return;
+    props.onViewChange({ ...outlineView(), projection: presentation().projection ?? defaultProjection() });
   });
   const readSubject = () => {
     const zoom = outlineView().zoom;
@@ -1264,13 +1268,14 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       const id = reader.sourceId, previous = props.session().entries[props.session().index - 1];
       props.onPagePresentation(id, { ...props.pagePresentations[id], projection: value });
       // The page the book was opened from is the way back to its outline.
-      if (!beside && pageIdOf(previous) === id && !(previous!.view as ViewState).zoom) props.onTravel(-1);
+      if (!beside && pageIdOf(previous) === id && !(previous!.view as ViewState).zoom && (previous!.view as ViewState).projection === value) props.onTravel(-1);
       else props.onOpen({ kind: 'page', pageId: id }, beside);
       return;
     }
     if (projectionReason(value)) return;
     const zoom = outlineView().zoom;
     if (value === 'read' && !zoom && readableSource()) {
+      props.onViewChange({ ...outlineView(), projection: 'outline' });
       props.onOpen({ kind: 'reader', sourceId: pageId()! }, beside);
       return;
     }
@@ -1282,11 +1287,14 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       }
       batch(() => {
         props.onPagePresentation(pageId()!, { ...presentation(), projection: 'read' });
-        props.onRestoreView({ ...outlineView(), zoom: null, caret: { id: zoom, offset: 0 }, scroll: { id: zoom, offset: 0 }, reveal: zoom, edit: undefined });
+        props.onRestoreView({ ...outlineView(), projection: 'read', zoom: null, caret: { id: zoom, offset: 0 }, scroll: { id: zoom, offset: 0 }, reveal: zoom, edit: undefined });
       });
       return;
     }
-    props.onPagePresentation(pageId()!, { ...presentation(), projection: value });
+    batch(() => {
+      props.onViewChange({ ...outlineView(), projection: value });
+      props.onPagePresentation(pageId()!, { ...presentation(), projection: value });
+    });
   };
   const pageStyle = () => (presentation().bullets ?? root()?.kind === 'journal') ? 'bullets' : 'prose';
   const compareReason = () => {

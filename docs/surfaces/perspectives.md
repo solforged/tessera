@@ -4,7 +4,7 @@ A concept page holds several attributed perspectives. Questions and answers mark
 
 ## Page projections
 
-Titled pages share one document across Read, Outline and Compare. The pane header switches them in place; Commands offers Read, Outline and Compare perspectives. The choice is remembered for each page on this device. At the page level, switching creates no blocks or navigation entry.
+Titled pages share one document across Read, Outline and Compare. The pane header switches them in place; Commands offers Read, Outline and Compare perspectives. Each pane keeps its own choice through back, forward and reload. The last choice for each page on this device supplies the default for future opens, without switching panes already showing that page. At the page level, switching creates no blocks or navigation entry.
 
 A source with a snapshot reads as its book. Read opens the [reader](reader.md) in the same pane at the saved position. ⌘-click opens it beside (Ctrl-click off Mac). Back returns to the source page, which stays in Outline. A record source keeps the Read projection.
 
