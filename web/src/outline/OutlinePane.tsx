@@ -902,7 +902,7 @@ function Pane(props: OutlinePaneProps) {
   function undo(redo = false) {
     if (disposed || composition()) return;
     if (!redo && notice()?.undo) {
-      scroll.parentElement?.querySelector<HTMLButtonElement>('.outline-notices .notice-undo')?.focus();
+      void undoNotice();
       return;
     }
     const before = ids();
