@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { Block, NameMatch } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
-import { chooseName, completeNames, foldedHighlights, foldName, plainText, referenceValue, resolveName, resolvedReferenceText } from './names';
+import { chooseName, completeNames, foldedHighlights, foldName, plainText, referenceLabel, referenceValue, resolveName, resolvedReferenceText } from './names';
 import { typedTitles, withLinkedTitles } from './link-titles';
 
 const page = (id: string, text: string): Block => ({ id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 });
@@ -36,6 +36,16 @@ test('saved view labels remain readable without querying the block cache', () =>
   expect(referenceValue(text)).toEqual({ id: null, name: 'Open questions' });
   expect(typedTitles(text)).toEqual([]);
   expect(withLinkedTitles(text, new Map([['01arz3ndektsv4rrffq69g5fav', 'page']]))).toBe(text);
+});
+
+test('deleted attribution labels stay readable without inventing a live reference target', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  const token = textTokens(`[[${id}]]`)[0]!;
+  const lookup = () => () => null;
+  expect(referenceLabel(token, null, lookup, undefined, 'Renamed holder 二 · Deleted holder')).toBe('Renamed holder 二 · Deleted holder');
+  expect(referenceLabel(token, undefined, lookup, undefined, 'Renamed holder 二 · Deleted holder')).toBe('Renamed holder 二 · Deleted holder');
+  expect(referenceLabel(token, null, lookup)).toBe(`Unresolved ${id}`);
+  expect(plainText(`[[${id}|Remembered name]]`, lookup)).toBe('Remembered name');
 });
 
 describe('page names', () => {

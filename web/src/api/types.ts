@@ -429,9 +429,9 @@ export interface TaskOccurrence {
 export type ProjectStatus = 'active' | 'done' | 'cancelled';
 export interface ProjectState { outcome: string; deadline: string | null; status: ProjectStatus }
 export interface ProjectRecord { block_id: string; state: ProjectState }
-export interface PositionInfo { holder_id: string | null; subject_id: string; problem?: string | null }
+export interface PositionInfo { holder_id: string | null; subject_id: string; deleted_holder?: { id: string; text: string } | null; problem?: string | null }
 export interface PositionFieldEntry { field_id: string; entry_id: string; values: { id: string; text: string }[] }
-export interface PositionRow { block: BlockInPage; holder_id: string | null; subject_id: string; fields: PositionFieldEntry[] }
+export interface PositionRow { block: BlockInPage; holder_id: string | null; subject_id: string; deleted_holder?: { id: string; text: string } | null; fields: PositionFieldEntry[] }
 export interface SubjectCriteria { explicit: boolean; fields: string[] }
 export interface PositionQuestion extends QuestionRow { criterion: string | null; holders: string[] }
 export interface PositionQueryResult { rows: PositionRow[]; criteria: SubjectCriteria; questions: PositionQuestion[] }

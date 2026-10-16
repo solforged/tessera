@@ -95,11 +95,12 @@ export function referenceValue(text: string): { id: string | null; name: string 
 }
 
 /** References to reference-bearing blocks read their live labels, with cycles bounded by target identity. */
-export function referenceLabel(token: Token, target: Block | null | undefined, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set()): string {
+export function referenceLabel(token: Token, target: Block | null | undefined, lookup: NotebookClient['lookup'], seen: ReadonlySet<string> = new Set(), unavailableLabel?: string): string {
   if (isViewReference(token)) return token.alias || 'Saved view';
   if (!isStableReference(token)) return token.value;
+  if (target == null && unavailableLabel) return unavailableLabel;
   if (target === undefined) return token.alias || 'Loading reference…';
-  if (target === null) return `Unresolved ${token.id}`;
+  if (target === null) return token.alias || `Unresolved ${token.id}`;
   if (token.alias) return token.alias;
   if (seen.has(target.id)) return 'Circular reference';
   return targetLabel(target.text, lookup, new Set([...seen, target.id])) || 'Empty block';

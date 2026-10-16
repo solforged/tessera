@@ -205,6 +205,9 @@ pub struct QuestionRow {
 pub struct PositionInfo {
     pub holder_id: Option<String>,
     pub subject_id: String,
+    /// Last-known attribution, without treating a tombstoned page as a live holder.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_holder: Option<crate::FieldOption>,
     /// Why the holder is not an entity. The block stays a perspective; the problem only asks for a fix.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub problem: Option<String>,
@@ -279,6 +282,8 @@ pub struct PositionRow {
     pub block: BlockInPage,
     pub holder_id: Option<String>,
     pub subject_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deleted_holder: Option<crate::FieldOption>,
     pub fields: Vec<PositionField>,
 }
 

@@ -110,11 +110,12 @@ export function ComparePane(props: ComparePaneProps) {
   const siglumRecords = createCitedSources(props.notebook, () => [...new Set(perspectives().map(item => item.source).filter(id => id !== null))]);
   const sigla = createMemo(() => citedSigla(siglumRecords()));
   const subject = () => props.notebook.lookup(props.subjectId)();
-  const holder = (perspective: Perspective) => perspective.row.holder_id ? props.notebook.lookup(perspective.row.holder_id)()?.text ?? 'Loading holder…' : 'Unattributed';
+  const holderName = (row: PositionRow) => row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? 'Loading holder…' : row.deleted_holder ? `${row.deleted_holder.text || 'Unnamed holder'} · Deleted holder` : 'Unattributed';
+  const holder = (perspective: Perspective) => holderName(perspective.row);
   const open = (pageId: string, blockId: string | null, beside: boolean) => props.onOpen({ kind: 'page', pageId, ...(blockId ? { blockId } : {}) }, beside);
   const matrixSiglum = (row: PositionRow) => {
     const item = perspectives().find(item => item.row.block.block.id === row.block.block.id);
-    return item?.source && sigla().get(item.source) || (row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? '' : '').replace(/[^\p{L}]/gu, '').slice(0, 3).toUpperCase();
+    return item?.source && sigla().get(item.source) || (row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? '' : row.deleted_holder?.text ?? '').replace(/[^\p{L}]/gu, '').slice(0, 3).toUpperCase();
   };
   let scroll!: HTMLDivElement;
   let pane!: HTMLDivElement;
@@ -168,7 +169,7 @@ export function ComparePane(props: ComparePaneProps) {
               <Button onClick={event => setCriteriaEditor(event.currentTarget)}>Edit criteria</Button>
             </div>
             <CriteriaMatrix rows={selected().map(item => item.row)} allRows={rows()} criteria={result()?.criteria.fields ?? []} questions={result()?.questions ?? []} focusedCriterion={focusedQuestion()?.criterion ?? null} onFocusQuestion={id => focusQuestion(id)} notebook={props.notebook} docs={docs()} field={id => fieldList()?.fields.find(field => field.id === id)}
-              holder={row => row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? 'Loading holder…' : 'Unattributed'} siglum={matrixSiglum}
+              holder={holderName} siglum={matrixSiglum}
               work={row => perspectives().find(item => item.row.block.block.id === row.block.block.id)?.work?.value ?? ''} onOpen={props.onOpen} onEdited={edited} />
           </div>
         </Show>

@@ -163,6 +163,7 @@ fn position_links_derive_holder_subject_and_follow_text_edits() {
             holder_id: Some(id(2)),
             subject_id: id(1),
             problem: Some(NOT_ENTITY.into()),
+            deleted_holder: None,
         }
     );
     let receipt = edit(&mut nb, 10, &format!("[[{}]] on [[{}]]", id(2), id(3)));
@@ -185,6 +186,7 @@ fn position_links_derive_holder_subject_and_follow_text_edits() {
             holder_id: None,
             subject_id: id(1),
             problem: Some(NO_HOLDER.into()),
+            deleted_holder: None,
         }
     );
     edit(
@@ -205,8 +207,59 @@ fn position_links_derive_holder_subject_and_follow_text_edits() {
             holder_id: None,
             subject_id: id(1),
             problem: Some(NO_HOLDER.into()),
+            deleted_holder: None,
         }
     );
+}
+
+#[test]
+fn deleted_holder_keeps_renamed_attribution_and_an_accurate_repair_problem() {
+    let (dir, mut nb) = fixture();
+    let op = set(&nb, 10, true);
+    apply(&mut nb, vec![op, insert(20, 10, None, "Keep this research.")]);
+    edit(&mut nb, 2, "Renamed holder 二");
+    let base_revision = nb.block(&id(2)).unwrap().revision;
+    let deleted = apply(
+        &mut nb,
+        vec![Operation::Delete {
+            id: id(2),
+            base_revision,
+        }],
+    );
+    drop(nb);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let position = info(&nb, 10);
+    assert_eq!(position.holder_id, None);
+    assert_eq!(
+        position.deleted_holder,
+        Some(tessera_core::FieldOption {
+            id: id(2),
+            text: "Renamed holder 二".into(),
+        })
+    );
+    assert_eq!(
+        position.problem.as_deref(),
+        Some("The linked holder was deleted. Change holder to repair this attribution.")
+    );
+    assert_eq!(nb.block(&id(20)).unwrap().text, "Keep this research.");
+    let rows = nb
+        .positions(&PositionQuery {
+            subject: Some(id(1)),
+            ..Default::default()
+        })
+        .unwrap()
+        .rows;
+    assert_eq!(rows[0].deleted_holder, position.deleted_holder);
+    apply(
+        &mut nb,
+        vec![Operation::Restore {
+            id: id(2),
+            deletion_id: deleted.deletions[0].clone(),
+            revision: deleted.revisions.iter().find(|row| row.id == id(2)).unwrap().revision,
+        }],
+    );
+    assert_eq!(info(&nb, 10).holder_id, Some(id(2)));
+    assert_eq!(info(&nb, 10).deleted_holder, None);
 }
 
 #[test]

@@ -57,6 +57,8 @@ Clicking the holder link opens the holder's page in place, like any reference, i
 
 A perspective whose first link is not a person or group stays a perspective with a warning at the end of its holder line. The warning names the problem and opens File as person, File as group and Change holder…. The two filing actions also lead Perspective…. Filing tags the holder's page and clears the warning on every perspective it holds.
 
+Deleting a holder page leaves its surviving perspectives intact. The deletion confirmation counts those perspectives; afterward their attribution shows the last-known name, including a prior rename, marked Deleted holder. Its warning explains that the linked holder was deleted and offers Change holder…, not filing actions or an instruction to add a link already present. Restoring the page restores its live attribution.
+
 Use place, in the same menus, returns to the nearest ancestor question or the page. It removes the subject only when that link is a standalone token immediately after the holder. Otherwise the action shows why the author must edit the prose. Each change has one undo step; the palette names the selected perspective.
 
 ### Holder and subject pages

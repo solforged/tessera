@@ -53,6 +53,14 @@ import type { ContextRef } from '../api/types';
 /** How long the deletion toast stays when nothing rests on it. */
 const UNDO_TOAST_MS = 8000;
 
+function HolderDeletionImpact(props: { notebook: NotebookClient; pageId: string | undefined }) {
+  const [count] = createResource(() => props.pageId ? [props.pageId, props.notebook.changeSequence()] as const : false, async ([holder]) => {
+    const result = await props.notebook.api.positions({ holder });
+    return result.rows.filter(row => row.block.page.id !== holder).length;
+  });
+  return <div><Show when={count.error}><p class="muted">Could not load holder attribution impact.</p></Show><Show when={count()}>{total => <p class="muted">{total()} {total() === 1 ? 'perspective keeps' : 'perspectives keep'} this holder’s last-known name, marked Deleted holder. Use Change holder there to repair the attribution.</p>}</Show></div>;
+}
+
 // Panes other than the outline load on demand and are prefetched once the app is idle.
 const paneModules = {
   table: () => import('../table/TablePane'),
@@ -1089,8 +1097,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <DeletedPages anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onRestored={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />
       </Show>
       <Show when={state.kind === 'delete'}>
-        <Popup anchor={state.anchor} label="Delete page" onDismiss={() => setPopup(null)} width={300}>
+        <Popup anchor={state.anchor} label="Delete page" onDismiss={() => setPopup(null)} width={300} fitContent>
           <p>Delete “{notebook.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ?? rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}” and {state.source ? 'its highlights' : 'all its blocks'}?</p>
+          <HolderDeletionImpact notebook={notebook} pageId={pageIdOf(entry(state.pane))} />
           <p class="muted">Undo this deletion, or use Restore deleted page in Commands after reloading.</p>
           <div class="popup-actions"><Button onClick={() => setPopup(null)}>Cancel</Button><Button icon="trash" class="danger bordered" onClick={() => { void deletePage(state.pane); }}>Delete page</Button></div>
         </Popup>

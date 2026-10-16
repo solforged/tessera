@@ -143,7 +143,7 @@ Parentage gives a block its reading context. A question beneath a source is abou
 
 ## References and links
 
-A reference renders the target's current text. Editing the target updates every reference. A link row records source, target, alias and occurrence order; repeated references stay distinct. Backlinks come from links. A reference to a deleted block renders as unresolved and keeps its raw ID.
+A reference renders the target's current text. Editing the target updates every reference. A link row records source, target, alias and occurrence order; repeated references stay distinct. Backlinks come from links. A reference to a deleted block renders as unresolved and keeps its authored label when present, otherwise its raw ID. A perspective's deleted holder is the exception: its tombstone supplies the last-known readable name, marked Deleted holder, without making it a live holder again.
 
 A reference can carry an authored label and locator. The target ends at the first `|`; with a second pipe, the locator follows the last `|` and any intervening pipes belong to the label. An empty label uses the target's current text (`[[id||3.12]]`). Locators stay in authored text through resolution, editing, merge rewriting and export; they do not create passage citations or require a snapshot.
 
@@ -461,6 +461,8 @@ A position is an attributed claim: who holds it, about which question or subject
 
 - **Holder:** the page its first link points to. It should be an entity, a person or group; otherwise the position keeps its holder and reports a problem until the page is filed or the holder changed.
 - **Subject:** the block or page its second link points to, else its nearest ancestor question, else its page.
+
+A deleted first-link target keeps its last-known readable name in derived perspective reads, separately from the live holder ID. Its problem identifies a deleted holder and offers Change holder. The authored link and research stay untouched, so restoring the holder restores the live attribution.
 
 Change holder and File under write the first and second link tokens through pickers. They keep the rest of the text. Change holder keeps an alias only when it also names the new holder. Use place removes a standalone subject token directly after the holder; a subject woven into prose stays for the author to edit. Each action is one undo step.
 

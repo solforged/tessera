@@ -59,12 +59,14 @@ pub(crate) fn derive(
             WHERE pos.active = 1 AND (?1 IS NULL OR b.id IN (SELECT value FROM json_each(?1)))
         ), ",
         entity_pages!(),
-        "SELECT c.id, c.page_id, h.id,
+        "SELECT c.id, c.page_id, CASE WHEN h.deletion_id IS NULL THEN h.id END,
             CASE WHEN h.id IS NOT NULL AND s.id != h.id THEN s.id END,
-            h.id IN (SELECT id FROM entity_pages)
+            h.id IN (SELECT id FROM entity_pages),
+            CASE WHEN h.deletion_id IS NOT NULL THEN h.id END,
+            CASE WHEN h.deletion_id IS NOT NULL THEN h.text END
         FROM candidates c
         LEFT JOIN blocks h ON h.id = c.first_id AND h.kind = 'page'
-            AND h.parent_id IS NULL AND h.deletion_id IS NULL
+            AND h.parent_id IS NULL
             AND h.rowid NOT IN (SELECT rowid FROM hidden)
         LEFT JOIN blocks s ON s.id = c.second_id AND s.kind IN ('block', 'page')
             AND s.deletion_id IS NULL AND s.rowid NOT IN (SELECT rowid FROM hidden)"
@@ -78,26 +80,47 @@ pub(crate) fn derive(
                 row.get::<_, Option<String>>(2)?,
                 row.get::<_, Option<String>>(3)?,
                 row.get::<_, Option<bool>>(4)?.unwrap_or(false),
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, Option<String>>(6)?,
             ))
         },
     )?;
     let mut result = HashMap::new();
     for row in rows {
-        let (id, page, holder_id, subject, entity) = row?;
+        let (id, page, holder_id, subject, entity, deleted_id, deleted_text) = row?;
+        let deleted_holder = if let Some(id) = deleted_id {
+            let mut labels = conn.prepare_cached("SELECT text FROM blocks WHERE id = ?1")?;
+            Some(FieldOption {
+                id,
+                text: crate::fields::target_label(
+                    deleted_text.as_deref().unwrap_or_default(),
+                    &mut |target| {
+                        labels.query_row([target], |row| row.get(0)).optional().ok().flatten()
+                    },
+                ),
+            })
+        } else {
+            None
+        };
         let subject_id = match subject {
             Some(subject) => subject,
             None => crate::question_store::nearest_question_ancestor(conn, &id)?.unwrap_or(page),
         };
-        let problem = match (&holder_id, entity) {
-            (None, _) => Some(NO_HOLDER.to_owned()),
-            (Some(_), false) => Some(NOT_ENTITY.to_owned()),
-            (Some(_), true) => None,
+        let problem = if deleted_holder.is_some() {
+            Some("The linked holder was deleted. Change holder to repair this attribution.".to_owned())
+        } else {
+            match (&holder_id, entity) {
+                (None, _) => Some(NO_HOLDER.to_owned()),
+                (Some(_), false) => Some(NOT_ENTITY.to_owned()),
+                (Some(_), true) => None,
+            }
         };
         result.insert(
             id,
             PositionInfo {
                 holder_id,
                 subject_id,
+                deleted_holder,
                 problem,
             },
         );
@@ -208,6 +231,7 @@ impl Notebook {
                 block,
                 holder_id: info.holder_id,
                 subject_id: info.subject_id,
+                deleted_holder: info.deleted_holder,
                 fields: Vec::new(),
             });
         }
