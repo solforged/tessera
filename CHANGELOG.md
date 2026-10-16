@@ -38,6 +38,12 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Stopped filing tags from duplicating highlight quotations and tag labels.
 - Included authored annotation text and tags in Highlights search.
 - Reserved the resurfacing Keep checkmark's room to prevent action-row jumps.
+- Saved the latest reading position when leaving or hiding the reader before its scrolling pause.
+- Kept the visible character when switching from Pages to Scroll.
+- Revealed a highlight's marked words when jumping from Highlights, including in long paragraphs.
+- Selected the sentence on the current page instead of rewinding a continued paragraph.
+- Cleared stale full-screen history markers after reload so Back exited on its next use.
+- Deferred reader row measurements to prevent resize-observer loops during restoration and keyboard resizing.
 - Table row titles use Piazzolla, matching page titles and the phone ledger. Gloss and other authored cells stay in Plex.
 - Selecting text and typing `[[` or `((` surrounds it, so the selection becomes a link or block reference instead of being replaced.
 - Reader highlight colors stay nameable on the midnight canvas: the band under the line keeps its hue instead of fading into a faint stain.

@@ -488,7 +488,9 @@ export function createApi(base = ''): ApiClient {
     locate: (snapshotId: string, at: string, signal?: AbortSignal) => get<number | null>(`/snapshots/${segment(snapshotId)}/locate${query({ at })}`, signal),
     resourceUrl,
     resource: (snapshotId: string, href: string, signal?: AbortSignal) => send<Blob>(resourceUrl(snapshotId, href), { method: 'GET', signal }, response => response.blob()),
-    readingPosition: (snapshotId: string, ordinal: number, signal?: AbortSignal) => request<ReadingProgress>(base, 'POST', `/snapshots/${segment(snapshotId)}/position`, { ordinal }, signal),
+    readingPosition: (snapshotId: string, ordinal: number, signal?: AbortSignal) => send<ReadingProgress>(`${base}/api/snapshots/${segment(snapshotId)}/position`, {
+      method: 'POST', signal, keepalive: true, headers: notebookHeaders(base, { 'Content-Type': 'application/json' }), body: JSON.stringify({ ordinal }),
+    }),
     searchPassages: (q: string, sourceId?: string, limit = 40, offset = 0, signal?: AbortSignal) => get<PassageHit[]>(`/passages/search${query({ q, source: sourceId, limit, offset })}`, signal),
     highlights: (value: HighlightQuery, signal?: AbortSignal) => request<HighlightResult>(base, 'POST', '/highlights/query', value, signal),
     resurfacing: (date: string, limit = 3, signal?: AbortSignal) => get<Surfacing[]>(`/highlights/resurface${query({ date, limit })}`, signal),

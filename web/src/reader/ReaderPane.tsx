@@ -163,17 +163,20 @@ export function ReaderPane(props: ReaderPaneProps) {
   let disposed = false, restoring = true, generation = 0, jumpVersion = 0;
   let suppressed = !!(props.target.at || props.target.citationId), jumpOrigin = 0, userScroll = false;
   let reportTimer = 0, positionTimer = 0, flashTimer = 0;
+  let pendingPosition: { snapshotId: string; ordinal: number } | null = null;
   let keyboardQueue = Promise.resolve(), keyboardPending = 0, keyboardVersion = 0, rewritingSelection = false;
   let besidePressed = false;
   /** The tap that closes a popup or clears a selection does only that: no page turn, no chrome. */
   let dismissingTap = false;
-  let settingsViewport: { ordinal: number; offset: number } | null = null, settingsAtStart = false, settingsFromPages = false, settingsVersion = 0;
+  let settingsViewport: { ordinal: number; offset: number; character?: number } | null = null, settingsAtStart = false, settingsFromPages = false, settingsVersion = 0;
   const requests = new AbortController();
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
     get count() { return total(); },
     getScrollElement: () => scroll,
     estimateSize: () => 112,
     overscan: 8,
+    // Row measurements can mount and resize other observed rows. Deliver them after the resize cycle.
+    useAnimationFrameWithResizeObserver: true,
     get paddingStart() { return titleHeight(); },
     get rangeExtractor() {
       const selected = keyboardRange() ?? selection(), current = cursor();
@@ -333,7 +336,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   createComputed(on(readerSettings, () => {
     if (!settingsViewport) {
       settingsFromPages = !!scroll?.classList.contains('reader-paged') && !!chunk();
-      settingsViewport = settingsFromPages ? { ordinal: pageAnchor.ordinal, offset: 0 } : visibleRange();
+      const anchor = settingsFromPages ? firstOnPage() ?? pageAnchor : null;
+      settingsViewport = anchor ? { ordinal: anchor.ordinal, offset: 0, character: anchor.offset } : visibleRange();
       settingsAtStart = !settingsFromPages && scroll?.scrollTop === 0;
     }
     const range = settingsViewport;
@@ -348,7 +352,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         // (images, short headings) then fall back to the estimate. Re-measure mounted rows
         // only; rows mounted later measure themselves.
         for (const row of scroll.querySelectorAll<HTMLDivElement>('.reader-row')) virtualizer.measureElement(row);
-        await (settingsFromPages && paged() ? relayoutPages() : jump(range.ordinal, range.offset));
+        await (settingsFromPages && paged() ? relayoutPages() : jump(range.ordinal, range));
         if (!disposed && epoch === generation && token === settingsVersion) {
           if (settingsAtStart) { scroll.scrollTop = 0; report(); }
           settingsViewport = null;
@@ -389,6 +393,7 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   function switchSnapshot(id: string) {
     if (snapshot() === id) return;
+    void savePosition();
     generation++;
     pages.clear(); passages.clear(); ordinals.clear(); pending.clear(); locating.clear();
     clearTimeout(positionTimer);
@@ -564,8 +569,8 @@ export function ReaderPane(props: ReaderPaneProps) {
     report();
   }
 
-  async function revealPassage(ordinal: number) {
-    pageAnchor = { ordinal, offset: 0 };
+  async function revealPassage(ordinal: number, offset = 0) {
+    pageAnchor = { ordinal, offset };
     const value = chunk();
     if (value && ordinal >= value.first && ordinal <= value.last) applyPage(pageOf(pageAnchor));
     else await showPassage(pageAnchor, () => disposed);
@@ -584,8 +589,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     const turned = () => {
       pageAnchor = firstOnPage() ?? pageAnchor;
       report();
-      clearTimeout(positionTimer);
-      positionTimer = window.setTimeout(() => { void savePosition(); }, 2000);
+      schedulePosition();
     };
     if (within) {
       // The distance left sets the pace, so a page a drag has carried most of the way finishes sooner.
@@ -698,7 +702,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   /** Resolves true once the passage is on screen, false when disposed or overtaken by another jump. */
-  async function jump(ordinal: number, offset = 0, titlePage = false): Promise<boolean> {
+  async function jump(ordinal: number, options: { offset?: number; character?: number; titlePage?: boolean } = {}): Promise<boolean> {
+    void savePosition();
     const token = ++jumpVersion, epoch = generation;
     restoring = true; userScroll = false; clearTimeout(positionTimer); setSelection(null);
     keyboardVersion++; setCursor(null);
@@ -706,7 +711,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     await loadPage(index);
     if (disposed || epoch !== generation || token !== jumpVersion || !total()) return false;
     if (paged()) {
-      pageAnchor = { ordinal: index, offset: 0 };
+      pageAnchor = { ordinal: index, offset: options.character ?? 0 };
       await showPassage(pageAnchor, () => disposed || epoch !== generation || token !== jumpVersion);
       if (disposed || epoch !== generation || token !== jumpVersion) return false;
       restoring = false;
@@ -722,8 +727,16 @@ export function ReaderPane(props: ReaderPaneProps) {
     }
     // The title's height changes as metadata and fonts settle. Opening it means the scroll origin,
     // not subtracting a height sampled before loadPage and the virtualizer's measurements.
-    if (titlePage) scroll.scrollTop = 0;
-    else if (offset) scroll.scrollTop -= offset;
+    if (options.titlePage) scroll.scrollTop = 0;
+    else if (options.character !== undefined) {
+      const row = scroll.querySelector<HTMLElement>(`[data-passage-id][data-ordinal="${index}"]`);
+      if (row) for (const { node, start } of passageText(row)) {
+        if (options.character >= start + node.length) continue;
+        const rect = characterRect(node, options.character - start);
+        if (rect) scroll.scrollTop += rect.top - scroll.getBoundingClientRect().top;
+        break;
+      }
+    } else if (options.offset) scroll.scrollTop -= options.offset;
     jumpOrigin = scroll.scrollTop;
     restoring = false;
     report();
@@ -745,6 +758,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     setPopup(null);
     if (!await (entry.ordinal === null ? jumpTo(entry.locator) : jump(entry.ordinal))) return;
     userScroll = true; suppressed = false;
+    report();
     await savePosition();
   }
 
@@ -782,22 +796,33 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (range) {
       setFirstVisible(range.ordinal);
       props.onViewChange({ snapshotId: snapshot(), ordinal: range.ordinal, offset: range.offset });
+      if (!suppressed && userScroll) pendingPosition = { snapshotId: snapshot(), ordinal: range.ordinal };
     }
   }
 
   async function savePosition() {
-    const range = visibleRange(), id = snapshot();
-    if (!range || disposed || restoring || suppressed || !userScroll) return;
-    try { await api.readingPosition(id, range.ordinal, requests.signal); }
+    if (disposed) return;
+    const point = pendingPosition;
+    if (!point) return;
+    pendingPosition = null;
+    // Position writes must outlive this pane's requests, including an unmount or page hide.
+    try { await api.readingPosition(point.snapshotId, point.ordinal); }
     catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
+  }
+
+  function schedulePosition() {
+    clearTimeout(positionTimer);
+    if (suppressed || !userScroll) return;
+    const range = visibleRange();
+    if (range) pendingPosition = { snapshotId: snapshot(), ordinal: range.ordinal };
+    positionTimer = window.setTimeout(() => { positionTimer = 0; void savePosition(); }, 2000);
   }
 
   function scrolled() {
     if (restoring) return;
     if (!reportTimer) reportTimer = window.setTimeout(() => { reportTimer = 0; report(); }, 120);
     if (suppressed && userScroll && Math.abs(scroll.scrollTop - jumpOrigin) > scroll.clientHeight) suppressed = false;
-    clearTimeout(positionTimer);
-    if (!suppressed && userScroll) positionTimer = window.setTimeout(() => { void savePosition(); }, 2000);
+    schedulePosition();
     if (!editing() && !rewritingSelection) {
       if (coarsePointer.matches) selected();
       else if (selection()) { setSelection(null); window.getSelection()?.removeAllRanges(); }
@@ -936,7 +961,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       await locate(citation.end.passage_id);
       const ordinal = await locate(citation.start.passage_id);
       if (ordinal === null) throw new Error('Passage not found.');
-      await jump(ordinal);
+      await jump(ordinal, { character: citation.start.offset });
       if (!disposed) {
         clearTimeout(flashTimer); setFlash(citation);
         flashTimer = window.setTimeout(() => setFlash(null), 1500);
@@ -1101,7 +1126,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     try {
       // Keep both endpoints mounted while scrolling to the new selection end.
       for (let frame = 0; frame < 3; frame++) {
-        if (paged()) await revealPassage(last);
+        if (paged()) await revealPassage(last, Math.max(0, range.end.offset - 1));
         else virtualizer.scrollToIndex(last, { align: 'auto' });
         await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
         if (disposed || epoch !== generation || token !== keyboardVersion || !props.active || popup()) return;
@@ -1125,10 +1150,11 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   async function selectSentence() {
     const ordinal = visibleCursor(), epoch = generation, token = keyboardVersion;
+    const anchor = paged() ? firstOnPage() : null;
     setCursor(ordinal);
     await loadPage(ordinal);
     if (disposed || epoch !== generation || token !== keyboardVersion || !props.active || popup()) return;
-    const passage = passages.get(ordinal), range = passage && sentenceAt(passage.text, 0);
+    const passage = passages.get(ordinal), range = passage && sentenceAt(passage.text, anchor?.ordinal === ordinal ? anchor.offset : 0);
     if (passage && range) await writeSelection({ start: { passage_id: passage.id, offset: range.start }, end: { passage_id: passage.id, offset: range.end } });
   }
 
@@ -1249,6 +1275,10 @@ export function ReaderPane(props: ReaderPaneProps) {
     document.addEventListener('keydown', trackBeside, true);
     document.addEventListener('keyup', trackBeside, true);
     document.addEventListener('pointerdown', pointerDown, true);
+    const hidden = () => { if (document.visibilityState === 'hidden') void savePosition(); };
+    document.addEventListener('visibilitychange', hidden);
+    window.addEventListener('pagehide', savePosition);
+    onCleanup(() => { document.removeEventListener('visibilitychange', hidden); window.removeEventListener('pagehide', savePosition); });
     // Folding, unfolding and the sidebar change the page; keep the passage being read in view.
     let pageSize = '', resizeFrame = 0;
     const resizer = new ResizeObserver(() => {
@@ -1297,13 +1327,17 @@ export function ReaderPane(props: ReaderPaneProps) {
         ordinal = located;
       }
       if (disposed) return;
-      await jump(ordinal, target.at || citation || initialView.ordinal < 0 ? 0 : initialView.offset,
-        ordinal === 0 && initialView.ordinal < 0 && !target.at && !citation);
+      await jump(ordinal, {
+        offset: target.at || citation || initialView.ordinal < 0 ? 0 : initialView.offset,
+        character: citation?.start.offset,
+        titlePage: ordinal === 0 && initialView.ordinal < 0 && !target.at && !citation,
+      });
       if (citation) flashTimer = window.setTimeout(() => setFlash(null), 1500);
       setLoading(false);
     })().catch(reason => { if (!disposed) { restoring = false; setLoading(false); setError(reason instanceof Error ? reason.message : String(reason)); } });
   });
   onCleanup(() => {
+    void savePosition();
     disposed = true; requests.abort();
     readerDocument.release();
     setLinkedCitation(null);
@@ -1315,6 +1349,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     document.removeEventListener('keyup', trackBeside, true);
     document.removeEventListener('pointerdown', pointerDown, true);
   });
+  createEffect(on(() => props.active, active => { if (!active) void savePosition(); }, { defer: true }));
 
   function PassageContent(row: { ordinal: number; onImageLoad(): void }) {
     const passage = createMemo(() => { version(); return passages.get(row.ordinal); });

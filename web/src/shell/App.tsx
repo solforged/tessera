@@ -400,6 +400,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const immerse = (pane: PaneId, on: boolean) => { if (on) setActive(pane); setImmersive(on ? pane : null); };
   // A history entry lets the system Back gesture (Android) or the browser's back button leave full screen.
   // Leaving another way pops that entry; `history.back()` lands later, so toggles in between wait for it.
+  // Full screen is not restored after a reload, so its retained history entry must not remain a live marker.
+  if (history.state?.tesseraImmersive) {
+    const { tesseraImmersive: _, ...state } = history.state;
+    history.replaceState(Object.keys(state).length ? state : null, '');
+  }
   let popping = false;
   createEffect<PaneId | null>(previous => {
     const pane = immersive();

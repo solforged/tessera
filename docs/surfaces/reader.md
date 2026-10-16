@@ -68,7 +68,7 @@ Contents entries that only repeat the book's title, running heads the file marke
 
 ## Reader settings
 
-Reader settings are a device preference shared by every reader pane. Saved choices are preserved. Changing a setting keeps the first visible passage in place.
+Reader settings are a device preference shared by every reader pane. Saved choices are preserved. Changing a setting keeps the first visible passage in place. Switching from Pages to Scroll keeps the first visible character, including within a long passage.
 
 | Setting | Choices | Default |
 | --- | --- | --- |
@@ -92,7 +92,7 @@ Reader settings are a device preference shared by every reader pane. Saved choic
 
 ## Contents, highlights and find
 
-Contents opens on the current section, marked with a check, when no persistent margin is visible. With the margin visible, Contents focuses its current entry (or the first entry before reading begins) instead of opening a duplicate floating list. The Highlights picker lists each highlight's color, quote and section. Find marks matches, counts passages and labels each result with its passage number and section.
+Contents opens on the current section, marked with a check, when no persistent margin is visible. With the margin visible, Contents focuses its current entry (or the first entry before reading begins) instead of opening a duplicate floating list. The Highlights picker lists each highlight's color, quote and section. Choosing a highlight reveals its marked words, including when its paragraph spans several pages. Find marks matches, counts passages and labels each result with its passage number and section.
 
 Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty. Inferred spine entries leave out isolated epigraph quotations rather than turning their prose into chapter titles. A passage's tooltip names its number and section: `Passage 37 · Chapter 1`.
 
@@ -118,7 +118,7 @@ Search matches arrive as structured text parts. Literal source brackets, includi
 
 Progress anywhere, in library rows, the source header or the reader, is one number: the share of the text before the first passage on screen, rounded down, `<1%` once started.
 
-Until the saved position is restored, the text, the foot line and the Contents label are not drawn and the running head stays quiet, so the start of the book does not flash before the jump. The reading position saves while scrolling. Opening from a citation scrolls to the passage and flashes it without counting as reading.
+Until the saved position is restored, the text, the foot line and the Contents label are not drawn and the running head stays quiet, so the start of the book does not flash before the jump. The reading position saves while scrolling. Leaving or hiding the reader saves the latest eligible position without waiting for the scrolling pause. Opening from a citation scrolls to its marked words and flashes them without counting as reading.
 
 ### Book map
 
@@ -199,7 +199,7 @@ On touch the controls also fade on their own when the book has opened, a page tu
 
 In the macOS app, an empty strip the rail's height stays on the canvas as the title bar, holding the window buttons and moving the window. Reader full screen does not ask the operating system for full screen; on the desktop, the window menu's Full Screen does that separately.
 
-The same button, `F`, `Esc` after any selection is cleared, Back on Android and the browser's back button leave reader full screen. It also ends when the pane opens something other than the reader. It is not saved, so a reload starts in the normal layout.
+The same button, `F`, `Esc` after any selection is cleared, Back on Android and the browser's back button leave reader full screen. It also ends when the pane opens something other than the reader. It is not saved, so a reload starts in the normal layout without leaving a full-screen history marker behind.
 
 ## Selection and highlights
 
@@ -213,7 +213,7 @@ Selecting text shows a small toolbar beside an endpoint's visible line, above or
 
 An empty note does not mark the highlight processed. On touch, Highlight and note opens the [note sheet](#highlight-and-note-sheet) instead.
 
-Select sentence (`S`) includes a leading paragraph number, such as `XXIV.`, with the opening prose sentence. The number is not a sentence of its own.
+`S` selects the sentence at the reading cursor. On a continuation page without a cursor, it selects the sentence at the first visible character rather than returning to the paragraph's beginning. A leading paragraph number, such as `XXIV.`, goes with the opening prose sentence; the number is not a sentence of its own.
 
 ### Highlight ink and interaction
 
