@@ -23,7 +23,7 @@
 .table-chip { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--target-size); max-width: 100%; padding-left: var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: transparent; font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
 .table-chip .button { flex: none; min-height: var(--target-size); padding: 0 var(--space-8); border-radius: var(--radius-pill); }
 .table-scroll-frame { position: relative; display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; }
-.table-scroll { flex: 1; min-height: 0; min-width: 0; max-width: 100%; overflow: auto; overscroll-behavior: contain; scroll-padding-left: var(--table-title-width); padding-bottom: var(--page-bottom-space); }
+.table-scroll { flex: 1; min-height: 0; min-width: 0; max-width: 100%; overflow: auto; overflow-anchor: none; overscroll-behavior: contain; scroll-padding-left: var(--table-title-width); padding-bottom: var(--page-bottom-space); }
 .table-more-right { position: absolute; top: 0; right: 0; z-index: 4; display: flex; justify-content: flex-end; align-items: flex-start; width: calc(var(--space-48) + var(--space-24)); pointer-events: none; background: linear-gradient(to right, transparent, var(--canvas) 60%); }
 .table-more-columns.button { min-height: var(--target-size); margin-top: var(--space-4); padding-inline: var(--space-8); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); pointer-events: auto; }
 .type-table { table-layout: fixed; border-spacing: 0; width: max(100%, var(--table-width)); font-size: var(--text-control); line-height: var(--line-control); }

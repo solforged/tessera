@@ -192,11 +192,11 @@ Columns past the right edge fade under the rows. `+N ›` at the header's end co
 
 Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, relation or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Editing a missing field creates its entry on that owner, including a position, question or highlight block. Choosing an option writes a reference to that option, as in `Field:: [[option]]`. This works for non-template columns too. Pills follow the outline: a choice pill opens its options and a relation pill opens its target. ⌘-click opens either beside (Ctrl-click off Mac). Cells with several values open the field's source outline beside the table. Attribute cells are read-only.
 
-Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value.
+Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value and returns focus to its cell before saving finishes. An immediate undo follows that save. Leaving with Tab or a click commits without taking focus back from the new target.
 
 Cell focus follows the member and field, whether a note or a tagged block, so an edit that re-sorts the table keeps the keyboard on that member's value.
 
-Changing the column selection returns the grid to its left edge. Entering an inline editor preserves that scroll position; keyboard focus reveals its cell in the space beside the sticky title.
+Changing the column selection returns the grid to its left edge. Entering an inline editor preserves that scroll position; keyboard focus reveals its cell beside the sticky title and below the sticky header. Committing keeps the focused cell visible, including at the bottom of the grid.
 
 ⌘Z and ⌘⇧Z in the table undo and redo its value edits. Clearing a value preserves its block and child notes; refilling reuses a blank value block. Inline editors do not replace structured text with a rendered label.
 

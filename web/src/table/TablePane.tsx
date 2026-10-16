@@ -103,23 +103,30 @@ function TableContent(props: TablePaneProps) {
   const history: TableEdit[] = [];
   const undone: typeof history = [];
   onCleanup(() => { for (const doc of documents.values()) doc.release(); });
-  const focusCell = (rowId: string | null, fieldId: string | null) => {
+  const pendingWrites = new Set<Promise<void>>();
+  const focusCell = (rowId: string | null, fieldId: string | null, takeFocus = true) => {
     if (!rowId) return;
     const cell = region?.querySelector<HTMLElement>(`tr[data-block-id="${rowId}"]:not([hidden]) ${fieldId ? `[data-field-id="${fieldId}"]` : '.table-title-column.table-cell'}`);
-    cell?.focus({ preventScroll: true });
-    if (cell && fieldId && grid.offsetWidth) {
+    if (takeFocus) cell?.focus({ preventScroll: true });
+    if (cell && grid.offsetWidth) {
       const bounds = cell.getBoundingClientRect(); const frame = scroll.getBoundingClientRect();
-      const stickyWidth = grid.tHead!.rows[0]!.cells[0]!.getBoundingClientRect().width;
-      scroll.scrollLeft = cellScrollLeft(scroll.scrollLeft, bounds.left, bounds.right, frame.left, frame.right, stickyWidth);
+      const header = grid.tHead!.getBoundingClientRect();
+      if (bounds.top < header.bottom) scroll.scrollTop -= header.bottom - bounds.top;
+      else if (bounds.bottom > frame.bottom) scroll.scrollTop += bounds.bottom - frame.bottom;
+      if (fieldId) {
+        const stickyWidth = grid.tHead!.rows[0]!.cells[0]!.getBoundingClientRect().width;
+        scroll.scrollLeft = cellScrollLeft(scroll.scrollLeft, bounds.left, bounds.right, frame.left, frame.right, stickyWidth);
+      }
     }
   };
   const showResult = (next: QueryResult) => {
-    const cell = document.activeElement?.closest<HTMLElement>('.table-cell');
+    const active = document.activeElement;
+    const cell = active?.closest<HTMLElement>('.table-cell');
     const rowId = cell?.closest<HTMLElement>('tr')?.dataset.blockId;
     const fieldId = cell?.dataset.fieldId ?? null;
     const restore = !!cell && region.contains(cell);
     setResult(next);
-    if (restore && rowId) focusCell(rowId, fieldId);
+    if (restore && rowId) focusCell(rowId, fieldId, document.activeElement !== active);
   };
   const refreshCells = async () => showResult(await api.query({ ...copyQuery(query()), offset: 0, limit: Math.max(pageSize(), result()?.rows.length ?? 0) }));
   // Columns past the right edge get a fade over the table rows and a count in the header, so a wide register says it scrolls.
@@ -556,7 +563,7 @@ function TableContent(props: TablePaneProps) {
     props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside || listOpensBeside(null, !!props.neighbour));
   };
   const writeCell = async (row: QueryRow, field: FieldDefinition, text: string, value = row.values[field.id]?.[0], option?: string) => {
-    await withDocument(row.block.page.id, async doc => {
+    const pending = withDocument(row.block.page.id, async doc => {
       if (!option && (value?.text ?? '') === text) return;
       const target = { field, ownerId: row.block.block.id, valueId: value?.id };
       if (option) await createOptionValue(props.notebook, doc, target, option);
@@ -565,6 +572,9 @@ function TableContent(props: TablePaneProps) {
       await doc.flush();
       await refreshCells();
     });
+    pendingWrites.add(pending);
+    try { await pending; }
+    finally { pendingWrites.delete(pending); }
   };
   const startEdit = (row: QueryRow, field: FieldDefinition, anchor: HTMLElement) => {
     if (field.id.startsWith('@')) return;
@@ -577,22 +587,26 @@ function TableContent(props: TablePaneProps) {
     if (values.some(value => textTokens(value.text).some(token => token.kind === 'reference' || token.kind === 'tag'))) { openField(row, field); return; }
     setEditing({ row, field, text: values[0]?.text ?? '' });
   };
-  const commitEdit = async () => {
+  const commitEdit = async (returnFocus = false) => {
     const current = editing(); if (!current) return;
     setEditing(null);
+    // Enter keeps keyboard ownership synchronously; blur belongs to its new target.
+    if (returnFocus) focusCell(current.row.block.block.id, current.field.id);
     const original = current.row.values[current.field.id]?.[0]?.text ?? '';
     if (current.text !== original) {
       try { await writeCell(current.row, current.field, current.text); }
       catch (reason) { message(reason); }
     }
-    requestAnimationFrame(() => focusCell(current.row.block.block.id, current.field.id));
   };
   const replayCell = async (redo: boolean) => {
     if (replaying() || savingView()) return;
-    const source = redo ? undone : history;
-    const entry = source.at(-1); if (!entry) return;
     setReplaying(true);
     try {
+      // A first write may still be opening its page document. Undo follows that
+      // operation, not a timer or whichever history entry happened to exist.
+      await Promise.all(pendingWrites);
+      const source = redo ? undone : history;
+      const entry = source.at(-1); if (!entry) return;
       if (entry.kind === 'view') {
         const value = redo ? entry.after : entry.before;
         await submit({ op: 'save_view', id: value.id, base_revision: entry.revision, name: value.name, query: copyQuery(value.query) });
@@ -663,7 +677,7 @@ function TableContent(props: TablePaneProps) {
     return <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={required().has(id) && !row.values[id]?.length ? <span class="table-needed">needed</span> : renderValue(row, field(), id === sourceField()?.id)}>
       <textarea class="input table-cell-input" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field() ? valuePlaceholders[field()!.kind] : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : field()?.kind === 'url' ? 'url' : undefined} rows={Math.min(8, Math.max(1, (current()?.text.match(/\n/g)?.length ?? 0) + 1))} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus({ preventScroll: true }); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
         if (event.isComposing) return;
-        if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); void commitEdit(); }
+        if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); void commitEdit(true); }
         else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(null); region.focus(); }
       }} onBlur={() => { void commitEdit(); }} />
     </Show>;
