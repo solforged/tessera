@@ -2193,3 +2193,33 @@ fn relation_kinds_rebase_and_replicate_with_later_changes_winning() {
     assert!(rows[0].target.is_none());
     assert!(rows[0].problem.as_ref().unwrap().contains("deleted"));
 }
+
+#[test]
+fn image_blocks_sync_their_bytes_to_hub_and_fresh_clone() {
+    let mut p = pair();
+    let bytes = b"GIF89a\x01\0\x01\0\x80\0\0\0\0\0\xff\xff\xff!\xf9\x04\x01\0\0\0\0,\0\0\0\0\x01\0\x01\0\0\x02\x02D\x01\0;";
+    let image = p.replica.put_image(bytes).unwrap();
+    apply(
+        &mut p.replica,
+        vec![Operation::SetImage {
+            id: id(2),
+            base_revision: 1,
+            image: Some(image.clone()),
+        }],
+    );
+    assert_eq!(p.sync().sent_objects, 1);
+    assert_eq!(p.hub.read_object(&image.sha256).unwrap(), bytes);
+    p.assert_converged();
+    let dir = tempfile::tempdir().unwrap();
+    let ticket = p
+        .hub
+        .sync_clone(&dir.path().join(DATABASE_FILE))
+        .unwrap()
+        .finish()
+        .unwrap();
+    let mut clone = Notebook::open(dir.path()).unwrap();
+    clone.sync_adopt("in-process", &ticket).unwrap();
+    assert_eq!(clone.sync_with(&mut p.hub).unwrap().received_objects, 1);
+    assert_eq!(clone.read_object(&image.sha256).unwrap(), bytes);
+    assert_eq!(clone.capabilities(&id(2)).unwrap().image, Some(image));
+}

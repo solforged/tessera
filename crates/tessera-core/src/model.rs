@@ -352,6 +352,11 @@ pub enum Operation {
         base_revision: i64,
         quote: Option<QuoteState>,
     },
+    SetImage {
+        id: String,
+        base_revision: i64,
+        image: Option<crate::capabilities::ImageRef>,
+    },
     SetQuestion {
         id: String,
         base_revision: i64,

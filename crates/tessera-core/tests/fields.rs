@@ -481,6 +481,7 @@ fn field_roles_migrate_only_existing_summaries_and_preserve_kind() {
     kind(&mut nb, 10, FieldKind::Number);
     drop(nb);
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    common::restore_pre_images(&conn);
     conn.execute_batch("ALTER TABLE fields DROP COLUMN role; PRAGMA user_version = 42;")
         .unwrap();
     drop(conn);

@@ -1817,6 +1817,9 @@ fn base_revision(operation: &mut Operation) -> Option<(String, &mut i64)> {
         | Operation::SetRelation {
             id, base_revision, ..
         }
+        | Operation::SetImage {
+            id, base_revision, ..
+        }
         | Operation::RestoreRevisit {
             id, base_revision, ..
         }

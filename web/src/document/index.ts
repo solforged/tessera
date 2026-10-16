@@ -836,6 +836,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         case 'spread':
         case 'question':
         case 'quote':
+        case 'image':
         case 'assessment':
         case 'source':
         case 'cite':
@@ -888,6 +889,11 @@ export class Notebook implements NotebookClient, DocumentHost {
             operations.push({ op: 'set_quote', id: action.id, base_revision: block.revision, quote: action.value });
             changed = !sameState(value.quote ?? null, action.value);
             value.quote = action.value;
+          } else if (action.kind === 'image') {
+            if (!sameState(value.image ?? null, action.previous)) throw new Error('Image changed. Rejected command kept.');
+            operations.push({ op: 'set_image', id: action.id, base_revision: block.revision, image: action.value });
+            changed = !sameState(value.image ?? null, action.value);
+            value.image = action.value;
           } else if (action.kind === 'assessment') {
             if (!sameState(value.assessment?.state ?? null, action.previous)) throw new Error('Answer changed. Rejected command kept.');
             operations.push({ op: 'set_assessment', id: action.id, base_revision: block.revision, assessment: action.value });

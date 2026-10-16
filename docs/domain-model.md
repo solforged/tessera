@@ -141,6 +141,16 @@ Rules:
 
 Parentage gives a block its reading context. A question beneath a source is about that source. Agent context always includes ancestors.
 
+## Images
+
+An image block is an ordinary block with an image capability: the SHA-256 of a content-addressed file, its media type (PNG, JPEG, WebP or GIF) and its pixel size. The block's text is the caption and keeps every text behavior, including links, tags, card syntax and search. Upload reads the bytes rather than the declared type, refuses other formats such as SVG, and stores a file once however many blocks show it. Attaching an image the notebook does not hold is refused; a change from another device never is.
+
+- **Split** keeps the image on the left part, with the original ID.
+- **Merge** refuses when either block has an image.
+- **Delete** and **restore** keep the image with the block. Removing the image leaves the caption as an ordinary block.
+- A quoted copy cannot hold an image.
+- An image in a card's child outline is part of the answer, so changing it changes the card.
+
 ## References and links
 
 A reference renders the target's current text. Editing the target updates every reference. A link row records source, target, alias and occurrence order; repeated references stay distinct. Backlinks come from links. A reference to a deleted block renders as unresolved and keeps its authored label when present, otherwise its raw ID. A perspective's deleted holder is the exception: its tombstone supplies the last-known readable name, marked Deleted holder, without making it a live holder again.

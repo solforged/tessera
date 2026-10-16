@@ -316,6 +316,14 @@ pub struct PositionQueryResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImageRef {
+    pub sha256: String,
+    pub media_type: String,
+    pub width: u32,
+    pub height: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BlockCapabilities {
     pub block_id: String,
     pub task: Option<TaskState>,
@@ -336,6 +344,8 @@ pub struct BlockCapabilities {
     pub relation: Option<RelationInfo>,
     #[serde(default)]
     pub quote: Option<crate::QuoteState>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<ImageRef>,
     #[serde(default)]
     pub source: Option<crate::library::SourceRecord>,
     #[serde(default)]
@@ -365,6 +375,8 @@ pub struct WorkSession {
 pub struct CardAnswerBlock {
     pub id: String,
     pub text: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image: Option<ImageRef>,
     pub children: Vec<CardAnswerBlock>,
 }
 

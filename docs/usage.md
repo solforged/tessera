@@ -218,7 +218,7 @@ Nine tools read:
 |---|---|
 | `tessera_search` | Blocks matching text, with their pages. |
 | `tessera_list_pages` | Page titles, optionally with journal days. |
-| `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline. Each block's comment gives its ID and revision, tags, task planning, project, question, position, relation, citations and cards; field entries show as `Name::`. |
+| `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline. Each block's comment gives its ID and revision, tags, task planning, project, question, position, relation, citations and cards; field entries show as `Name::`, and image blocks as `![caption](/api/images/<sha>)`. |
 | `tessera_tasks` | The agenda for a day or a run of days, or tasks filtered by status, dates, priority, project or a saved task view. |
 | `tessera_cards` | A block's or page's cards, the due, new or full queue (optionally a deck's or a type's), review statistics, or decks. |
 | `tessera_query` | Types, fields and saved views, or notes, questions, positions, sources, tasks and highlights selected by `source`. Filters and sorts accept field names or `@` attributes; rows include editable field value IDs. Date values may be relative, such as `-30d`, and `or_empty` includes absent values. |

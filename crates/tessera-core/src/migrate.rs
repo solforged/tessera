@@ -56,6 +56,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/045_field_counts_as.sql"),
     include_str!("../migrations/046_field_links_sources.sql"),
     UNICODE_TITLE_KEYS,
+    include_str!("../migrations/048_images.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -472,6 +473,8 @@ mod tests {
         conn.pragma_update(None, "user_version", previous_version as u32)
             .unwrap();
         migrate(&mut conn).unwrap();
+        // Only the Unicode upgrade is re-run: undo the migrations after it.
+        conn.execute_batch("DROP TABLE images;").unwrap();
         conn.pragma_update(None, "user_version", previous_version as u32)
             .unwrap();
         migrate(&mut conn).unwrap();

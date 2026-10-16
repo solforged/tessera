@@ -146,9 +146,9 @@ A change with nothing left to do is still logged so its aliases hold.
 
 ### Objects
 
-Original files, images and uploaded covers are content-addressed files. The hub keeps every file. Before pushing, a replica uploads missing files for snapshots its changes attach or cite, and the covers they link to.
+Original files, images and uploaded covers are content-addressed files. The hub keeps every file. Before pushing, a replica uploads missing files for snapshots its changes attach or cite, the covers they link to and the images its image blocks hold.
 
-After pulling, a replica fetches every cover plus original files and images for pinned sources (`tessera sync pin`). Other files arrive when used: an image request to a replica's service fetches a missing image from the hub, checks its hash and keeps it.
+After pulling, a replica fetches every cover and every image block's file, plus original files and images for pinned sources (`tessera sync pin`). Other files arrive when used: an image request to a replica's service fetches a missing image from the hub, checks its hash and keeps it.
 
 Files are never evicted. Missing hub files are reported rather than failing sync.
 

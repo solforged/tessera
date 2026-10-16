@@ -56,6 +56,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
   | 'investigationItems' | 'markRelation' | 'relationMenu' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus' | 'openRelation' | 'openViewEmbed' | 'placeReason' | 'usePlace'
   | 'showNotice' | 'commitFieldEntry'
+  | 'chooseImage'
 >, startFilling: (id: string) => void = () => {}, advanceFilling: (id: string, backward: boolean) => void = () => {}) {
   const {
     contextDate, editing, textRange, composition, caret, doc,
@@ -566,6 +567,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const keys = (commandId: string) => context.commandDefinitions.find(command => command.id === commandId)?.keys?.[0];
     const status = (value: TaskStatus, aliases: string[]): SlashItem => ({ id: `status-${value}`, title: statusLabels[value], aliases, section: 'Task', icon: statusIcons[value], keys: value === 'todo' || value === 'done' ? keys('toggle-task') : undefined, run: id => capabilities.invoke(capabilities.status(id, value)) });
     return [
+      { id: 'make-image', title: 'Image', aliases: ['picture', 'photo', 'figure', 'screenshot'], section: 'Editing', icon: 'article', run: context.chooseImage },
       status('todo', ['task', 'checkbox']),
       status('doing', ['start', 'in progress']),
       status('waiting', ['blocked', 'hold']),

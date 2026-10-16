@@ -124,6 +124,7 @@ export type Operation =
   | { op: 'revisit'; id: string; base_revision: number; action: RevisitAction; next_on: string | null; event_id: string | null }
   | { op: 'restore_revisit'; id: string; base_revision: number; state: RevisitSnapshot; event_id: string | null }
   | { op: 'set_quote'; id: string; base_revision: number; quote: QuoteState | null }
+  | { op: 'set_image'; id: string; base_revision: number; image: ImageRef | null }
   | { op: 'set_question'; id: string; base_revision: number; question: QuestionState | null }
   | { op: 'set_assessment'; id: string; base_revision: number; assessment: AssessmentState | null }
   | { op: 'start_work'; id: string; base_revision: number; session_id: string; started_at: number; note: string }
@@ -462,6 +463,8 @@ export interface RevisitRow { block: BlockInPage; note: NoteState; question_stat
 export interface RevisitEvent { id: string; block_id: string; revisited_on: string; next_on: string | null; created_at: number; change_seq: number; actor: Actor }
 export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; note?: NoteState | null; note_changed?: boolean; position: PositionInfo | null; relation: RelationInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; quote?: QuoteState | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean; template_cards?: number }
 export interface BlockCapabilities { spread?: boolean }
+export interface ImageRef { sha256: string; media_type: string; width: number; height: number }
+export interface BlockCapabilities { image?: ImageRef | null }
 
 export interface WorkSession {
   id: string;
@@ -486,7 +489,7 @@ export interface SchedulingState {
   last_reviewed_at: number | null;
 }
 
-export interface CardAnswerBlock { id: string; text: string; children: CardAnswerBlock[] }
+export interface CardAnswerBlock { id: string; text: string; image?: ImageRef | null; children: CardAnswerBlock[] }
 export type ReviewSchedulingState = SchedulingState | (Omit<SchedulingState, 'stability' | 'difficulty'> & { ease_factor: number });
 
 export interface CardUnit {

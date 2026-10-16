@@ -60,6 +60,7 @@ pub(crate) fn set(conn: &Connection, block: &Block, quote: Option<&QuoteState>) 
             .execute([&block.id])?
             != 0);
     };
+    crate::image_store::guard_quote(conn, &block.id)?;
     validate(block, quote)?;
     let state = serde_json::to_string(quote).expect("quote state serializes");
     Ok(conn

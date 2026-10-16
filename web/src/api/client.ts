@@ -1,6 +1,7 @@
 import { DEMO, EMBEDDED } from '../demo/mode';
 import type {
   Actor,
+  ImageRef,
   IncomingFieldValue,
   AgentProviders,
   SaveAgentProviders,
@@ -319,6 +320,9 @@ export interface ApiClient {
   normalizeMetadata(metadata: ExtractedMetadata): Promise<ExtractedMetadata>;
   planRecord(metadata: ExtractedMetadata, coverUrl?: string | null): Promise<IngestPlan>;
   uploadCover(file: Blob): Promise<string>;
+  uploadImage(file: Blob, signal?: AbortSignal): Promise<ImageRef>;
+  imageUrl(sha: string): string;
+  image(sha: string, signal?: AbortSignal): Promise<Blob>;
   libraryViews(signal?: AbortSignal): Promise<LibraryView[]>;
   ingestJobs(limit?: number, signal?: AbortSignal): Promise<IngestJob[]>;
   queueUrl(url: string, targetSource?: string, signal?: AbortSignal): Promise<IngestJob>;
@@ -478,6 +482,9 @@ export function createApi(base = ''): ApiClient {
     normalizeMetadata: (metadata: ExtractedMetadata) => request<ExtractedMetadata>(base, 'POST', '/library/metadata', metadata),
     planRecord: (metadata: ExtractedMetadata, cover_url?: string | null) => request<IngestPlan>(base, 'POST', '/library/records/plan', { metadata, cover_url }),
     uploadCover: (file: Blob) => send<string>(`${base}/api/library/covers`, { method: 'POST', body: file, headers: notebookHeaders(base, { 'Content-Type': file.type }) }),
+    uploadImage: (file: Blob, signal?: AbortSignal) => send<ImageRef>(`${base}/api/images`, { method: 'POST', body: file, signal, headers: notebookHeaders(base, { 'Content-Type': file.type || 'application/octet-stream' }) }),
+    imageUrl: (sha: string) => `${base}/api/images/${segment(sha)}`,
+    image: (sha: string, signal?: AbortSignal) => send<Blob>(`${base}/api/images/${segment(sha)}`, { method: 'GET', signal, headers: notebookHeaders(base) }, response => response.blob()),
     libraryViews: (signal?: AbortSignal) => get<LibraryView[]>('/library/views', signal),
     ingestJobs: (limit = 50, signal?: AbortSignal) => get<IngestJob[]>(`/library/jobs${query({ limit })}`, signal),
     upload: (file: Blob, name: string, targetSource?: string, signal?: AbortSignal) => send<IngestJob>(`${base}/api/library/uploads${query({ target_source: targetSource })}`, {

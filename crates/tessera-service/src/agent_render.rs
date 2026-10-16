@@ -115,6 +115,16 @@ pub fn render(
         let quote = caps.and_then(|caps| caps.quote.as_ref());
         let body = if let Some(quote) = quote {
             format!("Quote of {}", quote.target_id)
+        } else if let Some(image) = caps.and_then(|caps| caps.image.as_ref()) {
+            format!(
+                "![{}](/api/images/{})",
+                row.block
+                    .text
+                    .replace('\\', "\\\\")
+                    .replace('[', "\\[")
+                    .replace(']', "\\]"),
+                image.sha256
+            )
         } else {
             match field_entry(&row.block.text).and_then(|id| context.fields.get(id)) {
                 Some(name) => format!("{name}::"),
@@ -394,7 +404,12 @@ pub fn card_answer(card: &CardUnit) -> String {
     }
     fn walk(blocks: &[tessera_core::CardAnswerBlock], out: &mut Vec<String>) {
         for block in blocks {
-            out.push(one_line(&block.text));
+            out.push(match &block.image {
+                Some(image) => {
+                    format!("![{}](/api/images/{})", one_line(&block.text), image.sha256)
+                }
+                None => one_line(&block.text),
+            });
             walk(&block.children, out);
         }
     }

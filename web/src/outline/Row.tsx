@@ -36,6 +36,8 @@ import { Embed } from './Embed';
 import { AgentMark } from '../agent/AgentMark';
 import { embedTarget } from './streams';
 import { ViewEmbed, viewEmbedTarget } from './ViewEmbed';
+import { NotebookImage } from '../ui/NotebookImage';
+import './image.css';
 
 export function createOutlineRows(context: Pick<OutlineContext,
   | 'doc' | 'capabilities' | 'setMenu' | 'investigationItems' | 'definitionsById' | 'contextDate'
@@ -45,6 +47,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach'
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
+  | 'openImage'
 >, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>, RowRelations: Component<{ id: string }>, openValueEditor: (id: string, anchor?: HTMLElement) => boolean, RowPrelude: Component<{ id: string }>) {
   const {
     doc, capabilities, setMenu, investigationItems, definitionsById, contextDate, inlineFields,
@@ -224,11 +227,16 @@ export function createOutlineRows(context: Pick<OutlineContext,
         if (controlledValue() && !(event.target as Element).closest('button, .outline-capability-metadata')) { event.stopPropagation(); openValueEditor(id(), event.currentTarget); }
       }}>
         <Show when={block()?.keptCopy}>{copy => <KeptCopyLabel copy={copy()} />}</Show>
+        <Show when={block()?.image}>{image => <figure class="outline-image">
+          <button type="button" aria-label="Open image" onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); context.openImage(id()); }}>
+            <NotebookImage image={image()} api={props.notebook.api} alt={block()?.text ?? ''} />
+          </button>
+        </figure>}</Show>
         <div class="outline-source-line">
         <Show when={block()?.relation}>{relation => <span class="relation-label">{relationLabels[relation().kind]}<Show when={relation().problem}>{problem => <span class="relation-problem" role="img" aria-label={problem()} title={problem()}><Icon name="warning" /></span>}</Show></span>}</Show>
         <div class="outline-source">
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
-        <Show when={editing() !== id()}><Switch>
+        <Show when={editing() !== id() && (!block()?.image || !!block()?.text)}><Switch>
           <Match when={target()}><Quote id={id()} target={target()!} doc={doc} notebook={props.notebook} status={quoteStatus().get(id())} onOpen={props.onOpen} /></Match>
           <Match when={checked() !== null || emptyEntry() && field()?.kind === 'checkbox'}>
             <button type="button" role="checkbox" class="field-checkbox" aria-checked={!!checked()} aria-label={(valueField() ?? field())?.name} onMouseDown={event => event.stopPropagation()} onClick={() => checked() === null ? sheet.fill(id()) : sheet.toggle(id(), checked()!)}><Show when={checked()}><Icon name="check" /></Show></button>

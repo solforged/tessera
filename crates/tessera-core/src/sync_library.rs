@@ -282,8 +282,9 @@ impl Notebook {
     }
 
     /// Files an outbox's changes need on the hub: the original files and
-    /// images of the snapshots they attach or cite, and uploaded covers they
-    /// link to. Only files this device has are listed.
+    /// images of the snapshots they attach or cite, uploaded covers they link
+    /// to and the images they attach to blocks. Only files this device has are
+    /// listed.
     pub(crate) fn sync_outbox_objects(&self, outbox: &Outbox) -> Result<Vec<String>> {
         let mut shas = BTreeSet::new();
         for snapshot in &outbox.snapshots {
@@ -299,6 +300,14 @@ impl Notebook {
             let operations =
                 serde_json::to_string(&change.batch.operations).expect("operations serialize");
             shas.extend(cover_hashes(&operations));
+            for operation in &change.batch.operations {
+                if let crate::Operation::SetImage {
+                    image: Some(image), ..
+                } = operation
+                {
+                    shas.insert(image.sha256.clone());
+                }
+            }
         }
         let mut present = Vec::with_capacity(shas.len());
         for sha in shas {
@@ -309,9 +318,9 @@ impl Notebook {
         Ok(present)
     }
 
-    /// Files this replica keeps and does not have yet: every cover, and the
-    /// original files and images of pinned sources. Other books' files are
-    /// fetched when they are opened.
+    /// Files this replica keeps and does not have yet: every cover, every
+    /// image block's file, and the original files and images of pinned
+    /// sources. Other books' files are fetched when they are opened.
     pub fn sync_wanted_objects(&self) -> Result<Vec<String>> {
         self.require_replica()?;
         let mut shas: BTreeSet<String> = self
@@ -324,7 +333,8 @@ impl Notebook {
                  JOIN snapshots s ON s.id = a.snapshot_id
                  UNION
                  SELECT r.sha256 FROM sync_pins p JOIN source_snapshots a ON a.source_id = p.source_id
-                 JOIN snapshot_resources r ON r.snapshot_id = a.snapshot_id",
+                 JOIN snapshot_resources r ON r.snapshot_id = a.snapshot_id
+                 UNION SELECT sha256 FROM images WHERE active = 1",
             )?
             .query_map([], |row| row.get(0))?
             .collect::<rusqlite::Result<_>>()?;

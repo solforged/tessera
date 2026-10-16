@@ -108,6 +108,8 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     }
     const row = indices().get(id) ?? 0;
     const previous = ids()[row - 1] ?? null;
+    if (doc.block(id)?.image && (forward || selection.head === 0)) { if (!forward) rowFocus(id); return true; }
+    if (!forward && previous && doc.block(previous)?.image) { rowFocus(previous); return true; }
     const intent = boundaryDeletion(doc, id, forward ? 'forward' : 'backward', previous, inlineFields(), zoom());
     if (intent?.kind === 'delete') {
       const neighbor = previous ?? ids()[row + 1];

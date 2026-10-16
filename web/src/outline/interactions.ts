@@ -10,6 +10,7 @@ export function createOutlineInteractions(context: Pick<OutlineContext,
   | 'restoreSelection' | 'disposed' | 'props' | 'composition' | 'activeRange'
   | 'rowRange' | 'selected' | 'replaceSelection' | 'apply' | 'roots' | 'zoom' | 'setMessage'
   | 'compositionSelection' | 'deleteTextRange'
+  | 'uploadImages'
 >) {
   const {
     textRange, ids, doc, editing, rowFocus, commitFieldEntry,
@@ -86,6 +87,7 @@ export function createOutlineInteractions(context: Pick<OutlineContext,
     const text = clipboardPlainText(data);
     event.preventDefault();
     event.stopImmediatePropagation();
+    if (!content && !text?.trim() && data.files.length) { void context.uploadImages(Array.from(data.files), range.head.id); return; }
     const rows = content ? null : clipboardPasteRows(data);
     if (!content && rows === null) return;
     const replaceRoots = !editing() && (rowRange() || selected()) ? roots() : undefined;

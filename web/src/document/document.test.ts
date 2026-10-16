@@ -4148,3 +4148,51 @@ test('adding a stream arrival is one outline edit and undo restores exclusion', 
   expect((await api.block(child)).parent_id).toBe(anchor);
   doc.release();
 });
+
+test('images insert, place, remove and clipboard round trip in single undo steps', async () => {
+  const instance = await client();
+  const { doc, first, id } = await page(instance, '');
+  const image = await api.uploadImage(new Blob([Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a2ioAAAAASUVORK5CYII='), c => c.charCodeAt(0))], { type: 'application/octet-stream' }));
+  const placed = success(doc.edit({ kind: 'placeImages', targetId: first, images: [image, image] })).created;
+  expect(placed).toHaveLength(1);
+  expect(doc.block(first)?.image).toEqual(image);
+  await instance.flush();
+  doc.undo(); await instance.flush();
+  expect(doc.block(first)?.image).toBeNull();
+  expect(ids(doc)).toEqual([first]);
+  doc.redo(); await instance.flush();
+  expect(doc.block(first)?.image).toEqual(image);
+  success(doc.edit({ kind: 'image', id: first, image: null }));
+  await instance.flush();
+  expect(doc.block(first)?.image).toBeNull();
+  doc.undo(); await instance.flush();
+  expect(doc.block(first)?.image).toEqual(image);
+  const inserted = success(doc.edit({ kind: 'insertImages', parentId: id, after: placed[0]!, images: [image, image] })).created;
+  expect(inserted).toHaveLength(2);
+  await instance.flush();
+  doc.undo(); await instance.flush();
+  expect(inserted.every(id => !doc.block(id))).toBe(true);
+  doc.redo(); await instance.flush();
+  expect(inserted.every(id => doc.block(id)?.image?.sha256 === image.sha256)).toBe(true);
+  const content = parseBlockClipboard(JSON.stringify(doc.clipboard([first])))!;
+  expect(clipboardText(content)).toBe('Image');
+  for (const sameNotebook of [true, false]) {
+    const destination = await page(instance, '');
+    const at = { id: destination.first, offset: 0 };
+    const pasted = success(destination.doc.edit({ kind: 'pasteBlocks', range: { anchor: at, head: at }, between: [], content: { ...content, scope: sameNotebook ? content.scope : 'other-notebook' } })).created[0]!;
+    await instance.flush();
+    expect(destination.doc.block(pasted)?.image).toEqual(sameNotebook ? image : null);
+    destination.doc.undo(); await instance.flush();
+    expect(destination.doc.block(destination.first)).toBeDefined();
+  }
+  success(doc.edit({ kind: 'text', id: first, text: 'Caption' }));
+  await instance.flush();
+  const split = success(doc.edit({ kind: 'split', id: first, offset: 0 })).created[0]!;
+  expect(doc.block(first)?.text).toBe('Caption');
+  expect(doc.outline.children(id).indexOf(split)).toBe(doc.outline.children(id).indexOf(first) + 1);
+  expect(doc.block(split)?.image).toBeNull();
+  await instance.flush();
+  doc.undo(); await instance.flush();
+  expect(doc.edit({ kind: 'merge', sourceId: first, destinationId: placed[0]! }).ok).toBe(false);
+  doc.release();
+});

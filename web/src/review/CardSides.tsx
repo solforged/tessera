@@ -5,6 +5,8 @@ import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { ClozeSegment } from './card-text';
 import './card-sides.css';
+import { NotebookImage } from '../ui/NotebookImage';
+import '../outline/image.css';
 
 /** Canonical child snapshots also render in history and stale-definition views. */
 export function CardBack(props: { kind: CardKind; back: string; blocks?: CardAnswerBlock[]; visibleItems?: number; plain?: boolean; notebook: NotebookClient }) {
@@ -19,6 +21,7 @@ export function CardBack(props: { kind: CardKind; back: string; blocks?: CardAns
 /** A list answer numbers its items in rubric, as a manuscript numbers its points; nested blocks keep plain bullets. */
 function AnswerOutline(props: { blocks: CardAnswerBlock[]; numbered?: boolean; notebook: NotebookClient }) {
   return <Dynamic component={props.numbered ? 'ol' : 'ul'} class="card-answer-outline"><For each={props.blocks}>{block => <li>
+    <Show when={block.image}>{image => <NotebookImage class="card-answer-image" image={image()} api={props.notebook.api} alt={block.text} />}</Show>
     <BlockText text={block.text} cards notebook={props.notebook} interactive={false} />
     <Show when={block.children.length}><AnswerOutline blocks={block.children} notebook={props.notebook} /></Show>
   </li>}</For></Dynamic>;

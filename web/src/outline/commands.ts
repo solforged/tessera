@@ -35,6 +35,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   | 'setZoom' | 'selectedSet' | 'sourceResets' | 'setCompletionIndex' | 'setCompletion'
   | 'rowAnchor' | 'rewriteEditing' | 'activeRange'
   | 'fields' | 'definitionsById' | 'pickField' | 'showNotice' | 'openRelation' | 'openMoveToPage' | 'positionReason' | 'placeReason' | 'usePlace'
+  | 'chooseImage' | 'openImage'
+  | 'fields' | 'definitionsById' | 'pickField' | 'showNotice' | 'openRelation' | 'positionReason' | 'placeReason' | 'usePlace'
 >) {
   const {
     doc, editing, commitFieldEntry, props, selected, setMessage,
@@ -243,6 +245,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧.'], disabledReason: () => zoom() ? undefined : 'Already at the page root.', run: zoomOut },
     { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openSelected(true, selected()) },
     { id: 'copy-reference', title: 'Copy block reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
+    { id: 'make-image', title: 'Insert image', section: 'Editing', run: () => context.chooseImage(selected() ?? zoom() ?? doc.pageId) },
     { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
     { id: 'remove-task', title: 'Remove task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)) },
     { id: 'toggle-task', title: 'Complete or reopen task', section: 'Outline', keys: ['⌘Enter'], run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)) },
@@ -386,6 +389,11 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ...(entry.citations.length ? [{ label: 'Remove citation', divider: true, danger: true, action: () => apply({ kind: 'uncite', id, citationIds: entry.citations.map(citation => citation.id) }, false) }] : []),
     ];
     const managers: MenuItem[] = [
+      ...(entry.image ? [group('Image…', 'Image', () => [
+        { label: 'Open image', action: () => context.openImage(id) },
+        { label: 'Replace image…', action: () => context.chooseImage(id, true) },
+        { label: 'Remove image', action: () => apply({ kind: 'image', id, image: null }, false) },
+      ])] : []),
       ...(fieldEntry(id) ? [{ label: 'Field…', action: () => fieldMenu(id, anchor) }] : []),
       ...(entry.task ? [group('Task…', 'Task', () => [
         item('toggle-task', isFinished(entry.task!) ? 'Reopen' : 'Complete'),
@@ -417,6 +425,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     ];
     const makeItems: MenuItem[] = [
       { label: 'Type…', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
+      ...(!entry.image ? [item('make-image', 'Image…')] : []),
       ...(!entry.task ? [item('make-task', 'Task')] : []),
       ...(!entry.project ? [item('make-project', 'Project')] : []),
       ...(!entry.position ? [item('make-perspective', 'Perspective')] : []),

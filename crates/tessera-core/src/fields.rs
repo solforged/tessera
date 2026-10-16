@@ -230,6 +230,7 @@ impl FieldChanges {
             | Operation::RestoreRevisit { .. }
             | Operation::SetQuestion { .. }
             | Operation::SetQuote { .. }
+            | Operation::SetImage { .. }
             | Operation::SetAssessment { .. }
             | Operation::StartWork { .. }
             | Operation::StopWork { .. }

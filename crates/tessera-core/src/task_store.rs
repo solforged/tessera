@@ -354,6 +354,7 @@ macro_rules! capability_rows {
               OR EXISTS(SELECT 1 FROM sources s WHERE s.block_id=b.id)
               OR EXISTS(SELECT 1 FROM positions pos WHERE pos.block_id=b.id)
               OR EXISTS(SELECT 1 FROM relations r WHERE r.block_id=b.id)
+              OR EXISTS(SELECT 1 FROM images i WHERE i.block_id=b.id)
               OR EXISTS(SELECT 1 FROM questions q WHERE q.block_id=b.id)
               OR EXISTS(SELECT 1 FROM spreads sp WHERE sp.block_id=b.id)
               OR EXISTS(SELECT 1 FROM note_states n WHERE n.block_id=b.id)
@@ -413,6 +414,7 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
         assessment: None,
         relation: None,
         quote,
+        image: None,
         history,
         reviewed_cards,
         template_cards: row.get::<_, i64>(6)? as usize,
@@ -443,7 +445,10 @@ pub(crate) fn capabilities_for(
             )?,
         )?,
     )?;
-    crate::revisit_store::hydrate(conn, crate::relation_store::hydrate(conn, capabilities)?)
+    crate::image_store::hydrate(
+        conn,
+        crate::revisit_store::hydrate(conn, crate::relation_store::hydrate(conn, capabilities)?)?,
+    )
 }
 
 pub(crate) fn page_capabilities(
@@ -467,10 +472,14 @@ pub(crate) fn page_capabilities(
             )?,
         )?,
     )?;
-    crate::revisit_store::hydrate(conn, crate::relation_store::hydrate(conn, capabilities)?)
+    crate::image_store::hydrate(
+        conn,
+        crate::revisit_store::hydrate(conn, crate::relation_store::hydrate(conn, capabilities)?)?,
+    )
 }
 
 pub(crate) fn guard_merge(conn: &Connection, source_id: &str) -> Result<()> {
+    crate::image_store::guard_merge(conn, source_id)?;
     let protected: bool = conn
         .prepare_cached(concat!(
             "SELECT EXISTS(SELECT 1 FROM tasks WHERE block_id = b.id AND active = 1)

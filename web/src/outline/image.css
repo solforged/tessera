@@ -1,0 +1,17 @@
+/* An image block: the figure on the text edge at its natural size up to the measure, its caption beneath in the row's own text. */
+.outline-image { margin: 0 0 var(--space-4); max-width: 100%; }
+.outline-image button { display: block; max-width: 100%; padding: 0; border: 0; border-radius: var(--radius-control); background: none; cursor: zoom-in; }
+.outline-image button:focus-visible { outline: 1px solid var(--accent); outline-offset: var(--space-2); }
+.outline-image + .outline-source-line .static-text { color: var(--muted); }
+/* Natural size up to the measure, never upscaled; dimmed on the dark canvas so white figures do not glare, full brightness on hover. */
+.outline-image img, .card-answer-image { display: block; max-width: 100%; max-height: 70vh; width: auto; height: auto; object-fit: contain; border-radius: var(--radius-control); filter: var(--image-filter); transition: filter var(--motion-fast) var(--motion-ease); }
+.outline-image img:hover, .card-answer-image:hover { filter: none; }
+.card-answer-image { max-height: 40vh; }
+
+/* The viewer takes the screen: caption and Close on one line, the image as large as fits below. */
+.image-viewer { position: fixed; inset: 0; z-index: 45; display: flex; flex-direction: column; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; padding: var(--top-inset, 0) env(safe-area-inset-right) var(--bottom-inset, 0) env(safe-area-inset-left); background: var(--shell); color: var(--text); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
+.image-viewer::backdrop { background: transparent; }
+.image-viewer-header { display: flex; flex-shrink: 0; align-items: center; gap: var(--space-16); padding: var(--space-12) var(--space-16); }
+.image-viewer-caption { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+.image-viewer-stage { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; padding: 0 var(--space-16) var(--space-16); }
+.image-viewer-stage img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }

@@ -14,6 +14,7 @@ pub mod agent_render;
 mod assets;
 mod capabilities;
 mod error;
+mod images;
 pub mod library;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub mod notebooks;
@@ -239,6 +240,7 @@ fn routers(
         .fallback(assets::serve)
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .merge(library::routes())
+        .merge(images::routes())
         .merge(
             sync::routes()
                 .layer(middleware::from_fn_with_state(
@@ -334,7 +336,8 @@ fn embedded_router_inner(
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
         .fallback(|| async { ApiError::not_found() })
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
-        .merge(library::routes());
+        .merge(library::routes())
+        .merge(images::routes());
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     let router = router.merge(agent::routes());
     let router = router.with_state(state);

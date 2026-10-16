@@ -6,6 +6,7 @@ export const BLOCK_CLIPBOARD_MIME = 'application/x-tessera-blocks+json';
 
 export function clipboardText(content: BlockClipboard): string {
   return content.blocks.map(({ block, depth, capabilities }) => {
+    if (capabilities.image) return '  '.repeat(depth) + (block.text || 'Image');
     const quote = capabilities.quote;
     if (quote && quoteTarget(block.text) === quote.target_id) {
       return quote.rows.flatMap(row => row.text.split('\n').map((line, index) =>

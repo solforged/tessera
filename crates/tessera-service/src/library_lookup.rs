@@ -8,7 +8,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use serde::{Deserialize, Serialize};
-use tessera_core::{Notebook, library::*};
+use tessera_core::{Notebook, image_type, library::*};
 
 #[derive(Deserialize)]
 pub(super) struct LookupRequest {
@@ -460,17 +460,6 @@ fn normalize(metadata: &mut ExtractedMetadata) -> Result<(), ApiError> {
         return Err(invalid("Use YYYY, YYYY-MM or YYYY-MM-DD."));
     }
     Ok(())
-}
-fn image_type(bytes: &[u8]) -> Option<&'static str> {
-    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-        Some("image/png")
-    } else if bytes.starts_with(b"\xff\xd8\xff") {
-        Some("image/jpeg")
-    } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
-        Some("image/webp")
-    } else {
-        None
-    }
 }
 pub(super) async fn upload_cover(
     State(state): State<AppState>,

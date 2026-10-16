@@ -55,6 +55,7 @@ import { createOutlineKeyboard } from './keyboard';
 import { createOutlineInteractions } from './interactions';
 import { createOutlineRows } from './Row';
 import { createOutlineDrag } from './drag';
+import { createOutlineImages } from './Images';
 import { createOutlineRelated } from './Related';
 import { Arrivals } from './Arrivals';
 import { createFieldSheet } from './field-sheet';
@@ -1231,6 +1232,9 @@ function Pane(props: OutlinePaneProps) {
     markRelation: (id, kind, text) => markRelation(id, kind, text),
     relationMenu: (id, add, text) => relationMenu(id, add, text),
     apply,
+    chooseImage: (id, replace) => images.chooseImage(id, replace),
+    openImage: id => images.openImage(id),
+    uploadImages: (files, targetId) => images.uploadImages(files, targetId),
     zoomTo,
     copy: (text) => copy(text),
     commitFieldEntry,
@@ -1331,6 +1335,7 @@ function Pane(props: OutlinePaneProps) {
     reveal: owner => setRevealedFields(previous => { const next = new Set(previous); next.has(owner) ? next.delete(owner) : next.add(owner); return next; }),
   });
   const drag = createOutlineDrag(context);
+  const images = createOutlineImages(context);
   const { related, relatedError, relatedLoading, apparatus, holders, holderRelations, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations } = createOutlineRelated(context);
   const holderBoundary = createMemo(() => !zoom() && related()?.heldReadings.length
     ? ids().find(id => doc.outline.parentOf(id) === props.pageId && !!doc.block(id)?.heading) : undefined);
@@ -1701,7 +1706,7 @@ function Pane(props: OutlinePaneProps) {
     </Show>
     <div ref={list} class="outline-list" style={{ height: reading() ? undefined : `${listHeight()}px` }}>
       <Show when={reading()} fallback={<>
-      <Show when={drag.indicator()}>{drop => <div class="outline-drop-indicator" aria-hidden="true" data-drop-depth={drop().depth - baseDepth()} data-drop-edge={drop().edge} style={{ top: `${drop().top}px`, left: `${drop().left}px` }} />}</Show>
+      <Show when={drag.indicator() ?? images.indicator()}>{drop => <div class="outline-drop-indicator" aria-hidden="true" data-drop-depth={drop().depth - baseDepth()} data-drop-edge={drop().edge} style={{ top: `${drop().top}px`, left: `${drop().left}px` }} />}</Show>
       <For each={foldGroups().before}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
       <div ref={foldChildren} class="outline-motion-group" style={{ opacity: foldMotion()?.opening ? 0 : undefined }}>
         <For each={foldGroups().children}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
@@ -1756,6 +1761,7 @@ function Pane(props: OutlinePaneProps) {
     <RelationPopups />
     <ViewEmbedPopups />
     <MoveToPagePopup />
+    <images.ImagePopups />
   </div>
     <Show when={props.projection === 'compare'}><div class="embedded-comparison"><ComparePane subjectId={props.pageId} view={props.view.compare ?? { scroll: 0 }} notebook={props.notebook} onActivate={props.onActivate} onOpen={props.onOpen} onViewChange={compare => props.onViewChange({ ...props.view, compare })} /></div></Show>
     <div class="outline-notices">

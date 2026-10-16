@@ -14,6 +14,7 @@ pub mod card_text;
 mod entity_query;
 mod error;
 mod fields;
+mod image_store;
 pub mod library;
 mod library_export;
 mod library_ingest;
@@ -65,6 +66,7 @@ pub use agent::{
 };
 pub use aliases::{Completion, NameMatch};
 pub use backup::{BackupManifest, backup, backup_beside, backup_directory, restore};
+pub use capabilities::ImageRef;
 pub use capabilities::{
     Agenda, AgendaItem, AgendaReason, BlockCapabilities, CardAnswerBlock, CardPreviews, CardQuery,
     CardQueryResult, CardRow, CardSelection, CardUnit, DateRange, Deck, GradePreview,
@@ -85,6 +87,7 @@ pub use card_templates::{
 };
 pub use error::{Error, Result};
 pub use fields::SOURCE_TARGET;
+pub use image_store::image_type;
 pub use migrate::SCHEMA_VERSION;
 pub use model::{
     Actor, Backlink, Batch, Block, BlockInPage, BlockKind, ChangeEvent, ChangeStamp, Committed,

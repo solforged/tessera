@@ -370,7 +370,7 @@ The titled Block actions menu names its block in at most two mono lines. Edit, I
 
 Choosing a Move to page destination reserves its undo step before saving. Undo requested while the move is pending waits for its acknowledgment, then reverses the move without undoing earlier text.
 
-Named Field, Task, Project, Perspective, Question, Assessment, Relation, Cards and Citation managers appear only when present, retaining each when features coexist. Add field… and Make… follow; Make adds only absent features and keeps the note's text. Archive or Unarchive and Delete… remain last and preserve selection and subtree scope. Zoom and Select stay in Commands, with their bullet, gestures and keys intact. Drill-ins replace the rows in place under a title and Back control. Closing or completing an action returns keyboard ownership to the editor or outline.
+Named Image, Field, Task, Project, Perspective, Question, Assessment, Relation, Cards and Citation managers appear only when present, retaining each when features coexist. Add field… and Make… follow; Make adds only absent features and keeps the note's text. Archive or Unarchive and Delete… remain last and preserve selection and subtree scope. Zoom and Select stay in Commands, with their bullet, gestures and keys intact. Drill-ins replace the rows in place under a title and Back control. Closing or completing an action returns keyboard ownership to the editor or outline.
 
 Clicking the edited row's fold chevron or task checkbox keeps the editor owning the keyboard. Saving or canceling a page title returns ownership to the outline.
 Structural edits finish any pending fold animation before unfolding and editing their caret target.
@@ -481,6 +481,16 @@ Capability metadata follows the source text without replacing it. Clicking a tas
 Project and review controls open the attached capability. Source text keeps its natural width; controls wrap beneath it when they cannot fit beside it. Wrapped planning values stay left-aligned.
 
 Activating a metadata control does not begin a text selection, so its anchor stays under the pointer while the popup opens.
+
+### Images
+
+An [image block](domain-model.md#images) sets its figure on the text edge above the caption, at its natural size up to the measure and at most 70% of the viewport's height, never upscaled. Its pixel size is known before the bytes arrive, so the row does not jump when they do. On the dark canvas a figure takes `--image-filter` and brightens on hover. The caption is the row's own text in `--muted`; an empty caption shows nothing at rest, and Enter on the selected row edits it.
+
+Paste a copied image into a block, drop image files on a row, or choose Insert image (`/image`, or Make… → Image…). An empty block takes the first image itself; otherwise the images follow the block as siblings. Text copied with an image wins, since Office copies a picture of its own text. Each gesture is one undo step.
+
+Clicking the figure opens the viewer: the image as large as the screen allows on `--shell`, with the caption and Close on one line above it. Escape, Close or a click beside the image returns to the outline. The block menu's Image manager offers Open image, Replace image… and Remove image, which keeps the caption as an ordinary row.
+
+Backspace at the start of a caption, or at the start of the row after an image, selects the image row instead of merging; Delete at the end of a caption does nothing. Enter at the start of a nonempty caption opens an empty row after the image.
 
 ### Cards
 
@@ -661,7 +671,7 @@ The picker puts the owner's missing template fields first, in template order, an
 
 A slash command removes its `/query` before it runs; syntax rows such as Reference and Cloze replace it with their syntax and leave the caret inside. Reference uses the same paired `[[]]` query as typing `[[`. Planning commands on a plain block make it a todo first.
 
-The Cards rows are Card, Reverse card, Reversible card, Multi-line card, List card and Cloze. On an empty block a card row leaves the operator after the caret, so the front is written first; a block that already has an operator keeps it.
+The Cards rows are Card, Reverse card, Reversible card, Multi-line card, List card and Cloze. On an empty block a card row leaves the operator after the caret, so the front is written first; a block that already has an operator keeps it. Image (`/picture`, `/figure`, `/screenshot`) opens the file chooser for Insert image.
 
 #### Cloze
 

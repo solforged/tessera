@@ -554,18 +554,29 @@ impl Notebook {
                  SELECT b.id FROM blocks b JOIN notes ON b.parent_id = notes.id
                  WHERE b.deletion_id IS NULL
              )
-             SELECT b.parent_id, b.id, b.text FROM notes
+             SELECT b.parent_id, b.id, b.text, i.sha256 FROM notes
              JOIN blocks b ON b.id = notes.id
+             LEFT JOIN images i ON i.block_id = b.id AND i.active = 1
              WHERE b.parent_id IN (SELECT id FROM notes)
              ORDER BY b.parent_id, b.ordinal, b.id",
         )?;
         let mut children: NoteChildren = HashMap::new();
         let mut rows = statement.query([crate::library_store::json(&blocks)])?;
         while let Some(row) = rows.next()? {
+            let text: String = row.get(2)?;
+            let text = match row.get::<_, Option<String>>(3)? {
+                Some(sha) => format!(
+                    "![{}](/api/images/{sha})",
+                    text.replace('\\', "\\\\")
+                        .replace('[', "\\[")
+                        .replace(']', "\\]")
+                ),
+                None => text,
+            };
             children
                 .entry(row.get(0)?)
                 .or_default()
-                .push((row.get(1)?, row.get(2)?));
+                .push((row.get(1)?, text));
         }
         let mut sections = self.conn.prepare_cached(
             "SELECT MIN(p.ordinal), json_extract(e.value, '$.title')

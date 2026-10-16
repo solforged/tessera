@@ -34,6 +34,7 @@ pub fn restore_authored_search(conn: &Connection) {
 
 /// Before schema 40, authored argument edges had no capability table.
 pub fn restore_pre_relations(conn: &Connection) {
+    restore_pre_images(conn);
     conn.execute_batch("ALTER TABLE fields DROP COLUMN role;")
         .unwrap();
     conn.execute_batch("DROP TABLE revisit_events; DROP TABLE note_states; DROP TABLE relations;")
@@ -43,4 +44,9 @@ pub fn restore_pre_relations(conn: &Connection) {
 /// Before schema 41, saved spreads had no capability table.
 pub fn restore_pre_spreads(conn: &Connection) {
     conn.execute_batch("DROP TABLE spreads;").unwrap();
+}
+
+/// Before schema 48, image blocks had no retained capability table.
+pub fn restore_pre_images(conn: &Connection) {
+    conn.execute_batch("DROP TABLE images;").unwrap();
 }

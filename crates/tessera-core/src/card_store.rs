@@ -123,16 +123,18 @@ fn answer_blocks(conn: &Connection, source: &str) -> Result<Vec<CardAnswerBlock>
              SELECT b.id, b.parent_id, b.text, b.ordinal, s.depth + 1
              FROM blocks b JOIN subtree s ON b.parent_id = s.id
              WHERE b.deletion_id IS NULL AND b.archived = 0
-         ) SELECT id, parent_id, text FROM subtree
-           ORDER BY depth DESC, parent_id, ordinal, id",
+         ) SELECT s.id, s.parent_id, s.text, i.sha256, i.media_type, i.width, i.height
+           FROM subtree s LEFT JOIN images i ON i.block_id = s.id AND i.active = 1
+           ORDER BY s.depth DESC, s.parent_id, s.ordinal, s.id",
     )?;
     let mut children: HashMap<String, Vec<CardAnswerBlock>> = HashMap::new();
     let mut rows = statement.query([source])?;
     while let Some(row) = rows.next()? {
         let id: String = row.get(0)?;
         let text: String = row.get(2)?;
+        let image = crate::image_store::at(row, 3)?;
         let nested = children.remove(&id).unwrap_or_default();
-        if text.trim().is_empty() && nested.is_empty() {
+        if text.trim().is_empty() && nested.is_empty() && image.is_none() {
             continue;
         }
         children
@@ -141,6 +143,7 @@ fn answer_blocks(conn: &Connection, source: &str) -> Result<Vec<CardAnswerBlock>
             .push(CardAnswerBlock {
                 id,
                 text,
+                image,
                 children: nested,
             });
     }

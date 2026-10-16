@@ -53,6 +53,7 @@ impl Notebook {
     ) -> Result<Committed> {
         let operations = serde_json::to_string(&batch.operations).expect("operations serialize");
         let hash = operations_hash(&operations);
+        let local = stamp.is_none();
         let tx = self
             .conn
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -119,6 +120,8 @@ impl Notebook {
         let mut field_changes = crate::fields::FieldChanges::default();
         let mut engine = Engine {
             tx: &tx,
+            object_dir: &self.dir,
+            local,
             now,
             seq,
             change_id: &stamp.id,
@@ -378,6 +381,8 @@ fn indexed(error: Error, index: usize) -> Error {
 
 struct Engine<'a, 'conn> {
     tx: &'a Transaction<'conn>,
+    object_dir: &'a std::path::Path,
+    local: bool,
     now: i64,
     seq: i64,
     /// The change being applied; IDs it creates derive from this.
@@ -831,6 +836,7 @@ impl Engine<'_, '_> {
                  AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM positions p WHERE p.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM relations r WHERE r.block_id = b.id)
+                 AND NOT EXISTS (SELECT 1 FROM images i WHERE i.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM questions q WHERE q.block_id = b.id)
                  AND NOT EXISTS (SELECT 1 FROM questions q WHERE json_extract(q.state, '$.accepted') = +b.id)
                  AND NOT EXISTS (SELECT 1 FROM assessments a WHERE a.block_id = b.id)
@@ -1268,6 +1274,7 @@ impl Engine<'_, '_> {
                 "merge destination must be outside the source subtree",
             ));
         }
+        crate::image_store::guard_merge(self.tx, &destination.block.id)?;
         crate::task_store::guard_merge(self.tx, &source.block.id)?;
         crate::card_store::guard_merge(self.tx, &source.block.id)?;
         crate::work_store::guard_move(self.tx, &source.block.id, &destination.block.id)?;
@@ -2192,6 +2199,25 @@ impl Engine<'_, '_> {
                 if crate::quote_store::set(self.tx, &current.block, quote.as_ref())? {
                     self.bump(&current, false)?;
                     self.capability_sources.insert(id.clone());
+                }
+                Ok(())
+            }
+            Operation::SetImage {
+                id,
+                base_revision,
+                image,
+            } => {
+                let current = self.checked(id, *base_revision, index, false)?;
+                if crate::image_store::set(
+                    self.tx,
+                    self.object_dir,
+                    self.local,
+                    &current.block,
+                    image.as_ref(),
+                )? {
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(id.clone());
+                    self.card_sources.insert(id.clone());
                 }
                 Ok(())
             }

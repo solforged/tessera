@@ -54,6 +54,9 @@ export interface OutlineContext {
   openRelation: (id: string, kind: 'holder' | 'subject' | 'integrate' | 'reading', anchor?: HTMLElement | null) => void;
   openViewEmbed: (id?: string | null) => void;
   openMoveToPage: () => void;
+  chooseImage: (id: string, replace?: boolean) => void;
+  openImage: (id: string) => void;
+  uploadImages: (files: readonly File[], targetId?: string) => Promise<void>;
   positionReason: (id: string) => string | undefined;
   placeReason: (id: string) => string | undefined;
   usePlace: (id: string) => void;
