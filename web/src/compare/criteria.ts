@@ -17,6 +17,18 @@ export async function linkedCriteriaDraft(notebook: NotebookClient, initial: str
   }
 }
 
+/** Visible reading order: across the row, then into the next row, in either matrix orientation. */
+export function nextCriterionCell(positions: readonly string[], criteria: readonly string[], current: { position: string; field: string }, direction: -1 | 1, orientation: 'criteria' | 'holders' = 'criteria'): { position: string; field: string } | null {
+  const position = positions.indexOf(current.position), field = criteria.indexOf(current.field);
+  if (position < 0 || field < 0) return null;
+  const columns = orientation === 'holders' ? criteria.length : positions.length;
+  const index = (orientation === 'holders' ? position * columns + field : field * columns + position) + direction;
+  if (index < 0 || index >= positions.length * criteria.length) return null;
+  return orientation === 'holders'
+    ? { position: positions[Math.floor(index / columns)]!, field: criteria[index % columns]! }
+    : { position: positions[index % columns]!, field: criteria[Math.floor(index / columns)]! };
+}
+
 export interface ExactRepeat { number: number; criterion: string; text: string; positions: string[] }
 
 /** Equality is only trimmed authored text, never a claim about agreement. Empty cells do not repeat. */

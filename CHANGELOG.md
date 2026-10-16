@@ -26,6 +26,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Named every ISO 639-1 language in catalog fields and language searches, including Cree.
 - Prevented IME candidate Enter from submitting the manual source form.
 - Kept the source inspector open when Escape cancels an inline catalog edit.
+- Made Tab and Shift-Tab advance between Compare cell editors without waiting for slow saves.
 - Kept each pane's Read, Outline and Compare projection independent when showing the same page.
 - Preserved Compare cell text entered while hand-typed references were resolving.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.

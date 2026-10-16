@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { exactRepeats, linkedCriteriaDraft, questionReadingIds } from './criteria';
+import { exactRepeats, linkedCriteriaDraft, nextCriterionCell, questionReadingIds } from './criteria';
 import type { NotebookClient } from '../document/contract';
 
 test('only exact trimmed authored cells repeat, with stable row-local groups', () => {
@@ -62,4 +62,16 @@ test('a cell commit preserves deletion of a reference while its name is resolvin
     return [{ page: { id: 'cycle' } }];
   } } } as unknown as NotebookClient;
   expect(await linkedCriteriaDraft(notebook, draft, () => draft)).toBe('replacement');
+});
+
+test('matrix filling follows visible row order and stops at either edge', () => {
+  const positions = ['H', 'S', 'W'], fields = ['shape', 'engine'];
+  expect(nextCriterionCell(positions, fields, { position: 'H', field: 'shape' }, 1)).toEqual({ position: 'S', field: 'shape' });
+  expect(nextCriterionCell(positions, fields, { position: 'W', field: 'shape' }, 1)).toEqual({ position: 'H', field: 'engine' });
+  expect(nextCriterionCell(positions, fields, { position: 'H', field: 'engine' }, -1)).toEqual({ position: 'W', field: 'shape' });
+  expect(nextCriterionCell(positions, fields, { position: 'H', field: 'shape' }, -1)).toBeNull();
+  expect(nextCriterionCell(positions, fields, { position: 'W', field: 'engine' }, 1)).toBeNull();
+  expect(nextCriterionCell(positions, fields, { position: 'H', field: 'engine' }, 1, 'holders')).toEqual({ position: 'S', field: 'shape' });
+  expect(nextCriterionCell(positions, fields, { position: 'S', field: 'shape' }, -1, 'holders')).toEqual({ position: 'H', field: 'engine' });
+  expect(nextCriterionCell([], fields, { position: 'H', field: 'shape' }, 1)).toBeNull();
 });

@@ -130,6 +130,8 @@ Draft undo and redo remain inside the open cell until commit. A committed edit b
 
 Enter and Escape return focus to the same criterion cell. Reloading the joined perspective data keeps that cell's identity, so an immediate undo chord works without refocusing the sheet. Leaving by clicking another control keeps focus on that control.
 
+Tab commits and immediately opens the next cell editor in visible row order; Shift-Tab opens the previous one. Crossing a row continues at the next row's first cell. At either end of the matrix the editor stays open. A reference-completion popup keeps its own Tab-to-pick action first. Pending title lookups and writes remain attached to their source cell rather than delaying typing into the destination.
+
 Two or more cells in a row with exactly the same authored text get a numbered `≡ 1 · exact repeat` mark and a footnote naming the sigla; nothing else is marked. References in the footnote show their current labels. The comparison still uses the stored text and target identity.
 
 ### Questions and criteria editing

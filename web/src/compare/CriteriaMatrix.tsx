@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createMemo, createSignal } from 'solid-js';
+import { For, Match, Show, Switch, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { FieldDefinition, PositionQuestion, PositionRow, QuoteState } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
@@ -6,7 +6,7 @@ import { besideHint, opensBeside } from '../shell/beside';
 import { BlockText } from '../outline/BlockText';
 import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
-import { exactRepeats, linkedCriteriaDraft } from './criteria';
+import { exactRepeats, linkedCriteriaDraft, nextCriterionCell } from './criteria';
 import { CriteriaCellEditor } from './CriteriaCellEditor';
 import { quoteTarget } from '../document/text-tokens';
 import { Quote, createQuoteStatus } from '../outline/Quote';
@@ -16,6 +16,7 @@ import { checkboxValue } from '../fields/kinds';
 import { createOptionValue } from '../fields/commands';
 
 interface CriterionValue { id: string; text: string }
+interface CriterionDraft { position: string; field: string; value: string | null; text: string; cancelled?: boolean }
 
 export function CriteriaMatrix(props: {
   rows: PositionRow[]; allRows: PositionRow[]; criteria: string[]; questions: PositionQuestion[]; notebook: NotebookClient;
@@ -24,9 +25,10 @@ export function CriteriaMatrix(props: {
   holder(row: PositionRow): string; siglum(row: PositionRow): string; work(row: PositionRow): string;
   onOpen(target: OpenTarget, beside: boolean): void; onEdited(doc: PageDocument): void;
 }) {
-  const [editing, setEditing] = createSignal<{ position: string; field: string; value: string | null; text: string } | null>(null);
+  const [editing, setEditing] = createSignal<CriterionDraft | null>(null);
   const [error, setError] = createSignal('');
-  const [saving, setSaving] = createSignal(false);
+  const pending = new Set<CriterionDraft>();
+  const cellElements = new Map<string, HTMLElement>();
   const rowById = createMemo(() => new Map(props.rows.map(row => [row.block.block.id, row])));
   const fieldName = (id: string) => props.field(id)?.name;
   const rowIds = createMemo(() => [...rowById().keys()]);
@@ -42,26 +44,43 @@ export function CriteriaMatrix(props: {
     }))] as const;
   })));
   const repeats = createMemo(() => exactRepeats(props.criteria, props.rows.map(row => row.block.block.id), (id, field) => cells().get(id)?.get(field)?.map(value => value.text).join('\n') ?? ''));
-  function finishEditing(cell?: HTMLElement) {
+  function finishEditing(cell?: HTMLElement, current = editing()) {
+    if (editing() !== current) return;
     setEditing(null);
     if (cell) queueMicrotask(() => { if (cell.isConnected) cell.focus({ preventScroll: true }); });
   }
-  async function commit(textDraft: string, cell?: HTMLElement, quote?: QuoteState, option?: string) {
+  function cancelEditing(cell: HTMLElement) {
     const current = editing();
-    if (!current || saving()) return;
+    if (current) current.cancelled = true;
+    finishEditing(cell, current);
+  }
+  function advance(current: CriterionDraft, direction: -1 | 1) {
+    const next = nextCriterionCell(rowIds(), props.criteria, current, direction, props.orientation);
+    if (!next) return null;
+    const cell = cellElements.get(`${next.position}:${next.field}`);
+    if (!cell) return null;
+    start(rowById().get(next.position)!, next.field, cells().get(next.position)?.get(next.field)?.[0], cell, false);
+    return next;
+  }
+  async function commit(textDraft: string, cell?: HTMLElement, quote?: QuoteState, option?: string, direction?: -1 | 1) {
+    const current = editing();
+    if (!current) return;
     const row = props.rows.find(row => row.block.block.id === current.position);
     const doc = row && props.docs.get(row.block.page.id);
     const field = props.field(current.field);
     if (!doc || doc.status() !== 'ready') { setError('The perspective is still loading.'); return; }
     if (!field) { setError('The criterion is still loading.'); return; }
-    if (!current.value && !textDraft.trim() && !option) { finishEditing(cell); return; }
     current.text = textDraft;
-    setSaving(true);
+    // Transfer the keyboard before awaiting names or persistence; each operation owns its source draft.
+    if (direction && !advance(current, direction)) return;
+    if (pending.has(current)) return;
+    if (!current.value && !textDraft.trim() && !option) { finishEditing(cell, current); return; }
+    pending.add(current);
     try {
       const text = option ? '' : await linkedCriteriaDraft(props.notebook, textDraft, () => current.text);
-      if (editing() !== current) return;
+      if (current.cancelled) return;
       if (quote && quoteTarget(text) !== quote.target_id) quote = undefined;
-      if (!option && current.value && doc.block(current.value)?.text === text && !quote) { finishEditing(cell); return; }
+      if (!option && current.value && doc.block(current.value)?.text === text && !quote) { finishEditing(cell, current); return; }
       if (option) await createOptionValue(props.notebook, doc, { field, ownerId: current.position, valueId: current.value ?? undefined }, option);
       else if (quote) {
         const entry = doc.outline.children(current.position).find(id => !doc.isArchived(id) && fieldEntryId(doc.block(id)?.text ?? '') === current.field);
@@ -70,16 +89,22 @@ export function CriteriaMatrix(props: {
           : { kind: 'addFieldEntries', parentId: current.position, after: doc.outline.children(current.position).at(-1) ?? null, entries: [{ fieldId: current.field, value: text, quote }] });
         if (!result.ok) throw new Error(result.reason);
       } else writeFieldValue(doc, { field, ownerId: current.position, valueId: current.value ?? undefined }, text);
-      finishEditing(cell); setError(''); props.onEdited(doc);
+      pending.delete(current);
+      finishEditing(cell, current); setError(''); props.onEdited(doc);
       await doc.flush();
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setSaving(false); }
+    finally { pending.delete(current); }
   }
-  function start(row: PositionRow, field: string, value: { id: string; text: string } | undefined, cell?: HTMLElement) {
-    if (saving()) return;
+  function start(row: PositionRow, field: string, value: { id: string; text: string } | undefined, cell?: HTMLElement, activate = true) {
     const definition = props.field(field);
     if (!definition) { setError('The criterion is still loading.'); return; }
-    setEditing({ position: row.block.block.id, field, value: value?.id ?? null, text: value?.text ?? '' });
+    if (!activate && definition.kind === 'checkbox') {
+      setEditing(null); cell?.focus({ preventScroll: true }); return;
+    }
+    const position = row.block.block.id;
+    let draft: CriterionDraft | undefined;
+    for (const candidate of pending) if (!candidate.cancelled && candidate.position === position && candidate.field === field) { draft = candidate; break; }
+    setEditing(draft ?? { position, field, value: value?.id ?? null, text: value?.text ?? '' });
     if (definition.kind === 'checkbox') void commit(checkboxValue(value?.text ?? '') ? 'no' : 'yes', cell);
   }
   function CellValue(valueProps: { value: CriterionValue; position: string; field: string; editable?: boolean }) {
@@ -106,19 +131,21 @@ export function CriteriaMatrix(props: {
   }
   function MatrixCell(cellProps: { id: string; field: string }) {
     let cell!: HTMLDivElement;
+    const key = `${cellProps.id}:${cellProps.field}`;
+    onCleanup(() => cellElements.delete(key));
     const values = () => cells().get(cellProps.id)?.get(cellProps.field) ?? [];
     const current = () => editing()?.position === cellProps.id && editing()?.field === cellProps.field ? editing() : null;
     const repeat = () => repeats().find(repeat => repeat.criterion === cellProps.field && repeat.positions.includes(cellProps.id));
     const field = () => props.field(cellProps.field);
-    return <td data-criterion={fieldName(cellProps.field)}><div ref={cell} class="criteria-cell" data-position-id={cellProps.id} data-field-id={cellProps.field} tabIndex={0} role="group" aria-label={`${fieldName(cellProps.field)} · ${props.holder(rowById().get(cellProps.id)!)}`} onClick={event => { if (!(event.target as HTMLElement).closest('.cm-editor,button')) start(rowById().get(cellProps.id)!, cellProps.field, values()[0], cell); }} onKeyDown={event => { if (!current() && (event.key === 'Enter' || event.key === ' ' && field()?.kind === 'checkbox')) { event.preventDefault(); event.stopPropagation(); start(rowById().get(cellProps.id)!, cellProps.field, values()[0], cell); } }}>
+    return <td data-criterion={fieldName(cellProps.field)}><div ref={element => { cell = element; cellElements.set(key, element); }} class="criteria-cell" data-position-id={cellProps.id} data-field-id={cellProps.field} tabIndex={0} role="group" aria-label={`${fieldName(cellProps.field)} · ${props.holder(rowById().get(cellProps.id)!)}`} onClick={event => { if (!(event.target as HTMLElement).closest('.cm-editor,button')) start(rowById().get(cellProps.id)!, cellProps.field, values()[0], cell); }} onKeyDown={event => { if (!current() && event.key === 'Tab' && event.target === cell) { event.preventDefault(); event.stopPropagation(); advance({ position: cellProps.id, field: cellProps.field, value: null, text: '' }, event.shiftKey ? -1 : 1); } else if (!current() && (event.key === 'Enter' || event.key === ' ' && field()?.kind === 'checkbox')) { event.preventDefault(); event.stopPropagation(); start(rowById().get(cellProps.id)!, cellProps.field, values()[0], cell); } }}>
       <Show when={current()} fallback={<Show when={values().some(value => value.text.trim())} fallback={<Button class="criteria-add" onClick={() => start(rowById().get(cellProps.id)!, cellProps.field, values()[0], cell)}>Add</Button>}>
         <For each={values()}>{value => <CellValue value={value} position={cellProps.id} field={cellProps.field} editable />}</For>
       </Show>}>{edit => <>
         <For each={values().filter(value => value.id !== edit().value)}>{value => <CellValue value={value} position={cellProps.id} field={cellProps.field} />}</For>
         <Switch>
           <Match when={field()?.kind === 'checkbox'}><span class="criteria-hint" role="status">Saving…</span></Match>
-          <Match when={hasValueEditor(field(), edit().text, props.notebook.todayDate())}><ValueEditor anchor={cell} field={field()!} text={edit().text} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={text => commit(text, cell)} onCreateOption={text => commit('', cell, undefined, text)} onError={setError} onDismiss={() => finishEditing(cell)} /></Match>
-          <Match when={true}><CriteriaCellEditor id={edit().value ?? edit().position} text={edit().text} label={`Edit ${fieldName(cellProps.field)} · ${props.holder(rowById().get(cellProps.id)!)}`} notebook={props.notebook} onChange={text => { edit().text = text; }} onCommit={(text, restoreFocus, quote) => void commit(text, restoreFocus ? cell : undefined, quote)} onCancel={() => finishEditing(cell)} /></Match>
+          <Match when={hasValueEditor(field(), edit().text, props.notebook.todayDate())}><ValueEditor anchor={cell} field={field()!} text={edit().text} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={text => commit(text, cell)} onCreateOption={text => commit('', cell, undefined, text)} onError={setError} onDismiss={() => finishEditing(cell, edit())} /></Match>
+          <Match when={true}><CriteriaCellEditor id={edit().value ?? edit().position} text={edit().text} label={`Edit ${fieldName(cellProps.field)} · ${props.holder(rowById().get(cellProps.id)!)}`} notebook={props.notebook} onChange={text => { edit().text = text; }} onCommit={(text, restoreFocus, quote) => void commit(text, restoreFocus ? cell : undefined, quote)} onTab={(text, direction, quote) => void commit(text, undefined, quote, undefined, direction)} onCancel={() => cancelEditing(cell)} /></Match>
         </Switch>
       </>}</Show>
     </div><Show when={repeat()}>{mark => <span class="criteria-exact">≡ {mark().number} · exact repeat</span>}</Show></td>;
@@ -144,6 +171,6 @@ export function CriteriaMatrix(props: {
         <tbody><For each={rowIds()}>{id => <tr class="criteria-values" data-position-id={id}><th scope="row"><HolderHeader id={id} /></th><For each={props.criteria}>{field => <MatrixCell id={id} field={field} />}</For></tr>}</For></tbody>
       </Show>
     </table></div></Show>
-    <footer class="criteria-footnotes"><div><For each={repeats()}>{repeat => <p>≡ {repeat.number}　Identical authored value: "<BlockText text={repeat.text} notebook={props.notebook} interactive={false} />" · {repeat.positions.map(id => props.siglum(props.rows.find(row => row.block.block.id === id)!)).join(', ')}</p>}</For></div><span class="criteria-hint">Enter to edit · {besideHint}</span></footer>
+    <footer class="criteria-footnotes"><div><For each={repeats()}>{repeat => <p>≡ {repeat.number}　Identical authored value: "<BlockText text={repeat.text} notebook={props.notebook} interactive={false} />" · {repeat.positions.map(id => props.siglum(props.rows.find(row => row.block.block.id === id)!)).join(', ')}</p>}</For></div><span class="criteria-hint">Enter to edit · Tab to next cell · {besideHint}</span></footer>
   </>;
 }
