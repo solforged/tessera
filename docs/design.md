@@ -619,6 +619,8 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 
 The open `[[query]]` is tinted in the accent until a choice replaces it with a reference. The picker searches the whole bracketed query, including any text after the caret, and a choice replaces all of it. Unmodified Enter or Tab picks, including when pressed before results arrive; modified chords keep their editing actions. Shift+Enter closes the picker and inserts its newline after a paired reference, never inside the query. The block being edited is never offered.
 
+Accepting a reference freezes that query and moves the caret into the following prose before its lookup or page creation finishes. Typing and Backspace continue in the retained editor; Escape can leave editing without revoking the accepted target or absorbing the continuation into its title.
+
 Enter accepts a selected Quote before its snapshot lookup finishes. An immediate Escape leaves editing without canceling that choice; a later edit to the same row instead keeps the authored text and reports why the quote could not be saved.
 
 The caret lands after the reference, with a space when a word or the end of the block follows; punctuation or a space typed next takes that space's place, on phone keyboards too. Backspace in an empty `[[]]` removes both pairs. A query that names no page or field exactly offers Create page after the matches, except an ISO date, which only offers its existing journal.
@@ -651,7 +653,7 @@ The picker puts the owner's missing template fields first, in template order, an
 
 `/` matches titles and aliases (`/due` finds Deadline, `/h1` Heading 1) and shows each row's faster key, so the menu teaches the chords. `/question` finds Make question rather than Card; `/link` finds Reference rather than Copy reference.
 
-A slash command removes its `/query` before it runs; syntax rows such as Reference and Cloze replace it with their syntax and leave the caret inside. Planning commands on a plain block make it a todo first.
+A slash command removes its `/query` before it runs; syntax rows such as Reference and Cloze replace it with their syntax and leave the caret inside. Reference uses the same paired `[[]]` query as typing `[[`. Planning commands on a plain block make it a todo first.
 
 The Cards rows are Card, Reverse card, Reversible card, Multi-line card, List card and Cloze. On an empty block a card row leaves the operator after the caret, so the front is written first; a block that already has an operator keeps it.
 

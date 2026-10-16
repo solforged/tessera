@@ -312,6 +312,7 @@ function Pane(props: OutlinePaneProps) {
   /** A hand-typed name links only when one page owns it; ambiguous names wait for a choice. */
   const linking = new Set<string>();
   function linkTitles(id: string) {
+    if (pendingReference(id)) return;
     const titles = typedTitles(doc.block(id)?.text ?? '');
     if (!titles.length || linking.has(id)) return;
     linking.add(id);
@@ -1318,7 +1319,7 @@ function Pane(props: OutlinePaneProps) {
   });
   const { openViewEmbed, ViewEmbedPopups } = createViewEmbedActions(context);
   const { openMoveToPage, MoveToPagePopup } = createMoveToPage(context);
-  const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); }, (id, backward) => fieldSheet.advance(id, backward));
+  const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, pendingReference, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); }, (id, backward) => fieldSheet.advance(id, backward));
   const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context, (event, id) => fieldSheet.key(event, id));
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);

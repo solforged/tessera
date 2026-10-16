@@ -1,7 +1,7 @@
 import { opensBeside } from '../shell/beside';
 import { cursorCharLeft, cursorCharRight, selectCharLeft, selectCharRight, standardKeymap } from '@codemirror/commands';
 import { Compartment, EditorSelection, EditorState, Facet, Prec, StateEffect, StateField } from '@codemirror/state';
-import type { Extension } from '@codemirror/state';
+import type { ChangeDesc, Extension } from '@codemirror/state';
 import { Decoration, drawSelection, EditorView, keymap, ViewPlugin, WidgetType } from '@codemirror/view';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 import type * as VimModule from '@replit/codemirror-vim';
@@ -344,6 +344,19 @@ function toggleEmphasis(view: EditorView, marker: '*' | '**'): boolean {
 
 /** Vim loads on first use; most sessions never turn it on. */
 let vimModule: Promise<typeof VimModule> | undefined;
+/** Tracks an accepted token while native editing continues outside it. Editing the token revokes only its replacement. */
+export class PendingEditorRange {
+  constructor(public range: { from: number; to: number } | null) {}
+  map(changes: ChangeDesc): void {
+    const range = this.range;
+    if (!range) return;
+    changes.iterChangedRanges((from, to) => {
+      if (from < range.to && to > range.from || from === to && from > range.from && from < range.to) this.range = null;
+    });
+    if (this.range) this.range = { from: changes.mapPos(range.from, 1), to: changes.mapPos(range.to, -1) };
+  }
+}
+
 /** A single retained CM instance moves between row hosts; composition never moves it. */
 export class PaneEditor {
   readonly view: EditorView;
@@ -356,6 +369,7 @@ export class PaneEditor {
   private wantVim = false;
   private vimApi: typeof VimModule | null = null;
   private vimGroup = 0;
+  private readonly pendingRanges = new Set<{ id: string; tracker: PendingEditorRange }>();
 
   constructor(private readonly hooks: EditorHooks) {
     this.view = new EditorView({ state: EditorState.create({ extensions: [
@@ -394,6 +408,7 @@ export class PaneEditor {
         compositionend: event => { this.composing = false; this.hooks.composition(false, event.data); return false; },
       })),
       EditorView.updateListener.of(update => {
+        for (const pending of this.pendingRanges) if (pending.id === this.id && update.docChanged) pending.tracker.map(update.changes);
         const caret = { id: this.id, offset: update.state.selection.main.head };
         if (!this.replacing && this.id && update.docChanged) this.hooks.text(update.state.doc.toString(), caret, this.useVim ? this.vimGroup : undefined);
         if (!this.replacing && this.id && (update.selectionSet || update.docChanged)) this.hooks.selection(caret);
@@ -487,6 +502,13 @@ export class PaneEditor {
     const offset = Math.min(this.view.state.selection.main.head, text.length);
     this.view.dispatch({ changes: { from: 0, to: this.view.state.doc.length, insert: text }, selection: { anchor: offset } });
     this.replacing = false;
+  }
+
+  trackRange(from: number, to: number) {
+    const tracker = new PendingEditorRange({ from, to });
+    const pending = { id: this.id, tracker };
+    this.pendingRanges.add(pending);
+    return { tracker, release: () => this.pendingRanges.delete(pending) };
   }
 
   refreshLabels(): void { this.view.dispatch({ effects: refreshLabels.of(null) }); }

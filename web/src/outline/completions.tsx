@@ -47,6 +47,7 @@ interface SlashItem extends SlashEntry {
   run?(id: string): void;
 }
 type CompletionRow = { kind: 'block'; block: Block & Partial<Pick<NameCompletion, 'alias'>> } | { kind: 'field'; field: FieldDefinition };
+type CompletionMatches = { rows: (Block & Partial<Pick<NameCompletion, 'alias'>>)[]; canCreate: boolean };
 export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'contextDate' | 'editing' | 'textRange' | 'composition' | 'caret'
   | 'editor' | 'doc' | 'capabilities' | 'setCaret' | 'scheduleReport'
@@ -54,7 +55,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'replaceSelection' | 'fields' | 'definitionsById' | 'definitions' | 'activeRange'
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
   | 'investigationItems' | 'markRelation' | 'relationMenu' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus' | 'openRelation' | 'openViewEmbed' | 'placeReason' | 'usePlace'
-  | 'showNotice'
+  | 'showNotice' | 'commitFieldEntry'
 >, startFilling: (id: string) => void = () => {}, advanceFilling: (id: string, backward: boolean) => void = () => {}) {
   const {
     contextDate, editing, textRange, composition, caret, doc,
@@ -311,6 +312,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     return { ...reference, quote: reference.blocks && isQuoteCompletion(text, reference.from, reference.to) };
   }
   let engaged: CompletionToken | null = null;
+  const pendingReferences = new Map<string, number>();
   /** `typed` is false when only the caret moved or the text was synced, so the picker is offered but not engaged. */
   function updateCompletion(text: string, at: Caret, typed: boolean) {
     if (completion()?.manual || completion()?.relationTarget) return;
@@ -328,19 +330,21 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (!state || state.fields) return false;
     return `${state.manual || state.types ? 'types' : state.blocks ? 'blocks' : 'text'}:${state.query}`;
   });
-  const [matches] = createResource(completionKey, async key => {
+  let completionRequest: { key: string; promise: Promise<CompletionMatches> } | undefined;
+  const [matches] = createResource(completionKey, key => {
     const mode = key.slice(0, key.indexOf(':'));
     const query = key.slice(key.indexOf(':') + 1);
-    if (mode === 'types') return completeTypes(props.notebook, query);
-    if (mode === 'blocks') return { rows: query.trim() ? (await api.search(query, 20)).map(hit => hit.block).filter(block => block.kind === 'block') : [], canCreate: false };
-    return { rows: await api.complete(query), canCreate: false };
+    const promise: Promise<CompletionMatches> = mode === 'types' ? completeTypes(props.notebook, query)
+      : mode === 'blocks' ? (query.trim() ? api.search(query, 20) : Promise.resolve([])).then(hits => ({ rows: hits.map(hit => hit.block).filter(block => block.kind === 'block'), canCreate: false }))
+      : api.complete(query).then(rows => ({ rows, canCreate: false }));
+    completionRequest = { key, promise };
+    return promise;
   });
-  const completionRows = createMemo<CompletionRow[]>(() => {
-    const state = completion();
+  function rowsFor(state: Completion | null, foundMatches: CompletionMatches | undefined, source = editing()): CompletionRow[] {
     if (state?.fields) {
       // Fields the owner's types template and it lacks come first, in template order; fields it already has come last.
       const query = state.query.trim().toLowerCase();
-      const id = editing();
+      const id = source;
       const owner = id ? doc.block(doc.outline.parentOf(id)) : undefined;
       const template = owner ? templateFor(typeKeys(owner.text, owner.manual_types)) : [];
       const present = new Set(owner ? doc.outline.children(owner.id).flatMap(child => child !== id && !doc.isArchived(child) ? [fieldEntryId(doc.block(child)?.text ?? '') ?? ''] : []) : []);
@@ -350,7 +354,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
         .sort((a, b) => rank(a.field) - rank(b.field) || a.index - b.index).map(({ field }) => ({ kind: 'field', field }));
     }
     // The block being typed in matches its own saved draft; it is never a useful target.
-    const found = (matches.error ? [] : matches()?.rows ?? []).filter(block => block.id !== editing());
+    const found = (foundMatches?.rows ?? []).filter(block => block.id !== source);
     if (state?.manual || state?.types) return found.filter(block => block.kind === 'page').map(block => ({ kind: 'block', block }));
     if (state?.relationTarget) return found.map(block => ({ kind: 'block', block }));
     if (state && !state.blocks && isJournalReference(state.query)) {
@@ -367,7 +371,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     });
     for (const field of byId.values()) rows.push({ kind: 'field', field });
     return rows;
-  });
+  }
+  const completionRows = createMemo<CompletionRow[]>(() => rowsFor(completion(), matches.loading || matches.error ? undefined : matches()));
   /** An offered picker highlights no row, since Enter leaves it to the editor. */
   const pickable = (index: number) => !completion()?.offered && completionIndex() === index;
   /** As in Find or create, a query that names nothing exactly offers creation after the matches. */
@@ -378,6 +383,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (state.fields) return !/[\\`[\]#:]/.test(title) && !definitions().some(field => field.name.toLocaleLowerCase() === title);
     if (matches.error) return false;
     if (state.manual || state.types) return !matches.loading && !!matches()?.canCreate;
+    if (matches.loading) return false;
     if (fields.loading || fields.error) return false;
     if (isJournalReference(state.query)) return false;
     return !completionRows().some(row => (row.kind === 'field' ? row.field.name : row.block.kind === 'block' ? '' : row.block.text).toLocaleLowerCase() === title);
@@ -401,8 +407,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (state && !state.manual && !state.relationTarget) { drafted = true; context.editor.markDraft(completionRange(state, context.editor.view.state.doc.toString())); }
     else if (drafted) { drafted = false; context.editor.markDraft(null); }
   });
-  async function insertReference(id: string) {
-    const state = completion();
+  async function insertReference(id: string, state = completion()) {
     if (state?.relationTarget) {
       const target = state.relationTarget;
       const result = apply({ kind: 'addRelation', parentId: target.parentId, value: target.kind, targetId: id, sourceText: target.sourceText }, true);
@@ -415,7 +420,6 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const source = editing();
     if (!state || !context.editor || !source || quoteBusy()) return;
     const text = context.editor.view.state.doc.toString();
-    const range = completionRange(state, text);
     if (state.quote) {
       setQuoteBusy(true);
       const before = caret();
@@ -441,29 +445,58 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       } finally { held.release(); setQuoteBusy(false); }
       return;
     }
-    const next = context.editor.view.state.doc.sliceString(range.to, range.to + 1);
-    // A word after the reference, or the end of the block, gets a separating space so typing continues as prose.
-    const space = !next || /[\p{L}\p{N}]/u.test(next) ? ' ' : '';
-    const inserted = `${completedReference(text, range.from, range.to, id)}${space}`;
-    const selectionBefore = activeRange() ?? undefined;
-    setCompletion(null);
-    replaceSelection(inserted, 'text', { anchor: { id: source, offset: range.from }, head: { id: source, offset: range.to } }, selectionBefore);
-    referenceSpace = space ? { id: source, offset: range.from + inserted.length } : null;
   }
-  /** Enter pressed before results arrive picks once they do, unless typing has changed the query since. */
-  let chooseWhenReady: string | null = null;
-  createEffect(() => {
-    const loading = matches.loading;
-    const query = completion()?.query;
-    if (loading || chooseWhenReady === null) return;
-    const wanted = chooseWhenReady;
-    chooseWhenReady = null;
-    if (query === wanted) void chooseCompletion();
-  });
+  /**
+   * Freeze the accepted boundary before awaiting search or creation. This editor already owns native
+   * input, unlike a pending caret handoff: move it into prose rather than buffering/replaying keys.
+   */
+  function acceptReference(state: Completion) {
+    const editor = context.editor, source = editing();
+    if (!editor || !source) return null;
+    const text = editor.view.state.doc.toString();
+    const range = completionRange(state, text);
+    const token = completedReference(text, range.from, range.to, state.query);
+    const next = text[range.to];
+    const space = !next || /[\p{L}\p{N}]/u.test(next) ? ' ' : '';
+    pendingReferences.set(source, (pendingReferences.get(source) ?? 0) + 1);
+    setCompletion(null);
+    editor.view.dispatch({ changes: { from: range.from, to: range.to, insert: token + space }, selection: { anchor: range.from + token.length + space.length }, userEvent: 'input.complete' });
+    referenceSpace = space ? { id: source, offset: range.from + token.length + 1 } : null;
+    const tracked = editor.trackRange(range.from, range.from + token.length);
+    const held = props.notebook.open(doc.pageId);
+    return {
+      source,
+      apply(target: string) {
+        const current = doc.block(source)?.text;
+        const at = tracked.tracker.range;
+        if (current === undefined || !at || current.slice(at.from, at.to) !== token) throw new Error('The accepted reference was edited before its target arrived. Its text was kept.');
+        const inserted = completedReference(token, 0, token.length, target);
+        tracked.release();
+        const live = !context.disposed && editing() === source && context.editor?.id === source ? context.editor.view : null;
+        if (live && live.state.doc.toString() === current) {
+          // Map the live selection through only the token change, never through its continuation.
+          live.dispatch({ changes: { from: at.from, to: at.to, insert: inserted }, userEvent: 'input.complete' });
+        } else {
+          const result = doc.edit({ kind: 'text', id: source, text: current.slice(0, at.from) + inserted + current.slice(at.to) }, caret());
+          if (!result.ok) throw new Error(result.reason);
+        }
+        if (referenceSpace?.id === source) referenceSpace = { id: source, offset: referenceSpace.offset + inserted.length - token.length };
+        void doc.flush().catch(reason => { if (!context.disposed) capabilities.failure(source, reason); });
+      },
+      release() {
+        tracked.release();
+        const remaining = (pendingReferences.get(source) ?? 1) - 1;
+        if (remaining) pendingReferences.set(source, remaining);
+        else pendingReferences.delete(source);
+        if (!context.disposed && editing() !== source) context.commitFieldEntry(source, false);
+        held.release();
+      },
+    };
+  }
   async function chooseCompletion(index = completionIndex()) {
-    const row = completionRows()[index];
     const state = completion();
     if (!state) return;
+    const row = completionRows()[index];
     if (state.fields) {
       const id = editing();
       const target = row?.kind === 'field' ? row.field : canCreate() ? state.query.trim() : null;
@@ -481,8 +514,13 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       }
       return;
     }
-    if (matches.loading) { chooseWhenReady = state.query; return; }
+    const request = completionRequest?.key === completionKey() ? completionRequest.promise : null;
+    if (!request || matches.error) return;
     if (state.types) {
+      if (matches.loading) {
+        void request.then(() => { if (completion()?.types && completion()?.query === state.query) void chooseCompletion(index); }, reason => setMessage(String(reason)));
+        return;
+      }
       const source = editing();
       const title = row?.kind === 'block' ? row.block.text : canCreate() ? state.query.trim() : null;
       if (!source || !context.editor || !title || matches.error) return;
@@ -494,13 +532,23 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       referenceSpace = { id: source, offset: state.from + inserted.length };
       return;
     }
-    if (row?.kind === 'field') { await insertReference(row.field.id); return; }
-    if (matches.error) return;
-    if (row?.kind === 'block') { await insertReference(row.block.id); return; }
-    if (canCreate()) {
-      try { const id = await props.notebook.createPage(state.query.trim()); await insertReference(id); }
-      catch (error) { setMessage(error instanceof Error ? error.message : String(error)); }
-    }
+    const accepted = !state.quote && !state.relationTarget ? acceptReference(state) : null;
+    if (!accepted) setCompletion(null);
+    try {
+      const found = await request;
+      const rows = rowsFor(state, found, accepted?.source ?? editing());
+      const picked = rows[index];
+      const target = picked?.kind === 'field' ? picked.field.id : picked?.block.id;
+      const create = !target && !state.blocks && state.query.trim() && !isJournalReference(state.query)
+        && !rows.some(row => (row.kind === 'field' ? row.field.name : row.block.kind === 'block' ? '' : row.block.text).toLocaleLowerCase() === state.query.trim().toLocaleLowerCase());
+      const id = target ?? (create ? await props.notebook.createPage(state.query.trim()) : null);
+      if (id) {
+        if (accepted) accepted.apply(id);
+        else await insertReference(id, state);
+      }
+    } catch (reason) {
+      if (!context.disposed) setMessage(reason instanceof Error ? reason.message : String(reason));
+    } finally { accepted?.release(); }
   }
   function caretRect(offset: number): DOMRect | null {
     const rect = context.editor?.view.coordsAtPos(offset);
@@ -562,7 +610,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       })),
       ...([1, 2, 3] as const).map((level): SlashItem => ({ id: `heading-${level}`, title: `Heading ${level}`, aliases: [`h${level}`], section: 'Text', icon: 'heading', keys: '#'.repeat(level), run: id => apply({ kind: 'heading', id, level }) })),
       { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
-      { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[', caret: 2 }) },
+      { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[]]', caret: 2 }) },
       { id: 'embed-view', title: 'Embed view', aliases: ['saved view', 'live table'], section: 'Text', icon: 'table', run: id => context.openViewEmbed(id) },
       { id: 'quote', title: 'Quote block', aliases: ['quote', 'frozen'], section: 'Text', icon: 'link', keys: '((', when: block => { const state = slashCompletion(); return !!state && !removeToken(block?.text ?? '', state).text.trim(); }, insert: () => ({ text: '(())', caret: 2 }) },
       { id: 'type', title: 'Type', aliases: ['tag', 'supertag'], section: 'Text', icon: 'tag', keys: '#', insert: () => ({ text: '#', caret: 1 }) },
@@ -642,5 +690,5 @@ function CompletionPopups(){ return <>
       </div>
     </Popup></Show>
 </>; }
-  return { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor: () => setValueEditor(null), valueEditorId: () => valueEditor()?.id, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
+  return { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor: () => setValueEditor(null), valueEditorId: () => valueEditor()?.id, pendingReference: (id: string) => pendingReferences.has(id), updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
 }

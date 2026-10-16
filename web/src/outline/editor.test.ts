@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { Compartment, EditorState } from '@codemirror/state';
-import { emphasisChange, fieldDraftDecorations, fieldEntryExtension, graphemeBoundary, graphemeSelection, pairInput, pairSelection, referenceDecorations, vimUndoKey } from './editor';
+import { PendingEditorRange, emphasisChange, fieldDraftDecorations, fieldEntryExtension, graphemeBoundary, graphemeSelection, pairInput, pairSelection, referenceDecorations, vimUndoKey } from './editor';
 import type { NameMatch } from '../api/types';
 
 test('emphasis wraps and unwraps selected source, including combined bold and italic', () => {
@@ -10,6 +10,33 @@ test('emphasis wraps and unwraps selected source, including combined bold and it
   expect(emphasisChange('**word**', 2, 6, '*').insert).toBe('*word*');
   expect(emphasisChange('***word***', 3, 7, '*')).toEqual({ from: 2, to: 8, insert: 'word', anchor: 2, head: 6 });
   expect(emphasisChange('text', 4, 4, '*')).toEqual({ from: 4, to: 4, insert: '**', anchor: 5, head: 5 });
+});
+
+test('a pending accepted reference excludes burst continuation and Backspace corrections', () => {
+  let state = EditorState.create({ doc: 'See [[Accepted]] ', selection: { anchor: 17 } });
+  const pending = new PendingEditorRange({ from: 4, to: 16 });
+  for (const insert of ['s', 'u', 'f', 'f', 'i', 'x']) {
+    const update = state.update(state.replaceSelection(insert));
+    pending.map(update.changes);
+    state = update.state;
+  }
+  const correction = state.update({ changes: { from: state.doc.length - 1, to: state.doc.length } });
+  pending.map(correction.changes);
+  state = correction.state;
+  expect(pending.range).toEqual({ from: 4, to: 16 });
+  const replacement = state.update({ changes: { ...pending.range!, insert: '[[stable-id]]' } }).state;
+  expect(replacement.doc.toString()).toBe('See [[stable-id]] suffi');
+  expect(replacement.selection.main.head).toBe(replacement.doc.length);
+});
+
+test('pending reference ranges follow outside edits but reject edits to the accepted token', () => {
+  const state = EditorState.create({ doc: 'See [[Accepted]] ' });
+  const pending = new PendingEditorRange({ from: 4, to: 16 });
+  pending.map(state.update({ changes: { from: 0, insert: 'Please ' } }).changes);
+  expect(pending.range).toEqual({ from: 11, to: 23 });
+  const changed = EditorState.create({ doc: 'Please See [[Accepted]] ' }).update({ changes: { from: 15, to: 16, insert: 'X' } });
+  pending.map(changed.changes);
+  expect(pending.range).toBeNull();
 });
 
 test('known whole-field references keep raw copy text and reject interior carets', () => {

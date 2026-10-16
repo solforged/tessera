@@ -59,6 +59,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Returned typing focus after Find scope changes and kept modified Home/End text selection native.
 - Preserved Find's open or create intent when Enter arrives before its query results.
 - Kept New page open when Enter confirms an IME composition.
+- Preserved continuation typing and Backspace after accepting reference queries before search or page creation finished, including an immediate Escape.
+- Paired Reference slash-command brackets just like the typed `[[` trigger.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.
 - Replaced selected row ranges on paste and preserved native headings, nested lists, tasks, table rows, image URLs and labeled links from external HTML and Markdown.
 - Preserved immediate typing and Backspace corrections through slow highlight note and card delivery.
