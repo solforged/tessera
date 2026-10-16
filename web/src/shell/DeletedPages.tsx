@@ -10,6 +10,7 @@ export function DeletedPages(props: { anchor: HTMLElement; notebook: NotebookCli
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const matches = createMemo(() => {
+    if (pages.error) return [];
     const words = query().trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
     return (pages() ?? []).filter(page => words.every(word => page.block.text.toLocaleLowerCase().includes(word)));
   });

@@ -480,7 +480,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     }
   };
   const restorePage = async () => {
-    const latest = retainedDeletions()?.[0]?.block;
+    const latest = retainedDeletions.error ? undefined : retainedDeletions()?.[0]?.block;
     const value = deleted() ?? (latest ? { pages: [{ id: latest.id, title: latest.text }], label: `“${latest.text}”`, reopen: true } : null);
     if (!value) return;
     setDeletionUndoSequence(null);
@@ -646,7 +646,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.new-view', title: 'New view…', section: 'View', run: () => setPopup({ kind: 'new-view', anchor: searchButton, pane: active() }) },
     { id: 'shell.pin', title: 'Pin / unpin page', section: 'Page', run: () => { const root = activeRoot(); if (root) pin(root.id); } },
     { id: 'shell.delete', title: 'Delete page', section: 'Page', run: () => { const anchor = document.querySelector<HTMLButtonElement>(`[data-pane="${active()}"] .page-menu-button`); if (anchor) setPopup({ kind: 'delete', anchor, pane: active() }); } },
-    { id: 'shell.restore-page', title: 'Undo page deletion', section: 'Page', disabledReason: () => deleted() || retainedDeletions()?.length ? undefined : retainedDeletions.loading ? 'Loading deleted pages…' : retainedDeletions.error ? 'Could not read deleted pages' : 'No deleted page to restore', run: () => { void restorePage(); } },
+    { id: 'shell.restore-page', title: 'Undo page deletion', section: 'Page', disabledReason: () => deleted() ? undefined : retainedDeletions.error ? 'Could not read deleted pages' : retainedDeletions.loading ? 'Loading deleted pages…' : retainedDeletions()?.length ? undefined : 'No deleted page to restore', run: () => { void restorePage(); } },
     { id: 'shell.deleted-pages', title: 'Restore deleted page…', section: 'Page', run: () => setPopup({ kind: 'restore-pages', anchor: searchButton, pane: active() }) },
     { id: 'shell.review-conflict', title: 'Review notebook conflict', section: 'Editing', disabledReason: () => notebook.conflictedPages().length ? undefined : 'No conflicting blocks', run: reviewConflict },
     { id: 'shell.retry', title: 'Retry saving', section: 'Editing', disabledReason: () => notebook.saveState() === 'saved' && notebook.connection() === 'live' ? 'All changes are saved' : undefined, run: () => notebook.retry() },
