@@ -181,7 +181,7 @@ Volume and Issue keep journal labels as written. Page range holds a journal's pa
 
 Save state belongs only to the pane header. Saving… appears after a second and invalid fields announce that they were not saved. A blank optional date is not an error; invalid partial dates use `--danger` with their format hint.
 
-- Language uses English names in the app's Picker.
+- Language uses English names in the app's Picker, including every ISO 639-1 code even when the browser's language-name data omits it. Both names and codes are searchable.
 - Description uses Piazzolla, clamped to three lines with More, and becomes editable on click.
 - Reset to extracted sits beside a changed snapshot value.
 - Fill missing details sits with the identifiers and writes only empty fields.

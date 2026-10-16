@@ -20,6 +20,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Preserved complete Unicode tag names, including combining marks, in rendered pills and server memberships.
 - Rendered inline emphasis, code and external-link captions at rest, and added bold and italic editing shortcuts.
 - Kept nested bracket expressions literal instead of creating truncated page titles.
+- Named every ISO 639-1 language in catalog fields and language searches, including Cree.
 - Prevented IME candidate Enter from submitting the manual source form.
 - Kept the source inspector open when Escape cancels an inline catalog edit.
 - Kept repeated taps on closing popups and sheets from editing controls underneath.

@@ -5,6 +5,7 @@ import type { BlockState, NotebookClient } from '../document/contract';
 import { plainText, referenceValue } from './names';
 import { textTokens } from '../document/text-tokens';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
+import { isoLanguageNames } from '../library/languages';
 
 export function sourceFieldName(text: string, definitions: ReadonlyMap<string, FieldDefinition>): string | undefined {
   return definitions.get(fieldEntryId(text) ?? '')?.name ?? matchFieldEntry(text)?.name;
@@ -15,7 +16,10 @@ const languageNames = new Intl.DisplayNames(['en'], { type: 'language' });
 /** Source details are formatted for display only; stored and edited values stay raw. */
 export function formatSourceValue(name: string, value: string): string {
   if (name.toLowerCase() === 'language') {
-    try { return languageNames.of(value) ?? value; } catch { return value; }
+    try {
+      const label = languageNames.of(value);
+      return !label || label.toLowerCase() === value.toLowerCase() ? isoLanguageNames[value.toLowerCase()] ?? value : label;
+    } catch { return value; }
   }
   if (name.toLowerCase() === 'identifier') return value.replace(/^(isbn|doi):(.+)$/i, (_, kind: string, identifier: string) => `${kind.toUpperCase()} ${identifier}`);
   return value;

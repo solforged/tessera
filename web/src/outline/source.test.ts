@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block, BlockCapabilities, ChangeEvent, FieldDefinition, SourceFormat, SourceRecord } from '../api/types';
 import { changeTouchesSources, extractedResets, formatSourceValue, shortSourceTitle, sourceFieldName, valueLabel } from './source';
+import { isoLanguageNames } from '../library/languages';
 
 describe('source outline metadata', () => {
   test('recognizes reference and inline field entries without treating prose as metadata', () => {
@@ -18,6 +19,13 @@ describe('source outline metadata', () => {
     expect(formatSourceValue('Identifier', 'doi:10.1000/example')).toBe('DOI 10.1000/example');
     expect(formatSourceValue('Identifier', 'urn:example')).toBe('urn:example');
     expect(formatSourceValue('Title', 'en')).toBe('en');
+  });
+
+  test('names every ISO 639-1 picker language even with incomplete browser ICU data', () => {
+    for (const code of Object.keys(isoLanguageNames)) expect(formatSourceValue('language', code)).not.toBe(code);
+    expect(formatSourceValue('language', 'cr')).toBe('Cree');
+    expect(formatSourceValue('language', 'CR')).toBe('Cree');
+    expect(formatSourceValue('language', 'oj')).toBe('Ojibwa');
   });
 
   test('uses author reference labels and short source titles', () => {
