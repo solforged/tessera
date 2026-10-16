@@ -1,5 +1,7 @@
 -- Keep existing page IDs and authored spellings, including legacy canonical
 -- collisions. Future inserts and identity changes must not add another match.
+DROP TRIGGER IF EXISTS blocks_title_insert;
+DROP TRIGGER IF EXISTS blocks_title_update;
 DROP INDEX blocks_live_title;
 UPDATE blocks SET title_key = tessera_title_key(text) WHERE kind = 'page';
 CREATE INDEX blocks_live_title ON blocks(title_key) WHERE kind = 'page' AND deletion_id IS NULL;

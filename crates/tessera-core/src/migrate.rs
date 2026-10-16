@@ -464,6 +464,8 @@ mod tests {
         }
         conn.pragma_update(None, "user_version", previous_version as u32).unwrap();
         migrate(&mut conn).unwrap();
+        conn.pragma_update(None, "user_version", previous_version as u32).unwrap();
+        migrate(&mut conn).unwrap();
         let titles = conn.prepare(
             "SELECT id, text, title_key FROM blocks WHERE id IN (?1, ?2) ORDER BY id"
         ).unwrap().query_map(params![first, second], |row| Ok((
