@@ -61,7 +61,7 @@ export function IncomingFieldLine(props: RelationProps & { rows: readonly Incomi
 export function IncomingRelations(props: RelationProps & { target: string; version: number; enabled?: boolean }) {
   let request: AbortController | undefined;
   onCleanup(() => request?.abort());
-  const [rows] = createResource(() => props.enabled === false ? false : `${props.target}:${props.version}:${props.notebook.connection() === 'live'}`, async () => {
+  const [rows] = createResource(() => props.enabled === false || props.notebook.lookup(props.target)()?.revision === 0 ? false : `${props.target}:${props.version}:${props.notebook.connection() === 'live'}`, async () => {
     request?.abort();
     request = new AbortController();
     const [relations, fields] = await Promise.all([

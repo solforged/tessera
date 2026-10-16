@@ -40,6 +40,7 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; templ
     if (!anchor()) return;
     setError(''); setLoading(true);
     if (!cardKeys && !props.templateCount) { setStored([]); setLoading(false); return; }
+    if (props.notebook.lookup(id)()?.revision === 0) return;
     void props.notebook.api.sourceCards(id, controller.signal).then(cards => {
       if (controller.signal.aborted) return;
       setStored(cards.filter(card => card.active));

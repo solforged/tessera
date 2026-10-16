@@ -355,7 +355,7 @@ function ReferenceCard(props: {
   });
   const isPage = () => target()?.kind !== 'block';
   const state = () => doc()?.block(props.id);
-  const [citationSource] = createResource(() => props.citation && state()?.source ? [props.id, sourceReadsVersion(props.notebook)] as const : false, ([id]) => referenceSource(props.notebook, id));
+  const [citationSource] = createResource(() => target()?.revision !== 0 && props.citation && state()?.source ? [props.id, sourceReadsVersion(props.notebook)] as const : false, ([id]) => referenceSource(props.notebook, id));
   const [fieldList] = createResource(() => doc()?.status() === 'ready' ? props.notebook.changeSequence() : false, () => props.notebook.api.fields());
   const gloss = createMemo(() => { const value = doc(); return value?.status() === 'ready' && isPage() ? glossEntry(value, id => fieldRole(fieldList()?.fields.find(field => field.id === id)) === 'standfirst') : null; });
   const summary = createMemo(() => { const value = doc(); return value && gloss() ? glossText(value, gloss()) : ''; });
@@ -374,9 +374,9 @@ function ReferenceCard(props: {
     return isPage() ? proseRows(value, value.pageId, gloss(), fieldName, props.pinned ? BLOCK_ROWS : PAGE_ROWS) : blockContextRows(value, props.id, BLOCK_ROWS);
   });
   // One subject query provides the count; the referenced pages are opened only after pinning.
-  const [positions] = createResource(() => target() && isPage() ? props.id : false, subject => props.notebook.api.positions({ subject }));
+  const [positions] = createResource(() => target() && target()?.revision !== 0 && isPage() ? props.id : false, subject => props.notebook.api.positions({ subject }));
   const positionRows = () => positions.error ? [] : positions()?.rows ?? [];
-  const [references] = createResource(() => props.id, async id => {
+  const [references] = createResource(() => target()?.revision !== 0 ? props.id : false, async id => {
     const list = await props.notebook.api.backlinks(id, REFERENCE_LIMIT);
     const works = await loadWorks(props.notebook.api, id, list);
     return { works: works.rows.length, references: list.length - works.creatorLinks.size, capped: list.length >= REFERENCE_LIMIT };

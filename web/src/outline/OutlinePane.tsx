@@ -87,6 +87,7 @@ export function OutlinePane(props: OutlinePaneProps) {
 
 function Pane(props: OutlinePaneProps) {
   const doc: PageDocument = props.notebook.open(props.pageId);
+  const creatingRoot = createMemo(() => doc.root()?.revision === 0);
   const viewport = createVisualViewport();
   const initial = untrack(() => props.view);
   const journalPeriod = untrack(() => props.journalPeriod);
@@ -101,7 +102,7 @@ function Pane(props: OutlinePaneProps) {
     }
     return [...subjects].join(',');
   });
-  const [positionQuestions] = createResource(() => doc.root()?.kind === 'page' ? [readingSubjects(), props.notebook.changeSequence()] as const : false,
+  const [positionQuestions] = createResource(() => !creatingRoot() && doc.root()?.kind === 'page' ? [readingSubjects(), props.notebook.changeSequence()] as const : false,
     async ([subjects]) => {
       const results = await Promise.all(subjects.split(',').map(subject => props.notebook.api.positions({ subject })));
       const questions = new Map<string, PositionQuestion>();
@@ -234,7 +235,7 @@ function Pane(props: OutlinePaneProps) {
   const depthFilter = createMemo<DepthFilter | undefined>(() => !reading() && doc.root()?.kind === 'page' && depth() !== 'full'
     ? { stop: depth(), gloss: glossId(), position: id => !!doc.block(id)?.position, gist: id => fieldRole(definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '')) === 'standfirst' } : undefined);
   const [type] = createResource(
-    () => doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
+    () => !creatingRoot() && doc.root()?.kind === 'page' ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([pageId]) => api.type(pageId),
   );
   const [editingNames] = createResource(() => {
@@ -460,7 +461,7 @@ function Pane(props: OutlinePaneProps) {
   const localPositions = createMemo(() => localPositionCount(doc));
   const positionZoom = createMemo(() => { const id = zoom(); return id && doc.block(id)?.position ? id : null; });
   const dossierFields = createMemo(() => positionZoom() ? positionFields(doc, positionZoom()!, id => definitionsById().get(id)?.name) : []);
-  const [branches] = createResource(() => doc.root()?.question ? [props.pageId, props.notebook.changeSequence()] as const : false,
+  const [branches] = createResource(() => !creatingRoot() && doc.root()?.question ? [props.pageId, props.notebook.changeSequence()] as const : false,
     ([parent]) => props.notebook.api.questions({ parent }));
   // Sources cited or named by positions on this page, in order of first appearance, give the sigla shown in
   // the margin. A source page's own highlights need no mark.
@@ -484,13 +485,13 @@ function Pane(props: OutlinePaneProps) {
   const sigla = createMemo(() => citedSigla(siglumRecords()));
   /** Each distinct source on the page once, for the apparatus key. */
   const siglumSources = createMemo(() => [...new Set(siglumRecords().flatMap(row => row.source ? [row.source.block_id] : []))]);
-  const [sourceHighlights] = createResource(() => doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
+  const [sourceHighlights] = createResource(() => !creatingRoot() && doc.root()?.source && !zoom() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([source_id]) => props.notebook.api.highlights({ source_id, limit: 100000 }));
   const [sourceHeaderReady, setSourceHeaderReady] = createSignal(false);
   const sourceApparatusReady = () => sourceHeaderReady() && !!(fields.error || fields.latest);
   // Top-level notes reveal their kinds and aliases with the title and opening rows.
   const isNote = () => !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
-  const [noteKinds] = createResource(() => isNote() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
+  const [noteKinds] = createResource(() => !creatingRoot() && isNote() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([id]) => api.noteKinds(id));
   // Mount the designed structure for measurement, but reveal it and its portaled dock together.
   // Keep settled resources visible during background refreshes, and paint nothing before the first load:
@@ -498,7 +499,7 @@ function Pane(props: OutlinePaneProps) {
   // Once revealed, reconnecting metadata cannot hide a cached editable page.
   // An explicit editing destination already has local text. Catalog metadata must not hide its live caret.
   const [pageRevealed, setPageRevealed] = createSignal(false);
-  const pageReady = () => pageRevealed() || doc.status() !== 'loading' && (props.notebook.connection() === 'offline'
+  const pageReady = () => pageRevealed() || doc.status() !== 'loading' && (creatingRoot() || props.notebook.connection() === 'offline'
     || !!(initial.edit && zoom() && initial.caret && doc.block(initial.caret.id))
     || (!doc.root()?.source || sourceApparatusReady() && (!!zoom() || !!(sourceHighlights.error || sourceHighlights())))
       && (!isNote() || !!(fields.error || fields.latest) && !!(noteKinds.error || noteKinds.latest)));

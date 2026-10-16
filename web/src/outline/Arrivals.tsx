@@ -21,7 +21,7 @@ export function Arrivals(props: {
   const [error, setError] = createSignal('');
   let request: AbortController | undefined;
   onCleanup(() => request?.abort());
-  const [read] = createResource(() => `${settled()}:${props.notebook.connection() === 'live'}`, async () => {
+  const [read] = createResource(() => props.doc.root()?.revision === 0 ? false : `${settled()}:${props.notebook.connection() === 'live'}`, async () => {
     request?.abort();
     const current = request = new AbortController();
     const rows = await props.notebook.api.streamArrivals(props.doc.pageId, current.signal);

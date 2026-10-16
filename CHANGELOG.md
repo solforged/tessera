@@ -26,6 +26,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Kept cached outlines visible offline and refreshed Revisit and Index after reconnecting, without false errors on new notes.
 - Reported Saving rather than Saved while text was still queued or awaiting the service's acknowledgment.
 - Kept recovered offline edits counted as locally queued while retrying their already-durable requests.
+- Deferred new-page previews and apparatus until creation was acknowledged, without false missing-block or unavailable errors.
 - Recognized uppercase HTTP and HTTPS schemes in authored external-link captions without creating pages.
 - Highlighted folded Find matches on their original accented glyphs in page and block results.
 - Preserved complete Unicode tag names, including combining marks, in rendered pills and server memberships.

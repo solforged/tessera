@@ -108,7 +108,10 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     return [...roots, ...blocks.filter(hit => !ids.has(hit.block.id))];
   });
   const scope = () => scopes().at(-1);
-  const [scopedPage] = createResource(() => scope()?.matching ? undefined : scope()?.page.id, id => api.page(id));
+  const [scopedPage] = createResource(() => {
+    const id = scope()?.matching ? undefined : scope()?.page.id;
+    return id && props.notebook.lookup(id)()?.revision !== 0 ? id : undefined;
+  }, id => api.page(id));
   const commands = createMemo(() => {
     const search = text().toLocaleLowerCase();
     return orderedCommands.filter(command => (search || command.section !== 'Page' || !command.disabledReason?.())
@@ -151,6 +154,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     return result;
   });
   const drill = async (hit: BlockInPage): Promise<boolean> => {
+    if (props.notebook.lookup(hit.page.id)()?.revision === 0) return false;
     const page = await api.page(hit.page.id);
     if (!page.rows.some(row => row.block.parent_id === hit.block.id)) return false;
     setScopes(previous => [...previous, hit]);
@@ -321,6 +325,12 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
     const entry = props.entry;
     setContent(undefined); setError(''); setLoading(false);
     if (!entry || entry.kind === 'command' || entry.kind === 'create') return;
+    if (entry.kind === 'hit' || entry.kind === 'more') {
+      const id = entry.kind === 'hit' ? entry.hit.page.id : entry.page.id;
+      // Optimistic roots can enter the results while the create picker closes.
+      // Track their acknowledgement before asking the service for a preview.
+      if (props.notebook.lookup(id)()?.revision === 0) { setLoading(true); return; }
+    }
     const controller = new AbortController();
     setLoading(true);
     const load = async () => {

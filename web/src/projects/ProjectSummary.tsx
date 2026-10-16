@@ -10,7 +10,7 @@ import { Button } from '../ui/Button';
 import './projects.css';
 
 export function createProjectSummary(props: { doc: PageDocument; notebook: NotebookClient; date(): string; onOpen(target: OpenTarget, beside: boolean): void; onEdit(anchor: HTMLElement): void }) {
-  const [tasks, { refetch }] = createResource(() => props.doc.root()?.project ? [props.notebook.changeSequence(), props.date()] as const : false, async ([, date]) => {
+  const [tasks, { refetch }] = createResource(() => props.doc.root()?.revision !== 0 && props.doc.root()?.project ? [props.notebook.changeSequence(), props.date()] as const : false, async ([, date]) => {
     const query = createTaskQuery(date);
     query.filter = { ...query.filter, project_id: props.doc.pageId, selection: 'all', sort: 'outline' };
     query.limit = 2000;

@@ -25,7 +25,8 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   let relatedRequests: AbortController | undefined;
   let countRequest: AbortController | undefined;
   const relatedVersion = createSettledChanges(props.notebook);
-  const version = () => `${props.pageId}:${relatedVersion()}:${props.notebook.connection() === 'live'}:${isVirtualJournal(doc.root())}:${!!doc.root()?.question}`;
+  const version = () => doc.root()?.kind === 'page' && doc.root()?.revision === 0 ? false
+    : `${props.pageId}:${relatedVersion()}:${props.notebook.connection() === 'live'}:${isVirtualJournal(doc.root())}:${!!doc.root()?.question}`;
   const subjects = createMemo(() => {
     doc.outline.version(); doc.archivedVersion();
     const ids = [props.pageId];
@@ -42,7 +43,10 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     return readJournalRelated(api.referenceCounts(props.pageId, countRequest.signal), doc.root(), []);
   });
   const countById = createMemo(() => new Map((counts.error ? [] : counts() ?? []).map(row => [row.block_id, row.count])));
-  const [relatedResource] = createResource(() => `${version()}:${limit()}:${!!doc.root()?.source}:${subjects()}`, async () => {
+  const [relatedResource] = createResource(() => {
+    const current = version();
+    return current ? `${current}:${limit()}:${!!doc.root()?.source}:${subjects()}` : false;
+  }, async () => {
     relatedRequests?.abort();
     const requests = relatedRequests = new AbortController();
     const sourcePage = !!doc.root()?.source;
@@ -156,7 +160,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     const aliased = new Set(textTokens(text).flatMap(token => isStableReference(token) && token.alias ? [token.id!] : []));
     return targets.filter(target => target !== props.pageId && aliased.has(target));
   };
-  const [blockBacklinks] = createResource(() => zoom() ? [zoom()!, relatedVersion(), limit()] as const : false,
+  const [blockBacklinks] = createResource(() => zoom() && doc.block(zoom()!)?.revision !== 0 ? [zoom()!, relatedVersion(), limit()] as const : false,
     ([id, , count]) => api.backlinks(id, count));
   function Backlinks(section: { cited?: boolean }) {
     const [open, setOpen] = createSignal(true);
