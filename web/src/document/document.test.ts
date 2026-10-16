@@ -1108,6 +1108,23 @@ describe('real notebook operations and recovery', () => {
     }
   });
 
+  test('removing a page type keeps its written rows and can be undone', async () => {
+    const instance = await client();
+    const { id, doc, first } = await page(instance, 'Written field value');
+    success(doc.addType(id, 'Concept'));
+    await instance.flush();
+    const before = (await api.page(id)).rows;
+    success(doc.removeType(id, 'Concept'));
+    await instance.flush();
+    expect((await api.page(id)).root_manual_types).toEqual([]);
+    expect((await api.page(id)).rows).toEqual(before);
+    expect(doc.block(first)?.text).toBe('Written field value');
+    doc.undo();
+    await instance.flush();
+    expect((await api.page(id)).root_manual_types).toEqual(['Concept']);
+    doc.release();
+  });
+
   test('manual types persist through outbox recovery, undo, redo, and remote rename', async () => {
     const session = `manual-types-${++serial}`;
     const instance = await client(session);

@@ -1366,6 +1366,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       { label: 'Add alias', icon: 'edit', disabledReason: outlineCommand('alias')?.disabledReason?.(), action: () => outlineCommand('alias')?.run() },
     ] }) } satisfies MenuItem] : []),
     { label: 'Add field…', icon: 'field', divider: !titled(), disabledReason: outlineCommand('add-field-root')?.disabledReason?.(), action: () => outlineCommand('add-field-root')?.run() },
+    { label: 'Types…', icon: 'tag', disabledReason: outlineCommand('types-root')?.disabledReason?.(), action: () => outlineCommand('types-root')?.run() },
     ...(makeItems().length ? [{ label: 'Make…', icon: 'plus', submenu: () => ({ title: 'Make', items: makeItems(), note: 'Each adds to this note and keeps its text.' }) } satisfies MenuItem] : []),
     ...(root()?.task ? [{ label: 'Task…', icon: 'select', disabledReason: outlineCommand('task-root')?.disabledReason?.(), action: () => rootCapability('task') } satisfies MenuItem] : []),
     ...(root()?.project ? [{ label: 'Project…', icon: 'flag', disabledReason: outlineCommand('project-root')?.disabledReason?.(), action: () => rootCapability('project') } satisfies MenuItem] : []),

@@ -139,6 +139,8 @@ The titled Page actions menu names the page (or journal date), then shows the fu
 
 Rename, Merge into…, Pin or Unpin and Open beside stay at the top. Description… holds Gloss and Add alias; Add field… stays direct. Make… offers only absent Task, Project, Stream and Question features, with Task and Project only on journal days. Existing features have named Task…, Project…, Stream… and Question… managers. Appearance… holds bullets in Outline and archived visibility; Delete page… is last. Description… wears the note glyph and Appearance… the rows glyph, so no two rows share one.
 
+Types… lists Add type… and a Remove action for each manual membership, on filed and unfiled pages alike. Add uses the shared type picker; removing a type keeps the note's written field values and is undoable. Commands offers Page types…, Add page type… and Remove page type… without requiring a selected body row. The kind names above the title still open their finding aids.
+
 Compare remains a projection tab and palette command, and Undo and Redo remain palette commands and shortcuts rather than menu rows. On coarse phones the menu becomes a bottom sheet with Close, 44 px rows and Back for drill-ins; it scrolls on shorter screens.
 
 The Revisit menu sets a date with Revisit in a week, Revisit in a month, Revisit in three months, a calendar date or No revisit date. Resolve clears the date and marks the note resolved; Reopen returns it to working. Editing alone never reopens it. The latest action offers Undo revisit, then Redo revisit after undo.

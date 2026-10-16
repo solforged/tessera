@@ -9,6 +9,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 ### Added
 
 - Added creator Move up and Move down actions with ⌥↑ and ⌥↓ to correct bibliographic order without removing links.
+- Added page type management in Page actions and Commands, with undoable removal that keeps written fields.
 - Added a deleted-page recovery picker in Commands, backed by retained deletion events across reloads.
 - Inbox groups by publication year, with a fixed author column and the siglum set aside. Years replace decades on that tab's rail, and failed imports open under a heading instead of a collapsed disclosure.
 

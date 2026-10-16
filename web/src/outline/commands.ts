@@ -156,11 +156,30 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       { ...concise('Remove question'), divider: true },
     ];
   }
+  function addPageType() {
+    if (!context.heading) return;
+    setCompletionIndex(0);
+    setCompletion({ from: 0, to: 0, query: '', manual: { blockId: props.pageId, anchor: context.heading } });
+  }
+  function pageTypes(removeOnly = false) {
+    if (!context.heading) return;
+    const types = doc.root()?.manual_types ?? [];
+    setMenu({ anchor: context.heading, label: removeOnly ? 'Remove page type' : 'Page types', title: removeOnly ? 'Remove page type' : 'Page types', context: doc.root()?.text, items: [
+      ...(!removeOnly ? [{ label: 'Add type…', icon: 'plus' as const, action: addPageType }] : []),
+      ...types.map((title, index): MenuItem => ({ label: `Remove ${title}`, icon: 'tag', divider: !removeOnly && index === 0, action: () => {
+        const result = doc.removeType(props.pageId, title);
+        if (!result.ok) setMessage(result.reason);
+      } })),
+    ] });
+  }
   const commandsFor = (selected = context.selected): Command[] => [
     { id: 'copy-page-reference', title: 'Copy page reference', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => copy(`[[${props.pageId}]]`) },
     { id: 'rename', title: 'Rename page', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
     { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
     { id: 'add-field-root', title: 'Add field…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pickField(props.pageId, context.heading) },
+    { id: 'types-root', title: 'Page types…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pageTypes() },
+    { id: 'add-type-root', title: 'Add page type…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: addPageType },
+    { id: 'remove-type-root', title: 'Remove page type…', section: 'Page', disabledReason: () => !doc.root()?.manual_types.length ? 'This page has no manual types.' : undefined, run: () => pageTypes(true) },
     { id: 'task-root', title: 'Task', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
       if (!doc.root()?.task) capabilities.invoke(capabilities.status(props.pageId, 'todo'));
       capabilities.open(props.pageId, 'task');
