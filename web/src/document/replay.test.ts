@@ -10,6 +10,8 @@ import { createApi } from '../api/client';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import { Outbox } from './outbox';
+import type { Batch } from '../api/types';
+import type { PageCommand } from './types';
 
 const port = Bun.env.TESSERA_REPLAY_TEST_PORT ?? '4541';
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -145,6 +147,59 @@ test('an offline restart resumes the cursor stored atomically with its cached pa
   instance.retry();
   await eventually(() => instance.connection() === 'live' && doc.block(blockId)?.text === 'Written while the window was closed', 'cached restart missed the closed-window edit');
   expect(history).toEqual([cached.cursor!]);
+  expect(doc.block(blockId)?.conflict).toBeNull();
+});
+
+test('reload replays an acknowledged-in-flight text prefix before its durable continuation without a conflict', async () => {
+  await edit('Before accepted reference');
+  const base = await api.page(pageId);
+  const database = `replay-accepted-${ulid()}`;
+  const sentId = ulid();
+  const intermediate = 'See [[Accepted reference]] ';
+  const final = 'See [[01ARZ3NDEKTSV4RRFFQ69G5FAV]] suffix';
+  const sent: Batch = { actor: { kind: 'client', name: database }, idempotency_key: sentId, reason: null, operations: [
+    { op: 'edit_text', id: blockId, base_revision: base.rows[0]!.block.revision, text: intermediate },
+  ] };
+  // The server applied the request, but a closed window never stored its delayed receipt.
+  await api.submit(sent);
+  const prefix: PageCommand = { id: sentId, order: 1, pageId, actions: [{ kind: 'text', id: blockId, text: intermediate, expectedText: base.rows[0]!.block.text }],
+    inverse: [{ kind: 'text', id: blockId, text: base.rows[0]!.block.text }], before: null, after: null, frozen: JSON.stringify(sent) };
+  const continuation: PageCommand = { id: ulid(), order: 2, pageId, actions: [{ kind: 'text', id: blockId, text: final, expectedText: intermediate }],
+    inverse: [{ kind: 'text', id: blockId, text: intermediate }], before: null, after: null };
+  const stored = new Outbox(notebookId, database, error => { throw error; }, database);
+  await stored.page(base);
+  await stored.put(prefix);
+  await stored.put(continuation);
+  await stored.close();
+  const resumed = client(database);
+  await resumed.ready;
+  const doc = resumed.open(pageId);
+  await eventually(() => doc.status() === 'ready', 'accepted reference did not recover');
+  expect(doc.block(blockId)?.conflict).toBeNull();
+  await resumed.flush();
+  expect((await api.block(blockId)).text).toBe(final);
+  expect(doc.block(blockId)?.conflict).toBeNull();
+});
+
+test('a recovered accepted relation query resolves from its durable intent without reopening its picker', async () => {
+  await edit('');
+  const base = await api.page(pageId);
+  const target = ulid(), title = `Accepted relation ${ulid()}`;
+  await api.submit({ actor: { kind: 'person' }, operations: [{ op: 'create_page', id: target, title }] });
+  const database = `replay-relation-${ulid()}`;
+  const command: PageCommand = { id: ulid(), order: 1, pageId,
+    actions: [{ kind: 'text', id: blockId, text: `[[${title}]]`, expectedText: '', relationPick: { query: title, targets: [], owner: { id: pageId, page: pageId }, createId: ulid() } }],
+    inverse: [{ kind: 'text', id: blockId, text: '', expectedText: `[[${title}]]` }], before: null, after: null };
+  const stored = new Outbox(notebookId, database, error => { throw error; }, database);
+  await stored.page(base);
+  await stored.put(command);
+  await stored.close();
+  const resumed = client(database);
+  await resumed.ready;
+  const doc = resumed.open(pageId);
+  await eventually(() => doc.status() === 'ready', 'accepted relation did not restore');
+  await resumed.flush();
+  expect((await api.block(blockId)).text).toBe(`[[${target}]]`);
   expect(doc.block(blockId)?.conflict).toBeNull();
 });
 

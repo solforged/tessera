@@ -1,7 +1,7 @@
 import type { Block, BlockCapabilities, Batch, Citation, FieldKind, Operation, ProjectState, RelationKind, SourceState, TaskState, WorkSession } from '../api/types';
 import type { AssessmentState, QuestionState, QuestionStatus, QuoteState } from '../api/types';
 import type { CardTemplateState } from '../api/types';
-import type { CaptureIntent, Caret, DocumentChange, HistoryCaret } from './contract';
+import type { CaptureIntent, Caret, DocumentChange, HistoryCaret, RelationPickIntent } from './contract';
 import type { OutlineRow } from './outline-index';
 import type { FieldHide } from '../fields/hide';
 import type { CountsAs } from '../fields/counts';
@@ -65,7 +65,7 @@ export type Action =
   | { kind: 'cardHeld'; id: string; value: boolean; previous: boolean; baseRevision: number }
   | { kind: 'split'; id: string; block: Block; left: string; right: string }
   | { kind: 'merge'; id: string; destinationId: string; text: string }
-  | { kind: 'text'; id: string; text: string; baseRevision?: number; expectedText?: string }
+  | { kind: 'text'; id: string; text: string; baseRevision?: number; expectedText?: string; relationPick?: RelationPickIntent }
   | { kind: 'settleSyncCopy'; id: string; settled: boolean; copy: NonNullable<Block['kept_copy']> }
   | { kind: 'heading'; id: string; heading: 1 | 2 | 3 | null }
   | { kind: 'archive'; id: string; archived: boolean }

@@ -28,6 +28,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Made type-table row creation undoable in one step, with redo restoring the same page, memberships and children.
 - Preserved text typed into a new field when Escape or reload interrupted its pending creation.
 - Kept Page menu field additions page-owned while preserving selected-block targeting in Commands.
+- Replayed accepted reference continuations after reload without false conflicts from their own delayed saves.
+- Kept accepted relation queries in the durable outbox and resumed their target selection after reload.
 - Made Unicode title-key upgrades safe to replay during notebook recovery.
 - Restored original row identities and order when undoing a paste over selected rows, including rows previously moved by cut and paste.
 - Preserved adjacent authored external links and their captions in table source registers.

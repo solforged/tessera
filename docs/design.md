@@ -503,6 +503,8 @@ The warning badge opens both retained versions under the row. Resolution actions
 
 If a revision changed only because a block moved or was indented and its saved text is unchanged, pending text rebases and saves automatically without a conflict notice.
 
+A reload can observe an earlier queued write from the same window before its acknowledgment arrives. Recovery replays that frozen write and its later typing in order, without treating the intermediate text as a conflicting edit.
+
 In recovery banners, Details opens on its own full-width line beneath the status and actions, rather than narrowing the explanation into a side column. Its disclosure takes the shared pointer target size.
 
 An offline reload shows the cached outline with queued edits applied and leaves it editable. Service-only summaries can show Unavailable without blocking that outline, and refresh when the connection returns.

@@ -1,11 +1,12 @@
 import { createMemo, createResource, createSignal } from 'solid-js';
+import { ulid } from 'ulid';
 import type { Block, FieldDefinition } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { NotebookClient, RelationPickIntent } from '../document/contract';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
-import { createInstance, relationCandidates, relationMembers } from './instances';
-import type { RelationCandidate, RelationCandidates, RelationMembers } from './instances';
+import { relationCandidates, relationMembers } from './instances';
+import type { RelationCandidate } from './instances';
 import { SOURCE_TARGET, typeTargets } from './targets';
 
 type RelationRow = { kind: 'target'; target: RelationCandidate } | { kind: 'create'; title: string; type?: Block; source?: boolean };
@@ -16,19 +17,14 @@ type RelationRow = { kind: 'target'; target: RelationCandidate } | { kind: 'crea
  */
 export function RelationPicker(props: {
   anchor: PopupAnchor; field: FieldDefinition; notebook: NotebookClient; current?: string; owner?: { id: string; page: string };
-  onPick(target: Block): void | Promise<void>; onDismiss(): void; onError(message: string): void;
+  onPick(intent: RelationPickIntent): void | Promise<void>; onDismiss(): void; onError(message: string): void;
 }) {
   const [query, setQuery] = createSignal('');
   const [busy, setBusy] = createSignal(false);
-  let membersRequest: Promise<RelationMembers> | undefined;
-  const [members] = createResource(() => ({ targets: props.field.targets, sequence: props.notebook.changeSequence() }), ({ targets }) => membersRequest = relationMembers(props.notebook, targets));
+  const [members] = createResource(() => ({ targets: props.field.targets, sequence: props.notebook.changeSequence() }), ({ targets }) => relationMembers(props.notebook, targets));
   const [types] = createResource(() => props.field.targets, targets => Promise.all(typeTargets(targets).map(id => props.notebook.api.block(id))));
-  let candidateRequest: { query: string; promise: Promise<RelationCandidates> } | undefined;
-  const [matches] = createResource(() => members() && { query: query(), members: members()!, sequence: props.notebook.changeSequence() }, state => {
-    const promise = relationCandidates(props.notebook, state.members, props.field.targets.length > 0, state.query, props.owner);
-    candidateRequest = { query: state.query, promise };
-    return promise.then(result => ({ ...result, query: state.query }));
-  });
+  const [matches] = createResource(() => members() && { query: query(), members: members()!, sequence: props.notebook.changeSequence() }, state =>
+    relationCandidates(props.notebook, state.members, props.field.targets.length > 0, state.query, props.owner).then(result => ({ ...result, query: state.query })));
   const rows = createMemo<RelationRow[]>(() => {
     const title = query().trim();
     const rows: RelationRow[] = (!matches.loading && matches()?.query === query() ? matches()?.rows ?? [] : []).map(target => ({ kind: 'target', target }));
@@ -41,26 +37,16 @@ export function RelationPicker(props: {
   });
   async function pick(row?: RelationRow) {
     if (busy()) return;
-    const wanted = query();
-    const request = candidateRequest?.query === wanted ? candidateRequest.promise
-      : (membersRequest ?? relationMembers(props.notebook, props.field.targets)).then(found => relationCandidates(props.notebook, found, props.field.targets.length > 0, wanted, props.owner));
     setBusy(true);
     try {
-      // Enter owns this query now, even while the visible list belongs to an older request.
-      const found = await request;
-      let chosen = row;
-      if (!chosen) {
-        if (found.rows[0]) chosen = { kind: 'target', target: found.rows[0] };
-        else if (wanted.trim() && found.canCreate) {
-          if (props.field.targets.includes(SOURCE_TARGET)) chosen = { kind: 'create', title: wanted.trim(), source: true };
-          else {
-            const allowed = await Promise.all(typeTargets(props.field.targets).map(id => props.notebook.api.block(id)));
-            const type = allowed.find(type => !type.archived);
-            if (type || !props.field.targets.length) chosen = { kind: 'create', title: wanted.trim(), type };
-          }
-        }
-      }
-      if (chosen) await props.onPick(chosen.kind === 'target' ? chosen.target.block : await createInstance(props.notebook, chosen.title, chosen.type?.text, chosen.source));
+      // Persist the accepted query before any lookup. The document outbox owns its resolution/replay.
+      await props.onPick({
+        query: query(), targets: [...props.field.targets], owner: props.owner,
+        ...(row?.kind === 'target' ? { targetId: row.target.block.id } : {
+          createId: ulid(),
+          ...(row?.kind === 'create' ? { create: { typeTitle: row.type?.text, source: row.source } } : {}),
+        }),
+      });
     } catch (reason) { props.onError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }

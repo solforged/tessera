@@ -4,7 +4,7 @@ import type { JSX } from 'solid-js';
 import { ulid } from 'ulid';
 import { api } from '../api/client';
 import type { QueryAttributeValue, FieldDefinition, FieldKind, Fields, FieldValue, NoteIndex, Operation, Query, QueryResult, QueryRow, SortKey, Type, View } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { NotebookClient, PageDocument, RelationPickIntent } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { BlockText } from '../outline/BlockText';
 import { plainText } from '../outline/names';
@@ -647,12 +647,12 @@ function TableContent(props: TablePaneProps) {
     const target = props.notebook.lookup(id)() ?? await props.notebook.api.block(id);
     props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside || listOpensBeside(null, !!props.neighbour));
   };
-  const writeCell = async (row: QueryRow, field: FieldDefinition, text: string, value = row.values[field.id]?.[0], option?: string) => {
+  const writeCell = async (row: QueryRow, field: FieldDefinition, text: string, value = row.values[field.id]?.[0], option?: string, relationPick?: RelationPickIntent) => {
     const pending = withDocument(row.block.page.id, async doc => {
-      if (!option && (value?.text ?? '') === text) return;
+      if (!option && !relationPick && (value?.text ?? '') === text) return;
       const target = { field, ownerId: row.block.block.id, valueId: value?.id };
       if (option) await createOptionValue(props.notebook, doc, target, option);
-      else writeFieldValue(doc, target, text);
+      else writeFieldValue(doc, target, text, undefined, relationPick);
       history.push({ kind: 'cell', doc, rowId: row.block.block.id, fieldId: field.id }); undone.length = 0; setViewUndo(false); setRowUndo(false);
       await doc.flush();
       await refreshCells();
@@ -898,7 +898,7 @@ function TableContent(props: TablePaneProps) {
       {state.kind === 'purpose' && <Popup anchor={state.anchor} label="View purpose" onDismiss={() => setPopup(null)}><form onSubmit={event => { event.preventDefault(); setPopup(null); }}><input class="input" aria-label="View purpose" value={query().purpose ?? ''} maxlength={240} onInput={event => updateQuery({ ...query(), purpose: event.currentTarget.value })} /><div class="popup-actions"><Button type="submit" class="bordered">Done</Button></div></form></Popup>}
       {state.kind === 'value' && <ValueEditor anchor={state.anchor} field={fieldById(state.field.id) ?? state.field} owner={{ id: state.row.block.block.id, page: state.row.block.page.id }} text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()}
         onCreateOption={text => writeCell(state.row, state.field, '', state.value, text)}
-        onWrite={text => writeCell(state.row, state.field, text, state.value)} onError={message} onDismiss={() => { setPopup(null); requestAnimationFrame(() => focusCell(state.row.block.block.id, state.field.id)); }} />}
+        onWrite={(text, relationPick) => writeCell(state.row, state.field, text, state.value, undefined, relationPick)} onError={message} onDismiss={() => { setPopup(null); requestAnimationFrame(() => focusCell(state.row.block.block.id, state.field.id)); }} />}
       {state.kind === 'filter' && <FilterPopup anchor={state.anchor} fields={fieldGroups().flatMap(group => group.fields)} notebook={props.notebook} initialField={state.field} sheet={narrow()} onDismiss={() => setPopup(null)} onNewField={async name => createField(name, false)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setPopup(null); }} />}
       {state.kind === 'name' && <NamePopup anchor={state.anchor} action={state.action} name={state.action === 'rename' ? saved()?.name ?? '' : ''} onDismiss={() => setPopup(null)} onSave={async name => { if (state.action === 'field') await createField(name, !!state.addColumn); else await saveView(name, state.action === 'rename'); }} />}
       {state.kind === 'embed-page' && <EmbedOnPagePicker anchor={state.anchor} view={state.view} notebook={props.notebook} onOpen={props.onOpen} onDismiss={() => setPopup(null)} />}

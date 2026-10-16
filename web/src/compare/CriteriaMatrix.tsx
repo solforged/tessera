@@ -1,6 +1,6 @@
 import { For, Match, Show, Switch, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { FieldDefinition, PositionQuestion, PositionRow, QuoteState } from '../api/types';
-import type { NotebookClient, PageDocument, PendingTextCommit } from '../document/contract';
+import type { NotebookClient, PageDocument, PendingTextCommit, RelationPickIntent } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { besideHint, opensBeside } from '../shell/beside';
 import { BlockText } from '../outline/BlockText';
@@ -64,7 +64,7 @@ export function CriteriaMatrix(props: {
     start(rowById().get(next.position)!, next.field, cells().get(next.position)?.get(next.field)?.[0], cell, false);
     return next;
   }
-  async function commit(textDraft: string, cell?: HTMLElement, quote?: QuoteState, option?: string, direction?: -1 | 1) {
+  async function commit(textDraft: string, cell?: HTMLElement, quote?: QuoteState, option?: string, direction?: -1 | 1, relationPick?: RelationPickIntent) {
     const current = editing();
     if (!current) return;
     const row = props.rows.find(row => row.block.block.id === current.position);
@@ -79,6 +79,12 @@ export function CriteriaMatrix(props: {
     if (!current.value && !textDraft.trim() && !option) { finishEditing(cell, current); return; }
     pending.add(current);
     try {
+      if (relationPick) {
+        writeFieldValue(doc, { field, ownerId: current.position, valueId: current.value ?? undefined }, textDraft, undefined, relationPick);
+        finishEditing(cell, current); setError(''); props.onEdited(doc);
+        await doc.flush();
+        return;
+      }
       if (!option && typedTitles(textDraft).length) {
         current.durable = doc.beginTextCommit(write => writeFieldValue(doc, { field, ownerId: current.position, valueId: current.value ?? undefined }, textDraft, write));
         if (current.durable.result.ok) current.value = current.durable.result.caret?.id ?? current.value;
@@ -154,7 +160,7 @@ export function CriteriaMatrix(props: {
         <For each={values().filter(value => value.id !== edit().value)}>{value => <CellValue value={value} position={cellProps.id} field={cellProps.field} />}</For>
         <Switch>
           <Match when={field()?.kind === 'checkbox'}><span class="criteria-hint" role="status">Saving…</span></Match>
-          <Match when={hasValueEditor(field(), edit().text, props.notebook.todayDate())}><ValueEditor anchor={cell} field={field()!} text={edit().text} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={text => commit(text, cell)} onCreateOption={text => commit('', cell, undefined, text)} onError={setError} onDismiss={() => finishEditing(cell, edit())} /></Match>
+          <Match when={hasValueEditor(field(), edit().text, props.notebook.todayDate())}><ValueEditor anchor={cell} field={field()!} text={edit().text} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={(text, relationPick) => commit(text, cell, undefined, undefined, undefined, relationPick)} onCreateOption={text => commit('', cell, undefined, text)} onError={setError} onDismiss={() => finishEditing(cell, edit())} /></Match>
           <Match when={true}><CriteriaCellEditor id={edit().value ?? edit().position} text={edit().text} label={`Edit ${fieldName(cellProps.field)} · ${props.holder(rowById().get(cellProps.id)!)}`} notebook={props.notebook} onChange={text => {
             const current = edit(); current.text = text;
             const result = current.durable?.replace(text);

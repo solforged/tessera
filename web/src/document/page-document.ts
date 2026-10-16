@@ -629,9 +629,17 @@ export class Document implements PageDocument {
     const pending = this.host.commands(this.pageId);
     const latestText = new Map<string, string>();
     const originalText = new Map<string, string>();
+    const sentText = new Map<string, Set<string>>();
     for (const command of pending) {
       for (const action of command.actions) {
-        if (action.kind === 'text') latestText.set(action.id, action.text);
+        if (action.kind === 'text') {
+          latestText.set(action.id, action.text);
+          if (command.frozen) {
+            const versions = sentText.get(action.id) ?? new Set<string>();
+            versions.add(action.text);
+            sentText.set(action.id, versions);
+          }
+        }
         if (action.kind === 'insert' || action.kind === 'split') { latestText.set(action.block.id, action.block.text); if (!originalText.has(action.block.id)) originalText.set(action.block.id, action.block.text); }
         if (action.kind === 'split') latestText.set(action.id, action.left);
         if (action.kind === 'merge') latestText.set(action.destinationId, action.text);
@@ -643,8 +651,11 @@ export class Document implements PageDocument {
       const old = this.baseBlocks.get(incoming.id);
       const expected = originalText.get(incoming.id) ?? old?.text;
       const localText = local?.text ?? latestText.get(incoming.id);
-      if (local?.conflict) conflicts.set(incoming.id, local.conflict);
-      if (detectConflicts && pendingText.has(incoming.id) && expected !== undefined && expected !== incoming.text && localText !== incoming.text) {
+      // A reload can read an earlier own write before its delayed receipt. Replay its frozen request
+      // before the continuation; the intermediate server text is not another author's conflicting edit.
+      const ownWrite = sentText.get(incoming.id)?.has(incoming.text);
+      if (local?.conflict && !ownWrite) conflicts.set(incoming.id, local.conflict);
+      if (detectConflicts && !ownWrite && pendingText.has(incoming.id) && expected !== undefined && expected !== incoming.text && localText !== incoming.text) {
         conflicts.set(incoming.id, { remoteText: incoming.text, remoteRevision: incoming.revision });
       }
     }
@@ -729,7 +740,8 @@ export class Document implements PageDocument {
       const inserted = command.actions.find(action => (action.kind === 'insert' || action.kind === 'split') && action.block.id === block.id);
       if (inserted?.kind === 'insert' || inserted?.kind === 'split') { previousText = inserted.block.text; break; }
     }
-    if (this.pendingText().has(block.id) && previousText !== block.text && cell.state.text !== block.text) {
+    const ownWrite = commands.some(command => command.frozen && command.actions.some(action => action.kind === 'text' && action.id === block.id && action.text === block.text));
+    if (!ownWrite && this.pendingText().has(block.id) && previousText !== block.text && cell.state.text !== block.text) {
       cell.set('conflict', { remoteText: block.text, remoteRevision: block.revision });
       this.conflicts.add(block.id);
       this.resolving.delete(block.id);
@@ -870,6 +882,21 @@ export class Document implements PageDocument {
     const changed = rewrites.length ? this.syncHistoryCommands(new Set([entry])) : [];
     this.pruneHistory(entry);
     return changed;
+  }
+  /** Canonicalize the accepted value and its history together; later authored edits remain in order. */
+  resolveRelationPick(command: Command, action: Extract<Action, { kind: 'text' }>, text: string) {
+    const before = action.text;
+    action.text = text;
+    delete action.relationPick;
+    const entry = this.historyCommands.get(command.id)?.entry;
+    for (const change of [...command.inverse, ...(entry?.inverse ?? [])]) {
+      if (change.kind === 'text' && change.id === action.id && change.expectedText === before) change.expectedText = text;
+    }
+    for (const change of entry?.forward ?? []) if (change.kind === 'text' && change.id === action.id && change.text === before) {
+      change.text = text;
+      delete change.relationPick;
+    }
+    this.refreshPending(new Set([action.id]));
   }
   refreshGuardVersions(blocks: readonly Block[], revisions: ReadonlyMap<string, number>): Command[] {
     let changed: Set<HistoryEntry> | undefined;
@@ -1495,7 +1522,7 @@ export class Document implements PageDocument {
           setText(this.snapshot(edit.id), edit.text);
           break;
         case 'text':
-          if (this.snapshot(edit.id).text !== edit.text) actions.push({ kind: 'text', id: edit.id, text: edit.text });
+          if (this.snapshot(edit.id).text !== edit.text || edit.relationPick) actions.push({ kind: 'text', id: edit.id, text: edit.text, ...(edit.relationPick ? { relationPick: edit.relationPick } : {}) });
           if (edit.heading !== undefined && this.snapshot(edit.id).heading !== edit.heading) actions.push({ kind: 'heading', id: edit.id, heading: edit.heading });
           if (edit.caret !== undefined) caret = { id: edit.id, offset: Math.max(0, Math.min(edit.text.length, edit.caret)) };
           break;
@@ -1799,14 +1826,18 @@ export class Document implements PageDocument {
       const typing = edit.kind === 'text' && edit.heading === undefined
         ? { id: edit.id, group: edit.group }
         : edit.kind === 'replaceRange' && edit.mode === 'text' && edit.text && caret ? { id: caret.id } : undefined;
-      const textGroup = !!this.textCommit?.entry || !this.textCommit && edit.kind === 'text' && typing && last?.typing?.id === typing.id
+      const textGroup = !!this.textCommit?.entry || !this.textCommit && edit.kind === 'text' && !edit.relationPick && typing && last?.typing?.id === typing.id
         && last.typing.group === typing.group && Date.now() - this.lastTextEditAt < 1000;
       const command = this.host.enqueue(this, actions, inverse, before, after, !!textGroup);
       let entry: HistoryEntry;
       if (last && (last.commandId === command.id || textGroup)) {
         entry = last;
         const tail = entry.forward.at(-1);
-        if (edit.kind === 'text' && tail?.kind === 'text' && tail.id === edit.id) tail.text = edit.text;
+        if (edit.kind === 'text' && tail?.kind === 'text' && tail.id === edit.id) {
+          tail.text = edit.text;
+          if (edit.relationPick) tail.relationPick = edit.relationPick;
+          else delete tail.relationPick;
+        }
         else entry.forward.push(...actions);
         if (edit.kind === 'text') for (const action of entry.inverse) {
           if (action.kind === 'text' && action.id === edit.id) { action.expectedText = edit.text; break; }

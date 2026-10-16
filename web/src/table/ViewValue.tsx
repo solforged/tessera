@@ -1,6 +1,6 @@
 import { For, Show, createMemo, createSignal, onMount } from 'solid-js';
 import type { FieldDefinition, QueryRow, QuoteState } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
+import type { NotebookClient, PageDocument, RelationPickIntent } from '../document/contract';
 import { CriteriaCellEditor } from '../compare/CriteriaCellEditor';
 import { ValueEditor, writeFieldValue } from '../fields/value-editor';
 import { hasValueEditor } from '../fields/value-options';
@@ -33,16 +33,16 @@ export function ViewValue(props: {
     setEditing(null); setPicker(false);
     if (focus) queueMicrotask(() => host?.isConnected && host.focus({ preventScroll: true }));
   }
-  async function write(draft: string, focus = true, quote?: QuoteState, direction?: -1 | 1, option?: string) {
+  async function write(draft: string, focus = true, quote?: QuoteState, direction?: -1 | 1, option?: string, relationPick?: RelationPickIntent) {
     if (busy()) return;
     const doc = props.doc;
     if (!doc || doc.status() !== 'ready') { props.onError('The page is still loading.'); return; }
     setBusy(true);
     try {
       const original = values().find(value => value.id === valueId())?.text ?? '';
-      const titles = typedTitles(draft);
+      const titles = relationPick ? [] : typedTitles(draft);
       const text = titles.length ? withLinkedTitles(draft, await titleTargets(props.notebook, titles)) : draft;
-      const changed = text !== original || !!quote || !!option;
+      const changed = text !== original || !!quote || !!option || !!relationPick;
       if (changed) {
         const target = { field: props.field, ownerId: props.row.block.block.id, valueId: valueId() };
         if (option) await createOptionValue(props.notebook, doc, target, option);
@@ -52,7 +52,7 @@ export function ViewValue(props: {
             : entry ? doc.edit({ kind: 'insert', parentId: entry, after: doc.outline.children(entry).at(-1) ?? null, text, quote })
             : doc.edit({ kind: 'addFieldEntries', parentId: target.ownerId, after: doc.outline.children(target.ownerId).at(-1) ?? null, entries: [{ fieldId: target.field.id, value: text, quote }] });
           if (!result.ok) throw new Error(result.reason);
-        } else writeFieldValue(doc, target, text);
+        } else writeFieldValue(doc, target, text, undefined, relationPick);
         props.onEdited(doc);
       }
       // A committed cell gives undo back to the page before its save can settle.
@@ -92,6 +92,6 @@ export function ViewValue(props: {
     <Show when={editing() !== null} fallback={<Show when={values().some(value => value.text.trim())} fallback={<span class="view-value-empty">Add {props.field.name}</span>}><For each={values()}>{value => <button type="button" class="criteria-value" onClick={event => { event.stopPropagation(); start(value.id); }}><BlockText text={value.text} blockId={value.id} notebook={props.notebook} interactive={false} /></button>}</For></Show>}>
       <CriteriaCellEditor id={valueId() ?? props.row.block.block.id} text={editing() ?? ''} label={`Edit ${props.field.name} value`} notebook={props.notebook} onCommit={(text, focus, quote) => void write(text, focus, quote)} onCancel={() => finish()} onTab={props.onFill ? (text, direction, quote) => void write(text, false, quote, direction) : undefined} />
     </Show>
-    <Show when={picker()}><ValueEditor anchor={host} field={props.field} owner={{ id: props.row.block.block.id, page: props.row.block.page.id }} text={values().find(value => value.id === valueId())?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={text => write(text)} onCreateOption={text => write('', true, undefined, undefined, text)} onError={props.onError} onDismiss={() => finish()} /></Show>
+    <Show when={picker()}><ValueEditor anchor={host} field={props.field} owner={{ id: props.row.block.block.id, page: props.row.block.page.id }} text={values().find(value => value.id === valueId())?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={(text, relationPick) => write(text, true, undefined, undefined, undefined, relationPick)} onCreateOption={text => write('', true, undefined, undefined, text)} onError={props.onError} onDismiss={() => finish()} /></Show>
   </div>;
 }

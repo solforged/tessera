@@ -662,7 +662,7 @@ function CompletionPopups(){ return <>
       owner={(owner => owner ? { id: owner, page: doc.block(owner)?.pageId ?? '' } : undefined)(doc.outline.parentOf(doc.outline.parentOf(state.id)))}
       onDismiss={() => dismissValueEditor(state.id)} onError={setMessage} onAdvance={backward => advanceFilling(state.id, backward)}
       onCreateOption={async text => { const change = await createOptionValue(props.notebook, doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text); context.showNotice('Option added.', change.undo); }}
-      onWrite={text => { writeFieldValue(doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text); }} />}</Show>
+      onWrite={(text, relationPick) => { writeFieldValue(doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text, undefined, relationPick); }} />}</Show>
     <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label={dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'} role="listbox" onDismiss={dismissDate}>
       <div class="picker-list" onMouseDown={event => event.preventDefault()}>
         <div class="picker-row" role="presentation"><span class="picker-text">{dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'}</span><span class="picker-meta"><kbd>Tab</kbd></span></div>

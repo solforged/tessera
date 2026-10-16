@@ -5,6 +5,7 @@ import { ApiError, CHANGE_CONNECTING, CHANGE_OPEN, bindNotebook, createApi } fro
 import type { Batch, Block, BlockCapabilities, ChangeEvent, Committed, Operation, PageView, SettingsView, TaskState, WorkSession } from '../api/types';
 import type { ApiClient, ChangeSocket } from '../api/client';
 import { startingTemplateFor } from '../fields/templates';
+import { resolveRelationPick } from '../fields/instances';
 import { captureOperations } from '../capture/append';
 import type { BlockClipboard, Caret, DocumentChange, NotebookClient, PageDocument, SaveState, SourceDetailsEdit } from './contract';
 import { Document } from './page-document';
@@ -1259,6 +1260,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     if (this.sending || this.closed || !this.queue.length) return;
     this.sending = true;
     try {
+      commands:
       while (this.queue.length && !this.closed) {
         const command = this.queue[0]!;
         const draft = this.draftTag;
@@ -1276,7 +1278,18 @@ export class Notebook implements NotebookClient, DocumentHost {
         if (!command.frozen && (command.failed || command.actions.some(action => action.kind === 'text' && doc.block(action.id)?.conflict && !doc.isResolving(action.id)))) break;
         try {
           if (!command.frozen) {
+            const relationOperations: Operation[] = [];
+            for (const action of [...command.actions]) if (action.kind === 'text' && action.relationPick) {
+              const resolved = await resolveRelationPick(this, action.relationPick);
+              if (this.closed) return;
+              if (!this.queue.includes(command)) continue commands;
+              // A later edit can replace the unfrozen command while its lookup is pending.
+              if (!command.actions.includes(action)) continue;
+              doc.resolveRelationPick(command, action, resolved.text);
+              relationOperations.push(...resolved.operations);
+            }
             const compiled = this.compile(command, doc);
+            compiled.batch.operations.unshift(...relationOperations);
             command.frozen = JSON.stringify(compiled.batch);
             command.deleted = compiled.deleted;
             await this.persist(command);

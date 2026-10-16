@@ -1,6 +1,6 @@
 import { ulid } from 'ulid';
-import type { Block, BlockInPage } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { Block, BlockInPage, Operation } from '../api/types';
+import type { NotebookClient, RelationPickIntent } from '../document/contract';
 import { completeNames, foldName, targetLabel } from '../outline/names';
 import { SOURCE_TARGET, sourceOperation } from './targets';
 
@@ -60,6 +60,33 @@ export async function relationCandidates(notebook: NotebookClient, members: Rela
   const pages = names.rows.filter(match => match.page.id !== owner?.id).map(match => ({ block: match.page, page: null, label: match.page.text, alias: match.alias, here: false }));
   const here = blocks.filter(row => row.here);
   return { rows: [...here, ...pages, ...blocks.filter(row => !row.here)], canCreate: names.canCreate && !members.blocks.length };
+}
+
+/** Resolve a durable accepted query only when its text command reaches the outbox head. */
+export async function resolveRelationPick(notebook: NotebookClient, intent: RelationPickIntent) {
+  if (intent.targetId) return { text: `[[${intent.targetId}]]`, operations: [] as Operation[] };
+  let create = intent.create;
+  if (!create) {
+    const members = await relationMembers(notebook, intent.targets);
+    const found = await relationCandidates(notebook, members, !!intent.targets.length, intent.query, intent.owner);
+    if (found.rows[0]) return { text: `[[${found.rows[0].block.id}]]`, operations: [] as Operation[] };
+    if (!found.canCreate || !intent.query.trim()) throw new Error('No relation target matched the accepted query. Its text was kept.');
+    if (intent.targets.includes(SOURCE_TARGET)) create = { source: true };
+    else {
+      const types = await Promise.all(intent.targets.map(id => notebook.api.block(id)));
+      const type = types.find(type => !type.archived);
+      if (intent.targets.length && !type) throw new Error('The relation target types are no longer available. Its text was kept.');
+      create = { typeTitle: type?.text };
+    }
+  }
+  if (!intent.createId) throw new Error('The accepted relation has no page identity. Its text was kept.');
+  const id = intent.createId;
+  const operations: Operation[] = [
+    { op: 'create_page', id, title: intent.query.trim() },
+    ...(create.typeTitle ? [{ op: 'add_type' as const, id, base_revision: 1, title: create.typeTitle }] : []),
+    ...(create.source ? [sourceOperation(id, 1)] : []),
+  ];
+  return { text: `[[${id}]]`, operations };
 }
 
 /** Creation and filing travel together, including when the picker is used offline. A page made for Source becomes one. */

@@ -3,6 +3,8 @@ import type { Accessor, JSX } from 'solid-js';
 import type { ChangeEvent, FieldDefinition, FieldKind, SubjectCriteria } from '../api/types';
 import { FieldPicker } from '../fields/FieldPicker';
 import { RelationPicker } from '../fields/RelationPicker';
+import { writeFieldValue } from '../fields/value-editor';
+import type { RelationPickIntent } from '../document/contract';
 import { fieldHide } from '../fields/hide';
 import { entryAnchor, typeKeys } from '../fields/templates';
 import { isCatalogueField } from '../library/details';
@@ -246,12 +248,14 @@ export function createFieldSheet(context: Pick<OutlineContext,
   };
   document.addEventListener('keydown', controlledKey, true);
   onCleanup(() => document.removeEventListener('keydown', controlledKey, true));
-  function add(owner: string, field: FieldDefinition, valueText?: string) {
+  function add(owner: string, field: FieldDefinition, valueText?: string, relationPick?: RelationPickIntent) {
     setFilling(owner);
     const state = states().get(owner) ?? stateFor(owner);
     const after = entryAnchor(doc.outline.children(owner), state.entries, state.template, field.id);
     const checkbox = field.kind === 'checkbox';
-    const result = apply({ kind: 'addFieldEntries', parentId: owner, after, entries: [{ fieldId: field.id, value: valueText ?? (checkbox ? 'yes' : '') }] }, !checkbox && !valueText);
+    const result = relationPick
+      ? writeFieldValue(doc, { field, ownerId: owner, after }, valueText ?? '', undefined, relationPick)
+      : apply({ kind: 'addFieldEntries', parentId: owner, after, entries: [{ fieldId: field.id, value: valueText ?? (checkbox ? 'yes' : '') }] }, !checkbox && !valueText);
     const value = result?.ok ? result.caret?.id : undefined;
     if (value && !checkbox && !valueText) emptySlots.set(value, doc.outline.parentOf(value));
     // Retain a newly chosen hidden field before the queued structural caret restore checks visible rows.
@@ -347,7 +351,7 @@ export function createFieldSheet(context: Pick<OutlineContext,
     return <>
       <Show keyed when={picker()}>{value => <FieldPicker anchor={value.anchor} label="Add field" fields={doc.block(value.owner)?.source ? definitions().filter(field => !isCatalogueField(field.name)) : definitions()} template={(states().get(value.owner) ?? stateFor(value.owner)).template} templateLabel={doc.block(value.owner)?.position ? 'From this recipe' : 'Template'} exclude={(states().get(value.owner) ?? stateFor(value.owner)).present}
         onPick={field => { setPicker(null); choose(value.owner, value.anchor, field); }} onCreate={(name, kind) => { setPicker(null); void create(value.owner, name, kind); }} onDismiss={() => setPicker(null)} />}</Show>
-      <Show when={instance()}>{value => <RelationPicker anchor={value().anchor} field={value().field} notebook={props.notebook} owner={{ id: value().owner, page: doc.block(value().owner)?.pageId ?? '' }} onDismiss={() => setInstance(null)} onError={setMessage} onPick={page => { add(value().owner, value().field, `[[${page.id}]]`); setInstance(null); }} />}</Show>
+      <Show when={instance()}>{value => <RelationPicker anchor={value().anchor} field={value().field} notebook={props.notebook} owner={{ id: value().owner, page: doc.block(value().owner)?.pageId ?? '' }} onDismiss={() => setInstance(null)} onError={setMessage} onPick={intent => { add(value().owner, value().field, `[[${intent.targetId ?? intent.query.trim()}]]`, intent); setInstance(null); }} />}</Show>
     </>;
   }
   return { FieldSlots, Popups, pick, hover: setHovered, fill, toggle, start, key, advance };

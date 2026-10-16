@@ -129,6 +129,16 @@ export interface PasteRow {
   task: 'todo' | 'done' | null;
 }
 
+/** An accepted relation query, persisted with its literal value before any candidate lookup. */
+export interface RelationPickIntent {
+  query: string;
+  targets: string[];
+  owner?: { id: string; page: string };
+  targetId?: string;
+  createId?: string;
+  create?: { typeTitle?: string; source?: boolean };
+}
+
 /**
  * Intent-level edits. The document turns each into operations plus an inverse
  * for undo; the outline view never builds operations itself.
@@ -139,7 +149,7 @@ export type Edit =
    * block coalesce into one undo step. `heading`, when present, sets the
    * heading in the same undo step (the `# ` input rule).
    */
-  | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null; caret?: number; group?: number }
+  | { kind: 'text'; id: string; text: string; heading?: 1 | 2 | 3 | null; caret?: number; group?: number; relationPick?: RelationPickIntent }
   /** An explicit holder/subject change never coalesces with typing or another picker choice. */
   | { kind: 'positionLinks'; id: string; text: string }
   /** Resolve a version kept beside its original, in one batch and undo step. */
