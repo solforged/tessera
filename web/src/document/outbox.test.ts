@@ -204,3 +204,39 @@ test('a failed synchronous capture intake is not accepted or cleared', async () 
     expect((await outbox.load()).commands).toEqual([]);
   } finally { await outbox.close(); await deleteDB(database); }
 });
+
+test('closed-window drafts are claimed once without adopting a live window’s commands', async () => {
+  const database = `outbox-ownership-${ulid()}`;
+  const held = new Set<string>();
+  const locks = {
+    async request(name: string, options: LockOptions | LockGrantedCallback, granted?: LockGrantedCallback) {
+      const callback = typeof options === 'function' ? options : granted!;
+      if (held.has(name)) return callback(null);
+      held.add(name);
+      try { return await callback({ name, mode: 'exclusive' }); }
+      finally { held.delete(name); }
+    },
+  } as Pick<LockManager, 'request'>;
+  const errors: unknown[] = [];
+  const first = new Outbox('notebook', 'closed', error => errors.push(error), database, undefined, locks);
+  const live = new Outbox('notebook', 'live', error => errors.push(error), database, undefined, locks);
+  const next = new Outbox('notebook', 'next', error => errors.push(error), database, undefined, locks);
+  const other = new Outbox('notebook', 'other', error => errors.push(error), database, undefined, locks);
+  const command = (order: number): PageCommand => ({ id: ulid(), order, pageId: 'page', actions: [{ kind: 'text', id: 'block', text: `Draft ${order}` }], inverse: [], before: null, after: null, frozen: `{"request":${order}}` });
+  const orphan = command(1), active = command(2);
+  try {
+    await first.load();
+    await live.load();
+    await first.put(orphan);
+    await live.put(active);
+    await first.close();
+    const results = await Promise.all([next.load(), other.load()]);
+    expect(results.flatMap(result => result.commands)).toEqual([orphan]);
+    expect((await live.load()).commands).toEqual([active]);
+    const owner = results[0]!.commands.length ? next : other;
+    await owner.acknowledge(orphan, [], 1, new Map());
+    expect((await owner.load()).commands).toEqual([]);
+    expect((await live.load()).commands).toEqual([active]);
+    expect(errors).toEqual([]);
+  } finally { await first.close(); await live.close(); await next.close(); await other.close(); await deleteDB(database); }
+});

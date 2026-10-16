@@ -24,7 +24,10 @@ interface OutboxSchema extends DBSchema {
 export class Outbox {
   private db: Promise<IDBPDatabase<OutboxSchema>>;
   private writes: Promise<void> = Promise.resolve();
-  constructor(private notebookId: string, private sessionId: string, private failed: (error: unknown) => void, database = 'tessera-outbox-v1', private intake: Pick<Storage, 'length' | 'key' | 'getItem' | 'setItem' | 'removeItem'> | undefined = typeof localStorage === 'undefined' ? undefined : localStorage) {
+  private lockReady?: Promise<void>;
+  private lockTask?: Promise<void>;
+  private releaseLock?: () => void;
+  constructor(private notebookId: string, private sessionId: string, private failed: (error: unknown) => void, private database = 'tessera-outbox-v1', private intake: Pick<Storage, 'length' | 'key' | 'getItem' | 'setItem' | 'removeItem'> | undefined = typeof localStorage === 'undefined' ? undefined : localStorage, private locks: Pick<LockManager, 'request'> | undefined = typeof navigator === 'undefined' ? undefined : navigator.locks) {
     this.db = Promise.resolve().then(() => openDB<OutboxSchema>(database, 3, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
@@ -152,9 +155,44 @@ export class Outbox {
       await tx.done;
     });
   }
+  private lockName(sessionId: string) { return `tessera-outbox:${this.database}:${this.notebookId}:${sessionId}`; }
+  /** A suspended but still-open window keeps its ownership; only a closed owner can be adopted. */
+  private ownSession() {
+    if (!this.locks) return Promise.resolve();
+    return this.lockReady ??= new Promise<void>((resolve, reject) => {
+      const released = new Promise<void>(done => { this.releaseLock = done; });
+      this.lockTask = this.locks!.request(this.lockName(this.sessionId), async () => {
+        resolve();
+        await released;
+      });
+      void this.lockTask.catch(reject);
+    });
+  }
+  private async recoverClosedWindows(db: IDBPDatabase<OutboxSchema>) {
+    if (!this.locks) return;
+    const prefix = `${this.notebookId}:`;
+    const owners = new Set((await db.getAllKeys('commands')).filter(key => key.startsWith(prefix)).map(key => key.slice(prefix.length, key.lastIndexOf(':'))));
+    for (const owner of owners) {
+      if (owner === this.sessionId || owner === 'capture') continue;
+      await this.locks.request(this.lockName(owner), { ifAvailable: true }, async lock => {
+        if (!lock) return;
+        // Re-read under one transaction: another recovering window may have moved
+        // these commands since the owner list was read. Preserve frozen requests.
+        const tx = db.transaction('commands', 'readwrite');
+        const from = `${prefix}${owner}:`;
+        for (const row of await tx.store.getAll(IDBKeyRange.bound(from, `${from}\uffff`))) {
+          void tx.store.put({ key: this.commandKey(row.command), command: row.command });
+          void tx.store.delete(row.key);
+        }
+        await tx.done;
+      });
+    }
+  }
   async load() {
     try {
       const db = await this.db;
+      await this.ownSession();
+      await this.recoverClosedWindows(db);
       const prefix = `${this.notebookId}:${this.sessionId}:`;
       const commands = new Map((await db.getAll('commands')).filter(row => row.key.startsWith(prefix) || row.key.startsWith(`${this.notebookId}:capture:`)).map(row => [row.command.id, row.command]));
       const intakePrefix = `tessera-outbox:${this.notebookId}:capture:`;
@@ -302,5 +340,10 @@ export class Outbox {
       return newest ? Number(newest.slice(prefix.length, prefix.length + 16)) : 0;
     } catch { return 0; }
   }
-  async close() { await this.settled(); try { (await this.db).close(); } catch { /* Already reported by failed. */ } }
+  async close() {
+    await this.settled();
+    try { (await this.db).close(); } catch { /* Already reported by failed. */ }
+    this.releaseLock?.();
+    await this.lockTask;
+  }
 }

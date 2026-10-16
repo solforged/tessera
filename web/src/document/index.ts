@@ -116,14 +116,10 @@ export class Notebook implements NotebookClient, DocumentHost {
     const roots = createSignal<readonly Block[]>([]);
     this.roots = roots[0];
     this.setRoots = roots[1];
-    const sessionKey = `tessera:window:${options.baseUrl ?? ''}`;
-    let identity = options.sessionId;
-    if (!identity) {
-      try { identity = sessionStorage.getItem(sessionKey) ?? ulid(); sessionStorage.setItem(sessionKey, identity); }
-      catch { identity = ulid(); }
-    }
-    this.sessionId = identity;
-    this.actorName = `tessera-web:${identity}`;
+    // Each document lifetime owns a distinct outbox. Closed windows' drafts are
+    // recovered under a Web Lock, rather than depending on restored sessionStorage.
+    this.sessionId = options.sessionId ?? ulid();
+    this.actorName = `tessera-web:${this.sessionId}`;
     this.ready = this.initialize().then(() => { this.initialized = true; this.touch(); });
     if (typeof window !== 'undefined') {
       window.addEventListener('online', this.online);

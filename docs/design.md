@@ -499,6 +499,8 @@ In recovery banners, Details opens on its own full-width line beneath the status
 
 An offline reload shows the cached outline with queued edits applied and leaves it editable. Service-only summaries can show Unavailable without blocking that outline, and refresh when the connection returns.
 
+Reopening the same browser profile recovers drafts left by closed windows. A window still open retains its own queued edits; another window never replays them on its behalf.
+
 A change the notebook refused shows and copies the words it carried. Only a change without words, such as a task date or a grade, keeps its raw record, because that is all there is to recover.
 
 Undo preserves another window's later text by patching only non-overlapping regions. If the regions overlap, it skips that history entry and says `Changed elsewhere; nothing to undo here`.
