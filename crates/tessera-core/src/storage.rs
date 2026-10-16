@@ -259,7 +259,9 @@ pub(crate) struct TagToken<'a> {
 }
 
 fn bare_tag_character(ch: char) -> bool {
-    ch.is_alphanumeric() || matches!(ch, '-' | '_' | '/')
+    ch.is_alphanumeric()
+        || unicode_normalization::char::is_combining_mark(ch)
+        || matches!(ch, '-' | '_' | '/')
 }
 
 /// The same borrowed token spans drive membership derivation and rename.
@@ -272,7 +274,11 @@ pub(crate) fn tag_tokens(text: &str) -> impl Iterator<Item = TagToken<'_>> {
             if text[..start]
                 .chars()
                 .next_back()
-                .is_some_and(|ch| ch.is_alphanumeric() || ch == '_')
+                .is_some_and(|ch| {
+                    ch.is_alphanumeric()
+                        || unicode_normalization::char::is_combining_mark(ch)
+                        || ch == '_'
+                })
             {
                 continue;
             }

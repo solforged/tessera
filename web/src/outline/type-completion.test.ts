@@ -70,6 +70,8 @@ describe('type spelling', () => {
   test('keeps inline titles unbracketed and protects multiword or punctuated titles', () => {
     expect(typeSpelling('Book')).toBe('#Book');
     expect(typeSpelling('書籍_2/notes-book')).toBe('#書籍_2/notes-book');
+    expect(typeSpelling('हिन्दी')).toBe('#हिन्दी');
+    expect(typeSpelling('cafe\u0301')).toBe('#cafe\u0301');
     expect(typeSpelling('Reading list')).toBe('#[[Reading list]]');
     expect(typeSpelling('C++')).toBe('#[[C++]]');
   });

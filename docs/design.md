@@ -619,7 +619,7 @@ A hand-typed reference spanning lines or containing a nested `[[opener]]` stays 
 
 #### Types
 
-`#` at block start or after whitespace opens a type picker under the hash once a non-space name character follows. It searches the same pages as Add type and offers Create type for a new name. Enter or Tab replaces the token with `#Title` for a single word of letters, digits, `_`, `-` or `/`, otherwise `#[[Title]]`, followed by a space. Escape keeps the text.
+`#` at block start or after whitespace opens a type picker under the hash once a non-space name character follows. It searches the same pages as Add type and offers Create type for a new name. Enter or Tab replaces the token with `#Title` for a single word of Unicode letters, combining marks, numbers, `_`, `-` or `/`, otherwise `#[[Title]]`, followed by a space. Escape keeps the text. Web rendering and server membership derivation use that same bare-name character set.
 
 A bare `#`, `# `, repeated hashes, URL fragments, references, code, card/cloze syntax and field shorthand do not open the type picker; `# ` at block start still makes a heading.
 

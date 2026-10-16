@@ -42,7 +42,7 @@ export async function completeTypes(notebook: NotebookClient, query: string): Pr
 
 /** Match the inline tag grammar; titles containing spaces or punctuation use the bracketed spelling. */
 export function typeSpelling(title: string): string {
-  return /^[\p{L}\p{N}_/-]+$/u.test(title) ? `#${title}` : `#[[${title}]]`;
+  return /^[\p{L}\p{M}\p{N}_/-]+$/u.test(title) ? `#${title}` : `#[[${title}]]`;
 }
 
 /** A typed tag that already names the chosen type keeps the writer's spelling; only a different title replaces it. */

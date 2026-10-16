@@ -93,6 +93,36 @@ fn tags_resolve_case_insensitively_create_pages_and_preserve_token_boundaries() 
 }
 
 #[test]
+fn unicode_bare_tags_keep_marks_and_rename_the_complete_authored_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(
+        &mut nb,
+        vec![
+            page(1, "Notes"),
+            insert(10, 1, "#हिन्दी #cafe\u{301} #中文_2/x-y e\u{301}#inside"),
+        ],
+    );
+    let hindi = nb.page_by_title("हिन्दी").unwrap().unwrap();
+    assert_eq!(nb.members(&hindi.id, 10).unwrap()[0].block.id, id(10));
+    let targets = nb.page(&id(1)).unwrap().targets;
+    assert_eq!(targets.len(), 3);
+    assert!(nb.page_by_title("inside").unwrap().is_none());
+    apply(
+        &mut nb,
+        vec![Operation::EditText {
+            id: hindi.id,
+            base_revision: 1,
+            text: "हिन्दी_2".into(),
+        }],
+    );
+    assert_eq!(
+        nb.block(&id(10)).unwrap().text,
+        "#हिन्दी_2 #cafe\u{301} #中文_2/x-y e\u{301}#inside"
+    );
+}
+
+#[test]
 fn explicit_type_page_later_in_batch_wins_and_failed_batches_leave_no_generated_pages() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();

@@ -52,6 +52,13 @@ test('authored external captions use one URL token without becoming page referen
   expect(textTokens('[a](https://a.org)[b](https://b.org)').filter(token => token.kind === 'url').map(token => token.alias)).toEqual(['a', 'b']);
 });
 
+test('bare Unicode tags include every combining mark and agree with type spelling', () => {
+  const source = '#हिन्दी #cafe\u0301 #中文_2/x-y e\u0301#inside';
+  expect(textTokens(source).filter(token => token.kind === 'tag').map(token => [token.value, source.slice(token.start, token.end)])).toEqual([
+    ['हिन्दी', '#हिन्दी'], ['cafe\u0301', '#cafe\u0301'], ['中文_2/x-y', '#中文_2/x-y'],
+  ]);
+});
+
 test('saved view targets keep their name and never become block targets', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
   const text = `[[view:${id}|Open questions]]`;
