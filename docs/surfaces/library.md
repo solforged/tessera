@@ -176,7 +176,7 @@ The card's groups stay in this order:
 | Apparatus | Siglum and Citation key |
 | Shelf | Reading state, Started, Finished, Tags |
 
-Missing values remain visible as quiet Add… slots. A value becomes an inline editor on click, commits on Enter or blur and cancels on Escape, with no Save or Cancel buttons.
+Missing values remain visible as quiet Add… slots. A value becomes an inline editor on click, commits on Enter or blur and cancels on Escape, with no Save or Cancel buttons. Escape cancels the active editor before a later Escape closes the inspector.
 Volume and Issue keep journal labels as written. Page range holds a journal's pages or article locator; Pages remains the total page count.
 
 Save state belongs only to the pane header. Saving… appears after a second and invalid fields announce that they were not saved. A blank optional date is not an error; invalid partial dates use `--danger` with their format hint.

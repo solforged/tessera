@@ -26,8 +26,8 @@ export function SourceDetails(props: { notebook: NotebookClient; pageId: string;
       if (!pane.closest('.pane')?.classList.contains('active')) return;
       event.preventDefault(); event.stopPropagation(); close(); pane.focus({ preventScroll: true });
     };
-    document.addEventListener('keydown', keydown, true);
-    onCleanup(() => { observer.disconnect(); document.removeEventListener('keydown', keydown, true); });
+    document.addEventListener('keydown', keydown);
+    onCleanup(() => { observer.disconnect(); document.removeEventListener('keydown', keydown); });
   });
   return <><span ref={marker} hidden /><Show when={wide() !== undefined}><Show when={wide()} fallback={
     <Popup anchor={marker} placement="sheet" label="Source details" class="source-details-sheet" onDismiss={props.onClose}>
