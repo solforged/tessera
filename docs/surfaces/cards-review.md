@@ -64,7 +64,7 @@ Cards beneath a highlight inherit the nearest ancestor citation when they have n
 
 Both sides of a card share one size. When both are 40 characters or fewer on one line, and the answer is not an outline, they are set at 24 px with a 30 px line; otherwise both read at 24 px with a 38 px line. A rule separates ordinary sides. Multi-line answers keep their child outline with faint bullets, and list answers number their items in rubric; both markers sit on the text's baseline. Lists reveal one item at a time, with an `N of M` mono count, and grading waits for the last. Clozes reveal in place with a gilt underline, so the sentence appears once; until then a gap reads `[…]`, or `[hint]`, in muted italic.
 
-Once revealed, a cited card shows the following sentence from its snapshot's real passages.
+Once revealed, a cited card shows prose following its quotation from the snapshot's real passages. It skips punctuation-only remainders and keeps the beginning of long sentences, like the reader's note sheet.
 
 ### Responsive behavior
 
