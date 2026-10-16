@@ -12,6 +12,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Added page type management in Page actions and Commands, with undoable removal that keeps written fields.
 - Added a deleted-page recovery picker in Commands, backed by retained deletion events across reloads.
 - Added typed-page creation, inline title renaming and confirmed row deletion with Undo to type tables.
+- Added Move to page… to block actions and Commands, with a shared destination picker and one-step subtree undo.
 - Inbox groups by publication year, with a fixed author column and the siglum set aside. Years replace decades on that tab's rail, and failed imports open under a heading instead of a collapsed disclosure.
 
 ### Fixed

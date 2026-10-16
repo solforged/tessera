@@ -62,6 +62,7 @@ import { fieldBedRows, fieldRole } from '../fields/roles';
 import { createCapabilityPopups } from './CapabilityPopups';
 import { createRelationActions } from './RelationActions';
 import { createViewEmbedActions } from './ViewPicker';
+import { createMoveToPage } from './MoveToPage';
 import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { foldName, nameMenuItems, resolveName } from './names';
@@ -1199,6 +1200,7 @@ function Pane(props: OutlinePaneProps) {
     scheduleReport,
     setMessage,
     showNotice,
+    openMoveToPage: () => openMoveToPage(),
     openRelation: (id, kind, anchor) => openRelation(id, kind, anchor),
     positionReason: id => positionReason(id),
     placeReason: id => placeReason(id),
@@ -1315,6 +1317,7 @@ function Pane(props: OutlinePaneProps) {
     if (result.caret) requestAnimationFrame(() => editAt(result.caret!.id, 0, true));
   });
   const { openViewEmbed, ViewEmbedPopups } = createViewEmbedActions(context);
+  const { openMoveToPage, MoveToPagePopup } = createMoveToPage(context);
   const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); }, (id, backward) => fieldSheet.advance(id, backward));
   const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context, (event, id) => fieldSheet.key(event, id));
@@ -1750,6 +1753,7 @@ function Pane(props: OutlinePaneProps) {
     <fieldSheet.Popups />
     <RelationPopups />
     <ViewEmbedPopups />
+    <MoveToPagePopup />
   </div>
     <Show when={props.projection === 'compare'}><div class="embedded-comparison"><ComparePane subjectId={props.pageId} view={props.view.compare ?? { scroll: 0 }} notebook={props.notebook} onActivate={props.onActivate} onOpen={props.onOpen} onViewChange={compare => props.onViewChange({ ...props.view, compare })} /></div></Show>
     <div class="outline-notices">

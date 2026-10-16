@@ -53,6 +53,7 @@ export interface OutlineContext {
   showNotice: (label: string, undo?: () => Promise<void>) => void;
   openRelation: (id: string, kind: 'holder' | 'subject' | 'integrate' | 'reading', anchor?: HTMLElement | null) => void;
   openViewEmbed: (id?: string | null) => void;
+  openMoveToPage: () => void;
   positionReason: (id: string) => string | undefined;
   placeReason: (id: string) => string | undefined;
   usePlace: (id: string) => void;

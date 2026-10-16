@@ -34,7 +34,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   | 'scheduleReport' | 'undo' | 'setConflicts' | 'indices' | 'setFolds'
   | 'setZoom' | 'selectedSet' | 'sourceResets' | 'setCompletionIndex' | 'setCompletion'
   | 'rowAnchor' | 'rewriteEditing' | 'activeRange'
-  | 'fields' | 'definitionsById' | 'pickField' | 'showNotice' | 'openRelation' | 'positionReason' | 'placeReason' | 'usePlace'
+  | 'fields' | 'definitionsById' | 'pickField' | 'showNotice' | 'openRelation' | 'openMoveToPage' | 'positionReason' | 'placeReason' | 'usePlace'
 >) {
   const {
     doc, editing, commitFieldEntry, props, selected, setMessage,
@@ -235,6 +235,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'outdent', title: 'Outdent blocks', section: 'Outline', keys: ['⇧Tab', '<<'], run: () => apply({ kind: 'outdent', ids: roots() }) },
     { id: 'move-up', title: 'Move blocks up', section: 'Outline', keys: ['⌥↑'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'up' }) },
     { id: 'move-down', title: 'Move blocks down', section: 'Outline', keys: ['⌥↓'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'down' }) },
+    { id: 'move-to-page', title: 'Move to page…', section: 'Outline', run: () => context.openMoveToPage() },
     { id: 'select', title: 'Select blocks', section: 'Outline', keys: ['V', '⇧↑/↓'], run: () => selected() && rowFocus(selected()!, true) },
     { id: 'select-all', title: 'Select all visible blocks', section: 'Outline', run: () => { const first = ids()[0]; const last = ids().at(-1); if (first && last) { rowFocus(last); setRowRange({ anchor: first, head: last }); } } },
     { id: 'fold', title: 'Fold / unfold children', section: 'View', keys: ['←/→', 'h/l'], run: () => fold(selected() ?? undefined) },
@@ -431,6 +432,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       group('Move…', 'Move', () => [
         item('indent', 'Indent'), item('outdent', 'Outdent'),
         item('move-up', 'Move up'), item('move-down', 'Move down'),
+        item('move-to-page'),
         ...(doc.root()?.kind === 'journal' ? [item('integrate')] : []),
       ]),
       { ...item('copy-reference', 'Copy reference'), divider: true },

@@ -361,6 +361,8 @@ export interface NotebookClient {
   editSourceDetails(edits: readonly { pageId: string; edit: SourceDetailsEdit }[]): Promise<DocumentChange>;
   /** Move a journal subtree and leave a live reference, in one transaction with undo/redo. */
   integrateBlock(id: string, destinationId: string): Promise<DocumentChange>;
+  /** Move selected subtrees to the end of another titled page, preserving identities, in one undoable transaction. */
+  moveBlocks(ids: readonly string[], destinationId: string): Promise<DocumentChange>;
   /** Make a journal block's text a project page, move its children there and leave a link, in one transaction with undo/redo. Reuses a page of that title. */
   promoteToProject(id: string, title: string): Promise<{ pageId: string; change: DocumentChange }>;
   commandState(): SaveState;

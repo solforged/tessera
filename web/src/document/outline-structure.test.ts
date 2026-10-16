@@ -148,6 +148,27 @@ describe('outline structural boundaries', () => {
     expect(doc.canUndo()).toBe(false);
   });
 
+  test('move to page appends selected subtrees with one exact cross-page undo and redo', async () => {
+    const { doc, instance, ids } = await fixture();
+    const before = tree(doc);
+    const target = ulid(), destination = ulid();
+    await api.submit({ actor: { kind: 'person' }, operations: [
+      { op: 'create_page', id: target, title: `Move target ${target}` },
+      { op: 'insert', id: destination, parent_id: target, after: null, text: 'Destination', heading: null },
+    ] });
+    const change = doc.rememberChange(await instance.moveBlocks([ids.A2!, ids.A2a!, ids.B!], target));
+    const moved = (await api.page(target)).rows.map(row => ({ id: row.block.id, parent: row.block.parent_id }));
+    expect(moved).toEqual([
+      { id: destination, parent: target }, { id: ids.A2!, parent: target }, { id: ids.A2a!, parent: ids.A2! },
+      { id: ids.B!, parent: target }, { id: ids.B1!, parent: ids.B! },
+    ]);
+    await change.undo();
+    expect((await api.page(ids.page!)).rows.map(row => ({ id: row.block.id, parentId: row.block.parent_id, depth: row.depth }))).toEqual(before);
+    expect((await api.page(target)).rows.map(row => row.block.id)).toEqual([destination]);
+    await change.redo();
+    expect((await api.page(target)).rows.map(row => ({ id: row.block.id, parent: row.block.parent_id }))).toEqual(moved);
+  });
+
   test('a child drop moves selected roots with their subtrees in one undo step', async () => {
     const { doc, instance, ids } = await fixture();
     const before = tree(doc);

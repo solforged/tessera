@@ -528,6 +528,61 @@ export class Notebook implements NotebookClient, DocumentHost {
       } finally { for (const doc of docs) doc.release(); }
     });
   }
+  async moveBlocks(ids: readonly string[], destinationId: string): Promise<DocumentChange> {
+    return this.serializeSourceChange(async () => {
+      if (!ids.length) throw new Error('Select blocks to move.');
+      const first = await this.api.block(ids[0]!);
+      if (first.page_id === destinationId) throw new Error('Choose another page.');
+      const pages = [first.page_id, destinationId];
+      const opened = pages.map(pageId => this.open(pageId) as Document);
+      try {
+        await Promise.all(opened.map(async doc => { if (doc.status() === 'loading') await doc.reload(false); await doc.flush(); }));
+        const source = await this.api.page(first.page_id);
+        const destination = await this.api.block(destinationId);
+        if (destination.kind !== 'page') throw new Error('Choose a titled page.');
+        const selected = new Set(ids);
+        const blocks = new Map(source.rows.map(row => [row.block.id, row.block]));
+        const predecessors = new Map<string, string | null>();
+        const previous = new Map<string, string>();
+        for (const { block } of source.rows) {
+          predecessors.set(block.id, previous.get(block.parent_id!) ?? null);
+          previous.set(block.parent_id!, block.id);
+        }
+        if (ids.some(id => !blocks.has(id))) throw new Error('A selected block moved or was deleted.');
+        const roots = source.rows.filter(({ block }) => {
+          if (!selected.has(block.id)) return false;
+          for (let parent = block.parent_id; parent && parent !== source.root.id; parent = blocks.get(parent)?.parent_id ?? null) if (selected.has(parent)) return false;
+          return true;
+        }).map(({ block }) => ({ id: block.id, parentId: block.parent_id!, after: predecessors.get(block.id)! }));
+        let applied = false;
+        const travel = async (forward: boolean) => {
+          if (applied === forward) return;
+          const docs = pages.map(pageId => this.open(pageId) as Document);
+          try {
+            // This transaction can itself be the page's pending external history entry.
+            await Promise.all(docs.map(async doc => { if (doc.status() === 'loading') await doc.reload(false); await this.flushPage(doc.pageId); }));
+            const current = await Promise.all(roots.map(root => this.api.block(root.id)));
+            if (current.some((block, index) => block.parent_id !== (forward ? roots[index]!.parentId : destinationId)
+              || block.page_id !== (forward ? first.page_id : destinationId))) throw new Error('A block moved since this change. Its current place was kept.');
+            const target = forward ? await this.api.page(destinationId) : null;
+            let after = target?.rows.filter(row => row.depth === 0).at(-1)?.block.id ?? null;
+            const operations: Operation[] = roots.map((root, index) => {
+              const operation: Operation = { op: 'move', id: root.id, base_revision: current[index]!.revision, parent_id: forward ? destinationId : root.parentId, after: forward ? after : root.after };
+              after = root.id;
+              return operation;
+            });
+            await this.commitOperations(operations, forward ? 'Move blocks to page' : 'Undo move to page', pages, false);
+            applied = forward;
+          } finally { for (const doc of docs) doc.release(); }
+        };
+        await travel(true);
+        return {
+          undo: () => this.serializeSourceChange(() => travel(false)),
+          redo: () => this.serializeSourceChange(() => travel(true)),
+        };
+      } finally { for (const doc of opened) doc.release(); }
+    });
+  }
   async promoteToProject(id: string, title: string): Promise<{ pageId: string; change: DocumentChange }> {
     return this.serializeSourceChange(async () => {
       const name = title.trim();
