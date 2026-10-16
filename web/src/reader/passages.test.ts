@@ -52,6 +52,16 @@ describe('reader selection', () => {
     const result = selectedPassages({ passage_id: 'p0', offset: 0 }, { passage_id: 'p2', offset: 3 }, values)!;
     expect(result).toEqual({ start: { passage_id: 'p1', offset: 2 }, end: { passage_id: 'p1', offset: 8 }, first: 1, last: 1, quote: 'Middle', locator: 'chapter#1' });
   });
+  test('omits absorbed headings from a visible cross-chapter quotation', () => {
+    const result = selectedPassages(citation.start, citation.end, passages, new Set([1]))!;
+    expect(result.quote).toBe('😀 passage\n\nFinal');
+    expect(result.blockedReason).toBeTruthy();
+    expect([result.start, result.end, result.first, result.last]).toEqual([citation.start, citation.end, 0, 2]);
+  });
+  test('does not treat an unloaded passage as an absorbed heading', () => {
+    expect(selectedPassages(citation.start, citation.end, [passages[0]!, passages[2]!], new Set([1]))).toBeNull();
+    expect(selectedPassages(citation.start, citation.end, passages, new Set([0]))).toBeNull();
+  });
 });
 
 describe('reader highlight ranges', () => {

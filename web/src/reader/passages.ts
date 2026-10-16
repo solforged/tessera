@@ -7,12 +7,13 @@ export interface PassageSelection {
   last: number;
   quote: string;
   locator: string;
+  blockedReason?: string;
 }
 export interface CitationRange { citation: Citation; start: number; end: number }
 export interface TextSegment { start: number; end: number; text: string; marks: Mark[]; citations: Citation[]; flash: boolean }
 
 /** Endpoints and string slices are UTF-16 throughout, just like the service. */
-export function selectedPassages(anchor: PassagePoint, focus: PassagePoint, passages: readonly Passage[]): PassageSelection | null {
+export function selectedPassages(anchor: PassagePoint, focus: PassagePoint, passages: readonly Passage[], hidden?: ReadonlySet<number>): PassageSelection | null {
   const byId = new Map(passages.map(passage => [passage.id, passage]));
   const a = byId.get(anchor.passage_id), b = byId.get(focus.passage_id);
   if (!a || !b) return null;
@@ -20,8 +21,9 @@ export function selectedPassages(anchor: PassagePoint, focus: PassagePoint, pass
   const start = { ...(backwards ? focus : anchor) }, end = { ...(backwards ? anchor : focus) };
   let first = backwards ? b : a, last = backwards ? a : b;
   if (start.offset < 0 || start.offset > first.text.length || end.offset < 0 || end.offset > last.text.length || first === last && start.offset === end.offset) return null;
-  const selected = passages.filter(p => p.ordinal >= first.ordinal && p.ordinal <= last.ordinal).sort((x, y) => x.ordinal - y.ordinal);
-  if (selected.length !== last.ordinal - first.ordinal + 1) return null;
+  const between = passages.filter(p => p.ordinal >= first.ordinal && p.ordinal <= last.ordinal).sort((x, y) => x.ordinal - y.ordinal);
+  if (between.length !== last.ordinal - first.ordinal + 1 || hidden?.has(first.ordinal) || hidden?.has(last.ordinal)) return null;
+  const selected = hidden ? between.filter(passage => !hidden.has(passage.ordinal)) : between;
   const wordBefore = (text: string, offset: number) => text.slice(0, offset).match(/[\p{L}\p{N}'’]+$/u)?.[0].length ?? 0;
   const wordAfter = (text: string, offset: number) => text.slice(offset).match(/^[\p{L}\p{N}'’]+/u)?.[0].length ?? 0;
   // DOM offsets are UTF-16 and may even bisect a supplementary letter.
@@ -47,7 +49,9 @@ export function selectedPassages(anchor: PassagePoint, focus: PassagePoint, pass
     end.passage_id = last.id; end.offset = last.text.length;
   }
   const quote = selected.slice(left, right + 1).map(p => p.text.slice(p.id === start.passage_id ? start.offset : 0, p.id === end.passage_id ? end.offset : p.text.length)).join('\n\n');
-  return /[^\p{P}\s]/u.test(quote) ? { start, end, first: first.ordinal, last: last.ordinal, quote, locator: first.locator } : null;
+  return /[^\p{P}\s]/u.test(quote) ? { start, end, first: first.ordinal, last: last.ordinal, quote, locator: first.locator,
+    ...(between.some(passage => hidden?.has(passage.ordinal)) ? { blockedReason: 'Selection crosses a hidden heading. Highlight each side separately.' } : {}),
+  } : null;
 }
 
 export function citationRange(passage: Passage, citation: Citation, ordinals: ReadonlyMap<string, number>): CitationRange | null {
@@ -109,5 +113,6 @@ export function selectionInPassages(container: HTMLElement, selection: Selection
   const anchor = element(selection.anchorNode), focus = element(selection.focusNode);
   if (!anchor || !focus || !container.contains(anchor) || !container.contains(focus)) return null;
   const a = passagePoint(anchor, selection.anchorNode, selection.anchorOffset), b = passagePoint(focus, selection.focusNode, selection.focusOffset);
-  return a && b ? selectedPassages(a, b, passages) : null;
+  const hidden = new Set(Array.from(container.querySelectorAll<HTMLElement>('[data-passage-id]')).filter(passage => getComputedStyle(passage).display === 'none').map(passage => Number(passage.dataset.ordinal)));
+  return a && b ? selectedPassages(a, b, passages, hidden) : null;
 }

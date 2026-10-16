@@ -60,7 +60,7 @@ Numerals are recognized as `Chapter 3`, `Book One`, `Part II`, or a bare upper-c
 
 ### Heading suppression
 
-Heading lines that only restate the entry, its label, its numeral in any style or the book's title are not drawn, from the entry's first passage up to the next opening. Anything else, such as an epigraph, a highlighted passage or an image, ends the run. Find still searches the suppressed lines.
+Heading lines that only restate the entry, its label, its numeral in any style or the book's title are not drawn, from the entry's first passage up to the next opening. Anything else, such as an epigraph, a highlight endpoint or an image, ends the run. A highlight crossing an opening does not reveal its suppressed headings. A selection crossing hidden source text asks the reader to highlight each side separately, rather than silently adding the hidden text to its citation. Find still searches the suppressed lines.
 
 Contents entries that only repeat the book's title, running heads the file marked as navigation, leave the Contents menu, the margin and the book map. Their running-head passages are not drawn.
 
@@ -79,10 +79,11 @@ Reader settings are a device preference shared by every reader pane. Saved choic
 ### Text and media
 
 - Headings scale from the reader size.
-- Footnote references are superscript links that open the note in a popover.
+- Footnote references stay live inside highlights. They open the note in a popover with Open footnote to reach its annotatable passage. Back to footnote reference returns to the reading place. On touch screens the superscript keeps its printed size with a 44 px hit area.
 - Images keep their natural size up to the measure and 70% of the viewport height. On the dark canvas they are dimmed to 85% brightness until hovered.
 - Code sits on `--surface` in a horizontally scrolling block.
 - Quotations take a 2 px `--line` rule at an indent. When quotes outnumber plain paragraphs among the loaded passages, they read as plain paragraphs instead: some EPUBs wrap the whole text in blockquotes.
+- Each highlight has one keyboard target, named by its full quotation, even when its ink crosses formatting or passage boundaries. Enter and Space open its actions. Inline links retain their own keyboard targets.
 
 [Pages](#pages) has its own image-height limit.
 

@@ -61,7 +61,7 @@ const PAGE_GAP = 48;
 const pageTurns: Record<string, 1 | -1> = { ArrowRight: 1, ArrowLeft: -1, PageDown: 1, PageUp: -1, ' ': 1 };
 /** A place in the paged flow: a passage and a character offset into its text. */
 type PageAnchor = { ordinal: number; offset: number };
-type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'actions' | 'progress'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; Header?: HighlightMenu['Header'] };
+type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'actions' | 'progress'; anchor: HTMLElement } | { kind: 'note'; anchor: HTMLElement; text: string; loading: boolean; ordinal?: number; locator?: string } | { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; Header?: HighlightMenu['Header'] };
 type SelectionToolbar = PassageSelection & { rect: DOMRect; snapshotId: string };
 /** Touch screens write a new highlight's note beside the passage, not in the source page. */
 const coarsePointer = window.matchMedia('(pointer: coarse)');
@@ -83,6 +83,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [loading, setLoading] = createSignal(true);
   const [error, setError] = createSignal('');
   const [popup, setPopup] = createSignal<ReaderPopup | null>(null);
+  const [noteReturn, setNoteReturn] = createSignal<{ ordinal: number; offset: number; page: PageAnchor | null; passageId?: string; locator: string } | null>(null);
   const [query, setQuery] = createSignal('');
   const [hits, setHits] = createSignal<PassageHit[]>([]);
   const [searching, setSearching] = createSignal(false);
@@ -234,14 +235,15 @@ export function ReaderPane(props: ReaderPaneProps) {
   const titleCover = () => details().cover ?? currentSnapshot()?.metadata.cover ?? null;
   /**
    * Heading lines the openings draw instead, running heads that repeat the book's title, and the file's cover image
-   * where the title page shows it; and each chapter's first passage of text. A highlighted passage always shows.
+   * where the title page shows it; and each chapter's first passage of text. A highlight endpoint always shows.
    */
   const absorbed = createMemo(() => {
     version();
     const highlighted = new Set<number>();
     for (const citation of citations()) {
       const from = ordinals.get(citation.start.passage_id), to = ordinals.get(citation.end.passage_id);
-      if (from !== undefined && to !== undefined) for (let ordinal = from; ordinal <= to; ordinal++) highlighted.add(ordinal);
+      if (from !== undefined) highlighted.add(from);
+      if (to !== undefined) highlighted.add(to);
     }
     const titleEntries = allContents().flatMap(entry => entry.ordinal !== null && repeatsBook(entry, book()) ? [entry.ordinal] : []);
     const result = absorbedPassages(openings(), titleEntries, ordinal => passages.get(ordinal), ordinal => highlighted.has(ordinal), book());
@@ -382,6 +384,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     pages.clear(); passages.clear(); ordinals.clear(); pending.clear(); locating.clear();
     clearTimeout(positionTimer);
     setCursor(null); setKeyboardRange(null);
+    setNoteReturn(null);
     batch(() => {
       setSelection(null); setFlash(null); setSnapshot(id); setChunk(null);
       setContents([]);
@@ -840,8 +843,36 @@ export function ReaderPane(props: ReaderPaneProps) {
       const ordinal = await locate(locator);
       if (ordinal === null) throw new Error('Footnote not found.');
       await loadPage(ordinal);
-      if (!disposed && popup() === state) setPopup({ kind: 'note', anchor, text: passages.get(ordinal)?.text ?? '', loading: false });
+      if (!disposed && popup() === state) setPopup({ kind: 'note', anchor, text: passages.get(ordinal)?.text ?? '', loading: false, ordinal, locator });
     } catch (reason) { if (!disposed && popup() === state) setPopup({ kind: 'note', anchor, text: reason instanceof Error ? reason.message : String(reason), loading: false }); }
+  }
+
+  async function openFootnote(ordinal: number, locator: string, anchor: HTMLElement) {
+    const origin = visibleRange();
+    if (!origin) return;
+    const back = { ...origin, page: paged() ? firstOnPage() : null, passageId: anchor.closest<HTMLElement>('[data-passage-id]')?.dataset.passageId, locator };
+    setPopup(null); window.getSelection()?.removeAllRanges(); setSelection(null);
+    try {
+      if (await jump(ordinal)) {
+        setNoteReturn(back); setCursor(ordinal); showChrome(false);
+        await nextFrame();
+        if (!disposed && !paged()) scroll.querySelector<HTMLElement>(`[data-ordinal="${ordinal}"]`)?.scrollIntoView({ block: 'center' });
+      }
+    } catch (reason) { if (!disposed) { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); } }
+  }
+
+  async function returnFromFootnote() {
+    const back = noteReturn();
+    if (!back) return;
+    try {
+      if (paged() && back.page) { pageAnchor = back.page; await relayoutPages(); }
+      else if (!await jump(back.ordinal, back.offset)) return;
+      setNoteReturn(null); setCursor(null); showChrome(false);
+      await nextFrame();
+      const passage = [...scroll.querySelectorAll<HTMLElement>('[data-passage-id]')].find(row => row.dataset.passageId === back.passageId);
+      const reference = [...(passage?.querySelectorAll<HTMLElement>('[data-note-locator]') ?? [])].find(link => link.dataset.noteLocator === back.locator);
+      reference?.focus({ preventScroll: true });
+    } catch (reason) { if (!disposed) { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); } }
   }
 
   async function openCitation(citation: Citation) {
@@ -973,7 +1004,7 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   async function highlight(withNote: boolean, color: Citation['color'] = null) {
     const value = selection();
-    if (!value || editing()) return;
+    if (!value || value.blockedReason || editing()) return;
     setEditing(true); setEditError('');
     const sourceId = props.target.sourceId, doc = readerDocument;
     try {
@@ -1350,8 +1381,9 @@ export function ReaderPane(props: ReaderPaneProps) {
     return <Portal><div ref={element} class="reader-selection-toolbar" classList={{ 'reader-selection-docked': placement().docked }} role="toolbar" aria-label="Highlight selection"
       style={{ left: `${placement().left}px`, top: `${placement().top}px`, 'max-width': `${placement().width}px`, width: placement().docked ? `${placement().width}px` : undefined, visibility: placement().visible ? 'visible' : 'hidden' }}
       onPointerDown={event => event.preventDefault()}>
-      <div class="reader-selection-actions"><Button icon="highlight" disabled={editing()} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing()} onClick={() => { void highlight(true); }}>Highlight and note <kbd>N</kbd></Button></div>
-      <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={editing()} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
+      <div class="reader-selection-actions"><Button icon="highlight" disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(true); }}>Highlight and note <kbd>N</kbd></Button></div>
+      <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
+      <Show when={selection()?.blockedReason}>{reason => <p role="status">{reason()}</p>}</Show>
       <Show when={editError()}><p class="error" role="alert">{editError()}</p></Show>
     </div></Portal>;
   }
@@ -1368,6 +1400,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <h2>{title() || 'Reader'}</h2>
     </div>
     <div ref={header} class="reader-header" style={{ 'max-width': spreadWidth() }} onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
+      <Show when={noteReturn()}><Button icon="left" label="Back to footnote reference" onClick={() => { void returnFromFootnote(); }} /></Show>
       <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup={textWidth() === null ? 'dialog' : undefined} disabled={!contents().length} onClick={event => {
         if (textWidth() !== null && margin?.isConnected) {
           setPopup(null);
@@ -1452,6 +1485,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'note'}><Popup anchor={state().anchor} label="Footnote" class="reader-note" onDismiss={() => setPopup(null)}>
         <p>{(() => { const value = state(); return value.kind === 'note' ? value.loading ? 'Loading…' : value.text : ''; })()}</p>
+        <Show when={(() => { const value = state(); return value.kind === 'note' && value.ordinal !== undefined ? value : null; })()}>{note => <Button onClick={() => { void openFootnote(note().ordinal!, note().locator!, note().anchor); }}>Open footnote</Button>}</Show>
       </Popup></Show>
     </>}</Show>
     <Show when={selection()}><SelectionTools /></Show>

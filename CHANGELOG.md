@@ -22,6 +22,12 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Table row titles use Piazzolla, matching page titles and the phone ledger. Gloss and other authored cells stay in Plex.
 - Selecting text and typing `[[` or `((` surrounds it, so the selection becomes a link or block reference instead of being replaced.
 - Reader highlight colors stay nameable on the midnight canvas: the band under the line keeps its hue instead of fading into a faint stain.
+- Kept footnote references and other links live inside reader highlights.
+- Made Space open a focused highlight's actions without scrolling.
+- Reduced each reader highlight to one keyboard target across formatting boundaries.
+- Expanded footnote reference touch targets without changing their printed size.
+- Kept suppressed chapter headings hidden and explained when a selection crosses hidden source text.
+- Added Open footnote and a return action so footnote passages can be annotated.
 
 ## 0.4.0, 2026-10-14
 

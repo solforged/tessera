@@ -136,6 +136,12 @@
 .reader-image img:hover { filter: none; }
 .reader-passage .reader-inline-link, .reader-passage a { display: inline; min-height: 0; font: inherit; color: var(--accent); padding: 0; border: 0; border-radius: 0; background: transparent; text-decoration: underline; white-space: inherit; }
 .reader-passage sup { font-size: var(--text-meta); line-height: var(--line-meta); }
+/* A reference keeps its printed width while the fingertip target extends into the surrounding leading. */
+@media (pointer: coarse) {
+  .reader-passage .reader-note-ref { position: relative; }
+  .reader-passage .reader-note-ref::after { content: ''; position: absolute; inset: min(0px, calc((100% - var(--touch-target)) / 2)); }
+  .reader-note .button { min-height: var(--touch-target); }
+}
 /* Highlights are ink, not boxes: a band under the lower half of each line, as a highlighter drawn under the words, so capitals and ascenders keep the canvas and neighbouring lines stay apart. The band is cloned onto every line. A hovered highlight and its partner deepen the band. Coloured ink keeps the hue and lifts it off the canvas; a flat percentage stain dies into midnight. */
 .reader-highlight { --band-hue: var(--text); --band-mix: 26%; --band-deep: 40%; --band-l: var(--highlight-ink-l); --band: color-mix(in srgb, var(--band-hue) var(--band-mix), transparent); box-decoration-break: clone; -webkit-box-decoration-break: clone; background: linear-gradient(transparent 55%, var(--band) 55%, var(--band) 92%, transparent 92%) no-repeat; cursor: pointer; }
 /* A new highlight draws its band under the words once, left to right, as the pen would; across lines it runs line by line. */
