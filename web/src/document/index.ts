@@ -1763,7 +1763,12 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   async restorePage(pageId: string) {
     const action = this.deletedPages.get(pageId);
-    if (!action) throw new Error('There is no page deletion to undo in this window.');
+    if (!action) {
+      const page = (await this.api.deletedPages()).find(page => page.block.id === pageId);
+      if (!page) throw new Error('This page deletion is no longer available to restore.');
+      await this.commit([{ op: 'restore', id: pageId, deletion_id: page.deletion_id, revision: page.block.revision }]);
+      return;
+    }
     const doc = this.docs.get(pageId)!;
     const inverse = doc.apply(action);
     this.enqueue(doc, [action], inverse, null, null, false);

@@ -346,6 +346,7 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/notebook", get(notebook_info))
         .route("/api/settings", get(settings))
         .route("/api/roots", get(roots))
+        .route("/api/pages/deleted", get(deleted_pages))
         .route("/api/pages/{id}", get(page))
         .route("/api/pages/{id}/cards", get(capabilities::page_cards))
         .route("/api/pages/by-title/{title}", get(page_by_title))
@@ -1313,6 +1314,10 @@ async fn resolve_name(
     run(&state, move |notebook| notebook.resolve_name(&name))
         .await
         .map(Json)
+}
+
+async fn deleted_pages(State(state): State<AppState>) -> Result<Json<Vec<tessera_core::DeletedPage>>, ApiError> {
+    run(&state, |notebook| notebook.deleted_pages()).await.map(Json)
 }
 
 #[derive(Deserialize)]

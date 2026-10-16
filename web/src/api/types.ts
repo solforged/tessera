@@ -26,6 +26,9 @@ export interface Block {
   kept_copy?: KeptCopy | null;
 }
 
+/** A retained root deletion, with the event and exact revision needed to restore it. */
+export interface DeletedPage { block: Block; deletion_id: string; deleted_at: number }
+
 export type Completion = Block & { alias: string | null };
 export interface NameMatch { page: Block; alias: string | null }
 

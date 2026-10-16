@@ -397,7 +397,7 @@ export interface NotebookClient {
   /** Permanently merge two pages after saving their pending edits; resolves after acknowledgement. */
   mergePage(from: string, into: string): Promise<void>;
   deletePage(pageId: string): Promise<void>;
-  /** Undo the last page deletion in this window. */
+  /** Restore a retained page deletion, including one from before reload or another window. */
   restorePage(pageId: string): Promise<void>;
   /**
    * Current state of any block, for references. undefined while loading,

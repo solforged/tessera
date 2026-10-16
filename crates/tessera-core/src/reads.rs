@@ -89,7 +89,35 @@ macro_rules! alias_values {
     };
 }
 
+/// A recoverable root deletion and its exact restore ticket. Merge tombstones
+/// are intentionally absent: a permanent merge cannot be undone by restoration.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DeletedPage {
+    pub block: Block,
+    pub deletion_id: String,
+    pub deleted_at: i64,
+}
+
 impl Notebook {
+    /// Retained page and journal deletions, newest first, including other windows.
+    pub fn deleted_pages(&self) -> Result<Vec<DeletedPage>> {
+        let mut statement = self.conn.prepare_cached(concat!(
+            "SELECT ", block_columns!("b"), ", b.deletion_id, d.created_at FROM blocks b
+             JOIN deletion_events d ON d.id = b.deletion_id
+             JOIN changes c ON c.seq = d.change_seq
+             WHERE b.parent_id IS NULL AND b.kind IN ('page', 'journal')
+             AND EXISTS (SELECT 1 FROM json_each(c.operations) operation
+                 WHERE json_extract(operation.value, '$.op') = 'delete'
+                 AND json_extract(operation.value, '$.id') = b.id)
+             ORDER BY d.created_at DESC, d.change_seq DESC, b.id",
+        ))?;
+        Ok(statement.query_map([], |row| Ok(DeletedPage {
+            block: block_at(row, 0)?,
+            deletion_id: row.get(10)?,
+            deleted_at: row.get(11)?,
+        }))?.collect::<rusqlite::Result<_>>()?)
+    }
+
     /// Read one live block, including an archived block.
     pub fn block(&self, id: &str) -> Result<Block> {
         validate_id(id)?;

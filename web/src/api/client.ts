@@ -26,6 +26,7 @@ import type {
   SyncState,
   Batch,
   Block,
+  DeletedPage,
   BlockCapabilities,
   BlockInPage,
   QuoteState,
@@ -243,6 +244,7 @@ export interface ApiClient {
   cancelAgentTurn(turn: string, signal?: AbortSignal): Promise<void>;
   settings(signal?: AbortSignal): Promise<SettingsView>;
   roots(signal?: AbortSignal): Promise<Block[]>;
+  deletedPages(signal?: AbortSignal): Promise<DeletedPage[]>;
   writtenJournalDates(from: string, to: string, signal?: AbortSignal): Promise<string[]>;
   page(id: string, signal?: AbortSignal): Promise<PageView>;
   pageByTitle(title: string, signal?: AbortSignal): Promise<Block>;
@@ -383,6 +385,7 @@ export function createApi(base = ''): ApiClient {
     reclone: (signal?: AbortSignal) => request<SyncState>(base, 'POST', '/sync/reclone', undefined, signal),
     syncConflicts: (signal?: AbortSignal) => get<SyncConflicts>('/sync/conflicts', signal),
     roots: (signal?: AbortSignal) => get<Block[]>('/roots', signal),
+    deletedPages: (signal?: AbortSignal) => get<DeletedPage[]>('/pages/deleted', signal),
     writtenJournalDates: (from: string, to: string, signal?: AbortSignal) => get<string[]>(`/journal/written?${new URLSearchParams({ from, to })}`, signal),
     page: (id: string, signal?: AbortSignal) => get<PageView>(`/pages/${segment(id)}`, signal),
     pageByTitle: (title: string, signal?: AbortSignal) => get<Block>(`/pages/by-title/${segment(title)}`, signal),

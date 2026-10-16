@@ -33,6 +33,7 @@ import { depthLabels, depthStops } from './contract';
 import type { AgendaViewState, Command, CommandRegistry, CompareViewState, Depth, FieldsViewState, FieldViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import type { PagePresentation, PageProjection } from './contract';
 import { Palette } from './Palette';
+import { DeletedPages } from './DeletedPages';
 import { installOpenedFiles } from '../library/opened-files';
 import { blankCapture, installQuickCapture } from './quick-capture';
 import { opensBeside } from './beside';
@@ -88,7 +89,7 @@ type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 /** A drop replaces a pane, or inserts a new one at a position in the row. */
 type DropZone = { replace: PaneId } | { insert: number };
 const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Blocks' };
-type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'new-view' | 'delete' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
+type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'new-view' | 'delete' | 'restore-pages' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
 const emptySession = (): PaneSession => ({ entries: [], index: -1, generation: 0 });
 let paneSequence = 0;
 const newPaneId = (): PaneId => `pane-${Date.now().toString(36)}-${++paneSequence}`;
@@ -204,6 +205,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const [error, setError] = createSignal('');
   const [offlineUnavailable, setOfflineUnavailable] = createSignal(false);
   const [deleted, setDeleted] = createSignal<{ pages: { id: string; title: string }[]; label: string; reopen: boolean } | null>(null);
+  const [retainedDeletions] = createResource(() => notebook.changeSequence(), () => notebook.api.deletedPages());
   /** The deletion toast leaves after a while unless the pointer or focus rests on it; Undo page deletion stays in the command palette until the next deletion. */
   const [toastShown, setToastShown] = createSignal(false);
   const [toastHeld, setToastHeld] = createSignal(false);
@@ -472,7 +474,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     }
   };
   const restorePage = async () => {
-    const value = deleted(); if (!value) return;
+    const latest = retainedDeletions()?.[0]?.block;
+    const value = deleted() ?? (latest ? { pages: [{ id: latest.id, title: latest.text }], label: `“${latest.text}”`, reopen: true } : null);
+    if (!value) return;
     try {
       for (const page of value.pages) await notebook.restorePage(page.id);
       batch(() => { setDeleted(null); setToastShown(false); });
@@ -623,7 +627,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.new-view', title: 'New view…', section: 'View', run: () => setPopup({ kind: 'new-view', anchor: searchButton, pane: active() }) },
     { id: 'shell.pin', title: 'Pin / unpin page', section: 'Page', run: () => { const root = activeRoot(); if (root) pin(root.id); } },
     { id: 'shell.delete', title: 'Delete page', section: 'Page', run: () => { const anchor = document.querySelector<HTMLButtonElement>(`[data-pane="${active()}"] .page-menu-button`); if (anchor) setPopup({ kind: 'delete', anchor, pane: active() }); } },
-    { id: 'shell.restore-page', title: 'Undo page deletion', section: 'Page', disabledReason: () => deleted() ? undefined : 'No deleted page to restore', run: () => { void restorePage(); } },
+    { id: 'shell.restore-page', title: 'Undo page deletion', section: 'Page', disabledReason: () => deleted() || retainedDeletions()?.length ? undefined : retainedDeletions.loading ? 'Loading deleted pages…' : retainedDeletions.error ? 'Could not read deleted pages' : 'No deleted page to restore', run: () => { void restorePage(); } },
+    { id: 'shell.deleted-pages', title: 'Restore deleted page…', section: 'Page', run: () => setPopup({ kind: 'restore-pages', anchor: searchButton, pane: active() }) },
     { id: 'shell.review-conflict', title: 'Review notebook conflict', section: 'Editing', disabledReason: () => notebook.conflictedPages().length ? undefined : 'No conflicting blocks', run: reviewConflict },
     { id: 'shell.retry', title: 'Retry saving', section: 'Editing', disabledReason: () => notebook.saveState() === 'saved' && notebook.connection() === 'live' ? 'All changes are saved' : undefined, run: () => notebook.retry() },
     { id: 'shell.copy-unsaved', title: 'Copy unsaved text', section: 'Editing', disabledReason: () => notebook.localPersistence() === 'failed' || notebook.rejectedText() ? undefined : 'Local recovery storage is working', run: () => { void navigator.clipboard.writeText(notebook.rejectedText() || notebook.unsavedText()).catch(reportError); } },
@@ -1061,10 +1066,13 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <Show when={state.kind === 'new'}>
         <NewPage anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onOpen={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />
       </Show>
+      <Show when={state.kind === 'restore-pages'}>
+        <DeletedPages anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onRestored={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />
+      </Show>
       <Show when={state.kind === 'delete'}>
         <Popup anchor={state.anchor} label="Delete page" onDismiss={() => setPopup(null)} width={300}>
           <p>Delete “{notebook.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ?? rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}” and {state.source ? 'its highlights' : 'all its blocks'}?</p>
-          <p class="muted">You can undo this deletion.</p>
+          <p class="muted">Undo this deletion, or use Restore deleted page in Commands after reloading.</p>
           <div class="popup-actions"><Button onClick={() => setPopup(null)}>Cancel</Button><Button icon="trash" class="danger bordered" onClick={() => { void deletePage(state.pane); }}>Delete page</Button></div>
         </Popup>
       </Show>

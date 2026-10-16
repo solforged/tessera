@@ -216,6 +216,29 @@ fn merge_commits_the_title_alias_with_its_blocks_and_replays_once() {
 }
 
 #[test]
+fn retained_page_deletions_survive_reopen_but_permanent_merges_are_not_recoverable() {
+    let (dir, mut nb) = fixture();
+    apply(&mut nb, vec![insert(10, &id(1), None, "retained payload")]);
+    apply(&mut nb, vec![Operation::Delete { id: id(1), base_revision: 1 }]);
+    drop(nb);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let deleted = nb.deleted_pages().unwrap();
+    let page = deleted.iter().find(|page| page.block.id == id(1)).unwrap();
+    assert_eq!(page.block.text, "Draft");
+    let restore = Operation::Restore {
+        id: page.block.id.clone(),
+        revision: page.block.revision,
+        deletion_id: page.deletion_id.clone(),
+    };
+    apply(&mut nb, vec![restore]);
+    assert_eq!(nb.block(&id(10)).unwrap().text, "retained payload");
+    assert!(!nb.deleted_pages().unwrap().iter().any(|page| page.block.id == id(1)));
+    let operation = merge(&nb, &id(1), &id(2));
+    apply(&mut nb, vec![operation]);
+    assert!(!nb.deleted_pages().unwrap().iter().any(|page| page.block.id == id(1)));
+}
+
+#[test]
 fn merge_rewrites_mixed_links_aliases_tags_and_manual_memberships_and_replays() {
     let (dir, mut nb) = fixture();
     let mixed = format!(
