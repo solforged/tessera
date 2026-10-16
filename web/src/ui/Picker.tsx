@@ -37,6 +37,8 @@ export interface PickerProps<T> {
   section?(item: T): string | undefined;
   disabledReason?(item: T): string | undefined;
   onPick(item: T, event: KeyboardEvent | MouseEvent): void;
+  /** Preserve an explicit Enter while the current query has no ready selection. */
+  onPendingPick?(event: KeyboardEvent): void;
   /** Extra keys on the highlighted item; return true when handled. */
   onKey?(event: KeyboardEvent, item: T | undefined): boolean;
   busy?: boolean;
@@ -106,7 +108,7 @@ export function Picker<T>(props: PickerProps<T>) {
     } else if (event.key === 'Home' || event.key === 'End') {
       event.preventDefault(); setSelected(event.key === 'Home' ? 0 : Math.max(0, count - 1));
     } else if (event.key === 'Enter') {
-      event.preventDefault(); const item = current(); if (item !== undefined) pick(item, event);
+      event.preventDefault(); const item = current(); if (item !== undefined) pick(item, event); else props.onPendingPick?.(event);
     } else if (props.onKey?.(event, current())) {
       event.preventDefault();
       queueMicrotask(() => { if (input.isConnected) input.focus({ preventScroll: true }); });

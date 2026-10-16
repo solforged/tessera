@@ -43,6 +43,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const text = () => mode() === 'commands' ? query().slice(1).trim() : query().trim();
   const [findScope, setFindScope] = createSignal<FindScope>('Everything');
   const [selectedEntry, setSelectedEntry] = createSignal<Entry>();
+  const [pendingPick, setPendingPick] = createSignal<{ query: string; scope: BlockInPage | undefined; filter: FindScope; beside: boolean }>();
   const initialRequests = new AbortController();
   onCleanup(() => initialRequests.abort());
   const [library] = createResource(async () => props.notebook.api.library({ limit: 500 }, initialRequests.signal));
@@ -188,6 +189,26 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     const reason = mode() === 'search' ? hits.error ?? scopedPage.error ?? highlights.error ?? library.error : undefined;
     return reason ? `Couldn't search · ${String(reason?.message ?? reason)}` : passagesError() ? `Couldn't search book text · ${passagesError()}` : undefined;
   };
+  const pick = (entry: Entry, beside: boolean) => {
+    setPendingPick(undefined);
+    if (entry.kind === 'hit') open(entry.hit, beside);
+    else if (entry.kind === 'highlight' || entry.kind === 'passage') openBook(entry, beside);
+    else if (entry.kind === 'more') more(entry.page);
+    else if (entry.kind === 'command') run(entry.command, beside);
+    else void create(entry.title, beside);
+  };
+  createEffect(() => {
+    const pending = pendingPick();
+    if (!pending) return;
+    if (pending.query !== query() || pending.scope !== scope() || pending.filter !== findScope()) {
+      setPendingPick(undefined);
+      return;
+    }
+    if (busy()) return;
+    setPendingPick(undefined);
+    const entry = entries()[0];
+    if (!error() && entry) pick(entry, pending.beside);
+  });
   const pageGroupLabel = createMemo(() => {
     const pageResults = entries().filter(entry => entry.kind === 'hit' || entry.kind === 'more');
     return pageResults.length && pageResults.every(entry => entry.kind === 'hit' && entry.hit.block.id === entry.hit.page.id && books().has(entry.hit.page.id)) ? 'Books' : 'Pages and notes';
@@ -217,13 +238,8 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'more' ? `more:${entry.page.id}` : entry.kind === 'command' ? entry.command.id : entry.kind === 'highlight' ? entry.row.citation.id : entry.kind === 'passage' ? entry.hit.passage.id : 'create'}
     section={sectionsWithCounts}
     disabledReason={entry => creating() ? 'Creating page…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}
-    onPick={(entry, event) => {
-      if (entry.kind === 'hit') open(entry.hit, opensBeside(event));
-      else if (entry.kind === 'highlight' || entry.kind === 'passage') openBook(entry, opensBeside(event));
-      else if (entry.kind === 'more') more(entry.page);
-      else if (entry.kind === 'command') run(entry.command, opensBeside(event));
-      else void create(entry.title, opensBeside(event));
-    }}
+    onPick={(entry, event) => pick(entry, opensBeside(event))}
+    onPendingPick={event => { if (mode() === 'search' && busy()) setPendingPick({ query: query(), scope: scope(), filter: findScope(), beside: opensBeside(event) }); }}
     onKey={(event, entry) => {
       if (event.key !== 'Tab' || mode() !== 'search' || event.ctrlKey || event.metaKey || event.altKey) return false;
       if (event.shiftKey) { if (!scopes().length) return false; up(); return true; }
