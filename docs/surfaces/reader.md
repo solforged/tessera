@@ -209,6 +209,8 @@ The same button, `F`, `Esc` after any selection is cleared, Back on Android and 
 
 Selecting text shows a small toolbar beside an endpoint's visible line, above or below it without covering the selected words when space permits. It leaves when the reader becomes inactive or hidden. Scrolling with a mouse clears both the toolbar and the selection. [Touch selection](#touch-selection) docks it in thumb reach instead.
 
+Reader popups and sheets suspend the standalone selection toolbar without clearing the selection. The toolbar returns on dismissal if reader text remains selected.
+
 | Action | Key | Result |
 | --- | --- | --- |
 | Highlight | `H` | Appends a block quoting the selection to the source page |

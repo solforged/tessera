@@ -977,7 +977,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   });
 
   function selected() {
-    if (editing() || rewritingSelection || popup()?.kind === 'actions') return;
+    if (editing() || rewritingSelection || popup()) return;
     if (!props.active || !scroll.getClientRects().length) { setSelection(null); return; }
     const dom = window.getSelection();
     const value = dom && selectionInPassages(scroll, dom, [...passages.values()]);
@@ -985,6 +985,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     setSelection(value && range ? { ...value, rect: range.getBoundingClientRect(), rects: [...range.getClientRects()], snapshotId: snapshot() } : null);
     setEditError('');
   }
+  createEffect(on(popup, state => { if (!state) selected(); }, { defer: true }));
 
   /** The quotation with the sentence before and after it, from loaded prose passages. */
   function noteDraft(value: PassageSelection, noteId: string): HighlightNoteDraft {
@@ -1579,7 +1580,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         <Show when={(() => { const value = state(); return value.kind === 'note' && value.ordinal !== undefined ? value : null; })()}>{note => <Button onClick={() => { void openFootnote(note().ordinal!, note().locator!, note().anchor); }}>Open footnote</Button>}</Show>
       </Popup></Show>
     </>}</Show>
-    <Show when={props.active && selection()}><SelectionTools /></Show>
+    <Show when={props.active && !popup() && selection()}><SelectionTools /></Show>
     <Show when={composing()}>{draft => <HighlightComposer notebook={props.notebook} draft={draft()} onClose={() => { setComposing(null); drawInk(composedCitation); }} />}</Show>
     <Show when={props.active && removedNotice()}><div class="undo-toast reader-highlight-undo" role="status" onPointerEnter={() => setNoticeHeld(true)} onPointerLeave={() => setNoticeHeld(false)} onFocusIn={() => setNoticeHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNoticeHeld(false); }}>
       <span>Highlight removed</span><Button icon="undo" disabled={!actions.canUndo()} onClick={() => { void undoHighlight(); }}>Undo</Button><Button icon="close" label="Dismiss highlight removal notice" onClick={() => setRemovedNotice(false)} />
