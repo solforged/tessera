@@ -164,6 +164,43 @@ fn backlink_ids(nb: &Notebook, target: &str) -> Vec<String> {
 }
 
 #[test]
+fn merge_retains_and_deduplicates_the_source_pages_types() {
+    let (_dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![
+            Operation::AddType {
+                id: id(1),
+                base_revision: 1,
+                title: "Concept".into(),
+            },
+            Operation::AddType {
+                id: id(1),
+                base_revision: 2,
+                title: "Person".into(),
+            },
+            Operation::AddType {
+                id: id(2),
+                base_revision: 1,
+                title: "Concept".into(),
+            },
+        ],
+    );
+    let operation = merge(&nb, &id(1), &id(2));
+    apply(&mut nb, vec![operation]);
+    assert_eq!(
+        nb.page(&id(2)).unwrap().root_manual_types,
+        vec!["Concept", "Person"]
+    );
+    for title in ["Concept", "Person"] {
+        let kind = nb.page_by_title(title).unwrap().unwrap();
+        let members = nb.members(&kind.id, 100).unwrap();
+        assert_eq!(members.iter().filter(|member| member.block.id == id(2)).count(), 1);
+        assert!(!members.iter().any(|member| member.block.id == id(1)));
+    }
+}
+
+#[test]
 fn merge_rewrites_mixed_links_aliases_tags_and_manual_memberships_and_replays() {
     let (dir, mut nb) = fixture();
     let mixed = format!(

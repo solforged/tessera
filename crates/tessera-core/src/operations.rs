@@ -1460,6 +1460,13 @@ impl Engine<'_, '_> {
                 after = Some(id);
             }
         }
+        // A merged identity retains every classification, including tags authored
+        // in the old title. They become manual memberships on the surviving page.
+        self.tx.execute(
+            "INSERT OR IGNORE INTO memberships(block_id, title_key, type_id, manual, title)
+             SELECT ?1, title_key, type_id, 1, title FROM memberships WHERE block_id = ?2",
+            params![destination.block.id, source.block.id],
+        )?;
         let current = self.live(&destination.block.id)?;
         self.bump(&current, true)?;
         self.delete(&source.block.id)

@@ -134,7 +134,7 @@ A block has an ID (ULID), parent, page, ordinal, text, optional heading level (1
 Rules:
 
 - **Split** keeps the original ID on the left part. Children stay with it.
-- **Merge** keeps the destination ID. It refuses when the source has history that cannot move, such as reviewed cards.
+- **Merge** keeps the destination ID and the union of both pages' type memberships, without duplicates. It refuses when the source has history that cannot move, such as reviewed cards.
 - **Move** keeps the ID and the whole subtree.
 - **Archive** hides; **delete** tombstones with a shared deletion event; **restore** needs that event and the exact revision. **Purge** is explicit and refuses to destroy review history.
 - Every write checks the revision it was based on. A mismatch writes nothing.
