@@ -43,8 +43,16 @@ test('inline code uses exact backtick runs and leaves adjacent semantic tokens a
     const text = `${marker}#Hidden [[id]]${marker} #Visible [[id]]`;
     expect(textTokens(text).filter(token => token.kind !== 'text').map(token => token.value)).toEqual(['Visible', '[[id]]']);
   }
-  for (const text of ['`#Hidden [[id]]', '``#Hidden ` [[id]]``', '`#Hidden `` [[id]]`']) {
+  for (const text of ['`#Hidden [[id]]`', '``#Hidden ` [[id]]``', '`#Hidden `` [[id]]`']) {
     expect(textTokens(text).every(token => token.kind === 'text')).toBe(true);
+  }
+});
+
+test('unmatched backticks stay literal without suppressing later tags or references', () => {
+  for (const marker of ['`', '``', '```']) {
+    const text = `it${marker}s about #history and [[Polybius]]`;
+    expect(textTokens(text).filter(token => token.kind !== 'text').map(token => token.value)).toEqual(['history', '[[Polybius]]']);
+    expect(inlineTokens(text).some(token => token.formats?.includes('code'))).toBe(false);
   }
 });
 

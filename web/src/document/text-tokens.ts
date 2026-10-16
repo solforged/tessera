@@ -24,7 +24,7 @@ export function textTokens(text: string): Token[] {
       let close = start + marker.length;
       for (;;) {
         close = text.indexOf(marker, close);
-        if (close < 0) { pattern.lastIndex = text.length; break; }
+        if (close < 0) break;
         if (text[close - 1] !== '`' && text[close + marker.length] !== '`') { pattern.lastIndex = close + marker.length; break; }
         close += marker.length;
       }

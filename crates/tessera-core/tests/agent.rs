@@ -239,6 +239,21 @@ fn inline_code_keeps_title_references_and_tags_literal_in_agent_notes() {
 }
 
 #[test]
+fn unmatched_backticks_keep_later_agent_titles_and_tags_active() {
+    let (_dir, mut nb) = fixture();
+    let receipt = run(
+        &mut nb,
+        &note(page("Literal backticks"), vec![block("it`s about #history [[Polybius]]", vec![])]),
+    );
+    let polybius = nb.page_by_title("Polybius").unwrap().unwrap();
+    let history = nb.page_by_title("history").unwrap().unwrap();
+    let written = nb.block(&receipt.blocks[0].id).unwrap();
+    assert_eq!(written.text, format!("it`s about #history [[{}]]", polybius.id));
+    assert_eq!(nb.members(&history.id, 10).unwrap().len(), 1);
+    assert_eq!(nb.backlinks(&polybius.id, 10).unwrap().len(), 1);
+}
+
+#[test]
 fn add_note_resolves_titles_without_losing_labels_or_locators() {
     let (_dir, mut nb) = fixture();
     dune(&mut nb);

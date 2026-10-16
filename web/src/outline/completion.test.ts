@@ -88,14 +88,16 @@ describe('an open reference completion', () => {
 });
 
 describe('typed completion triggers', () => {
-  test('does not open page or block reference completion in closed or unfinished code', () => {
-    for (const text of ['`co[[QA Inline]]de`', '`co[[QA Inline', '``co[[QA Inline]]de``', '`co((QA Inline))de`', '~~~\n[[QA Inline]]\n~~~']) {
+  test('does not open page or block reference completion inside matched code', () => {
+    for (const text of ['`co[[QA Inline]]de`', '``co[[QA Inline]]de``', '`co((QA Inline))de`', '~~~\n[[QA Inline]]\n~~~']) {
       const marker = text.includes('[[') ? '[[' : '((';
       expect(referenceCompletionAt(text, text.indexOf(marker) + marker.length + 'QA Inline'.length)).toBeNull();
     }
     const text = '`code` [[QA Inline]]';
     expect(referenceCompletionAt(text, text.length - 2)).toEqual({ from: 7, to: text.length - 2, query: 'QA Inline', blocks: false });
     expect(referenceCompletionAt('[[outer|((inner))]]', 14)).toBeNull();
+    const unmatched = 'it`s about [[Polybius]]';
+    expect(referenceCompletionAt(unmatched, unmatched.length - 2)?.query).toBe('Polybius');
   });
 
   test('reserves modified Enter and Tab for their editing chords', () => {
@@ -151,6 +153,9 @@ describe('hand-typed reference linking', () => {
     targets.set(foldName('Canonical'), '01ARZ3NDEKTSV4RRFFQ69G5FAV');
     expect(typedTitles('`[[Canonical]]`')).toEqual([]);
     expect(withLinkedTitles(text, targets)).toBe('`[[Canonical]]` and [[01ARZ3NDEKTSV4RRFFQ69G5FAV|Canonical]]');
+    const unmatched = 'it`s about [[Canonical]]';
+    expect(typedTitles(unmatched)).toEqual(['Canonical']);
+    expect(withLinkedTitles(unmatched, targets)).toBe('it`s about [[01ARZ3NDEKTSV4RRFFQ69G5FAV|Canonical]]');
   });
 
   test('never normalizes or trims authored newlines inside a literal reference', () => {

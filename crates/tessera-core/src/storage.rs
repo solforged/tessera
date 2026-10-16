@@ -184,8 +184,8 @@ pub(crate) fn quote_target(text: &str) -> Option<&str> {
     validate_id(target).is_ok().then_some(target)
 }
 
-/// The web tokenizer shields matching backtick runs, or the remainder for an
-/// unfinished run. Backticks inside a reference or URL belong to that token.
+/// Only matching backtick runs shield code, as in the web tokenizer. Unmatched
+/// runs stay literal; backticks inside a reference or URL belong to that token.
 pub(crate) fn inline_code_spans(text: &str) -> impl Iterator<Item = std::ops::Range<usize>> {
     let mut cursor = 0;
     std::iter::from_fn(move || {
@@ -243,17 +243,19 @@ pub(crate) fn inline_code_spans(text: &str) -> impl Iterator<Item = std::ops::Ra
             if rest.starts_with('`') {
                 let start = cursor;
                 let width = rest.bytes().take_while(|&byte| byte == b'`').count();
-                cursor += width;
-                while let Some(next) = text[cursor..].find('`') {
-                    cursor += next;
-                    let count = text[cursor..].bytes().take_while(|&byte| byte == b'`').count();
-                    cursor += count;
+                let opening_end = cursor + width;
+                let mut closing = opening_end;
+                while let Some(next) = text[closing..].find('`') {
+                    closing += next;
+                    let count = text[closing..].bytes().take_while(|&byte| byte == b'`').count();
+                    closing += count;
                     if count == width {
+                        cursor = closing;
                         return Some(start..cursor);
                     }
                 }
-                cursor = text.len();
-                return Some(start..cursor);
+                cursor = opening_end;
+                continue;
             }
             cursor += rest.chars().next().expect("in bounds").len_utf8();
         }
@@ -571,12 +573,18 @@ mod reference_tests {
             );
         }
         for text in [
-            format!("`#Hidden [[{id}]]"),
+            format!("`#Hidden [[{id}]]`"),
             format!("``#Hidden ` [[{id}]]``"),
             format!("`#Hidden `` [[{id}]]`"),
         ] {
             assert!(tag_names(&text).next().is_none());
             assert!(link_tokens(&text).next().is_none());
+        }
+        for marker in ["`", "``", "```"] {
+            let text = format!("it{marker}s about #History [[{id}]]");
+            assert!(inline_code_spans(&text).next().is_none());
+            assert_eq!(tag_names(&text).collect::<Vec<_>>(), ["History"]);
+            assert_eq!(link_tokens(&text).count(), 1);
         }
         for text in [
             "[[name|`label]] #Visible",

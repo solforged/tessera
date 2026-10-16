@@ -30,12 +30,13 @@ describe('type completion tokens', () => {
   });
 
   test('shields references, block references, inline code and code fences', () => {
-    for (const text of ['[[source #bo', '[[source| #bo]]', '#[[Long #bo', '` #bo', '`` #bo``', '```md\n#bo', '~~~\n#bo']) {
+    for (const text of ['[[source #bo', '[[source| #bo]]', '#[[Long #bo', '` #bo`', '`` #bo``', '```md\n#bo', '~~~\n#bo']) {
       expect(atEnd(text)).toBeNull();
     }
     expect(typeTokenAt('((source #bo', 12)).toBeNull();
     expect(atEnd('[[source]] #bo')?.query).toBe('bo');
     expect(atEnd('`literal` #bo')?.query).toBe('bo');
+    expect(atEnd('it`s about #history')?.query).toBe('history');
     expect(atEnd('```md\ncode\n```\n#bo')?.query).toBe('bo');
     for (const text of ['[[source #bo]]', '` #bo`', '((source #bo))']) {
       expect(typeTokenAt(text, text.indexOf('#bo') + 3)).toBeNull();
