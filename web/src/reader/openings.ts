@@ -39,6 +39,13 @@ const ALSO_BY = /^(also by|other books by|other titles by|books by|by the same a
 /** A cover, contents page, map or list of the author's other books: front matter, not a chapter. */
 export const isFrontMatter = (title: string) => { const key = normalizeTitle(title); return !!FRONT[key] || ALSO_BY.test(key); };
 
+/** An old inferred entry naming a lone paragraph by a truncated excerpt, not an editorial chapter title. */
+export function isProseExcerpt(entry: TocEntry, passage: { kind: string; text: string } | undefined, next: TocEntry | undefined): boolean {
+  const prefix = entry.title.match(/^(.*?)(?:…|\.\.\.)$/s)?.[1]?.trimEnd();
+  return !!prefix && !!passage && passage.kind !== 'heading' && passage.text.length > prefix.length && passage.text.startsWith(prefix)
+    && entry.ordinal !== null && next?.ordinal === entry.ordinal + 1;
+}
+
 /** `XIV`, `14` or `fourteen` as a number; null for anything else. */
 function numberOf(token: string): number | null {
   const lower = token.toLocaleLowerCase();
@@ -78,16 +85,28 @@ function parse(title: string): Parsed {
   return { kind: null, numeral: null, value: null, rest: text };
 }
 
-/** The book's title, alone or before its subtitle, from each place it is recorded. */
+/** The book's title, alone, before its subtitle or without a parenthetical edition, from each place it is recorded. */
 export function bookKeys(...titles: (string | null | undefined)[]): Set<string> {
   const keys = new Set<string>();
   for (const title of titles) {
     if (!title?.trim()) continue;
-    keys.add(normalizeTitle(title));
-    keys.add(normalizeTitle(title.split(':')[0]!));
+    const main = title.replace(/\s*\([^()]*(?:edition|ed\.)[^()]*\)\s*$/i, '');
+    for (const value of [title, main]) {
+      keys.add(normalizeTitle(value));
+      keys.add(normalizeTitle(value.split(':')[0]!));
+    }
   }
   keys.delete('');
   return keys;
+}
+
+/** Title-page-only repetitions: a split edition and a byline made from the recorded creators. */
+export function repeatsTitleDetails(text: string, titles: readonly string[], creators: readonly string[]): boolean {
+  const key = normalizeTitle(text);
+  if (titles.some(title => normalizeTitle(title.match(/\(([^()]*(?:edition|ed\.)[^()]*)\)\s*$/i)?.[1] ?? '') === key)) return !!key;
+  const names = text.replace(/^\s*by\s+/i, '').split(/\s+(?:and|&)\s+|,\s*/i).map(normalizeTitle);
+  const known = new Set(creators.map(normalizeTitle));
+  return names.length > 0 && names.every(name => !!name && known.has(name));
 }
 
 /** A contents entry that only repeats the book's title: a running head the file marked as navigation. */
@@ -172,7 +191,8 @@ export interface AbsorbedPassages {
  * else ends the run. `passageAt` is undefined for passages not yet loaded, which also ends it until they arrive.
  */
 export function absorbedPassages(openings: ReadonlyMap<number, Opening>, titleEntries: readonly number[],
-  passageAt: (ordinal: number) => { kind: string; text: string } | undefined, highlighted: (ordinal: number) => boolean, book: ReadonlySet<string>): AbsorbedPassages {
+  passageAt: (ordinal: number) => { kind: string; text: string } | undefined, highlighted: (ordinal: number) => boolean, book: ReadonlySet<string>,
+  titleDetails: (text: string) => boolean = () => false): AbsorbedPassages {
   const hidden = new Set<number>(), first = new Set<number>();
   const walk = (start: number, repeats: (text: string) => boolean) => {
     for (let ordinal = start; ordinal < start + 6; ordinal++) {
@@ -183,7 +203,15 @@ export function absorbedPassages(openings: ReadonlyMap<number, Opening>, titleEn
     }
     return null;
   };
-  for (const ordinal of titleEntries) if (!openings.has(ordinal)) walk(ordinal, text => book.has(normalizeTitle(text)));
+  // A file's opening title page need not have its own contents entry. Skip only its leading cover images.
+  for (let ordinal = 0; ordinal < 6; ordinal++) {
+    const passage = passageAt(ordinal);
+    if (!passage) break;
+    if (passage.kind === 'image') continue;
+    if (book.has(normalizeTitle(passage.text))) walk(ordinal, text => book.has(normalizeTitle(text)) || titleDetails(text));
+    break;
+  }
+  for (const ordinal of titleEntries) if (!openings.has(ordinal)) walk(ordinal, text => book.has(normalizeTitle(text)) || titleDetails(text));
   for (const { ordinal, heading, part } of openings.values()) {
     const text = walk(ordinal, value => repeatsOpening(value, heading, book) || (!!part && repeatsOpening(value, part.heading, book)));
     if (text !== null && passageAt(text)?.kind !== 'image') first.add(text);

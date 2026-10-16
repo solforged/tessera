@@ -84,15 +84,21 @@
 .reader-measure-probe { position: absolute; width: 0; height: 0; overflow: hidden; visibility: hidden; font-size: var(--reader-size); }
 .reader-measure-probe > div { width: var(--reader-measure); }
 .reader-scroll.reader-paged { position: relative; display: flex; flex-direction: column; align-items: center; overflow: hidden; padding: 0 var(--space-24); }
-.reader-page-frame { flex: 1; min-height: 0; max-width: 100%; overflow: hidden; touch-action: pan-y pinch-zoom; }
+.reader-page-frame { flex: 1; min-height: 0; max-width: 100%; overflow: hidden; touch-action: pan-y pinch-zoom; container-name: reader-page; container-type: size; }
 .reader-flow { height: 100%; column-fill: auto; column-rule: 1px solid var(--line); font-size: var(--reader-size); orphans: 2; widows: 2; }
 .reader-flow > .reader-passage { margin-bottom: var(--space-16); }
 .reader-flow > :is(h1, h2, h3) { break-after: avoid; }
 .reader-flow > :is(.reader-image, .reader-code) { break-inside: avoid; }
 .reader-flow .reader-image img { max-height: 50vh; }
 .reader-flow > .reader-page-title { position: static; padding-top: 0; }
-/* In Pages a chapter opening sinks a fifth of the column, as a printed chapter starts low on its recto. */
-.reader-flow > .reader-opening { padding-top: 18vh; break-after: avoid; }
+/* The opening drop follows the usable column, not the viewport's shell and toolbars. */
+.reader-flow > .reader-opening { padding-top: 18cqh; break-inside: avoid; break-after: avoid; }
+@container reader-page (max-height: 320px) {
+  .reader-flow > .reader-opening { padding-block: min(4cqh, var(--space-8)); }
+  .reader-opening .reader-opening-title { font-size: min(calc(var(--reader-size) * 2.1), max(var(--reader-size), 12cqh)); }
+  .reader-opening .reader-opening-rule { margin-top: var(--space-8); }
+  .reader-opening .reader-opening-part { margin-bottom: var(--space-4); }
+}
 /* Pages read as a printed spread: a running head over each column (the title left, the chapter right), dropped over a chapter's opening page, and a hairline spine between two columns. With a mouse the page arrows sit at the page edges; touch turns pages with edge taps. */
 .reader-running-head { display: grid; flex-shrink: 0; max-width: 100%; padding-bottom: var(--space-12); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; text-transform: uppercase; }
 .reader-running-head > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -174,7 +180,9 @@
 .reader-search-match { background: var(--selection); color: var(--accent); }
 /* The result count is apparatus, like every other count, in mono with tabular figures. */
 .reader-find-status { margin: 0; padding: var(--space-8) var(--space-12); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.reader-search-entry { display: flex; flex-direction: column; min-width: 0; width: 100%; gap: var(--space-4); }
 .reader-search-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.reader-search-entry .reader-highlight-section { max-width: 100%; margin-left: 0; font: var(--apparatus); text-align: left; }
 .reader-note { padding: var(--space-12); max-width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
 .reader-note p { margin: 0; white-space: pre-wrap; }
 .reader-status, .reader-error { margin: var(--space-8) var(--space-24); font-size: var(--text-control); }

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { TocEntry } from '../api/types';
-import { absorbedPassages, bookKeys, chapterOpenings, repeatsOpening, sectionName } from './openings';
+import { absorbedPassages, bookKeys, chapterOpenings, isProseExcerpt, repeatsOpening, repeatsTitleDetails, sectionName } from './openings';
 
 const entry = (title: string, ordinal: number, level = 1): TocEntry => ({ title, ordinal, level, locator: `#${ordinal}` });
 const book = bookKeys('The Waning of the Middle Ages: A Study');
@@ -67,4 +67,33 @@ test('the toolbar names a section by its numeral and title, or by its label when
   expect(sectionName('7')).toEqual({ numeral: null, title: 'Chapter 7' });
   expect(sectionName('BOOK TWO')).toEqual({ numeral: null, title: 'Book Two' });
   expect(sectionName('Notes')).toEqual({ numeral: null, title: 'Notes' });
+});
+
+test('old inferred contents excerpts stay prose without hiding an editorial heading or a complete title', () => {
+  const inferred = entry('"Magic is the first and last religion of the world. It has…', 6);
+  const prose = { kind: 'paragraph', text: '"Magic is the first and last religion of the world. It has the power to make us whole."' };
+  const next = entry('Chapter 1', 7);
+  expect(isProseExcerpt(inferred, prose, next)).toBe(true);
+  expect(isProseExcerpt(inferred, { ...prose, kind: 'heading' }, next)).toBe(false);
+  expect(isProseExcerpt(inferred, prose, entry('Chapter 2', 20))).toBe(false);
+  expect(isProseExcerpt(entry('The end…', 6), { kind: 'paragraph', text: 'The end…' }, next)).toBe(false);
+  const entries = [inferred, next, entry('Chapter 2', 20)];
+  expect([...chapterOpenings(entries.filter((value, index) => !isProseExcerpt(value, value.ordinal === 6 ? prose : undefined, entries[index + 1])), book).keys()]).toEqual([7, 20]);
+});
+
+test('a split title, edition and recorded byline are absorbed only in the title-page run', () => {
+  const title = 'The Marx-Engels Reader (Second Edition)', creators = ['Karl Marx', 'Friedrich Engels', 'Robert C. Tucker'];
+  const keys = bookKeys(title);
+  expect(keys.has('the marx engels reader')).toBe(true);
+  expect(bookKeys('A Story (Notes)').has('a story')).toBe(false);
+  const texts = [
+    { kind: 'paragraph', text: 'The Marx-Engels Reader' }, { kind: 'heading', text: 'Second Edition' },
+    { kind: 'heading', text: 'Karl Marx and Friedrich Engels' }, { kind: 'paragraph', text: 'Preface to the Second Edition' },
+  ];
+  const details = (text: string) => repeatsTitleDetails(text, [title], creators);
+  expect(details('An unrelated writer')).toBe(false);
+  expect(details('Preface to the Second Edition')).toBe(false);
+  const result = absorbedPassages(new Map(), [], ordinal => texts[ordinal], () => false, keys, details);
+  expect([...result.hidden]).toEqual([0, 1, 2]);
+  expect([...absorbedPassages(new Map(), [0], ordinal => texts[ordinal], ordinal => ordinal === 1, keys, details).hidden]).toEqual([0]);
 });

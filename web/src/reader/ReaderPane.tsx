@@ -33,7 +33,7 @@ import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettin
 import { ProgressCard } from './ProgressCard';
 import { chapterAt, pageChunk, timeLeft } from './paged';
 import type { PageChunk } from './paged';
-import { absorbedPassages, bookKeys, chapterOpenings, isFrontMatter, repeatsBook, sectionLabel, sectionName } from './openings';
+import { absorbedPassages, bookKeys, chapterOpenings, isFrontMatter, isProseExcerpt, repeatsBook, repeatsTitleDetails, sectionLabel, sectionName } from './openings';
 import type { Opening } from './openings';
 import { mergeMembers, overlappingHighlights } from './highlight-merge';
 import './reader.css';
@@ -104,8 +104,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   const title = () => details().title?.trim() || currentSnapshot()?.metadata.title || '';
   /** The book's title as the source page and the file record it. */
   const book = createMemo(() => bookKeys(details().title, source()?.snapshots.find(value => value.id === snapshot())?.metadata.title));
-  /** The contents without entries that only repeat the book's title: running heads the file marked as navigation. */
-  const contents = createMemo(() => allContents().filter(entry => !repeatsBook(entry, book())));
+  /** Leave out running book titles and old inferred entries that only name a lone prose excerpt. */
+  const contents = createMemo(() => { version(); return allContents().filter((entry, index, entries) => !repeatsBook(entry, book()) && !isProseExcerpt(entry, entry.ordinal === null ? undefined : passages.get(entry.ordinal), entries[index + 1])); });
   const [flash, setFlash] = createSignal<Citation | null>(null);
   const [highlights, setHighlights] = createSignal<HighlightRow[]>([]);
   const [composing, setComposing] = createSignal<HighlightNoteDraft | null>(null);
@@ -246,7 +246,9 @@ export function ReaderPane(props: ReaderPaneProps) {
       if (to !== undefined) highlighted.add(to);
     }
     const titleEntries = allContents().flatMap(entry => entry.ordinal !== null && repeatsBook(entry, book()) ? [entry.ordinal] : []);
-    const result = absorbedPassages(openings(), titleEntries, ordinal => passages.get(ordinal), ordinal => highlighted.has(ordinal), book());
+    const metadata = currentSnapshot()?.metadata, page = details();
+    const result = absorbedPassages(openings(), titleEntries, ordinal => passages.get(ordinal), ordinal => highlighted.has(ordinal), book(),
+      text => repeatsTitleDetails(text, [page.title ?? '', metadata?.title ?? ''], (page.creators.length ? page.creators : metadata?.creators ?? []).map(creator => creator.name)));
     const cover = passages.get(0);
     if (title() && titleCover() && cover?.kind === 'image' && cover.resource === currentSnapshot()?.metadata.cover && !highlighted.has(0)) result.hidden.add(0);
     return result;
@@ -1319,7 +1321,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       return [source()?.source.siglum, details().publisher ?? metadata?.publisher ?? (creators() ? null : metadata?.site), year()].filter(Boolean).join(' · ');
     };
     const facts = () => {
-      const chapters = [...openings().values()].filter(value => value.label?.startsWith('Chapter')).length, length = currentSnapshot()?.text_length ?? 0;
+      const chapters = new Set(chapterEntries(sections()).filter(entry => !isFrontMatter(entry.title)).map(entry => entry.ordinal)).size, length = currentSnapshot()?.text_length ?? 0;
       return [chapters > 1 ? `${chapters} chapters` : '', length ? timeLeft(length) : ''].filter(Boolean).join(' · ');
     };
     // The first opening past the cover and front matter: the preface, or chapter one.
@@ -1480,7 +1482,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} header={(() => { const value = state(); return value.kind === 'menu' && value.Header ? <value.Header onDismiss={() => setPopup(null)} /> : undefined; })()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
         status={<div class="reader-find-status"><span role="status">{hits().length} passages{morePassages() ? ' shown' : ''}</span><Show when={morePassages()}>{' '}<Button disabled={searching()} onClick={() => { void loadSearchPage(); }}>Load more passages</Button></Show></div>}
-        row={hit => <span class="reader-search-snippet"><For each={hit.snippet.replace(/^(?:\.\.\.|…)\s*/, '…').replace(/\s*(?:\.\.\.|…)$/, '…').split(/(\[[^\]]+\])/g)}>{part => part.startsWith('[') && part.endsWith(']') ? <mark class="reader-search-match">{part.slice(1, -1)}</mark> : part}</For></span>} busy={searching() && !hits().length} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
+        row={hit => <span class="reader-search-entry"><span class="reader-search-snippet"><For each={hit.snippet_parts}>{part => part.match ? <mark class="reader-search-match">{part.text}</mark> : part.text}</For></span><span class="reader-highlight-section">Passage {hit.passage.ordinal + 1}<Show when={sectionAt(hit.passage.ordinal)}>{entry => <> · {sectionLabel(entry().title)}</>}</Show></span></span>} busy={searching() && !hits().length} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
         onPick={hit => { setPopup(null); switchSnapshot(hit.snapshot_id); void jump(hit.passage.ordinal).catch(reason => { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); }); }}
         onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'note'}><Popup anchor={state().anchor} label="Footnote" class="reader-note" onDismiss={() => setPopup(null)}>

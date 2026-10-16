@@ -522,6 +522,8 @@ Passage responses include the snapshot's Contents, including historical snapshot
 
 The service exposes uploads, persistent ingestion jobs, sources, passages, resources, position, search, triage and export under `/api/library`, `/api/sources`, `/api/snapshots`, `/api/passages/search` and `/api/highlights/query`.
 
+Passage search returns `snippet_parts`, an ordered array of `{ text, match }` objects. The text keeps literal source punctuation; `match` identifies full-text matches without inline delimiters.
+
 - `GET /api/highlights/resurface?date=YYYY-MM-DD&limit=3` reads date-specific picks.
 - `POST /api/highlights/{citation_id}/resurface` records `{ date, action }`: `kept`, `opened` or `muted`.
 

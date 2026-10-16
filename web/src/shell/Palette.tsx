@@ -235,7 +235,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       ? <HitRow hit={entry.hit} query={text()} notebook={props.notebook} selected={selected} book={books().get(entry.hit.page.id)} />
       : entry.kind === 'more' ? <><Icon name="page" /><span class="picker-text">+{entry.count} more in {entry.page.text}</span></>
       : entry.kind === 'highlight' ? <><span class={`find-color highlight-color-${entry.row.color ?? 'none'}`} style={{ background: entry.row.color ? `var(--highlight-${entry.row.color})` : 'transparent', 'box-shadow': entry.row.color ? undefined : 'inset 0 0 0 1px var(--faint)' }} /><span class="find-result"><span class="find-quote"><MatchText text={entry.row.citation.quote} query={text()} /></span><small>Highlight · {location(entry.row.citation.source_id, entry.row.citation.ordinal, entry.row.citation.chapter_title)}</small></span></>
-      : entry.kind === 'passage' ? <><span class="find-paragraph" aria-hidden="true">¶</span><span class="find-result"><span class="find-quote"><MatchText text={entry.hit.snippet} query={text()} snippet /></span><small>{location(entry.hit.source_id, entry.hit.passage.ordinal)}</small></span></>
+      : entry.kind === 'passage' ? <><span class="find-paragraph" aria-hidden="true">¶</span><span class="find-result"><span class="find-quote"><For each={entry.hit.snippet_parts}>{part => <Show when={part.match} fallback={part.text}><mark>{part.text}</mark></Show>}</For></span><small>{location(entry.hit.source_id, entry.hit.passage.ordinal)}</small></span></>
       : entry.kind === 'command' ? <CommandRow command={entry.command} selected={selected} />
         : <><Icon name="plus" /><span class="picker-text">Create page “{entry.title}”</span><Show when={selected}><kbd class="picker-hint">{besideKey}↵ beside</kbd></Show></>} />;
 }
@@ -258,9 +258,9 @@ function CommandRow(props: { command: Command; selected: boolean }) {
   </>;
 }
 
-/** FTS snippets carry bracketed matches; ordinary passages mark each typed search term. */
-function MatchText(props: { text: string; query: string; snippet?: boolean }) {
-  const segments = createMemo(() => findMatchSegments(props.text, props.query, props.snippet));
+/** Ordinary passages mark each typed search term. */
+function MatchText(props: { text: string; query: string }) {
+  const segments = createMemo(() => findMatchSegments(props.text, props.query));
   return <For each={segments()}>{segment => <Show when={segment.match} fallback={segment.text}><mark>{segment.text}</mark></Show>}</For>;
 }
 

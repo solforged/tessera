@@ -62,12 +62,6 @@ describe('palette ranking', () => {
 });
 
 describe('find match text', () => {
-  test('renders FTS bracket matches as text without retaining the markers', () => {
-    expect(findMatchSegments('The [Ritz] … [hotel]', '', true)).toEqual([
-      { text: 'The ', match: false }, { text: 'Ritz', match: true }, { text: ' … ', match: false }, { text: 'hotel', match: true },
-    ]);
-    expect(findMatchSegments('<script>[Ritz]</script>', '', true).map(segment => segment.text).join('')).toBe('<script>Ritz</script>');
-  });
   test('marks every term case-insensitively and preserves surrounding prose', () => {
     const text = 'The RITZ hotel, Ritz’s hotel.';
     const segments = findMatchSegments(text, 'ritz hotel');

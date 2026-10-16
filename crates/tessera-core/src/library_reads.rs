@@ -508,7 +508,7 @@ impl Notebook {
             hidden_blocks!(),
             "SELECT s.block_id, b.text, p.snapshot_id, ",
             passage_columns!(),
-            ", snippet(passages_fts, 0, '[', ']', ' … ', 24)
+            ", snippet(passages_fts, 0, ?5, ?6, ' … ', 24)
              FROM passages_fts
              JOIN passages p ON p.rowid = passages_fts.rowid
              JOIN source_snapshots a ON a.snapshot_id = p.snapshot_id
@@ -526,25 +526,56 @@ impl Notebook {
              ORDER BY rank, p.ordinal, s.block_id, p.snapshot_id, p.id
              LIMIT ?3 OFFSET ?4"
         ))?;
-        Ok(statement
-            .query_map(
-                params![
-                    query,
-                    source_id,
-                    limit.min(500) as i64,
-                    i64::try_from(offset).unwrap_or(i64::MAX),
-                ],
-                |r| {
-                    Ok(PassageHit {
-                        source_id: r.get(0)?,
-                        title: r.get(1)?,
-                        snapshot_id: r.get(2)?,
-                        passage: passage_at(r, 3)?,
-                        snippet: r.get(13)?,
-                    })
-                },
-            )?
-            .collect::<rusqlite::Result<_>>()?)
+        // Choose markers absent from every returned passage, including unusual control characters in source text.
+        // Only a collision needs another query; the wire response contains structured text, never these markers.
+        let mut start = "\u{1f}".to_owned();
+        let mut end = "\u{1e}".to_owned();
+        loop {
+            let rows = statement
+                .query_map(
+                    params![
+                        query,
+                        source_id,
+                        limit.min(500) as i64,
+                        i64::try_from(offset).unwrap_or(i64::MAX),
+                        start,
+                        end,
+                    ],
+                    |r| {
+                        Ok((
+                            PassageHit {
+                                source_id: r.get(0)?,
+                                title: r.get(1)?,
+                                snapshot_id: r.get(2)?,
+                                passage: passage_at(r, 3)?,
+                                snippet_parts: Vec::new(),
+                            },
+                            r.get::<_, String>(13)?,
+                        ))
+                    },
+                )?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            if rows.iter().any(|(hit, _)| hit.passage.text.contains(start.as_str()) || hit.passage.text.contains(end.as_str())) {
+                start.push('\u{1f}');
+                end.push('\u{1e}');
+                continue;
+            }
+            return Ok(rows.into_iter().map(|(mut hit, marked)| {
+                for (index, part) in marked.split(start.as_str()).enumerate() {
+                    if index == 0 {
+                        if !part.is_empty() {
+                            hit.snippet_parts.push(SnippetPart { text: part.to_owned(), r#match: false });
+                        }
+                    } else if let Some((matched, rest)) = part.split_once(end.as_str()) {
+                        hit.snippet_parts.push(SnippetPart { text: matched.to_owned(), r#match: true });
+                        if !rest.is_empty() {
+                            hit.snippet_parts.push(SnippetPart { text: rest.to_owned(), r#match: false });
+                        }
+                    }
+                }
+                hit
+            }).collect());
+        }
     }
     pub fn set_reading_position(
         &mut self,

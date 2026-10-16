@@ -1699,6 +1699,25 @@ fn export_reads_authored_fields_and_article_doi_and_search_filters() {
 }
 
 #[test]
+fn passage_search_preserves_literal_brackets_and_marker_characters() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let mut doc = document();
+    doc.passages.truncate(1);
+    let text = "Structure de la Gaule[1]. \u{1f} \u{1e} \u{1f}\u{1f} \u{1e}\u{1e}";
+    doc.passages[0].text = text.into();
+    let (source, _) = ingest(&mut n, &doc, b"literal brackets and controls");
+    let hits = n.search_passages("structure", Some(&source), 10, 0).unwrap();
+    assert_eq!(hits.len(), 1);
+    let parts = &hits[0].snippet_parts;
+    assert_eq!(parts.iter().map(|part| part.text.as_str()).collect::<String>(), text);
+    assert_eq!(parts.iter().filter(|part| part.r#match).map(|part| part.text.as_str()).collect::<Vec<_>>(), vec!["Structure"]);
+    let wire = serde_json::to_value(&hits[0]).unwrap();
+    assert!(wire.get("snippet").is_none());
+    assert_eq!(wire["snippet_parts"][0]["match"], true);
+}
+
+#[test]
 fn passage_search_pages_reach_every_hit_without_crossing_source_scope() {
     let dir = tempfile::tempdir().unwrap();
     let mut n = Notebook::open(dir.path()).unwrap();

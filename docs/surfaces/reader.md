@@ -31,10 +31,10 @@ The title page has:
 - The title in Piazzolla at 2.25 times the reading size, with any subtitle in italic beneath it. The subtitle follows a colon or comes from the source's Subtitle.
 - The author in Piazzolla italic.
 - A gilt rubric rule.
-- The chapter count and reading time in mono.
+- The chapter count, using the shared chapter entries regardless of their language or numbering, and reading time in mono.
 - A gilt Begin at link to the first opening: `Begin at Preface`, `Begin at chapter I`.
 
-The file's own cover image at the start is not drawn again.
+The file's own cover image at the start is not drawn again. A split title, parenthetical edition and recorded creator byline immediately repeating the title page are not drawn again either. Highlights keep their passages visible.
 
 ## Chapters
 
@@ -45,6 +45,8 @@ The reader's pages, the foot, the running head, the book map, the progress card,
 ### Front matter
 
 Front matter is a stretch of the map but never named as the chapter. It includes cover, title page, copyright, contents, illustrations, abbreviations, dedication, epigraph, maps, family trees, cast lists, lists of figures and tables, praise, and the author's other books.
+
+Older inferred contents entries that name a lone paragraph by a truncated excerpt are not chapter titles. Once their source passages load, the reader leaves them as prose instead of giving them an opening, a Begin at link or a chapter name. Longer prose-chapter destinations stay in Contents.
 
 ### Chapter openings
 
@@ -89,7 +91,7 @@ Reader settings are a device preference shared by every reader pane. Saved choic
 
 ## Contents, highlights and find
 
-Contents opens on the current section, marked with a check, when no persistent margin is visible. With the margin visible, Contents focuses its current entry (or the first entry before reading begins) instead of opening a duplicate floating list. The Highlights picker lists each highlight's color, quote and section. Find marks matches and counts passages.
+Contents opens on the current section, marked with a check, when no persistent margin is visible. With the margin visible, Contents focuses its current entry (or the first entry before reading begins) instead of opening a duplicate floating list. The Highlights picker lists each highlight's color, quote and section. Find marks matches, counts passages and labels each result with its passage number and section.
 
 Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty. A passage's tooltip names its number and section: `Passage 37 · Chapter 1`.
 
@@ -108,6 +110,8 @@ Unlike opening a citation, choosing a section in either the margin or Contents m
 ### Find in source
 
 Find in source loads forty matching passages at a time with Load more. Appending preserves the selected result and popup scroll; the final count removes the action. Replacing the query, closing the picker or changing source discards late results from the previous search.
+
+Search matches arrive as structured text parts. Literal source brackets, including footnote references, stay intact and are not mistaken for match markers.
 
 ## Progress
 
@@ -152,7 +156,7 @@ A running head in centered mono `--faint` capitals sits over each column:
 | Front matter in two columns | Nothing over the right |
 | Title page or a chapter's opening page | No running head |
 
-A chapter's opening sinks 18% of the viewport height, as a printed chapter starts low on its recto. Each chapter, [counted as above](#chapters), starts on a fresh page. A long chapter splits every 150 passages.
+A chapter's opening sinks 18% of the usable page height, as a printed chapter starts low on its recto. Below 320 px of usable height, the opening reduces its drop, title size and lower spacing to keep the label, title and rule together. Each chapter, [counted as above](#chapters), starts on a fresh page. A long chapter splits every 150 passages.
 
 The foot line adds `p. N of M` within the chapter after the chapter's time left. Time left counts the characters after the first passage on screen at 1,500 a minute and reads `<1 min`, `N min`, `H h` or `H h M min`.
 

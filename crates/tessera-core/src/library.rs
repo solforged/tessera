@@ -367,13 +367,20 @@ pub struct PassagePage {
     pub toc: Vec<TocEntry>,
 }
 
+/// Plain source text and whether it matched the full-text query. No inline delimiters are exposed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SnippetPart {
+    pub text: String,
+    pub r#match: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PassageHit {
     pub source_id: String,
     pub title: String,
     pub snapshot_id: String,
     pub passage: Passage,
-    pub snippet: String,
+    pub snippet_parts: Vec<SnippetPart>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
