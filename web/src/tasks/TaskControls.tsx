@@ -28,6 +28,10 @@ type Priority = TaskState['priority'];
 type Repeater = NonNullable<TaskState['repeater']>;
 export const priorities: Priority[] = [null, 'high', 'medium', 'low'];
 export const priorityLabel = (value: Priority) => value === null ? 'None' : value === 'high' ? 'High' : value === 'medium' ? 'Medium' : 'Low';
+/** The same checked priority choices in the Planning slip and task lists. */
+export function priorityMenuItems(value: Priority, choose: (priority: Priority) => void, disabledReason?: string): MenuItem[] {
+  return priorities.map(priority => ({ label: priorityLabel(priority), checked: value === priority, disabledReason, action: () => choose(priority) }));
+}
 const repeatModes: (Repeater['mode'] | null)[] = [null, 'fixed', 'catch_up', 'after_completion'];
 const repeatLabels: Record<Repeater['mode'], string> = { fixed: 'Fixed', catch_up: 'Catch up', after_completion: 'After completion' };
 const repeatUnits: Repeater['unit'][] = ['day', 'week', 'month', 'year'];
@@ -131,7 +135,7 @@ export function TaskControls(props: { notebook: NotebookClient; doc: PageDocumen
         if (state.kind === 'scheduled') await change({ scheduled: value.date, scheduled_time: value.date ? value.time : null });
         else await change({ deadline: value.date, deadline_time: value.date ? value.time : null, warning_days: value.date ? props.task.warning_days : null });
       }} />}
-      {state.kind === 'priority' && <Menu anchor={state.anchor} label="Priority" onDismiss={() => dismiss(state)} items={priorities.map(priority => ({ label: priorityLabel(priority), checked: props.task.priority === priority, disabledReason: blocked() ? 'Task is unavailable.' : undefined, action: () => { void changePriority(priority); } }))} />}
+      {state.kind === 'priority' && <Menu anchor={state.anchor} label="Priority" onDismiss={() => dismiss(state)} items={priorityMenuItems(props.task.priority, priority => { void changePriority(priority); }, blocked() ? 'Task is unavailable.' : undefined)} />}
       {state.kind === 'warning' && <WarningPopup anchor={state.anchor} value={props.task.warning_days} disabled={blocked() || !props.task.deadline} onDismiss={() => dismiss(state)} onSave={warning_days => change({ warning_days })} />}
       {state.kind === 'repeat' && <RepeatPopup anchor={state.anchor} value={props.task.repeater} firstDate={props.task.scheduled || props.task.deadline ? undefined : props.contextDate} disabled={blocked()} onDismiss={() => dismiss(state)} onSave={repeater => change({ repeater })} />}
     </>}</Show>

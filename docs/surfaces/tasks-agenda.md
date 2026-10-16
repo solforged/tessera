@@ -161,9 +161,9 @@ Planning facts sit below the task text, omit dates implied by a day group and a 
 
 On touch, Agenda task rows and their completion/source controls are at least 44 px high; the cover's content insets are equal. The whole row takes the hover fill and long task text clamps at two lines. Planning uses the same facts as outline rows, with carried or missed dates in `--danger`.
 
-The glyph completes on the displayed agenda date, including from lookahead, or reopens a finished task in Tasks. Completed history shows a static check.
+The glyph completes on the displayed agenda date, including from lookahead, or reopens a finished task in Tasks. Right-click or ⌘⇧Enter on a focused row opens the shared status menu. The priority bars open the same priority choices as the Planning slip, including None; Tab reaches both controls and P opens priority from a focused row. Completed history shows a static check and never edits the live task.
 
-Completing or reopening a row uses its source page's undo history. ⌘Z or Ctrl+Z reverses that edit, including its saved occurrence and previous plan; Shift repeats the chord to redo. The keyboard stays on an Agenda row, or on the pane when none remain.
+Completing, reopening or triaging a row uses its source page's undo history. ⌘Z or Ctrl+Z reverses that edit, including its saved occurrence and previous plan; Shift repeats the chord to redo. The keyboard stays on an Agenda row, or on the pane when none remain.
 
 ### Rescheduling
 

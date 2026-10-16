@@ -1,6 +1,6 @@
 import { For, Show, createEffect, createMemo, createRoot, createSignal, onCleanup } from 'solid-js';
 import { ApiError } from '../api/client';
-import type { AgendaItem, TaskRow, WorkSession } from '../api/types';
+import type { AgendaItem, TaskRow, TaskState, TaskStatus, WorkSession } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { OpenTarget } from '../shell/contract';
@@ -8,9 +8,10 @@ import { besideHint, opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
+import { Menu } from '../ui/Menu';
 import { DatePicker } from './DatePicker';
 import { movableTo, rescheduleTasks } from './reschedule';
-import { statusIcons, statusLabels } from './TaskControls';
+import { priorityLabel, priorityMenuItems, statusIcons, statusLabels, statusMenuItems } from './TaskControls';
 import { agendaTaskTime, isFinished, relativeDate, taskFacts } from './task-labels';
 import { PriorityBars } from './PriorityBars';
 import { shiftCalendarDate } from './week-calendar';
@@ -114,6 +115,7 @@ function TaskSourceRow(props: {
   const [error, setError] = createSignal('');
   const [running, setRunning] = createSignal<{ anchor: HTMLElement; session: WorkSession; date: string; row: TaskRow | AgendaItem } | null>(null);
   const [picking, setPicking] = createSignal<HTMLElement | null>(null);
+  const [menu, setMenu] = createSignal<{ kind: 'status' | 'priority'; anchor: HTMLElement } | null>(null);
   const historical = () => 'reasons' in props.row && props.row.reasons.includes('recently_completed');
   const unfinished = () => !historical() && !isFinished(props.row.task);
   const time = createMemo(() => props.timetable ? agendaTaskTime(props.row, props.plannedDate ?? props.date, !props.deadlineLabel) : 'time' in props.row ? props.row.time : null);
@@ -166,6 +168,27 @@ function TaskSourceRow(props: {
     const result = doc.edit({ kind: 'task', id: source.id, value: { ...source.task, status: 'todo', completed_on: null } });
     if (!result.ok) throw new Error(result.reason);
   });
+  const changeStatus = (status: TaskStatus | null, anchor: HTMLElement) => {
+    if (status === props.row.task.status) return;
+    if (status === 'done') { void complete(anchor, props.date); return; }
+    const row = props.row;
+    void editSource(row, async doc => {
+      const source = doc.block(row.source.block.id);
+      if (!source?.task || source.revision !== row.source.block.revision) throw new Error('This task changed. Refresh or open its source before changing its status.');
+      const result = doc.edit({ kind: 'task', id: source.id, value: status === null ? null : { ...source.task, status, completed_on: null } });
+      if (!result.ok) throw new Error(result.reason);
+    });
+  };
+  const changePriority = (priority: TaskState['priority']) => {
+    const row = props.row;
+    if (priority === row.task.priority) return;
+    void editSource(row, async doc => {
+      const source = doc.block(row.source.block.id);
+      if (!source?.task || source.revision !== row.source.block.revision) throw new Error('This task changed. Refresh or open its source before changing its priority.');
+      const result = doc.edit({ kind: 'task', id: source.id, value: { ...source.task, priority } });
+      if (!result.ok) throw new Error(result.reason);
+    });
+  };
   const today = () => props.notebook.todayDate();
   const tomorrow = () => shiftCalendarDate(today(), 1)!;
   const past = () => !!props.now && unfinished() && props.row.task.status !== 'doing' && !!time() && time()! < props.now;
@@ -191,9 +214,15 @@ function TaskSourceRow(props: {
   };
   /** On a focused row: j and k move, t today, m tomorrow, s a date, x complete, ⌥← and ⌥→ a day earlier or later. */
   const keydown = (event: KeyboardEvent) => {
-    if (event.isComposing || event.metaKey || event.ctrlKey || event.target instanceof HTMLInputElement || !(event.target instanceof Element) || event.target.closest('.popup')) return;
+    if (event.isComposing || busy() || props.disabled || event.target instanceof HTMLInputElement || !(event.target instanceof Element) || event.target.closest('.popup')) return;
+    if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key === 'Enter' && !historical()) {
+      setMenu({ kind: 'status', anchor: item.querySelector<HTMLElement>('.agenda-status') ?? item });
+      event.preventDefault(); event.stopPropagation(); return;
+    }
+    if (event.metaKey || event.ctrlKey) return;
     const key = event.key.toLocaleLowerCase(), from = props.row.task.scheduled ?? props.date;
     if (!event.altKey && !event.shiftKey && (key === 'j' || key === 'k' || key === 'arrowdown' || key === 'arrowup')) siblingSource(item, key === 'j' || key === 'arrowdown' ? 1 : -1)?.focus();
+    else if (!event.altKey && !event.shiftKey && key === 'p' && unfinished()) setMenu({ kind: 'priority', anchor: item.querySelector<HTMLElement>('.agenda-priority') ?? item });
     else if (!props.plan || !unfinished()) return;
     else if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) reschedule(shiftCalendarDate(from, event.key === 'ArrowLeft' ? -1 : 1));
     else if (event.altKey || event.shiftKey) return;
@@ -208,7 +237,8 @@ function TaskSourceRow(props: {
     <Show when={props.nowBefore}><span class="agenda-now" aria-hidden="true"><Show when={props.showNow}><span>{props.now}</span></Show></span></Show>
     <Show when={props.timetable}><span class="agenda-time-gutter" classList={{ 'week-ledger-due': !!props.deadlineLabel && !time() && props.row.task.deadline === props.date }}>{time() || (props.deadlineLabel && props.row.task.deadline === props.date ? 'Due' : '')}</span></Show>
     <Show when={!historical()} fallback={<span class="agenda-status task-status-button" data-status="done" aria-label="Done"><Icon name="check" /></span>}>
-      <Button class="agenda-status task-status-button" data-status={props.row.task.status} label={`${unfinished() ? 'Complete' : 'Reopen'} task (${statusLabels[props.row.task.status]}): ${props.row.source.block.text}`} title={unfinished() ? `Complete on ${props.date}` : 'Reopen task'} disabled={busy() || props.disabled}
+      <Button class="agenda-status task-status-button" data-status={props.row.task.status} label={`${unfinished() ? 'Complete' : 'Reopen'} task (${statusLabels[props.row.task.status]}): ${props.row.source.block.text}`} title={`${unfinished() ? `Complete on ${props.date}` : 'Reopen task'} · right-click for status`} disabled={busy() || props.disabled} aria-haspopup="menu" aria-expanded={menu()?.kind === 'status'}
+        onContextMenu={event => { event.preventDefault(); if (!busy() && !props.disabled) setMenu({ kind: 'status', anchor: event.currentTarget }); }}
         onClick={event => { void (unfinished() ? complete(event.currentTarget, props.date) : reopen()); }}><Icon name={statusIcons[props.row.task.status]} /></Button>
     </Show>
     <button type="button" class="agenda-source" onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, opensBeside(event))} title={`Open source · ${besideHint}`}>
@@ -220,7 +250,8 @@ function TaskSourceRow(props: {
     </Show>
     <span class="agenda-row-meta">
       <Show when={!props.timetable && time()}><span class="agenda-time">{time()}</span></Show>
-      <For each={facts()}>{fact => <Show when={fact.priority} fallback={<span classList={{ 'agenda-late': !!fact.late }} title={fact.label}>{fact.text}</span>}>{priority => <PriorityBars priority={priority()} label={fact.label} />}</Show>}</For>
+      <For each={facts().filter(fact => !fact.priority)}>{fact => <span classList={{ 'agenda-late': !!fact.late }} title={fact.label}>{fact.text}</span>}</For>
+      <Show when={unfinished()}><Button class="agenda-priority" label={`Priority: ${priorityLabel(props.row.task.priority)}`} title={`Priority: ${priorityLabel(props.row.task.priority)} (P)`} disabled={busy() || props.disabled} aria-haspopup="menu" aria-expanded={menu()?.kind === 'priority'} onClick={event => setMenu({ kind: 'priority', anchor: event.currentTarget })}><PriorityBars priority={props.row.task.priority} label={`${priorityLabel(props.row.task.priority)} priority`} /></Button></Show>
       {/* A project the row already names as its source page is not repeated among the facts. */}
       <Show when={props.row.project_id !== props.pageId && props.row.project_id !== props.row.source.page.id ? props.row.project_id : null}>{id => <span><BlockText text={props.notebook.lookup(id())()?.text ?? ''} notebook={props.notebook} interactive={false} /></span>}</Show>
     </span>
@@ -232,6 +263,9 @@ function TaskSourceRow(props: {
       </span>
     </Show>
     <Show when={picking()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor()} label="Reschedule" value={props.row.task.scheduled} time={props.row.task.scheduled_time} contextDate={props.date} onDismiss={() => setPicking(null)} onSelect={value => reschedule(value.date, value.time)} />}</Show>
+    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.kind === 'status' ? 'Task status' : 'Priority'} onDismiss={() => { setMenu(null); item.querySelector<HTMLElement>('.agenda-source')?.focus({ preventScroll: true }); }} items={state.kind === 'status'
+      ? statusMenuItems(props.row.task, status => changeStatus(status, state.anchor), busy() || props.disabled ? 'Task is unavailable.' : undefined)
+      : priorityMenuItems(props.row.task.priority, changePriority, busy() || props.disabled ? 'Task is unavailable.' : undefined)} />}</Show>
     <Show when={busy()}><p class="agenda-message" role="status">Saving… <Show when={props.notebook.saveState() !== 'saved'}>{props.notebook.saveMessage() || props.notebook.saveState()}</Show></p></Show>
     <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button onClick={props.onChanged}>Refresh</Button></div></Show>
     <Show keyed when={running()}>{state => <Popup anchor={state.anchor} label="Stop work and complete?" onDismiss={() => { if (!busy()) setRunning(null); }}>

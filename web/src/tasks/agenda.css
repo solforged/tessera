@@ -92,6 +92,7 @@
 .agenda-row-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: center; gap: var(--space-4) var(--space-8); min-height: var(--row-height); margin-left: auto; padding-right: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .agenda-row-meta:empty { display: none; }
 .agenda-time { color: var(--muted); }
+.agenda-priority.button { min-height: var(--target-size); padding: 0 var(--space-4); color: var(--faint); }
 .agenda-late { color: var(--danger); }
 .agenda-row:is(.agenda-row-completed, .agenda-row-cancelled) .agenda-source-text { color: var(--muted); }
 .agenda-row-cancelled .agenda-source-text { text-decoration: line-through var(--faint); }
