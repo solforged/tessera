@@ -151,6 +151,8 @@ The Backlinks section appears and its count refreshes when incoming links change
 
 Deleting a page retains its identity, blocks and deletion event. The toast and Undo page deletion in Commands restore the latest deletion; Commands → Restore deleted page… lists retained deletions by title, newest first, including after reload and deletions from another window. Restoration checks the event and current revision and leaves newer changes alone. A reused title must be renamed before the deleted page can return. Permanent merge tombstones are not listed.
 
+⌘Z (Ctrl+Z off Mac) restores a page deletion while it is the latest action in that window, even after navigation to the replacement page. A newer edit returns the shortcut to that edit's history; the deletion remains recoverable through its toast or Commands.
+
 ## Reference previews
 
 Resting on an inline reference opens its read-only slip at the hovered line, including links in the standfirst and fields. The slip prefers below the link, flips above when that side has more room, and remains inside the originating pane and visible viewport. Its content and fonts load before it is measured and shown; it fades in without moving or resizing. Refreshing a reference label keeps the same anchor rather than reopening the slip.

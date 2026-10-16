@@ -206,6 +206,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const [offlineUnavailable, setOfflineUnavailable] = createSignal(false);
   const [deleted, setDeleted] = createSignal<{ pages: { id: string; title: string }[]; label: string; reopen: boolean } | null>(null);
   const [retainedDeletions] = createResource(() => notebook.changeSequence(), () => notebook.api.deletedPages());
+  const [deletionUndoSequence, setDeletionUndoSequence] = createSignal<number | null>(null);
+  createEffect(() => {
+    const sequence = deletionUndoSequence();
+    if (sequence !== null && (notebook.changeSequence() !== sequence || notebook.saveState() !== 'saved')) setDeletionUndoSequence(null);
+  });
   /** The deletion toast leaves after a while unless the pointer or focus rests on it; Undo page deletion stays in the command palette until the next deletion. */
   const [toastShown, setToastShown] = createSignal(false);
   const [toastHeld, setToastHeld] = createSignal(false);
@@ -470,6 +475,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           const current = entry(owner);
           if (ids.has(pageIdOf(current) ?? '') || current?.target.kind === 'reader' && ids.has(current.target.sourceId)) open({ kind: 'page', pageId: await replacement() }, false, owner);
         }
+        setDeletionUndoSequence(notebook.changeSequence());
       }
     }
   };
@@ -477,6 +483,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const latest = retainedDeletions()?.[0]?.block;
     const value = deleted() ?? (latest ? { pages: [{ id: latest.id, title: latest.text }], label: `“${latest.text}”`, reopen: true } : null);
     if (!value) return;
+    setDeletionUndoSequence(null);
     try {
       for (const page of value.pages) await notebook.restorePage(page.id);
       batch(() => { setDeleted(null); setToastShown(false); });
@@ -497,6 +504,18 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const onTabbed = () => setTabbed(tabbedQuery.matches);
     tabbedQuery.addEventListener('change', onTabbed);
     onCleanup(() => tabbedQuery.removeEventListener('change', onTabbed));
+    // Page deletion navigates away from its document. While it remains the
+    // latest action, recover it before the replacement outline consumes Undo.
+    const onPageUndo = (event: KeyboardEvent) => {
+      if (event.isComposing || deletionUndoSequence() === null || !deleted()
+        || !(mac ? event.metaKey : event.ctrlKey) || event.shiftKey || event.altKey
+        || event.key.toLocaleLowerCase() !== 'z'
+        || document.querySelector('.popup:not(.reference-preview), .popup.reference-preview:focus-within')) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      void restorePage();
+    };
+    window.addEventListener('keydown', onPageUndo, true);
+    onCleanup(() => window.removeEventListener('keydown', onPageUndo, true));
     const onKey = (event: KeyboardEvent) => {
       if (event.isComposing || document.querySelector('.popup:not(.reference-preview), .popup.reference-preview:focus-within')) return;
       if ((mac ? event.metaKey : event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLocaleLowerCase() === 'e') {
