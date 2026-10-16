@@ -102,7 +102,7 @@ function Pane(props: OutlinePaneProps) {
     }
     return [...subjects].join(',');
   });
-  const [positionQuestions] = createResource(() => !creatingRoot() && doc.root()?.kind === 'page' ? [readingSubjects(), props.notebook.changeSequence()] as const : false,
+  const [positionQuestions] = createResource(() => !creatingRoot() && doc.root()?.kind === 'page' ? [readingSubjects(), props.notebook.changeSequence(), props.notebook.connection() === 'live'] as const : false,
     async ([subjects]) => {
       const results = await Promise.all(subjects.split(',').map(subject => props.notebook.api.positions({ subject })));
       const questions = new Map<string, PositionQuestion>();
@@ -229,7 +229,7 @@ function Pane(props: OutlinePaneProps) {
   });
   const definitionsById = createMemo(() => new Map(definitions().map(field => [field.id, field])));
   const definitionsByName = createMemo(() => new Map(definitions().map(field => [field.name.toLowerCase(), field])));
-  const register = createMemo(() => readingRegister(doc, id => definitionsById().get(id), positionQuestions()?.questions ?? []), undefined, { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
+  const register = createMemo(() => readingRegister(doc, id => definitionsById().get(id), positionQuestions.error ? [] : positionQuestions()?.questions ?? []), undefined, { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
   const templates = createTemplateCache(() => fields.error ? undefined : fields(), props.notebook.lastChange);
   const glossId = createMemo(() => doc.root()?.kind === 'page' ? glossEntry(doc, id => fieldRole(definitionsById().get(id)) === 'standfirst') : null);
   const depthFilter = createMemo<DepthFilter | undefined>(() => !reading() && doc.root()?.kind === 'page' && depth() !== 'full'

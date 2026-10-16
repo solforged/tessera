@@ -23,12 +23,12 @@ export function taskProject(doc: PageDocument, id: string, definitions: Readonly
 }
 
 export function createTaskProjects(doc: PageDocument, notebook: NotebookClient) {
-  const [metadata] = createResource(() => notebook.changeSequence(), async () => {
+  const [metadata] = createResource(() => [notebook.changeSequence(), notebook.connection() === 'live'] as const, async () => {
     const [fields, projects] = await Promise.all([notebook.api.fields(), notebook.api.projects()]);
     return { fields: fields.fields, projects };
   });
-  const active = createMemo(() => new Set(metadata()?.projects.map(project => project.block_id) ?? []));
-  const definitions = createMemo(() => new Set(metadata()?.fields.filter(field => field.name.toLowerCase() === 'project' && field.kind === 'instance').map(field => field.id) ?? []));
+  const active = createMemo(() => new Set(metadata.error ? [] : metadata()?.projects.map(project => project.block_id) ?? []));
+  const definitions = createMemo(() => new Set(metadata.error ? [] : metadata()?.fields.filter(field => field.name.toLowerCase() === 'project' && field.kind === 'instance').map(field => field.id) ?? []));
   return {
     metadata,
     project: (id: string) => taskProject(doc, id, definitions(), active()),

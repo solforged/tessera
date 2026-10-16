@@ -17,7 +17,7 @@ export function TaskProjectControl(props: { notebook: NotebookClient; doc: PageD
   const title = () => { const id = current(); return id ? props.notebook.lookup(id)()?.text ?? 'Project' : 'None'; };
   const choices = createMemo(() => {
     const query = search().trim();
-    const items: { id: string | null; name: string; create?: boolean }[] = [{ id: null, name: 'None' }, ...(projects.metadata()?.projects ?? []).map(project => ({ id: project.block_id, name: props.notebook.lookup(project.block_id)()?.text ?? project.state.outcome }))]
+    const items: { id: string | null; name: string; create?: boolean }[] = [{ id: null, name: 'None' }, ...(projects.metadata.error ? [] : projects.metadata()?.projects ?? []).map(project => ({ id: project.block_id, name: props.notebook.lookup(project.block_id)()?.text ?? project.state.outcome }))]
       .filter(item => item.name.toLowerCase().includes(query.toLowerCase()));
     // A project can start from the slip that needs it: a name nothing matches exactly becomes a new project page.
     if (query && !items.some(item => item.id && item.name.toLowerCase() === query.toLowerCase())) items.push({ id: null, name: query, create: true });

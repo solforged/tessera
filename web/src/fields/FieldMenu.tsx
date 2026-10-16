@@ -22,9 +22,9 @@ export function createFieldMenu(context: Pick<OutlineContext,
 >) {
   const { doc, props, fields, definitionsById, setMenu, setMessage, apply } = context;
   const [definitionDocument, setDefinitionDocument] = createSignal<PageDocument>();
-  const [types] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.types());
+  const [types] = createResource(() => [props.notebook.changeSequence(), props.notebook.connection() === 'live'] as const, () => props.notebook.api.types());
   createEffect(() => {
-    const id = fields()?.page_id;
+    const id = fields.error ? undefined : fields()?.page_id;
     if (!id) return;
     const document = props.notebook.open(id);
     setDefinitionDocument(document);
@@ -100,7 +100,7 @@ export function createFieldMenu(context: Pick<OutlineContext,
     const open = (beside = false, extra: { previewKind?: FieldDefinition['kind']; section?: 'options' | 'targets' } = {}) => props.onOpen({ kind: 'field', fieldId: field.id, ...extra }, beside);
     const block = doc.block(owner);
     const keys = typeKeys(block?.text ?? '', block?.manual_types ?? []);
-    const ownerTypes = (types() ?? []).filter(type => keys.includes(titleKey(type.page.text)) || keys.includes(type.page.id.toLowerCase()));
+    const ownerTypes = (types.error ? [] : types() ?? []).filter(type => keys.includes(titleKey(type.page.text)) || keys.includes(type.page.id.toLowerCase()));
     const document = definitionDocument();
     const unavailable = document?.status() !== 'ready' ? 'Field definitions are loading.' : document.saveState() !== 'saved' ? 'Wait for field changes to save.' : undefined;
     setMenu({ anchor, label: field.name, title: field.name, context: (block && plainText(block.text, target => props.notebook.lookup(target))) || field.name, items: [
