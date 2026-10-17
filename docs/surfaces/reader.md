@@ -227,7 +227,7 @@ Highlights are ink, not boxes. A band of their color sits under the lower half o
 
 Hovering a highlight deepens the band of every range it covers to lightness 0.60 by night and 0.84 by day, or to 40% without a color. One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu. ⌘-click opens its block beside the reader (Ctrl-click off Mac).
 
-Add note and Open note activate the child editor from the local document immediately. Saving and catalog metadata do not delay typing.
+Add note and Open note activate the child editor from the local document immediately. Saving and catalog metadata do not delay typing. On a touch screen, Add note on a highlight without a written note opens the [note sheet](#highlight-and-note-sheet) instead, as Highlight and note does; Open note still opens the highlight's page beside the reader.
 
 Removing a highlight offers Undo in a notice for eight seconds, held while hovered or focused. Undo last edit remains in Reader actions after the notice leaves.
 On the touch cover, the existing-highlight menu opens as a bottom sheet with 44 px color buttons and action rows.
@@ -256,7 +256,7 @@ The selection toolbar docks across the foot of the page in thumb reach, clear of
 
 ### Highlight and note sheet
 
-On a touch screen, Highlight and note keeps the passage in view instead of opening the source page. A sheet covers the shell, showing in order:
+On a touch screen, Highlight and note, and Add note on a highlight without a written note, keep the passage in view instead of opening the source page. A sheet covers the shell, showing in order:
 
 1. The book's title and byline.
 2. The reading rule.

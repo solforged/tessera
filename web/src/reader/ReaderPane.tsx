@@ -138,7 +138,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const sections = createMemo(() => contents().filter((entry): entry is HighlightSection => entry.ordinal !== null).sort((a, b) => a.ordinal - b.ordinal));
   const [highlightsLoading, setHighlightsLoading] = createSignal(false);
   const [highlightsError, setHighlightsError] = createSignal('');
-  const actions = createHighlightActions(props.notebook, props.onOpen, setError, undefined, () => { setNoticeHeld(false); setRemovedNotice(true); });
+  const actions = createHighlightActions(props.notebook, props.onOpen, setError, undefined, () => { setNoticeHeld(false); setRemovedNotice(true); }, composeNote);
   const pages = new Map<number, PassagePage>();
   const passages = new Map<number, Passage>();
   const ordinals = new Map<string, number>();
@@ -990,6 +990,25 @@ export function ReaderPane(props: ReaderPaneProps) {
     setEditError('');
   }
   createEffect(on(popup, state => { if (!state) selected(); }, { defer: true }));
+
+  /**
+   * On a touch screen a new note on an existing highlight is written in the composer, as on a new one, so reading
+   * stays in this pane. A highlight in another snapshot of the book has no passages here and opens its page instead.
+   */
+  function composeNote(row: HighlightRow, noteId: string) {
+    const citation = row.citation;
+    if (!coarsePointer.matches || citation.source_id !== props.target.sourceId || citation.snapshot_id !== snapshot()) return false;
+    setPopup(null);
+    void (async () => {
+      const last = await locate(citation.end.passage_id);
+      if (last === null) throw new Error('Passage not found.');
+      await Promise.all([loadPage(citation.ordinal - 1), loadPage(citation.ordinal), loadPage(last), loadPage(last + 1)]);
+      if (disposed || composing()) return;
+      composedCitation = citation.id;
+      setComposing(noteDraft({ start: citation.start, end: citation.end, first: citation.ordinal, last, quote: citation.quote, locator: citation.locator }, noteId));
+    })().catch(reason => { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); });
+    return true;
+  }
 
   /** The quotation with the sentence before and after it, from loaded prose passages. */
   function noteDraft(value: PassageSelection, noteId: string): HighlightNoteDraft {
