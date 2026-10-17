@@ -592,8 +592,8 @@ function CardReviewPane(props: ReviewPaneProps) {
               `${Math.max(0, value().due_review + value().due_new - (counts().due ?? 0))} later today`,
               !(counts().due ?? 0) && nextDue() ? `next ${new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(nextDue()!).replace(`${props.notebook.todayDate()}, `, 'at ')}` : '',
             ].filter(Boolean).join(' · ')}</p>
-            <Button ref={startButton} class="review-start" disabled={locked() || loading() || !!readError() || !rows().length} onClick={() => void start()}>Review {rows().length} cards <kbd>Space</kbd></Button>
-            <Show when={!rows().length}><p>{value().held_cards ? `${value().held_cards} cards are paused or marked Not yet. Start or resume them from their source notes.` : 'Nothing in this queue.'}</p></Show>
+            <Button ref={startButton} class="review-start" disabled={locked() || loading() || !!readError() || !rows().length} onClick={() => void start()}>Review {rows().length} {rows().length === 1 ? 'card' : 'cards'} <kbd>Space</kbd></Button>
+            <Show when={!rows().length}><p>{value().held_cards ? `${value().held_cards} ${value().held_cards === 1 ? 'card is' : 'cards are'} paused or marked Not yet. Start or resume them from their source notes.` : 'Nothing in this queue.'}</p></Show>
           </section>
           <ReviewForecast stats={value()} />
         </div>
