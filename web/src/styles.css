@@ -303,6 +303,9 @@ span.pane-breadcrumbs { display: block; overflow: hidden; text-overflow: ellipsi
 .pane-content::before { top: var(--space-4); left: var(--space-4); border-width: var(--rule-width) 0 0 var(--rule-width); }
 .pane-content::after { bottom: var(--space-4); right: var(--space-4); border-width: 0 var(--rule-width) var(--rule-width) 0; }
 .pane.active .pane-content::before, .pane.active .pane-content::after { border-color: var(--accent); }
+/* While a book reads with its chrome away, the registration corners go with it, so nothing but the page and its foot remains. */
+.pane-content::before, .pane-content::after { transition: opacity var(--motion-ui) var(--motion-ease); }
+.pane-content:has(.reader-chrome-hidden)::before, .pane-content:has(.reader-chrome-hidden)::after { opacity: 0; }
 .save-banner, .shell-error, .pane-error { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line); color: var(--warning); font-size: var(--text-control); line-height: var(--line-control); }
 .save-banner > span, .shell-error > span { flex: 1; }
 .save-banner details { max-width: 30%; }

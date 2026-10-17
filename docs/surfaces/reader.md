@@ -70,7 +70,7 @@ Contents entries that only repeat the book's title, running heads the file marke
 
 Reader settings are a device preference shared by every reader pane. Saved choices are preserved. Changing a setting keeps the first visible passage in place. Switching from Pages to Scroll keeps the first visible character, including within a long passage.
 
-On touch, settings open as a bottom sheet. Short landscape screens put the setting groups in one horizontally scrolling row so the reading page remains visible above them.
+On touch, settings open as a bottom sheet. Width shows only where Narrow is narrower than the text's room, so a phone, where all three widths fill the screen, leaves it out. Short landscape screens put the setting groups in one horizontally scrolling row so the reading page remains visible above them.
 
 | Setting | Choices | Default |
 | --- | --- | --- |
@@ -247,7 +247,7 @@ The cover screen is a touch screen under 600 px. Its shell rules are in [design]
 
 An open book reads edge to edge without the pane header or the nav. A back arrow and the book's name head the page above the reader toolbar. Full screen is left out because nothing remains to hide.
 
-The back arrow returns through the pane's history, or opens the source page when the reader was the first entry. Unfolding brings the usual shell back around the same page.
+The back arrow returns through the pane's history, or opens the source page when the reader was the first entry. The reader holds a browser history entry, so the system Back gesture on Android closes an open sheet first and then leaves the book the same way, instead of leaving the app. Unfolding brings the usual shell back around the same page.
 
 Entering the cover reader changes the workspace gutters at once, before restoring and revealing the page. The shell's margin animation never changes the reading width during that reveal.
 
@@ -278,7 +278,7 @@ When the keyboard takes room, the passage scrolls so the whole quotation and as 
 
 ### Popups, targets and Android
 
-On a touch screen, Contents and Highlights open without raising the keyboard; their search field takes a tap. `Aa` rises as a sheet from the bottom edge, its rows kept to a column, so the text it changes stays in sight above.
+On a touch screen, Contents and Highlights open without raising the keyboard; their search field takes a tap. Without hover, Reader actions keep only Open source page, Merge overlapping highlights and Undo last edit (and Full screen off the cover screen): the keyboard commands have the selection bar, swipes and taps instead. `Aa` rises as a sheet from the bottom edge, its rows kept to a column, so the text it changes stays in sight above.
 
 The reader toolbar, the settings and the note sheet's buttons are 44 px touch targets (`--touch-target`). The note mark after a highlight and the progress at the foot reach as far without growing. In Pages, the note mark's target still reaches into the gutter outside the clipped page and takes priority over an edge page turn.
 
