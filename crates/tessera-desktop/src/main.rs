@@ -8,6 +8,8 @@ mod app;
 #[cfg(target_os = "macos")]
 mod capture;
 #[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
 mod opened_files;
 #[cfg(target_os = "macos")]
 mod updates;

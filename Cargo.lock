@@ -5452,6 +5452,7 @@ dependencies = [
  "jiff",
  "objc2",
  "objc2-app-kit",
+ "objc2-foundation",
  "parking_lot",
  "percent-encoding",
  "reqwest",

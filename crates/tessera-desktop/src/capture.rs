@@ -19,9 +19,9 @@ use crate::app::{self, MAIN};
 
 pub const LABEL: &str = "capture";
 const WIDTH: f64 = 600.0;
-const MAX_HEIGHT: f64 = 340.0;
+const MAX_HEIGHT: f64 = 560.0;
 const OPEN_MAIN: &str = "window.dispatchEvent(new CustomEvent('tessera-quick-capture'))";
-const OPEN_PANEL: &str = "window.dispatchEvent(new Event('tessera-quick-capture'))";
+const OPEN_PANEL: &str = "window.dispatchEvent(new CustomEvent('tessera-quick-capture'))";
 const DONE_URL: &str = "tessera-capture://done";
 const BRIDGE: &str = "
     window.__tesseraCaptureDone = () => { window.location.href = 'tessera-capture://done'; };
@@ -35,6 +35,8 @@ pub struct Capture {
     /// Some while shown, holding the process to give focus back to on
     /// completion. Repeated shortcuts must not overwrite the original app.
     return_to: Mutex<Option<Option<i32>>>,
+    /// Selected service text waits for the panel's mounted size bridge.
+    pending_text: Mutex<Option<String>>,
 }
 
 pub fn register(app: &AppHandle) {
@@ -59,15 +61,10 @@ pub fn register(app: &AppHandle) {
     }
 }
 
-/// File > New Capture always uses the notebook, including from a hidden window.
+/// File > Add to Today always uses the notebook, including from a hidden window.
 pub fn in_main(app: &AppHandle) {
     dismiss(app, false);
-    if let Some(window) = app.get_webview_window(MAIN) {
-        let _ = window.unminimize();
-        let _ = window.show();
-        let _ = window.set_focus();
-        let _ = window.eval(OPEN_MAIN);
-    }
+    app::command(app, "shell.capture");
 }
 
 fn show(app: &AppHandle) -> tauri::Result<()> {
@@ -77,6 +74,29 @@ fn show(app: &AppHandle) -> tauri::Result<()> {
     {
         return main.eval(OPEN_MAIN);
     }
+    show_panel(app)
+}
+
+/// Services always use the floating panel, even while the notebook is focused.
+pub fn from_service(app: &AppHandle, text: String) -> tauri::Result<()> {
+    *app.state::<Capture>().pending_text.lock() = Some(text);
+    show_panel(app)
+}
+
+/// A service can launch Tessera before its notebook service has become ready.
+pub fn ready(app: &AppHandle) {
+    let handle = app.clone();
+    if let Err(error) = app.run_on_main_thread(move || {
+        let pending = handle.state::<Capture>().pending_text.lock().is_some();
+        if pending && let Err(error) = show_panel(&handle) {
+            app::log(&format!("cannot show service capture: {error}"));
+        }
+    }) {
+        app::log(&format!("cannot dispatch service capture: {error}"));
+    }
+}
+
+fn show_panel(app: &AppHandle) -> tauri::Result<()> {
     let Some(origin) = app::origin(app) else {
         if let Some(main) = app.get_webview_window(MAIN) {
             main.unminimize()?;
@@ -161,6 +181,12 @@ fn resize(app: &AppHandle, height: f64) {
                 window.show()?;
                 window.set_focus()?;
             }
+            // The size bridge is called only after CaptureWindow has mounted
+            // its listener. Taking first also prevents a resize/event loop.
+            let text = handle.state::<Capture>().pending_text.lock().take();
+            if let Some(text) = text {
+                window.eval(service_event(&text))?;
+            }
             Ok(())
         })();
         if let Err(error) = result {
@@ -170,6 +196,13 @@ fn resize(app: &AppHandle, height: f64) {
     }) {
         app::log(&format!("cannot dispatch capture size: {error}"));
     }
+}
+
+fn service_event(text: &str) -> String {
+    let detail = serde_json::json!({ "kind": "note", "text": text });
+    format!(
+        "window.dispatchEvent(new CustomEvent('tessera-quick-capture', {{ detail: {detail} }}))"
+    )
 }
 
 fn capture_url(mut origin: Url) -> Url {
@@ -321,11 +354,11 @@ mod tests {
     fn panel_uses_cursor_monitors_physical_origin_and_scale() {
         assert_eq!(
             panel_position(-2560.0, 40.0, 2560.0, 1400.0, 2.0),
-            PhysicalPosition::new(-1880.0, 40.0 + 1400.0 / 3.0 - 340.0),
+            PhysicalPosition::new(-1880.0, 40.0),
         );
         assert_eq!(
             panel_position(1920.0, -900.0, 1200.0, 900.0, 1.0),
-            PhysicalPosition::new(2220.0, -770.0),
+            PhysicalPosition::new(2220.0, -880.0),
         );
     }
 
@@ -334,6 +367,23 @@ mod tests {
         assert_eq!(
             panel_position(0.0, 30.0, 500.0, 400.0, 1.0),
             PhysicalPosition::new(0.0, 30.0),
+        );
+    }
+
+    #[test]
+    fn service_selection_is_json_not_executable_script() {
+        let text = "a 'quote', \"double quote\", \\ slash\n雪 </script>";
+        let script = service_event(text);
+        let detail = script
+            .strip_prefix(
+                "window.dispatchEvent(new CustomEvent('tessera-quick-capture', { detail: ",
+            )
+            .unwrap()
+            .strip_suffix(" }))")
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(detail).unwrap(),
+            serde_json::json!({ "kind": "note", "text": text }),
         );
     }
 }

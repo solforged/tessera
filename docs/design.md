@@ -292,7 +292,7 @@ The global rail stays visible in every layout except the cover screen (a touch s
 
 ### Mac menus
 
-Settings opens from the Tessera menu. File offers New Page, Open Today, Import Book and New Capture, using the same commands as the web shell and bringing the main window forward. About shows the release version with the build hash in parentheses when available.
+Settings opens from the Tessera menu. File › New offers Page (⌘N), Question (⌥⌘N), Task, Card, Project and Source…. File also offers Open Today (⌘T), Import Book… and Add to Today (⌘E), using the same commands as the web shell and bringing the main window forward. The Dock menu offers Add to Today, New Page and New Question through those same commands. About shows the release version with the build hash in parentheses when available.
 
 ### Measure
 

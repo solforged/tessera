@@ -114,7 +114,9 @@ pub fn run() {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move { updates::check(&app, true).await });
             }
-            "shell.settings" | "shell.new" | "shell.today" | "shell.import-book" => {
+            "shell.settings" | "shell.new" | "shell.today" | "shell.import-book"
+            | "create.question" | "create.task" | "create.card" | "create.project"
+            | "create.source" => {
                 command(app, event.id().as_ref());
             }
             "reload" => {
@@ -147,6 +149,7 @@ pub fn run() {
         .setup(|app| {
             window(app.handle())?;
             capture::register(app.handle());
+            crate::macos::register(app.handle());
             tauri::async_runtime::spawn(start(app.handle().clone()));
             if updates::enabled() {
                 tauri::async_runtime::spawn(updates::schedule(app.handle().clone()));
@@ -213,7 +216,43 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                 "File",
                 true,
                 &[
-                    &MenuItem::with_id(app, "shell.new", "New Page…", true, Some("CmdOrCtrl+N"))?,
+                    &Submenu::with_items(
+                        app,
+                        "New",
+                        true,
+                        &[
+                            &MenuItem::with_id(
+                                app,
+                                "shell.new",
+                                "Page",
+                                true,
+                                Some("CmdOrCtrl+N"),
+                            )?,
+                            &MenuItem::with_id(
+                                app,
+                                "create.question",
+                                "Question",
+                                true,
+                                Some("Alt+CmdOrCtrl+N"),
+                            )?,
+                            &MenuItem::with_id(app, "create.task", "Task", true, None::<&str>)?,
+                            &MenuItem::with_id(app, "create.card", "Card", true, None::<&str>)?,
+                            &MenuItem::with_id(
+                                app,
+                                "create.project",
+                                "Project",
+                                true,
+                                None::<&str>,
+                            )?,
+                            &MenuItem::with_id(
+                                app,
+                                "create.source",
+                                "Source…",
+                                true,
+                                None::<&str>,
+                            )?,
+                        ],
+                    )?,
                     &MenuItem::with_id(
                         app,
                         "shell.today",
@@ -232,7 +271,7 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                     &MenuItem::with_id(
                         app,
                         "new-capture",
-                        "New Capture",
+                        "Add to Today",
                         true,
                         Some("CmdOrCtrl+E"),
                     )?,
@@ -310,7 +349,7 @@ fn about_metadata(
 }
 
 /// Menu commands share the web's registry, after revealing the main window.
-fn command(app: &AppHandle, id: &str) {
+pub(crate) fn command(app: &AppHandle, id: &str) {
     let Some(window) = app.get_webview_window(MAIN) else {
         return;
     };
@@ -377,8 +416,8 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
         .hidden_title(true)
         .traffic_light_position(LogicalPosition::new(16.0, 26.0))
         .initialization_script(WINDOW_CONTROLS)
-        // The page takes dropped files itself (EPUB uploads); Tauri's handler
-        // would swallow the drop before the DOM saw it.
+        // Tauri's native drop handler always consumes the operation, including
+        // outline DOM drags. Keep web EPUB uploads and DOM drops working.
         .disable_drag_drop_handler()
         .on_navigation(move |url| {
             if allowed(&navigation, url) {
@@ -419,6 +458,7 @@ fn window(app: &AppHandle) -> tauri::Result<WebviewWindow> {
                 .is_some_and(|origin| origin.origin() == payload.url().origin())
             {
                 opened_files::ready(&loaded, payload.url().clone());
+                capture::ready(&loaded);
             }
             if payload.event() == PageLoadEvent::Finished {
                 window_controls(&loaded);

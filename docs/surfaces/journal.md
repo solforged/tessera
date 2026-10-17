@@ -31,9 +31,9 @@ The line clears once the whole capture is in the local outbox and saves in order
 
 ### macOS capture
 
-The macOS app's File › New Capture (⌘E) opens the same slip. ⌘⇧E anywhere on the Mac opens it as a floating panel over the current app, or the slip when Tessera is in front.
+The macOS app's File › Add to Today (⌘E) and Dock › Add to Today open the same slip. ⌘⇧E anywhere on the Mac opens it as a floating panel over the current app, or the slip when Tessera is in front. The Send to Tessera text Service always opens the floating panel; native code delivers the selection as a `tessera-quick-capture` CustomEvent with `{"kind":"note","text":"…"}` in its detail. The panel currently focuses on that event; reading its text into the line belongs to the web capture surface.
 
-The panel stays 600 px wide, fits its contents before showing, and grows downward from a fixed top edge for previews, errors and completions, up to 340 px. It shrinks when those rows disappear, keeps an unsaved draft when it loses focus, and Enter or Escape returns to the previous app.
+The panel stays 600 px wide, fits its contents before showing, and grows downward from a fixed top edge for kind fields, previews, errors and completions, up to 560 px. It shrinks when those rows disappear, keeps an unsaved draft when it loses focus, and Enter or Escape returns to the previous app.
 
 ### Android capture
 

@@ -40,7 +40,7 @@ ln -s /Applications/Tessera.app/Contents/MacOS/tessera ~/.local/bin/tessera
 Opening an EPUB from Finder imports it into the notebook and shows the Library. To make Tessera the default, select an `.epub` in Finder and choose **Get Info → Open with → Tessera → Change All…**. The Library shows upload errors and ingestion progress.
 
 - While Tessera runs, **⌘⇧E** from any app opens a small Add to today panel. Type a line and press Enter to append it to today's journal; focus returns to the previous app.
-- Inside Tessera, **⌘E** (File → New Capture) opens the same line over the current page.
+- Inside Tessera, **⌘E** (File → Add to Today) opens the same line over the current page.
 - If another app holds ⌘⇧E, Tessera starts without it and records this in `~/Library/Logs/tessera/desktop.log`.
 
 ## Android app
