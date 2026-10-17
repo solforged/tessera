@@ -42,13 +42,15 @@ Typing `@` after a space or at block start opens date suggestions under the `@`:
 | ISO labels, today/tomorrow/yesterday, weekdays | Accepted dates |
 | `@in 2 weeks`, `@+2d` | Relative dates |
 | `@oct 12`, `@12 october 2027` | Full or abbreviated month names in either order; `sept` also works |
-| Month and day without a year | Next occurrence on or after the context date |
+| Month and day without a year | Next occurrence on or after today |
 | Impossible dates such as `feb 30` | Errors |
 | Bare weekday | Includes today when it matches |
 | `next mon` | Monday in the following Monday-start week |
-| `09:30`, `9:30`, `9am`, `3:30pm` | Time after any date, or alone for the context date |
+| `09:30`, `9:30`, `9am`, `3:30pm` | Time after any date, or alone for today |
 | `12am`, `12pm` | Midnight and noon, respectively |
 | Leading `by` or `due`, followed by a space or the token's end | Deadline; for example, `@by oct 12 3pm`, `@due fri` |
+
+Typed dates count from the notebook's today, also on another day's journal page or Agenda day, so `@today` on last Tuesday's page schedules today. Agenda's New task still schedules a dateless task on the shown day.
 
 The picker's first, non-selectable row reads Scheduled or Deadline, with a mono Tab hint. Tab flips the field by inserting `by ` or removing `by `/`due ` while retaining the query. Other pickers keep Tab to pick.
 

@@ -85,7 +85,7 @@ export function ProjectControls(props: ProjectControlsProps) {
         </Button>
         <Button class="danger" disabled={disabled()} onClick={() => { void save(null); }}>Remove project</Button>
       </div>
-      <Show when={deadlineAnchor()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor()} label="Deadline" value={current().deadline} contextDate={props.contextDate} onDismiss={() => setDeadlineAnchor(null)} onSelect={value => save({ ...current(), outcome: outcome().trim(), deadline: value.date })} />}</Show>
+      <Show when={deadlineAnchor()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor()} label="Deadline" value={current().deadline} contextDate={props.notebook.todayDate()} onDismiss={() => setDeadlineAnchor(null)} onSelect={value => save({ ...current(), outcome: outcome().trim(), deadline: value.date })} />}</Show>
       <Show when={statusAnchor()}>{anchor => <Menu anchor={anchor()} label="Project status" onDismiss={() => setStatusAnchor(null)} items={statuses.map(status => ({
         label: statusLabels[status],
         checked: status === current().status,
