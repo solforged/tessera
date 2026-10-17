@@ -511,17 +511,16 @@ pub(crate) fn apply(
             if session(conn, id)?.is_some() {
                 return Err(validation("review session ID is already used"));
             }
-            if let Some(deck_id) = deck_id {
-                if deck_revision(conn, deck_id)?.is_none()
-                    && !conn
-                        .prepare_cached(concat!(
-                            tag_deck_pages!(),
-                            "SELECT EXISTS(SELECT 1 FROM tag_deck_pages WHERE id = ?1)"
-                        ))?
-                        .query_row([deck_id], |row| row.get::<_, bool>(0))?
-                {
-                    return Err(not_found(deck_id));
-                }
+            if let Some(deck_id) = deck_id
+                && deck_revision(conn, deck_id)?.is_none()
+                && !conn
+                    .prepare_cached(concat!(
+                        tag_deck_pages!(),
+                        "SELECT EXISTS(SELECT 1 FROM tag_deck_pages WHERE id = ?1)"
+                    ))?
+                    .query_row([deck_id], |row| row.get::<_, bool>(0))?
+            {
+                return Err(not_found(deck_id));
             }
             conn.execute(
                 "INSERT INTO review_sessions(id, deck_id, started_at, ended_at, state, revision)
