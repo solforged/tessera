@@ -122,7 +122,7 @@ Focus has one frame per control:
 
 Radius 2 px for controls, 3 px for popups, zero for the workspace and resurfaced slips, full for pills. Popups have a 1 px `--line` border and `--popup-shadow`; dialogs `--dialog-shadow`. The workspace frame has a 1 px `--line` border and no shadow. Rows and tables cast none.
 
-Each pane has 9 px registration corners 4 px inside its content, clear of toolbars, gilt when active and `--line` otherwise. Popups carry a 24 × 2 px rubric mark at the top. The rail workshop name has an oculus mark in gilt.
+Each pane has 9 px registration corners 4 px inside its content, clear of toolbars, gilt when active and `--line` otherwise. A reader whose controls have faded takes its corners with them. Popups carry a 24 × 2 px rubric mark at the top. The rail workshop name has an oculus mark in gilt.
 
 A [resurfaced slip](surfaces/journal.md) sits on `--raised`, marked by its highlight color as a 2 px bar at the left. The mono source line carries the short source title, chapter or passage and date, with Open, Keep and Mute beside it.
 
@@ -240,7 +240,7 @@ Holding ⌘ (Ctrl elsewhere) over anything that opens shows where a click will l
 
 Below 840 px of window width the row becomes pane tabs, numbered, over the active pane; spines, dividers and header numbers step aside.
 
-A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. Breadcrumbs reserve at least twelve mono characters for the current title and ellipsize its ending; ancestors may shrink. Below 840 px of pane width, the depth dial collapses to its current iris, and unavailable projection tabs, Read's reason and the Vim tag step aside. Below 600 px of pane width, ancestors, the kind glyph and unavailable history buttons step aside too. If the remaining controls cannot share a line with the title's minimum, they wrap instead of erasing the title.
+A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. Breadcrumbs reserve at least twelve mono characters for the current title and ellipsize its ending; ancestors may shrink. Below 840 px of pane width, the depth dial collapses to its current iris in `--muted`, without the gilt well, and unavailable projection tabs, Read's reason and the Vim tag step aside. Below 600 px of pane width, ancestors, the kind glyph and unavailable history buttons step aside too. If the remaining controls cannot share a line with the title's minimum, they wrap instead of erasing the title.
 
 On journal days the page menu leaves out what only titled pages can do (Rename, Merge into…, Description, Stream and Question) rather than listing it disabled. Saved shows as a 4 px dot with a hidden label only after the service acknowledges the text. Queued and fast saves keep the quiet dot but its hidden label says Saving…; slow saves, offline and errors speak in sans, errors in `--danger`.
 
@@ -279,7 +279,7 @@ Settings › Agent lists the models: name, then mono kind, model and whether a k
 | Width | Behavior |
 |---|---|
 | Below 1048 px | Sidebar becomes a toggleable overlay |
-| Below 840 px | Working-pane tabs show one pane at a time, in the mode-tab style: rubric pane number, mono title, gilt rule under the current pane, and Close pane at the strip's end |
+| Below 840 px | Working-pane tabs show one pane at a time, in the mode-tab style: rubric pane number, mono title, gilt rule under the current pane, and a close beside each tab that closes that pane |
 | Below 600 px | Find or create, Commands and Layout retain accessible labels on icon controls; workspace gutter shrinks to 4 px |
 
 While the sidebar is open, a shade in the shell color dims the workspace beside it. Tapping or clicking the shade closes the sidebar. On the cover screen the open sidebar covers its own toggle, so it opens on a masthead instead: the oculus and TESSERA wordmark with Close sidebar at the right, then the workshop name and its note count in mono apparatus, over a hairline. The name is always shown there, in `--warning` for a workshop other than the default, and the foot's workshop switcher keeps only its sync line. Hidden navigation is inert immediately, including during its exit.

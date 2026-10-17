@@ -367,6 +367,10 @@ export function LibraryPane(props: LibraryPaneProps) {
   // On Reading the cards are the list, so they give way to the Shelf and to grouped rows; the phone always keeps them.
   const readingCards = createMemo(() => showReading() && tab() === 'reading' && (coverLayout() || layout() === 'list' && group() === 'none'));
   const [openedSource, setOpenedSource] = createSignal<string>();
+  /** On the cover screen a Reading now card goes straight back into the book, as Today's reading line does; its page stays in the card's menu. */
+  function readingTarget(row: LibraryRow): OpenTarget {
+    return coverLayout() && row.source.current_snapshot_id ? { kind: 'reader', sourceId: row.page.id } : { kind: 'page', pageId: row.page.id };
+  }
   function openSource(target: OpenTarget, beside: boolean) {
     if (target.kind === 'page') setOpenedSource(target.pageId);
     // Keep this pane as the list when a pane is open to its right.
@@ -917,6 +921,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     if (disposed || !anchor.isConnected) return;
     setPopup({ kind: 'menu', anchor, label: 'Source actions', source: row, items: [
       ...(row.source.current_snapshot_id ? [{ label: row.source.last_read_at != null ? 'Continue reading' : 'Read', icon: 'book' as const, action: () => props.onOpen({ kind: 'reader', sourceId: row.page.id }, false) }] : []),
+      ...(readingTarget(row).kind === 'reader' && reading().some(value => value.page.id === row.page.id) ? [{ label: 'Open page', icon: 'page' as const, action: () => openSource({ kind: 'page', pageId: row.page.id }, false) }] : []),
       { label: 'Details', action: () => showDetails([row.page.id]) },
       ...stateActions.filter(action => action.state !== row.source.state).map(action => ({
         label: action.label, disabledReason: saving() ? 'Saving…' : undefined,
@@ -1247,7 +1252,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={reading().length}><section class="library-reading" aria-labelledby={`${props.pane}-reading-heading`}>
           <h2 class="library-reading-heading" id={`${props.pane}-reading-heading`}>Reading now</h2>
           <div class="library-reading-books" role="list"><For each={reading()}>{row => <div class="library-reading-item library-reading-entry" classList={{ 'library-row-selected': selected().has(row.page.id) }} role="listitem" {...sourceLongPress(row, () => tab() === 'reading')}>
-            <ReadingCard row={row} notebook={props.notebook} selected={openedSource() === row.page.id || selected().has(row.page.id)} onOpen={beside => openSource({ kind: 'page', pageId: row.page.id }, beside)} />
+            <ReadingCard row={row} notebook={props.notebook} selected={openedSource() === row.page.id || selected().has(row.page.id)} onOpen={beside => openSource(readingTarget(row), beside)} />
             <Show when={tab() === 'reading'}><Button role="checkbox" aria-checked={selected().has(row.page.id)} label={`Select ${row.page.text}`} class="icon-only library-checkbox" onClick={event => toggleSelection(row.page.id, event.shiftKey, !selectMode())}>
               <span class="library-checkbox-square"><Show when={selected().has(row.page.id)}><Icon name="check" /></Show></span>
             </Button></Show>

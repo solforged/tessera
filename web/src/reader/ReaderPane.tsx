@@ -65,6 +65,8 @@ type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'ac
 type SelectionToolbar = PassageSelection & { rect: DOMRect; rects: DOMRect[]; snapshotId: string };
 /** Touch screens write a new highlight's note beside the passage, not in the source page. */
 const coarsePointer = window.matchMedia('(pointer: coarse)');
+/** No hover and a coarse pointer: a phone or tablet without a keyboard and trackpad, as `kbd` hints assume in CSS. */
+const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)');
 /** The cover screen always reads in the reading layout; its chrome toggles with a centre tap, as in full screen. */
 const coverScreen = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
 /** In full screen the reading chrome fades after this long without the mouse moving. */
@@ -84,6 +86,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [error, setError] = createSignal('');
   const [popup, setPopup] = createSignal<ReaderPopup | null>(null);
   const [noteReturn, setNoteReturn] = createSignal<{ ordinal: number; offset: number; page: PageAnchor | null; passageId?: string; locator: string } | null>(null);
+  /** Where reading was before a jump from the contents, the book map, a highlight or a search; offered while the reading stays in the section it landed in. */
+  const [jumpReturn, setJumpReturn] = createSignal<{ ordinal: number; offset: number; page: PageAnchor | null; label: string; landing: number } | null>(null);
   const [query, setQuery] = createSignal('');
   const [hits, setHits] = createSignal<PassageHit[]>([]);
   const [searching, setSearching] = createSignal(false);
@@ -138,7 +142,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const sections = createMemo(() => contents().filter((entry): entry is HighlightSection => entry.ordinal !== null).sort((a, b) => a.ordinal - b.ordinal));
   const [highlightsLoading, setHighlightsLoading] = createSignal(false);
   const [highlightsError, setHighlightsError] = createSignal('');
-  const actions = createHighlightActions(props.notebook, props.onOpen, setError, undefined, () => { setNoticeHeld(false); setRemovedNotice(true); });
+  const actions = createHighlightActions(props.notebook, props.onOpen, setError, undefined, () => { setNoticeHeld(false); setRemovedNotice(true); }, composeNote);
   const pages = new Map<number, PassagePage>();
   const passages = new Map<number, Passage>();
   const ordinals = new Map<string, number>();
@@ -298,6 +302,25 @@ export function ReaderPane(props: ReaderPaneProps) {
     setSystemBarsHidden(true);
     onCleanup(() => setSystemBarsHidden(false));
   });
+  // On the cover screen the reader owns a history entry, so the system Back gesture (Android) closes an open sheet and
+  // then leaves the book as its back arrow does, rather than leaving the app. Leaving another way pops the entry.
+  createEffect(() => {
+    if (!props.active || !coverReading() || props.immersive) return;
+    const key = ulid();
+    let owned = true;
+    history.pushState({ ...history.state, tesseraReader: key }, '');
+    const moved = () => {
+      if (history.state?.tesseraReader === key) return;
+      if (popup()) { setPopup(null); history.pushState({ ...history.state, tesseraReader: key }, ''); return; }
+      owned = false;
+      props.onBack();
+    };
+    window.addEventListener('popstate', moved);
+    onCleanup(() => {
+      window.removeEventListener('popstate', moved);
+      if (owned && history.state?.tesseraReader === key) history.back();
+    });
+  });
   createEffect(on([loading, firstVisible, pageIndex, chunk], () => { if (chromeOverlays() && !loading()) hideChrome(); }, { defer: true }));
   // WebKit sends pointermove when the page turns under a resting mouse; only a real move shows the chrome.
   let lastPointer = '';
@@ -398,7 +421,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     pages.clear(); passages.clear(); ordinals.clear(); pending.clear(); locating.clear();
     clearTimeout(positionTimer);
     setCursor(null); setKeyboardRange(null);
-    setNoteReturn(null);
+    setNoteReturn(null); setJumpReturn(null);
     batch(() => {
       setSelection(null); setFlash(null); setSnapshot(id); setChunk(null);
       setContents([]);
@@ -461,6 +484,12 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   /** The contents margin takes `--apparatus-width` and a 48 px gap left of the text, inside the pane's padding; it shows only where both fit. */
+  /** The width the text could take at most: the reading column inside the pane's padding. */
+  function textRoom() {
+    const style = getComputedStyle(scroll);
+    return scroll.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  }
+
   function fitMargin() {
     if (!scroll.clientWidth) return;
     const style = getComputedStyle(scroll);
@@ -758,12 +787,46 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   /** Contents moves the reading position: unlike opening a citation, choosing a section is reading on from there. */
-  async function openSection(entry: TocEntry) {
+  /** `begin` starts reading there (the title page's Begin at); any other jump is a peek with a way back. */
+  async function openSection(entry: TocEntry, begin = false) {
     setPopup(null);
+    const back = begin ? null : returnMark();
     if (!await (entry.ordinal === null ? jumpTo(entry.locator) : jump(entry.ordinal))) return;
-    userScroll = true; suppressed = false;
+    if (begin) setJumpReturn(null); else offerReturn(back);
+    // A peek moves the saved place only once reading goes on from it: a page turn, or a screen's scroll.
+    userScroll = true; suppressed = !begin;
     report();
-    await savePosition();
+    if (begin) await savePosition();
+  }
+
+  /** The place a jump leaves: the earlier one while a return is still offered, so a run of peeks comes back to where reading was. */
+  function returnMark() {
+    const offered = jumpReturn();
+    if (offered) return offered;
+    const origin = visibleRange();
+    if (!origin) return null;
+    const section = sectionAt(origin.ordinal);
+    return { ...origin, page: paged() ? firstOnPage() : null, label: section && !isFrontMatter(section.title) ? sectionLabel(section.title) : `passage ${origin.ordinal + 1}` };
+  }
+  function offerReturn(back: ReturnType<typeof returnMark>) {
+    const landing = visibleRange()?.ordinal;
+    if (!back || landing === undefined || sectionAt(landing) === sectionAt(back.ordinal) && Math.abs(landing - back.ordinal) < 2) { setJumpReturn(null); return; }
+    setJumpReturn({ ...back, landing });
+  }
+  // Reading on out of the section a jump landed in keeps the new place, so the way back goes.
+  createEffect(on(currentSection, section => { const back = jumpReturn(); if (back && section !== sectionAt(back.landing)) setJumpReturn(null); }, { defer: true }));
+
+  async function returnFromJump() {
+    const back = jumpReturn();
+    if (!back) return;
+    setJumpReturn(null);
+    try {
+      if (paged() && back.page) { pageAnchor = back.page; await relayoutPages(); }
+      else if (!await jump(back.ordinal, { offset: back.offset })) return;
+      userScroll = true; suppressed = false;
+      report();
+      await savePosition();
+    } catch (reason) { if (!disposed) { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); } }
   }
 
   function visibleRange() {
@@ -961,11 +1024,13 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   async function jumpHighlight(citation: Citation) {
     setPopup(null); suppressed = true;
+    const back = returnMark();
     try {
       await locate(citation.end.passage_id);
       const ordinal = await locate(citation.start.passage_id);
       if (ordinal === null) throw new Error('Passage not found.');
-      await jump(ordinal, { character: citation.start.offset, reveal: true });
+      if (!await jump(ordinal, { character: citation.start.offset, reveal: true })) return;
+      offerReturn(back);
       if (!disposed) {
         clearTimeout(flashTimer); setFlash(citation);
         flashTimer = window.setTimeout(() => setFlash(null), 1500);
@@ -990,6 +1055,25 @@ export function ReaderPane(props: ReaderPaneProps) {
     setEditError('');
   }
   createEffect(on(popup, state => { if (!state) selected(); }, { defer: true }));
+
+  /**
+   * On a touch screen a new note on an existing highlight is written in the composer, as on a new one, so reading
+   * stays in this pane. A highlight in another snapshot of the book has no passages here and opens its page instead.
+   */
+  function composeNote(row: HighlightRow, noteId: string) {
+    const citation = row.citation;
+    if (!coarsePointer.matches || citation.source_id !== props.target.sourceId || citation.snapshot_id !== snapshot()) return false;
+    setPopup(null);
+    void (async () => {
+      const last = await locate(citation.end.passage_id);
+      if (last === null) throw new Error('Passage not found.');
+      await Promise.all([loadPage(citation.ordinal - 1), loadPage(citation.ordinal), loadPage(last), loadPage(last + 1)]);
+      if (disposed || composing()) return;
+      composedCitation = citation.id;
+      setComposing(noteDraft({ start: citation.start, end: citation.end, first: citation.ordinal, last, quote: citation.quote, locator: citation.locator }, noteId));
+    })().catch(reason => { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); });
+    return true;
+  }
 
   /** The quotation with the sentence before and after it, from loaded prose passages. */
   function noteDraft(value: PassageSelection, noteId: string): HighlightNoteDraft {
@@ -1194,6 +1278,13 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   const readerActions = createMemo<MenuItem[]>(() => {
     const needsSelection = selection() ? undefined : 'Select text first';
+    // A touch screen without a keyboard has the selection bar, swipes and taps for these, so only the source's actions show.
+    if (touchOnly.matches) return [
+      { label: 'Open source page', icon: 'page', action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, false) },
+      { label: 'Merge overlapping highlights', icon: 'highlight', disabledReason: editing() ? 'Saving…' : undefined, action: () => { void mergeOverlapping(); } },
+      { label: 'Undo last edit', icon: 'undo', disabledReason: actions.canUndo() || readerDocument.canUndo() ? undefined : 'Nothing to undo', action: () => { void undoHighlight(); } },
+      ...(coverReading() ? [] : [{ label: props.immersive ? 'Exit full screen' : 'Full screen', action: () => props.onImmersive(!props.immersive) }]),
+    ];
     return [
       { label: 'Open source page', icon: 'page', shortcut: `${besideKey} beside`, action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, besidePressed) },
       { label: 'Merge overlapping highlights', icon: 'highlight', disabledReason: editing() ? 'Saving…' : undefined, action: () => { void mergeOverlapping(); } },
@@ -1420,7 +1511,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         <Show when={creators()}><p class="reader-title-author">{creators()}</p></Show>
         <span class="reader-title-rule" aria-hidden="true" />
         <Show when={facts()}><p class="reader-title-facts">{facts()}</p></Show>
-        <Show when={begin()?.ordinal ? begin() : null}>{value => <Button class="reader-title-begin" onClick={() => { const entry = contents().find(item => item.ordinal === value().ordinal); if (entry) void openSection(entry); }}>
+        <Show when={begin()?.ordinal ? begin() : null}>{value => <Button class="reader-title-begin" onClick={() => { const entry = contents().find(item => item.ordinal === value().ordinal); if (entry) void openSection(entry, true); }}>
           Begin at {value().name}
         </Button>}</Show>
       </div>
@@ -1556,14 +1647,15 @@ export function ReaderPane(props: ReaderPaneProps) {
       </Show></div>
       <div class="reader-folio">
         <span class="reader-folio-name"><Show when={chapterName()}><SectionLabel title={chapterEntry()!.title} /></Show></span>
-        <span class="reader-folio-time"><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left</Show><Show when={paged() && !loading()}>{chapterLeft() !== null ? ' · ' : ''}p. {pageIndex() + 1} of {pageCount()}</Show></span>
+        <Show when={jumpReturn()}>{back => <Button class="reader-folio-return" icon="left" onClick={() => { void returnFromJump(); }}><span>Back to {back().label}</span></Button>}</Show>
+        <span class="reader-folio-time" hidden={!!jumpReturn()}><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left</Show><Show when={paged() && !loading()}>{chapterLeft() !== null ? ' · ' : ''}p. {pageIndex() + 1} of {pageCount()}</Show></span>
         <Button class="reader-folio-book" label="Reading progress" aria-haspopup="dialog" disabled={!mapChapters().length} onClick={event => setPopup({ kind: 'progress', anchor: event.currentTarget })}>
           {formatProgress(position())}<Show when={bookLeft() !== null}> · {timeLeft(bookLeft()!)}</Show>
         </Button>
       </div>
     </div>
     <Show when={popup()}>{state => <>
-      <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} sheet={coarsePointer.matches} onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} sheet={coarsePointer.matches} room={textRoom()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'progress'}><ProgressCard anchor={state().anchor} sheet={coverReading()} chapters={mapChapters()} length={currentSnapshot()?.text_length ?? 0} at={here()} highlights={marks()}
         added={source()?.source.added_at ?? null} onDismiss={() => setPopup(null)}
         onJump={chapter => { const entry = contents().find(value => value.start === chapter.start && value.ordinal !== null); if (entry) void openSection(entry); else setPopup(null); }} /></Show>
@@ -1578,7 +1670,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
         status={<div class="reader-find-status"><span role="status">{hits().length} passages{morePassages() ? ' shown' : ''}</span><Show when={morePassages()}>{' '}<Button disabled={searching()} onClick={() => { void loadSearchPage(); }}>Load more passages</Button></Show></div>}
         row={hit => <span class="reader-search-entry"><span class="reader-search-snippet"><For each={hit.snippet_parts}>{part => part.match ? <mark class="reader-search-match">{part.text}</mark> : part.text}</For></span><span class="reader-highlight-section">Passage {hit.passage.ordinal + 1}<Show when={sectionAt(hit.passage.ordinal)}>{entry => <> · {sectionLabel(entry().title)}</>}</Show></span></span>} busy={searching() && !hits().length} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
-        onPick={hit => { setPopup(null); switchSnapshot(hit.snapshot_id); void jump(hit.passage.ordinal).catch(reason => { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); }); }}
+        onPick={hit => { setPopup(null); const back = hit.snapshot_id === snapshot() ? returnMark() : null; switchSnapshot(hit.snapshot_id); void jump(hit.passage.ordinal).then(moved => { if (moved) offerReturn(back); }).catch(reason => { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); }); }}
         onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'note'}><Popup anchor={state().anchor} label="Footnote" class="reader-note" onDismiss={() => setPopup(null)}>
         <p>{(() => { const value = state(); return value.kind === 'note' ? value.loading ? 'Loading…' : value.text : ''; })()}</p>

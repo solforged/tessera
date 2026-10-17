@@ -70,7 +70,7 @@ Contents entries that only repeat the book's title, running heads the file marke
 
 Reader settings are a device preference shared by every reader pane. Saved choices are preserved. Changing a setting keeps the first visible passage in place. Switching from Pages to Scroll keeps the first visible character, including within a long passage.
 
-On touch, settings open as a bottom sheet. Short landscape screens put the setting groups in one horizontally scrolling row so the reading page remains visible above them.
+On touch, settings open as a bottom sheet. Width shows only where Narrow is narrower than the text's room, so a phone, where all three widths fill the screen, leaves it out. Short landscape screens put the setting groups in one horizontally scrolling row so the reading page remains visible above them.
 
 | Setting | Choices | Default |
 | --- | --- | --- |
@@ -83,6 +83,7 @@ On touch, settings open as a bottom sheet. Short landscape screens put the setti
 ### Text and media
 
 - Headings scale from the reader size.
+- A jump from Contents, the book map, the progress card, Highlights or Find leaves Back to the section it left (or the passage, before the first section) in the line under the map, in place of the chapter's time left. It returns to the exact place, page included, while reading stays in the section the jump landed in; a further jump keeps the first place, and reading on out of the landed section drops it.
 - Footnote references stay live inside highlights. They open the note in a popover with Open footnote to reach its annotatable passage. Back to footnote reference returns to the reading place. On touch screens the superscript keeps its printed size with a 44 px hit area. Imports recognize explicit note markup, numeric superscript links and numeric references whose targets begin with a backlink.
 - Images keep their natural size up to the measure and 70% of the viewport height. On the dark canvas they are dimmed to 85% brightness until hovered.
 - Code sits on `--surface` in a horizontally scrolling block.
@@ -110,7 +111,7 @@ Wherever the pane has room for `--apparatus-width` and a 48 px gap left of the t
 - The margin scrolls on its own.
 - Narrower panes, split panes and phones keep only the Contents menu.
 
-Unlike opening a citation, choosing a section in either the margin or Contents moves the reading position there at once, so reopening the book returns to it.
+Choosing a section in the margin, Contents, the book map or the progress card is a peek, like opening a citation: the saved reading position stays where it was until reading goes on from there, by a page turn or a screen's scroll. Begin at on the title page starts reading at once and saves there.
 
 ### Find in source
 
@@ -189,7 +190,7 @@ Full screen, the corner-arrows button after `Aa` or `F`, turns the whole app win
 | Screen | Fade and return | Layout while faded |
 | --- | --- | --- |
 | Mouse | The toolbar and book map at the foot fade 2.5 s after the pointer rests and return when it moves. The line under the map stays. | Everything keeps its room, so the text never moves. |
-| Touch, in full screen or on the cover screen | A tap in the middle of the page, not on a highlight, link or button, fades or returns the toolbar and book map with the cover screen's masthead and pane tabs. | The masthead, toolbar and book map lie over the page, painted the screen's full width with the text fading into them. Once they fade, the page has the screen from the top band's top to the line under the map. |
+| Touch, in full screen or on the cover screen | A tap in the middle of the page, not on a highlight, link or button, fades or returns the toolbar and book map with the cover screen's masthead and pane tabs. | The pane tabs, masthead, toolbar and book map lie over the page, painted the screen's full width with the text fading into them. Once they fade, the page has the screen from the top band's top to the line under the map. |
 
 On Android the status and navigation bars leave and return with the active reader's controls, and a swipe from the screen's edge shows them for a moment. Inactive readers never hide the system bars or working-pane tabs. The native app keeps that bar mode through folding and keyboard changes. Closing a note after folding returns both bars to the reader's current mode. Full screen on a touch screen 600 px or wider also gives the page the status bar's room, and the toolbar returns below the bar. The cover screen keeps that room for its camera.
 
@@ -227,7 +228,7 @@ Highlights are ink, not boxes. A band of their color sits under the lower half o
 
 Hovering a highlight deepens the band of every range it covers to lightness 0.60 by night and 0.84 by day, or to 40% without a color. One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu. ⌘-click opens its block beside the reader (Ctrl-click off Mac).
 
-Add note and Open note activate the child editor from the local document immediately. Saving and catalog metadata do not delay typing.
+Add note and Open note activate the child editor from the local document immediately. Saving and catalog metadata do not delay typing. On a touch screen, Add note on a highlight without a written note opens the [note sheet](#highlight-and-note-sheet) instead, as Highlight and note does; Open note still opens the highlight's page beside the reader.
 
 Removing a highlight offers Undo in a notice for eight seconds, held while hovered or focused. Undo last edit remains in Reader actions after the notice leaves.
 On the touch cover, the existing-highlight menu opens as a bottom sheet with 44 px color buttons and action rows.
@@ -246,7 +247,7 @@ The cover screen is a touch screen under 600 px. Its shell rules are in [design]
 
 An open book reads edge to edge without the pane header or the nav. A back arrow and the book's name head the page above the reader toolbar. Full screen is left out because nothing remains to hide.
 
-The back arrow returns through the pane's history, or opens the source page when the reader was the first entry. Unfolding brings the usual shell back around the same page.
+The back arrow returns through the pane's history, or opens the source page when the reader was the first entry. The reader holds a browser history entry, so the system Back gesture on Android closes an open sheet first and then leaves the book the same way, instead of leaving the app. Unfolding brings the usual shell back around the same page.
 
 Entering the cover reader changes the workspace gutters at once, before restoring and revealing the page. The shell's margin animation never changes the reading width during that reveal.
 
@@ -256,7 +257,7 @@ The selection toolbar docks across the foot of the page in thumb reach, clear of
 
 ### Highlight and note sheet
 
-On a touch screen, Highlight and note keeps the passage in view instead of opening the source page. A sheet covers the shell, showing in order:
+On a touch screen, Highlight and note, and Add note on a highlight without a written note, keep the passage in view instead of opening the source page. A sheet covers the shell, showing in order:
 
 1. The book's title and byline.
 2. The reading rule.
@@ -277,7 +278,7 @@ When the keyboard takes room, the passage scrolls so the whole quotation and as 
 
 ### Popups, targets and Android
 
-On a touch screen, Contents and Highlights open without raising the keyboard; their search field takes a tap. `Aa` rises as a sheet from the bottom edge, its rows kept to a column, so the text it changes stays in sight above.
+On a touch screen, Contents and Highlights open without raising the keyboard; their search field takes a tap. Without hover, Reader actions keep only Open source page, Merge overlapping highlights and Undo last edit (and Full screen off the cover screen): the keyboard commands have the selection bar, swipes and taps instead. `Aa` rises as a sheet from the bottom edge, its rows kept to a column, so the text it changes stays in sight above.
 
 The reader toolbar, the settings and the note sheet's buttons are 44 px touch targets (`--touch-target`). The note mark after a highlight and the progress at the foot reach as far without growing. In Pages, the note mark's target still reaches into the gutter outside the clipped page and takes priority over an edge page turn.
 
