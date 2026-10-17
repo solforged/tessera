@@ -46,6 +46,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Showed typed-page, question and project glyphs in pane headers using already-loaded kind metadata.
 - Opened New page as a bottom sheet on touch-cover layouts.
 - Offered Open page before submitting an existing title in New page.
+- Kept Unicode title-folding keys as data during minification so Android WebViews with older Unicode parsers could open the app.
 - Kept Undo of a pending cross-page move waiting for that move instead of undoing earlier text while it saved.
 - Applied an outline's Undo notice directly from ⌘Z, including after its pane became the only remaining pane.
 - Kept deep outline levels distinguishable with compressed indentation and mono nesting-depth cues.
