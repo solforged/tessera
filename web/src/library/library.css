@@ -443,6 +443,10 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
   .library-pane:has(.library-selection-count) .library-controls,
   .library-pane:has(.library-collection-heading) .library-controls { display: flex; }
 }
+/* On the cover screen a Reading now card keeps its cover clear: the checkbox shows once something is selected, and Select in the card's menu starts there. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .library-pane:not(:has(.library-row-selected)) .library-reading-item > .library-checkbox.button { display: none; }
+}
 /* Selection opens a catalogue card without narrowing the ledger's reading face. */
 .library-catalogue { display: flex; flex: 1; min-width: 0; min-height: 0; }
 .library-ledger { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; container: library-ledger / inline-size; }
