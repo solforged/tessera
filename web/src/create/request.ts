@@ -1,0 +1,48 @@
+/**
+ * What the creation slip starts with. Every entry point (⌘N, ⌘E, Find, index and table buttons, the macOS menu and
+ * capture panel, Android's shortcuts, share sheet, widget and tile) describes its request in this shape.
+ */
+
+/** Built-in kinds, or `type:<key>` for a note kind from the index (`type:person`, `type:concept`). */
+export type CreateKind = 'note' | 'question' | 'project' | 'task' | 'card' | 'source' | `type:${string}`;
+
+/** Where a note, question, task or card goes: today's journal, a new titled page, or the end of an existing page. */
+export type CreateInto = { kind: 'journal' } | { kind: 'page' } | { kind: 'under'; pageId: string };
+
+export interface CreateRequest {
+  kind: CreateKind;
+  /** Prefilled text, such as a shared link or the Find query. */
+  text: string;
+  /** Defaults to today's journal for notes, tasks and cards, and to a new page for the other kinds. */
+  into?: CreateInto;
+  /** Index, table and ledger buttons fix the kind; the slip hides its kind row. */
+  lockKind?: boolean;
+}
+
+const builtIn: Record<string, true> = { note: true, question: true, project: true, task: true, card: true, source: true };
+
+export function isCreateKind(value: unknown): value is CreateKind {
+  return typeof value === 'string' && (Object.hasOwn(builtIn, value) || /^type:\S+$/.test(value));
+}
+
+/** ⌘E and the plain capture shortcuts: a note at the end of today's journal. */
+export const blankCapture = (): CreateRequest => ({ kind: 'note', text: '', into: { kind: 'journal' } });
+
+/**
+ * Reads a request from a native bridge or event detail: `{ kind?, text?, into? }`, where `into` is `'journal'` or
+ * `'page'`. Anything unreadable is null; a missing kind is a journal note.
+ */
+export function parseCreateRequest(raw: unknown): CreateRequest | null {
+  if (typeof raw === 'string') {
+    if (!raw) return null;
+    try { raw = JSON.parse(raw); } catch { return null; }
+  }
+  if (typeof raw !== 'object' || raw === null) return null;
+  const value = raw as { kind?: unknown; text?: unknown; into?: unknown };
+  if (value.kind !== undefined && value.kind !== null && !isCreateKind(value.kind)) return null;
+  if (value.text !== undefined && typeof value.text !== 'string') return null;
+  if (value.into !== undefined && value.into !== null && value.into !== 'journal' && value.into !== 'page') return null;
+  const request: CreateRequest = { kind: (value.kind as CreateKind | undefined) ?? 'note', text: value.text ?? '' };
+  if (value.into === 'journal' || value.into === 'page') request.into = { kind: value.into };
+  return request;
+}

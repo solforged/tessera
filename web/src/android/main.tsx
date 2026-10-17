@@ -8,7 +8,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { setOpenedFilesInbox } from '../library/opened-files';
 import type { OpenedFiles } from '../library/opened-files';
 import { setQuickCaptureSource } from '../shell/quick-capture';
-import type { CaptureRequest } from '../shell/quick-capture';
+import { parseCreateRequest } from '../create/request';
 import { setStreamFactory, setTransport } from '../api/client';
 import { setSystemBarsHandler } from '../shell/system-bars';
 import { App } from '../shell/App';
@@ -20,20 +20,9 @@ if (!root) throw new Error('Missing #root element.');
 setTransport(notebookFetch);
 setStreamFactory(notebookStream);
 setOpenedFilesInbox(() => invoke<OpenedFiles>('take_opened_files'));
-// MainActivity holds launcher and share requests; taking one clears it.
+// MainActivity holds launcher, share, widget and tile requests as `{ kind, text }` JSON; taking one clears it.
 const capture = (window as Window & { TesseraCapture?: { take(): string; showKeyboard(): void } }).TesseraCapture;
-function parseCaptureRequest(raw: string): CaptureRequest | null {
-  if (!raw) return null;
-  try {
-    const request: unknown = JSON.parse(raw);
-    if (typeof request !== 'object' || request === null || !('task' in request) || !('text' in request)) return null;
-    if (typeof request.task !== 'boolean' || typeof request.text !== 'string') return null;
-    return { task: request.task, text: request.text };
-  } catch {
-    return null;
-  }
-}
-if (capture) setQuickCaptureSource({ take: () => parseCaptureRequest(capture.take()), showKeyboard: () => capture.showKeyboard() });
+if (capture) setQuickCaptureSource({ take: () => parseCreateRequest(capture.take()), showKeyboard: () => capture.showKeyboard() });
 // The status and gesture bars' heights, which the WebView leaves out of the safe-area insets on some devices. Folding
 // and the keyboard change them; MainActivity says so with `tessera-insets`. The reader hides both bars while its
 // chrome is away, and their icons follow the app's theme rather than the system's.

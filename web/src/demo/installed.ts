@@ -1,8 +1,9 @@
 import { api } from '../api/client';
 import { setOpenedFilesInbox } from '../library/opened-files';
 import type { OpenedFiles } from '../library/opened-files';
-import { blankCapture, setQuickCaptureSource } from '../shell/quick-capture';
-import type { CaptureRequest } from '../shell/quick-capture';
+import { setQuickCaptureSource } from '../shell/quick-capture';
+import { blankCapture } from '../create/request';
+import type { CreateRequest } from '../create/request';
 
 type WindowControlsOverlay = EventTarget & { readonly visible: boolean };
 type Launch = { targetURL?: string; files?: readonly FileSystemFileHandle[] };
@@ -30,7 +31,7 @@ export function installInstalledWindow(): void {
 
   // The shell drains these sources after mounting, so first-run choices keep incoming launches intact.
   const files: FileSystemFileHandle[] = [];
-  let capture: CaptureRequest | null = null;
+  let capture: CreateRequest | null = null;
   setQuickCaptureSource({ take: () => { const request = capture; capture = null; return request; } });
   setOpenedFilesInbox(async () => {
     const result: OpenedFiles = { jobs: [], errors: [] };

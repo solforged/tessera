@@ -2,7 +2,8 @@ import { Show, createSignal, onCleanup, onMount } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import { createNotebookClient } from '../document';
 import type { NotebookInfo } from '../api/types';
-import type { CaptureRequest } from '../shell/quick-capture';
+import { blankCapture } from '../create/request';
+import type { CreateRequest } from '../create/request';
 import { shortDay } from '../shell/desk-counts';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
@@ -10,7 +11,7 @@ import { CaptureField } from './CaptureField';
 
 interface CaptureBodyProps {
   notebook: NotebookClient;
-  request: CaptureRequest;
+  request: CreateRequest;
   /** After a save that closes the sheet, or on Escape. */
   onDone(): void;
   inputRef?(input: HTMLInputElement): void;
@@ -26,7 +27,7 @@ function CaptureBody(props: CaptureBodyProps) {
       <span class="capture-title">Add to today</span>
       <span class="capture-where">{shortDay(props.notebook.todayDate())} · end of journal</span>
     </header>
-    <CaptureField notebook={props.notebook} contextDate={() => props.notebook.todayDate()} initialTask={props.request.task} initialText={props.request.text}
+    <CaptureField notebook={props.notebook} contextDate={() => props.notebook.todayDate()} initialTask={props.request.kind === 'task'} initialText={props.request.text}
       label="Add to today" placeholder={touch ? 'Add a note or task' : 'A note, or ⌘↵ for a task · [[ links · @fri plans'} inputRef={props.inputRef}
       onSaved={again => { if (again) setAdded(count => count + 1); else props.onDone(); }} onCancel={props.onDone}>
       {state => <footer class="capture-foot">
@@ -43,7 +44,7 @@ function CaptureBody(props: CaptureBodyProps) {
 }
 
 /** ⌘E, the desktop menu and Android's shortcuts: one line for today's journal over whatever is open. */
-export function CaptureSheet(props: { notebook: NotebookClient; request: CaptureRequest; onDismiss(): void }) {
+export function CaptureSheet(props: { notebook: NotebookClient; request: CreateRequest; onDismiss(): void }) {
   // The cover screen raises it from the bottom edge, above the keyboard.
   const touch = window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
   return <Popup anchor={document.body} placement={touch ? 'sheet' : 'top'} width={560} label="Add to today" class="capture-sheet" onDismiss={props.onDismiss}>
@@ -131,5 +132,5 @@ export function CaptureWindow() {
     window.removeEventListener('tessera-quick-capture', focus);
     document.documentElement.classList.remove('capture-window');
   });
-  return <CaptureBody notebook={notebook} request={{ task: false, text: '' }} bodyRef={element => { body = element; }} inputRef={element => { input = element; }} onDone={() => panel.__tesseraCaptureDone?.()} />;
+  return <CaptureBody notebook={notebook} request={blankCapture()} bodyRef={element => { body = element; }} inputRef={element => { input = element; }} onDone={() => panel.__tesseraCaptureDone?.()} />;
 }

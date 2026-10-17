@@ -35,10 +35,11 @@ import type { PagePresentation, PageProjection } from './contract';
 import { Palette } from './Palette';
 import { DeletedPages } from './DeletedPages';
 import { installOpenedFiles } from '../library/opened-files';
-import { blankCapture, installQuickCapture } from './quick-capture';
+import { installQuickCapture } from './quick-capture';
 import { opensBeside } from './beside';
 import { besideSlot, dividerRatio, insertPane, MAX_PANES, paneCapacity, windowStart } from './pane-row';
-import type { CaptureRequest } from './quick-capture';
+import { blankCapture } from '../create/request';
+import type { CreateRequest } from '../create/request';
 import { CaptureSheet } from '../capture/CaptureSheet';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
 import { NotebookMarker, NotebookOpening, knownNotebooks, registerNotebookCommands } from '../settings/notebooks';
@@ -498,8 +499,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       if (value.reopen) open({ kind: 'page', pageId: value.pages[0]!.id });
     } catch (reason) { reportError(reason); }
   };
-  const [capture, setCapture] = createSignal<CaptureRequest | null>(null);
-  const openCapture = (request: CaptureRequest) => { setPopup(null); setTypesMenu(null); setCapture(request); };
+  const [capture, setCapture] = createSignal<CreateRequest | null>(null);
+  const openCapture = (request: CreateRequest) => { setPopup(null); setTypesMenu(null); setCapture(request); };
   /** Saving or Escape leaves focus where the sheet opened from; a save that dropped it returns it to the pane. */
   const closeCapture = () => {
     setCapture(null);

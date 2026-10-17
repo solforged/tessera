@@ -56,7 +56,7 @@ class MainActivity : TauriActivity() {
       @JavascriptInterface fun take(): String {
         val requested = pendingCapture.getAndSet(null) ?: return ""
         runOnUiThread { webView.requestFocus() }
-        return JSONObject().put("task", requested.task).put("text", requested.text).toString()
+        return JSONObject().put("kind", requested.kind).put("text", requested.text).toString()
       }
 
       @JavascriptInterface fun showKeyboard() {
@@ -141,13 +141,14 @@ class MainActivity : TauriActivity() {
 
   private fun receiveCapture(intent: Intent) {
     val request = when {
-      intent.action == ACTION_CAPTURE -> CaptureRequest(intent.getBooleanExtra(EXTRA_CAPTURE_TASK, false), "")
+      intent.action == ACTION_CAPTURE -> CaptureRequest(intent.getStringExtra(EXTRA_CREATE_KIND) ?: "note", "")
       intent.action == Intent.ACTION_SEND && intent.type == "text/plain" -> {
         val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString().orEmpty()
           .replace(Regex("[\\r\\n]+"), " ").trim()
         val subject = intent.getCharSequenceExtra(Intent.EXTRA_SUBJECT)?.toString().orEmpty()
           .replace(Regex("[\\r\\n]+"), " ").trim()
-        CaptureRequest(false, if (subject.isNotEmpty() && !text.contains(subject)) "$subject $text".trim() else text)
+        // The slip reads the kind from the text: a link offers Source, a trailing question mark Question.
+        CaptureRequest("note", if (subject.isNotEmpty() && !text.contains(subject)) "$subject $text".trim() else text)
       }
       else -> {
         receiveBook(intent)
@@ -205,11 +206,12 @@ class MainActivity : TauriActivity() {
     }
   }
 
-  private data class CaptureRequest(val task: Boolean, val text: String)
+  /** `kind` is a creation kind the web slip understands: note, task, question, source, card or project. */
+  private data class CaptureRequest(val kind: String, val text: String)
 
   companion object {
     private const val ACTION_CAPTURE = "dev.tessera.android.CAPTURE"
-    private const val EXTRA_CAPTURE_TASK = "dev.tessera.android.CAPTURE_TASK"
+    private const val EXTRA_CREATE_KIND = "dev.tessera.android.CREATE_KIND"
     private val inboxExecutor = Executors.newSingleThreadExecutor()
     private val pendingCapture = AtomicReference<CaptureRequest?>(null)
   }

@@ -20,7 +20,7 @@
             android:action="dev.tessera.android.CAPTURE"
             android:targetPackage="dev.tessera.android"
             android:targetClass="dev.tessera.android.MainActivity">
-            <extra android:name="dev.tessera.android.CAPTURE_TASK" android:value="true" />
+            <extra android:name="dev.tessera.android.CREATE_KIND" android:value="task" />
         </intent>
     </shortcut>
 </shortcuts>
