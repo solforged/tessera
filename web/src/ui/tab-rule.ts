@@ -22,7 +22,8 @@ export function installTabRule() {
     const update = (strip: HTMLElement) => {
       const state = strips.get(strip);
       if (!state) return;
-      const selected = strip.querySelector<HTMLElement>(selectedTab);
+      // A strip may hide overflowed tabs, pressed ones included, behind a pressed More; the pen follows the one on show.
+      const selected = Array.from(strip.querySelectorAll<HTMLElement>(selectedTab)).find(element => element.getClientRects().length > 0);
       const bounds = selected?.getBoundingClientRect();
       if (!selected || !bounds?.width || !bounds.height) {
         state.rule.style.setProperty('--tab-rule-visible', '0');

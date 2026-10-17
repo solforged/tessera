@@ -41,6 +41,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Hid phone Library checkboxes until Select, so covers show whole; in Select a tap toggles a source instead of opening it.
+- Flowed a grouped Library shelf as one grid with each group's name on its first cover, so a one-book year no longer takes a whole row.
+- Moved Library tabs and saved views that do not fit a narrow pane into a More menu instead of clipping the scrolling strip.
 - Renamed the macOS File › New Capture action to Add to Today, keeping ⌘E.
 - Raised the macOS capture panel's maximum height from 340 to 560 px for kind fields.
 - Opened pages created in the macOS capture panel in the main window without returning focus to the previous app.
