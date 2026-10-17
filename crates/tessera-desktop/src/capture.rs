@@ -25,6 +25,9 @@ const OPEN_PANEL: &str = "window.dispatchEvent(new CustomEvent('tessera-quick-ca
 const DONE_URL: &str = "tessera-capture://done";
 const BRIDGE: &str = "
     window.__tesseraCaptureDone = () => { window.location.href = 'tessera-capture://done'; };
+    window.__tesseraCaptureOpen = targetJson => {
+        window.location.href = 'tessera-capture://open?target=' + encodeURIComponent(targetJson);
+    };
     window.__tesseraCaptureSize = height => {
         window.location.href = 'tessera-capture://size?height=' + height;
     };
@@ -156,6 +159,44 @@ fn done(app: &AppHandle) {
     }
 }
 
+fn requested_page(url: &Url) -> Option<serde_json::Value> {
+    if url.scheme() != "tessera-capture" || url.host_str() != Some("open") {
+        return None;
+    }
+    let target = url.query_pairs().find(|(key, _)| key == "target")?.1;
+    let target: serde_json::Value = serde_json::from_str(&target).ok()?;
+    let object = target.as_object()?;
+    (object.get("kind")?.as_str() == Some("page") && object.get("pageId")?.is_string())
+        .then_some(target)
+}
+
+fn page_event(target: &serde_json::Value) -> String {
+    format!("window.dispatchEvent(new CustomEvent('tessera-open', {{ detail: {target} }}))")
+}
+
+fn open_in_main(app: &AppHandle, target: serde_json::Value) {
+    let handle = app.clone();
+    if let Err(error) = app.run_on_main_thread(move || {
+        // Take the return target before hiding so Focused(false) cannot restore
+        // the previous app after we bring the created page forward.
+        dismiss(&handle, false);
+        let Some(window) = handle.get_webview_window(MAIN) else {
+            return;
+        };
+        let result = (|| -> tauri::Result<()> {
+            window.unminimize()?;
+            window.show()?;
+            window.set_focus()?;
+            window.eval(page_event(&target))
+        })();
+        if let Err(error) = result {
+            app::log(&format!("cannot open captured page: {error}"));
+        }
+    }) {
+        app::log(&format!("cannot dispatch captured page: {error}"));
+    }
+}
+
 fn requested_height(url: &Url) -> Option<f64> {
     if url.scheme() != "tessera-capture" || url.host_str() != Some("size") {
         return None;
@@ -235,6 +276,12 @@ fn window(
         .on_navigation(move |url| {
             if url.as_str() == DONE_URL {
                 done(&navigation);
+                return false;
+            }
+            if url.scheme() == "tessera-capture" && url.host_str() == Some("open") {
+                if let Some(target) = requested_page(url) {
+                    open_in_main(&navigation, target);
+                }
                 return false;
             }
             if url.scheme() == "tessera-capture" && url.host_str() == Some("size") {
@@ -385,5 +432,68 @@ mod tests {
             serde_json::from_str::<serde_json::Value>(detail).unwrap(),
             serde_json::json!({ "kind": "note", "text": text }),
         );
+    }
+
+    #[test]
+    fn page_navigation_preserves_json_without_executable_script() {
+        let target = serde_json::json!({
+            "kind": "page",
+            "pageId": "'); window.bad = true; // \"quote\" \\ slash\n雪 &+?# </script>",
+            "focus": "title",
+        });
+        let mut url = Url::parse("tessera-capture://open").unwrap();
+        url.query_pairs_mut()
+            .append_pair("target", &target.to_string());
+        let parsed = requested_page(&url).unwrap();
+        assert_eq!(parsed, target);
+        let script = page_event(&parsed);
+        let detail = script
+            .strip_prefix("window.dispatchEvent(new CustomEvent('tessera-open', { detail: ")
+            .unwrap()
+            .strip_suffix(" }))")
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(detail).unwrap(),
+            target
+        );
+    }
+
+    #[test]
+    fn page_navigation_rejects_invalid_json_and_non_page_targets() {
+        for target in [
+            "",
+            "{",
+            "null",
+            "true",
+            "1",
+            "\"page\"",
+            "[]",
+            "{}",
+            r#"{"kind":"page"}"#,
+            r#"{"pageId":"p"}"#,
+            r#"{"kind":"journal","pageId":"p"}"#,
+            r#"{"kind":1,"pageId":"p"}"#,
+            r#"{"kind":"page","pageId":null}"#,
+            r#"{"kind":"page","pageId":1}"#,
+            r#"{"kind":"page","pageId":[]}"#,
+        ] {
+            let mut url = Url::parse("tessera-capture://open").unwrap();
+            url.query_pairs_mut().append_pair("target", target);
+            assert_eq!(requested_page(&url), None, "{target}");
+        }
+        assert_eq!(
+            requested_page(&Url::parse("tessera-capture://open").unwrap()),
+            None,
+        );
+        for address in [
+            "https://open",
+            "tessera-capture://done",
+            "tessera-capture://size",
+        ] {
+            let mut url = Url::parse(address).unwrap();
+            url.query_pairs_mut()
+                .append_pair("target", r#"{"kind":"page","pageId":"p"}"#);
+            assert_eq!(requested_page(&url), None, "{address}");
+        }
     }
 }

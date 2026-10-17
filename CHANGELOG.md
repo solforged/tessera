@@ -32,6 +32,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 - Renamed the macOS File › New Capture action to Add to Today, keeping ⌘E.
 - Raised the macOS capture panel's maximum height from 340 to 560 px for kind fields.
+- Opened pages created in the macOS capture panel in the main window without returning focus to the previous app.
 
 ### Fixed
 
