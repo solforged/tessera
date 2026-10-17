@@ -18,7 +18,7 @@ import { AgentSettings } from '../agent/AgentSettings';
 import './settings.css';
 import './devices.css';
 
-export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; section?: 'devices' | 'agent'; deviceId?: string | null; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onViewChange(view: SettingsViewState): void }) {
+export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; section?: 'notebooks' | 'devices' | 'agent'; deviceId?: string | null; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onViewChange(view: SettingsViewState): void }) {
   const [error, setError] = createSignal('');
   const [info] = createResource(async () => {
     try { return await api.notebook(); }

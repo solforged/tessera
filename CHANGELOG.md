@@ -8,6 +8,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Added a notebook switcher in place of the sidebar's Settings row: the open notebook's name over its sync relationship, with a menu that switches notebooks, pairs a phone or syncs. Settings became an icon beside Fields.
 - Added parent, revisit, recurrent and first-perspective fields to question creation.
 - Added project outcomes and deadlines to the creation slip without repeating the outcome in the body.
 - Added editable template fields to typed-page creation and preserved filled values when filing existing pages.

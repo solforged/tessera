@@ -38,9 +38,7 @@ The list contains each notebook the Mac knows. Its name is Default notebook for 
 
 Others offer Open and Forget. Forget waits for hover and only drops the list entry. A notebook whose folder is gone reads Folder missing.
 
-Another notebook takes a full path in a mono field, with Open for an existing notebook and New for an empty one in a new or empty folder. Switching covers the window with `Opening <name>…` in mono until it reloads on the chosen notebook. The palette lists the same notebooks as `Switch to notebook: <name>`.
-
-While a notebook other than the default is open, the sidebar's Settings row names it at its right in `--warning` mono, its folder in the tooltip.
+Another notebook takes a full path in a mono field, with Open for an existing notebook and New for an empty one in a new or empty folder. Switching covers the window with `Opening <name>…` in mono until it reloads on the chosen notebook. The palette lists the same notebooks as `Switch to notebook: <name>`, and so does the sidebar's notebook switcher.
 
 ## Backups
 

@@ -73,9 +73,3 @@ export function registerNotebookCommands(commands: CommandRegistry, notebook: No
 export function NotebookOpening() {
   return <Show when={opening()}>{label => <div class="notebook-opening" role="status" aria-live="polite"><span>Opening {label()}…</span></div>}</Show>;
 }
-
-/** Names the open notebook beside Settings when it is not the default, so a test or second notebook is never taken for the usual one. */
-export function NotebookMarker() {
-  const other = () => known()?.notebooks.find(entry => entry.current && !entry.default);
-  return <Show when={other()}>{entry => <span class="desk-count notebook-marker" title={`Open notebook: ${entry().path}`}>{entry().name}</span>}</Show>;
-}

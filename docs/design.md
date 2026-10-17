@@ -209,7 +209,7 @@ After the desk, sections appear in this order:
 
 Section headings are mono: a rubric numeral counted over the sections shown, the name, a hairline rule and a count. Saved table views have a pin control on hover or keyboard focus, always shown on a screen without hover. Pinning is stored per notebook alongside page pins. Task views and decks are selected in their own destinations.
 
-Settings sits at the foot above a hairline, with an icon-only Fields button beside it. A non-default notebook's name appears beside Settings in the warning color and truncates before the Settings label, which never shortens; the foot carries no build. Rows are 28 px with one left edge at 8 px. The row for the active pane's target gets the 2 px gilt bar, the selection fill and a gilt glyph. Destinations open in the active pane; ⌘-click opens beside.
+The notebook switcher sits at the foot above a hairline, with icon-only Settings and Fields buttons beside it. It is two lines: the open notebook's name (`Default notebook` for the default, in `--warning` for any other, so a test notebook is never taken for the usual one), then its sync relationship in faint mono: `this Mac only`, `syncs 2 devices`, `copies hyperion`, `this phone only` or `in this browser`. Health stays with the rail's sync mark. Its menu lists the known notebooks with the open one checked and another's parent folders in mono, then `Open or create a notebook…` (Settings › Notebooks), then a Sync group: `Pair a phone…` or `Devices` on the Mac, `Sync now` and `Devices` on a copy, `Use my Mac's notebook…` on a phone without one. The foot carries no build. Rows are 28 px with one left edge at 8 px. The row for the active pane's target gets the 2 px gilt bar, the selection fill and a gilt glyph. Destinations open in the active pane; ⌘-click opens beside.
 
 ### Workspace frame
 
@@ -280,7 +280,7 @@ Settings › Agent lists the models: name, then mono kind, model and whether a k
 | Below 840 px | Working-pane tabs show one pane at a time, in the mode-tab style: rubric pane number, mono title, gilt rule under the current pane, and Close pane at the strip's end |
 | Below 600 px | Find or create, Commands and Layout retain accessible labels on icon controls; workspace gutter shrinks to 4 px |
 
-While the sidebar is open, a shade in the shell color dims the workspace beside it. Tapping or clicking the shade closes the sidebar. On the cover screen the open sidebar covers its own toggle, so it opens on a masthead instead: the oculus and TESSERA wordmark with Close sidebar at the right, then the notebook name and its note count in mono apparatus, over a hairline. The name is always shown there, in `--warning` for a notebook other than the default, and the foot leaves it out. Hidden navigation is inert immediately, including during its exit.
+While the sidebar is open, a shade in the shell color dims the workspace beside it. Tapping or clicking the shade closes the sidebar. On the cover screen the open sidebar covers its own toggle, so it opens on a masthead instead: the oculus and TESSERA wordmark with Close sidebar at the right, then the notebook name and its note count in mono apparatus, over a hairline. The name is always shown there, in `--warning` for a notebook other than the default, and the foot's notebook switcher keeps only its sync line. Hidden navigation is inert immediately, including during its exit.
 
 Below 600 px:
 
