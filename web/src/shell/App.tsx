@@ -43,6 +43,8 @@ import { besideSlot, dividerRatio, insertPane, MAX_PANES, paneCapacity, windowSt
 import { blankCapture } from '../create/request';
 import type { CreateRequest } from '../create/request';
 import { CreateSlip, type CreateNotice } from '../create/CreateSlip';
+import { creatableKinds } from '../create/kinds';
+import { installLinkDrop } from '../create/link-drop';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
 import { NotebookMarker, NotebookOpening, knownNotebooks, registerNotebookCommands } from '../settings/notebooks';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
@@ -524,6 +526,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     queueMicrotask(() => { if (document.activeElement === document.body) focusPane(active()); });
   };
   onMount(() => {
+    onCleanup(installLinkDrop(openCreate));
     const nativeOpen = (event: Event) => {
       const target = event instanceof CustomEvent ? event.detail : undefined;
       if (!target || target.kind !== 'page' || typeof target.pageId !== 'string'
@@ -552,15 +555,18 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     window.addEventListener('keydown', onPageUndo, true);
     onCleanup(() => window.removeEventListener('keydown', onPageUndo, true));
     const onKey = (event: KeyboardEvent) => {
-      if (event.isComposing || document.querySelector('.popup:not(.reference-preview), .popup.reference-preview:focus-within')) return;
-      if ((mac ? event.metaKey : event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLocaleLowerCase() === 'n') {
+      if (event.defaultPrevented || event.isComposing || document.querySelector('.popup:not(.reference-preview), .popup.reference-preview:focus-within')) return;
+      // Native menu accelerators dispatch these commands themselves, including in full screen.
+      if ((mac ? event.metaKey : event.ctrlKey) && !event.shiftKey && (event.code === 'KeyN' || event.key.toLocaleLowerCase() === 'n')) {
+        if (document.documentElement.dataset.windowControls) return;
         event.preventDefault(); event.stopPropagation();
-        openCreate({ kind: 'note', text: '', into: { kind: 'page' } });
+        if (!event.repeat) openCreate({ kind: event.altKey ? 'question' : 'note', text: '', into: { kind: 'page' } });
         return;
       }
       if ((mac ? event.metaKey : event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLocaleLowerCase() === 'e') {
+        if (document.documentElement.dataset.windowControls) return;
         event.preventDefault(); event.stopPropagation();
-        openCreate(blankCapture());
+        if (!event.repeat) openCreate(blankCapture());
         return;
       }
       if (!event.ctrlKey || !event.shiftKey || event.metaKey || event.altKey) return;
@@ -665,7 +671,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.commands', title: 'Show commands', section: 'Navigation', keys: ['⌃⇧P'], run: () => showPalette('commands') },
     { id: 'shell.settings', title: 'Open settings', section: 'Navigation', run: () => open({ kind: 'settings' }) },
     { id: 'shell.today', title: 'Open today’s journal', section: 'Navigation', keys: ['⌃⇧J'], run: () => { void today(); } },
-    { id: 'shell.capture', title: 'Add to today', section: 'Page', keys: ['⌘E'], run: () => openCreate(blankCapture()) },
+    { id: 'shell.capture', title: 'Add to today', section: 'Create', keys: ['⌘E'], keywords: ['capture', 'quick note', 'inbox', 'journal'], run: () => openCreate(blankCapture()) },
     { id: 'shell.fields', title: 'Open fields', section: 'Navigation', run: () => open({ kind: 'fields' }) },
     { id: 'shell.agenda', title: 'Open agenda', section: 'Navigation', run: () => open({ kind: 'agenda', date: journalDate(active()) }) },
     { id: 'shell.review', title: 'Open review', section: 'Navigation', run: () => open({ kind: 'review' }) },
@@ -681,7 +687,12 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.switch', title: 'Next pane', section: 'View', keys: ['⌃⇧]'], disabledReason: () => !split() ? 'Open a second pane first' : undefined, run: switchPane },
     { id: 'shell.agent', title: 'Show or hide the agent', section: 'View', keys: ['⌃⇧A'], disabledReason: () => DEMO ? 'The agent needs the Tessera app' : undefined, run: () => toggleDock() },
     { id: 'shell.close', title: 'Close active pane', section: 'View', keys: ['⌃⇧X'], disabledReason: () => !split() ? 'Only one pane is open' : undefined, run: () => closePane(active()) },
-    { id: 'shell.new', title: 'New page', section: 'Page', keys: ['⌘N'], run: () => openCreate({ kind: 'note', text: '', into: { kind: 'page' } }) },
+    { id: 'shell.new', title: 'New page', section: 'Create', keys: document.documentElement.dataset.windowControls ? ['⌘N'] : undefined, keywords: ['page', 'note', 'create'], run: () => openCreate({ kind: 'note', text: '', into: { kind: 'page' } }) },
+    { id: 'create.question', title: 'New question', section: 'Create', keys: ['⌥⌘N'], keywords: ['ask', 'inquiry'], run: () => openCreate({ kind: 'question', text: '' }) },
+    { id: 'create.project', title: 'New project', section: 'Create', run: () => openCreate({ kind: 'project', text: '' }) },
+    { id: 'create.task', title: 'New task', section: 'Create', keywords: ['todo'], run: () => openCreate({ kind: 'task', text: '', into: { kind: 'journal' } }) },
+    { id: 'create.card', title: 'New card', section: 'Create', keywords: ['flashcard', 'review'], run: () => openCreate({ kind: 'card', text: '', into: { kind: 'journal' } }) },
+    { id: 'create.source', title: 'Add source', section: 'Create', keywords: ['book', 'article', 'paper', 'library', 'import', 'isbn'], run: () => openCreate({ kind: 'source', text: '' }) },
     { id: 'shell.new-spread', title: 'New spread', section: 'Page', run: (beside = false) => open({ kind: 'spread', noteIds: [] }, beside) },
     { id: 'shell.new-view', title: 'New view…', section: 'View', run: () => setPopup({ kind: 'new-view', anchor: searchButton, pane: active() }) },
     { id: 'shell.pin', title: 'Pin / unpin page', section: 'Page', run: () => { const root = activeRoot(); if (root) pin(root.id); } },
@@ -715,6 +726,12 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       run: () => openView(view),
     })));
     onCleanup(unregisterViews);
+  });
+  createEffect(() => {
+    onCleanup(commands.register(creatableKinds(index()?.kinds ?? []).map(kind => ({
+      id: `create.type:${kind.key}`, title: `New ${kind.name.toLocaleLowerCase()}`, section: 'Create' as const,
+      run: () => openCreate({ kind: `type:${kind.key}`, text: '', lockKind: true }),
+    }))));
   });
   registerNotebookCommands(commands, notebook, reportError);
   const rootById = createMemo(() => new Map(notebook.roots().map(root => [root.id, root])));
@@ -1101,6 +1118,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     <nav class="bottom-nav" aria-label="Notebook">
       <Button icon="today" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={() => { void today(); }}><span>Today</span></Button>
       <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={() => open({ kind: 'agenda', date: journalDate(active()) })}><span>Agenda</span></Button>
+      <Button icon="plus" class={creation() ? 'selected' : ''} aria-haspopup="dialog" aria-expanded={!!creation()} onClick={() => openCreate(blankCapture())}><span>New</span></Button>
       <Button icon="find" class={popup()?.kind === 'search' ? 'selected' : ''} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={event => setPopup({ kind: 'search', anchor: event.currentTarget, pane: active() })}><span>Find</span></Button>
       <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={() => open({ kind: 'review' })}><span>Review</span></Button>
       <Button icon="library" class={entry(active())?.target.kind === 'library' || entry(active())?.target.kind === 'reader' ? 'selected' : ''} aria-haspopup="menu" aria-expanded={!!typesMenu()}
@@ -1116,7 +1134,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     ]} />}</Show>
     <Show keyed when={popup()}>{state => <>
       <Show when={state.kind === 'search' || state.kind === 'commands'}>
-        <Palette anchor={state.anchor} pane={state.pane} mode={state.kind === 'commands' ? 'commands' : 'search'} commands={commands} notebook={notebook} onDismiss={() => setPopup(null)} onRestoreFocus={() => { if (!popup() && active() === state.pane) focusPane(state.pane); }} onOpen={(target, beside) => open(target, beside, state.pane)} />
+        <Palette anchor={state.anchor} pane={state.pane} mode={state.kind === 'commands' ? 'commands' : 'search'} commands={commands} notebook={notebook} onDismiss={() => setPopup(null)} onRestoreFocus={() => { if (!popup() && active() === state.pane) focusPane(state.pane); }} onOpen={(target, beside) => open(target, beside, state.pane)} onCreate={openCreate} />
       </Show>
       <Show when={state.kind === 'calendar'}>
         <Calendar notebook={notebook} anchor={state.anchor} date={state.date ?? journalDate(state.pane)} today={todayDate()} onToday={() => { void today(state.pane); }} onDismiss={() => setPopup(null)} onSelect={value => { void journal(value, state.pane); }} />

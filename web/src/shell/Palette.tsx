@@ -1,5 +1,4 @@
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from 'solid-js';
-import { ulid } from 'ulid';
 import { highlightMatches } from '../library/query';
 import { api } from '../api/client';
 import type { Block, BlockInPage, Citation, HighlightRow, LibraryRow, PageView, PassageHit, PassagePage, SourceView } from '../api/types';
@@ -19,13 +18,23 @@ import { findMatchSegments, paletteRows, type SearchEntry, type SearchHit } from
 import { citationRange, passageSegments } from '../reader/passages';
 import { titleKey } from '../document/title-key';
 import { pendingCaretInput } from './pending-caret';
+import { inferKind, type CreateRequest } from '../create/request';
+import { createPageDraft } from '../create/draft';
+import type { PopupAnchor } from '../ui/Popup';
 
-type Entry = SearchEntry | { kind: 'command'; command: Command } | { kind: 'create'; title: string }
+type CreateEntry = { kind: 'create'; action: 'source' | 'question' | 'page' | 'choose'; title: string };
+type Entry = SearchEntry | { kind: 'command'; command: Command } | CreateEntry
   | { kind: 'highlight'; row: HighlightRow } | { kind: 'passage'; hit: PassageHit };
 type FindScope = 'Everything' | 'Highlights' | 'Books' | 'Pages';
 
+function createLabel(entry: CreateEntry): string {
+  if (entry.action === 'source') return `Add “${entry.title}” to library`;
+  if (entry.action === 'choose') return `Create “${entry.title}” as…`;
+  return `Create ${entry.action} “${entry.title}”`;
+}
+
 /** Find or create pages, search blocks, or prefix commands with `>`. Tab drills into a result's children. */
-export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'search' | 'commands'; commands: CommandRegistry; notebook: NotebookClient; onDismiss(): void; onRestoreFocus(): void; onOpen(target: OpenTarget, beside: boolean): void }) {
+export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'search' | 'commands'; commands: CommandRegistry; notebook: NotebookClient; onDismiss(): void; onRestoreFocus(): void; onOpen(target: OpenTarget, beside: boolean): void; onCreate(request: CreateRequest, anchor?: PopupAnchor): void }) {
   const capturedCommands = props.commands.list().map(command => command.capture?.() ?? command);
   const sections = new Map<Command['section'], Command[]>();
   for (const command of capturedCommands) {
@@ -47,7 +56,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const text = () => mode() === 'commands' ? query().slice(1).trim() : query().trim();
   const [findScope, setFindScope] = createSignal<FindScope>('Everything');
   const [selectedEntry, setSelectedEntry] = createSignal<Entry>();
-  const [pendingPick, setPendingPick] = createSignal<{ query: string; scope: BlockInPage | undefined; filter: FindScope; beside: boolean }>();
+  const [pendingPick, setPendingPick] = createSignal<{ query: string; scope: BlockInPage | undefined; filter: FindScope; beside: boolean; shift: boolean }>();
   const initialRequests = new AbortController();
   onCleanup(() => initialRequests.abort());
   const [library] = createResource(async () => props.notebook.api.library({ limit: 500 }, initialRequests.signal));
@@ -117,7 +126,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const commands = createMemo(() => {
     const search = text().toLocaleLowerCase();
     return orderedCommands.filter(command => (search || command.section !== 'Page' || !command.disabledReason?.())
-      && `${command.title} ${command.section}`.toLocaleLowerCase().includes(search));
+      && [command.title, command.section, ...command.keywords ?? []].some(value => value.toLocaleLowerCase().includes(search)));
   });
   const entries = createMemo((): Entry[] => {
     if (mode() === 'commands') return commands().map(command => ({ kind: 'command', command }));
@@ -151,7 +160,11 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
         }
       }
     }
-    if (!parent && title && !exact && (findScope() === 'Everything' || findScope() === 'Pages')) result.push({ kind: 'create', title });
+    if (!parent && title && !exact && (findScope() === 'Everything' || findScope() === 'Pages')) {
+      const inferred = inferKind(title);
+      if (inferred === 'source' || inferred === 'question') result.push({ kind: 'create', action: inferred, title });
+      result.push({ kind: 'create', action: 'page', title }, { kind: 'create', action: 'choose', title });
+    }
     if (!parent) result.push(...passageHits().map((hit): Entry => ({ kind: 'passage', hit })));
     return result;
   });
@@ -180,19 +193,16 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       if (document.activeElement === document.body) props.onRestoreFocus();
     });
   };
-  const create = async (title: string, beside: boolean) => {
+  const create = async (title: string, kind: 'note' | 'question', beside: boolean) => {
     if (creating()) return;
     setCreating(true); setCreateError('');
     queryInput?.blur();
     const pending = pendingCaretInput.prepare();
     try {
-      const pageId = ulid(), caretId = ulid();
-      await props.notebook.commit([
-        { op: 'create_page', id: pageId, title },
-        { op: 'insert', id: caretId, parent_id: pageId, after: null, text: '', heading: null },
-      ], 'Create page');
+      const { pageId, caretId, caretOffset } = await createPageDraft(props.notebook, { kind, text: title });
       if (disposed) { pending(); return; }
-      props.onDismiss(); props.onOpen({ kind: 'page', pageId, caretId }, beside);
+      if (!caretId) pending();
+      props.onDismiss(); props.onOpen({ kind: 'page', pageId, ...(caretId ? { caretId, caretOffset } : {}) }, beside);
     } catch (reason) {
       pending();
       if (!disposed) setCreateError(reason instanceof Error ? reason.message : String(reason));
@@ -210,7 +220,11 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     else if (entry.kind === 'highlight' || entry.kind === 'passage') openBook(entry, beside);
     else if (entry.kind === 'more') more(entry.page);
     else if (entry.kind === 'command') run(entry.command, beside);
-    else void create(entry.title, beside);
+    else if (entry.action === 'source' || entry.action === 'choose') {
+      const anchor = queryInput?.getBoundingClientRect() ?? props.anchor.getBoundingClientRect();
+      props.onCreate(entry.action === 'source' ? { kind: 'source', text: entry.title }
+        : { kind: inferKind(entry.title) ?? 'note', text: entry.title, into: { kind: 'page' }, focus: 'kind' }, anchor);
+    } else void create(entry.title, entry.action === 'question' ? 'question' : 'note', beside);
   };
   createEffect(() => {
     const pending = pendingPick();
@@ -222,7 +236,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     if (busy()) return;
     setPendingPick(undefined);
     const entry = entries()[0];
-    if (!error() && entry) pick(entry, pending.beside);
+    if (!error() && entry) pick(entry, pending.beside || entry.kind === 'create' && pending.shift);
   });
   const pageGroupLabel = createMemo(() => {
     const pageResults = entries().filter(entry => entry.kind === 'hit' || entry.kind === 'more');
@@ -251,11 +265,11 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     preview={<Show when={mode() === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
     onSelect={setSelectedEntry}
     status={<><Show when={mode() === 'search'}><div class="find-scopes" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); queryInput?.focus({ preventScroll: true }); }}>{value}</Button>}</For></div></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
-    items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'more' ? `more:${entry.page.id}` : entry.kind === 'command' ? entry.command.id : entry.kind === 'highlight' ? entry.row.citation.id : entry.kind === 'passage' ? entry.hit.passage.id : 'create'}
+    items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'more' ? `more:${entry.page.id}` : entry.kind === 'command' ? entry.command.id : entry.kind === 'highlight' ? entry.row.citation.id : entry.kind === 'passage' ? entry.hit.passage.id : `create:${entry.action}`}
     section={sectionsWithCounts}
     disabledReason={entry => creating() ? 'Creating page…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}
-    onPick={(entry, event) => pick(entry, opensBeside(event))}
-    onPendingPick={event => { if (mode() === 'search' && busy()) setPendingPick({ query: query(), scope: scope(), filter: findScope(), beside: opensBeside(event) }); }}
+    onPick={(entry, event) => pick(entry, opensBeside(event) || entry.kind === 'create' && event.shiftKey)}
+    onPendingPick={event => { if (mode() === 'search' && busy()) setPendingPick({ query: query(), scope: scope(), filter: findScope(), beside: opensBeside(event), shift: event.shiftKey }); }}
     onKey={(event, entry) => {
       if (event.key !== 'Tab' || mode() !== 'search' || event.ctrlKey || event.metaKey || event.altKey) return false;
       if (event.shiftKey) { if (!scopes().length) return false; up(); return true; }
@@ -270,7 +284,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       : entry.kind === 'highlight' ? <><span class={`find-color highlight-color-${entry.row.color ?? 'none'}`} style={{ background: entry.row.color ? `var(--highlight-${entry.row.color})` : 'transparent', 'box-shadow': entry.row.color ? undefined : 'inset 0 0 0 1px var(--faint)' }} /><span class="find-result"><span class="find-quote"><MatchText text={entry.row.citation.quote} query={text()} /></span><small>Highlight · {location(entry.row.citation.source_id, entry.row.citation.ordinal, entry.row.citation.chapter_title)}</small></span></>
       : entry.kind === 'passage' ? <><span class="find-paragraph" aria-hidden="true">¶</span><span class="find-result"><span class="find-quote"><For each={entry.hit.snippet_parts}>{part => <Show when={part.match} fallback={part.text}><mark>{part.text}</mark></Show>}</For></span><small>{location(entry.hit.source_id, entry.hit.passage.ordinal)}</small></span></>
       : entry.kind === 'command' ? <CommandRow command={entry.command} selected={selected} />
-        : <><Icon name="plus" /><span class="picker-text">Create page “{entry.title}”</span><Show when={selected}><kbd class="picker-hint">{besideKey}↵ beside</kbd></Show></>} />;
+        : <><Icon name="plus" /><span class="picker-text">{createLabel(entry)}</span><Show when={selected && (entry.action === 'page' || entry.action === 'question')}><kbd class="picker-hint picker-create-hint">⇧↵ beside</kbd></Show></>} />;
 }
 
 function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient; selected: boolean; book?: LibraryRow }) {
@@ -395,6 +409,6 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
       </div>
       <footer class="find-preview-keys"><kbd>↵ {value().passages ? 'Open in the book' : 'Open page'}</kbd><kbd>{besideKey}↵ Beside</kbd></footer>
     </>}</Show>
-    <Show when={!content() && !loading() && !error()}><p class="empty-state">{props.entry?.kind === 'create' ? `Create page “${props.entry.title}”` : 'Select a result to preview it.'}</p></Show>
+    <Show when={!content() && !loading() && !error()}><p class="empty-state">{props.entry?.kind === 'create' ? props.entry.action === 'choose' ? `Choose a kind for “${props.entry.title}”` : createLabel(props.entry) : 'Select a result to preview it.'}</p></Show>
   </aside>;
 }

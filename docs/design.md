@@ -183,7 +183,7 @@ Permanent across every pane. A three-column grid:
 | Center of the window | Find or create with the Commands icon in one 400 px search-shaped control |
 | Right | Icon-only Layout button |
 
-Find or create shows the eye glyph and opens its picker beneath the search trigger; Commands opens the command palette. Layout opens the active view beside, moves to the next pane, evens pane widths, closes the active pane or toggles the sidebar. Global controls are never duplicated inside pane headers.
+Find or create shows the eye glyph and opens its picker beneath the search trigger; Commands opens the command palette. Find's creation rows open a page directly or pass the query to the shared creation slip. Layout opens the active view beside, moves to the next pane, evens pane widths, closes the active pane or toggles the sidebar. Global controls are never duplicated inside pane headers.
 
 In the macOS app the rail is the window's title bar. The window buttons sit centered in its height over its left end, so its start moves in by `--window-controls-width` (84 px) except in full screen. Dragging any part of it that is not a control moves the window, and double-clicking zooms it.
 
@@ -288,7 +288,7 @@ Below 600 px:
 - Field labels stack above values, so long values keep the measure.
 - The [library search](surfaces/library.md) takes its own line above sort, export and add.
 
-The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a bottom nav replaces it: Today, Agenda, Find, Review and Library. Today selects only today's journal, Agenda and Review select their own panes, and Find selects while its picker is open. Library selects only the Library pane or a reader; source pages, type indexes, tables, Fields and Settings select no primary place. The rail's sync status moves to a row above the nav, shown only while sync is not Synced. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
+The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a six-column bottom nav replaces it: Today, Agenda, New, Find, Review and Library. New opens the shared creation sheet with Note into Today selected; every target is at least `--target-size`. Today selects only today's journal, Agenda and Review select their own panes, New selects while the slip is open, and Find selects while its picker is open. Library selects only the Library pane or a reader; source pages, type indexes, tables, Fields and Settings select no primary place. The rail's sync status moves to a row above the nav, shown only while sync is not Synced. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
 
 ### Mac menus
 
@@ -306,11 +306,13 @@ One picker searches pages, blocks, highlight quotations and authored text or tag
 
 1. Highlights.
 2. Pages and notes, or Books when every result is a book page.
-3. An explicit Create page row.
+3. Creation rows, when a non-empty Everything or Pages query has no exact title match.
 4. In your books.
 
 A block already shown as a highlight is not repeated among the note results. Other note matches occupy one column, with their text clamped to two lines and the containing page title as mono apparatus beneath.
 Queries with no full-text word tokens, including emoji and punctuation, match authored display text literally and never turn empty name folding into a wildcard.
+
+Creation rows offer Add “{q}” to library for a whole source identifier, or Create question “{q}” for an inferred question, then Create page “{q}” and Create “{q}” as…. A question or page creates directly and opens its Outline body caret; both show ⇧↵ beside. Add opens the Source slip with the query. Create as opens the inferred kind (otherwise Note) into New page, anchored to the search field with the Kind row focused. The preview names the selected action, using Choose a kind for “{q}” for Create as.
 
 
 | Result | Search and metadata |
@@ -318,7 +320,7 @@ Queries with no full-text word tokens, including emoji and punctuation, match au
 | Highlights | Case-insensitive quotation, authored text and tag matching against up to 500 highlights loaded once per opening |
 | Passages | Search starts after three characters, debounces by 100 ms and cancels superseded requests; up to 40 matches. Source siglum, chapter when available and paragraph number |
 | Books | Actual percentage and highlight count |
-| Pages | NFC-normalized, Unicode-casefolded exact title comes first, including a locally created page not yet in server search, and suppresses Create page |
+| Pages | NFC-normalized, Unicode-casefolded exact title comes first, including a locally created page not yet in server search, and suppresses creation rows |
 
 At wide widths the finder has equal index and preview halves: page titles with their first lines; block matches in their full surrounding outline, with ancestors dimmed, the target highlighted and scrolled into view; or a passage between its neighbors with highlight ranges and every search term marked. Block previews scroll their outline independently of the page title and opening keys.
 
@@ -327,10 +329,12 @@ On the touch cover Find and Commands occupy the keyboard-resized visual viewport
 - Enter opens or creates in the invoking pane; passages and highlights open at their place in the [reader](surfaces/reader.md), and ⌘Enter opens beside. Enter during a pending search waits for that query's results; editing the query, changing scope or closing cancels that intent.
 - Arrows select and Escape closes. Only plain Home and End select the first and last result; modified chords retain native query editing. Scope chips return focus to the query. Creation errors keep the entered title intact.
 - Tab drills into page-result children and Shift-Tab returns; a drilled search never offers root-page creation.
-- New page (⌘N) opens the shared creation slip with Note and New page selected, top-centered without a trigger and anchored when invoked from a button. The cover uses a bottom sheet with Close, no second Cancel and no keyboard hints. Existing titles offer Open page; typed drafts offer File as their kind when needed.
+- New page opens the shared creation slip with Note and New page selected, top-centered without a trigger and anchored when invoked from a button. Its ⌘N hint appears only in the desktop app. The cover uses a bottom sheet with Close, no second Cancel and no keyboard hints. Existing titles offer Open page; typed drafts offer File as their kind when needed.
 - Creating from Find or the slip commits a first block with the page and opens its unzoomed Outline with the body caret live. A gist becomes that block's text, except for projects, where it sets the outcome shown in the header and leaves the body empty. Kind-specific field rows sit between gist and Similar pages, with mono labels, value columns and hairlines; question metadata, the first perspective, project deadlines and up to four template fields save with creation. Longer templates show More fields after creating. Filled fields on existing pages are read-only. Tab moves through title, gist and rows to Create. Typing immediately after submit continues into the body, including while the page loads. Shift+Enter in the slip opens beside; Shift+⌘Enter creates another without navigating. Opening an existing page does not force an editing caret.
 
 Command mode starts with Go to: [Highlights, Unfiled, Sources](surfaces/library.md), [Agenda week, Agenda tasks](surfaces/tasks-agenda.md), [This week, This month, This quarter and This year](surfaces/journal.md), followed by each notebook type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. ⌘ opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, Page, View and Editing retain their existing commands and shortcut hints below.
+
+Create groups New page, New question (⌥⌘N), New project, New task, New card, Add source and Add to today (⌘E), plus New {kind} for every page kind in the slip's More menu. Typed commands lock their kind; tasks and cards start in Today. Command queries match titles, sections and keywords: `>capture` finds Add to today, `>todo` finds New task, and source keywords include book, article, paper, library, import and isbn. ⌥⌘N also works in the browser; the macOS app lets its menu dispatch the shortcut once.
 
 With no command query, Page lists only applicable actions; searching retains the full catalog, including unavailable actions with their reasons. Copy page reference copies the active page's notebook link. Undo and Redo remain in Commands with ⌘Z and ⌘⇧Z, and Compare perspectives remains searchable alongside the visible Compare projection tab.
 

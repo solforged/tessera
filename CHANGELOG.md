@@ -11,6 +11,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Added parent, revisit, recurrent and first-perspective fields to question creation.
 - Added project outcomes and deadlines to the creation slip without repeating the outcome in the body.
 - Added editable template fields to typed-page creation and preserved filled values when filing existing pages.
+- Added inferred question and source creation rows to Find, with direct question editing and a prefilled kind chooser.
+- Added keyword-searchable creation commands for every page kind and the browser's ⌥⌘N question shortcut.
+- Added New at the center of the cover's six-place bottom navigation to open the creation sheet.
+- Opened dropped links in the Source slip outside editors, outlines and Library's own drop zone.
 - Added New card to non-empty Review and reused the front/back composer inside the creation slip.
 - Added one creation slip for notes, questions, tasks, cards, sources, projects and typed pages, with inferred kinds and Today or page destinations.
 - Added durable under-page captures and question lines, with Open and Undo acknowledgements.

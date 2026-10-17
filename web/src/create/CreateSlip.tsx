@@ -14,6 +14,7 @@ import { CardComposerBody } from '../review/CardComposer';
 import { AddSourceBody } from '../library/AddSheet';
 import { PageDraft } from './PageDraft';
 import { inferKind, type CreateInto, type CreateKind, type CreateRequest } from './request';
+import { creatableKinds } from './kinds';
 import './create.css';
 
 export interface CreateNotice {
@@ -37,7 +38,7 @@ const primaryKinds: { kind: CreateKind; label: string }[] = [
 const defaultInto = (kind: CreateKind): CreateInto => ({ kind: kind === 'question' || kind === 'project' || kind.startsWith('type:') ? 'page' : 'journal' });
 
 export function CreateSlip(props: CreateSlipProps) {
-  return <Popup anchor={props.anchor ?? document.body} placement={cover() ? 'sheet' : props.anchor ? 'anchor' : 'top'} width={560} fitContent class="create-slip" label="Create" onDismiss={props.onDismiss}>
+  return <Popup anchor={props.anchor ?? document.body} placement={cover() ? 'sheet' : props.anchor ? 'anchor' : 'top'} width={560} fitContent class="create-slip" label="Create" onDismiss={props.onDismiss} autofocus={props.request.focus === 'kind' && !props.request.lockKind ? false : undefined}>
     <CreateSlipBody {...props} onOpen={(target, beside) => { props.onDismiss(); props.onOpen(target, beside); }} sheet={cover()} />
   </Popup>;
 }
@@ -56,7 +57,7 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
   const [added, setAdded] = createSignal(0);
   const index = noteIndex(props.notebook);
   const noteKind = createMemo(() => index()?.kinds.find(value => value.key === (kind().startsWith('type:') ? kind().slice(5) : kind())));
-  const moreKinds = createMemo(() => (index()?.kinds ?? []).filter(value => value.key !== 'question' && value.key !== 'project' && value.key !== 'source' && value.key !== 'all' && value.key !== 'unfiled'));
+  const moreKinds = createMemo(() => creatableKinds(index()?.kinds ?? []));
   const under = () => { const destination = into(); return destination.kind === 'under' ? destination.pageId : undefined; };
   const destinationTitle = () => under() ? props.notebook.lookup(under()!)()?.text ?? props.notebook.roots().find(page => page.id === under())?.text ?? 'Page' : '';
   const pageDraft = () => kind() === 'project' || kind().startsWith('type:') || (kind() === 'note' || kind() === 'question') && into().kind === 'page';
@@ -82,7 +83,12 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
     setText(value);
     if (!chosen) changeKind(inferKind(value) ?? props.request.kind, false);
   }
-  onMount(() => { if (text() && !chosen) changeText(text()); });
+  onMount(() => {
+    if (text() && !chosen) changeText(text());
+    if (props.request.focus === 'kind' && !props.request.lockKind) queueMicrotask(() => {
+      if (body.isConnected) body.querySelector<HTMLButtonElement>('[role="radio"][aria-checked="true"]')?.focus();
+    });
+  });
   function chooseInto(value: CreateInto) { destinationChosen = true; setInto(value); }
   function radios(event: KeyboardEvent) {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;

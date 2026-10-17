@@ -394,6 +394,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 .palette-search .picker-row { align-items: flex-start; padding: var(--space-8) var(--space-12); gap: var(--space-12); }
 .palette-search .picker-row > .icon, .find-color, .find-paragraph { margin-top: var(--space-4); flex: none; }
 .palette-search .picker-hint { display: none; }
+.palette-search .picker-create-hint { display: block; }
 .palette-search .picker-text { white-space: normal; }
 .palette-search .picker-section { color: var(--faint); text-transform: uppercase; letter-spacing: var(--tracking-notebook); }
 .find-result { display: block; flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -480,8 +481,8 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .workspace, .sidebar-collapsed .workspace { grid-row: 1; margin: var(--space-4) var(--space-4) 0; }
   .sidebar { top: var(--top-inset); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset)); }
   .sidebar-shade { inset: var(--top-inset) 0 calc(var(--bottom-nav-height) + var(--bottom-inset)); }
-  .bottom-nav { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); height: var(--bottom-nav-height); padding-inline: var(--space-4); }
-  .bottom-nav .button { flex-direction: column; justify-content: center; gap: var(--space-2); height: 100%; padding: 0; border: 0; border-top: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
+  .bottom-nav { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); height: var(--bottom-nav-height); padding-inline: var(--space-4); }
+  .bottom-nav .button { flex-direction: column; justify-content: center; gap: var(--space-2); min-height: var(--target-size); height: 100%; padding: 0; border: 0; border-top: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
   .bottom-nav .button > .icon { color: var(--faint); }
   .bottom-nav .button.selected { border-top-color: var(--accent); color: var(--text); }
   .bottom-nav .button.selected > .icon { color: var(--accent); }

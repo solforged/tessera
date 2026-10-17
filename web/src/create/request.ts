@@ -20,6 +20,8 @@ export interface CreateRequest {
   into?: CreateInto;
   /** Index, table and ledger buttons fix the kind; the slip hides its kind row. */
   lockKind?: boolean;
+  /** Find's “as…” action starts at the kind chooser instead of the draft. */
+  focus?: 'kind';
 }
 
 const builtIn: Record<string, true> = { note: true, question: true, project: true, task: true, card: true, source: true };

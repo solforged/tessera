@@ -134,6 +134,8 @@ An identifier lookup previews a catalog card before anything is written:
 
 Edit details opens the details form seeded from the lookup, keeping its cover. Enter details by hand opens it empty and focuses Title. Dropping an EPUB on the Library pane or the Add form does the same as choosing a file.
 
+Dropping a link elsewhere in the window opens the shared Source slip with that link. URI lists ignore comments; plain text must be a whole source identifier. Drops handled by an editor, the outline or Library's own drop zone stay there, and the window handler never takes files.
+
 A manual or looked-up title already in the library shows `“{title}” is already in the library.` below the form, with Open to open that source and dismiss Add. Title matching ignores case and diacritics; when both records have creators, at least one creator must also match. The submit button becomes Add another copy, without preventing the addition.
 
 `AddSourceBody` exports the form without its Popup for embedding. Its optional `initialText` prefills the identifier field and starts the ordinary URL ingestion or identifier lookup when recognized; other text stays editable without submitting. Optional file and job hooks let Library keep its existing ingestion handling; an embedded body can choose and upload files itself.
