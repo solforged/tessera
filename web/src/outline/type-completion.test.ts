@@ -45,26 +45,45 @@ describe('type completion tokens', () => {
     expect(atEnd(String.raw`\((literal #bo`)?.query).toBe('bo');
   });
 
-  test('leaves card, cloze and field shorthand to their own syntax', () => {
-    for (const text of ['Author:: #bo', ':: #bo', 'front >> #bo', '#bo <> back', '{{c1:: #bo', '{{c1:: #bo}}']) {
+  test('completes on card blocks but leaves cloze spans and field shorthand to their own syntax', () => {
+    for (const text of ['Author:: #bo', ':: #bo', '{{c1:: #bo', '{{c1:: #bo}}']) {
       expect(atEnd(text)).toBeNull();
     }
     const cloze = '{{c1:: #bo}}';
     expect(typeTokenAt(cloze, cloze.length - 2)).toBeNull();
     expect(atEnd('{{c1::answer}} #bo')?.query).toBe('bo');
-    expect(typeTokenAt('#bo >> back', 3)).toBeNull();
+    expect(atEnd('front >> #bo')?.query).toBe('bo');
+    expect(atEnd('#bo <> back')).toBeNull();
+    expect(typeTokenAt('#bo >> back', 3)?.query).toBe('bo');
   });
 });
 
-test('type completion excludes note bodies and matches registered type aliases', async () => {
+test('type completion excludes note bodies, matches registered type aliases and offers absent built-in tags', async () => {
   const type = { id: 'type', kind: 'page', text: 'idea', archived: false } as Block;
   const prose = { id: 'prose', kind: 'block', text: '[[person|Plato]] describes an ideal city', archived: false } as Block;
+  const kinds = [
+    { key: 'person', name: 'Person', icon: 'person', type_id: null, tag: true },
+    { key: 'question', name: 'Question', icon: 'question-open', type_id: null, tag: false },
+    { key: 'type:type', name: 'idea', icon: null, type_id: 'type', tag: true },
+  ];
   const notebook = { roots: () => [type], changeSequence: () => 0, api: {
     types: async () => [{ page: type }],
+    noteIndex: async () => ({ kinds }),
     complete: async () => [{ ...type, alias: 'idéa' }, { ...prose, alias: null }],
     resolveName: async () => [{ page: type, alias: 'idéa' }],
   } } as unknown as NotebookClient;
-  expect(await completeTypes(notebook, 'idéa')).toEqual({ rows: [{ ...type, alias: 'idéa' }], canCreate: false });
+  expect(await completeTypes(notebook, 'idéa')).toEqual({ rows: [{ ...type, alias: 'idéa', icon: null }], canCreate: false });
+  const absent = { roots: () => [type], changeSequence: () => 0, api: {
+    types: async () => [{ page: type }],
+    noteIndex: async () => ({ kinds }),
+    complete: async () => [],
+    resolveName: async () => [],
+  } } as unknown as NotebookClient;
+  const person = await completeTypes(absent, 'pers');
+  expect(person.rows.map(row => [row.text, row.icon, row.id])).toEqual([['Person', 'person', '']]);
+  expect(person.canCreate).toBe(true);
+  expect((await completeTypes(absent, 'Person')).canCreate).toBe(false);
+  expect((await completeTypes(absent, 'quest')).rows).toEqual([]);
 });
 
 describe('type spelling', () => {

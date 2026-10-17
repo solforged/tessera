@@ -184,6 +184,17 @@ pub(crate) fn template(conn: &Connection, id: &str) -> Result<Vec<String>> {
         .collect::<rusqlite::Result<_>>()?)
 }
 
+/// The built-in starting template's field names, offered only while the template is empty.
+fn starting_names(title: &str, fields: &[String]) -> Vec<String> {
+    if !fields.is_empty() {
+        return Vec::new();
+    }
+    crate::built_in::schema(&crate::aliases::fold(title))
+        .iter()
+        .map(|(name, _)| (*name).to_owned())
+        .collect()
+}
+
 /// Columns describe the base membership, not the narrowed result. Read entries
 /// rather than values so a blank entry remains an editable column.
 fn column_frequencies<'a>(
@@ -386,6 +397,7 @@ impl Notebook {
         let fields = template(&self.conn, id)?;
         let required = self.required_fields(&page, &fields)?;
         Ok(TypeInfo {
+            starting: starting_names(&page.text, &fields),
             page,
             plural,
             icon,
@@ -449,6 +461,7 @@ impl Notebook {
                 plural,
                 icon,
                 required: self.required_fields(&page, &fields)?,
+                starting: starting_names(&page.text, &fields),
                 fields,
                 card_templates: template_counts.get(&page.id).copied().unwrap_or(0),
                 page,

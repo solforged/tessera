@@ -306,6 +306,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
       if (event.key === 'j' || event.key === 'k') { adjacent(event.key === 'j' ? 1 : -1, !!rowRange()); handled = true; }
       else if (event.key === 'i' && selected()) { const id = selected()!; editAt(id, caret()?.id === id ? caret()!.offset : 0, true); handled = true; }
     }
+    if (!handled && !props.vim && selected() && event.key === '?' && !event.metaKey && !event.ctrlKey && !event.altKey) { props.commands.list().find(command => command.id === 'shell.shortcuts')?.run(); handled = true; }
     if (!handled && event.key === 'Enter' && selected()) { props.vim ? zoomTo(selected()) : editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true); handled = true; }
     if (!handled && (event.key === 'Backspace' || event.key === 'Delete')) { props.vim && !rowRange() && event.key === 'Backspace' ? zoomOut() : apply({ kind: 'delete', ids: roots() }, false); handled = true; }
     if (!handled && event.key === ' ' && selected() && !rowRange() && !textRange() && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) { rowKey = ''; leaderMenu(selected()!); handled = true; }
@@ -316,6 +317,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     const key = event.key;
     const previous = rowKey;
     rowKey = '';
+    if (key === '?' && !event.ctrlKey) { props.commands.list().find(command => command.id === 'shell.shortcuts')?.run(); return true; }
     if (key === 'j' || key === 'k') { adjacent(key === 'j' ? 1 : -1, !!rowRange()); return true; }
     if (key === 'h' || key === 'l') { horizontal(key === 'h' ? 'left' : 'right'); return true; }
     if (key === 'G' || (key === 'g' && previous === 'g')) { const id = key === 'G' ? ids().at(-1) : ids()[0]; if (id) rowFocus(id); return true; }

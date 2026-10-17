@@ -48,7 +48,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
   | 'openImage'
->, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>, RowRelations: Component<{ id: string }>, openValueEditor: (id: string, anchor?: HTMLElement) => boolean, RowPrelude: Component<{ id: string }>) {
+>, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>, RowRelations: Component<{ id: string }>, openValueEditor: (id: string, anchor?: HTMLElement) => boolean, RowPrelude: Component<{ id: string }>, DiscoveryHints: Component<{ id: string }>) {
   const {
     doc, capabilities, setMenu, investigationItems, definitionsById, contextDate, inlineFields,
     baseDepth, positionSource, sourceDetails, virtualizer, hosts, props,
@@ -279,6 +279,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           <For each={block()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
         </span></Show>
         </div>
+        <DiscoveryHints id={id()} />
         <QuestionParent info={block()?.question} notebook={props.notebook} onOpen={props.onOpen} disabled={capabilities.busy(id())} onChange={anchor => capabilities.open(id(), 'question-parent', anchor)}
           onRemove={() => { const question = block()?.question; if (question) { const { parent: _, ...value } = question.state; capabilities.invoke(capabilities.edit(id(), { kind: 'question', id: id(), value })); } }} />
         <Show when={block()?.question}><AssessmentJournal questionId={id()} doc={doc} notebook={props.notebook} onOpen={props.onOpen}

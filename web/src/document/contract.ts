@@ -389,6 +389,9 @@ export interface CaptureReceipt {
   delivered: Promise<CaptureResult | null>;
 }
 
+/** A type page created by this window's own edit, with the change sequence that created it. */
+export interface DerivedType { id: string; title: string; sequence: number }
+
 /** The notebook-wide client. One per window. */
 export interface NotebookClient {
   readonly api: ApiClient;
@@ -478,4 +481,9 @@ export interface NotebookClient {
   changeSequence(): number;
   /** Latest observed change; catch-up events combine affected view IDs. */
   lastChange(): ChangeEvent | null;
+  /**
+   * Type pages this window's own edits derived, newest last: a `#tag` or Add type whose title named no page.
+   * Reactive; the outline reads it to offer a template on a tag's first use.
+   */
+  derivedTypes(): readonly DerivedType[];
 }

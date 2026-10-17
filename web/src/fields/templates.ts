@@ -3,24 +3,7 @@ import type { Accessor } from 'solid-js';
 import { api } from '../api/client';
 import type { ChangeEvent, Fields } from '../api/types';
 import { textTokens } from '../document/text-tokens';
-import { foldName } from '../outline/names';
 import { titleKey } from '../document/title-key';
-
-// Mirrors crates/tessera-core/src/built_in.rs `schema`, which the starting-template route applies.
-const startingTemplates = [
-  { title: 'Person', fields: ['aliases', 'lived', 'affiliated with'] },
-  { title: 'Group', fields: ['aliases', 'active'] },
-  { title: 'Concept', fields: ['aliases', 'coined by', 'coined in'] },
-  { title: 'Book', fields: ['author', 'editor', 'translator', 'published', 'publisher', 'identifier', 'language'] },
-  { title: 'Article', fields: ['author', 'site', 'published', 'url'] },
-] as const;
-
-/** Only an empty template offers a starting point; existing field choices always win. */
-export function startingTemplateFor(title: string, fields: readonly string[] = []) {
-  if (fields.length) return null;
-  const key = foldName(title);
-  return startingTemplates.find(template => template.title.toLowerCase() === key) ?? null;
-}
 
 /** A block's types as canonical case-folded keys: `#tags`, then manual types, each once. */
 export function typeKeys(text: string, manual: readonly string[]): string[] {
