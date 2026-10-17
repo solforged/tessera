@@ -290,6 +290,8 @@ span.pane-breadcrumbs { display: block; overflow: hidden; text-overflow: ellipsi
 /* Pane width, not the window, decides how much apparatus the title can afford. */
 @container pane (max-width: 839px) {
   .depth-label, .depth-stop:not([aria-pressed="true"]), .page-projection-tabs .button:disabled, .read-reason, .pane-header > .vim-mode { display: none; }
+  /* Collapsed to one iris, the dial has no other stop to set it apart from, so it drops the gilt well and reads as a header control. */
+  .depth-stop[aria-pressed="true"] { border-color: transparent; background: transparent; color: var(--muted); }
 }
 @container pane (max-width: 599px) {
   .pane-kind, .pane-navigation .button:disabled, .pane-breadcrumbs .button:not(:last-child), .breadcrumb-separator { display: none; }
