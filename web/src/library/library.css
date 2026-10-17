@@ -85,6 +85,8 @@
 .library-empty { padding-block: var(--space-24); }
 .library-empty h2 { margin: 0 0 var(--space-8); color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
 .library-empty p { margin: 0 0 var(--space-8); }
+/* A plain action under the message starts at the message's edge, as the rail's All N does. */
+.library-empty > .button:not(.bordered) { margin-left: calc(-1 * var(--space-8)); }
 .library-jobs { display: flex; flex-direction: column; }
 .library-inbox-ledger .library-row-open { display: grid; grid-template-columns: minmax(0, 1fr) 22ch 4.5ch auto; column-gap: var(--space-16); align-items: baseline; }
 .library-year-grouped.library-inbox-ledger .library-row-open { grid-template-columns: minmax(0, 1fr) 22ch auto; }
@@ -95,6 +97,8 @@
 .library-year-grouped.library-inbox-ledger .library-highlight-count { grid-column: 3; }
 .library-colhead { min-height: 20px; border-bottom: 0; content-visibility: visible; contain-intrinsic-size: auto 20px; color: var(--faint); }
 .library-colhead .library-author, .library-colhead .library-year { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+/* The head lays out like a row's open button, so its 22ch author column resolves in the same font, and it keeps the row menu's width at the end so the columns line up. */
+.library-colhead .library-row-open { flex: 1; min-width: 0; margin-right: calc(var(--row-height) + var(--space-4)); padding-inline: calc(var(--space-8) + var(--rule-width)); font-size: var(--text-control); }
 .library-job { flex-wrap: wrap; font-size: var(--text-control); line-height: var(--line-control); }
 .library-failures { width: 100%; border-bottom: var(--rule-width) solid var(--line); }
 .library-failure-heading { display: flex; align-items: center; min-height: var(--target-size); margin: 0; padding-inline: var(--space-8); color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
@@ -170,6 +174,7 @@
 .library-highlight-filter-colors .library-count { margin-left: auto; }
 .library-highlight-filter-tags { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-8); }
 .library-highlight-filter-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8); margin-top: var(--space-24); }
+.library-highlight-filter-footer .library-mark-processed { margin-left: auto; }
 @media (pointer: coarse) {
   .library-highlight-dock .button, .library-highlight-filter-colors .button { min-height: 44px; }
   .library-highlight-secondary .button.icon-only { flex-shrink: 0; min-width: var(--touch-target); }
@@ -185,7 +190,7 @@
   .library-highlights-tab .library-cover-header > .button { display: none; }
   .library-highlights-tab .library-scroll { padding: 0 var(--pane-inset) var(--page-bottom-space); }
   .library-highlights-tab .library-rows { border-top: 0; }
-  .library-highlights-tab .library-empty { padding-inline: var(--space-16); }
+  .library-highlight-queue .library-empty { padding-inline: var(--space-16); }
   .library-highlight-controls { gap: var(--space-8); }
   .library-highlight-filters.button { margin-left: auto; }
   .library-highlight-selectors { flex-basis: 100%; justify-content: space-between; padding-top: var(--space-8); border-top: 1px solid var(--line); }

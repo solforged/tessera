@@ -20,6 +20,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Centered an empty Library on wide panes instead of leaving the Browse rail's offset beside nothing, and kept Highlights at the page measure until the notebook has a highlight to process.
+- Aligned the Inbox `Author` head with its column, wrote `1 import failed` in the singular, and disabled Export while a tab lists nothing.
+- Offered Add a source only on empty tabs that would list a new source; an empty collection now explains how to fill it and links to All sources.
+- Folded the highlight filter count into `Show N highlights`, so the sheet's footer stays on one line, and hid Filters and the source pickers while there are no highlights.
 - Kept Undo of a pending cross-page move waiting for that move instead of undoing earlier text while it saved.
 - Applied an outline's Undo notice directly from ⌘Z, including after its pane became the only remaining pane.
 - Kept deep outline levels distinguishable with compressed indentation and mono nesting-depth cues.

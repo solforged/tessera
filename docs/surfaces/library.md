@@ -10,7 +10,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 The header starts with Reading, Inbox and Highlights with its unprocessed count, then All, Collections, Finished, Abandoned and saved views. Zero counts are left out. The selected tab's 2 px gilt rule spans its label and count on the strip's baseline. The last tab is remembered per notebook.
 
-Under the tabs sit a 28 px search field, a sort menu (Added, Title, Author, Year, Last read, Progress, then Group and Save view…), the List and Shelf toggles, Browse, an Export menu (BibTeX, CSL JSON, Markdown) for the selection or the listed sources, and Add. Every tab keeps this row at one height and the same controls, Browse disabled where the tab has nothing to browse; Collections puts its heading and New collection in the same row. On wide panes the tab strip and the list keep the Browse rail's offset on every tab, so switching tabs never moves them sideways. A library with no sources has no rail on any tab, so its tabs, controls and empty state center in one measure, Highlights included.
+Under the tabs sit a 28 px search field, a sort menu (Added, Title, Author, Year, Last read, Progress, then Group and Save view…), the List and Shelf toggles, Browse, an Export menu (BibTeX, CSL JSON, Markdown) for the selection or the listed sources, and Add. Every tab keeps this row at one height and the same controls, Browse disabled where the tab has nothing to browse and Export disabled while nothing is listed; Collections puts its heading and New collection in the same row. On wide panes the tab strip and the list keep the Browse rail's offset on every tab, so switching tabs never moves them sideways. A library with no sources has no rail on any tab, so its tabs, controls and empty state center in one measure, Highlights included.
 
 Tabs, Browse values, sorting and search answer at once in the toolbar, while the rows below keep showing the previous result until the new rows arrive. The panel then cross-fades to them in one step, together with its headings, Reading now and the filter chips. Typing waits for a short pause; a tab, filter or sort loads at once, and a tab already visited shows its last rows immediately and refreshes them quietly. Loading… appears only when nothing of that kind is loaded and the load takes over 300 ms. Returning to the Library, by Back, the sidebar or in the other pane, shows its last rows, tab, layout and scroll in the first frame and refreshes them quietly. Reading cards keep their last chapter, map and time left from earlier visits.
 
@@ -26,7 +26,7 @@ Tabs, Browse values, sorting and search answer at once in the toolbar, while the
 Rows read as a ledger on one 28 px line:
 
 - A leading slot holds a book or article glyph in `--faint`. A 28 px row cannot show a cover legibly, so covers appear in the Shelf, Reading now and the phone ledger's taller rows.
-- On Inbox the siglum steps aside. The title is followed by a fixed author column in `--muted`: the first author, else the editor, else the site. A long title cannot eat the name, and a duplicate second name stays in the record rather than the row. Other tabs keep the mono siglum, gilt on hover, and the ragged byline (creators, else site), which truncates before the title.
+- On Inbox the siglum steps aside. The title is followed by a fixed author column in `--muted`: the first author, else the editor, else the site. A long title cannot eat the name, and a duplicate second name stays in the record rather than the row. A faint mono `Author` head sits over that column, aligned with it in grouped and ungrouped lists. Other tabs keep the mono siglum, gilt on hover, and the ragged byline (creators, else site), which truncates before the title.
 - Trailing fixed-width mono columns show year, progress and the unprocessed highlight count, so figures line up across rows. Inside a year group the year column steps aside, because the heading already says it. An empty progress or highlight cell reserves no width on Inbox.
 
 Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows only its state-change date (`Oct 11`, named `Finished Oct 11` on hover), never a percentage, since the tab or the state column already says Finished. All and saved views spanning several states add a state column (`Inbox`, `Reading`, `Finished`, `Abandoned`) in `--faint` before the year.
@@ -116,7 +116,7 @@ On the cover, Reading is the first and initial state tab, the cards replace dupl
 
 ### Empty library
 
-A Library with no sources offers Add your first source and a direct Add a source button opening the ordinary ingestion controls. Empty searches, filters and collections retain their contextual guidance instead.
+A Library with no sources offers Add your first source and a direct Add a source button opening the ordinary ingestion controls, on every tab. Once sources exist, an empty tab states what it lacks (`No abandoned sources yet.`); only Inbox and All, where a new source would appear, also offer Add a source. An empty collection explains how to fill it (select books, then Add to collection) and offers All sources. Empty searches and filters offer Clear search or Clear filters as plain actions aligned with the message's edge.
 
 ## Adding sources
 
@@ -227,7 +227,7 @@ Markdown export keeps the frozen evidence, authored highlight text, filing tags 
 
 On the cover, tapping a queue row opens a dedicated passage state with Back to highlights, Previous and Next. The scrollable passage sits above an always-visible action dock, clear of the bottom nav.
 
-Color and tag filters open a labeled sheet; No color matches unassigned citations. Color counts appear only for the loaded, unfiltered rows, never as whole-notebook facets, and a truncated queue names its loaded count.
+Color and tag filters open a labeled sheet; No color matches unassigned citations. Color counts appear only for the loaded, unfiltered rows, never as whole-notebook facets, and a truncated queue names its loaded count. The sheet's footer holds Clear filters and a primary `Show N highlights` that carries the match count. With no highlights in the notebook, Filters and the source and section pickers step aside, leaving Unprocessed and All above the empty message.
 
 ### Dock and keys
 
