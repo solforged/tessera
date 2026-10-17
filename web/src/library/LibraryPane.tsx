@@ -427,6 +427,8 @@ export function LibraryPane(props: LibraryPaneProps) {
   });
   // Inbox browses years; the other tabs keep decades. The 240 px offset stays either way.
   const railFields = createMemo(() => browseFields.filter(section => tab() === 'inbox' ? section.field !== 'decades' : section.field !== 'years'));
+  // With no sources no tab has a rail, so the page centers instead of keeping the rail's offset.
+  const noSources = createMemo(() => !!library() && Object.values(library()!.counts).every(count => !count));
   // The rail and Browse answer at once, so they read the chosen filters rather than the shown ones.
   const chosen = (field: BrowseField, value: string | number) => (target().filters[field] as (string | number)[]).includes(value);
   const chosenFilters = createMemo(() => browseFields.flatMap(({ field }) => (filters()[field] as (string | number)[]).map(value => ({
@@ -1040,7 +1042,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     }}</Show>;
   }
 
-  return <div ref={libraryHost} class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-inbox-ledger': inboxLedger(), 'library-year-grouped': group() === 'year', 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all' || !!view().collection, 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-reading-cards': readingCards(), 'library-cover-reading': coverLayout() && readingCards(), 'library-inspecting': inspectorShown(), 'library-inspector-narrow': inspectorShown() && narrowInspector() && !coverLayout(), 'library-inspector-phone': inspectorShown() && coverLayout() }} data-pane={props.pane} data-pane-pending={!hasResult() ? '' : undefined} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
+  return <div ref={libraryHost} class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-inbox-ledger': inboxLedger(), 'library-year-grouped': group() === 'year', 'library-highlights-tab': tab() === 'highlights', 'library-all-tab': tab() === 'all' || !!view().collection, 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-reading-cards': readingCards(), 'library-cover-reading': coverLayout() && readingCards(), 'library-inspecting': inspectorShown(), 'library-inspector-narrow': inspectorShown() && narrowInspector() && !coverLayout(), 'library-inspector-phone': inspectorShown() && coverLayout(), 'library-no-sources': noSources() }} data-pane={props.pane} data-pane-pending={!hasResult() ? '' : undefined} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
     onKeyDown={event => {
       if (event.key === 'Escape' && !event.defaultPrevented && selected().size && !popup() && !(event.target as HTMLElement).closest('input, textarea, [contenteditable="true"]')) { event.preventDefault(); event.stopPropagation(); clearSelection(); }
       if (!inspecting() && tab() !== 'highlights' && (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z' && collectionActions.canUndo() && !(event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]'))) {
@@ -1242,7 +1244,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           }>
             <Show when={displayedSources().length} fallback={<div class="library-empty">
               <Show when={text().trim() || filtered()} fallback={<>
-                <Show when={!view().collection && !view().view && library() && Object.values(library()!.counts).every(count => !count)} fallback={
+                <Show when={!view().collection && !view().view && noSources()} fallback={
                   <p>{view().collection ? 'This collection has no sources yet.' : tab() === 'all' ? 'No sources.' : `No ${tabs.find(item => item.id === tab())?.label.toLowerCase()} sources yet.`}</p>
                 }>
                   <h2>Add your first source</h2>
