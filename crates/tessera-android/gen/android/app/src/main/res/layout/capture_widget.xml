@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:padding="4dp"
+    android:background="@drawable/capture_widget_background">
+    <Button
+        android:id="@+id/capture_note"
+        style="@style/CaptureWidgetButton"
+        android:text="@string/capture_widget_note" />
+    <Button
+        android:id="@+id/capture_task"
+        style="@style/CaptureWidgetButton"
+        android:text="@string/capture_widget_task" />
+    <Button
+        android:id="@+id/capture_question"
+        style="@style/CaptureWidgetButton"
+        android:text="@string/capture_widget_question" />
+</LinearLayout>

@@ -37,7 +37,11 @@ The panel stays 600 px wide, fits its contents before showing, and grows downwar
 
 ### Android capture
 
-The launcher's New note and New task shortcuts and text shared to Tessera open the slip over the current page, the shared text as its line.
+The launcher's New note, New task, New question and Add to library shortcuts open the slip over the current page with the corresponding creation kind. Text shared to Tessera opens a note request with the shared text as its line; the slip can infer a source or question from that text.
+
+The resizable Tessera home-screen widget starts at 4×1 and offers Note, Task and Question. Its preview description is Capture to Tessera. The Tessera note Quick Settings tile closes the shade and opens a note request. Each tap opens the slip again, including while the app is already running.
+
+These entry points currently use Add to today, with the task toggle selected for a task request; question and source requests will gain their own fields in the unified creation slip. File sharing and Open with accept EPUB, not PDF: the library import inbox only supports EPUB.
 
 ## Journal dates
 

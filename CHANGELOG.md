@@ -14,6 +14,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Added existing-source notices to manual and looked-up library records, with Open and Add another copy.
 - Added touch Paste and camera-photo Scan ISBN controls to Add to library where supported.
 - Added a reusable source-entry body with prefilled URL and identifier lookup.
+- Added New question and Add to library Android launcher shortcuts with explicit creation kinds.
+- Added a resizable Tessera home-screen widget with Note, Task and Question capture buttons.
+- Added a Tessera note Quick Settings tile that closes the shade and opens capture.
 - Added creator Move up and Move down actions with ⌥↑ and ⌥↓ to correct bibliographic order without removing links.
 - Added page type management in Page actions and Commands, with undoable removal that keeps written fields.
 - Added a deleted-page recovery picker in Commands, backed by retained deletion events across reloads.

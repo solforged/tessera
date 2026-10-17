@@ -9,7 +9,9 @@
         <intent
             android:action="dev.tessera.android.CAPTURE"
             android:targetPackage="dev.tessera.android"
-            android:targetClass="dev.tessera.android.MainActivity" />
+            android:targetClass="dev.tessera.android.MainActivity">
+            <extra android:name="dev.tessera.android.CREATE_KIND" android:value="note" />
+        </intent>
     </shortcut>
     <shortcut
         android:shortcutId="new_task"
@@ -21,6 +23,30 @@
             android:targetPackage="dev.tessera.android"
             android:targetClass="dev.tessera.android.MainActivity">
             <extra android:name="dev.tessera.android.CREATE_KIND" android:value="task" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="new_question"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_question"
+        android:shortcutShortLabel="@string/shortcut_new_question">
+        <intent
+            android:action="dev.tessera.android.CAPTURE"
+            android:targetPackage="dev.tessera.android"
+            android:targetClass="dev.tessera.android.MainActivity">
+            <extra android:name="dev.tessera.android.CREATE_KIND" android:value="question" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="add_source"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_source"
+        android:shortcutShortLabel="@string/shortcut_add_source">
+        <intent
+            android:action="dev.tessera.android.CAPTURE"
+            android:targetPackage="dev.tessera.android"
+            android:targetClass="dev.tessera.android.MainActivity">
+            <extra android:name="dev.tessera.android.CREATE_KIND" android:value="source" />
         </intent>
     </shortcut>
 </shortcuts>

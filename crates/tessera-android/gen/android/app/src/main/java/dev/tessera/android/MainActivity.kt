@@ -210,8 +210,8 @@ class MainActivity : TauriActivity() {
   private data class CaptureRequest(val kind: String, val text: String)
 
   companion object {
-    private const val ACTION_CAPTURE = "dev.tessera.android.CAPTURE"
-    private const val EXTRA_CREATE_KIND = "dev.tessera.android.CREATE_KIND"
+    const val ACTION_CAPTURE = "dev.tessera.android.CAPTURE"
+    const val EXTRA_CREATE_KIND = "dev.tessera.android.CREATE_KIND"
     private val inboxExecutor = Executors.newSingleThreadExecutor()
     private val pendingCapture = AtomicReference<CaptureRequest?>(null)
   }
