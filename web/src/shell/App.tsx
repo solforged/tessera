@@ -1,9 +1,11 @@
 import { batch, createEffect, createMemo, createResource, createSignal, For, Index, lazy, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
 import type { Accessor } from 'solid-js';
+import { ulid } from 'ulid';
 import { api } from '../api/client';
 import type { Block, IndexKind, NoteKind, NotebookInfo, Shelf, Type, View } from '../api/types';
 import { createNotebookClient, type Notebook } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
+import { titleKey } from '../document/title-key';
 import { OutlinePane } from '../outline/OutlinePane';
 import { plainText } from '../outline/names';
 import { isReadingSubject, localPositionCount } from '../outline/read-register';
@@ -301,7 +303,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', filters: { people: [], decades: [], years: [], publishers: [], languages: [] }, group: 'year', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
                   : target.readAt ? { zoom: null, caret: { id: target.readAt, offset: 0 }, scroll: { id: target.readAt, offset: 0 }, folds: null, showArchived: false, projection: 'read', reveal: target.readAt }
-                    : { zoom: target.blockId ?? null, caret: target.blockId ? { id: target.caretId ?? target.blockId, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, projection: pagePresentations()[target.pageId]?.projection, ...(target.blockId && target.caretId ? { edit: true } : {}), ...(target.editOcclusion && target.blockId ? { editOcclusion: target.blockId } : {}) };
+                    : { zoom: target.blockId ?? null, caret: target.caretId || target.blockId ? { id: target.caretId ?? target.blockId!, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, projection: target.caretId ? 'outline' : pagePresentations()[target.pageId]?.projection, ...(target.caretId ? { edit: true } : {}), ...(target.editOcclusion && target.blockId ? { editOcclusion: target.blockId } : {}) };
       // Editing needs its live caret now, not after the outgoing view-transition snapshot.
       const arriveAtTarget = () => {
         batch(() => {
@@ -327,7 +329,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       if (target.kind === 'page') remember(target.pageId);
       if (keepFocus) { setActive(owner); reveal(pane, owner); focusPane(owner); return; }
       setActive(pane); reveal(pane);
-      focusPane(pane);
+      // The outline owns explicit editing focus; a region focus while it loads would swallow buffered typing.
+      if (target.kind === 'page' && target.caretId) ++focusEpoch;
+      else focusPane(pane);
     }
   };
   const changeView = (pane: PaneId, view: PaneView, restore = false) => setSessions(values => {
@@ -1031,6 +1035,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         </Show>
         <Show when={entry(pane)}>
         <Pane pane={pane} number={position() + 1} folded={!shown(pane)} grow={weights()[pane] ?? 1} neighbour={position() < order().length - 1} session={() => sessions()[pane]!} active={active() === pane} split={split()} immersive={immersive() === pane} onImmersive={on => immerse(pane, on)} notebook={notebook} commands={commands} vim={vim()} vimMode={vimModes()[pane] ?? null} onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))} pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')} pagePresentations={pagePresentations()} title={paneTitle(pane)} noteKind={indexKind(pane)}
+          noteKinds={index()?.kinds}
           sidebarOpen={sidebarVisible()} onSidebar={toggleSidebar}
           onPagePresentation={(id, value) => setPagePresentations(previous => ({ ...previous, [id]: value }))}
           onActivate={() => setActive(pane)}
@@ -1092,7 +1097,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <Menu anchor={state.anchor} label="New view source" header={<div class="table-popup-heading">Choose a source</div>} items={querySources.map(source => ({ label: source.name, action: () => { setPopup(null); open({ kind: 'table', typeId: null, viewId: null, query: { ...typeQuery(null), source: source.key } }, false, state.pane); } }))} onDismiss={() => setPopup(null)} />
       </Show>
       <Show when={state.kind === 'new'}>
-        <NewPage anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onOpen={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />
+        <NewPage anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onOpen={target => { setPopup(null); open(target, false, state.pane); }} />
       </Show>
       <Show when={state.kind === 'restore-pages'}>
         <DeletedPages anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onRestored={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />
@@ -1184,14 +1189,37 @@ function ViewLinks(props: { views: View[]; pinned: boolean; activeId?: string; o
   </div>}</For>;
 }
 
-function NewPage(props: { anchor: HTMLElement; notebook: NotebookClient; onDismiss(): void; onOpen(id: string): void }) {
+function NewPage(props: { anchor: HTMLElement; notebook: NotebookClient; onDismiss(): void; onOpen(target: OpenTarget): void }) {
   const [title, setTitle] = createSignal(''); const [error, setError] = createSignal(''); const [busy, setBusy] = createSignal(false);
+  const query = () => title().trim();
+  const [existing] = createResource(() => query() || false, async text => ({ title: text, id: await props.notebook.pageByTitle(text, false).catch(() => null) }));
+  const found = createMemo(() => existing.latest?.title === query() ? existing.latest.id : null);
   const submit = async () => {
-    if (!title().trim() || busy()) return;
+    const text = query();
+    if (!text || busy()) return;
     setBusy(true); setError('');
-    try { props.onOpen(await props.notebook.createPage(title().trim())); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } finally { setBusy(false); }
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const pending = pendingCaretInput.prepare();
+    try {
+      const existingId = await props.notebook.pageByTitle(text, false);
+      if (existingId) { pending(); props.onOpen({ kind: 'page', pageId: existingId }); return; }
+      const pageId = ulid(), caretId = ulid();
+      await props.notebook.commit([
+        { op: 'create_page', id: pageId, title: text },
+        { op: 'insert', id: caretId, parent_id: pageId, after: null, text: '', heading: null },
+      ], 'Create page');
+      props.onOpen({ kind: 'page', pageId, caretId });
+    } catch (reason) { pending(); setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setBusy(false); }
   };
-  return <Popup anchor={props.anchor} label="New page" onDismiss={props.onDismiss} width={320}><form onKeyDown={event => { if (event.key === 'Enter' && (event.isComposing || event.keyCode === 229)) event.preventDefault(); }} onSubmit={event => { event.preventDefault(); void submit(); }}><label for="new-page-title">Page title</label><input id="new-page-title" class="input" value={title()} onInput={event => setTitle(event.currentTarget.value)} placeholder="Name your page" /><Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button onClick={props.onDismiss}>Cancel</Button><Button type="submit" class="bordered" disabled={!title().trim() || busy()}>{busy() ? 'Creating…' : 'Create page'}</Button></div></form></Popup>;
+  return <Popup anchor={props.anchor} placement={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches ? 'sheet' : 'anchor'} label="New page" onDismiss={() => { if (!busy()) props.onDismiss(); }} width={320}>
+    <form onKeyDown={event => { if (event.key === 'Enter' && (event.isComposing || event.keyCode === 229)) event.preventDefault(); }} onSubmit={event => { event.preventDefault(); void submit(); }}>
+      <label for="new-page-title">Page title</label><input id="new-page-title" class="input" value={title()} disabled={busy()} onInput={event => { setTitle(event.currentTarget.value); setError(''); }} placeholder="Name your page" />
+      <Show when={found()}><p class="muted">“{query()}” already exists.</p></Show>
+      <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
+      <div class="popup-actions"><Button disabled={busy()} onClick={props.onDismiss}>Cancel</Button><Button type="submit" class="bordered" disabled={!query() || busy()}>{busy() ? 'Creating…' : found() ? 'Open page' : 'Create page'}</Button></div>
+    </form>
+  </Popup>;
 }
 
 function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
@@ -1223,7 +1251,7 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   </div></Show>;
 }
 
-function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: number; neighbour: boolean; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; noteKind?: IndexKind; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
+function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: number; neighbour: boolean; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; noteKind?: IndexKind; noteKinds?: NoteKind[]; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
   const readerTarget = () => current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined;
@@ -1231,6 +1259,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   const docId = createMemo(() => pageId() ?? readerTarget()?.sourceId);
   const outlineView = () => current().view as ViewState;
   const [doc, setDoc] = createSignal<PageDocument>();
+  const [pageKinds, setPageKinds] = createSignal<NoteKind[]>();
   const [librarySave, setLibrarySave] = createSignal<{ state: 'saved' | 'saving' | 'error'; message: string }>({ state: 'saved', message: '' });
   const paneGeneration = createMemo(() => props.session().generation);
   createEffect(() => { paneGeneration(); setLibrarySave({ state: 'saved', message: '' }); });
@@ -1254,7 +1283,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   const motionIdentity = createMemo(() => paneTargetIdentity(current().target));
   createPaneMotion(() => content, motionIdentity);
   createEffect(() => {
-    const id = docId(); setDoc(undefined); if (!id) return;
+    const id = docId(); setDoc(undefined); setPageKinds(undefined); if (!id) return;
     const document = props.notebook.open(id); setDoc(document);
     onCleanup(() => document.release());
   });
@@ -1411,7 +1440,16 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   ];
   // The place or kind the pane shows, in the same glyphs the sidebar uses.
   const kindIcon = (): IconName => {
-    if (pageId()) return root()?.kind === 'journal' ? 'today' : root()?.source ? 'library' : root()?.spread ? 'panes' : 'page';
+    if (pageId()) {
+      const page = root();
+      if (page?.kind === 'journal') return 'today';
+      if (page?.source) return 'library';
+      if (page?.spread) return 'panes';
+      if (page?.question) return noteKindIcon('question');
+      if (page?.project) return noteKindIcon('project');
+      const kind = pageKinds() ? pageKinds()!.find(kind => kind.type_id) : props.noteKinds?.find(kind => kind.type_id && page?.manual_types.some(title => titleKey(title) === titleKey(kind.name)));
+      return kind ? noteKindIcon(kind) : 'page';
+    }
     const target = current().target;
     if (target.kind === 'index') return noteKindIcon(props.noteKind ?? target.key);
     if (target.kind === 'spread') return 'panes';
@@ -1462,7 +1500,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     <Show when={pageId() && outlineView().zoom && projectionTabsShown() && projectionReason('read')}>{reason => <p class="page-projection-reason read-reason" id={`read-reason-${props.pane}`} role="status">{reason()}</p>}</Show>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
     <Show when={copyMessage() && !menu()}><p class="page-projection-reason" role="status">{copyMessage()}</p></Show>
-    <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} projection={projection()} onProjection={setProjection} projectionReason={projectionReason} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
+    <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} projection={projection()} onProjection={setProjection} projectionReason={projectionReason} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onNoteKinds={kinds => { if (generation === props.session().generation) setPageKinds(kinds); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
       <Match when={current().target.kind === 'table'}><TablePane pane={props.pane} neighbour={props.neighbour} target={current().target as Extract<OpenTarget, { kind: 'table' }>} view={snapshotView(current().view) as TableViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeletePages={props.onDeleteSources} /></Match>
       <Match when={current().target.kind === 'fields'}><FieldsPane typeId={(current().target as Extract<OpenTarget, { kind: 'fields' }>).typeId} view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'field'}><FieldPane target={current().target as Extract<OpenTarget, { kind: 'field' }>} view={snapshotView(current().view) as FieldViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>

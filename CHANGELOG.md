@@ -38,6 +38,11 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Folded the highlight filter count into `Show N highlights`, so the sheet's footer stays on one line, and hid Filters and the source pickers while there are no highlights.
 - Opened Add to library as a bottom sheet on the touch cover layout.
 - Focused Title when entering library details by hand.
+- Placed the caret in new pages' unzoomed Outline bodies, preserving immediate typing and continuing at the end of an optional gist.
+- Focused the first empty editable field after Title when adding a type-table row.
+- Showed typed-page, question and project glyphs in pane headers using already-loaded kind metadata.
+- Opened New page as a bottom sheet on touch-cover layouts.
+- Offered Open page before submitting an existing title in New page.
 - Kept Undo of a pending cross-page move waiting for that move instead of undoing earlier text while it saved.
 - Applied an outline's Undo notice directly from ⌘Z, including after its pane became the only remaining pane.
 - Kept deep outline levels distinguishable with compressed indentation and mono nesting-depth cues.

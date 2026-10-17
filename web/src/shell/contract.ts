@@ -5,7 +5,7 @@
  */
 
 import type { Caret, NotebookClient } from '../document/contract';
-import type { CardSelection, FieldKind, LibraryFilters, Query, ReadingState, TaskQuery } from '../api/types';
+import type { CardSelection, FieldKind, LibraryFilters, NoteKind, Query, ReadingState, TaskQuery } from '../api/types';
 
 /** A pane in the workspace row; ids are stable while the pane stays open and persist across reloads. */
 export type PaneId = string;
@@ -78,7 +78,7 @@ export interface ViewState {
 }
 
 export type OpenTarget =
-  /** `blockId` zooms; `caretId` (default `blockId`) receives the caret at `caretOffset` (default 0). `readAt` opens unzoomed in Read and reveals that reading without editing. */
+  /** `blockId` zooms; `caretId` starts editing in Outline at `caretOffset` (default 0), unzoomed without `blockId`. A lone `blockId` selects that block. `readAt` opens unzoomed in Read and reveals that reading without editing. */
   | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number; readAt?: string; editOcclusion?: boolean; journalPeriod?: 'week' | 'month' | 'quarter' | 'year' }
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
   | { kind: 'agenda'; date?: string; mode?: AgendaViewState['mode']; viewId?: string; query?: TaskQuery }
@@ -130,6 +130,8 @@ export interface OutlinePaneProps {
   projectionReason?(projection: PageProjection): string | undefined;
   onViewChange(view: ViewState): void;
   onDelete?(anchor: HTMLElement): void;
+  /** Reuses the outline's loaded kind metadata for the pane header. */
+  onNoteKinds?(kinds: NoteKind[] | undefined): void;
   /** Open a page or block, here or in the other pane. */
   onOpen(target: OpenTarget, beside: boolean): void;
   /** This pane holds keyboard focus. */

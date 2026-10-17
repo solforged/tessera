@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from 'solid-js';
+import { ulid } from 'ulid';
 import { highlightMatches } from '../library/query';
 import { api } from '../api/client';
 import type { Block, BlockInPage, Citation, HighlightRow, LibraryRow, PageView, PassageHit, PassagePage, SourceView } from '../api/types';
@@ -17,6 +18,7 @@ import { besideKey, opensBeside } from './beside';
 import { findMatchSegments, paletteRows, type SearchEntry, type SearchHit } from './palette-rows';
 import { citationRange, passageSegments } from '../reader/passages';
 import { titleKey } from '../document/title-key';
+import { pendingCaretInput } from './pending-caret';
 
 type Entry = SearchEntry | { kind: 'command'; command: Command } | { kind: 'create'; title: string }
   | { kind: 'highlight'; row: HighlightRow } | { kind: 'passage'; hit: PassageHit };
@@ -181,11 +183,18 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const create = async (title: string, beside: boolean) => {
     if (creating()) return;
     setCreating(true); setCreateError('');
+    queryInput?.blur();
+    const pending = pendingCaretInput.prepare();
     try {
-      const id = await props.notebook.createPage(title);
-      if (disposed) return;
-      props.onDismiss(); props.onOpen({ kind: 'page', pageId: id }, beside);
+      const pageId = ulid(), caretId = ulid();
+      await props.notebook.commit([
+        { op: 'create_page', id: pageId, title },
+        { op: 'insert', id: caretId, parent_id: pageId, after: null, text: '', heading: null },
+      ], 'Create page');
+      if (disposed) { pending(); return; }
+      props.onDismiss(); props.onOpen({ kind: 'page', pageId, caretId }, beside);
     } catch (reason) {
+      pending();
       if (!disposed) setCreateError(reason instanceof Error ? reason.message : String(reason));
     } finally { setCreating(false); }
   };

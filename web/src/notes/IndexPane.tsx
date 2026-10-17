@@ -24,6 +24,7 @@ import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { indexKindTarget, noteKindIcon, tagOnly } from './kinds';
 import { filingGroups, filingOperations, settleFindingAid, wholeKindIndex } from './finding-aid';
 import type { FindingAidSnapshot } from './finding-aid';
+import { pendingCaretInput } from '../shell/pending-caret';
 import './notes.css';
 import { QuestionLedger } from './QuestionLedger';
 
@@ -456,7 +457,7 @@ function NewKindAction(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'noteboo
   const members = createMemo(() => new Set(props.members?.map(note => note.id)));
   return <>
     <Show when={mode()}><Button class="bordered" icon="plus" aria-haspopup="dialog" onClick={event => setAnchor(event.currentTarget)}>New {props.kind!.name.toLocaleLowerCase()}…</Button></Show>
-    <Show when={anchor()}>{target => <NewKindNote kind={props.kind!} mode={mode()!} anchor={target()} notebook={props.notebook} members={members()} onDismiss={() => setAnchor(undefined)} onOpen={(pageId, beside) => { setAnchor(undefined); props.onOpen({ kind: 'page', pageId }, beside); }} />}</Show>
+    <Show when={anchor()}>{target => <NewKindNote kind={props.kind!} mode={mode()!} anchor={target()} notebook={props.notebook} members={members()} onDismiss={() => setAnchor(undefined)} onOpen={(page, beside) => { setAnchor(undefined); props.onOpen(page, beside); }} />}</Show>
   </>;
 }
 
@@ -468,7 +469,7 @@ const gistPrompt: Record<'type' | 'question' | 'project', (noun: string) => stri
 };
 
 /** Names a page, optionally with its gist, and files it under the kind in one acknowledged batch. Pages with a similar title are offered first, so an existing page is filed or opened instead of duplicated. */
-export function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'project'; anchor: HTMLElement; notebook: NotebookClient; members: ReadonlySet<string>; onDismiss(): void; onCreated?(pageId: string): void; onOpen(pageId: string, beside: boolean): void }) {
+export function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'project'; anchor: HTMLElement; notebook: NotebookClient; members: ReadonlySet<string>; onDismiss(): void; onCreated?(pageId: string): void; onOpen(target: Extract<OpenTarget, { kind: 'page' }>, beside: boolean): void }) {
   const [title, setTitle] = createSignal('');
   const [gist, setGist] = createSignal('');
   const [busy, setBusy] = createSignal(false);
@@ -489,26 +490,29 @@ export function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' |
     const text = chosen?.text ?? query();
     if (!text || busy() || (!chosen && typePage())) return;
     setBusy(true); setError('');
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    const pending = pendingCaretInput.prepare();
     let doc: PageDocument | undefined;
     try {
       const pageId = chosen?.id ?? await props.notebook.pageByTitle(text, false);
-      if (pageId && props.members.has(pageId)) { props.onOpen(pageId, beside); return; }
-      const id = pageId ?? ulid();
+      if (pageId && props.members.has(pageId)) { pending(); props.onOpen({ kind: 'page', pageId }, beside); return; }
+      const id = pageId ?? ulid(), caretId = pageId ? undefined : ulid();
       let revision = 1;
       if (pageId) { doc = props.notebook.open(pageId); await documentReady(doc); await doc.flush(); revision = (await props.notebook.api.block(id)).revision; }
       const kindPage = props.mode === 'type' ? await props.notebook.pageByTitle(props.kind.name, false) : null;
       const line = gist().trim();
       const operations: Operation[] = [
         ...(pageId ? [] : [{ op: 'create_page' as const, id, title: text }]),
-        ...(pageId || !line ? [] : [{ op: 'insert' as const, id: ulid(), parent_id: id, after: null, text: line, heading: null }]),
+        ...(caretId ? [{ op: 'insert' as const, id: caretId, parent_id: id, after: null, text: line, heading: null }] : []),
         ...(props.mode === 'type' ? filingOperations(id, revision, props.kind.name, kindPage ? undefined : ulid())
           : props.mode === 'question' ? [{ op: 'set_question' as const, id, base_revision: revision, question: { unsettled: false, parked: false, review_on: null, accepted: null } }]
             : [{ op: 'set_project' as const, id, base_revision: revision, project: { status: 'active' as const, outcome: '', deadline: null } }]),
       ];
       await props.notebook.commit(operations, `New ${noun}`);
       if (!pageId) props.onCreated?.(id);
-      props.onOpen(id, beside);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+      if (pageId) pending();
+      props.onOpen({ kind: 'page', pageId: id, ...(caretId ? { caretId, caretOffset: line.length } : {}) }, beside);
+    } catch (reason) { pending(); setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { doc?.release(); setBusy(false); }
   };
   const keyDown = (event: KeyboardEvent) => {

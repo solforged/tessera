@@ -10,6 +10,7 @@ import { BlockText } from '../outline/BlockText';
 import { plainText } from '../outline/names';
 import { EmbedOnPagePicker } from '../outline/ViewPicker';
 import type { OpenTarget, PaneId, TableViewState } from '../shell/contract';
+import { pendingCaretInput } from '../shell/pending-caret';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -621,14 +622,22 @@ function TableContent(props: TablePaneProps) {
       { label: 'Delete…', icon: 'trash', danger: true, disabledReason: row.block.block.kind !== 'block' && !props.onDeletePages ? 'Page deletion is unavailable.' : undefined, action: () => { setError(''); setPopup({ kind: 'delete-row', anchor, row }); } },
     ] });
   };
-  const revealNewRow = async (id: string, beside: boolean) => {
+  const revealNewRow = async (target: Extract<OpenTarget, { kind: 'page' }>, beside: boolean) => {
     setPopup(null);
-    if (beside) { props.onOpen({ kind: 'page', pageId: id }, true); return; }
+    if (beside) { props.onOpen(target, true); return; }
+    pendingCaretInput.cancel();
+    const id = target.pageId;
     await refreshCells();
     const row = result()?.rows.find(row => row.block.block.id === id);
     setRowNotice({ id, title: props.notebook.lookup(id)()?.text ?? row?.block.block.text ?? 'Note' });
-    if (row) { setFocused({ rowId: id, fieldId: null }); setSelectedRow(id); focusCell(id, null); }
-    else region.focus({ preventScroll: true });
+    if (row) {
+      // Read-only attributes and phone cards have no inline field editor to receive focus.
+      const field = target.caretId && !narrow() ? visibleColumns().map(fieldById).find(field => field && !field.id.startsWith('@') && !(row.values[field.id] ?? []).some(value => value.text.trim())) : undefined;
+      setFocused({ rowId: id, fieldId: field?.id ?? null }); setSelectedRow(id); focusCell(id, field?.id ?? null);
+      const cell = field && region.querySelector<HTMLElement>(`tr[data-block-id="${id}"]:not([hidden]) [data-field-id="${field.id}"]`);
+      // A checkbox is already editable by Space; entering it must not toggle its value.
+      if (field && cell && field.kind !== 'checkbox') startEdit(row, field, cell);
+    } else region.focus({ preventScroll: true });
   };
   const openField = (row: QueryRow, field: FieldDefinition) => {
     void withDocument(row.block.page.id, doc => {
@@ -889,7 +898,7 @@ function TableContent(props: TablePaneProps) {
     </Popup>}</Show>
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
-      {state.kind === 'new-row' && rowKind() && <NewKindNote kind={rowKind()!} mode="type" anchor={state.anchor} notebook={props.notebook} members={new Set((result()?.rows ?? []).filter(row => row.block.block.kind !== 'block').map(row => row.block.block.id))} onDismiss={() => setPopup(null)} onCreated={pageId => { history.push({ kind: 'created-row', pageId }); undone.length = 0; setViewUndo(false); setRowUndo(false); }} onOpen={(id, beside) => { void revealNewRow(id, beside).catch(message); }} />}
+      {state.kind === 'new-row' && rowKind() && <NewKindNote kind={rowKind()!} mode="type" anchor={state.anchor} notebook={props.notebook} members={new Set((result()?.rows ?? []).filter(row => row.block.block.kind !== 'block').map(row => row.block.block.id))} onDismiss={() => setPopup(null)} onCreated={pageId => { history.push({ kind: 'created-row', pageId }); undone.length = 0; setViewUndo(false); setRowUndo(false); }} onOpen={(target, beside) => { void revealNewRow(target, beside).catch(message); }} />}
       {state.kind === 'delete-row' && <Popup anchor={state.anchor} placement={narrow() ? 'sheet' : 'anchor'} label={state.row.block.block.kind === 'block' ? 'Delete block' : 'Delete page'} onDismiss={() => { if (!deleting()) setPopup(null); }}>
         <p>Delete “{plainText(state.row.block.block.text, id => props.notebook.lookup(id))}” and all its {state.row.block.block.kind === 'block' ? 'children' : 'blocks'}?</p><p class="muted">You can undo this deletion.</p>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>

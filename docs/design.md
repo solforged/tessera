@@ -220,7 +220,7 @@ The panes share one square inset canvas, with a 12 px outside gutter at the righ
 The workspace is a row of up to four panes. Each has a header, in this order:
 
 1. Back and forward.
-2. The glyph of the place or page kind, gilt in the active pane.
+2. The glyph of the place or page kind, gilt in the active pane. Typed pages reuse the outline's loaded kinds, falling back to explicit page types and the loaded index; questions and projects use their capability glyphs.
 3. The pane's number while split, in faint mono.
 4. Breadcrumbs or the pane title in mono.
 5. Save state.
@@ -327,7 +327,8 @@ On the touch cover Find and Commands occupy the keyboard-resized visual viewport
 - Enter opens or creates in the invoking pane; passages and highlights open at their place in the [reader](surfaces/reader.md), and ⌘Enter opens beside. Enter during a pending search waits for that query's results; editing the query, changing scope or closing cancels that intent.
 - Arrows select and Escape closes. Only plain Home and End select the first and last result; modified chords retain native query editing. Scope chips return focus to the query. Creation errors keep the entered title intact.
 - Tab drills into page-result children and Shift-Tab returns; a drilled search never offers root-page creation.
-- New page remains a command with a direct title form anchored below search, not a separate rail button.
+- New page remains a command with a direct title form anchored below search, not a separate rail button; on the touch cover it opens as a bottom sheet. A title already in the notebook, matched without case, shows `“{title}” already exists.` and changes the action to Open page.
+- Creating from Find or New page commits an empty first block with the page and opens its unzoomed Outline with the caret live in that block. Typing immediately after submit continues into the body, including while the page is loading. Opening an existing page does not force an editing caret.
 
 Command mode starts with Go to: [Highlights, Unfiled, Sources](surfaces/library.md), [Agenda week, Agenda tasks](surfaces/tasks-agenda.md), [This week, This month, This quarter and This year](surfaces/journal.md), followed by each notebook type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. ⌘ opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, Page, View and Editing retain their existing commands and shortcut hints below.
 
@@ -767,7 +768,8 @@ Bottom sheets share a grab area and an accessible Close button. Dragging downwar
 | Source actions | Edit details, Copy citation key, Collections…, Export…, Source settings… and Delete source last; drill-ins replace rows with a header Back | Below the trigger; a bottom sheet below 600 px with a coarse pointer |
 | Field entry | Open field page, Definition…, Templates… when an owning type exists, Remove from this note last; Kind, Hide, Role and Counts as drill into Definition | Below the field name; a bottom sheet below 600 px with a coarse pointer |
 | Notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
-| New page, Delete page | Confirm | Below their trigger |
+| New page | Title form; Open page for an existing title | Below search; a bottom sheet on the touch cover |
+| Delete page | Confirm | Below its trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
 | Block backlinks | Each referring block with its page breadcrumb, parent and children, and an Open beside glyph on hover; `--measure` wide | Below the row's reference count |
 | Undo toast | One at a time; an outline notice owns that pane's ⌘Z until a newer outline edit returns Undo to the document | Bottom center |

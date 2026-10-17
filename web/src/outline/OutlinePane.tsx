@@ -494,6 +494,7 @@ function Pane(props: OutlinePaneProps) {
   const isNote = () => !zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields';
   const [noteKinds] = createResource(() => !creatingRoot() && isNote() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([id]) => api.noteKinds(id));
+  createEffect(() => { if (isNote()) props.onNoteKinds?.(noteKinds.error ? undefined : noteKinds.latest); });
   // Mount the designed structure for measurement, but reveal it and its portaled dock together.
   // Keep settled resources visible during background refreshes, and paint nothing before the first load:
   // the title's "Loading…" placeholder otherwise flashes for a frame on every page open.

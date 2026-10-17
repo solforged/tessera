@@ -83,9 +83,9 @@ An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, 
 
 A tag-only type's index has no notes but does have members. It says `No notes filed as Italian word.`, counts the blocks it tags, and offers Open table.
 
-Every built-in kind except Sources offers New person…, New question… and so on, in the empty state or beside the populated finding aid's tally. Creation files the page as one acknowledged batch, creating the kind's type page too when it is missing, then opens the page. ⌘Enter opens it beside (Ctrl+Enter off Mac). A title that an existing page already has files that page instead, or opens it when it is already of the kind, and the form says so before you submit. The type's own title is refused.
+Every built-in kind except Sources offers New person…, New question… and so on, in the empty state or beside the populated finding aid's tally. Creation files the page and inserts its first body block as one acknowledged batch, creating the kind's type page too when it is missing, then opens its unzoomed Outline with the body caret live. ⌘Enter opens it beside (Ctrl+Enter off Mac). A title that an existing page already has files that page instead, or opens it when it is already of the kind, without forcing an editing caret, and the form says so before you submit. The type's own title is refused.
 
-The form opens under a `NEW PERSON` rubric with the title in the page-title face on a hairline and an optional gist line beneath it in the gloss face. The gist becomes the page's first block, which the finding aid shows under the title. A type with template fields lists them in mono. Up to four similar pages, matched by title or alias, follow under Similar pages: one already of the kind opens, any other is filed as the kind.
+The form opens under a `NEW PERSON` rubric with the title in the page-title face on a hairline and an optional gist line beneath it in the gloss face. The gist becomes the page's first block, which the finding aid shows under the title, with the caret at its end; without a gist the first block is empty and ready for typing. A type with template fields lists them in mono. Up to four similar pages, matched by title or alias, follow under Similar pages: one already of the kind opens, any other is filed as the kind.
 
 ## Unfiled
 
