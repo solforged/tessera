@@ -40,9 +40,12 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
       const [error, setError] = createSignal('');
       const holding = current.kind === 'holder' || current.kind === 'reading';
       const [preferred] = createResource(async () => {
-        if (current.kind === 'integrate') return { ids: new Set<string>(), questions: [] as Block[] };
-        // Holders are people and groups, refined types included, in one read.
-        if (holding) return { ids: new Set(await props.notebook.api.entities()), questions: [] as Block[] };
+        if (current.kind === 'integrate') return { ids: new Set<string>(), questions: [] as Block[], types: new Set<string>() };
+        // Holders are people and groups, refined types included, in one read. Type pages are never offered for filing.
+        if (holding) {
+          const [entities, types] = await Promise.all([props.notebook.api.entities(), props.notebook.api.types()]);
+          return { ids: new Set(entities), questions: [] as Block[], types: new Set(types.map(type => type.page.id)) };
+        }
         const [index, questions, directory, types] = await Promise.all([
           props.notebook.api.kindNotes('concept'),
           props.notebook.api.questions({}),
@@ -63,15 +66,15 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
             if (typeIds.has(row.block.id)) pending.push(row.block.id);
           }
         }
-        return { ids, questions: questions.map(row => row.block.block) };
+        return { ids, questions: questions.map(row => row.block.block), types: typeIds };
       });
       const [choices] = createResource(() => [query(), preferred(), props.notebook.roots()] as const, async ([text, preferred, roots]): Promise<Choice[]> => {
         if (!preferred) return [];
         const names = await completeNames(props.notebook, text, roots);
         if (holding) {
-          // Only people and groups hold perspectives: another page is offered for filing, a new name for creating.
+          // Only people and groups hold perspectives: a page named in the query is offered for filing, a new name for creating.
           const people: Choice[] = names.rows.filter(({ page }) => preferred.ids.has(page.id)).map(({ page, alias }) => ({ block: page, alias, section: 'People and groups' }));
-          const others = names.rows.filter(({ page }) => !preferred.ids.has(page.id)).slice(0, 3);
+          const others = text.trim() ? names.rows.filter(({ page }) => !preferred.ids.has(page.id) && !preferred.types.has(page.id)).slice(0, 3) : [];
           const filing: Choice[] = others.flatMap(({ page, alias }) => entityKinds.map(kind => ({ block: page, alias, file: kind, section: 'File as a person or group' })));
           const creating: Choice[] = names.canCreate && text.trim() ? entityKinds.map(kind => ({ create: kind, section: 'Create', block: { id: `create-${kind}`, kind: 'page', parent_id: null, page_id: `create-${kind}`, text: text.trim(), heading: null, archived: false, revision: 0, created_at: 0, updated_at: 0, kept_copy: null } })) : [];
           return [...people, ...filing, ...creating];
