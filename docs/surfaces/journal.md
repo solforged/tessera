@@ -81,7 +81,7 @@ Day buttons speak the full civil date and open through the existing journal path
 
 ## Cards
 
-A card line is ordinary card syntax, such as `tahâfut >> incoherence`. A tag on that line files the card into a deck of the same name. `#arabic` is enough; Review lists arabic without creating a deck. The card count names those tags, as in `1 card · arabic`. A tag on the journal day does not file the cards written under it. Put a filing tag on the page or a parent when it should not become a deck.
+A card line is ordinary card syntax, such as `tahâfut >> incoherence`. A tag on that line files the card into a deck of the same name. `#arabic` is enough; Review lists arabic without creating a deck. The card count names those tags, as in `1 card · #arabic`, and the tag opens that deck. A tag on the journal day does not file the cards written under it. Put a filing tag on the page or a parent when it should not become a deck.
 
 ## Integrating a thought
 

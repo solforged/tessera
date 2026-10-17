@@ -58,18 +58,19 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; deckN
     const byKey = new Map(stored().map(card => [card.key, card]));
     return [...props.cards.flatMap(card => byKey.get(card.key) ?? []), ...stored().filter(card => card.key.startsWith('tpl:'))];
   });
-  const deckLabel = createMemo(() => {
-    const names = props.deckNames;
-    return names?.length ? `${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}` : '';
-  });
-  // Fetch only while open; never show cached counts after another committed change.
+  const shownDecks = createMemo(() => (props.deckNames ?? []).slice(0, 3));
+  const extraDecks = createMemo(() => Math.max(0, (props.deckNames?.length ?? 0) - 3));
   const label = createMemo(() => {
     const count = props.cards.length + (props.templateCount ?? 0);
     const cards = storedSequence() === props.notebook.changeSequence() ? ordered() : [];
     const due = cards.filter(card => !card.held && card.schedule.due_at <= now()).length;
     const held = cards.filter(card => card.held).length;
-    return `${count} ${count === 1 ? 'card' : 'cards'}${deckLabel() ? ` · ${deckLabel()}` : ''}${due ? ` · ${due} due` : ''}${held ? ` · ${held} not yet` : ''}`;
+    return { count, due, held, text: `${count} ${count === 1 ? 'card' : 'cards'}` };
   });
+  async function openDeck(name: string, beside: boolean) {
+    const id = await props.notebook.pageByTitle(name, false);
+    if (!disposed && id) props.onOpen({ kind: 'review', deckId: id }, beside);
+  }
   const confirmation = createMemo(() => stored().find(card => card.id === confirm()));
   function dismiss() { setAnchor(null); setConfirm(null); setResetError(''); setHoldError(''); }
   async function hold(cards: CardUnit[], held: boolean) {
@@ -106,10 +107,16 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; deckN
   }
 
   return <>
-    <Show when={error() || props.cards.length || props.templateCount}><Button class="outline-planning outline-card-count" title={props.deckNames?.length ? `Show cards. Decks: ${props.deckNames.join(', ')}` : 'Show cards'} aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
-      if (opensBeside(event)) { dismiss(); props.onOpen({ kind: 'review', blockId: props.blockId }, true); return; }
-      open(event.currentTarget);
-    }}>{label()}</Button></Show>
+    <Show when={error() || props.cards.length || props.templateCount}><span class="outline-card-decks">
+      <Button class="outline-planning outline-card-count" title="Show cards" aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
+        if (opensBeside(event)) { dismiss(); props.onOpen({ kind: 'review', blockId: props.blockId }, true); return; }
+        open(event.currentTarget);
+      }}>{label().text}</Button>
+      <For each={shownDecks()}>{name => <><span class="outline-card-count" aria-hidden="true">·</span><Button class="outline-planning outline-card-count" title={`Review #${name}`} onClick={event => { event.stopPropagation(); void openDeck(name, opensBeside(event)); }}>#{name}</Button></>}</For>
+      <Show when={extraDecks()}><span class="outline-card-count">+{extraDecks()}</span></Show>
+      <Show when={label().due}><span class="outline-card-count">· {label().due} due</span></Show>
+      <Show when={label().held}><span class="outline-card-count">· {label().held} not yet</span></Show>
+    </span></Show>
     <Show when={anchor()}>{trigger => <Popup anchor={trigger()} label="Cards" class="outline-capability-popup outline-cards-popup" onDismiss={dismiss}>
       <Show when={loading() && !ordered().length}><p class="outline-capability-notice" role="status">Loading cards…</p></Show>
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></p></Show>
