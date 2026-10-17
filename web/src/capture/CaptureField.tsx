@@ -26,7 +26,7 @@ function pageTokenAt(text: string, caret: number): Token | null {
 
 export interface CaptureFieldProps {
   notebook: NotebookClient;
-  /** Parses dates against this day; it is also the default schedule when `schedule` is set. */
+  /** The default schedule when `schedule` is set; typed dates such as `@today` count from the notebook's today. */
   contextDate(): string;
   /** Schedules a task with no date of its own on the context date, as Agenda's Today does. */
   schedule?: boolean;
@@ -95,12 +95,12 @@ export function CaptureField(props: CaptureFieldProps) {
 
   const plan = createMemo(() => {
     const text = bodyText();
-    const found = captureDateToken(text, props.contextDate());
+    const found = captureDateToken(text, props.notebook.todayDate());
     if (!found) return null;
     // A plain-word date suffix plans only a task; `@` always plans and so makes one.
     const explicit = text[found.from] === '@';
     if ((!explicit || props.fixedKind) && !isTask()) return null;
-    const choice = found.query ? dateSuggestions(found.query, props.contextDate())[0] : undefined;
+    const choice = found.query ? dateSuggestions(found.query, props.notebook.todayDate())[0] : undefined;
     return { token: found, choice, explicit };
   });
   const preview = createMemo(() => {

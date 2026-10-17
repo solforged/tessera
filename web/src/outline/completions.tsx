@@ -76,8 +76,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   let completionList: HTMLDivElement | undefined;
   let slashList: HTMLDivElement | undefined;
   /** `@` offers dates; choosing one makes the block a scheduled task (or a deadline after `@by`/`@due`) and removes the token. */
-  const dateRows = createMemo<DateSuggestion[]>(() => { const state = dateCompletion(); return state ? dateSuggestions(state.query, contextDate()) : []; });
-  const dateError = createMemo(() => { const state = dateCompletion(); return state ? dateQueryError(state.query, contextDate()) : null; });
+  const dateRows = createMemo<DateSuggestion[]>(() => { const state = dateCompletion(); return state ? dateSuggestions(state.query, props.notebook.todayDate()) : []; });
+  const dateError = createMemo(() => { const state = dateCompletion(); return state ? dateQueryError(state.query, props.notebook.todayDate()) : null; });
   createEffect(() => { if (dateCompletion() && editing() !== dateCompletion()!.id) setDateCompletion(null); });
   createEffect(() => { if (slashCompletion() && editing() !== slashCompletion()!.id) setSlashCompletion(null); });
   let dismissedDate: { id: string; from: number } | null = null;
@@ -98,7 +98,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const token = idle ? null : dateTokenAt(text, at.offset);
     // Once a multi-word `@` query matches no date it is prose (`@sam about the report`), so the picker
     // closes and Enter splits the block as usual; it reopens if the words become a date again.
-    const prose = token && /\s/.test(token.query.trim()) && !dateQueryError(token.query, contextDate()) && !dateSuggestions(token.query, contextDate()).length;
+    const prose = token && /\s/.test(token.query.trim()) && !dateQueryError(token.query, props.notebook.todayDate()) && !dateSuggestions(token.query, props.notebook.todayDate()).length;
     if (!token || prose || dismissedDate?.from === token.from) { setDateCompletion(null); return; }
     if (dateCompletion()?.query !== token.query || dateCompletion()?.field !== token.field) setDateIndex(0);
     setDateCompletion({ ...token, id: at.id });
@@ -677,7 +677,7 @@ function CompletionPopups(){ return <>
         </div>
       </div>
     </Popup></Show>
-    <Show keyed when={tokenDate()}>{state => <DatePicker notebook={props.notebook} anchor={state.anchor} label={state.field === 'deadline' ? 'Deadline' : 'Schedule task'} value={doc.block(state.id)?.task?.[state.field] ?? null} initialQuery={state.query} time={null} contextDate={contextDate()}
+    <Show keyed when={tokenDate()}>{state => <DatePicker notebook={props.notebook} anchor={state.anchor} label={state.field === 'deadline' ? 'Deadline' : 'Schedule task'} value={doc.block(state.id)?.task?.[state.field] ?? null} initialQuery={state.query} time={null} contextDate={props.notebook.todayDate()}
       onDismiss={() => { setTokenDate(null); if (editing() === state.id) editAt(state.id, caret()?.id === state.id ? caret()!.offset : state.to, true); }}
       onSelect={value => { if (value.date) applyDateChoice(state, state.text, { label: value.date, date: value.date, time: value.time }); }} />}</Show>
     <Show when={slashCompletion()}><Popup anchor={() => caretRect(slashCompletion()?.from ?? 0)} width={320} class="picker" label="Commands" role="listbox" onDismiss={dismissSlash}>

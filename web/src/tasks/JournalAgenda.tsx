@@ -262,7 +262,7 @@ function TaskSourceRow(props: {
         <Button class="agenda-row-pick" icon="calendar" label="Reschedule…" shortcut="S" disabled={busy() || props.disabled} onClick={event => setPicking(event.currentTarget)} />
       </span>
     </Show>
-    <Show when={picking()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor()} label="Reschedule" value={props.row.task.scheduled} time={props.row.task.scheduled_time} contextDate={props.date} onDismiss={() => setPicking(null)} onSelect={value => reschedule(value.date, value.time)} />}</Show>
+    <Show when={picking()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor()} label="Reschedule" value={props.row.task.scheduled} time={props.row.task.scheduled_time} contextDate={props.notebook.todayDate()} onDismiss={() => setPicking(null)} onSelect={value => reschedule(value.date, value.time)} />}</Show>
     <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.kind === 'status' ? 'Task status' : 'Priority'} onDismiss={() => { setMenu(null); item.querySelector<HTMLElement>('.agenda-source')?.focus({ preventScroll: true }); }} items={state.kind === 'status'
       ? statusMenuItems(props.row.task, status => changeStatus(status, state.anchor), busy() || props.disabled ? 'Task is unavailable.' : undefined)
       : priorityMenuItems(props.row.task.priority, changePriority, busy() || props.disabled ? 'Task is unavailable.' : undefined)} />}</Show>

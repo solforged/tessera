@@ -130,7 +130,7 @@ export function TaskControls(props: { notebook: NotebookClient; doc: PageDocumen
       <Button disabled={blocked()} label={`Retry priority: ${priorityLabel(state.priority)}`} onClick={() => { void changePriority(state.priority); }}>Retry</Button>
     </span>}</Show>
     <Show keyed when={popup()}>{state => <>
-      {(state.kind === 'scheduled' || state.kind === 'deadline') && <DatePicker notebook={props.notebook} anchor={state.anchor} label={state.kind === 'scheduled' ? 'Scheduled' : 'Deadline'} value={props.task[state.kind]} time={state.kind === 'scheduled' ? props.task.scheduled_time : props.task.deadline_time} contextDate={props.contextDate}
+      {(state.kind === 'scheduled' || state.kind === 'deadline') && <DatePicker notebook={props.notebook} anchor={state.anchor} label={state.kind === 'scheduled' ? 'Scheduled' : 'Deadline'} value={props.task[state.kind]} time={state.kind === 'scheduled' ? props.task.scheduled_time : props.task.deadline_time} contextDate={props.notebook.todayDate()}
         marks={state.kind === 'scheduled' ? props.task.deadline ? { [props.task.deadline]: 'Deadline' } : undefined : props.task.scheduled ? { [props.task.scheduled]: 'Scheduled' } : undefined} onDismiss={() => dismiss(state)} onSelect={async value => {
         if (state.kind === 'scheduled') await change({ scheduled: value.date, scheduled_time: value.date ? value.time : null });
         else await change({ deadline: value.date, deadline_time: value.date ? value.time : null, warning_days: value.date ? props.task.warning_days : null });
