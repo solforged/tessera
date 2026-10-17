@@ -169,10 +169,20 @@ fn schema(conn: &Connection) -> Result<u32> {
     Ok(found)
 }
 
+/// Copy the source database, refusing one that fails `quick_check`: a backup
+/// of a damaged file would only preserve the damage, and a restore from one
+/// would spread it.
 fn snapshot(source: &Path, destination: &Path) -> Result<Connection> {
-    let source =
-        Connection::open_with_flags(source.join(DATABASE_FILE), OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+    let path = source.join(DATABASE_FILE);
+    let source = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
     source.busy_timeout(Duration::from_secs(5))?;
+    let problems = crate::check::quick_check(&source)?;
+    if !problems.is_empty() {
+        return Err(Error::Corrupt {
+            path,
+            problems: problems.join("; "),
+        });
+    }
     let mut destination = Connection::open(destination)?;
     {
         let backup = rusqlite::backup::Backup::new(&source, &mut destination)?;

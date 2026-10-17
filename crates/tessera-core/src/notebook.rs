@@ -60,7 +60,7 @@ impl Notebook {
             "CREATE TABLE IF NOT EXISTS browser_objects (
                  sha256 TEXT PRIMARY KEY,
                  bytes BLOB NOT NULL
-             )",
+             ) STRICT",
         )?;
         conn.execute(
             "INSERT INTO notebook (singleton, id, created_at) VALUES (1, ?1, ?2)

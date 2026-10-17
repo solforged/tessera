@@ -119,9 +119,9 @@ fn open(notebook: &Path) -> anyhow::Result<Replica> {
     })
 }
 
-/// Ask the service that owns the notebook, when one is running, for a sync
+/// Ask the service that owns the notebook, when one is running, for a
 /// route; without one, `unowned` is the error.
-fn served(
+pub(crate) fn served(
     notebook: &Path,
     unowned: anyhow::Error,
     method: reqwest::Method,

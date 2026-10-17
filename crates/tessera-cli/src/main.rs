@@ -1,3 +1,4 @@
+mod check;
 mod install;
 mod mcp;
 mod sync;
@@ -78,6 +79,15 @@ enum Command {
         src: PathBuf,
         #[arg(long)]
         force: bool,
+    },
+    /// Check the database file, the derived tables and the model's rules,
+    /// and print per-table hashes as JSON. Exits with status 1 when a problem
+    /// remains. Goes through the running service when one owns the notebook.
+    Check {
+        /// Replace the derived tables with freshly derived rows, as one change
+        /// by the `check` client. Authored text and review history are never written.
+        #[arg(long)]
+        repair: bool,
     },
     /// Push this replica's changes to its hub and pull the hub's, or manage
     /// the replica. While a service owns the notebook, sync, status and
@@ -174,6 +184,7 @@ fn main() -> anyhow::Result<()> {
             println!("{}", serde_json::to_string_pretty(&info)?);
         }
         Command::Sync { command } => sync::run(&notebook, command)?,
+        Command::Check { repair } => check::run(&notebook, repair)?,
     }
     Ok(())
 }

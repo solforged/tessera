@@ -46,6 +46,30 @@ async fn same_origin_request_reads_notebook_info() {
 }
 
 #[tokio::test]
+async fn check_route_reports_a_clean_notebook() {
+    let dir = tempfile::tempdir().unwrap();
+    let (status, body) = send(
+        app(dir.path(), None, None),
+        "/api/check",
+        &[
+            ("host", "127.0.0.1:4318"),
+            ("origin", "http://127.0.0.1:4318"),
+        ],
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let report: tessera_core::CheckReport = serde_json::from_slice(&body).unwrap();
+    assert!(report.ok, "{report:#?}");
+    assert_eq!(report.repaired, None);
+    assert!(
+        report
+            .hashes
+            .iter()
+            .any(|hash| hash.table == "blocks" && hash.rows > 0)
+    );
+}
+
+#[tokio::test]
 async fn rejects_foreign_origins_and_hosts() {
     let dir = tempfile::tempdir().unwrap();
     let cases: &[&[(&str, &str)]] = &[

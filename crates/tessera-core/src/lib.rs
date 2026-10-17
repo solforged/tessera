@@ -11,6 +11,7 @@ mod card_query;
 mod card_store;
 mod card_templates;
 pub mod card_text;
+pub mod check;
 mod entity_query;
 mod error;
 mod fields;
@@ -86,6 +87,7 @@ pub use card_templates::{
     CardTemplate, CardTemplateForecast, CardTemplateInfo, CardTemplatePreview,
     CardTemplateProvenance, CardTemplateWaiting, TemplateLoadDay,
 };
+pub use check::CheckReport;
 pub use error::{Error, Result};
 pub use fields::SOURCE_TARGET;
 pub use image_store::image_type;

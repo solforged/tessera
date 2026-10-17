@@ -21,7 +21,11 @@ Every CLI command initializes `tracing` on stderr with `RUST_LOG`, defaulting to
 - `tessera backup <dest>` uses a fresh read connection and SQLite's online backup API while the service can keep writing WAL commits. It copies published content-addressed objects and writes a manifest: notebook ID, schema version, Unix-millisecond backup time, object count and database page count. The destination must be empty.
 - `tessera --notebook <dest> restore <src>` holds the service ownership lock through replacement and migration checks. A live service prevents restore even with `--force`; that flag only permits a non-empty destination. Existing immutable objects are retained.
 
-Code: `crates/tessera-core/src/backup.rs`; [backup and restore](usage.md#backup-and-restore).
+- `tessera check` verifies a notebook and prints a JSON report. It runs SQLite's `quick_check` and `foreign_key_check`, asks each full-text index whether it matches its table, and derives `links`, `memberships`, `field_values`, card definitions and `search_blocks` again to report how the stored rows differ, with counts and up to 20 sample IDs per table. It also checks the model's invariants: one live page per title key and one journal per date, every block filed under its root's page, no live block under a tombstoned parent, and every reviewed card keeping its source. The report ends with a SHA-256 per replicated table in primary-key order, so two devices can compare state.
+- The derivation runs inside a transaction that is rolled back. `--repair` commits it instead, as one change by the `check` client with no operations, and never writes authored blocks or evidence tables. A hub records the repair as a patch for its replicas; a replica's repair stays local.
+- While a service owns the notebook the command goes through `GET /api/check` and `POST /api/check/repair`; otherwise it takes the ownership lock and opens the notebook itself. The command exits with status 1 when a problem remains. Backup and restore run `quick_check` on their source first and refuse a damaged file.
+
+Code: `crates/tessera-core/src/backup.rs`, `check.rs`; [backup and restore](usage.md#backup-and-restore).
 
 ```mermaid
 flowchart TD

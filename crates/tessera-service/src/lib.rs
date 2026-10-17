@@ -4,6 +4,7 @@
 //! portable snapshot, and `GET /api/backups` lists completed snapshots newest first.
 //! `DELETE /api/backups/{name}` removes an earlier snapshot, and
 //! `POST /api/backups/prune` keeps the requested number of newest snapshots.
+//! `GET /api/check` verifies the notebook and `POST /api/check/repair` rebuilds its derived tables.
 //! `/api/notebooks` lists known notebooks and switches the service to another one.
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -61,9 +62,9 @@ use serde::Deserialize;
 use serde::Serialize;
 use tessera_core::{
     Actor, AgentChange, AgentReceipt, AgentRequest, Backlink, Batch, Block, BlockInPage,
-    ChangeEvent, Committed, Completion, FieldDetail, FieldKind, FieldsView, KindIndex, NameMatch,
-    NoteIndex, NoteKind, Notebook, NotebookInfo, PageView, QueryResult, SettingsView, TypeInfo,
-    UndoReceipt, View,
+    ChangeEvent, CheckReport, Committed, Completion, FieldDetail, FieldKind, FieldsView, KindIndex,
+    NameMatch, NoteIndex, NoteKind, Notebook, NotebookInfo, PageView, QueryResult, SettingsView,
+    TypeInfo, UndoReceipt, View,
 };
 use tessera_core::{IncomingFieldValue, PageReferences, ReferenceCount, UnlinkedMentions};
 use tokio::sync::broadcast;
@@ -435,6 +436,8 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/search", get(search))
         .route("/api/changes", get(changes))
         .route("/api/changes/head", get(change_head))
+        .route("/api/check", get(check_notebook))
+        .route("/api/check/repair", post(repair_notebook))
         .route("/api/batches", post(apply))
         .route("/api/agent-changes", get(agent_changes).post(agent_edit))
         .route("/api/agent-changes/{seq}/undo", post(undo_agent_change));
@@ -604,6 +607,26 @@ fn shutdown_signal() -> std::io::Result<impl Future<Output = ()>> {
 
 async fn notebook_info(State(state): State<AppState>) -> Result<Json<NotebookInfo>, ApiError> {
     run(&state, |notebook| notebook.info()).await.map(Json)
+}
+
+async fn check_notebook(State(state): State<AppState>) -> Result<Json<CheckReport>, ApiError> {
+    run(&state, |notebook| notebook.check(false))
+        .await
+        .map(Json)
+}
+
+/// Repair publishes its change like a batch, so open windows reload what it touched.
+async fn repair_notebook(State(state): State<AppState>) -> Result<Json<CheckReport>, ApiError> {
+    let changes = state.changes.clone();
+    run(&state, move |notebook| {
+        let report = notebook.check(true)?;
+        if let Some(seq) = report.repaired {
+            let _ = changes.send(notebook.editor_change_cursor(seq)?);
+        }
+        Ok(report)
+    })
+    .await
+    .map(Json)
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
