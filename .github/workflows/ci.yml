@@ -15,8 +15,38 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # A pull request touching only the editor, docs or Markdown cannot change
+  # what rust, browser and bench check, so they report success without
+  # building. Android and embedded build the editor and always run. The
+  # steps are skipped rather than the jobs, because a skipped matrix job never
+  # reports the expanded check names that the green ruleset requires. Rust
+  # tests read web/src/fields, so those files still count as Rust.
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust: ${{ steps.diff.outputs.rust }}
+    steps:
+      - name: Classify changed files
+        id: diff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          rust=true
+          if [ -n "$PR" ] && files=$(gh pr diff "$PR" --repo "$GITHUB_REPOSITORY" --name-only) && [ -n "$files" ] \
+            && ! printf '%s\n' "$files" | grep -qvE '^(web/|docs/)|\.md$' \
+            && ! printf '%s\n' "$files" | grep -q '^web/src/fields/'; then
+            rust=false
+          fi
+          echo "rust=$rust" | tee -a "$GITHUB_OUTPUT"
+
   rust:
     name: rust (${{ matrix.os }})
+    needs: changes
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -24,53 +54,65 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - name: Checkout
+        if: needs.changes.outputs.rust == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install tools
+        if: needs.changes.outputs.rust == 'true'
         uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           version: 2026.10.1
 
       - name: Format and Clippy
+        if: needs.changes.outputs.rust == 'true'
         run: mise run lint
 
       - name: Test
+        if: needs.changes.outputs.rust == 'true'
         run: mise run test
 
   browser:
     name: browser wasm build
+    needs: changes
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        if: needs.changes.outputs.rust == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install tools
+        if: needs.changes.outputs.rust == 'true'
         uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           version: 2026.10.1
 
       - name: Clippy for the browser demo
+        if: needs.changes.outputs.rust == 'true'
         run: mise run demo:lint
 
       - name: Browser tests for the demo engine
+        if: needs.changes.outputs.rust == 'true'
         env:
           CHROME_PATH: /usr/bin/google-chrome
         run: CHROMEDRIVER="$CHROMEWEBDRIVER/chromedriver" mise run demo:test
 
   bench:
     name: backend correctness and scaling
+    needs: changes
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
+        if: needs.changes.outputs.rust == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install tools
+        if: needs.changes.outputs.rust == 'true'
         uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
         with:
           version: 2026.10.1
@@ -78,6 +120,7 @@ jobs:
       # Absolute budgets are for named devices; shared runners report them
       # but gate only on correctness and the no-per-row-work checks.
       - name: Run 50k correctness and scaling
+        if: needs.changes.outputs.rust == 'true'
         run: mise run bench --root "${{ runner.temp }}/tessera-bench" --sizes 50000 --fail-on scaling
 
   web:

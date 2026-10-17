@@ -31,6 +31,8 @@ Two rulesets guard `main`:
 
 If `main` moves before CI finishes, the workflow comments on the pull request instead of landing it. Rebase onto `origin/main` and run `land` again; the new head lands when its CI passes. A pull request without the label, or a draft, waits until the label is added or it is marked ready. CI runs once per pull request push, and not again on `main`, which only ever moves to a head that passed. Branches without a pull request do not run CI; `gh workflow run ci.yml --ref <branch>` runs it by hand.
 
+A pull request that changes only `web/` (outside `web/src/fields/`, which Rust tests read), `docs/` or Markdown files skips the steps of `rust`, `browser wasm build` and `backend correctness and scaling`, so those checks pass within seconds. `android app` and `embedded release assets` build the editor and always run.
+
 GitHub only lets an organization's own apps bypass a ruleset, so on this personal repository the workflow token cannot move `main`. A deploy key can, and only this workflow holds the write key. To rotate it, generate a key, add it under Settings → Deploy keys with write access, and replace the secret with `gh secret set FAST_FORWARD_KEY`.
 
 Use an issue for a user-visible bug or feature and pass `--issue`, so the pull request closes it. Chores, docs and lockfile updates need no issue.
