@@ -19,7 +19,9 @@ interface DeviceProps { heading: JSX.Element; notebook: NotebookClient; deviceId
 export function HubDevices(props: DeviceProps & { onCount(count: number): void }) {
   const [busy, setBusy] = createSignal(false);
   const [pairing, setPairing] = createSignal(false);
-  void sync.refresh();
+  // Settled once the Mac has answered for its hub records; until then neither the rows nor "Sync is off" show.
+  const [checked, setChecked] = createSignal(false);
+  void sync.refresh().then(() => hubDevices.refresh()).finally(() => setChecked(true));
   createEffect(() => props.onCount(hubDevices.state()?.devices.length ?? 0));
   const share = async (on: boolean) => {
     setBusy(true);
@@ -37,7 +39,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
   };
   return <>
     {props.heading}
-    <Show when={sync.state()?.role === 'none'}>
+    <Show when={checked() && !hubDevices.state()}>
       <div class="settings-row"><div class="settings-label"><span class="settings-name">Sync is off</span><p>This Mac is not serving its notebook to other devices, so no phone can pair with it.</p></div><span /></div>
     </Show>
     <Show when={hubDevices.state()}>{value => <>
@@ -74,7 +76,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
         </details>;
       }}</For>
       <Show when={value().retained.changes > 0}><p class="settings-mono devices-retained">Keeping {plural(value().retained.changes, 'change')} for devices that have not caught up ({size(value().retained.bytes)}).</p></Show>
-      <Show when={pairing()}><PairDialog url={value().sharing.url} onDone={() => { setPairing(false); void hubDevices.refresh(); }} /></Show>
+      <Show when={pairing()}><PairDialog url={value().sharing.url} onDone={() => { setPairing(false); void sync.refresh(); }} /></Show>
     </>}</Show>
     <NeedsReview notebook={props.notebook} onOpenPage={props.onOpenPage} onError={props.onError} />
   </>;
