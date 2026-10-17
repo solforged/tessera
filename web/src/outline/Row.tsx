@@ -186,6 +186,20 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const derivedCards = createMemo(() => [...(orphanDescriptor() ? [] : cards().cards), ...occlusionCards(block()?.image, block()?.occlusion)]);
     const cardProblems = createMemo(() => orphanDescriptor() ? [{ message: 'A descriptor needs a parent with text.' }] : cards().problems);
     const cardCount = () => derivedCards().length + (block()?.templateCards ?? 0);
+    const cardDeckNames = createMemo(() => {
+      if (!cardCount()) return [];
+      const names: string[] = [];
+      const seen = new Set<string>();
+      const value = block();
+      for (const title of [...textTokens(value?.text ?? '').filter(token => token.kind === 'tag').map(token => token.value), ...(value?.manual_types ?? [])]) {
+        const name = title.trim();
+        const key = name.toLocaleLowerCase();
+        if (!name || seen.has(key)) continue;
+        seen.add(key);
+        names.push(name);
+      }
+      return names;
+    });
     const cardMark = () => !block()?.task && cardCount() > 0;
     let cardControl: { open(anchor: HTMLElement): void } | undefined;
     const [cardTextSettled, setCardTextSettled] = createSignal(false);
@@ -261,7 +275,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           <Show when={block()?.project}><Button class="outline-planning" label="Project" aria-haspopup="dialog" onClick={event => capabilities.open(id(), 'project', event.currentTarget)}>Project</Button></Show>
           <QuestionSummary id={id()} />
           <AnswerSummary id={id()} />
-          <Show when={cardCount()}><CardSummary blockId={id()} cards={derivedCards()} templateCount={block()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} register={control => { cardControl = control; }} /></Show>
+          <Show when={cardCount()}><CardSummary blockId={id()} cards={derivedCards()} deckNames={cardDeckNames()} templateCount={block()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} register={control => { cardControl = control; }} /></Show>
           <For each={block()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
         </span></Show>
         </div>

@@ -8,8 +8,8 @@ use axum::{
 use tessera_core::now_ms;
 use tessera_core::{
     Agenda, BlockCapabilities, CardPreviews, CardQuery, CardQueryResult, CardUnit, Deck,
-    PositionQuery, PositionQueryResult, ProjectRecord, ReviewEvent, ReviewSession, TaskOccurrence,
-    TaskQuery, TaskQueryResult, TaskView, WorkSession,
+    PositionQuery, PositionQueryResult, ProjectRecord, ReviewEvent, ReviewSession, TagDeck,
+    TaskOccurrence, TaskQuery, TaskQueryResult, TaskView, WorkSession,
 };
 use tessera_core::{QuestionQuery, QuestionRow};
 use tessera_core::{RelationQuery, RelationRow};
@@ -222,6 +222,12 @@ pub(crate) async fn card_reviews(
 
 pub(crate) async fn decks(State(state): State<AppState>) -> Result<Json<Vec<Deck>>, ApiError> {
     run(&state, |notebook| notebook.decks()).await.map(Json)
+}
+
+pub(crate) async fn tag_decks(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<TagDeck>>, ApiError> {
+    run(&state, |notebook| notebook.tag_decks()).await.map(Json)
 }
 
 pub(crate) async fn deck(

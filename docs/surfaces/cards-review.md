@@ -36,7 +36,7 @@ One apparatus line follows: how many come due later today (after due now, on New
 
 The forecast's first bar is gilt. Every forecast bar has a two-letter weekday label; today's accessible name is “today”. Retention over thirty local days, this week's review count, the streak and total cards follow as one mono ledger line between rules, then a deck ledger with Due, New and Cards. The session summary uses the same stats line.
 
-Counts come from active visible cards and committed review events, never sample data. No time estimate appears because reviews do not record per-card duration. Decks save source predicates, not copied collections. Start takes focus on a mouse-and-keyboard device, but touch leaves it alone and the pane has no focus ring.
+Counts come from active visible cards and committed review events, never sample data. No time estimate appears because reviews do not record per-card duration. Decks save source predicates, not copied collections. A tag on a card's own block appears in the same ledger without saving a deck. The row uses the tag's title, not its plural, and reviewing it studies the cards on blocks with that tag. Removing the tag from those cards removes the row. A saved deck that filters only on that type replaces the tag row. New deck remains for a queue a tag cannot express, such as a field filter or more than one condition. Start takes focus on a mouse-and-keyboard device, but touch leaves it alone and the pane has no focus ring.
 
 ### Session progress
 
@@ -146,7 +146,7 @@ The current card stays until a grade is acknowledged. Pending commands survive o
 
 Exhausting a confirmed queue shows Finishing review… until the finish is acknowledged, then Done and normal deck actions. Finishing early, abandoning or switching an open review is explicit; committed grades and their shown-text evidence remain. Pane history and reload preserve the deck, queue selection and session.
 
-A workshop with no cards offers Create a card, which opens the card composer under the button. A non-empty Review landing keeps New card beside New deck and opens the shared creation slip with Card selected. An empty deck or held-only inventory keeps its distinct explanation.
+A workshop with no cards hides the deck title and the Due, New and All tabs. It says `No cards yet.` and offers Create a card, a hairline button that opens the card composer under the button. The Questions and notes tab omits a zero count. A non-empty Review landing keeps New card beside New deck and opens the shared creation slip with Card selected. An empty deck or held-only inventory keeps its distinct explanation.
 
 ## Card composer
 

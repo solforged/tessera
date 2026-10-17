@@ -444,6 +444,7 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/cards/{id}/previews", get(capabilities::card_previews))
         .route("/api/cards/{id}/reviews", get(capabilities::card_reviews))
         .route("/api/decks", get(capabilities::decks))
+        .route("/api/tag-decks", get(capabilities::tag_decks))
         .route("/api/decks/{id}", get(capabilities::deck))
         .route("/api/review-sessions", get(capabilities::review_sessions))
         .route(

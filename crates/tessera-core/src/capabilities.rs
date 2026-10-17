@@ -615,6 +615,13 @@ pub struct Deck {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TagDeck {
+    pub id: String,
+    pub name: String,
+    pub query: CardQuery,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TaskView {
     pub id: String,
     pub name: String,

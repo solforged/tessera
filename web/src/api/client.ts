@@ -46,6 +46,7 @@ import type {
   NameMatch,
   KindIndex,
   Deck,
+  TagDeck,
   Fields,
   FieldDetail,
   FieldKind,
@@ -280,6 +281,7 @@ export interface ApiClient {
   cardPreviews(id: string, signal?: AbortSignal): Promise<CardPreviews>;
   cardReviews(id: string, signal?: AbortSignal): Promise<ReviewEvent[]>;
   decks(signal?: AbortSignal): Promise<Deck[]>;
+  tagDecks(signal?: AbortSignal): Promise<TagDeck[]>;
   deck(id: string, signal?: AbortSignal): Promise<Deck>;
   reviewSessions(signal?: AbortSignal): Promise<ReviewSession[]>;
   reviewSession(id: string, signal?: AbortSignal): Promise<ReviewSession>;
@@ -439,6 +441,7 @@ export function createApi(base = ''): ApiClient {
     cardPreviews: (id: string, signal?: AbortSignal) => get<CardPreviews>(`/cards/${segment(id)}/previews`, signal),
     cardReviews: (id: string, signal?: AbortSignal) => get<ReviewEvent[]>(`/cards/${segment(id)}/reviews`, signal),
     decks: (signal?: AbortSignal) => get<Deck[]>('/decks', signal),
+    tagDecks: (signal?: AbortSignal) => get<TagDeck[]>('/tag-decks', signal),
     deck: (id: string, signal?: AbortSignal) => get<Deck>(`/decks/${segment(id)}`, signal),
     reviewSessions: (signal?: AbortSignal) => get<ReviewSession[]>('/review-sessions', signal),
     reviewSession: (id: string, signal?: AbortSignal) => get<ReviewSession>(`/review-sessions/${segment(id)}`, signal),

@@ -255,7 +255,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_cards",
             "title": "Find flashcards",
-            "description": "Cards with their IDs, kinds, fronts, answers and next due dates. Give block_id or page for the cards written there (held ones included); otherwise view queue lists due, new or all cards, optionally from a deck or a type's members. view stats gives due counts, retention and a week's forecast; view decks lists decks.",
+            "description": "Cards with their IDs, kinds, fronts, answers and next due dates. Give block_id or page for the cards written there (held ones included); otherwise view queue lists due, new or all cards, optionally from a saved deck or a type's members. view stats gives due counts, retention and a week's forecast; view decks lists saved decks and tag decks. A tag on a card's own block is a tag deck named with that tag; study it with type, and do not create a saved deck for it.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -289,7 +289,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_save_deck",
             "title": "Create, change or delete a deck",
-            "description": "A deck is a saved review queue: the cards whose own block matches its type, text and field filters, the same selection tessera_query uses. Cards join a deck through their blocks, not their page, so give each card block what the deck selects, for example a child field entry `Deck:: Kanji` under `東 >> dōng`, then save a deck with filters [{\"field\": \"Deck\", \"value\": \"kanji\"}]. Avoid child entries under `>>>` and `>>1.` cards, whose children are their answer. Without deck this creates a deck; with deck it changes that deck, keeping its source unless type, text or filters are given; delete removes the deck and leaves its cards alone. The result says how many cards the deck holds.",
+            "description": "A saved deck is a review queue: the cards whose own block matches its type, text and field filters. A tag on a card's own block is already a deck, named with that tag, and appears in tessera_cards view decks; do not create a saved deck just to study those cards. Save a deck when the queue needs a filter a tag cannot express. Cards join through their own block, not their page. Avoid child field entries under >>> and >>1. cards, whose children are their answer. Without deck this creates a deck; with deck it changes that deck, keeping its source unless type, text or filters are given; delete removes the deck and leaves its cards alone. The result says how many cards the deck holds.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

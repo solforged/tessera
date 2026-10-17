@@ -79,6 +79,10 @@ Only journals with non-empty visible text get muted filled day marks, independen
 
 Day buttons speak the full civil date and open through the existing journal path. The root text remains ISO and other pages retain their own titles.
 
+## Cards
+
+A card line is ordinary card syntax, such as `tahâfut >> incoherence`. A tag on that line files the card into a deck of the same name. `#arabic` is enough; Review lists arabic without creating a deck. The card count names those tags, as in `1 card · arabic`. A tag on the journal day does not file the cards written under it. Put a filing tag on the page or a parent when it should not become a deck.
+
 ## Integrating a thought
 
 Integrate, in a journal block's menu, palette and slash menu, opens the destination picker. Pages come first; typing also searches blocks. Choosing a destination moves the block with all its children to the end of that page or block. The journal keeps a live reference in its old place, so the moved text stays readable there.
@@ -93,7 +97,7 @@ Make project on a journal block makes it a [project page](tasks-agenda.md#projec
 
 Today alone leads with Agenda, Review and Reading tiles above the Journal rule and writable outline.
 
-Journal days' own sections, Journal and From your highlights, head as H2s: the name in Piazzolla at `--text-h2` (18 / 26) in `--text`, then the hairline rule and any mono state and chevron. Both are `h2` elements.
+Journal days' own sections head as H2s in Piazzolla at `--text-h2` (18 / 26) in `--text`. From your highlights keeps the hairline rule, its mono state and its chevron, because the rule ends in them. Journal is the name alone. Both are `h2` elements.
 
 Desktop and unfolded Today tiles are at least 120 px tall, enough for the tallest loaded Reading content including the book map, and grow with their content. Their placeholders keep the same height. The three desktop tiles reserve their loaded height while requests show quiet placeholders.
 

@@ -13,7 +13,7 @@ import { Popup } from '../ui/Popup';
 import { BlockText } from './BlockText';
 import { OcclusionFigure } from '../review/OcclusionFigure';
 
-export function CardSummary(props: { blockId: string; cards: ParsedCard[]; templateCount?: number; notebook: NotebookClient; register?: (control: { open(anchor: HTMLElement): void } | undefined) => void; onOpen(target: OpenTarget, beside: boolean): void }) {
+export function CardSummary(props: { blockId: string; cards: ParsedCard[]; deckNames?: readonly string[]; templateCount?: number; notebook: NotebookClient; register?: (control: { open(anchor: HTMLElement): void } | undefined) => void; onOpen(target: OpenTarget, beside: boolean): void }) {
   const keys = createMemo(() => props.cards.map(card => card.key).join('\n'));
   const [stored, setStored] = createSignal<CardUnit[]>([]);
   const [storedSequence, setStoredSequence] = createSignal(-1);
@@ -58,13 +58,17 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; templ
     const byKey = new Map(stored().map(card => [card.key, card]));
     return [...props.cards.flatMap(card => byKey.get(card.key) ?? []), ...stored().filter(card => card.key.startsWith('tpl:'))];
   });
+  const deckLabel = createMemo(() => {
+    const names = props.deckNames;
+    return names?.length ? `${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}` : '';
+  });
   // Fetch only while open; never show cached counts after another committed change.
   const label = createMemo(() => {
     const count = props.cards.length + (props.templateCount ?? 0);
     const cards = storedSequence() === props.notebook.changeSequence() ? ordered() : [];
     const due = cards.filter(card => !card.held && card.schedule.due_at <= now()).length;
     const held = cards.filter(card => card.held).length;
-    return `${count} ${count === 1 ? 'card' : 'cards'}${due ? ` · ${due} due` : ''}${held ? ` · ${held} not yet` : ''}`;
+    return `${count} ${count === 1 ? 'card' : 'cards'}${deckLabel() ? ` · ${deckLabel()}` : ''}${due ? ` · ${due} due` : ''}${held ? ` · ${held} not yet` : ''}`;
   });
   const confirmation = createMemo(() => stored().find(card => card.id === confirm()));
   function dismiss() { setAnchor(null); setConfirm(null); setResetError(''); setHoldError(''); }
@@ -102,7 +106,7 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; templ
   }
 
   return <>
-    <Show when={error() || props.cards.length || props.templateCount}><Button class="outline-planning outline-card-count" title="Show cards" aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
+    <Show when={error() || props.cards.length || props.templateCount}><Button class="outline-planning outline-card-count" title={props.deckNames?.length ? `Show cards. Decks: ${props.deckNames.join(', ')}` : 'Show cards'} aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => {
       if (opensBeside(event)) { dismiss(); props.onOpen({ kind: 'review', blockId: props.blockId }, true); return; }
       open(event.currentTarget);
     }}>{label()}</Button></Show>

@@ -7,7 +7,7 @@ use anyhow::Context;
 use serde_json::Value;
 use tessera_core::{
     AgentEdit, Block, CardQuery, CardQueryResult, CardSelection, CardUnit, Deck, FieldDefinition,
-    FieldsView, Query, TypeInfo,
+    FieldsView, Query, TagDeck, TypeInfo,
 };
 
 use super::notes::{clock, page_cards};
@@ -51,7 +51,8 @@ impl Session<'_> {
             "stats" => stats(&api, arguments).await,
             "decks" => {
                 let decks: Vec<Deck> = api.get("/api/decks").await?;
-                if decks.is_empty() {
+                let tag_decks: Vec<TagDeck> = api.get("/api/tag-decks").await?;
+                if decks.is_empty() && tag_decks.is_empty() {
                     return Ok("No decks yet; every card is in the default queue.".into());
                 }
                 let names = Names::load(&api).await?;
@@ -67,6 +68,12 @@ impl Session<'_> {
                             names.scope(deck.query.source.as_ref())
                         )
                     })
+                    .chain(tag_decks.iter().map(|deck| {
+                        format!(
+                            "- {:?} (tag {}): cards tagged #{}\n",
+                            deck.name, deck.id, deck.name
+                        )
+                    }))
                     .collect())
             }
             view => anyhow::bail!("view must be queue, stats or decks, not {view:?}"),

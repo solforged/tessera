@@ -804,7 +804,7 @@ Review events record shown text, grade, scheduler version and state before and a
 
 Scheduling uses FSRS-6 with default parameters, 90% retention and deterministic whole-day intervals. Reviewed cards acquire FSRS memory by replaying historical grades, keeping historical evidence intact.
 
-Grading checks the card revision, definition revision and exact shown front/back. Due queues include new cards after reviewed due cards, with stable tie ordering. Saved decks are revisioned card queries over canonical sources, not copies or separate card stores.
+Grading checks the card revision, definition revision and exact shown front/back. Due queues include new cards after reviewed due cards, with stable tie ordering. Saved decks are revisioned card queries over canonical sources, not copies or separate card stores. A tag on a block that has an active card is also a deck, named with that type's title: Review lists it without a saved row, and it contains the cards on blocks with that tag, held cards included. A tag on a page does not pull in cards written on its children. The deck leaves the list when no tagged block still has an active card. It is not edited or deleted as a deck; a saved deck whose only filter is that type takes its place in the list.
 
 Optional review sessions have open, finished or abandoned state. Closing one never discards grades. A session excludes cards already graded within it. Deck selection, queue selection and session identity are navigation state, not card ownership.
 

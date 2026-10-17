@@ -105,7 +105,7 @@ Controls share four shapes:
 - **Modes and tabs:** [Library states and Highlights processing](surfaces/library.md), [Agenda, Week and Tasks](surfaces/tasks-agenda.md), [Review's Due, New and All](surfaces/cards-review.md), [reader settings](surfaces/reader.md), and a creator's role. They are mono labels with faint counts. The current one is gilt with a 2 px gilt rule beneath the whole tab, label and count alike, never a box or fill. Strips that switch views (Library states, Review queues, Agenda modes) stand on a hairline baseline, and every tab's rule lands on it. Forms use these tabs instead of native selects.
 - **Menu triggers and date ranges:** bordered buttons with a `--line` hairline that brightens to `--control-border` on hover.
 - **Text fields:** sit on `--surface` with a `--line` hairline that brightens while hovered or typed in. Agenda's add field is a bare row on a hairline under the plus.
-- **Section heads:** sidebar, [journal Agenda](surfaces/journal.md), and [Settings](surfaces/settings.md). They are mono: an optional rubric numeral, the name, a hairline rule, then state or count at the right in `--faint`, with the chevron last on collapsible ones. Journal days' Journal and From your highlights set only the name as an H2, in Piazzolla at `--text-h2`; the rule, state and chevron stay as above.
+- **Section heads:** sidebar, [journal Agenda](surfaces/journal.md), and [Settings](surfaces/settings.md). They are mono: an optional rubric numeral, the name, a hairline rule, then state or count at the right in `--faint`, with the chevron last on collapsible ones. A rule appears only when it ends in a count, a state, or a chevron. Journal days' From your highlights sets the name as an H2 in Piazzolla at `--text-h2`, then the rule, state and chevron. Journal is the name alone.
 
 Counts, dates and result lines (`1 of 1 task`, `15 of 15 rows`, `1 card · 1 due`) are mono; sentences never are. Civil dates in the apparatus read as ISO, `2026-10-03`.
 
@@ -510,7 +510,7 @@ The mask editor turns an image into [occlusion cards](domain-model.md#image-occl
 
 [Cards](surfaces/cards-review.md) show their syntax quietly outside editing: `>>`, `<<` and `<>` become →, ← and ↔ in `--faint`, and cloze answers carry a dotted accent underline with the hint in their tooltip. Clicking places the caret at the same source offset.
 
-A block that makes cards takes a small outlined index card in `--faint` in place of its bullet as soon as the syntax yields a card, template cards included. A task keeps its checkbox, and the mark keeps the folded-children ring. The mark and the summary (`2 cards · 1 not yet`) open the Cards popup.
+A block that makes cards takes a small outlined index card in `--faint` in place of its bullet as soon as the syntax yields a card, template cards included. A task keeps its checkbox, and the mark keeps the folded-children ring. The mark and the summary (`1 card · arabic · 1 due`, or `2 cards · 1 not yet` when it has no tags) open the Cards popup. The names are the tags on that block. Each of those tags is a deck.
 
 Each card there shows its kind, front and, beneath it in `--muted`, the answer: a cloze as the whole sentence with its answer underlined, a multi-line or list answer as its lines joined by `·`. The state reads New, Due, In 6 days, Not yet or Paused.
 

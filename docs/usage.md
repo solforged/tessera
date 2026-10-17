@@ -284,7 +284,7 @@ Nine tools write:
 | `tessera_set_task` | Makes a block a task or changes its status, scheduled date and time, deadline and time, warning days, repeat or priority; done records a completion. |
 | `tessera_set_relation` | Marks a block as `supports`, `disputes`, `qualifies` or `answers`, changes its kind, or removes the capability with `relation: null`. Its first link supplies the target; its ancestors supply the source. The block's text stays unchanged. |
 | `tessera_hold_card` | Holds a card out of review, or releases it. |
-| `tessera_save_deck` | Creates, changes or deletes a deck: the cards whose blocks match a type, text or field filters. |
+| `tessera_save_deck` | Creates, changes or deletes a saved deck: the cards whose blocks match a type, text or field filters. A tag on a card's own block is already a deck; this tool is for a queue a tag cannot express. |
 | `tessera_cite` | Links existing blocks to library passages: a whole passage, a range, or the first occurrence of a quote. |
 
 ### Text syntax and revisions
@@ -293,7 +293,7 @@ Written text follows the editor's syntax:
 
 - `[[Title]]` links the page with that title, creating it when missing.
 - `[[id|label]]` keeps an authored label. `[[id|label|locator]]` adds a locator, for example `[[Muqaddimah|have a natural life span like individuals|3.12]]`; title resolution keeps both parts. `[[id||3.12]]` uses the target's current title. The first pipe ends the target and the last pipe starts the locator when there are two or more pipes; intervening pipes belong to the label. Markdown and text exports retain the locator.
-- Card operators (`>>`, `<<`, `<>`, `>>>`, `>>1.`) and clozes (`{{c1::answer}}`) make cards. `A << B` shows B and asks for A.
+- Card operators (`>>`, `<<`, `<>`, `>>>`, `>>1.`) and clozes (`{{c1::answer}}`) make cards. `A << B` shows B and asks for A. A tag on that same block, such as `#arabic` after the card, files it into a deck of that name. Review lists the deck without a saved deck. A tag on the page does not file the cards beneath it.
 - Beneath a `Mitochondria` block, a child `Function ;; makes ATP` makes a descriptor card asking `Mitochondria › Function`.
 - `Name:: value` is always its own block: a field entry on the page at the top level, or on the item it is indented under. It creates the field when missing.
 - A write given a block's, card's or deck's revision is refused if it changed since it was read.

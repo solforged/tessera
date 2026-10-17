@@ -1,7 +1,7 @@
 import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack } from 'solid-js';
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
-import type { CardKind, CardPreviews, CardQuery, CardRow, CardSelection, Deck, Grade, ReviewEvent, ReviewSession, ReviewStats } from '../api/types';
+import type { CardKind, CardPreviews, CardQuery, CardRow, CardSelection, Deck, Grade, ReviewEvent, ReviewSession, ReviewStats, TagDeck } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { CommandRegistry, OpenTarget, PaneId, ReviewViewState } from '../shell/contract';
@@ -43,19 +43,32 @@ export interface ReviewPaneProps {
 type Presentation = { item: CardRow; previews: CardPreviews; context: ReviewSource | null };
 /** `blockId` starts a review of that block's cards once the open review, if any, is closed. */
 type Destination = { deckId: string | null; sessionId: string | null; selection?: CardSelection | null; blockId?: string };
-type DeckChoice = { id: string | null; name: string };
+type DeckChoice = { id: string | null; name: string; query: CardQuery; tag: boolean };
 type DeckCounts = { id: string | null; name: string; due: number; new: number; all: number };
 
 const selections = Object.keys(selectionLabels) as CardSelection[];
 /** A touch screen has no Enter key to aim, so the landing leaves focus alone instead of ringing its button. */
 const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)');
 
+function deckRows(saved: readonly Deck[], tags: readonly TagDeck[]): DeckChoice[] {
+  const superseded = new Set(saved.flatMap(deck => {
+    const source = deck.query.source;
+    return source?.type && !source.text && !source.filters.length && !source.links?.length && !source.from?.length
+      && !source.cites?.length && !source.note_kind && !source.source ? [source.type] : [];
+  }));
+  const rows = [
+    ...saved.map(deck => ({ id: deck.id, name: deck.name, query: deck.query, tag: false })),
+    ...tags.filter(deck => !superseded.has(deck.id)).map(deck => ({ ...deck, tag: true })),
+  ].sort((a, b) => a.name.toLocaleLowerCase().localeCompare(b.name.toLocaleLowerCase()) || a.id.localeCompare(b.id));
+  return [{ id: null, name: 'All cards', query: { source: null, selection: 'due', limit: null }, tag: false }, ...rows];
+}
+
 export function ReviewPane(props: ReviewPaneProps) {
   const queue = createRevisits(props.notebook);
   return <div class="review-queues">
     <div class="review-head"><div class="review-kind-tabs review-queue-controls mode-tabs tab-strip" role="group" aria-label="Review kind">
       <Button aria-pressed={props.view.queue !== 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'cards' })}>Cards</Button>
-      <Button aria-pressed={props.view.queue === 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'notes' })}>Questions and notes<span class="review-count">{queue.rows().length}</span></Button>
+      <Button aria-pressed={props.view.queue === 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'notes' })}>Questions and notes<Show when={queue.rows().length}><span class="review-count">{queue.rows().length}</span></Show></Button>
     </div></div>
     <Show when={props.view.queue === 'notes'} fallback={<CardReviewPane {...props} />}><NotesReview {...props} rows={queue.rows()} error={queue.error()} /></Show>
   </div>;
@@ -65,6 +78,8 @@ function CardReviewPane(props: ReviewPaneProps) {
   const [deckId, setDeckId] = createSignal(props.view.deckId);
   const [sessionId, setSessionId] = createSignal(props.view.sessionId);
   const [decks, setDecks] = createSignal<Deck[]>([]);
+  const [tagDecks, setTagDecks] = createSignal<TagDeck[]>([]);
+  const [sessionTagDeck, setSessionTagDeck] = createSignal<TagDeck | null>(null);
   const [sessions, setSessions] = createSignal<ReviewSession[]>([]);
   const [session, setSession] = createSignal<ReviewSession | null>(null);
   const [selection, setSelection] = createSignal<CardSelection | null>(props.view.selection ?? null);
@@ -113,6 +128,8 @@ function CardReviewPane(props: ReviewPaneProps) {
   const gradedCount = () => grades().length;
   const missed = createMemo(() => grades().filter(event => event.grade === 'again'));
   const selectedDeck = createMemo(() => decks().find(deck => deck.id === deckId()));
+  const selectedTagDeck = createMemo(() => selectedDeck() ? undefined : tagDecks().find(deck => deck.id === deckId()) ?? (sessionTagDeck()?.id === deckId() ? sessionTagDeck() : undefined));
+  const listedDecks = createMemo(() => deckRows(decks(), tagDecks()));
   const openSession = createMemo(() => session()?.state === 'open' && session()?.id === sessionId() ? session() : null);
   const sessionActive = createMemo(() => !!openSession());
   const openSessions = createMemo(() => sessions().filter(value => value.state === 'open').sort((a, b) => b.started_at - a.started_at || b.id.localeCompare(a.id)));
@@ -125,7 +142,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   const undoDisabled = createMemo(() => locked() || loading() || !!readError() || !latestGrade());
   const deckChoices = createMemo((): DeckChoice[] => {
     const needle = search().trim().toLocaleLowerCase();
-    return [{ id: null, name: 'All cards' }, ...decks()].filter(deck => deck.name.toLocaleLowerCase().includes(needle));
+    return listedDecks().filter(deck => deck.name.toLocaleLowerCase().includes(needle));
   });
   const sessionChoices = createMemo(() => {
     const needle = search().trim().toLocaleLowerCase();
@@ -141,8 +158,13 @@ function CardReviewPane(props: ReviewPaneProps) {
   onCleanup(() => { disposed = true; generation++; });
   onMount(() => { scroll.scrollTop = props.view.scroll; });
 
+  function nameForDeck(id: string) {
+    return decks().find(deck => deck.id === id)?.name ?? tagDecks().find(deck => deck.id === id)?.name
+      ?? (sessionTagDeck()?.id === id ? sessionTagDeck()?.name : undefined);
+  }
+
   function sessionLabel(value: ReviewSession) {
-    const name = value.deck_id ? decks().find(deck => deck.id === value.deck_id)?.name ?? 'Deleted deck' : 'All cards';
+    const name = value.deck_id ? nameForDeck(value.deck_id) ?? 'Deleted deck' : 'All cards';
     return `${name} · ${new Date(value.started_at).toLocaleString()}`;
   }
 
@@ -157,6 +179,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       setDeckId(target.deckId); setSessionId(target.sessionId); setSession(null); setSelection(target.selection ?? null);
       setShown(null); setUpdated(null); setStale(''); setNeedsReload(false); setCommandError('');
       setEvents([]); setStats(null); setLedger([]); setInventory(null); setRestoredCardId(null); setScope(null);
+      setSessionTagDeck(null);
       setRows([]); setCounts({}); setReady(false); setLoading(true); setSwitching(null); setRetry(value => value + 1);
     });
     publish();
@@ -240,7 +263,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     if (pending() || queued()) { setLoading(false); return; }
     setLoading(true);
     try {
-      const [savedDecks, savedSessions] = await Promise.all([props.notebook.api.decks(), props.notebook.api.reviewSessions()]);
+      const [savedDecks, currentTagDecks, savedSessions] = await Promise.all([props.notebook.api.decks(), props.notebook.api.tagDecks(), props.notebook.api.reviewSessions()]);
       if (disposed || version !== generation) return;
       let currentSession = requestedSession ? savedSessions.find(value => value.id === requestedSession) ?? await props.notebook.api.reviewSession(requestedSession) : null;
       if (disposed || version !== generation) return;
@@ -256,8 +279,22 @@ function CardReviewPane(props: ReviewPaneProps) {
         setDeckId(currentSession.deck_id); setSelection(null); publish();
         return;
       }
-      const deck = savedDecks.find(value => value.id === requestedDeck);
-      if (requestedDeck && !deck) throw new Error('This deck was deleted. Finish or abandon any open review, then choose another deck.');
+      let deck: Deck | TagDeck | undefined = savedDecks.find(value => value.id === requestedDeck) ?? currentTagDecks.find(value => value.id === requestedDeck);
+      let nextSessionTagDeck: TagDeck | null = null;
+      if (requestedDeck && !deck) {
+        if (!currentSession) {
+          moveTo({ deckId: null, sessionId: null });
+          return;
+        }
+        const page = await props.notebook.api.block(requestedDeck).catch((reason: unknown) => { if (reason instanceof ApiError && reason.status === 404) return null; throw reason; });
+        if (disposed || version !== generation) return;
+        if (!page || page.kind !== 'page' || page.archived) throw new Error('This deck was deleted. Finish or abandon any open review, then choose another deck.');
+        nextSessionTagDeck = {
+          id: page.id, name: page.text,
+          query: { source: { type: page.id, text: null, filters: [], sort: [], limit: null }, selection: 'due', limit: null },
+        };
+        deck = nextSessionTagDeck;
+      }
       const nextQuery = copyCardQuery(deck?.query ?? { source: null, selection: 'due', limit: null });
       if (requestedSelection) nextQuery.selection = requestedSelection;
       const [result, history, nextStats, globalStats, ...totals] = await Promise.all([
@@ -294,7 +331,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       }
       const queue = currentSession?.state === 'open' ? await sessionQueue(props.notebook.api, candidates, history, restored) : { rows: candidates, restoredUnavailable: false };
       const remaining = queue.rows;
-      const nextLedger = !currentSession ? await Promise.all([{ id: null, name: 'All cards', query: { source: null } }, ...savedDecks].map(async deck => {
+      const nextLedger = !currentSession ? await Promise.all(deckRows(savedDecks, currentTagDecks).map(async deck => {
         const [due, fresh, all] = await Promise.all(selections.map(value => props.notebook.api.cardQuery({ source: deck.query.source, selection: value, limit: 0 }).then(found => found.total)));
         return { id: deck.id, name: deck.name, due: due!, new: fresh!, all: all! };
       })) : [];
@@ -321,7 +358,8 @@ function CardReviewPane(props: ReviewPaneProps) {
       if (disposed || version !== generation) return;
       // Publish one complete snapshot. Empty rows from a superseded/failed read never finish a session.
       batch(() => {
-        setDecks(savedDecks); setSessions(savedSessions); setSession(currentSession); setScope(nextScope);
+        setDecks(savedDecks); setTagDecks(currentTagDecks); setSessionTagDeck(nextSessionTagDeck);
+        setSessions(savedSessions); setSession(currentSession); setScope(nextScope);
         setQuery(nextQuery); setRows(remaining); setTotal(result.total); setLoadedCount(result.rows.length);
         setEvents(history); setStats(nextStats); setLedger(nextLedger);
         setNextDue(upcoming && upcoming > Date.now() ? upcoming : null);
@@ -548,9 +586,10 @@ function CardReviewPane(props: ReviewPaneProps) {
     } finally { doc.release(); }
   }
 
-  const deckName = createMemo(() => scope() ?? (deckId() ? selectedDeck()?.name ?? 'Unavailable deck' : 'All cards'));
+  const deckName = createMemo(() => scope() ?? (deckId() ? nameForDeck(deckId()!) ?? 'Unavailable deck' : 'All cards'));
+  const emptyWorkshop = () => !session() && ready() && inventory() === 0;
   return <div class="review-pane" classList={{ 'review-session-active': sessionActive(), 'review-session-done': done() }} data-pane={props.pane} role="region" aria-label="Review" tabIndex={0} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
-    <div class="review-head">
+    <Show when={!emptyWorkshop()}><div class="review-head">
       <header class="review-header">
         <div class="review-heading">
           <div class="review-register">Review<Show when={sessionActive()}><span> · in progress</span></Show></div>
@@ -569,7 +608,7 @@ function CardReviewPane(props: ReviewPaneProps) {
           <GradeStrip grades={grades()} remaining={rows().length} />
         </div></Show>
       </div>
-    </div>
+    </div></Show>
     <Show when={queued() && !pending()}><div class="review-notice" role="status">
       {commandState() === 'offline' ? 'Offline · Review changes are kept for retry.' : 'Saving review changes…'}
       <Show when={commandState() === 'offline'}><Button onClick={() => props.notebook.retry()}>Retry delivery</Button></Show>
@@ -579,11 +618,10 @@ function CardReviewPane(props: ReviewPaneProps) {
     <div ref={scroll} class="review-scroll" onScroll={publish}>
       <Show when={slowPending() || slowReady()}><p class="review-pending" role="status">{pending() || 'Loading cards…'}</p></Show>
       <Show when={total() > loadedCount() && !done()}><p class="review-pending">Showing {loadedCount()} of {total()} matching cards. Narrow the deck’s source filters to review the rest.</p></Show>
-      <Show when={!session() && ready() && inventory() === 0}><section class="review-done" aria-label="Make your first card">
-        <h2>Make your first card</h2>
+      <Show when={emptyWorkshop()}><section class="review-empty" aria-label="No cards yet">
+        <h2>No cards yet.</h2>
         <p>Write a question and answer in a note, or turn a source highlight into a card.</p>
-        <div><Button class="review-start" disabled={locked() || loading()} onClick={event => setComposer(event.currentTarget)}>Create a card</Button></div>
-        <p class="review-pending"><code>Question &gt;&gt; Answer</code></p>
+        <Button class="bordered" icon="plus" disabled={locked() || loading()} onClick={event => setComposer(event.currentTarget)}>Create a card</Button>
       </section></Show>
       <Show when={!session() && ready() && inventory() !== 0 && stats()}>{value => <div class="review-landing">
         <div class="review-overview">
@@ -657,12 +695,12 @@ function CardReviewPane(props: ReviewPaneProps) {
     </footer></Show>
     <Show keyed when={composer()}>{anchor => <CardComposer anchor={anchor} where={`${shortDay(props.notebook.todayDate())} · end of journal`} onSave={createCard} onDismiss={() => setComposer(null)} />}</Show>
     <Show keyed when={picker()}>{state => state.kind === 'decks'
-      ? <Picker<DeckChoice> anchor={state.anchor} label="Deck" query={search()} onQuery={setSearch} placeholder="Find a deck" items={deckChoices()} key={value => value.id ?? 'all'} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); if (value.id !== deckId()) requestMove({ deckId: value.id, sessionId: null }, state.anchor); }} row={value => <><Icon name={value.id === deckId() ? 'check' : 'table'} /><span class="picker-text">{value.name}</span></>} empty="No matching decks." />
+      ? <Picker<DeckChoice> anchor={state.anchor} label="Deck" query={search()} onQuery={setSearch} placeholder="Find a deck" items={deckChoices()} key={value => value.id ?? 'all'} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); if (value.id !== deckId()) requestMove({ deckId: value.id, sessionId: null }, state.anchor); }} row={value => <><Icon name={value.id === deckId() ? 'check' : value.tag ? 'tag' : 'table'} /><span class="picker-text">{value.name}</span></>} empty="No matching decks." />
       : <Picker<ReviewSession> anchor={state.anchor} label="Open reviews" query={search()} onQuery={setSearch} placeholder="Find a review" items={sessionChoices()} key={value => value.id} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); requestMove({ deckId: value.deck_id, sessionId: value.id }, state.anchor); }} row={value => <><Icon name={value.id === sessionId() ? 'check' : 'page'} /><span class="picker-text">{sessionLabel(value)}</span></>} empty="No open reviews." />}</Show>
     <Show keyed when={actions()}>{anchor => <Menu anchor={anchor} label="Deck actions" onDismiss={() => setActions(null)} items={[
       { label: 'New deck', disabledReason: openSession() ? 'Finish or abandon the open review first.' : undefined, action: () => setEditor({ anchor, deck: null }) },
-      { label: 'Edit deck', disabledReason: openSession() ? 'Finish or abandon the open review first.' : !selectedDeck() ? 'Choose a saved deck first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setEditor({ anchor, deck }); } },
-      { label: 'Delete deck', danger: true, disabledReason: openSession() ? 'Finish or abandon the open review first.' : !selectedDeck() ? 'Choose a saved deck first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setDeletion({ anchor, deck }); } },
+      { label: 'Edit deck', disabledReason: selectedTagDeck() ? `This deck is the #${selectedTagDeck()!.name} tag. Remove the tag from its cards, or save a deck if you need other filters.` : openSession() ? 'Finish or abandon the open review first.' : !selectedDeck() ? 'Choose a saved deck first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setEditor({ anchor, deck }); } },
+      { label: 'Delete deck', danger: true, disabledReason: selectedTagDeck() ? `This deck is the #${selectedTagDeck()!.name} tag. Remove the tag from its cards.` : openSession() ? 'Finish or abandon the open review first.' : !selectedDeck() ? 'Choose a saved deck first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setDeletion({ anchor, deck }); } },
     ]} />}</Show>
     <Show keyed when={editor()}>{state => <DeckEditor anchor={state.anchor} notebook={props.notebook} deck={state.deck} query={query()} onDismiss={() => setEditor(null)} onSaved={id => { setEditor(null); moveTo({ deckId: id, sessionId: null }); }} />}</Show>
     <Show keyed when={closing()}>{state => <Popup anchor={state.anchor} label={state.state === 'finished' ? 'Finish review?' : 'Abandon review?'} class="review-confirm" onDismiss={() => { if (!pending()) setClosing(null); }}>

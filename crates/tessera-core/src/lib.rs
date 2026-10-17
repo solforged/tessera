@@ -79,7 +79,7 @@ pub use capabilities::{
     CardQueryResult, CardRow, CardSelection, CardUnit, DateRange, Deck, GradePreview,
     PositionField, PositionInfo, PositionQuery, PositionQueryResult, PositionQuestion, PositionRow,
     ProjectRecord, ProjectState, ProjectStatus, ReviewEvent, ReviewEventKind,
-    ReviewSchedulingState, ReviewSession, ReviewSessionState, SubjectCriteria, TaskFilter,
+    ReviewSchedulingState, ReviewSession, ReviewSessionState, SubjectCriteria, TagDeck, TaskFilter,
     TaskOccurrence, TaskPriority, TaskProjectVia, TaskQuery, TaskQueryResult, TaskRecord, TaskRow,
     TaskSelection, TaskSort, TaskState, TaskStatus, TaskView, WorkSession,
 };

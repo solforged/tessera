@@ -5,8 +5,30 @@ use crate::query::validate_source_query;
 use crate::review_store::{review_event_at, review_pacing};
 use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
 use crate::{
-    BlockInPage, CardQuery, CardQueryResult, CardRow, CardSelection, Deck, Notebook, Result,
+    BlockInPage, CardQuery, CardQueryResult, CardRow, CardSelection, Deck, Notebook, Query, Result,
+    TagDeck,
 };
+
+// Tag decks use the visible inventory, including held cards, rather than the due queue.
+macro_rules! tag_deck_pages {
+    () => {
+        concat!(
+            crate::reads::hidden_blocks!(),
+            ", tag_deck_pages AS (
+                SELECT DISTINCT t.id, t.text AS name
+                FROM card_units c JOIN blocks b ON b.id = c.source_block_id
+                JOIN blocks p ON p.id = b.page_id
+                JOIN memberships m ON m.block_id = b.id
+                JOIN blocks t ON t.id = m.type_id
+                WHERE c.active = 1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+                    AND b.rowid NOT IN (SELECT rowid FROM hidden)
+                    AND t.kind = 'page' AND t.deletion_id IS NULL
+                    AND t.rowid NOT IN (SELECT rowid FROM hidden)
+            ) "
+        )
+    };
+}
+pub(crate) use tag_deck_pages;
 
 fn validate_limit(query: &CardQuery) -> Result<()> {
     if query.limit.is_some_and(|limit| limit > 2000) {
@@ -165,6 +187,32 @@ impl Notebook {
             .conn
             .prepare_cached("SELECT id, name, query, revision, created_at, updated_at FROM decks")?
             .query_map([], stored_deck)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        decks.sort_by_cached_key(|deck| (deck.name.to_lowercase(), deck.id.clone()));
+        Ok(decks)
+    }
+
+    pub fn tag_decks(&self) -> Result<Vec<TagDeck>> {
+        let mut decks = self
+            .conn
+            .prepare_cached(concat!(
+                tag_deck_pages!(),
+                "SELECT id, name FROM tag_deck_pages"
+            ))?
+            .query_map([], |row| {
+                let id: String = row.get(0)?;
+                Ok(TagDeck {
+                    query: CardQuery {
+                        source: Some(Query {
+                            r#type: Some(id.clone()),
+                            ..Query::default()
+                        }),
+                        ..CardQuery::default()
+                    },
+                    id,
+                    name: row.get(1)?,
+                })
+            })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         decks.sort_by_cached_key(|deck| (deck.name.to_lowercase(), deck.id.clone()));
         Ok(decks)

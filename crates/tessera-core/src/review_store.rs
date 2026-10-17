@@ -3,6 +3,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 use serde::de::{DeserializeOwned, value::StrDeserializer};
 
+use crate::card_query::tag_deck_pages;
 use crate::reads::hidden_blocks;
 use crate::scheduler::{self, Grade, SchedulingState};
 use crate::storage::{not_found, validate_id, validation};
@@ -511,7 +512,16 @@ pub(crate) fn apply(
                 return Err(validation("review session ID is already used"));
             }
             if let Some(deck_id) = deck_id {
-                deck_revision(conn, deck_id)?.ok_or_else(|| not_found(deck_id))?;
+                if deck_revision(conn, deck_id)?.is_none()
+                    && !conn
+                        .prepare_cached(concat!(
+                            tag_deck_pages!(),
+                            "SELECT EXISTS(SELECT 1 FROM tag_deck_pages WHERE id = ?1)"
+                        ))?
+                        .query_row([deck_id], |row| row.get::<_, bool>(0))?
+                {
+                    return Err(not_found(deck_id));
+                }
             }
             conn.execute(
                 "INSERT INTO review_sessions(id, deck_id, started_at, ended_at, state, revision)
@@ -948,9 +958,29 @@ impl Notebook {
                 .as_millisecond())
         };
         let source_ids = if let Some(deck_id) = deck_id {
-            let deck = self.deck(deck_id)?;
-            deck.query
-                .source
+            let source = match self.deck(deck_id) {
+                Ok(deck) => deck.query.source,
+                Err(Error::NotFound { .. }) => {
+                    let live_page = self
+                        .conn
+                        .prepare_cached(concat!(
+                            hidden_blocks!(),
+                            "SELECT EXISTS(SELECT 1 FROM blocks b
+                             WHERE b.id = ?1 AND b.kind = 'page' AND b.deletion_id IS NULL
+                                 AND b.rowid NOT IN (SELECT rowid FROM hidden))"
+                        ))?
+                        .query_row([deck_id], |row| row.get::<_, bool>(0))?;
+                    if !live_page {
+                        return Err(not_found(deck_id));
+                    }
+                    Some(crate::Query {
+                        r#type: Some(deck_id.to_owned()),
+                        ..crate::Query::default()
+                    })
+                }
+                Err(error) => return Err(error),
+            };
+            source
                 .as_ref()
                 .map(|source| {
                     self.query_all_sources(source).map(|result| {

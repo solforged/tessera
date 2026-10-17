@@ -603,6 +603,7 @@ export interface CardQuery { source: Query | null; selection: CardSelection; lim
 export interface CardRow { card: CardUnit; source: BlockInPage; last_review: ReviewEvent | null }
 export interface CardQueryResult { rows: CardRow[]; total: number }
 export interface Deck { id: string; name: string; query: CardQuery; revision: number; created_at: number; updated_at: number }
+export interface TagDeck { id: string; name: string; query: CardQuery }
 export interface TaskView { id: string; name: string; query: TaskQuery; revision: number; created_at: number; updated_at: number }
 export interface GradePreview { grade: Grade; interval_days: number }
 export interface CardPreviews { current: GradePreview[]; reset: GradePreview[] }

@@ -1,7 +1,7 @@
 use tessera_core::scheduler::{Grade, SCHEDULER_VERSION};
 use tessera_core::{
-    Actor, Batch, CardQuery, CardSelection, CardUnit, Committed, Error, Notebook, Operation,
-    ReviewEventKind, ReviewSessionState, Revision,
+    Actor, Batch, CardQuery, CardSelection, CardUnit, Committed, Error, Notebook, Operation, Query,
+    ReviewEventKind, ReviewSessionState, Revision, TagDeck,
 };
 
 fn fsrs(state: &tessera_core::ReviewSchedulingState) -> tessera_core::scheduler::SchedulingState {
@@ -1171,4 +1171,452 @@ fn undo_restores_trained_state_and_never_erases_or_crosses_a_reset() {
     assert_eq!(history[3].undone_by, Some(id(104)));
     invalid(&mut nb, undo(&reset_state, 100, 105, None, 3000));
     assert_eq!(nb.card(&original.id).unwrap(), reset_state);
+}
+
+#[test]
+fn tag_decks_use_card_block_tags_and_authored_type_titles() {
+    let (_dir, mut nb, _card) = fixture();
+    assert!(nb.tag_decks().unwrap().is_empty());
+    let change = edit(&nb, "Capital of 日本? >> 東京 #arabic");
+    apply(&mut nb, vec![change]);
+    let card = nb.source_cards(&id(2)).unwrap().remove(0);
+    let arabic = nb.page_by_title("arabic").unwrap().unwrap();
+    let expected = vec![TagDeck {
+        id: arabic.id.clone(),
+        name: "arabic".into(),
+        query: CardQuery {
+            source: Some(Query {
+                r#type: Some(arabic.id.clone()),
+                ..Query::default()
+            }),
+            selection: CardSelection::Due,
+            limit: None,
+        },
+    }];
+    assert_eq!(nb.tag_decks().unwrap(), expected);
+    let queue = nb
+        .card_query(&expected[0].query, tessera_core::now_ms())
+        .unwrap();
+    assert_eq!(queue.total, 1);
+    assert_eq!(queue.rows[0].card.id, card.id);
+    apply(
+        &mut nb,
+        vec![
+            Operation::Insert {
+                id: id(3),
+                parent_id: id(1),
+                after: Some(id(2)),
+                text: "Not a card #arabic".into(),
+                heading: None,
+            },
+            Operation::SetTypePresentation {
+                type_id: arabic.id,
+                base_revision: arabic.revision,
+                plural: Some("Arabic studies".into()),
+                icon: None,
+            },
+        ],
+    );
+    assert_eq!(nb.tag_decks().unwrap(), expected);
+    assert!(nb.decks().unwrap().is_empty());
+}
+
+#[test]
+fn page_tags_do_not_pull_untagged_child_cards_into_tag_decks() {
+    let (_dir, mut nb, _card) = fixture();
+    let page = nb.block(&id(1)).unwrap();
+    apply(
+        &mut nb,
+        vec![Operation::EditText {
+            id: page.id,
+            base_revision: page.revision,
+            text: "Review sources #arabic".into(),
+        }],
+    );
+    let arabic = nb.page_by_title("arabic").unwrap().unwrap();
+    assert_eq!(nb.source_cards(&id(2)).unwrap().len(), 1);
+    assert!(nb.tag_decks().unwrap().is_empty());
+    assert!(matches!(
+        nb.apply(&batch(vec![Operation::StartReviewSession {
+            id: id(50),
+            deck_id: Some(arabic.id),
+            started_at: 1000,
+        }])),
+        Err(Error::NotFound { .. })
+    ));
+}
+
+#[test]
+fn one_card_can_belong_to_multiple_tag_decks_in_name_order() {
+    let (_dir, mut nb, _card) = fixture();
+    let change = edit(&nb, "Capital of 日本? >> 東京 #zulu #Arabic");
+    apply(&mut nb, vec![change]);
+    let card = nb.source_cards(&id(2)).unwrap().remove(0);
+    let decks = nb.tag_decks().unwrap();
+    assert_eq!(
+        decks
+            .iter()
+            .map(|deck| deck.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["Arabic", "zulu"]
+    );
+    for deck in decks {
+        assert_eq!(deck.id, nb.page_by_title(&deck.name).unwrap().unwrap().id);
+        let queue = nb.card_query(&deck.query, tessera_core::now_ms()).unwrap();
+        assert_eq!(queue.total, 1);
+        assert_eq!(queue.rows[0].card.id, card.id);
+    }
+}
+
+#[test]
+fn manual_card_memberships_make_the_same_tag_decks() {
+    let (_dir, mut nb, card) = fixture();
+    let source = nb.block(&id(2)).unwrap();
+    apply(
+        &mut nb,
+        vec![Operation::AddType {
+            id: source.id,
+            base_revision: source.revision,
+            title: "arabic".into(),
+        }],
+    );
+    let arabic = nb.page_by_title("arabic").unwrap().unwrap();
+    let decks = nb.tag_decks().unwrap();
+    assert_eq!(decks.len(), 1);
+    assert_eq!(decks[0].id, arabic.id);
+    assert_eq!(decks[0].name, "arabic");
+    assert_eq!(
+        nb.card_query(&decks[0].query, tessera_core::now_ms())
+            .unwrap()
+            .rows[0]
+            .card
+            .id,
+        card.id
+    );
+    let change = edit(&nb, "Capital of 日本? >> 東京 #arabic");
+    apply(&mut nb, vec![change]);
+    assert_eq!(nb.tag_decks().unwrap(), decks);
+    let change = edit(&nb, "Capital of 日本? >> 東京");
+    apply(&mut nb, vec![change]);
+    assert_eq!(nb.tag_decks().unwrap(), decks);
+    let source = nb.block(&id(2)).unwrap();
+    apply(
+        &mut nb,
+        vec![Operation::RemoveType {
+            id: source.id,
+            base_revision: source.revision,
+            title: "arabic".into(),
+        }],
+    );
+    assert!(nb.tag_decks().unwrap().is_empty());
+}
+
+#[test]
+fn tag_decks_follow_tag_and_card_syntax_but_include_held_cards() {
+    let (_dir, mut nb, _card) = fixture();
+    let change = edit(&nb, "Capital of 日本? >> 東京 #arabic");
+    apply(&mut nb, vec![change]);
+    let decks = nb.tag_decks().unwrap();
+    assert_eq!(decks.len(), 1);
+    let card = nb.source_cards(&id(2)).unwrap().remove(0);
+    apply(&mut nb, vec![hold(&card, true)]);
+    assert_eq!(nb.tag_decks().unwrap(), decks);
+    assert_eq!(
+        nb.card_query(&decks[0].query, tessera_core::now_ms())
+            .unwrap()
+            .total,
+        0
+    );
+    let change = edit(&nb, "Capital of 日本? >> 東京");
+    apply(&mut nb, vec![change]);
+    assert!(nb.tag_decks().unwrap().is_empty());
+    let change = edit(&nb, "Capital of 日本? >> 東京 #arabic");
+    apply(&mut nb, vec![change]);
+    let restored = nb.tag_decks().unwrap();
+    assert_eq!(restored.len(), 1);
+    assert_eq!(restored[0].name, "arabic");
+    assert_eq!(
+        restored[0].id,
+        nb.page_by_title("arabic").unwrap().unwrap().id
+    );
+    let change = edit(&nb, "Capital of 日本? 東京 #arabic");
+    apply(&mut nb, vec![change]);
+    assert!(!nb.card(&card.id).unwrap().active);
+    assert!(nb.tag_decks().unwrap().is_empty());
+}
+
+#[test]
+fn tag_decks_exclude_hidden_and_deleted_sources_pages_and_types() {
+    for target in ["source", "page", "type", "ancestor"] {
+        let (_dir, mut nb, _card) = fixture();
+        let change = edit(&nb, "Capital of 日本? >> 東京 #arabic");
+        apply(&mut nb, vec![change]);
+        let arabic = nb.page_by_title("arabic").unwrap().unwrap();
+        let target_id = match target {
+            "source" => id(2),
+            "page" => id(1),
+            "type" => arabic.id.clone(),
+            "ancestor" => {
+                let source = nb.block(&id(2)).unwrap();
+                apply(
+                    &mut nb,
+                    vec![
+                        Operation::Insert {
+                            id: id(3),
+                            parent_id: id(1),
+                            after: Some(id(2)),
+                            text: "Card parent".into(),
+                            heading: None,
+                        },
+                        Operation::Move {
+                            id: source.id,
+                            base_revision: source.revision,
+                            parent_id: id(3),
+                            after: None,
+                        },
+                    ],
+                );
+                id(3)
+            }
+            _ => unreachable!(),
+        };
+        let decks = nb.tag_decks().unwrap();
+        assert_eq!(decks.len(), 1);
+        let target = nb.block(&target_id).unwrap();
+        apply(
+            &mut nb,
+            vec![Operation::SetArchived {
+                id: target.id,
+                base_revision: target.revision,
+                archived: true,
+            }],
+        );
+        assert!(nb.tag_decks().unwrap().is_empty());
+        assert!(matches!(
+            nb.apply(&batch(vec![Operation::StartReviewSession {
+                id: id(50),
+                deck_id: Some(arabic.id.clone()),
+                started_at: 1000,
+            }])),
+            Err(Error::NotFound { .. })
+        ));
+        let target = nb.block(&target_id).unwrap();
+        apply(
+            &mut nb,
+            vec![Operation::SetArchived {
+                id: target.id,
+                base_revision: target.revision,
+                archived: false,
+            }],
+        );
+        assert_eq!(nb.tag_decks().unwrap(), decks);
+        let target = nb.block(&target_id).unwrap();
+        apply(
+            &mut nb,
+            vec![Operation::Delete {
+                id: target.id,
+                base_revision: target.revision,
+            }],
+        );
+        assert!(nb.tag_decks().unwrap().is_empty());
+        assert!(matches!(
+            nb.apply(&batch(vec![Operation::StartReviewSession {
+                id: id(50),
+                deck_id: Some(arabic.id),
+                started_at: 1000,
+            }])),
+            Err(Error::NotFound { .. })
+        ));
+    }
+}
+
+#[test]
+fn tag_deck_sessions_keep_the_type_id_and_accept_held_only_decks() {
+    let (_dir, mut nb, _card) = fixture();
+    let change = edit(&nb, "Capital of 日本? >> 東京 #arabic");
+    apply(&mut nb, vec![change]);
+    let arabic = nb.page_by_title("arabic").unwrap().unwrap();
+    let committed = apply(
+        &mut nb,
+        vec![Operation::StartReviewSession {
+            id: id(50),
+            deck_id: Some(arabic.id.clone()),
+            started_at: 1000,
+        }],
+    );
+    let session = nb.review_session(&id(50)).unwrap();
+    assert_eq!(session.deck_id.as_deref(), Some(arabic.id.as_str()));
+    assert_eq!(committed.review_sessions, vec![session]);
+    let card = nb.source_cards(&id(2)).unwrap().remove(0);
+    apply(
+        &mut nb,
+        vec![
+            hold(&card, true),
+            Operation::StartReviewSession {
+                id: id(51),
+                deck_id: Some(arabic.id.clone()),
+                started_at: 1001,
+            },
+        ],
+    );
+    assert_eq!(
+        nb.review_session(&id(51)).unwrap().deck_id.as_deref(),
+        Some(arabic.id.as_str())
+    );
+    for invalid_id in [id(1), id(999)] {
+        assert!(matches!(
+            nb.apply(&batch(vec![Operation::StartReviewSession {
+                id: id(52),
+                deck_id: Some(invalid_id.clone()),
+                started_at: 1002,
+            }])),
+            Err(Error::NotFound { id, .. }) if id == invalid_id
+        ));
+    }
+    let change = edit(&nb, "Capital of 日本? >> 東京");
+    apply(&mut nb, vec![change]);
+    assert!(matches!(
+        nb.apply(&batch(vec![Operation::StartReviewSession {
+            id: id(52),
+            deck_id: Some(arabic.id),
+            started_at: 1002,
+        }])),
+        Err(Error::NotFound { .. })
+    ));
+}
+
+#[test]
+fn tag_deck_stats_share_saved_source_scope_and_survive_empty_membership() {
+    let (_dir, mut nb, _card) = fixture();
+    let change = edit(&nb, "Capital of 日本? >> 東京 #arabic");
+    apply(
+        &mut nb,
+        vec![
+            change,
+            Operation::Insert {
+                id: id(3),
+                parent_id: id(1),
+                after: Some(id(2)),
+                text: "Unrelated >> Card".into(),
+                heading: None,
+            },
+        ],
+    );
+    let arabic = nb.page_by_title("arabic").unwrap().unwrap();
+    apply(
+        &mut nb,
+        vec![save_deck(
+            70,
+            None,
+            "Filtered Arabic",
+            CardQuery {
+                source: Some(Query {
+                    r#type: Some(arabic.id.clone()),
+                    ..Query::default()
+                }),
+                selection: CardSelection::New,
+                limit: Some(0),
+            },
+        )],
+    );
+    let date = nb.today(tessera_core::now_ms()).unwrap();
+    let stats = nb.review_stats(Some(&arabic.id), &date).unwrap();
+    assert_eq!(
+        (stats.total_cards, stats.due_new, stats.due_review),
+        (1, 1, 0)
+    );
+    assert_eq!(
+        serde_json::to_value(&stats).unwrap(),
+        serde_json::to_value(nb.review_stats(Some(&id(70)), &date).unwrap()).unwrap()
+    );
+    let card = nb.source_cards(&id(2)).unwrap().remove(0);
+    apply(&mut nb, vec![hold(&card, true)]);
+    let stats = nb.review_stats(Some(&arabic.id), &date).unwrap();
+    assert_eq!(
+        (stats.total_cards, stats.due_new, stats.held_cards),
+        (0, 0, 1)
+    );
+    let change = edit(&nb, "Capital of 日本? >> 東京");
+    apply(&mut nb, vec![change]);
+    assert!(nb.tag_decks().unwrap().is_empty());
+    assert!(nb.page_by_title("arabic").unwrap().is_some());
+    let stats = nb.review_stats(Some(&arabic.id), &date).unwrap();
+    assert_eq!(
+        (
+            stats.total_cards,
+            stats.due_new,
+            stats.due_review,
+            stats.held_cards,
+            stats.reviews_this_week,
+            stats.streak,
+        ),
+        (0, 0, 0, 0, 0, 0)
+    );
+    assert!(stats.retention.is_none());
+    assert!(stats.forecast.iter().all(|day| day.count == 0));
+    assert_eq!(
+        serde_json::to_value(&stats).unwrap(),
+        serde_json::to_value(nb.review_stats(Some(&id(70)), &date).unwrap()).unwrap()
+    );
+    let empty_page = nb.review_stats(Some(&id(1)), &date).unwrap();
+    assert_eq!((empty_page.total_cards, empty_page.held_cards), (0, 0));
+    for invalid_id in [id(2), id(999)] {
+        assert!(matches!(
+            nb.review_stats(Some(&invalid_id), &date),
+            Err(Error::NotFound { id, .. }) if id == invalid_id
+        ));
+    }
+    let arabic = nb.block(&arabic.id).unwrap();
+    apply(
+        &mut nb,
+        vec![Operation::Delete {
+            id: arabic.id.clone(),
+            base_revision: arabic.revision,
+        }],
+    );
+    assert!(matches!(
+        nb.review_stats(Some(&arabic.id), &date),
+        Err(Error::NotFound { .. })
+    ));
+}
+
+#[test]
+fn saved_decks_stay_separate_from_tag_decks() {
+    let (_dir, mut nb, _card) = fixture();
+    let change = edit(&nb, "Capital of 日本? >> 東京 #arabic");
+    apply(&mut nb, vec![change]);
+    let tags = nb.tag_decks().unwrap();
+    assert_eq!(tags.len(), 1);
+    assert!(nb.decks().unwrap().is_empty());
+    apply(
+        &mut nb,
+        vec![
+            save_deck(70, None, "Arabic queue", tags[0].query.clone()),
+            Operation::StartReviewSession {
+                id: id(50),
+                deck_id: Some(id(70)),
+                started_at: 1000,
+            },
+        ],
+    );
+    assert_eq!(nb.tag_decks().unwrap(), tags);
+    assert_eq!(nb.decks().unwrap(), vec![nb.deck(&id(70)).unwrap()]);
+    assert_eq!(nb.review_session(&id(50)).unwrap().deck_id, Some(id(70)));
+    apply(
+        &mut nb,
+        vec![Operation::DeleteDeck {
+            id: id(70),
+            base_revision: 1,
+        }],
+    );
+    assert!(nb.decks().unwrap().is_empty());
+    assert_eq!(nb.tag_decks().unwrap(), tags);
+    assert!(matches!(
+        nb.apply(&batch(vec![Operation::StartReviewSession {
+            id: id(51),
+            deck_id: Some(id(70)),
+            started_at: 1001,
+        }])),
+        Err(Error::NotFound { .. })
+    ));
 }
