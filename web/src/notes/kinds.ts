@@ -6,19 +6,10 @@ import { paths, type IconName } from '../ui/glyphs';
 import type { OpenTarget } from '../shell/contract';
 import { typeQuery } from '../table/query';
 
-/** One glyph per kind, shared by the sidebar, the finding aid and the note header. */
+/** One glyph per kind, read from the registry; the web-only All kind and unknown glyphs fall back here. */
 export function noteKindIcon(kind: string | Pick<NoteKind, 'key' | 'icon'>): IconName {
-  if (typeof kind !== 'string' && kind.icon) return Object.hasOwn(paths, kind.icon) ? kind.icon as IconName : 'tag';
-  const key = typeof kind === 'string' ? kind : kind.key;
-  switch (key) {
-    case 'all': return 'contents';
-    case 'person': case 'group': case 'concept': case 'thesis': return key;
-    case 'question': return 'question-open';
-    case 'source': return 'library';
-    case 'project': return 'flag';
-    case 'unfiled': return 'page';
-    default: return 'tag';
-  }
+  if (typeof kind === 'string') return kind === 'all' ? 'contents' : 'tag';
+  return kind.icon && Object.hasOwn(paths, kind.icon) ? kind.icon as IconName : 'tag';
 }
 
 /** A kind whose only members are tagged non-page blocks; an empty built-in kind is not one. */

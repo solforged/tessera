@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import type { Block, Type } from '../api/types';
 import { missingFilter, requiredIds, requiredReason } from './required';
 
-const type = (text: string, plural: string | null = null): Type => ({ page: { id: 'T', text } as Block, fields: ['A'], members: 3, card_templates: 0, plural, icon: null, required: [{ field_id: 'A', missing: 2 }] });
+const type = (text: string, plural: string | null = null): Type => ({ page: { id: 'T', text } as Block, fields: ['A'], members: 3, card_templates: 0, plural, icon: null, required: [{ field_id: 'A', missing: 2 }], starting: [] });
 
 test('a required field gives its reason in the type’s plural and lists members without a value', () => {
   expect(requiredReason(type('book'), 'author')).toBe('Books require author.');

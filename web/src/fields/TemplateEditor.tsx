@@ -14,7 +14,7 @@ import { changeFieldKind, createTemplateField, renameField, setFieldTargets } fr
 import { fieldKinds, kindLabels, kindNoun } from './kinds';
 import { TypePresentation } from './TypePresentation';
 import { requiredIds, requiredReason } from './required';
-import { entryAnchor, startingTemplateFor } from './templates';
+import { entryAnchor } from './templates';
 import { linksToSummary } from './targets';
 import './fields.css';
 
@@ -54,7 +54,6 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
   const [changed, setChanged] = createSignal<{ label: string; change: DocumentChange } | null>(null);
   const template = () => props.type.fields.filter(id => byId().has(id));
   const required = createMemo(() => requiredIds(props.type));
-  const starting = createMemo(() => startingTemplateFor(props.type.page.text, props.type.fields));
   // The count is a guide, recounted when the template or membership changes; Fill recounts before it writes.
   const [gaps, { refetch }] = createResource(() => (props.register || open()) && `${props.type.page.id}:${props.type.fields.join(',')}:${props.type.members}`, () => templateGaps(props.notebook, props.type));
   const missing = createMemo(() => (gaps() ?? []).reduce((sum, gap) => sum + gap.fields.length, 0));
@@ -144,10 +143,10 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
       <span class="template-summary">{template().length ? template().map(id => byId().get(id)!.name).join(' · ') : 'No fields'}</span><Icon name="down" />
     </Button></Show>
     <Show when={props.register || open()}><div class="template-body" aria-busy={busy() || gaps.loading}>
-      <Show when={starting()}>{suggestion => <div class="template-actions">
-        <Button disabled={busy()} onClick={() => void run(() => props.notebook.api.startingTemplate(props.type.page.id))}>Start from the {suggestion().title} template</Button>
-        <span class="template-note">{suggestion().fields.join(' · ')}</span>
-      </div>}</Show>
+      <Show when={props.type.starting.length}><div class="template-actions">
+        <Button disabled={busy()} onClick={() => void run(() => props.notebook.api.startingTemplate(props.type.page.id))}>Start from the {props.type.page.text} template</Button>
+        <span class="template-note">{props.type.starting.join(' · ')}</span>
+      </div></Show>
       <Show when={template().length} fallback={<p class="template-note">Fields added here become this type’s table columns and wait as empty slots on its blocks.</p>}>
         <table class="template-field-table">
           <colgroup><col class="template-name-column" /><col class="template-kind-column" /><col class="template-usage-column" /><col class="template-actions-column" /></colgroup>

@@ -9,7 +9,7 @@ import { depthStops } from '../shell/contract';
 import type { Depth, OutlinePaneProps, ViewState } from '../shell/contract';
 import { fieldEntryId } from '../table/query';
 import { setLinkedCitation } from '../library/highlights';
-import { createTemplateCache, startingTemplateFor, typeKeys } from '../fields/templates';
+import { createTemplateCache, typeKeys } from '../fields/templates';
 import { TemplateEditor } from '../fields/TemplateEditor';
 import { citedSigla } from '../library/sigla';
 import { sourceReadingOrder } from '../library/source-order';
@@ -1665,7 +1665,7 @@ function Pane(props: OutlinePaneProps) {
       }} /><NoteLine pageId={props.pageId} notebook={props.notebook}><Show when={doc.status() === 'ready' && !doc.root()?.question}><NoteRevisit id={props.pageId} notebook={props.notebook} /></Show></NoteLine></Show>
       <Show when={isReadingSubject(doc) && !reading() && !zoom()}><div class="reading-register-actions"><span class="reading-counts">{readingCounts(register().slips)}</span><Show when={localPositions() > 1}><Button onClick={() => props.onProjection?.('compare')}>Compare</Button></Show><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add perspective</Button></div></Show>
       <RowRelations id={zoom() ?? props.pageId} />
-      <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || startingTemplateFor(value().page.text, value().fields)}>
+      <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || value().starting.length}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} onOpen={props.onOpen} />
       </Show>}</Show>
       <Show when={doc.root()?.source && !positionZoom()}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}

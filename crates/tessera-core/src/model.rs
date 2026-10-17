@@ -1093,6 +1093,9 @@ pub struct TypeInfo {
     /// Template fields the type's built-in schema requires, in template order.
     #[serde(default)]
     pub required: Vec<RequiredField>,
+    /// Field names the built-in starting template would add to an empty template; empty otherwise.
+    #[serde(default)]
+    pub starting: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

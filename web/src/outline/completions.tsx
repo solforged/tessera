@@ -26,6 +26,7 @@ import type { SlashEntry, SlashToken } from './slash';
 import { completeTypes, typeChoiceSpelling, typeTokenAt } from './type-completion';
 import type { OutlineContext } from './context';
 import { createPageIcon } from './source';
+import { noteKindIcon } from '../notes/kinds';
 import { emptyExtraValuePrevious } from './keyboard';
 import { addRelationReason, relationKinds, relationLabels, relationReason } from './relations';
 import { questionDescriptions, questionVerbs } from './question-verbs';
@@ -46,8 +47,8 @@ interface SlashItem extends SlashEntry {
   relationAction?: 'add' | 'change' | 'remove';
   run?(id: string): void;
 }
-type CompletionRow = { kind: 'block'; block: Block & Partial<Pick<NameCompletion, 'alias'>> } | { kind: 'field'; field: FieldDefinition };
-type CompletionMatches = { rows: (Block & Partial<Pick<NameCompletion, 'alias'>>)[]; canCreate: boolean };
+type CompletionRow = { kind: 'block'; block: Block & Partial<Pick<NameCompletion, 'alias'>> & { icon?: string | null } } | { kind: 'field'; field: FieldDefinition };
+type CompletionMatches = { rows: (Block & Partial<Pick<NameCompletion, 'alias'>> & { icon?: string | null })[]; canCreate: boolean };
 export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'contextDate' | 'editing' | 'textRange' | 'composition' | 'caret'
   | 'editor' | 'doc' | 'capabilities' | 'setCaret' | 'scheduleReport'
@@ -56,7 +57,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   | 'fieldConversion' | 'commandDefinitions' | 'openPlanning' | 'priorityMenu' | 'openProject'
   | 'investigationItems' | 'markRelation' | 'relationMenu' | 'apply' | 'zoomTo' | 'copy' | 'templateFor' | 'rowFocus' | 'openRelation' | 'openViewEmbed' | 'placeReason' | 'usePlace'
   | 'showNotice' | 'commitFieldEntry'
-  | 'chooseImage'
+  | 'chooseImage' | 'pickField'
 >, startFilling: (id: string) => void = () => {}, advanceFilling: (id: string, backward: boolean) => void = () => {}) {
   const {
     contextDate, editing, textRange, composition, caret, doc,
@@ -615,7 +616,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[]]', caret: 2 }) },
       { id: 'embed-view', title: 'Embed view', aliases: ['saved view', 'live table'], section: 'Text', icon: 'table', run: id => context.openViewEmbed(id) },
       { id: 'quote', title: 'Quote block', aliases: ['quote', 'frozen'], section: 'Text', icon: 'link', keys: '((', when: block => { const state = slashCompletion(); return !!state && !removeToken(block?.text ?? '', state).text.trim(); }, insert: () => ({ text: '(())', caret: 2 }) },
-      { id: 'type', title: 'Type', aliases: ['tag', 'supertag'], section: 'Text', icon: 'tag', keys: '#', insert: () => ({ text: '#', caret: 1 }) },
+      { id: 'tag', title: 'Tag', aliases: ['type', 'supertag', 'label'], section: 'Text', icon: 'tag', keys: '#', secondary: 'What this block is; a new name makes a new tag', insert: () => ({ text: '#', caret: 1 }) },
+      { id: 'field', title: 'Field…', aliases: ['property', 'attribute', 'value'], section: 'Text', icon: 'field', keys: '::', secondary: 'A named value on this block', run: id => context.pickField(id, context.rowAnchor(id) ?? document.body) },
       { id: 'card', title: 'Card', aliases: ['flashcard'], section: 'Cards', icon: 'right', keys: '>>', cardKind: 'forward' },
       { id: 'reverse-card', title: 'Reverse card', aliases: ['reverse', 'flashcard'], section: 'Cards', icon: 'left', keys: '<<', cardKind: 'reverse' },
       { id: 'reversible-card', title: 'Reversible card', aliases: ['both ways', 'flashcard'], section: 'Cards', icon: 'panes', keys: '<>', cardKind: 'both' },
@@ -653,7 +655,7 @@ function CompletionPopups(){ return <>
         <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={pickable(index())} class="picker-row" classList={{ selected: pickable(index()) }} onClick={() => void chooseCompletion(index())}>
           <Show when={row.kind === 'block' ? row.block : null}>{block => {
             const icon = createPageIcon(props.notebook, block);
-            return <><Icon name={icon()} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>;
+            return <><Icon name={block().icon ? noteKindIcon({ key: '', icon: block().icon! }) : icon()} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>;
           }}</Show>
           <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">{completion()?.fields ? kindLabels[field().kind] : 'Field'}</span></>}</Show>
         </div>}</For>

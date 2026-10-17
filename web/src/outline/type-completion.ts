@@ -1,6 +1,6 @@
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { completeNames } from './names';
+import { completeNames, foldName } from './names';
 import { cardMarks, parseCardText } from '../review/card-text';
 import { matchFieldEntry } from '../table/query';
 import { insideProtectedSyntax } from '../tasks/quick-date';
@@ -27,17 +27,32 @@ export function typeTokenAt(text: string, caret: number): TypeToken | null {
   // A caret moved back into `#philo` still searches, and a choice replaces, the whole word.
   let to = caret;
   while (to < text.length && !stops.test(text[to]!)) to++;
-  // Operators make the whole block a card; a cloze shields only its own span, including unfinished syntax.
-  if (cardMarks(text).some(mark => mark.kind === 'operator' || from >= mark.start && from < mark.end)) return null;
+  // A card block takes tags like any other; a cloze shields only its own span, including unfinished syntax.
+  if (cardMarks(text).some(mark => mark.kind === 'cloze' && from >= mark.start && from < mark.end)) return null;
   if (parseCardText(text).problems.some(problem => from >= problem.start && from < problem.end)) return null;
   return { from, to, query: text.slice(from + 1, to) };
 }
 
-/** Only pages used as types belong in a type picker; prose matches can never become tag spellings. */
-export async function completeTypes(notebook: NotebookClient, query: string): Promise<{ rows: (Block & { alias: string | null })[]; canCreate: boolean }> {
-  const pages = (await notebook.api.types()).map(type => type.page);
-  const result = await completeNames(notebook, query, pages);
-  return { rows: result.rows.map(({ page, alias }) => ({ ...page, alias })), canCreate: result.canCreate };
+/** A type picker row: a page used as a type, or a built-in tag whose page the first use will make. */
+export type TypeMatch = Block & { alias: string | null; icon: string | null };
+
+/**
+ * Pages used as types, then built-in tags that have no page yet; prose matches can never become tag spellings.
+ * Every row carries its registry icon; a built-in without a page has an empty id and is chosen by title alone.
+ */
+export async function completeTypes(notebook: NotebookClient, query: string): Promise<{ rows: TypeMatch[]; canCreate: boolean }> {
+  const [types, index] = await Promise.all([notebook.api.types(), notebook.api.noteIndex()]);
+  const icons = new Map(index.kinds.filter(kind => kind.type_id).map(kind => [kind.type_id!, kind.icon]));
+  const result = await completeNames(notebook, query, types.map(type => type.page));
+  const key = foldName(query);
+  const absent = index.kinds.filter(kind => kind.tag && !kind.type_id && (!key || foldName(kind.name).startsWith(key)) && !result.rows.some(({ page }) => foldName(page.text) === foldName(kind.name)));
+  return {
+    rows: [
+      ...result.rows.map(({ page, alias }) => ({ ...page, alias, icon: icons.get(page.id) ?? null })),
+      ...absent.map((kind): TypeMatch => ({ id: '', kind: 'page', parent_id: null, page_id: '', text: kind.name, heading: null, archived: false, revision: 0, created_at: 0, updated_at: 0, alias: null, icon: kind.icon })),
+    ],
+    canCreate: result.canCreate && !absent.some(kind => foldName(kind.name) === key),
+  };
 }
 
 /** Match the inline tag grammar; titles containing spaces or punctuation use the bracketed spelling. */

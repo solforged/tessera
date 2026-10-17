@@ -4,10 +4,9 @@ import { ulid } from 'ulid';
 import { ApiError, CHANGE_CONNECTING, CHANGE_OPEN, bindNotebook, createApi } from '../api/client';
 import type { Batch, Block, BlockCapabilities, ChangeEvent, Committed, Operation, PageView, SettingsView, TaskState, WorkSession } from '../api/types';
 import type { ApiClient, ChangeSocket } from '../api/client';
-import { startingTemplateFor } from '../fields/templates';
 import { resolveRelationPick } from '../fields/instances';
 import { captureOperations } from '../capture/append';
-import type { BlockClipboard, CaptureIntent, CaptureReceipt, Caret, DocumentChange, NotebookClient, PageDocument, SaveState, SourceDetailsEdit } from './contract';
+import type { BlockClipboard, CaptureIntent, CaptureReceipt, Caret, DerivedType, DocumentChange, NotebookClient, PageDocument, SaveState, SourceDetailsEdit } from './contract';
 import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
@@ -64,6 +63,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   changeSequence = this.observedSequence[0];
   private observedChange = createSignal<ChangeEvent | null>(null);
   lastChange = this.observedChange[0];
+  private derived = createSignal<readonly DerivedType[]>([]);
+  derivedTypes = this.derived[0];
   private failure = '';
   private persistenceFailure = '';
   private sending = false;
@@ -1441,11 +1442,13 @@ export class Notebook implements NotebookClient, DocumentHost {
             const pages = new Set(blocks.filter(block => block.id !== doc.pageId).map(block => block.page_id));
             for (const page of pages) await this.docs.get(page)?.reload(false);
           }
-          // Derived type pages alone appear as new roots in a text/Add type receipt.
-          // Ordinary page creation and references to existing empty type pages do not seed templates.
+          // Derived type pages alone appear as new roots in a text/Add type receipt. Ordinary page creation and
+          // references to existing empty type pages do not seed templates; the route is a no-op without a schema.
+          const derivedPages: DerivedType[] = [];
           for (const block of blocks) {
-            if (block.kind !== 'page' || revisions.get(block.id) !== 1 || !startingTemplateFor(block.text)
+            if (block.kind !== 'page' || revisions.get(block.id) !== 1
               || command.actions.some(action => action.kind === 'insert' && action.block.id === block.id)) continue;
+            derivedPages.push({ id: block.id, title: block.text, sequence: ack.seq });
             try {
               const template = await this.api.startingTemplate(block.id);
               if (template) this.receiveReceipt(template);
@@ -1454,6 +1457,7 @@ export class Notebook implements NotebookClient, DocumentHost {
               this.failure = error instanceof Error ? error.message : String(error);
             }
           }
+          if (derivedPages.length) this.derived[1](previous => [...previous.slice(-19), ...derivedPages]);
           this.closeUnused(doc);
         } catch (error) {
           this.activeCommand = undefined;

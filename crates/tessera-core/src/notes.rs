@@ -11,12 +11,12 @@ use crate::reads::hidden_blocks;
 use crate::storage::{not_found, validate_id, validation};
 use crate::{Notebook, Result};
 
-/// Built-in kinds read from type pages, by their Unicode-lowercase title: key, singular, plural.
-const TYPE_KINDS: [(&str, &str, &str); 4] = [
-    ("person", "Person", "People"),
-    ("group", "Group", "Groups"),
-    ("concept", "Concept", "Concepts"),
-    ("thesis", "Thesis", "Theses"),
+/// Built-in kinds read from type pages, by their Unicode-lowercase title: key, singular, plural, icon.
+const TYPE_KINDS: [(&str, &str, &str, &str); 4] = [
+    ("person", "Person", "People", "person"),
+    ("group", "Group", "Groups", "group"),
+    ("concept", "Concept", "Concepts", "concept"),
+    ("thesis", "Thesis", "Theses", "thesis"),
 ];
 
 const TYPE_ICONS: [(&str, &str); 3] = [
@@ -69,11 +69,18 @@ pub(crate) fn auto_plural(title: &str) -> String {
     }
     plural
 }
-/// Built-in kinds read from capabilities on the page, in index order after the type kinds.
-const CAPABILITY_KINDS: [(&str, &str, &str, &str); 3] = [
-    ("question", "Question", "Questions", "questions"),
-    ("source", "Source", "Sources", "sources"),
-    ("project", "Project", "Projects", "projects"),
+/// Built-in kinds read from capabilities on the page, in index order after the type kinds: key,
+/// singular, plural, table, icon.
+const CAPABILITY_KINDS: [(&str, &str, &str, &str, &str); 3] = [
+    (
+        "question",
+        "Question",
+        "Questions",
+        "questions",
+        "question-open",
+    ),
+    ("source", "Source", "Sources", "sources", "library"),
+    ("project", "Project", "Projects", "projects", "flag"),
 ];
 const UNFILED: &str = "unfiled";
 
@@ -112,6 +119,12 @@ pub struct IndexKind {
     /// Distinct titled notes, independent of tagged non-page blocks.
     pub count: usize,
     pub tagged_block_count: usize,
+    /// Live cards on members, which is the kind's tag deck.
+    pub cards: usize,
+    /// The type page's template, as field definition IDs; empty without a type page.
+    pub fields: Vec<String>,
+    /// Whether `#name` names this kind: built-in type kinds and types you made, not capabilities or Unfiled.
+    pub tag: bool,
     pub shelf: Shelf,
 }
 
@@ -233,26 +246,58 @@ impl Notebook {
             _ if 2 * projects[index] > count => Shelf::Work,
             _ => Shelf::Tags,
         };
+        // Cards on members, whatever their page, counted as the tag deck counts them.
+        let cards: HashMap<String, usize> = self
+            .conn
+            .prepare_cached(concat!(
+                hidden_blocks!(),
+                "SELECT m.type_id, COUNT(DISTINCT c.id)
+                 FROM card_units c JOIN blocks b ON b.id = c.source_block_id
+                 JOIN blocks p ON p.id = b.page_id
+                 JOIN memberships m ON m.block_id = b.id
+                 JOIN blocks t ON t.id = m.type_id
+                 WHERE c.active = 1 AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+                   AND b.rowid NOT IN (SELECT rowid FROM hidden)
+                   AND t.kind = 'page' AND t.deletion_id IS NULL
+                   AND t.rowid NOT IN (SELECT rowid FROM hidden)
+                 GROUP BY m.type_id"
+            ))?
+            .query_map([], |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as usize)))?
+            .collect::<rusqlite::Result<_>>()?;
+        let mut kinds = Vec::with_capacity(filing.kinds.len());
+        for (index, ((kind, count), tagged_block_count)) in filing
+            .kinds
+            .into_iter()
+            .zip(counts)
+            .zip(filing.tagged_block_counts)
+            .enumerate()
+        {
+            // Built-in kinds come first in `Filing::kinds` and stay listed while empty.
+            if index >= TYPE_KINDS.len() + CAPABILITY_KINDS.len()
+                && count == 0
+                && tagged_block_count == 0
+            {
+                continue;
+            }
+            let (cards, fields) = match &kind.type_id {
+                Some(id) => (
+                    cards.get(id).copied().unwrap_or(0),
+                    crate::query::template(&self.conn, id)?,
+                ),
+                None => (0, Vec::new()),
+            };
+            kinds.push(IndexKind {
+                shelf: shelf(index, &kind, count),
+                tag: index < TYPE_KINDS.len() || kind.key.starts_with("type:"),
+                kind,
+                count,
+                tagged_block_count,
+                cards,
+                fields,
+            });
+        }
         Ok(NoteIndex {
-            kinds: filing
-                .kinds
-                .into_iter()
-                .zip(counts)
-                .zip(filing.tagged_block_counts)
-                .enumerate()
-                // Built-in kinds come first in `Filing::kinds` and stay listed while empty.
-                .filter(|(index, ((_, count), tagged_block_count))| {
-                    *index < TYPE_KINDS.len() + CAPABILITY_KINDS.len()
-                        || *count > 0
-                        || *tagged_block_count > 0
-                })
-                .map(|(index, ((kind, count), tagged_block_count))| IndexKind {
-                    shelf: shelf(index, &kind, count),
-                    kind,
-                    count,
-                    tagged_block_count,
-                })
-                .collect(),
+            kinds,
             notes: listed,
             spreads: self.saved_spreads()?,
         })
@@ -447,17 +492,17 @@ impl Notebook {
 
         let mut kinds: Vec<NoteKind> = TYPE_KINDS
             .iter()
-            .map(|(key, name, plural)| (*key, *name, *plural))
+            .map(|(key, name, plural, icon)| (*key, *name, *plural, *icon))
             .chain(
                 CAPABILITY_KINDS
                     .iter()
-                    .map(|(key, name, plural, _)| (*key, *name, *plural)),
+                    .map(|(key, name, plural, _, icon)| (*key, *name, *plural, *icon)),
             )
-            .map(|(key, name, plural)| NoteKind {
+            .map(|(key, name, plural, icon)| NoteKind {
                 key: key.into(),
                 name: name.into(),
                 plural: plural.into(),
-                icon: None,
+                icon: Some(icon.into()),
                 type_id: None,
             })
             .collect();
@@ -489,7 +534,7 @@ impl Notebook {
             key: UNFILED.into(),
             name: "Unfiled".into(),
             plural: "Unfiled".into(),
-            icon: None,
+            icon: Some("page".into()),
             type_id: None,
         });
 
@@ -533,7 +578,9 @@ impl Notebook {
                 if let Some(plural) = plural {
                     kind.plural.clone_from(plural);
                 }
-                kind.icon.clone_from(icon);
+                if let Some(icon) = icon {
+                    kind.icon = Some(icon.clone());
+                }
             }
             if kind.icon.is_none() {
                 let title_key = kind.name.to_lowercase();
@@ -543,7 +590,7 @@ impl Notebook {
                     .map(|(_, icon)| (*icon).to_owned());
             }
         }
-        for (offset, (_, _, _, table)) in CAPABILITY_KINDS.iter().enumerate() {
+        for (offset, (_, _, _, table, _)) in CAPABILITY_KINDS.iter().enumerate() {
             let sql = format!("SELECT block_id FROM {table} WHERE active = 1");
             let ids = self
                 .conn

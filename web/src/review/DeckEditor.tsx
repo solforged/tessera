@@ -1,6 +1,6 @@
 import { Show, createEffect, createSignal, onCleanup } from 'solid-js';
 import { ulid } from 'ulid';
-import type { CardQuery, CardSelection, Deck, FieldDefinition } from '../api/types';
+import type { CardQuery, CardSelection, Deck, FieldDefinition, IndexKind } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { SourceQueryControls } from '../table/SourceQueryControls';
 import { Button } from '../ui/Button';
@@ -26,6 +26,7 @@ export function DeckEditor(props: DeckEditorProps) {
   const [name, setName] = createSignal(props.deck?.name ?? '');
   const [query, setQuery] = createSignal(copyCardQuery(props.deck?.query ?? props.query));
   const [fields, setFields] = createSignal<readonly FieldDefinition[]>([]);
+  const [types, setTypes] = createSignal<readonly IndexKind[]>([]);
   const [current, setCurrent] = createSignal<Deck | null>(props.deck);
   const [loading, setLoading] = createSignal(true);
   const [loadError, setLoadError] = createSignal('');
@@ -44,10 +45,10 @@ export function DeckEditor(props: DeckEditorProps) {
     props.notebook.changeSequence(); retry();
     let cancelled = false;
     setLoading(true);
-    void Promise.all([props.notebook.api.fields(), props.deck ? props.notebook.api.deck(id) : Promise.resolve(null)])
-      .then(([definitions, deck]) => {
+    void Promise.all([props.notebook.api.fields(), props.notebook.api.noteIndex(), props.deck ? props.notebook.api.deck(id) : Promise.resolve(null)])
+      .then(([definitions, index, deck]) => {
         if (cancelled) return;
-        setFields(definitions.fields); setCurrent(deck); setLoadError(''); setLoading(false);
+        setFields(definitions.fields); setTypes(index.kinds); setCurrent(deck); setLoadError(''); setLoading(false);
       }).catch(reason => {
         if (!cancelled) { setLoadError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); }
       });
@@ -90,7 +91,7 @@ export function DeckEditor(props: DeckEditorProps) {
   return <Popup anchor={props.anchor} label={props.deck ? 'Edit deck' : 'New deck'} class="deck-editor" onDismiss={() => { if (!pending()) props.onDismiss(); }}>
     <form onSubmit={event => { event.preventDefault(); void save(); }}>
       <label class="deck-editor-name">Name<input class="input" value={name()} maxLength={120} disabled={locked()} onInput={event => setName(event.currentTarget.value)} /></label>
-      <SourceQueryControls query={query().source} types={props.notebook.roots()} fields={fields()} notebook={props.notebook} disabled={locked() || loading()} onChange={source => setQuery(value => ({ ...value, source }))} />
+      <SourceQueryControls query={query().source} types={types()} fields={fields()} notebook={props.notebook} disabled={locked() || loading()} onChange={source => setQuery(value => ({ ...value, source }))} />
       <div class="deck-editor-queue"><span>Queue</span><Button class="bordered" disabled={locked()} aria-haspopup="menu" onClick={event => setSelectionAnchor(event.currentTarget)}>{selectionLabels[query().selection]}<Icon name="down" /></Button>
         <Show when={matching() !== null}><span class="deck-editor-match" role="status">{matching()} {matching() === 1 ? 'card matches' : 'cards match'}</span></Show>
       </div>

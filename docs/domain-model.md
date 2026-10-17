@@ -658,6 +658,8 @@ A note capability on the page holds the resolved timestamp, revisit date and whe
 
 The index lists kinds with note members or tagged non-page blocks, keeping their counts independent. Kinds with notes open a finding aid; tag-only types open their member table. Tagged blocks do not increase the distinct-note total or file their containing page under that kind. The finding aid is the unsaved note view for that kind, as a type table is for a type. It is derived from kinds and is never stored.
 
+The index is also the tag registry. Every kind carries its glyph, its type page's template as field IDs, the count of live cards on its members (its tag deck) and whether `#name` names it: built-in type kinds and types you make do, capabilities and Unfiled do not. Every surface that offers a kind reads it: the sidebar, the creation slip, `#` completion, the deck editor's type choice and the Commands list. `#` completion offers a built-in kind by name before its page exists; choosing it writes the tag, and the save makes the page and applies its starting template. A type's read names the starting template's fields while its template is empty, so no client keeps a copy of the schema.
+
 A note view queries notes with a layout and grouping. It selects by kind and supports the block query's type, text and field predicates, plus:
 
 | Constraint | Find-line example |

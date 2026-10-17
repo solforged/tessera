@@ -377,13 +377,15 @@ export interface FieldDetail {
 }
 /** A template field the type's built-in schema requires, with how many members have no nonblank value for it. */
 export interface RequiredField { field_id: string; missing: number }
-export interface Type { page: Block; fields: string[]; members: number; card_templates: number; plural: string | null; icon: string | null; required: RequiredField[] }
+/** `starting` names the built-in starting template's fields while the template is empty. */
+export interface Type { page: Block; fields: string[]; members: number; card_templates: number; plural: string | null; icon: string | null; required: RequiredField[]; starting: string[] }
 export interface View { id: string; name: string; query: Query; revision: number; created_at: number; updated_at: number }
 /** A kind notes are filed under: `person`, `group`, `concept`, `thesis`, `question`, `source`, `project`, `type:<id>` or `unfiled`. */
 export interface NoteKind { key: string; name: string; plural: string; icon: string | null; type_id: string | null }
 /** `shelf` is the sidebar group: built-in note kinds, sources (and types mostly of sources), work, other types, Unfiled. */
 export type Shelf = 'notes' | 'sources' | 'work' | 'tags' | 'loose';
-export interface IndexKind extends NoteKind { count: number; tagged_block_count: number; shelf: Shelf }
+/** The tag registry row: counts, the tag deck's card count, the template's field ids (empty without a type page) and whether `#name` names it. */
+export interface IndexKind extends NoteKind { count: number; tagged_block_count: number; cards: number; fields: string[]; tag: boolean; shelf: Shelf }
 export interface NoteIndex { kinds: IndexKind[]; notes: number; spreads: SeeTarget[] }
 export interface NoteEntry { id: string; title: string; sort_as: string | null; created_at: number }
 export interface SeeTarget { id: string; title: string }
