@@ -11,6 +11,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Added a macOS File › New submenu for pages, questions, tasks, cards, projects and sources.
 - Added Dock actions for Add to Today, New Page and New Question.
 - Added the Send to Tessera text Service and its selected-text event delivery to the floating capture panel; the web panel still needs to read that text into its line.
+- Added existing-source notices to manual and looked-up library records, with Open and Add another copy.
+- Added touch Paste and camera-photo Scan ISBN controls to Add to library where supported.
+- Added a reusable source-entry body with prefilled URL and identifier lookup.
 - Added creator Move up and Move down actions with ⌥↑ and ⌥↓ to correct bibliographic order without removing links.
 - Added page type management in Page actions and Commands, with undoable removal that keeps written fields.
 - Added a deleted-page recovery picker in Commands, backed by retained deletion events across reloads.
@@ -33,6 +36,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Aligned the Inbox `Author` head with its column, wrote `1 import failed` in the singular, and disabled Export while a tab lists nothing.
 - Offered Add a source only on empty tabs that would list a new source; an empty collection now explains how to fill it and links to All sources.
 - Folded the highlight filter count into `Show N highlights`, so the sheet's footer stays on one line, and hid Filters and the source pickers while there are no highlights.
+- Opened Add to library as a bottom sheet on the touch cover layout.
+- Focused Title when entering library details by hand.
 - Kept Undo of a pending cross-page move waiting for that move instead of undoing earlier text while it saved.
 - Applied an outline's Undo notice directly from ⌘Z, including after its pane became the only remaining pane.
 - Kept deep outline levels distinguishable with compressed indentation and mono nesting-depth cues.

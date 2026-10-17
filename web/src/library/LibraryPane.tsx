@@ -1343,7 +1343,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <div class="popup-actions"><Button disabled={saving()} onClick={dismiss}>Cancel</Button><Button icon="trash" class="bordered danger" disabled={saving()} onClick={() => { void deleteSources(state.sources); }}>{state.sources.length === 1 ? 'Delete source' : `Delete ${state.sources.length} sources`}</Button></div>
       </Popup>;
       if (EMBEDDED) return null;
-      return <AddSheet anchor={state.anchor} notebook={props.notebook} onDismiss={dismiss} onChooseFile={() => fileInput.click()} onFiles={files => { void upload(files); }} onJob={recordJob} onAdded={pageId => openSource({ kind: 'page', pageId }, false)} />;
+      return <AddSheet anchor={state.anchor} placement={coverLayout() ? 'sheet' : 'anchor'} notebook={props.notebook} onDismiss={dismiss} onChooseFile={() => fileInput.click()} onFiles={files => { void upload(files); }} onJob={recordJob} onAdded={pageId => openSource({ kind: 'page', pageId }, false)} />;
     }}</Show>
     <highlightActions.Popups />
   </div>;

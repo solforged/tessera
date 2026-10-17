@@ -122,7 +122,7 @@ A Library with no sources offers Add your first source and a direct Add a source
 
 ### Add to library
 
-Add opens Add to library anchored under its button: one field for a URL, ISBN, DOI or arXiv ID, then Choose file… at the leading edge and Enter details by hand at the trailing edge, each with its glyph. Enter submits; Looking up… shows while it works.
+Add opens Add to library anchored under its button on desktop and as a bottom sheet on the touch cover layout: one field for a URL, ISBN, DOI or arXiv ID, then Choose file… at the leading edge and Enter details by hand at the trailing edge, each with its glyph. Enter submits; Looking up… shows while it works. On coarse pointers, Paste appears beside the field when clipboard reading is available. Scan ISBN appears when BarcodeDetector is available, opens the camera photo picker, and looks up an ISBN EAN-13 barcode from the photo; a photo without one reports `No ISBN barcode found in that photo.`.
 
 An identifier lookup previews a catalog card before anything is written:
 
@@ -132,7 +132,11 @@ An identifier lookup previews a catalog card before anything is written:
 - `From Open Library`, `From Crossref` or `From arXiv` in `--faint`.
 - Cancel, Edit details and Add.
 
-Edit details opens the details form seeded from the lookup, keeping its cover. Enter details by hand opens it empty, in the same popup. Dropping an EPUB on the Library pane or the popup does the same as choosing a file.
+Edit details opens the details form seeded from the lookup, keeping its cover. Enter details by hand opens it empty and focuses Title. Dropping an EPUB on the Library pane or the Add form does the same as choosing a file.
+
+A manual or looked-up title already in the library shows `“{title}” is already in the library.` below the form, with Open to open that source and dismiss Add. Title matching ignores case and diacritics; when both records have creators, at least one creator must also match. The submit button becomes Add another copy, without preventing the addition.
+
+`AddSourceBody` exports the form without its Popup for embedding. Its optional `initialText` prefills the identifier field and starts the ordinary URL ingestion or identifier lookup when recognized; other text stays editable without submitting. Optional file and job hooks let Library keep its existing ingestion handling; an embedded body can choose and upload files itself.
 
 ### Import jobs
 

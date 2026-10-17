@@ -224,6 +224,11 @@
 .library-add .library-add-url { display: flex; flex-direction: column; gap: var(--space-4); margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .library-add .input { height: var(--row-height); min-height: var(--row-height); padding-block: 0; color: var(--text); font-size: var(--text-control); line-height: var(--line-control); }
 .library-add-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); margin-inline: calc(-1 * var(--space-8)); }
+.library-add-query { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--space-8); }
+.library-add-query .library-add-url { flex: 1; min-width: calc(var(--space-48) * 3); }
+.library-add-touch { display: flex; flex-wrap: wrap; gap: var(--space-4); }
+.library-add-duplicate { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); margin-top: var(--space-12); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.library-add-duplicate .button { flex-shrink: 0; }
 .library-add .library-error, .library-add .library-message { margin: 0; }
 /* A lookup result: the cover beside a title in the reading face, creators, then the imprint and identifiers as apparatus. */
 .library-preview { display: flex; align-items: flex-start; gap: var(--space-12); margin-top: var(--space-12); padding-top: var(--space-12); border-top: var(--rule-width) solid var(--line); }

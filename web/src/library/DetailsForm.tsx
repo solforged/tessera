@@ -1,4 +1,4 @@
-import { For, Index, Show, createMemo, createResource, createSignal } from 'solid-js';
+import { For, Index, Show, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { Block, ExtractedCreator, ExtractedMetadata } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -12,11 +12,16 @@ const detailFields = [['published', 'Published', 'YYYY, YYYY-MM or YYYY-MM-DD'],
 
 /** A catalogue card: one labelled row per detail, creators as name and role pairs. A creator whose name resembles an
  * existing page offers that page, so a variant spelling links to the person already in the notebook. */
-export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: NotebookClient; collections?: JSX.Element; submitLabel: 'Add' | 'Save'; onSave(metadata: ExtractedMetadata): Promise<void>; onCancel(): void }) {
+export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: NotebookClient; collections?: JSX.Element; submitLabel: string; autofocus?: boolean; onChange?(metadata: ExtractedMetadata): void; onSave(metadata: ExtractedMetadata): Promise<void>; onCancel(): void }) {
   const [value, setValue] = createSignal<ExtractedMetadata>(structuredClone(props.metadata));
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const [creators, setCreators] = createSignal<ExtractedCreator[]>(props.metadata.creators.map(creator => ({ ...creator })));
+  let form!: HTMLFormElement;
+  createEffect(() => props.onChange?.({ ...value(), creators: creators() }));
+  onMount(() => {
+    if (props.autofocus) queueMicrotask(() => form.isConnected && form.querySelector<HTMLInputElement>('[aria-label="Title"]')?.focus());
+  });
   let composing = false;
   const patch = (key: keyof ExtractedMetadata, text: string) => setValue(previous => ({ ...previous, [key]: text || null }));
   const patchCreator = (index: number, change: Partial<ExtractedCreator>) => setCreators(previous => previous.map((row, at) => at === index ? { ...row, ...change } : row));
@@ -48,7 +53,7 @@ export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: Note
     catch (error) { setError(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
   }
-  return <form class="library-details" onCompositionStart={() => { composing = true; }} onCompositionEnd={() => { composing = false; }} onKeyDown={event => {
+  return <form ref={form} class="library-details" onCompositionStart={() => { composing = true; }} onCompositionEnd={() => { composing = false; }} onKeyDown={event => {
     if (event.key === 'Enter' && (composing || event.isComposing || event.keyCode === 229)) event.preventDefault();
   }} onSubmit={event => { event.preventDefault(); if (!composing) void submit(); }}>
     <For each={textFields}>{([key, label]) => <label class="library-details-row"><span>{label}</span><input class="input" aria-label={label} required={key === 'title'} value={value()[key] ?? ''} disabled={busy()} onInput={event => patch(key, event.currentTarget.value)} /></label>}</For>
