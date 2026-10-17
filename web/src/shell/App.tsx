@@ -46,7 +46,8 @@ import { CreateSlip, type CreateNotice } from '../create/CreateSlip';
 import { creatableKinds, kindNoun } from '../create/kinds';
 import { installLinkDrop } from '../create/link-drop';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
-import { NotebookMarker, NotebookOpening, knownNotebooks, registerNotebookCommands } from '../settings/notebooks';
+import { NotebookOpening, knownNotebooks, registerNotebookCommands } from '../settings/notebooks';
+import { NotebookSwitcher } from '../settings/NotebookSwitcher';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 import { DEMO } from '../demo/mode';
 import { AgentDock } from '../agent/AgentDock';
@@ -1059,7 +1060,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Pages you open appear here</p>}><PageLinks roots={recentRoots()} sourceIcons notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
       </details>
       <div class="sidebar-foot">
-        <Button icon="settings" class={entry(active())?.target.kind === 'settings' ? 'selected' : ''} onClick={event => open({ kind: 'settings' }, opensBeside(event))}><span class="settings-label">Settings</span><NotebookMarker /></Button>
+        <NotebookSwitcher notebook={notebook} onOpen={target => open(target)} onError={reportError} />
+        <Button icon="settings" label="Settings" class={`icon-only ${entry(active())?.target.kind === 'settings' ? 'selected' : ''}`} onClick={event => open({ kind: 'settings' }, opensBeside(event))} />
         <Button icon="field" label="Fields" class={`icon-only ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`} onClick={event => open({ kind: 'fields' }, opensBeside(event))} />
       </div>
     </aside>

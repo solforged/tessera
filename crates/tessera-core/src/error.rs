@@ -11,6 +11,9 @@ pub enum Error {
         "notebook schema version {found} is newer than this build supports ({supported}); upgrade Tessera"
     )]
     SchemaTooNew { found: u32, supported: u32 },
+    /// SQLite's `quick_check` found the file damaged; nothing was copied.
+    #[error("database {path} fails SQLite's quick_check: {problems}")]
+    Corrupt { path: PathBuf, problems: String },
     /// An operation was based on a revision that is no longer current. The
     /// whole batch wrote nothing. `found` is `None` when the block is gone.
     #[error(

@@ -473,3 +473,34 @@ fn question_parent_state_replicates_and_changes_without_rewriting_text() {
         replicated_state(second.path())
     );
 }
+
+#[test]
+fn every_replicated_table_is_strict() {
+    let dir = tempfile::tempdir().unwrap();
+    drop(Notebook::open(dir.path()).unwrap());
+    let conn = Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    // PRAGMA table_list: schema, name, type, ncol, wr, strict.
+    let tables: std::collections::HashMap<String, (String, bool)> = conn
+        .prepare("PRAGMA table_list")
+        .unwrap()
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(1)?,
+                (row.get::<_, String>(2)?, row.get::<_, bool>(5)?),
+            ))
+        })
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    for (name, _) in TABLES {
+        // Only the browser build keeps source objects in the database.
+        if *name == "browser_objects" {
+            continue;
+        }
+        let (kind, strict) = &tables[*name];
+        if kind == "virtual" {
+            continue;
+        }
+        assert!(strict, "table {name} is not STRICT");
+    }
+}

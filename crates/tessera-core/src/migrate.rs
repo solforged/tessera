@@ -58,6 +58,7 @@ const MIGRATIONS: &[&str] = &[
     UNICODE_TITLE_KEYS,
     include_str!("../migrations/048_images.sql"),
     include_str!("../migrations/049_occlusions.sql"),
+    include_str!("../migrations/050_strict_tables.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -350,6 +351,178 @@ mod tests {
             new_card(2 * day)
         );
         assert_eq!(evidence(&conn), before);
+    }
+
+    #[test]
+    fn strict_rebuild_keeps_library_rows_rowids_search_and_the_editor_cursor() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.pragma_update(None, "foreign_keys", true).unwrap();
+        conn.create_scalar_function(
+            "tessera_title_key",
+            1,
+            rusqlite::functions::FunctionFlags::SQLITE_UTF8,
+            |context| Ok(crate::storage::title_key(context.get_raw(0).as_str()?)),
+        )
+        .unwrap();
+        for migration in &MIGRATIONS[..49] {
+            conn.execute_batch(migration).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 49).unwrap();
+        let id = |n: u128| ulid::Ulid::from(n).to_string();
+        conn.execute(
+            "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
+             VALUES (?1, 'page', ?1, 1024, 'Book', 'book', 1, 0, 0)",
+            [id(1)],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO changes(seq, actor, created_at, operations_hash, operations, committed)
+             VALUES (1, 'person', 0, '', '[]', '{}')",
+            [],
+        )
+        .unwrap();
+        conn.execute_batch(&format!(
+            "INSERT INTO snapshots VALUES ('{snap}', 'abc', 'epub', 'application/epub+zip', '{{}}', '[]', 2, 20, 5);
+             INSERT INTO passages(rowid, id, snapshot_id, ordinal, kind, level, text, locator, anchor, resource, marks, start)
+                 VALUES (7, '{p1}', '{snap}', 0, 'paragraph', NULL, 'First evidence', 'c#1', NULL, NULL, '[]', 0),
+                        (9, '{p2}', '{snap}', 1, 'paragraph', 2, 'Second evidence', 'c#2', NULL, NULL, '[]', 15);
+             INSERT INTO snapshot_resources VALUES ('{snap}', 'cover.jpg', 'def', 'image/jpeg');
+             INSERT INTO sources VALUES ('{page}', 1, 'epub', 'reading', NULL, 'book', 'Book2026', 1, 2, NULL);
+             INSERT INTO source_snapshots VALUES ('{page}', '{snap}', 3, 1);
+             INSERT INTO reading_positions(snapshot_id, passage_ordinal, updated_at, hlc, device, sync_seq)
+                 VALUES ('{snap}', 1, 4, 10, 'dev', 2);
+             INSERT INTO citations(id, block_id, active, snapshot_id, start_passage, start_offset, end_passage, end_offset, created_seq, triage, color, resurface_muted_at)
+                 VALUES ('{cite}', '{page}', 1, '{snap}', '{p1}', 0, '{p2}', 6, 1, 'processed', 'green', NULL);
+             INSERT INTO highlight_surfacings(citation_id, date, shown_at, action, acted_at, hlc, device, sync_seq)
+                 VALUES ('{cite}', '2026-10-16', 5, 'kept', 6, 11, 'dev', 3);
+             INSERT INTO ingest_jobs VALUES ('{job}', 'url', 'https://example.org', 'example', NULL, 'done', 1, NULL, NULL, '{page}', '{snap}', 7, 8);
+             INSERT INTO editor_events(seq, change_id, actor, reason, created_at, committed, restructured_pages, views)
+                 VALUES (1, NULL, 'person', NULL, 0, '{{}}', '[]', '[]'), (2, NULL, 'person', NULL, 0, '{{}}', '[]', '[]');
+             DELETE FROM editor_events WHERE seq = 2;
+             INSERT INTO card_templates VALUES ('{tpl}', '{page}', 'Author', 'Who wrote {{{{title}}}}?', '{{{{author}}}}', 0, 1, 20, 1, 0, 0);
+             INSERT INTO type_presentation VALUES ('{page}', 'Books', 'book');
+             INSERT INTO field_targets VALUES ('{page}', '{page}', 3);",
+            snap = id(10), p1 = id(11), p2 = id(12), page = id(1), cite = id(13), job = id(14), tpl = id(17),
+        ))
+        .unwrap();
+        let rows = |conn: &Connection, sql: &str| -> Vec<Vec<String>> {
+            let mut statement = conn.prepare(sql).unwrap();
+            let width = statement.column_count();
+            statement
+                .query_map([], |row| {
+                    (0..width)
+                        .map(|index| {
+                            Ok(format!(
+                                "{:?}",
+                                row.get::<_, rusqlite::types::Value>(index)?
+                            ))
+                        })
+                        .collect()
+                })
+                .unwrap()
+                .collect::<rusqlite::Result<_>>()
+                .unwrap()
+        };
+        const TABLES: &[&str] = &[
+            "snapshots",
+            "passages",
+            "snapshot_resources",
+            "sources",
+            "source_snapshots",
+            "reading_positions",
+            "citations",
+            "ingest_jobs",
+            "highlight_surfacings",
+            "editor_events",
+            "card_templates",
+            "type_presentation",
+            "field_targets",
+        ];
+        let before: Vec<_> = TABLES
+            .iter()
+            .map(|table| {
+                rows(
+                    &conn,
+                    &format!("SELECT rowid, * FROM {table} ORDER BY rowid"),
+                )
+            })
+            .collect();
+
+        migrate(&mut conn).unwrap();
+
+        let after: Vec<_> = TABLES
+            .iter()
+            .map(|table| {
+                rows(
+                    &conn,
+                    &format!("SELECT rowid, * FROM {table} ORDER BY rowid"),
+                )
+            })
+            .collect();
+        assert_eq!(after, before);
+        for table in TABLES {
+            let strict: bool = conn
+                .query_row(
+                    "SELECT strict FROM pragma_table_list WHERE name = ?1",
+                    [table],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            assert!(strict, "{table} is not STRICT");
+        }
+        assert!(
+            conn.prepare("PRAGMA foreign_key_check")
+                .unwrap()
+                .query([])
+                .unwrap()
+                .next()
+                .unwrap()
+                .is_none()
+        );
+        // The full-text index still reaches the passage rows by rowid.
+        assert_eq!(
+            rows(
+                &conn,
+                "SELECT p.id FROM passages_fts f JOIN passages p ON p.rowid = f.rowid WHERE passages_fts MATCH 'second'"
+            ),
+            vec![vec![format!("Text({:?})", id(12))]]
+        );
+        conn.execute(
+            "INSERT INTO passages(id, snapshot_id, ordinal, kind, text, locator, marks, start)
+             VALUES (?1, ?2, 2, 'paragraph', 'Third evidence', 'c#3', '[]', 30)",
+            [id(15), id(10)],
+        )
+        .unwrap();
+        assert_eq!(
+            conn.query_row(
+                "SELECT COUNT(*) FROM passages_fts WHERE passages_fts MATCH 'third'",
+                [],
+                |row| row.get::<_, i64>(0)
+            )
+            .unwrap(),
+            1
+        );
+        // The editor cursor journal keeps counting from where it was.
+        conn.execute(
+            "INSERT INTO editor_events(change_id, actor, reason, created_at, committed, restructured_pages, views)
+             VALUES (NULL, 'person', NULL, 0, '{}', '[]', '[]')",
+            [],
+        )
+        .unwrap();
+        assert_eq!(
+            conn.query_row("SELECT MAX(seq) FROM editor_events", [], |row| row
+                .get::<_, i64>(0))
+                .unwrap(),
+            3
+        );
+        // Strict typing now holds.
+        assert!(
+            conn.execute(
+                "INSERT INTO ingest_jobs VALUES (?1, 'url', 'x', 'x', NULL, 'queued', 'many', NULL, NULL, NULL, NULL, 0, 0)",
+                [id(16)],
+            )
+            .is_err()
+        );
     }
 
     #[test]

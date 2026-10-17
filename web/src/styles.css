@@ -153,8 +153,6 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .primary-navigation .button > .icon { color: var(--muted); }
 .sidebar .button > .desk-count { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .sidebar .button > .desk-count.late { color: var(--danger); }
-/* A notebook other than the default is named at the foot in the warning colour; long names shorten. */
-.sidebar .button > .notebook-marker { flex: 1; overflow: hidden; text-overflow: ellipsis; color: var(--warning); }
 /* A built-in kind with nothing filed but a saved view keeps its row, named faintly and without a count. */
 .sidebar .index-kind.empty:not(.selected), .sidebar .index-kind.empty:not(.selected) > .icon { color: var(--faint); }
 .sidebar .index-kind.empty:not(.selected):hover { color: var(--muted); }
@@ -173,11 +171,18 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .page-list > summary .icon { width: var(--icon-size-small); height: var(--icon-size-small); transition: transform var(--motion-fast) var(--motion-ease); }
 .page-list:not([open]) > summary .icon { transform: rotate(-90deg); }
 .sidebar-empty { margin: 0 0 0 var(--space-32); font-size: var(--text-meta); line-height: var(--line-meta); color: var(--muted); }
-/* Notebook settings sit at the foot, apart from the places you work in. */
+/* The foot names the open notebook and how it reaches other devices, apart from the places you work in. */
 .sidebar-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: auto; padding-top: var(--space-8); border-top: var(--rule-width) solid var(--line); }
 .sidebar-foot > .button:first-child { flex: 1; width: auto; min-width: 0; }
-.sidebar-foot .button > .settings-label { flex: none; }
 .sidebar-foot > .button.icon-only { flex: none; border-left: 0; }
+/* Two lines: the name, then the sync relationship in faint mono. A notebook other than the default is named in the
+   warning colour, so a test notebook is never taken for the usual one; long names shorten. */
+.sidebar-foot > .notebook-switcher { padding-block: var(--space-2); }
+.notebook-switcher-text { display: flex; flex-direction: column; }
+.notebook-switcher-text > span { overflow: hidden; text-overflow: ellipsis; }
+.notebook-switcher-name { color: var(--text); }
+.notebook-switcher-name.notebook-switcher-other { color: var(--warning); }
+.notebook-switcher-sync { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 /* The pin floats over the row's end, so a selected view spans the full row like pages do. */
 .sidebar-view { position: relative; display: flex; align-items: center; }
 .sidebar-view > .view-link { flex: 1; min-width: 0; }
@@ -507,8 +512,8 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .sidebar-masthead-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .sidebar-masthead-count { flex: none; }
   .sidebar-masthead-other { color: var(--warning); }
-  /* The masthead names the notebook, so the foot does not repeat it. */
-  .sidebar-foot .notebook-marker { display: none; }
+  /* The masthead names the notebook, so the foot keeps only the sync relationship. */
+  .notebook-switcher-name { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mode-tabs > .tab-rule, .sidebar .button::before { transition: none; }

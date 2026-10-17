@@ -8,6 +8,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Added a notebook switcher in place of the sidebar's Settings row: the open notebook's name over its sync relationship, with a menu that switches notebooks, pairs a phone or syncs. Settings became an icon beside Fields.
 - Added parent, revisit, recurrent and first-perspective fields to question creation.
 - Added project outcomes and deadlines to the creation slip without repeating the outcome in the body.
 - Added editable template fields to typed-page creation and preserved filled values when filing existing pages.
@@ -38,15 +39,20 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Image blocks: paste, drop or insert a PNG, JPEG, WebP or GIF as its own block, with the block's text as its caption. Images open full screen, sync between devices, and show in multi-line and list card answers.
 - Image occlusion cards: draw rectangle and ellipse masks over an image block, group them into cards with a hint, answer and crop, and review them in Hide one or Hide all mode with the uncovered areas ringed on reveal.
 - Redesigned the card composer as a slip under its trigger: the front in the display voice over the answer, growing fields, live syntax errors, ⌘↵ to create and ⇧⌘↵ to create another.
+- `tessera check` verifies the database file, foreign keys, search indexes, derived tables and model invariants, prints a hash per replicated table, and rebuilds the derived tables with `--repair`; the running service answers it at `GET /api/check`. Backup and restore now refuse a database that fails `quick_check`, and every table is STRICT.
 
 ### Changed
 
+- Hid phone Library checkboxes until Select, so covers show whole; in Select a tap toggles a source instead of opening it.
+- Flowed a grouped Library shelf as one grid with each group's name on its first cover, so a one-book year no longer takes a whole row.
+- Moved Library tabs and saved views that do not fit a narrow pane into a More menu instead of clipping the scrolling strip.
 - Renamed the macOS File › New Capture action to Add to Today, keeping ⌘E.
 - Raised the macOS capture panel's maximum height from 340 to 560 px for kind fields.
 - Opened pages created in the macOS capture panel in the main window without returning focus to the previous app.
 
 ### Fixed
 
+- Showed the sharing switch and Pair a phone under Settings › Devices on a Mac with no paired device, instead of `Sync is off` with no way to start.
 - Centered an empty Library on wide panes instead of leaving the Browse rail's offset beside nothing, and kept Highlights at the page measure until the notebook has a highlight to process.
 - Aligned the Inbox `Author` head with its column, wrote `1 import failed` in the singular, and disabled Export while a tab lists nothing.
 - Offered Add a source only on empty tabs that would list a new source; an empty collection now explains how to fill it and links to All sources.

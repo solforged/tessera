@@ -4,12 +4,16 @@
 .library-toolbar { display: flex; flex: none; flex-direction: column; gap: var(--page-title-gap); padding: var(--page-top-space) var(--pane-inset) var(--page-head-gap); overflow: hidden; scrollbar-gutter: stable; }
 .library-toolbar > *, .library-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .library-tabs, .library-controls, .library-filter { display: flex; align-items: center; gap: var(--space-4); }
-.library-toolbar > .library-tabs { overflow-x: auto; scrollbar-width: none; }
+/* Tabs that do not fit leave the strip for More, so it never scrolls; measuring lays them all out for one forced layout. */
+.library-toolbar > .library-tabs { overflow: hidden; }
 .library-tabs > .button { white-space: nowrap; }
+.library-tabs > .library-tab-overflow { display: none; }
+.library-tabs-measuring > .library-tab-overflow { display: inline-flex; }
+.library-tabs-measuring > .library-tabs-more.button { flex: none; }
 .library-toolbar > .library-primary-tabs { overflow: visible; }
 .library-primary-tabs > [data-library-tab] { flex: none; }
-.library-tabs-more.button { flex: 1; min-width: 0; justify-content: flex-end; }
-.library-tabs-more > span { overflow: hidden; text-overflow: ellipsis; }
+.library-tabs-more.button { flex: 0 1 auto; min-width: 0; margin-left: auto; }
+.library-tabs-more > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .library-cover-header { display: none; }
 .library-cover-heading { flex: 1; min-width: 0; }
 .library-register { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
@@ -295,8 +299,12 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
 .library-book-apparatus .library-siglum { width: auto; }
 .library-book-highlights { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); }
 /* Select and actions sit on the cover's top corners and appear like the list's checkbox. */
-.library-book .library-checkbox.button { inset: var(--space-4) auto auto var(--space-4); width: var(--target-size); height: var(--target-size); min-height: var(--target-size); padding: 0; background: var(--surface); }
-.library-book-more.button { position: absolute; top: var(--space-4); right: var(--space-4); background: var(--surface); opacity: 0; }
+.library-book .library-checkbox.button { inset: calc(var(--shelf-label, 0px) + var(--space-4)) auto auto var(--space-4); width: var(--target-size); height: var(--target-size); min-height: var(--target-size); padding: 0; background: var(--surface); }
+.library-book-more.button { position: absolute; top: calc(var(--shelf-label, 0px) + var(--space-4)); right: var(--space-4); background: var(--surface); opacity: 0; }
+/* A grouped shelf flows as one grid, so a one-book year takes a cover's width rather than a row. Each group's first cover carries its name on the shelf's hairline. */
+.library-shelf-grouped { --shelf-label: calc(var(--space-32) + var(--space-8)); }
+.library-book-group { display: flex; align-items: flex-end; height: calc(var(--shelf-label) - var(--space-8)); margin-bottom: var(--space-8); border-bottom: var(--rule-width) solid var(--line); }
+.library-book-group > .library-group-label { max-width: 100%; }
 .library-book:hover .library-book-more, .library-book:focus-within .library-book-more, .library-book-more[aria-expanded="true"] { opacity: 1; }
 @media (pointer: coarse) {
   .library-book-more.button { opacity: 1; border-radius: var(--radius-pill); width: var(--target-size); height: var(--target-size); padding: 0; }
@@ -443,9 +451,9 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
   .library-pane:has(.library-selection-count) .library-controls,
   .library-pane:has(.library-collection-heading) .library-controls { display: flex; }
 }
-/* On the cover screen a Reading now card keeps its cover clear: the checkbox shows once something is selected, and Select in the card's menu starts there. */
+/* The phone shows covers whole; Select reveals the checkboxes, and a tap anywhere on a source then toggles it. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .library-pane:not(:has(.library-row-selected)) .library-reading-item > .library-checkbox.button { display: none; }
+  .library-pane:not(.library-select-mode) .library-checkbox.button { display: none; }
 }
 /* Selection opens a catalogue card without narrowing the ledger's reading face. */
 .library-catalogue { display: flex; flex: 1; min-width: 0; min-height: 0; }

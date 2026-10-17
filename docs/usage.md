@@ -167,6 +167,8 @@ Backup can run while the service runs, but its destination must be empty. It con
 
 Restore preserves notebook identity and checks migrations. Stop the destination service first. A non-empty destination requires `--force`; that flag never bypasses a live service lock.
 
+Both refuse a database that fails SQLite's `quick_check`. `tessera check` runs that check along with the foreign keys, the derived tables and the model's rules, and prints the report as JSON; `tessera check --repair` rebuilds the derived tables. It works through the running service when one owns the notebook.
+
 ## Syncing a replica
 
 A running service is the hub. Use these commands with a replica:

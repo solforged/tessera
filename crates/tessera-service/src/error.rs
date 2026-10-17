@@ -90,6 +90,10 @@ impl From<tessera_core::Error> for ApiError {
                 message,
                 details: op_index.map(|index| serde_json::json!({ "op_index": index })),
             },
+            // A damaged file is the one failure whose detail the caller needs.
+            tessera_core::Error::Corrupt { .. } => {
+                Self::new(StatusCode::INTERNAL_SERVER_ERROR, "corrupt", message)
+            }
             other => Self::internal(other),
         }
     }

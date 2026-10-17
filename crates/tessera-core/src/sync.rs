@@ -378,6 +378,20 @@ pub(crate) fn begin<'conn>(
     }))
 }
 
+/// Start recording a repair of the derived tables. A hub's replicas pull it
+/// like any change; a replica's repair stays local, since it is not a change
+/// the hub could apply, and a notebook without replicas records nothing.
+pub(crate) fn begin_repair(conn: &Connection) -> Result<Option<Recording<'_>>> {
+    Ok(match role(conn)? {
+        Some(Role::Hub) => Some(Recording {
+            role: Role::Hub,
+            session: recorder(conn)?,
+            bases: BTreeMap::new(),
+        }),
+        Some(Role::Replica) | None => None,
+    })
+}
+
 /// Store the commit's patch: in the hub's patch log, or in a replica's outbox.
 pub(crate) fn finish(
     conn: &Connection,

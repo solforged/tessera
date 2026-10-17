@@ -1,7 +1,7 @@
 import { createRoot, createSignal } from 'solid-js';
 import { api } from '../api/client';
 import type { SyncConflicts, SyncDevices, SyncState } from '../api/types';
-import { DEMO } from '../demo/mode';
+import { DEMO, EMBEDDED } from '../demo/mode';
 
 /** How often an open replica asks for its sync state; the runner itself syncs on its own schedule. */
 const POLL_MS = 5000;
@@ -47,7 +47,7 @@ export const sync = createRoot(() => {
     inflight ??= api.syncState().then(value => {
       setState(value);
       setNow(Date.now());
-      if (value.role === 'hub') void hubDevices.refresh();
+      if (value.role !== 'replica') void hubDevices.refresh();
       if (value.role !== 'none') void syncConflicts.refresh();
       const wasOpening = opening;
       opening = false;
@@ -62,12 +62,15 @@ export const sync = createRoot(() => {
   });
   return { state, now, refresh, set: (value: SyncState) => {
     setState(value); setNow(Date.now()); schedule();
-    if (value.role === 'hub') void hubDevices.refresh();
+    if (value.role !== 'replica') void hubDevices.refresh();
     if (value.role !== 'none') void syncConflicts.refresh();
   }, tick: () => setNow(Date.now()) };
 });
 
-/** Hub records are shared rather than fetched again by every indicator and device row. */
+/**
+ * Hub records are shared rather than fetched again by every indicator and device row. A Mac with no paired device
+ * reports role `none`, and still needs them: they hold the sharing switch that pairs its first phone.
+ */
 export const hubDevices = createRoot(() => {
   const [state, setState] = createSignal<SyncDevices | null>(null);
   let timer = 0;
@@ -79,7 +82,7 @@ export const hubDevices = createRoot(() => {
     }
   };
   const refresh = (): Promise<SyncDevices | null> => {
-    if (DEMO || sync.state()?.role !== 'hub') return Promise.resolve(null);
+    if (EMBEDDED || !sync.state() || sync.state()!.role === 'replica') return Promise.resolve(null);
     inflight ??= api.syncDevices().then(value => { setState(value); sync.tick(); void syncConflicts.refresh(); return value; }, () => state())
       .finally(() => { inflight = null; schedule(); });
     return inflight;

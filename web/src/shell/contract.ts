@@ -88,7 +88,7 @@ export type OpenTarget =
   | { kind: 'fields'; typeId?: string }
   | { kind: 'field'; fieldId: string; previewKind?: FieldKind; section?: 'options' | 'targets' }
   | { kind: 'cards'; typeId: string; applyId?: string }
-  | { kind: 'settings'; section?: 'devices' | 'agent'; deviceId?: string | null }
+  | { kind: 'settings'; section?: 'notebooks' | 'devices' | 'agent'; deviceId?: string | null }
   | { kind: 'library'; tab?: LibraryTab; add?: boolean; details?: readonly string[] }
   /** Read a source. `at` is a passage ID to scroll to; `citationId` flashes that citation's range and does not count as reading. */
   | { kind: 'reader'; sourceId: string; snapshotId?: string; at?: string; citationId?: string }

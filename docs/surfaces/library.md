@@ -17,7 +17,7 @@ Tabs, Browse values, sorting and search answer at once in the toolbar, while the
 | Context | Header behavior |
 | --- | --- |
 | State and saved-view tabs | Names stay on one line. |
-| Narrow desktop pane | The strip scrolls horizontally instead of making the toolbar taller. |
+| Narrow desktop pane | Tabs and saved views stay in order while they fit; the rest move into a More menu at the strip's end, which takes the selected one's name when it is among them. The strip never scrolls. |
 | Half pane | Controls wrap under a full-width search field. |
 | Phone | Reading, Inbox and Highlights remain visible. More contains All, Collections, Finished, Abandoned and saved views; its label preserves the selected secondary view. Reading and Inbox counts give way before the Highlights count. |
 
@@ -33,7 +33,7 @@ Progress pairs a short gilt bar with its percentage. A Reading source at zero re
 
 In a pane narrower than 560 px on a wide screen, the state, author and year columns step aside and progress keeps only its number, so the title keeps its room. Below 600 px, ledger rows stack the title and author or byline across the available width, omit the siglum, and put compact metadata beneath; empty progress, highlight and year cells reserve no space. All and collection ledgers retain their taller card layout.
 
-The leading slot shows a selection checkbox on hover, focus, or while any row is selected. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details (while the catalog card is closed), Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Beside an open card, a ledger narrower than 840 px (1000 px inside a collection, which adds Remove from collection) shows Browse, Export, Add to collection, Delete and Clear selection as glyphs named in tooltips, and Remove without its object, so the bar stays one line. Escape clears.
+The leading slot shows a selection checkbox on hover, focus, or while any row is selected. On a phone the checkboxes stay hidden so covers show whole: Select in the heading reveals them and turns a tap on a source into a toggle rather than opening it, and Done, Clear selection, Escape or a new tab or search ends it. A long press still opens the source's details outside Select. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details (while the catalog card is closed), Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Beside an open card, a ledger narrower than 840 px (1000 px inside a collection, which adds Remove from collection) shows Browse, Export, Add to collection, Delete and Clear selection as glyphs named in tooltips, and Remove without its object, so the bar stays one line. Escape clears.
 
 Clicking a row opens the source page. It fills the pane to the right when one exists; otherwise it uses the Library's pane. ⌘-click opens it beside (Ctrl-click off Mac). The modifier never opens the source in the Library's pane instead. On a wide touch screen, opening a book uses the pane to the right or opens one beside. The opened book keeps a quiet current-page marker.
 
@@ -54,11 +54,11 @@ The shelf is a grid of 2:3 covers at least `--shelf-cover-width` wide, sharing a
 
 A source without a cover gets a typeset spine on `--surface`: the gilt siglum over a short rule and the title, centered clear of the corners. Spine titles hyphenate long words and break one mid-word only when it cannot fit alone.
 
-The selection checkbox and the actions button sit on the cover's top corners and appear as in the list. A selected cover takes a 2 px accent ring.
+The selection checkbox and the actions button sit on the cover's top corners and appear as in the list, on a phone only in Select. A selected cover takes a 2 px accent ring.
 
 On touch the actions button is an always-visible surface disc. Below 600 px it opens the existing source actions in a sheet above navigation, headed by the title, author and mono imprint and progress. Reading and state actions, exports and deletion are separated by rules. Delete still asks for confirmation.
 
-Arrow keys move one book sideways and to the nearest cover in the next row up or down, across group headings. Home and End go to the ends.
+Arrow keys move one book sideways and to the nearest cover in the next row up or down. Home and End go to the ends.
 Title sorting uses the finding aid's case- and diacritic-folded filing key, so accented Latin titles stay with their base letters.
 
 
@@ -74,7 +74,7 @@ The sort menu has a second section, Group: None, Author, Year, Decade, Publisher
 | Publisher | Publisher | A–Z | `No publisher` |
 | Language | Language | A–Z | `No language` |
 
-Rows keep the chosen sort within each group, and Shift-click ranges follow the grouped order. Each group opens with a sticky heading on `--canvas`: its name in Piazzolla and a mono count. An author's name opens their page. In the shelf the heading spans the grid. The sort button then reads `Added · by year`.
+Rows keep the chosen sort within each group, and Shift-click ranges follow the grouped order. In the list each group opens with a sticky heading on `--canvas`: its name in Piazzolla and a mono count. The shelf instead flows as one grid, so a one-book year takes a cover's width rather than a row: every cover stands on a hairline, and each group's first cover carries the group's name on it. An author's name opens their page. The sort button then reads `Added · by year`.
 
 ### Browse
 
@@ -106,7 +106,7 @@ Reading now leads the unsearched, unfiltered Reading and All tabs with one card 
 
 Coverless articles omit the spine tile on Reading cards, leaving that width to their title and creators rather than an empty cover.
 
-On the Reading tab a card's top corner selects it, like a shelf cover. On the cover screen the checkbox stays off the cover until something is selected; Select in the card's actions starts there.
+On the Reading tab a card's top corner selects it, like a shelf cover.
 
 Cards load the source's contents and text length and cancel their requests when removed. If chapter boundaries are unavailable, the map stays one book-length span and the time is labeled for the book, never a guessed chapter.
 
