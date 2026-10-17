@@ -62,6 +62,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Listed pages whose titles appear inside a longer creation draft under Similar pages, so “Is the kitchen renovation worth it?” offers Kitchen renovation.
 - Stopped offering type pages such as Book as perspective holders, and offered other pages for filing only after a name is typed.
 - Kept Unicode title-folding keys as data during minification so Android WebViews with older Unicode parsers could open the app.
+- Opened a project page's Table as a Tasks table of the project's tasks, including those of projects inside it, instead of an empty type register.
 - Kept Undo of a pending cross-page move waiting for that move instead of undoing earlier text while it saved.
 - Applied an outline's Undo notice directly from ⌘Z, including after its pane became the only remaining pane.
 - Kept deep outline levels distinguishable with compressed indentation and mono nesting-depth cues.

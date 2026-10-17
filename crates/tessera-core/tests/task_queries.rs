@@ -1247,3 +1247,70 @@ fn projects_are_ordered_by_case_insensitive_title_then_identity() {
         [11, 12, 10].map(id)
     );
 }
+
+#[test]
+fn task_table_project_filter_matches_the_project_task_query() {
+    let (_dir, mut nb) = fixture();
+    project_field(&mut nb);
+    apply(
+        &mut nb,
+        vec![
+            insert(10, 1, "Outer"),
+            insert(11, 10, "Inner"),
+            insert(12, 1, "Elsewhere"),
+            insert(20, 10, "Direct"),
+            insert(21, 11, "Nested"),
+            insert(22, 10, "Assigned away"),
+            insert(23, 1, "Assigned in"),
+            insert(24, 1, "Outside"),
+        ],
+    );
+    for value in [10, 11, 12] {
+        project(&mut nb, value, Some(ProjectState::default()));
+    }
+    for value in [20, 21, 22, 23, 24] {
+        set_task(&mut nb, value, Some(TaskState::default()));
+    }
+    link_project(&mut nb, 22, 100, 12);
+    link_project(&mut nb, 23, 110, 10);
+    let table = |nb: &Notebook, project: u128| {
+        let result = nb
+            .query(&Query {
+                source: Some(tessera_core::QuerySource::Tasks),
+                filters: vec![Filter {
+                    or_empty: false,
+                    field: "@project".into(),
+                    op: FilterOp::Is,
+                    value: Some(id(project)),
+                }],
+                ..Default::default()
+            })
+            .unwrap();
+        let mut ids: Vec<_> = result
+            .rows
+            .into_iter()
+            .map(|row| row.block.block.id)
+            .collect();
+        ids.sort();
+        ids
+    };
+    for project in [10, 11, 12] {
+        let mut q = query();
+        q.filter.selection = TaskSelection::All;
+        q.filter.project_id = Some(id(project));
+        assert_eq!(table(&nb, project), ids(nb.task_query(&q).unwrap()));
+    }
+    assert_eq!(table(&nb, 10), vec![id(20), id(21), id(23)]);
+    let nested = nb
+        .query(&Query {
+            source: Some(tessera_core::QuerySource::Tasks),
+            text: Some("Nested".into()),
+            ..Default::default()
+        })
+        .unwrap();
+    let values: Vec<_> = nested.rows[0].attributes["@project"]
+        .iter()
+        .map(|value| value.text.as_str())
+        .collect();
+    assert_eq!(values, vec!["Inner", "Outer"]);
+}

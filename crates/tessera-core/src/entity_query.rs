@@ -320,9 +320,11 @@ impl Notebook {
                 }
             }
             QuerySource::Tasks => {
+                let mut outer = crate::task_query::ancestry_projects(&self.conn)?;
                 for row in
                     crate::task_query::visible_tasks(&self.conn, None, crate::TaskProjectVia::Both)?
                 {
+                    let enclosing = outer.remove(&row.source.block.id).unwrap_or_default();
                     let attrs = entities.entry(row.source.block.id).or_default();
                     text(
                         attrs,
@@ -337,7 +339,11 @@ impl Notebook {
                     );
                     optional(attrs, "@due", row.task.deadline);
                     optional(attrs, "@scheduled", row.task.scheduled);
+                    // The task's own project leads; enclosing projects follow, as a project's task query includes them.
                     if let Some(id) = row.project_id {
+                        instance(attrs, "@project", &id, &titles);
+                    }
+                    for id in enclosing {
                         instance(attrs, "@project", &id, &titles);
                     }
                 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, filterOperatorLabel, filterOperators, matchFieldEntry, missingQueryFields, noteTableQuery, queriesEqual, queryFieldIds, remapQueryField, removeFilter, removeQueryField, removeSort, sortLabel, typeQuery } from './query';
+import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, filterOperatorLabel, filterOperators, matchFieldEntry, missingQueryFields, noteTableQuery, queriesEqual, queryFieldIds, remapQueryField, removeFilter, removeQueryField, pageTableTarget, removeSort, sortLabel, typeQuery } from './query';
 import { attributeDefinitions } from './attributes';
 import type { FieldDefinition } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -175,5 +175,14 @@ describe('field entry input rule', () => {
     expect(fieldEntryId('[[field-id]]')).toBe('field-id');
     expect(fieldEntryId('[[field-id]] more')).toBeNull();
     expect(fieldEntryId('[[field-id]] [[other]]')).toBeNull();
+  });
+});
+
+describe('page table target', () => {
+  test('opens a project page as a table of its tasks, not as a type', () => {
+    expect(pageTableTarget('p', true)).toEqual({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: '@project', op: 'is', value: 'p' }], sort: [], limit: null, source: 'tasks' } });
+  });
+  test('opens any other page as its type register', () => {
+    expect(pageTableTarget('p', false)).toEqual({ kind: 'table', typeId: 'p', viewId: null, query: typeQuery('p') });
   });
 });

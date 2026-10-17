@@ -20,6 +20,7 @@ import { addRelationReason, relationKinds, relationLabels, relationReason } from
 import { currentReading } from '../document/types';
 import { questionDescriptions, questionVerbs } from './question-verbs';
 import { deskTarget } from '../desk/query';
+import { pageTableTarget } from '../table/query';
 import { deleteFieldOptions, optionImpact } from '../fields/commands';
 import { plural } from '../sync/state';
 
@@ -52,7 +53,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   function openTable(beside: boolean) {
     if (doc.root()?.kind !== 'page') return;
     if (editing()) commitFieldEntry(editing()!, false);
-    props.onOpen({ kind: 'table', typeId: props.pageId, viewId: null, query: { type: props.pageId, text: null, filters: [], sort: [], limit: null } }, beside);
+    props.onOpen(pageTableTarget(props.pageId, !!doc.root()?.project), beside);
   }
   function openSelected(beside: boolean, id = selected()) {
     if (!id) return;

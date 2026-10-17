@@ -1,5 +1,6 @@
 import type { FieldDefinition, FieldKind, Filter, FilterOp, Query, SortKey } from '../api/types';
 import type { NotebookClient } from '../document/contract';
+import type { OpenTarget } from '../shell/contract';
 import { parseCardText } from '../review/card-text';
 import { targetLabel } from '../outline/names';
 
@@ -19,6 +20,12 @@ export function filterOperatorLabel(op: FilterOp, kind?: FieldKind): string {
 }
 export function typeQuery(type: string | null): Query {
   return { type, text: null, filters: [], sort: [], limit: null };
+}
+/** A page's Table: a project lists its tasks, by ancestry or explicit Project field as its task query does, rather than members of a type it is not. */
+export function pageTableTarget(pageId: string, project: boolean): Extract<OpenTarget, { kind: 'table' }> {
+  return project
+    ? { kind: 'table', typeId: null, viewId: null, query: { ...typeQuery(null), source: 'tasks', filters: [{ field: '@project', op: 'is', value: pageId }] } }
+    : { kind: 'table', typeId: pageId, viewId: null, query: typeQuery(pageId) };
 }
 export function copyQuery(query: Query): Query {
   const desk = query.desk ? { positions: copyQuery(query.desk.positions), sources: copyQuery(query.desk.sources) } : undefined;

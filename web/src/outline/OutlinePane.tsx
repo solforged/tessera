@@ -1653,7 +1653,7 @@ function Pane(props: OutlinePaneProps) {
           <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root())} title={pageMergeDisabledReason(doc.root())} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>
         }</Show><Button onClick={closeTitle}>Cancel</Button>
       </Show>
-      <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(opensBeside(event))}>Table<Show when={!type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
+      <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(opensBeside(event))}>Table<Show when={!doc.root()?.project && !type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
       </div>
       </Show>
       <Show when={isNote()}><NoteAliases doc={doc} fields={definitions()} onEdit={entry => {

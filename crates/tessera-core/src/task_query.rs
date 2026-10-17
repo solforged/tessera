@@ -73,13 +73,9 @@ fn state_at(row: &rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<TaskStat
     })
 }
 
-pub(crate) fn visible_tasks(
-    conn: &Connection,
-    project_id: Option<&str>,
-    via: TaskProjectVia,
-) -> Result<Vec<TaskRow>> {
-    let mut statement = conn.prepare_cached(concat!(
-        hidden_blocks!(),
+/// Visible tasks with their explicit Project field target and nearest live ancestor project.
+macro_rules! task_memberships {
+    () => {
         ", visible_tasks AS MATERIALIZED (
             SELECT t.block_id, t.state FROM tasks t JOIN blocks b ON b.id = t.block_id
             JOIN blocks p ON p.id = b.page_id WHERE t.active = 1
@@ -112,7 +108,19 @@ pub(crate) fn visible_tasks(
             (SELECT a.ancestor_id FROM ancestors a JOIN live_projects pr ON pr.block_id = a.ancestor_id
              WHERE a.task_id = t.block_id ORDER BY a.depth LIMIT 1) AS ancestor_project
             FROM visible_tasks t
-         ), selected AS MATERIALIZED (
+         )"
+    };
+}
+
+pub(crate) fn visible_tasks(
+    conn: &Connection,
+    project_id: Option<&str>,
+    via: TaskProjectVia,
+) -> Result<Vec<TaskRow>> {
+    let mut statement = conn.prepare_cached(concat!(
+        hidden_blocks!(),
+        task_memberships!(),
+        ", selected AS MATERIALIZED (
             SELECT *, coalesce(explicit_project, ancestor_project) AS project_id
             FROM memberships m WHERE (?2 = 0 OR explicit_project IS NOT NULL) AND (?1 IS NULL OR
             CASE WHEN explicit_project IS NOT NULL THEN explicit_project = ?1
@@ -125,7 +133,11 @@ pub(crate) fn visible_tasks(
                 AND boundary.ancestor_id = coalesce(?1, s.project_id))
               AND NOT EXISTS(SELECT 1 FROM visible_tasks t WHERE t.block_id = a.ancestor_id)
               ORDER BY a.depth LIMIT 1) AS section_id FROM selected s
-         ) SELECT ", block_columns!("b"), ", ", block_columns!("p"), ", t.state,
+         ) SELECT ",
+        block_columns!("b"),
+        ", ",
+        block_columns!("p"),
+        ", t.state,
          t.project_id, t.section_id, section.text
          FROM sections t JOIN blocks b ON b.id = t.block_id JOIN blocks p ON p.id = b.page_id
          LEFT JOIN blocks section ON section.id = t.section_id"
@@ -144,6 +156,25 @@ pub(crate) fn visible_tasks(
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+/// Every live project a task belongs to by ancestry, nearest first, as a project filter matches it.
+/// Tasks with an explicit Project field belong only to that project and are omitted.
+pub(crate) fn ancestry_projects(conn: &Connection) -> Result<HashMap<String, Vec<String>>> {
+    let mut statement = conn.prepare_cached(concat!(
+        hidden_blocks!(),
+        task_memberships!(),
+        " SELECT m.block_id, a.ancestor_id FROM memberships m
+         JOIN ancestors a ON a.task_id = m.block_id
+         JOIN live_projects pr ON pr.block_id = a.ancestor_id
+         WHERE m.explicit_project IS NULL ORDER BY m.block_id, a.depth"
+    ))?;
+    let mut result = HashMap::<String, Vec<String>>::new();
+    for pair in statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))? {
+        let (task, project): (String, String) = pair?;
+        result.entry(task).or_default().push(project);
+    }
+    Ok(result)
 }
 
 fn unfinished(status: TaskStatus) -> bool {
