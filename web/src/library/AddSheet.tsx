@@ -15,8 +15,9 @@ const roleMarks: Record<ExtractedCreator['role'], string> = { author: '', editor
 export interface AddSourceBodyProps {
   notebook: NotebookClient;
   initialText?: string;
+  onTextChange?(text: string): void;
   onAdded(sourceId: string): void;
-  onDismiss(): void;
+  onDismiss(again?: boolean): void;
   onChooseFile?(): void;
   onFiles?(files: File[]): void;
   onJob?(job: IngestJob): void;
@@ -59,7 +60,41 @@ export function AddSourceBody(props: AddSourceBodyProps) {
   const canScan = 'BarcodeDetector' in window;
   let photoInput!: HTMLInputElement;
   let fileInput!: HTMLInputElement;
-  function changeQuery(value: string) { setQuery(value); setPreview(undefined); setError(''); }
+  let lookupTimer: number | undefined;
+  onCleanup(() => window.clearTimeout(lookupTimer));
+  let keepOpen = false;
+  function finish() {
+    const again = keepOpen;
+    keepOpen = false;
+    props.onDismiss(again);
+    if (again) {
+      setEditing(null); setPreview(undefined); setQuery(''); props.onTextChange?.('');
+      queueMicrotask(() => fileInput.closest('.library-add')?.querySelector<HTMLInputElement>('input:not([type="file"])')?.focus());
+    }
+  }
+  function savePreview() {
+    const value = preview();
+    if (!value || busy()) return;
+    setBusy(true); setError('');
+    void add(value.metadata, value.cover_url).catch(reason => setError(reason instanceof Error ? reason.message : String(reason))).finally(() => setBusy(false));
+  }
+  function keydown(event: KeyboardEvent) {
+    if (event.defaultPrevented || event.isComposing || event.key !== 'Enter') return;
+    keepOpen = event.shiftKey && (event.metaKey || event.ctrlKey);
+    if (!event.metaKey && !event.ctrlKey) return;
+    event.preventDefault(); event.stopPropagation();
+    if (editing()) (event.currentTarget as HTMLElement).querySelector('form')?.requestSubmit();
+    else if (preview()) savePreview();
+    else void submit();
+  }
+  function scheduleLookup() {
+    window.clearTimeout(lookupTimer);
+    if (isIdentifier(query().trim())) lookupTimer = window.setTimeout(() => { void submit(); }, 200);
+  }
+  function changeQuery(value: string) {
+    setQuery(value); setPreview(undefined); setError(''); props.onTextChange?.(value);
+    if (props.onTextChange) scheduleLookup();
+  }
   async function paste() {
     try { changeQuery(await navigator.clipboard.readText()); }
     catch (reason) { setError(`Paste failed: ${reason instanceof Error ? reason.message : String(reason)}`); }
@@ -83,18 +118,18 @@ export function AddSourceBody(props: AddSourceBodyProps) {
   }
   async function files(files: File[]) {
     if (!files.length || busy()) return;
-    if (props.onFiles) { props.onFiles(files); props.onDismiss(); return; }
+    if (props.onFiles) { props.onFiles(files); finish(); return; }
     setBusy(true); setError('');
     try {
       for (const file of files) {
         const job = await props.notebook.api.upload(file, file.name);
         props.onJob?.(job);
       }
-      props.onDismiss();
+      finish();
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }
-  onMount(() => { if (isIdentifier(query().trim())) void submit(); });
+  onMount(() => { if (props.onTextChange) scheduleLookup(); else if (isIdentifier(query().trim())) void submit(); });
   async function submit() {
     if (busy() || !query().trim()) return;
     const value = query().trim();
@@ -104,22 +139,25 @@ export function AddSourceBody(props: AddSourceBodyProps) {
       try { url = new URL(value); } catch { /* Identifiers are not URLs. */ }
       if (url && ['http:', 'https:'].includes(url.protocol) && !['doi.org', 'dx.doi.org', 'arxiv.org', 'www.arxiv.org'].includes(url.hostname.toLowerCase())) {
         const job = await props.notebook.api.queueUrl(value);
-        props.onJob?.(job); props.onDismiss();
-      } else setPreview(await props.notebook.api.lookup(value));
+        props.onJob?.(job); finish();
+      } else {
+        const found = await props.notebook.api.lookup(value);
+        if (query().trim() === value) setPreview(found);
+      }
     } catch (reason) {
-      setError(reason instanceof ApiError && reason.code === 'not_found' ? `Nothing found for ${value}` : `Lookup failed: ${reason instanceof Error ? reason.message : String(reason)}`);
+      if (query().trim() === value) setError(reason instanceof ApiError && reason.code === 'not_found' ? `Nothing found for ${value}` : `Lookup failed: ${reason instanceof Error ? reason.message : String(reason)}`);
     } finally { setBusy(false); }
   }
   async function add(metadata: ExtractedMetadata, coverUrl?: string | null) {
     const plan = await props.notebook.api.planRecord(metadata, coverUrl);
     await props.notebook.commit(plan.operations, 'Add source');
-    props.onAdded(plan.source_id); props.onDismiss();
+    props.onAdded(plan.source_id); finish();
   }
   const Duplicate = () => <Show when={duplicate()}>{source => <div class="library-add-duplicate" role="status">
     <span>“{source().page.text}” is already in the library.</span>
     <Button disabled={busy()} onClick={() => { props.onAdded(source().page.id); props.onDismiss(); }}>Open</Button>
   </div>}</Show>;
-  return <div class="library-add" onDragOver={event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); event.stopPropagation(); void files(Array.from(event.dataTransfer.files)); } }}>
+  return <div class="library-add" onKeyDown={keydown} onDragOver={event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); event.stopPropagation(); void files(Array.from(event.dataTransfer.files)); } }}>
       <h2 class="popup-title">Add to library</h2>
       <Show when={!editing()} fallback={<>
         <DetailsForm metadata={editing()!.metadata} notebook={props.notebook} autofocus submitLabel={duplicate() ? 'Add another copy' : 'Add'} onChange={setDraft} onSave={metadata => add(metadata, editing()!.coverUrl)} onCancel={() => setEditing(null)} />
@@ -127,7 +165,7 @@ export function AddSourceBody(props: AddSourceBodyProps) {
       </>}>
         <form onSubmit={event => { event.preventDefault(); void submit(); }}>
           <div class="library-add-query">
-            <label class="library-add-url">URL, ISBN, DOI or arXiv ID<input class="input" aria-label="URL, ISBN, DOI or arXiv ID" placeholder="https://… or 978…" value={query()} disabled={busy()} onInput={event => changeQuery(event.currentTarget.value)} /></label>
+            <label class="library-add-url">URL, ISBN, DOI or arXiv ID<input class="input" aria-label="URL, ISBN, DOI or arXiv ID" placeholder="https://… or 978…" value={query()} disabled={busy() && !props.onTextChange} onInput={event => changeQuery(event.currentTarget.value)} /></label>
             <Show when={coarse() && (canPaste || canScan)}><div class="library-add-touch">
               <Show when={canPaste}><Button disabled={busy()} onClick={() => void paste()}>Paste</Button></Show>
               <Show when={canScan}><Button disabled={busy()} onClick={() => photoInput.click()}>Scan ISBN</Button></Show>
@@ -148,9 +186,7 @@ export function AddSourceBody(props: AddSourceBodyProps) {
               <p class="library-preview-provider">From {value().provider}</p>
             </div>
           </section>
-          <div class="popup-actions"><Button disabled={busy()} onClick={() => setPreview(undefined)}>Cancel</Button><Button disabled={busy()} onClick={() => { setEditing({ metadata: value().metadata, coverUrl: value().cover_url }); setPreview(undefined); }}>Edit details</Button><Button class="bordered" disabled={busy()} onClick={() => {
-            setBusy(true); setError(''); void add(value().metadata, value().cover_url).catch(reason => setError(reason instanceof Error ? reason.message : String(reason))).finally(() => setBusy(false));
-          }}>{duplicate() ? 'Add another copy' : 'Add'}</Button></div>
+          <div class="popup-actions"><Button disabled={busy()} onClick={() => setPreview(undefined)}>Cancel</Button><Button disabled={busy()} onClick={() => { setEditing({ metadata: value().metadata, coverUrl: value().cover_url }); setPreview(undefined); }}>Edit details</Button><Button class="bordered" disabled={busy()} onClick={() => { keepOpen = false; savePreview(); }}>{duplicate() ? 'Add another copy' : 'Add'}</Button></div>
           <Duplicate />
         </>}</Show>
       </Show>

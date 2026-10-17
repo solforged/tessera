@@ -1,60 +1,13 @@
 import { Show, createSignal, onCleanup, onMount } from 'solid-js';
-import type { NotebookClient } from '../document/contract';
 import { createNotebookClient } from '../document';
 import type { NotebookInfo } from '../api/types';
-import { blankCapture } from '../create/request';
-import type { CreateRequest } from '../create/request';
-import { shortDay } from '../shell/desk-counts';
-import { Button } from '../ui/Button';
-import { Popup } from '../ui/Popup';
-import { CaptureField } from './CaptureField';
-
-interface CaptureBodyProps {
-  notebook: NotebookClient;
-  request: CreateRequest;
-  /** After a save that closes the sheet, or on Escape. */
-  onDone(): void;
-  inputRef?(input: HTMLInputElement): void;
-  bodyRef?(body: HTMLDivElement): void;
-}
-
-/** The sheet's contents: where the line goes, the line, then its keys and Add. */
-function CaptureBody(props: CaptureBodyProps) {
-  const [added, setAdded] = createSignal(0);
-  const touch = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-  return <div ref={props.bodyRef} class="capture">
-    <header class="capture-head">
-      <span class="capture-title">Add to today</span>
-      <span class="capture-where">{shortDay(props.notebook.todayDate())} · end of journal</span>
-    </header>
-    <CaptureField notebook={props.notebook} contextDate={() => props.notebook.todayDate()} initialTask={props.request.kind === 'task'} initialText={props.request.text}
-      label="Add to today" placeholder={touch ? 'Add a note or task' : 'A note, or ⌘↵ for a task · [[ links · @fri plans'} inputRef={props.inputRef}
-      onSaved={again => { if (again) setAdded(count => count + 1); else props.onDone(); }} onCancel={props.onDone}>
-      {state => <footer class="capture-foot">
-        <span class="capture-keys">
-          <Show when={added()} fallback={<span class="capture-key-hints"><kbd>↵</kbd> Add <kbd>⇧↵</kbd> Add another <kbd>⌘↵</kbd> {state.task() ? 'Note' : 'Task'} <kbd>esc</kbd> Close</span>}>
-            <span class="capture-added" role="status">{added()} added to today</span>
-          </Show>
-        </span>
-        <Button class="capture-cancel" onClick={props.onDone}>Cancel</Button>
-        <Button class="bordered" onClick={() => state.submit(false)}>Add</Button>
-      </footer>}
-    </CaptureField>
-  </div>;
-}
-
-/** ⌘E, the desktop menu and Android's shortcuts: one line for today's journal over whatever is open. */
-export function CaptureSheet(props: { notebook: NotebookClient; request: CreateRequest; onDismiss(): void }) {
-  // The cover screen raises it from the bottom edge, above the keyboard.
-  const touch = window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
-  return <Popup anchor={document.body} placement={touch ? 'sheet' : 'top'} width={560} label="Add to today" class="capture-sheet" onDismiss={props.onDismiss}>
-    <CaptureBody notebook={props.notebook} request={props.request} onDone={props.onDismiss} />
-  </Popup>;
-}
+import { blankCapture, parseCreateRequest } from '../create/request';
+import { CreateSlipBody } from '../create/CreateSlip';
 
 type CaptureWindow = Window & {
   __tesseraCaptureDone?: () => void;
   __tesseraCaptureSize?: (height: number) => void;
+  __tesseraCaptureOpen?: (target: string) => void;
 };
 
 /**
@@ -67,7 +20,7 @@ export function CaptureWindow() {
   try { cachedIdentity = JSON.parse(localStorage.getItem(identityKey) ?? 'null') ?? undefined; } catch { /* The panel works without a cached identity. */ }
   const notebook = createNotebookClient({ notebookId: cachedIdentity?.id });
   onCleanup(() => { void notebook.dispose(); });
-  let input: HTMLInputElement | undefined;
+  const [request, setRequest] = createSignal(blankCapture());
   let body!: HTMLDivElement;
   let fontsReady = false;
   let lastHeight = 0;
@@ -89,11 +42,14 @@ export function CaptureWindow() {
       panel.__tesseraCaptureSize(height);
     }
   };
-  const focus = () => {
+  const focus = (event?: Event) => {
+    const detail = event instanceof CustomEvent ? event.detail : undefined;
+    const next = parseCreateRequest(detail);
+    if (next && detail && (next.text || (typeof detail === 'object' && detail.kind) || typeof detail === 'string')) setRequest(next);
     // Reopening sends even an unchanged height so the native panel can show
     // only after fitting its retained draft.
     reportSize(true);
-    requestAnimationFrame(() => input?.focus());
+    requestAnimationFrame(() => body.querySelector<HTMLElement>('textarea,input:not([type="file"])')?.focus());
   };
   onMount(() => {
     document.documentElement.classList.add('capture-window');
@@ -132,5 +88,8 @@ export function CaptureWindow() {
     window.removeEventListener('tessera-quick-capture', focus);
     document.documentElement.classList.remove('capture-window');
   });
-  return <CaptureBody notebook={notebook} request={blankCapture()} bodyRef={element => { body = element; }} inputRef={element => { input = element; }} onDone={() => panel.__tesseraCaptureDone?.()} />;
+  return <div ref={body}><Show keyed when={request()}>{value => <CreateSlipBody notebook={notebook} request={value} onDismiss={() => panel.__tesseraCaptureDone?.()} onOpen={target => {
+    if (target.kind === 'page' && panel.__tesseraCaptureOpen) panel.__tesseraCaptureOpen(JSON.stringify(target));
+    else panel.__tesseraCaptureDone?.();
+  }} />}</Show></div>;
 }

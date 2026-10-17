@@ -1,3 +1,6 @@
+import { parseCardText } from '../review/card-text';
+import { captureDateToken, dateSuggestions } from '../tasks/quick-date';
+
 /**
  * What the creation slip starts with. Every entry point (⌘N, ⌘E, Find, index and table buttons, the macOS menu and
  * capture panel, Android's shortcuts, share sheet, widget and tile) describes its request in this shape.
@@ -45,4 +48,23 @@ export function parseCreateRequest(raw: unknown): CreateRequest | null {
   const request: CreateRequest = { kind: (value.kind as CreateKind | undefined) ?? 'note', text: value.text ?? '' };
   if (value.into === 'journal' || value.into === 'page') request.into = { kind: value.into };
   return request;
+}
+
+/** Infer only complete syntax, never an identifier buried in ordinary prose. */
+export function inferKind(text: string): CreateKind | null {
+  const value = text.trim();
+  if (!value) return null;
+  if (value.endsWith('?')) return 'question';
+  const date = '2000-01-01';
+  const token = captureDateToken(value, date);
+  if (/^\[ ?\] /.test(text.trimStart()) || token && value[token.from] === '@' && dateSuggestions(token.query, date).length) return 'task';
+  if (parseCardText(value).cards.length) return 'card';
+  if (/^https?:\/\/\S+$/i.test(value)) {
+    try { if (new URL(value).hostname) return 'source'; } catch { /* Incomplete URL. */ }
+  }
+  const isbn = value.replace(/^(?:urn:)?isbn:?\s*/i, '').replace(/[ -]/g, '');
+  if (/^(?:\d{9}[\dX]|\d{13})$/i.test(isbn)) return 'source';
+  if (/^(?:doi:)?10\.\d{4,9}\/\S+$/i.test(value)
+    || /^(?:arxiv:)?(?:\d{4}\.\d{4,5}|[a-z-]+(?:\.[A-Z]{2})?\/\d{7})(?:v\d+)?$/i.test(value)) return 'source';
+  return null;
 }

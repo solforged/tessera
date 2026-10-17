@@ -7,7 +7,7 @@ import type { ApiClient, ChangeSocket } from '../api/client';
 import { startingTemplateFor } from '../fields/templates';
 import { resolveRelationPick } from '../fields/instances';
 import { captureOperations } from '../capture/append';
-import type { BlockClipboard, Caret, DocumentChange, NotebookClient, PageDocument, SaveState, SourceDetailsEdit } from './contract';
+import type { BlockClipboard, CaptureIntent, CaptureReceipt, Caret, DocumentChange, NotebookClient, PageDocument, SaveState, SourceDetailsEdit } from './contract';
 import { Document } from './page-document';
 import type { DocumentHost } from './page-document';
 import { Outbox } from './outbox';
@@ -88,6 +88,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private persisted = new Set<string>();
   private generations = new Map<string, number>();
   private commandWaiters = new Map<string, { resolve(value: Committed): void; reject(error: Error): void }>();
+  private captureWaiters = new Map<string, { resolve(value: Committed | null): void; reject(error: Error): void }>();
   private createdValueReceipts = new Map<string, Promise<Committed>>();
   private sourceChangeQueue: Promise<unknown> = Promise.resolve();
   private pageWaiters = new Set<{ pageId: string; ids: Set<string>; resolve(): void; reject(error: Error): void }>();
@@ -392,15 +393,40 @@ export class Notebook implements NotebookClient, DocumentHost {
     if (!last || last.kind === 'notebook' || last.frozen || last.pageId !== pageId || last.actions.length !== 1 || action?.kind !== 'text' || action.id !== blockId) return;
     this.draftTag = { commandId: last.id, blockId, until: Date.now() + TAG_IDLE };
   }
-  async appendCapture(text: string, task: TaskState | null, picked: readonly [string, string][] = []): Promise<void> {
+  async appendCapture(text: string, task: TaskState | null, picked: readonly [string, string][] = [], options: Pick<CaptureIntent, 'targetPageId' | 'question'> = {}): Promise<CaptureReceipt> {
     await this.ready;
     if (this.closed) throw new Error('The notebook is closed.');
     if (!this.outbox) throw new Error('Recovery storage has not opened.');
     const command: NotebookCommand = {
       kind: 'notebook', id: ulid(), order: ++this.order, pageId: null,
-      capture: structuredClone({ date: this.todayDate(), text, task, picked: [...picked] }),
-      operations: [], reason: 'Add to today', actions: [], inverse: [], before: null, after: null,
+      capture: structuredClone({ date: this.todayDate(), text, task, picked: [...picked], ...options }),
+      operations: [], reason: options.targetPageId ? 'Add to page' : 'Add to today', actions: [], inverse: [], before: null, after: null,
     };
+    const waiter = Promise.withResolvers<Committed | null>();
+    this.captureWaiters.set(command.id, waiter);
+    const delivered = waiter.promise.then(ack => {
+      if (!ack) return null;
+      let write: Extract<Operation, { op: 'insert' | 'edit_text' }> | undefined;
+      for (let index = command.operations.length - 1; index >= 0; index--) {
+        const operation = command.operations[index]!;
+        if (operation.op === 'insert' || operation.op === 'edit_text') { write = operation; break; }
+      }
+      const pageId = command.refreshPages?.[0];
+      if (!write || !pageId) return null;
+      const savedWrite = write;
+      const revision = ack.revisions.find(value => value.id === savedWrite.id)?.revision;
+      if (revision === undefined) return null;
+      return { pageId, blockId: write.id, undo: async () => {
+        const operations: Operation[] = savedWrite.op === 'insert' ? [{ op: 'delete', id: savedWrite.id, base_revision: revision }] : [
+          { op: 'edit_text', id: savedWrite.id, base_revision: revision, text: '' },
+          ...(task ? [{ op: 'set_task' as const, id: savedWrite.id, base_revision: revision + 1, task: null }] : []),
+          ...(options.question ? [{ op: 'set_question' as const, id: savedWrite.id, base_revision: revision + 1 + Number(!!task), question: null }] : []),
+        ];
+        await this.commit(operations, 'Undo capture', [pageId]);
+      } };
+    });
+    // A caller may only care about durable acceptance (for example an inline add line).
+    void delivered.catch(() => {});
     this.queue.push(command);
     try {
       await this.outbox.accept(command);
@@ -408,10 +434,12 @@ export class Notebook implements NotebookClient, DocumentHost {
       this.touch();
       this.schedule(0);
     } catch (reason) {
+      this.captureWaiters.delete(command.id);
       this.queue = this.queue.filter(value => value !== command);
       this.touch();
       throw reason;
     }
+    return { delivered };
   }
   async commit(operations: readonly Operation[], reason?: string, refreshPages?: readonly string[]): Promise<Committed> {
     return this.commitOperations(operations, reason, refreshPages);
@@ -1128,6 +1156,8 @@ export class Notebook implements NotebookClient, DocumentHost {
     await this.outbox?.put(command).catch(() => undefined);
     this.commandWaiters.get(command.id)?.reject(new Error(message));
     this.commandWaiters.delete(command.id);
+    this.captureWaiters.get(command.id)?.reject(new Error(message));
+    this.captureWaiters.delete(command.id);
     this.queue = this.queue.filter(item => item !== command);
     this.persisted.delete(command.id);
     this.generations.delete(command.id);
@@ -1148,6 +1178,8 @@ export class Notebook implements NotebookClient, DocumentHost {
         const frozen = await this.outbox!.freezeCapture(command);
         if (!frozen) {
           // Another window already delivered this intake while its lookups were in flight.
+          this.captureWaiters.get(command.id)?.resolve(null);
+          this.captureWaiters.delete(command.id);
           this.queue.shift(); this.persisted.delete(command.id); this.touch();
           return true;
         }
@@ -1241,6 +1273,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         removed);
       this.queue.shift(); this.persisted.delete(command.id);
       this.commandWaiters.get(command.id)?.resolve(ack); this.commandWaiters.delete(command.id);
+      this.captureWaiters.get(command.id)?.resolve(ack); this.captureWaiters.delete(command.id);
       this.activeCommand = undefined; this.touch();
       return true;
     } catch (error) {
@@ -1928,6 +1961,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   async dispose() {
     this.closed = true;
+    for (const waiter of this.captureWaiters.values()) waiter.resolve(null);
+    this.captureWaiters.clear();
     this.subtreeCache.dispose();
     clearTimeout(this.timer);
     clearTimeout(this.reconnectTimer);

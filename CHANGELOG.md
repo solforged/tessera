@@ -8,9 +8,12 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Added one creation slip for notes, questions, tasks, cards, sources, projects and typed pages, with inferred kinds and Today or page destinations.
+- Added durable under-page captures and question lines, with Open and Undo acknowledgements.
+- Added New question to untyped Questions registers and kept typed table creation in the same slip.
 - Added a macOS File › New submenu for pages, questions, tasks, cards, projects and sources.
 - Added Dock actions for Add to Today, New Page and New Question.
-- Added the Send to Tessera text Service and its selected-text event delivery to the floating capture panel; the web panel still needs to read that text into its line.
+- Added the Send to Tessera text Service and prefilled the floating creation panel from its selected text.
 - Added existing-source notices to manual and looked-up library records, with Open and Add another copy.
 - Added touch Paste and camera-photo Scan ISBN controls to Add to library where supported.
 - Added a reusable source-entry body with prefilled URL and identifier lookup.

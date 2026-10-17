@@ -374,6 +374,19 @@ export interface CaptureIntent {
   text: string;
   task: TaskState | null;
   picked: [string, string][];
+  targetPageId?: string;
+  question?: boolean;
+}
+
+export interface CaptureResult {
+  pageId: string;
+  blockId: string;
+  undo(): Promise<void>;
+}
+
+/** Acceptance is durable; delivery can finish later, including after an offline interval. */
+export interface CaptureReceipt {
+  delivered: Promise<CaptureResult | null>;
 }
 
 /** The notebook-wide client. One per window. */
@@ -384,7 +397,7 @@ export interface NotebookClient {
   /** Keep text for a value whose creation is already queued, before its editor can mount. */
   queueCreatedValueText(valueId: string, pageId: string, text: string): Promise<void>;
   /** Resolves once the capture is in the outbox, not when the service acknowledges it. */
-  appendCapture(text: string, task: TaskState | null, picked?: readonly [string, string][]): Promise<void>;
+  appendCapture(text: string, task: TaskState | null, picked?: readonly [string, string][], options?: Pick<CaptureIntent, 'targetPageId' | 'question'>): Promise<CaptureReceipt>;
   /** One acknowledged transaction across pages, with exact field-level undo/redo. */
   editSourceDetails(edits: readonly { pageId: string; edit: SourceDetailsEdit }[]): Promise<DocumentChange>;
   /** Move a journal subtree and leave a live reference, in one transaction with undo/redo. */

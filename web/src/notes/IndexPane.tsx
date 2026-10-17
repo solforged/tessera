@@ -24,7 +24,7 @@ import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { indexKindTarget, noteKindIcon, tagOnly } from './kinds';
 import { filingGroups, filingOperations, settleFindingAid, wholeKindIndex } from './finding-aid';
 import type { FindingAidSnapshot } from './finding-aid';
-import { pendingCaretInput } from '../shell/pending-caret';
+import { CreateSlip } from '../create/CreateSlip';
 import './notes.css';
 import { QuestionLedger } from './QuestionLedger';
 
@@ -453,102 +453,13 @@ function EmptyKind(props: { kindKey: string; kind: NoteKind | IndexKind | undefi
 
 function NewKindAction(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' | 'onOpen'> & { members?: { id: string }[] }) {
   const [anchor, setAnchor] = createSignal<HTMLElement>();
-  const mode = () => props.kind ? startable[props.kindKey] : undefined;
-  const members = createMemo(() => new Set(props.members?.map(note => note.id)));
+  const mode = () => props.kind ? startable[props.kindKey] ?? (props.kind.type_id ? 'type' : undefined) : undefined;
   return <>
     <Show when={mode()}><Button class="bordered" icon="plus" aria-haspopup="dialog" onClick={event => setAnchor(event.currentTarget)}>New {props.kind!.name.toLocaleLowerCase()}…</Button></Show>
-    <Show when={anchor()}>{target => <NewKindNote kind={props.kind!} mode={mode()!} anchor={target()} notebook={props.notebook} members={members()} onDismiss={() => setAnchor(undefined)} onOpen={(page, beside) => { setAnchor(undefined); props.onOpen(page, beside); }} />}</Show>
+    <Show when={anchor()}>{target => <CreateSlip request={{ kind: mode() === 'question' ? 'question' : mode() === 'project' ? 'project' : `type:${props.kindKey}`, text: '', lockKind: true }} anchor={target()} notebook={props.notebook} onDismiss={() => setAnchor(undefined)} defaultBeside={window.matchMedia('(pointer: coarse)').matches && document.querySelectorAll('.panes > .pane:not(.folded)').length > 1} onOpen={props.onOpen} />}</Show>
   </>;
 }
 
-/** What the gist line asks for; it becomes the page's first block, which the finding aid shows under the title. */
-const gistPrompt: Record<'type' | 'question' | 'project', (noun: string) => string> = {
-  type: noun => noun === 'person' ? 'Who they are, in a line' : noun === 'group' ? 'What the group is, in a line' : noun === 'thesis' ? 'The claim, in a sentence' : `What the ${noun} is, in a sentence`,
-  question: () => 'Why it matters, in a sentence',
-  project: () => 'The outcome, in a sentence',
-};
-
-/** Names a page, optionally with its gist, and files it under the kind in one acknowledged batch. Pages with a similar title are offered first, so an existing page is filed or opened instead of duplicated. */
-export function NewKindNote(props: { kind: NoteKind; mode: 'type' | 'question' | 'project'; anchor: HTMLElement; notebook: NotebookClient; members: ReadonlySet<string>; onDismiss(): void; onCreated?(pageId: string): void; onOpen(target: Extract<OpenTarget, { kind: 'page' }>, beside: boolean): void }) {
-  const [title, setTitle] = createSignal('');
-  const [gist, setGist] = createSignal('');
-  const [busy, setBusy] = createSignal(false);
-  const [error, setError] = createSignal('');
-  const noun = props.kind.name.toLocaleLowerCase();
-  const query = () => title().trim();
-  // Titles are unique without case, as the notebook keys them; the cached roots can miss pages made by other commands.
-  const [existing] = createResource(() => query() || false, async text => ({ title: text, id: await props.notebook.pageByTitle(text, false).catch(() => null) }));
-  const [similar] = createResource(() => query() || false, text => props.notebook.api.complete(text, 8).then(rows => rows.filter(row => row.kind === 'page')).catch(() => []));
-  const [type] = createResource(() => props.kind.type_id || false, id => props.notebook.api.type(id).catch(() => null));
-  const template = () => (type.latest?.fields ?? []).map(id => props.notebook.lookup(id)()?.text).filter((name): name is string => !!name);
-  const typePage = () => props.mode === 'type' && query().toLocaleLowerCase() === props.kind.name.toLocaleLowerCase();
-  // A resource retains its last result while resolving; only the current title may use it.
-  const found = () => existing.latest?.title === query() ? existing.latest.id ?? undefined : undefined;
-  const member = () => !!found() && props.members.has(found()!);
-  const matches = createMemo(() => query() ? (similar.latest ?? []).filter(row => row.id !== found()).slice(0, 4) : []);
-  const submit = async (beside: boolean, chosen?: { id: string; text: string }) => {
-    const text = chosen?.text ?? query();
-    if (!text || busy() || (!chosen && typePage())) return;
-    setBusy(true); setError('');
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    const pending = pendingCaretInput.prepare();
-    let doc: PageDocument | undefined;
-    try {
-      const pageId = chosen?.id ?? await props.notebook.pageByTitle(text, false);
-      if (pageId && props.members.has(pageId)) { pending(); props.onOpen({ kind: 'page', pageId }, beside); return; }
-      const id = pageId ?? ulid(), caretId = pageId ? undefined : ulid();
-      let revision = 1;
-      if (pageId) { doc = props.notebook.open(pageId); await documentReady(doc); await doc.flush(); revision = (await props.notebook.api.block(id)).revision; }
-      const kindPage = props.mode === 'type' ? await props.notebook.pageByTitle(props.kind.name, false) : null;
-      const line = gist().trim();
-      const operations: Operation[] = [
-        ...(pageId ? [] : [{ op: 'create_page' as const, id, title: text }]),
-        ...(caretId ? [{ op: 'insert' as const, id: caretId, parent_id: id, after: null, text: line, heading: null }] : []),
-        ...(props.mode === 'type' ? filingOperations(id, revision, props.kind.name, kindPage ? undefined : ulid())
-          : props.mode === 'question' ? [{ op: 'set_question' as const, id, base_revision: revision, question: { unsettled: false, parked: false, review_on: null, accepted: null } }]
-            : [{ op: 'set_project' as const, id, base_revision: revision, project: { status: 'active' as const, outcome: '', deadline: null } }]),
-      ];
-      await props.notebook.commit(operations, `New ${noun}`);
-      if (!pageId) props.onCreated?.(id);
-      if (pageId) pending();
-      props.onOpen({ kind: 'page', pageId: id, ...(caretId ? { caretId, caretOffset: line.length } : {}) }, beside);
-    } catch (reason) { pending(); setError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { doc?.release(); setBusy(false); }
-  };
-  const keyDown = (event: KeyboardEvent) => {
-    if (event.key !== 'Enter' || event.isComposing) return;
-    event.preventDefault();
-    void submit(opensBeside(event));
-  };
-  const action = () => busy() ? 'Saving…' : member() ? `Open ${noun}` : found() ? `File as ${noun}` : `Create ${noun}`;
-  return <Popup anchor={props.anchor} placement={cover() ? 'sheet' : 'anchor'} class="index-note-popup new-kind-popup" label={`New ${noun}`} width={400} onDismiss={() => { if (!busy()) props.onDismiss(); }}>
-    <form onSubmit={event => { event.preventDefault(); void submit(false); }}>
-      <p class="index-eyebrow new-kind-eyebrow"><Icon name={noteKindIcon(props.kind)} />New {noun}</p>
-      <label class="visually-hidden" for="new-kind-title">Title</label>
-      <input id="new-kind-title" class="new-kind-title" value={title()} disabled={busy()} autocomplete="off" placeholder={`Name the ${noun}`} onInput={event => { setTitle(event.currentTarget.value); setError(''); }} onKeyDown={keyDown} />
-      <Show when={!typePage() && found()} fallback={<Show when={!typePage()}>
-        <label class="visually-hidden" for="new-kind-gist">Gist</label>
-        <input id="new-kind-gist" class="new-kind-gist" value={gist()} disabled={busy()} autocomplete="off" placeholder={gistPrompt[props.mode](noun)} onInput={event => setGist(event.currentTarget.value)} onKeyDown={keyDown} />
-      </Show>}>{id => <p class="new-kind-note">“{props.notebook.lookup(id())()?.text ?? query()}” {member() ? `is already a ${noun}.` : `already exists; it will be ${props.mode === 'type' ? `filed under ${props.kind.name}` : `made a ${noun}`}.`}</p>}</Show>
-      <Show when={typePage()}><p class="new-kind-note">“{props.kind.name}” names the type itself.</p></Show>
-      <Show when={template().length}><p class="new-kind-template"><span>Template</span>{template().join(' · ')}</p></Show>
-      <Show when={matches().length}>
-        <div class="new-kind-matches" role="group" aria-label="Similar pages">
-          <p class="new-kind-matches-label">Similar pages</p>
-          <For each={matches()}>{row => <button type="button" class="new-kind-match" disabled={busy()} onClick={event => void submit(opensBeside(event), row)}>
-            <span class="new-kind-match-title">{row.text}<Show when={row.alias}>{alias => <span class="reference-via"> via {alias()}</span>}</Show></span>
-            <span class="new-kind-match-action">{props.members.has(row.id) ? 'Open' : props.mode === 'type' ? `File as ${noun}` : `Make ${noun}`}</span>
-          </button>}</For>
-        </div>
-      </Show>
-      <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
-      <div class="popup-actions new-kind-actions">
-        <span class="new-kind-keys"><kbd>↵</kbd> {member() ? 'Open' : found() ? 'File' : 'Create'} <kbd>⇧↵</kbd> Beside</span>
-        <Button disabled={busy()} onClick={props.onDismiss}>Cancel</Button><Button type="submit" class="bordered" disabled={!query() || busy() || typePage()}>{action()}</Button>
-      </div>
-    </form>
-  </Popup>;
-}
 
 interface FilingChoice { id: string; title: string; create: boolean }
 function FilingPicker(props: { notebook: NotebookClient; notes: NoteEntry[]; anchor: HTMLElement; onDismiss(): void; onFiled(change: FiledNotes): void }) {

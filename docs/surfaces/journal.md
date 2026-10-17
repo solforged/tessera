@@ -6,34 +6,39 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ## Add to today
 
-Add to today is Tana-style quick capture: one line becomes one block at the end of today's journal, reusing a trailing empty block, without leaving what is open. ⌘E (the palette's Add to today) opens it as a slip centered near the top, 560 px. On the cover it rises from the bottom edge above the keyboard.
+Add to today (⌘E) opens the shared creation slip centered near the top, 560 px wide. On the cover it rises from the bottom edge above the keyboard. A mono rubric names the action in gilt and its destination in `--faint`.
 
-A mono rubric line reads `Add to today` in gilt and `Sun 11 · end of journal` in `--faint`. The line itself is in the writing voice, its kind glyph in the bullet slot.
+The Kind row offers Note, Question, Task, Card and Source; More offers Project and the notebook's page kinds. Arrow keys select a kind. Until a kind is chosen explicitly, a trailing `?` infers Question, `[] ` or a planning `@date` infers Task, complete card syntax infers Card, and a whole URL, ISBN, DOI or arXiv identifier infers Source. The draft carries across kind switches.
+
+Into offers Today, New page (notes and questions), and Page…. Notes, tasks and cards default to Today; questions default to New page. An explicit destination stays selected while the kind changes. ⌘N starts Note into New page. Index, ledger and table buttons lock their kind and hide both controls.
 
 ### Line kind and completions
 
-- ⌘Enter or the glyph switches between a note and a task.
-- `[] ` or `[ ] ` at the start of the line also makes it a task and disappears, as in the outline. Backspace on an empty task line returns to a note; a pasted or restored prefix saves as a task too.
-- Card syntax shows the index-card mark in the glyph slot unless the line is a task.
+- A note, question or task line appends at the end of Today or the chosen page, reusing a trailing empty block. A question adds its question state in the same batch.
+- `[] ` and `[ ] ` task prefixes disappear on save. The Kind row replaces the old ⌘Enter note/task toggle.
 - `[[` completes pages (with Create page) and `#` pages used as types (with Create type), matching titles and aliases in a picker under the line. Type results never include matching note bodies. A hand-typed `[[Title]]` links as it would on leaving a block.
-- An `@date` plans the line and so makes it a task, with the [same preview as Add a task](tasks-agenda.md#add-a-task). A plain-word date suffix plans only a task.
+- An `@date` plans a task, with the [same preview as Add a task](tasks-agenda.md#add-a-task). A plain-word date suffix plans only a task.
 
 ### Adding and saving
 
 | Input | Behavior |
 |---|---|
-| Enter | Adds and closes |
-| Shift+Enter | Adds and keeps the line for the next item, with `N added to today` in place of the key hints |
+| Enter in a line | Adds and closes |
+| Shift+Enter in a line | Adds another, keeps the slip open and shows `N added` |
+| Enter in a page draft | Creates and opens with the body caret |
+| Shift+Enter in a page draft | Creates and opens beside |
+| ⌘Enter | Submits from any field |
+| Shift+⌘Enter | Submits and keeps the same kind ready for another |
 | Escape | Closes an open completion first and then the slip |
-| Touch screens | Replace keyboard hints with Cancel and Add; the empty line reads `Add a note or task` |
+| Cover sheet | Hides keyboard hints and Cancel; the sheet's Close dismisses it |
 
-The line clears once the whole capture is in the local outbox and saves in order, so a fast second line is never dropped. Reload resumes every accepted capture, including its task plan and chosen references. If local storage fails, the line keeps its text.
+Line drafts clear once accepted by the local outbox; cards keep their draft until acknowledgement. Reload resumes every accepted capture, including its destination, question state, task plan and chosen references. If local storage fails, the line keeps its text. Line, card and source creation in the slip never navigate: a shell notice confirms Added to today, Added to the chosen page, Card added or Added to library, with Open. For queued imports, Open shows the source when ready or the Library inbox while the job is pending. Lines and cards also offer Undo, deleting the inserted row or restoring a reused empty row. The notice uses the same eight-second, hover-and-focus-paused surface as page-deletion Undo.
 
 ### macOS capture
 
-The macOS app's File › Add to Today (⌘E) and Dock › Add to Today open the same slip. ⌘⇧E anywhere on the Mac opens it as a floating panel over the current app, or the slip when Tessera is in front. The Send to Tessera text Service always opens the floating panel; native code delivers the selection as a `tessera-quick-capture` CustomEvent with `{"kind":"note","text":"…"}` in its detail. The panel currently focuses on that event; reading its text into the line belongs to the web capture surface.
+The macOS app's File › Add to Today (⌘E) and Dock › Add to Today open the same slip. ⌘⇧E anywhere on the Mac opens it as a floating panel over the current app, or the slip when Tessera is in front. The Send to Tessera text Service opens the floating panel and replaces its draft from the `tessera-quick-capture` event's parsed kind and text before focusing it.
 
-The panel stays 600 px wide, fits its contents before showing, and grows downward from a fixed top edge for kind fields, previews, errors and completions, up to 560 px. It shrinks when those rows disappear and keeps an unsaved draft when it loses focus. Completing a journal capture or pressing Escape returns to the previous app; page kinds created in the panel open in the main window instead, hiding the panel without restoring the previous app.
+The panel stays 600 px wide, fits its contents before showing, and grows downward from a fixed top edge for kind fields, previews, errors and completions, up to 560 px. It shrinks when those rows disappear and keeps an unsaved draft when it loses focus. Line, card and source saves or Escape return to the previous app; a page-kind creation uses the native open bridge to show the page and its body caret in the main window instead.
 
 ### Android capture
 

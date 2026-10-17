@@ -352,6 +352,43 @@ describe('real notebook operations and recovery', () => {
     } finally { globalThis.fetch = actualFetch; }
   });
 
+  test('under-page question captures survive reload and reuse only the empty tail', async () => {
+    const session = `capture-under-${++serial}`;
+    const instance = await client(session);
+    const pageId = await instance.createPage(`Capture destination ${serial}`);
+    await instance.flush();
+    const first = ulid(), empty = (await api.page(pageId)).rows.at(-1)!.block.id;
+    await instance.commit([{ op: 'insert', id: first, parent_id: pageId, after: null, text: 'Keep the first line', heading: null }]);
+    globalThis.fetch = Object.assign(async (): Promise<Response> => { throw new TypeError('Browser offline'); }, { preconnect: actualFetch.preconnect });
+    try {
+      await instance.appendCapture('Where does this belong?', null, [], { targetPageId: pageId, question: true });
+      await instance.dispose();
+      globalThis.fetch = actualFetch;
+      const recovered = await client(session);
+      await recovered.flush();
+      const page = await api.page(pageId);
+      expect(page.rows.find(row => row.block.id === empty)?.block.text).toBe('Where does this belong?');
+      expect(page.capabilities?.find(value => value.block_id === empty)?.question?.state).toMatchObject({ unsettled: false, parked: false, accepted: null, review_on: null });
+      expect(page.rows.find(row => row.block.id === first)?.block.text).toBe('Keep the first line');
+      expect(recovered.queuedChanges()).toBe(0);
+    } finally { globalThis.fetch = actualFetch; }
+  });
+
+  test('capture receipt opens the acknowledged row and undo restores a reused empty block', async () => {
+    const instance = await client();
+    const pageId = await instance.createPage(`Capture receipt ${++serial}`);
+    await instance.flush();
+    const empty = (await api.page(pageId)).rows.at(-1)!.block.id;
+    const receipt = await instance.appendCapture('A question?', null, [], { targetPageId: pageId, question: true });
+    await instance.flush();
+    const result = await receipt.delivered;
+    expect(result?.pageId).toBe(pageId);
+    expect(result?.blockId).toBe(empty);
+    await result!.undo();
+    expect((await api.block(empty)).text).toBe('');
+    expect((await api.capabilities(empty)).question).toBeNull();
+  });
+
   test('capture retry keeps its frozen identity after a lost acknowledgement without duplicating text', async () => {
     const session = `capture-ack-${++serial}`;
     const instance = await client(session);

@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { TaskState } from '../api/types';
-import type { NotebookClient } from '../document/contract';
+import type { CaptureIntent, CaptureReceipt, NotebookClient } from '../document/contract';
 import { openReferenceRange } from '../outline/completion';
 import { completeNames, foldName } from '../outline/names';
 import type { TitleTargets } from '../outline/link-titles';
@@ -34,10 +34,15 @@ export interface CaptureFieldProps {
   taskOnly?: boolean;
   initialTask?: boolean;
   initialText?: string;
+  /** The slip owns kind selection and the draft across body switches. */
+  fixedKind?: boolean;
+  onTextChange?(text: string): void;
+  targetPageId?: string;
+  question?: boolean;
   label: string;
   placeholder: string;
   /** Called after a save; `again` is true for Shift+Enter, which keeps the field for the next item. */
-  onSaved?(again: boolean): void;
+  onSaved?(again: boolean, receipt: CaptureReceipt): void;
   /** Escape with no completion open. */
   onCancel?(): void;
   onTaskChange?(task: boolean): void;
@@ -47,8 +52,7 @@ export interface CaptureFieldProps {
 }
 
 /**
- * One line that becomes one block at the end of today's journal. `[[` and `#` complete pages and types, `@` dates
- * plan a task, ⌘Enter turns the line into a task, and Enter saves.
+ * One durable line. `[[` and `#` complete pages and types, `@` dates plan a task, and Enter saves.
  */
 export function CaptureField(props: CaptureFieldProps) {
   let input!: HTMLInputElement;
@@ -63,10 +67,10 @@ export function CaptureField(props: CaptureFieldProps) {
   // Escape closes a completion until the text changes.
   const [dismissed, setDismissed] = createSignal<string | null>(null);
   const picked: TitleTargets = new Map();
-  const taskPrefix = createMemo(() => /^\[ ?\] /.exec(draft())?.[0] ?? '');
+  const taskPrefix = createMemo(() => !props.fixedKind || props.taskOnly ? /^\[ ?\] /.exec(draft())?.[0] ?? '' : '');
   const bodyText = createMemo(() => draft().slice(taskPrefix().length).trim());
   const hasCards = createMemo(() => parseCardText(bodyText()).cards.length > 0);
-  const isTask = () => !!props.taskOnly || task() || !!taskPrefix();
+  const isTask = () => !!props.taskOnly || !props.fixedKind && (task() || !!taskPrefix());
   createEffect(on(task, value => props.onTaskChange?.(value), { defer: true }));
 
   const token = createMemo<Token | null>(() => {
@@ -95,7 +99,7 @@ export function CaptureField(props: CaptureFieldProps) {
     if (!found) return null;
     // A plain-word date suffix plans only a task; `@` always plans and so makes one.
     const explicit = text[found.from] === '@';
-    if (!explicit && !isTask()) return null;
+    if ((!explicit || props.fixedKind) && !isTask()) return null;
     const choice = found.query ? dateSuggestions(found.query, props.contextDate())[0] : undefined;
     return { token: found, choice, explicit };
   });
@@ -111,6 +115,7 @@ export function CaptureField(props: CaptureFieldProps) {
     const text = draft();
     const next = text.slice(0, from) + insert + text.slice(to);
     setDraft(next);
+    props.onTextChange?.(next);
     const at = from + insert.length;
     setCaret(at);
     queueMicrotask(() => { input.value = next; input.setSelectionRange(at, at); input.focus(); });
@@ -141,7 +146,7 @@ export function CaptureField(props: CaptureFieldProps) {
     accepting = true;
     setPending(count => count + 1); setError('');
     try {
-      await props.notebook.appendCapture(body.trim(), value, [...links]);
+      const receipt = await props.notebook.appendCapture(body.trim(), value, [...links], { targetPageId: props.targetPageId, question: props.question } satisfies Pick<CaptureIntent, 'targetPageId' | 'question'>);
       // Typing while the storage transaction finishes stays in the next line.
       const next = draft() === submittedDraft ? '' : draft().startsWith(submittedDraft) ? draft().slice(submittedDraft.length) : draft();
       if (next !== draft()) {
@@ -149,7 +154,7 @@ export function CaptureField(props: CaptureFieldProps) {
         setDraft(next); setCaret(next.length); input.value = next; input.setSelectionRange(next.length, next.length);
       }
       if (!props.taskOnly && !again && !next) setTask(false);
-      props.onSaved?.(again);
+      props.onSaved?.(again, receipt);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
@@ -169,7 +174,7 @@ export function CaptureField(props: CaptureFieldProps) {
       void choose(choices()?.[index()]);
     } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
       event.preventDefault();
-      if (!props.taskOnly) setTask(value => !value);
+      void submit(event.shiftKey);
     } else if (event.key === 'Enter') {
       event.preventDefault();
       void submit(event.shiftKey);
@@ -188,19 +193,20 @@ export function CaptureField(props: CaptureFieldProps) {
     const prefix = /^\[ ?\] /.exec(text)?.[0] ?? '';
     const start = Math.max(0, (input.selectionStart ?? text.length) - prefix.length);
     const end = Math.max(0, (input.selectionEnd ?? text.length) - prefix.length);
-    if (prefix) {
+    if (prefix && !props.fixedKind) {
       setTask(true);
       input.value = text.slice(prefix.length);
       input.setSelectionRange(start, end);
     }
     setDraft(input.value); track(); setError('');
+    props.onTextChange?.(input.value);
   };
   onMount(() => { acceptInput(); props.inputRef?.(input); });
 
   return <div class="capture-field" classList={{ busy: busy() }}>
     <div ref={line} class="capture-line">
-      <Show when={!props.taskOnly} fallback={<Icon name="plus" />}>
-        <button type="button" class="capture-kind" aria-pressed={task()} aria-label="Task" title="Task (⌘↵)" onMouseDown={event => event.preventDefault()} onClick={() => setTask(value => !value)}>
+      <Show when={!props.taskOnly && !props.fixedKind} fallback={<Icon name={props.taskOnly ? 'select' : 'bullet'} />}>
+        <button type="button" class="capture-kind" aria-pressed={task()} aria-label="Task" title="Task" onMouseDown={event => event.preventDefault()} onClick={() => setTask(value => !value)}>
           <Icon name={isTask() || plan()?.explicit && plan()?.choice ? 'select' : hasCards() ? 'card' : 'bullet'} />
         </button>
       </Show>

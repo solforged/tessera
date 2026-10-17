@@ -19,20 +19,26 @@ export async function captureOperations(notebook: NotebookClient, capture: Captu
   const text = targets.size ? withLinkedTitles(capture.text, targets) : capture.text;
   let pageId: string;
   let page: PageView | undefined;
-  try {
-    pageId = (await notebook.api.journal(capture.date)).id;
+  if (capture.targetPageId) {
+    pageId = capture.targetPageId;
     page = await notebook.api.page(pageId);
-  } catch (reason) {
-    if (!(reason instanceof ApiError) || reason.status !== 404) throw reason;
-    pageId = ulid();
-    operations.push({ op: 'create_journal', id: pageId, date: capture.date });
+  } else {
+    try {
+      pageId = (await notebook.api.journal(capture.date)).id;
+      page = await notebook.api.page(pageId);
+    } catch (reason) {
+      if (!(reason instanceof ApiError) || reason.status !== 404) throw reason;
+      pageId = ulid();
+      operations.push({ op: 'create_journal', id: pageId, date: capture.date });
+    }
   }
   const last = page?.rows.filter(row => row.block.parent_id === pageId).at(-1)?.block;
-  const reuse = last && !last.text && !page?.capabilities?.find(value => value.block_id === last.id)?.task
+  const reuse = last && !last.text && !page?.capabilities?.some(value => value.block_id === last.id && (value.task || value.question || value.project || value.source))
     && !page?.rows.some(row => row.block.parent_id === last.id) ? last : null;
   const id = reuse?.id ?? ulid();
   if (reuse) operations.push({ op: 'edit_text', id, base_revision: reuse.revision, text });
   else operations.push({ op: 'insert', id, parent_id: pageId, after: last?.id ?? null, text, heading: null });
   if (capture.task) operations.push({ op: 'set_task', id, base_revision: reuse ? reuse.revision + 1 : 1, task: capture.task });
+  if (capture.question) operations.push({ op: 'set_question', id, base_revision: (reuse ? reuse.revision + 1 : 1) + Number(!!capture.task), question: { unsettled: false, parked: false, accepted: null, review_on: null } });
   return { operations, pageId };
 }

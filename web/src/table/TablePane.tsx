@@ -24,7 +24,7 @@ import { createOptionValue } from '../fields/commands';
 import { missingFilter, requiredIds, requiredReason } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
 import { noteKindIcon } from '../notes/kinds';
-import { NewKindNote } from '../notes/IndexPane';
+import { CreateSlip } from '../create/CreateSlip';
 import { NoteFind } from '../notes/NoteFind';
 import { autoPlural } from '../fields/presentation';
 import { FilterPopup } from './FilterPopup';
@@ -228,6 +228,7 @@ function TableContent(props: TablePaneProps) {
   const sourcesByRow = createMemo(() => new Map((result()?.rows ?? []).map(row => [row.block.block.id, rowSources(row, sourceField())])));
   const typeKind = () => query().note_kind || query().type ? noteIndex()?.kinds.find(kind => query().note_kind ? kind.key === query().note_kind : kind.type_id === query().type) : undefined;
   const rowKind = () => {
+    if (query().source === 'questions' && !query().type) return { key: 'question', name: 'Question', plural: 'Questions', icon: null, type_id: null };
     const current = type(); if (!query().type || !current || query().source && query().source !== 'notes') return undefined;
     return typeKind() ?? { key: `type:${current.page.id}`, name: current.page.text, plural: current.plural ?? autoPlural(current.page.text), icon: current.icon, type_id: current.page.id };
   };
@@ -898,7 +899,7 @@ function TableContent(props: TablePaneProps) {
     </Popup>}</Show>
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
-      {state.kind === 'new-row' && rowKind() && <NewKindNote kind={rowKind()!} mode="type" anchor={state.anchor} notebook={props.notebook} members={new Set((result()?.rows ?? []).filter(row => row.block.block.kind !== 'block').map(row => row.block.block.id))} onDismiss={() => setPopup(null)} onCreated={pageId => { history.push({ kind: 'created-row', pageId }); undone.length = 0; setViewUndo(false); setRowUndo(false); }} onOpen={(target, beside) => { void revealNewRow(target, beside).catch(message); }} />}
+      {state.kind === 'new-row' && rowKind() && <CreateSlip request={{ kind: rowKind()!.key === 'question' ? 'question' : `type:${rowKind()!.key}`, text: '', lockKind: true }} anchor={state.anchor} notebook={props.notebook} onDismiss={() => setPopup(null)} defaultBeside={window.matchMedia('(pointer: coarse)').matches && !!props.neighbour} onCreated={pageId => { history.push({ kind: 'created-row', pageId }); undone.length = 0; setViewUndo(false); setRowUndo(false); }} onOpen={(target, beside) => { if (target.kind === 'page') void revealNewRow(target, beside).catch(message); }} />}
       {state.kind === 'delete-row' && <Popup anchor={state.anchor} placement={narrow() ? 'sheet' : 'anchor'} label={state.row.block.block.kind === 'block' ? 'Delete block' : 'Delete page'} onDismiss={() => { if (!deleting()) setPopup(null); }}>
         <p>Delete “{plainText(state.row.block.block.text, id => props.notebook.lookup(id))}” and all its {state.row.block.block.kind === 'block' ? 'children' : 'blocks'}?</p><p class="muted">You can undo this deletion.</p>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>

@@ -22,7 +22,7 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
-import { Popup } from '../ui/Popup';
+import { Popup, type PopupAnchor } from '../ui/Popup';
 import { createPaneMotion, navigatePane, paneTargetIdentity } from '../ui/pane-motion';
 import { installTabRule } from '../ui/tab-rule';
 import { createVisualViewport } from '../ui/visual-viewport';
@@ -42,7 +42,7 @@ import { opensBeside } from './beside';
 import { besideSlot, dividerRatio, insertPane, MAX_PANES, paneCapacity, windowStart } from './pane-row';
 import { blankCapture } from '../create/request';
 import type { CreateRequest } from '../create/request';
-import { CaptureSheet } from '../capture/CaptureSheet';
+import { CreateSlip, type CreateNotice } from '../create/CreateSlip';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
 import { NotebookMarker, NotebookOpening, knownNotebooks, registerNotebookCommands } from '../settings/notebooks';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
@@ -100,7 +100,7 @@ type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 /** A drop replaces a pane, or inserts a new one at a position in the row. */
 type DropZone = { replace: PaneId } | { insert: number };
 const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Blocks' };
-type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new' | 'new-view' | 'delete' | 'restore-pages' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
+type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new-view' | 'delete' | 'restore-pages' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
 const emptySession = (): PaneSession => ({ entries: [], index: -1, generation: 0 });
 let paneSequence = 0;
 const newPaneId = (): PaneId => `pane-${Date.now().toString(36)}-${++paneSequence}`;
@@ -222,11 +222,22 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const sequence = deletionUndoSequence();
     if (sequence !== null && (notebook.changeSequence() !== sequence || notebook.saveState() !== 'saved')) setDeletionUndoSequence(null);
   });
-  /** The deletion toast leaves after a while unless the pointer or focus rests on it; Undo page deletion stays in the command palette until the next deletion. */
+  /** Notices share the deletion toast's lifetime and pause while hovered or focused. */
   const [toastShown, setToastShown] = createSignal(false);
   const [toastHeld, setToastHeld] = createSignal(false);
+  const [notice, setNotice] = createSignal<CreateNotice>();
+  const [noticeBusy, setNoticeBusy] = createSignal(false);
+  const showNotice = (value: CreateNotice) => batch(() => { setNotice(value); setToastHeld(false); setToastShown(true); });
+  const noticeAction = async (action: NonNullable<CreateNotice['actions']>[number]) => {
+    if (noticeBusy()) return;
+    const current = notice();
+    setNoticeBusy(true);
+    try { await action.run(); if (notice() === current) setToastShown(false); }
+    catch (reason) { reportError(reason); }
+    finally { setNoticeBusy(false); }
+  };
   createEffect(() => {
-    deleted();
+    notice();
     if (!toastShown() || toastHeld()) return;
     const timer = setTimeout(() => setToastShown(false), UNDO_TOAST_MS);
     onCleanup(() => clearTimeout(timer));
@@ -477,7 +488,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     try { for (const page of pages) { await notebook.deletePage(page.id); done.push(page); } }
     finally {
       if (done.length) {
-        batch(() => { setDeleted({ pages: done, label: done.length === pages.length ? label : `${done.length} pages`, reopen }); setToastHeld(false); setToastShown(true); });
+        const message = `${done.length === pages.length ? label : `${done.length} pages`} deleted`;
+        setDeleted({ pages: done, label: done.length === pages.length ? label : `${done.length} pages`, reopen });
+        showNotice({ message, actions: [{ label: 'Undo', run: restorePage }] });
         const remaining = notebook.roots().find(block => !ids.has(block.id));
         const previousDay = new Date(`${todayDate()}T12:00:00`);
         previousDay.setDate(previousDay.getDate() - 1);
@@ -503,14 +516,23 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       if (value.reopen) open({ kind: 'page', pageId: value.pages[0]!.id });
     } catch (reason) { reportError(reason); }
   };
-  const [capture, setCapture] = createSignal<CreateRequest | null>(null);
-  const openCapture = (request: CreateRequest) => { setPopup(null); setTypesMenu(null); setCapture(request); };
-  /** Saving or Escape leaves focus where the sheet opened from; a save that dropped it returns it to the pane. */
-  const closeCapture = () => {
-    setCapture(null);
+  const [creation, setCreation] = createSignal<{ request: CreateRequest; anchor?: PopupAnchor; pane: PaneId }>();
+  const openCreate = (request: CreateRequest, anchor?: PopupAnchor) => { setPopup(null); setTypesMenu(null); setCreation({ request, anchor, pane: active() }); };
+  /** Saving or Escape leaves focus where the slip opened from. */
+  const closeCreate = () => {
+    setCreation(undefined);
     queueMicrotask(() => { if (document.activeElement === document.body) focusPane(active()); });
   };
   onMount(() => {
+    const nativeOpen = (event: Event) => {
+      const target = event instanceof CustomEvent ? event.detail : undefined;
+      if (!target || target.kind !== 'page' || typeof target.pageId !== 'string'
+        || target.caretId !== undefined && typeof target.caretId !== 'string'
+        || target.blockId !== undefined && typeof target.blockId !== 'string') return;
+      open({ kind: 'page', pageId: target.pageId, ...(target.caretId ? { caretId: target.caretId } : {}), ...(target.blockId ? { blockId: target.blockId } : {}), ...(typeof target.caretOffset === 'number' && Number.isFinite(target.caretOffset) ? { caretOffset: target.caretOffset } : {}) });
+    };
+    window.addEventListener('tessera-open', nativeOpen);
+    onCleanup(() => window.removeEventListener('tessera-open', nativeOpen));
     const onNarrow = () => setNarrow(narrowQuery.matches);
     narrowQuery.addEventListener('change', onNarrow);
     onCleanup(() => narrowQuery.removeEventListener('change', onNarrow));
@@ -531,9 +553,14 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     onCleanup(() => window.removeEventListener('keydown', onPageUndo, true));
     const onKey = (event: KeyboardEvent) => {
       if (event.isComposing || document.querySelector('.popup:not(.reference-preview), .popup.reference-preview:focus-within')) return;
+      if ((mac ? event.metaKey : event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLocaleLowerCase() === 'n') {
+        event.preventDefault(); event.stopPropagation();
+        openCreate({ kind: 'note', text: '', into: { kind: 'page' } });
+        return;
+      }
       if ((mac ? event.metaKey : event.ctrlKey) && !event.shiftKey && !event.altKey && event.key.toLocaleLowerCase() === 'e') {
         event.preventDefault(); event.stopPropagation();
-        openCapture(blankCapture());
+        openCreate(blankCapture());
         return;
       }
       if (!event.ctrlKey || !event.shiftKey || event.metaKey || event.altKey) return;
@@ -610,7 +637,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   });
   installOpenedFiles(() => navigationId() !== null, () => open({ kind: 'library', tab: 'inbox' }, false, order()[0]), reportError);
   // ⌘E, the desktop menu and global shortcut, and Android's launcher shortcuts and share sheet.
-  installQuickCapture(() => navigationId() !== null, openCapture);
+  installQuickCapture(() => navigationId() !== null, openCreate);
   // Caret and scroll reports change navigation on most keystrokes; storage writes trail them off the input path.
   let navigationWrite: { key: string; value: unknown } | null = null;
   let navigationTimer = 0;
@@ -638,7 +665,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.commands', title: 'Show commands', section: 'Navigation', keys: ['⌃⇧P'], run: () => showPalette('commands') },
     { id: 'shell.settings', title: 'Open settings', section: 'Navigation', run: () => open({ kind: 'settings' }) },
     { id: 'shell.today', title: 'Open today’s journal', section: 'Navigation', keys: ['⌃⇧J'], run: () => { void today(); } },
-    { id: 'shell.capture', title: 'Add to today', section: 'Page', keys: ['⌘E'], run: () => openCapture(blankCapture()) },
+    { id: 'shell.capture', title: 'Add to today', section: 'Page', keys: ['⌘E'], run: () => openCreate(blankCapture()) },
     { id: 'shell.fields', title: 'Open fields', section: 'Navigation', run: () => open({ kind: 'fields' }) },
     { id: 'shell.agenda', title: 'Open agenda', section: 'Navigation', run: () => open({ kind: 'agenda', date: journalDate(active()) }) },
     { id: 'shell.review', title: 'Open review', section: 'Navigation', run: () => open({ kind: 'review' }) },
@@ -654,7 +681,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.switch', title: 'Next pane', section: 'View', keys: ['⌃⇧]'], disabledReason: () => !split() ? 'Open a second pane first' : undefined, run: switchPane },
     { id: 'shell.agent', title: 'Show or hide the agent', section: 'View', keys: ['⌃⇧A'], disabledReason: () => DEMO ? 'The agent needs the Tessera app' : undefined, run: () => toggleDock() },
     { id: 'shell.close', title: 'Close active pane', section: 'View', keys: ['⌃⇧X'], disabledReason: () => !split() ? 'Only one pane is open' : undefined, run: () => closePane(active()) },
-    { id: 'shell.new', title: 'New page', section: 'Page', run: () => setPopup({ kind: 'new', anchor: searchButton, pane: active() }) },
+    { id: 'shell.new', title: 'New page', section: 'Page', keys: ['⌘N'], run: () => openCreate({ kind: 'note', text: '', into: { kind: 'page' } }) },
     { id: 'shell.new-spread', title: 'New spread', section: 'Page', run: (beside = false) => open({ kind: 'spread', noteIds: [] }, beside) },
     { id: 'shell.new-view', title: 'New view…', section: 'View', run: () => setPopup({ kind: 'new-view', anchor: searchButton, pane: active() }) },
     { id: 'shell.pin', title: 'Pin / unpin page', section: 'Page', run: () => { const root = activeRoot(); if (root) pin(root.id); } },
@@ -1036,6 +1063,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <Show when={entry(pane)}>
         <Pane pane={pane} number={position() + 1} folded={!shown(pane)} grow={weights()[pane] ?? 1} neighbour={position() < order().length - 1} session={() => sessions()[pane]!} active={active() === pane} split={split()} immersive={immersive() === pane} onImmersive={on => immerse(pane, on)} notebook={notebook} commands={commands} vim={vim()} vimMode={vimModes()[pane] ?? null} onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))} pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')} pagePresentations={pagePresentations()} title={paneTitle(pane)} noteKind={indexKind(pane)}
           noteKinds={index()?.kinds}
+          onCreate={openCreate}
           sidebarOpen={sidebarVisible()} onSidebar={toggleSidebar}
           onPagePresentation={(id, value) => setPagePresentations(previous => ({ ...previous, [id]: value }))}
           onActivate={() => setActive(pane)}
@@ -1096,9 +1124,6 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <Show when={state.kind === 'new-view'}>
         <Menu anchor={state.anchor} label="New view source" header={<div class="table-popup-heading">Choose a source</div>} items={querySources.map(source => ({ label: source.name, action: () => { setPopup(null); open({ kind: 'table', typeId: null, viewId: null, query: { ...typeQuery(null), source: source.key } }, false, state.pane); } }))} onDismiss={() => setPopup(null)} />
       </Show>
-      <Show when={state.kind === 'new'}>
-        <NewPage anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onOpen={target => { setPopup(null); open(target, false, state.pane); }} />
-      </Show>
       <Show when={state.kind === 'restore-pages'}>
         <DeletedPages anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onRestored={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />
       </Show>
@@ -1120,9 +1145,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         ]} />
       </Show>
     </>}</Show>
-    <Show keyed when={capture()}>{request => <CaptureSheet notebook={notebook} request={request} onDismiss={closeCapture} />}</Show>
+    <Show keyed when={creation()}>{state => <CreateSlip notebook={notebook} request={state.request} anchor={state.anchor} onDismiss={closeCreate} onOpen={(target, beside) => open(target, beside, state.pane)} onNotice={showNotice} />}</Show>
     <ReferencePreviews notebook={notebook} navigationKey={`${active()}:${order().map(pane => sessions()[pane]?.generation ?? 0).join(':')}`} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
-    <Show when={toastShown() && deleted()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setToastHeld(true)} onPointerLeave={() => setToastHeld(false)} onFocusIn={() => setToastHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastHeld(false); }}><Icon name="trash" /><span>{value().label} deleted</span><Button icon="undo" onClick={() => { void restorePage(); }}>Undo</Button><Button icon="close" label="Dismiss deletion notification" onClick={() => setToastShown(false)} /></div>}</Show>
+    <Show when={toastShown() && notice()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setToastHeld(true)} onPointerLeave={() => setToastHeld(false)} onFocusIn={() => setToastHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastHeld(false); }}><span>{value().message}</span><For each={value().actions}>{action => <Button disabled={noticeBusy()} onClick={() => void noticeAction(action)}>{action.label}</Button>}</For><Button icon="close" label="Dismiss notification" onClick={() => setToastShown(false)} /></div>}</Show>
     <NotebookOpening />
   </div></AgentMarks.Provider>;
 }
@@ -1189,38 +1214,6 @@ function ViewLinks(props: { views: View[]; pinned: boolean; activeId?: string; o
   </div>}</For>;
 }
 
-function NewPage(props: { anchor: HTMLElement; notebook: NotebookClient; onDismiss(): void; onOpen(target: OpenTarget): void }) {
-  const [title, setTitle] = createSignal(''); const [error, setError] = createSignal(''); const [busy, setBusy] = createSignal(false);
-  const query = () => title().trim();
-  const [existing] = createResource(() => query() || false, async text => ({ title: text, id: await props.notebook.pageByTitle(text, false).catch(() => null) }));
-  const found = createMemo(() => existing.latest?.title === query() ? existing.latest.id : null);
-  const submit = async () => {
-    const text = query();
-    if (!text || busy()) return;
-    setBusy(true); setError('');
-    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-    const pending = pendingCaretInput.prepare();
-    try {
-      const existingId = await props.notebook.pageByTitle(text, false);
-      if (existingId) { pending(); props.onOpen({ kind: 'page', pageId: existingId }); return; }
-      const pageId = ulid(), caretId = ulid();
-      await props.notebook.commit([
-        { op: 'create_page', id: pageId, title: text },
-        { op: 'insert', id: caretId, parent_id: pageId, after: null, text: '', heading: null },
-      ], 'Create page');
-      props.onOpen({ kind: 'page', pageId, caretId });
-    } catch (reason) { pending(); setError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setBusy(false); }
-  };
-  return <Popup anchor={props.anchor} placement={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches ? 'sheet' : 'anchor'} label="New page" onDismiss={() => { if (!busy()) props.onDismiss(); }} width={320}>
-    <form onKeyDown={event => { if (event.key === 'Enter' && (event.isComposing || event.keyCode === 229)) event.preventDefault(); }} onSubmit={event => { event.preventDefault(); void submit(); }}>
-      <label for="new-page-title">Page title</label><input id="new-page-title" class="input" value={title()} disabled={busy()} onInput={event => { setTitle(event.currentTarget.value); setError(''); }} placeholder="Name your page" />
-      <Show when={found()}><p class="muted">“{query()}” already exists.</p></Show>
-      <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
-      <div class="popup-actions"><Button disabled={busy()} onClick={props.onDismiss}>Cancel</Button><Button type="submit" class="bordered" disabled={!query() || busy()}>{busy() ? 'Creating…' : found() ? 'Open page' : 'Create page'}</Button></div>
-    </form>
-  </Popup>;
-}
 
 function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   const text = createMemo(() => {
@@ -1251,7 +1244,7 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   </div></Show>;
 }
 
-function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: number; neighbour: boolean; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; noteKind?: IndexKind; noteKinds?: NoteKind[]; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
+function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: number; neighbour: boolean; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; noteKind?: IndexKind; noteKinds?: NoteKind[]; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onCreate(request: CreateRequest, anchor?: PopupAnchor): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
   const readerTarget = () => current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined;
@@ -1510,7 +1503,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Match when={current().target.kind === 'spread' ? current().target as Extract<OpenTarget, { kind: 'spread' }> : undefined}>{target => <SpreadPane noteIds={target().noteIds} notebook={props.notebook} onActivate={props.onActivate} onChange={noteIds => props.onTargetChange({ kind: 'spread', noteIds })} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} />}</Match>
       <Match when={current().target.kind === 'index' ? current().target as Extract<OpenTarget, { kind: 'index' }> : undefined}>{target => <IndexPane kindKey={target().key} neighbour={props.neighbour} kind={props.noteKind} view={snapshotView(current().view) as IndexViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeletePages={props.onDeleteSources} onSpread={(noteIds, beside) => { if (generation === props.session().generation) props.onOpen({ kind: 'spread', noteIds }, beside); }} />}</Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
-      <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} commands={props.commands} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} commands={props.commands} active={props.active} onActivate={props.onActivate} onCreate={props.onCreate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} neighbour={props.neighbour}
         add={(current().target as Extract<OpenTarget, { kind: 'library' }>).add}
         details={(current().target as Extract<OpenTarget, { kind: 'library' }>).details}
