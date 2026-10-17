@@ -13,7 +13,6 @@ import { DatePicker } from './DatePicker';
 import { movableTo, rescheduleTasks } from './reschedule';
 import { priorityLabel, priorityMenuItems, statusIcons, statusLabels, statusMenuItems } from './TaskControls';
 import { agendaTaskTime, isFinished, relativeDate, taskFacts } from './task-labels';
-import { PriorityBars } from './PriorityBars';
 import { shiftCalendarDate } from './week-calendar';
 import type { TaskSourceHistory } from './source-history';
 import './agenda.css';
@@ -120,6 +119,11 @@ function TaskSourceRow(props: {
   const unfinished = () => !historical() && !isFinished(props.row.task);
   const time = createMemo(() => props.timetable ? agendaTaskTime(props.row, props.plannedDate ?? props.date, !props.deadlineLabel) : 'time' in props.row ? props.row.time : null);
   const facts = createMemo(() => historical() ? [] : taskFacts(props.row.task, { date: props.plannedDate ?? props.date, today: props.notebook.todayDate(), listed: props.timetable || 'reasons' in props.row, timeShown: !!time() }));
+  const lonePriority = createMemo(() => {
+    const project = props.row.project_id;
+    const showsProject = !!project && project !== props.pageId && project !== props.row.source.page.id;
+    return !!props.row.task.priority && unfinished() && facts().every(fact => !!fact.priority) && !(!props.timetable && time()) && !showsProject;
+  });
   /** Opens the canonical source, runs one edit on its task block and saves it. */
   const editSource = async (row: TaskRow | AgendaItem, edit: (doc: PageDocument) => Promise<boolean | void>) => {
     if (busy() || props.disabled) return;
@@ -245,20 +249,22 @@ function TaskSourceRow(props: {
         onContextMenu={event => { event.preventDefault(); if (!busy() && !props.disabled) setMenu({ kind: 'status', anchor: event.currentTarget }); }}
         onClick={event => { void (unfinished() ? complete(event.currentTarget, props.date) : reopen()); }}><Icon name={statusIcons[status()]} /></Button>
     </Show>}</Show>
+    <div class="agenda-task-line">
     <button type="button" class="agenda-source" onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, opensBeside(event))} title={`Open source · ${besideHint}`}>
       <span class="agenda-source-text"><BlockText text={props.row.source.block.text || 'Empty task'} notebook={props.notebook} interactive={false} /></span>
       <Show when={!props.timetable && props.row.source.page.id !== props.pageId}><span class="agenda-source-page">{props.row.source.page.text}</span></Show>
     </button>
-    <Show when={props.timetable && props.row.source.page.id !== props.pageId}>
-      <button type="button" class="agenda-provenance" aria-label={`Open source page, ${props.row.source.page.text}`} title={props.row.source.page.text} onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, opensBeside(event))}>{props.row.source.page.kind === 'journal' ? 'Journal' : props.row.source.page.text}</button>
-    </Show>
-    <span class="agenda-row-meta">
+    <span class="agenda-row-meta" classList={{ 'agenda-row-meta-lone': lonePriority() }}>
       <Show when={!props.timetable && time()}><span class="agenda-time">{time()}</span></Show>
       <For each={facts().filter(fact => !fact.priority)}>{fact => <span classList={{ 'agenda-late': !!fact.late }} title={fact.label}>{fact.text}</span>}</For>
-      <Show when={unfinished()}><Button class="agenda-priority" label={`Priority: ${priorityLabel(props.row.task.priority)}`} title={`Priority: ${priorityLabel(props.row.task.priority)} (P)`} disabled={busy() || props.disabled} aria-haspopup="menu" aria-expanded={menu()?.kind === 'priority'} onClick={event => setMenu({ kind: 'priority', anchor: event.currentTarget })}><PriorityBars priority={props.row.task.priority} label={`${priorityLabel(props.row.task.priority)} priority`} /></Button></Show>
+      <Show when={unfinished() && props.row.task.priority}><Button class="agenda-priority" data-priority={props.row.task.priority} label={`Priority: ${priorityLabel(props.row.task.priority)}`} title={`Priority: ${priorityLabel(props.row.task.priority)} (P)`} disabled={busy() || props.disabled} aria-haspopup="menu" aria-expanded={menu()?.kind === 'priority'} onClick={event => setMenu({ kind: 'priority', anchor: event.currentTarget })}>{priorityLabel(props.row.task.priority)}</Button></Show>
       {/* A project the row already names as its source page is not repeated among the facts. */}
       <Show when={props.row.project_id !== props.pageId && props.row.project_id !== props.row.source.page.id ? props.row.project_id : null}>{id => <span><BlockText text={props.notebook.lookup(id())()?.text ?? ''} notebook={props.notebook} interactive={false} /></span>}</Show>
     </span>
+    </div>
+    <Show when={props.timetable && props.row.source.page.id !== props.pageId}>
+      <button type="button" class="agenda-provenance" aria-label={`Open source page, ${props.row.source.page.text}`} title={props.row.source.page.text} onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, opensBeside(event))}>{props.row.source.page.kind === 'journal' ? 'Journal' : props.row.source.page.text}</button>
+    </Show>
     <Show when={props.plan && unfinished()}>
       <span class="agenda-row-actions">
         <Show when={props.row.task.scheduled !== today()}><Button disabled={busy() || props.disabled} title="Schedule for today (T)" onClick={() => reschedule(today())}>Today</Button></Show>

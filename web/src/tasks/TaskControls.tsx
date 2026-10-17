@@ -10,7 +10,7 @@ import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
 import { DatePicker } from './DatePicker';
-import { PriorityBars } from './PriorityBars';
+
 import { planTask } from './task-labels';
 import './task-controls.css';
 
@@ -112,7 +112,7 @@ export function TaskControls(props: { notebook: NotebookClient; doc: PageDocumen
       <span class="task-planning-label">Deadline</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': !props.task.deadline }}>{dateLabel(props.task.deadline, props.task.deadline_time)}</span>
     </Button>
     <Button class="task-metadata task-planning-row" label={`Priority: ${priorityLabel(props.task.priority)}`} disabled={blocked()} aria-haspopup="menu" aria-expanded={popup()?.kind === 'priority'} onClick={event => open('priority', event.currentTarget)}>
-      <span class="task-planning-label">Priority</span><span class="task-metadata-value task-planning-value task-planning-priority" classList={{ 'task-planning-empty': !props.task.priority }}><Show when={props.task.priority}>{priority => <PriorityBars priority={priority()} label={`${priorityLabel(priority())} priority`} />}</Show>{priorityLabel(props.task.priority)}</span>
+      <span class="task-planning-label">Priority</span><span class="task-metadata-value task-planning-value task-planning-priority" classList={{ 'task-planning-empty': !props.task.priority }}>{priorityLabel(props.task.priority)}</span>
     </Button>
     <TaskProjectControl notebook={props.notebook} doc={props.doc} id={props.id} disabled={blocked()} />
     <Button class="task-metadata task-planning-row" label={`Repeat: ${repeatDescription()}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'repeat'} onClick={event => open('repeat', event.currentTarget)}>

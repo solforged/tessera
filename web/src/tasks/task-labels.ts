@@ -32,7 +32,7 @@ export interface TaskFact {
   /** Full wording for tooltips and assistive technology. */
   label: string;
   late?: boolean;
-  /** A priority fact is drawn as bars rather than its text. */
+  /** Set when the fact is a priority word. High is danger; medium and low stay faint. */
   priority?: NonNullable<TaskState['priority']>;
 }
 

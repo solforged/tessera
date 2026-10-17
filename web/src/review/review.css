@@ -99,7 +99,11 @@
 .review-ledger-deck.button { padding: 0; justify-content: flex-start; font-family: var(--font-display); font-size: var(--text-quote); font-weight: var(--weight-body); }
 .review-ledger-deck.button.selected { background: transparent; color: var(--accent); }
 .review-decks table { margin-top: var(--section-item-gap); }
-/* Completion keeps real session evidence, elapsed time, forecast and an actionable missed list. */
+/* An empty workshop uses the empty-kind voice, not the session summary's page title. */
+.review-empty { max-width: var(--measure); padding-top: var(--space-24); }
+.review-empty h2 { margin: 0; color: var(--muted); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+.review-empty p { margin: var(--space-8) 0 var(--space-16); color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+@media (pointer: coarse) { .review-empty .button { min-height: var(--touch-target); padding-inline: var(--space-12); } }
 .review-done { display: flex; flex-direction: column; gap: var(--section-gap); }
 .review-done > p { margin: 0; }
 .review-done > h2 { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); }

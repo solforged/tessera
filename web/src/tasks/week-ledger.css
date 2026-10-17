@@ -22,4 +22,4 @@
 .week-ledger .agenda-row-timetable .agenda-row-actions { display: flex; grid-column: 3 / -1; grid-row: 2; justify-self: end; position: static; }
 .week-ledger .agenda-row-actions > .button:not(.agenda-row-pick) { display: none; }
 .week-ledger .agenda-row-pick.button { min-width: var(--touch-target); min-height: var(--touch-target); }
-.week-ledger .agenda-row-timetable .agenda-row-meta { padding-right: var(--touch-target); }
+

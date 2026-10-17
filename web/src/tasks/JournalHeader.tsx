@@ -162,6 +162,6 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
         <Button class="today-ledger-open" onClick={event => props.onOpen({ kind: 'agenda', date: props.date }, opensBeside(event))}>Open agenda<span aria-hidden="true">›</span></Button>
       </section>}</Show>
     </Show>
-    <h2 class="journal-writing-heading"><span>Journal</span><span class="section-rule" /></h2>
+    <h2 class="journal-writing-heading"><span>Journal</span></h2>
   </section>;
 }

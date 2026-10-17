@@ -81,8 +81,13 @@
 .agenda-row:hover { background: var(--hover); }
 .agenda-status { display: inline-flex; flex: 0 0 var(--target-size); justify-content: center; align-items: center; width: var(--target-size); min-height: var(--row-height); padding: 0; color: var(--muted); }
 .agenda-row .agenda-status.task-status-button { min-height: var(--row-height); padding: 0; }
-/* A 16rem basis keeps the source beside its status; planning wraps under it before the text does. */
-.agenda-source { flex: 1 1 16rem; min-width: 0; min-height: var(--row-height); display: flex; flex-wrap: wrap; align-items: baseline; align-content: center; column-gap: var(--space-8); border: 0; border-radius: var(--radius-control); padding: var(--space-2) var(--space-4); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); }
+/* The task and its facts share one line. A lone priority trails the text; a date keeps the right edge. */
+.agenda-task-line { display: flex; align-items: baseline; flex: 1 1 16rem; min-width: 0; column-gap: var(--space-12); }
+.agenda-task-line > .agenda-source { flex: 1 1 auto; }
+.agenda-task-line:has(.agenda-row-meta-lone) > .agenda-source { flex: 0 1 auto; }
+.agenda-task-line > .agenda-row-meta { margin-left: auto; min-height: 0; }
+
+.agenda-source { flex: 1 1 auto; min-width: 0; min-height: var(--row-height); display: flex; flex-wrap: wrap; align-items: baseline; align-content: center; column-gap: var(--space-8); border: 0; border-radius: var(--radius-control); padding: var(--space-2) var(--space-4); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); }
 /* Rows contain their paint, so the ring sits inside the row. */
 .agenda-row :focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
 /* Long task text clamps at two lines; opening the source shows all of it. */
@@ -93,6 +98,8 @@
 .agenda-row-meta:empty { display: none; }
 .agenda-time { color: var(--muted); }
 .agenda-priority.button { min-height: var(--target-size); padding: 0 var(--space-4); color: var(--faint); }
+.agenda-priority[data-priority="high"] { color: var(--danger); }
+.agenda-task-line > .agenda-row-meta.agenda-row-meta-lone { margin-left: 0; }
 .agenda-late { color: var(--danger); }
 .agenda-row:is(.agenda-row-completed, .agenda-row-cancelled) .agenda-source-text { color: var(--muted); }
 .agenda-row-cancelled .agenda-source-text { text-decoration: line-through var(--faint); }
@@ -102,10 +109,11 @@
 .agenda-time-gutter { grid-column: 1; grid-row: 1; align-self: start; display: flex; align-items: center; min-height: var(--agenda-row-height); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .agenda-row-timetable .agenda-status { grid-column: 2; grid-row: 1; align-self: start; }
 .agenda-row-timetable .agenda-status.task-status-button, .agenda-row-timetable .agenda-source { min-height: var(--agenda-row-height); }
-.agenda-row-timetable .agenda-source { grid-column: 3; grid-row: 1; padding-inline: 0; }
+.agenda-row-timetable .agenda-task-line { grid-column: 3; grid-row: 1; flex: none; align-items: center; min-height: var(--agenda-row-height); }
 .agenda-provenance { grid-column: 4; grid-row: 1; align-self: start; min-width: 0; min-height: var(--agenda-row-height); padding: var(--space-2) 0; border: 0; background: transparent; color: var(--faint); text-align: left; font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agenda-provenance:hover { color: var(--muted); }
-.agenda-row-timetable .agenda-row-meta { grid-column: 3 / -1; grid-row: 2; justify-content: flex-start; min-height: 0; margin: calc(-1 * var(--space-2)) 0 var(--space-4); padding: 0; }
+.agenda-row-timetable:not(:has(> .agenda-provenance, > .agenda-row-actions)) .agenda-task-line { grid-column: 3 / -1; }
+.agenda-row-timetable .agenda-task-line > .agenda-source { padding-inline: 0; min-height: 0; }
 .agenda-row-timetable > .agenda-error, .agenda-row-timetable > .agenda-message { grid-column: 3 / -1; margin: 0; }
 /* Today's timed work that has passed recedes above a gilt rule at the present, which starts from a gilt dot. */
 .agenda-row-past .agenda-source-text { color: var(--muted); }
@@ -131,8 +139,8 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
   .agenda-row-actions { display: flex; grid-row: 2; min-height: 0; }
   .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
   /* The facts stop short of the date button's column rather than running under it. */
-  .agenda-row-timetable:has(> .agenda-row-actions) > .agenda-row-meta { grid-column: 3; }
-  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable:has(> .agenda-row-actions) > .agenda-row-meta { grid-column: 2; }
+  .agenda-row-timetable:has(> .agenda-row-actions) > .agenda-task-line { grid-column: 3; }
+  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable:has(> .agenda-row-actions) > .agenda-task-line { grid-column: 2; }
 }
 .agenda-section-actions { display: flex; gap: var(--space-2); margin-left: var(--space-8); }
 .agenda-section-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
@@ -263,9 +271,10 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable { grid-template-columns: var(--target-size) minmax(0, 1fr) minmax(0, 20%); }
 .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > .agenda-time-gutter { display: none; }
 .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-status { grid-column: 1; }
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-source { grid-column: 2; }
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-task-line { grid-column: 2; }
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable:not(:has(> .agenda-provenance, > .agenda-row-actions)) .agenda-task-line { grid-column: 2 / -1; }
 .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > :is(.agenda-provenance, .agenda-row-actions) { grid-column: 3; }
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > :is(.agenda-row-meta, .agenda-error, .agenda-message) { grid-column: 2 / -1; }
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > :is(.agenda-error, .agenda-message) { grid-column: 2 / -1; }
 .today-ledger .agenda-provenance { padding-inline-end: var(--space-4); text-align: right; }
 .today-ledger-open > span { color: var(--accent); }
 .agenda-moved { display: flex; align-items: center; gap: var(--space-8); }

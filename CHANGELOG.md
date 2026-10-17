@@ -57,6 +57,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 - Rendered built-in behavior tags as glyphs, kept scheduled atoms checkbox-free until tagged as tasks, protected built-in tag pages, and read creation choices from the tag registry.
 - Named a tag-only kind by the tag you wrote, so `#arabic` stays `arabic` in the sidebar instead of `arabics`. Drew the card mark at the bullet's size.
+- A lone journal fact trails its line, and Journal's writing head is the name alone. Task priority is the word, on the task's line. An empty review says No cards yet and hides the deck menu and the zero queues.
 - Renamed the top-level container to workshop throughout the interface, command line and docs; code identifiers and API names stayed unchanged.
 - Moved desktop data from `~/Library/Application Support/tessera` to `~/.local/share/tessera`, logs from `~/Library/Logs/tessera` to `~/.local/state/tessera/logs`, and new caches from `~/Library/Caches/tessera` to `~/.cache/tessera`. Added XDG overrides and automatic migration of the old workshop, registry, backups and settings without overwriting existing targets.
 - Named workshops by their folder name with the first letter capitalized, and showed their location only when outside the workshops folder or sharing a name.

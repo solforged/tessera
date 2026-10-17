@@ -251,8 +251,9 @@
 /* Capability details stay anchored; only summaries and task glyphs live in rows. */
 .outline-row > .task-status-control { flex: none; }
 .outline-source-line { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-8); }
-/* Intrinsic text width makes metadata wrap before it can squeeze the source. */
+/* A single fact trails the text. A cluster keeps the right edge, so dates still line up. */
 .outline-source { flex: 1 1 auto; min-width: 0; }
+.outline-source-line:has(> .outline-capability-metadata > :only-child) > .outline-source { flex-grow: 0; }
 .outline-capability-metadata { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
 .outline-capability-metadata .outline-planning { display: inline-flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 /* A card count is a count: apparatus mono, like every other number the notebook reports. */
@@ -263,6 +264,8 @@
 .outline-capability-metadata .outline-task-facts { display: inline-flex; align-items: center; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); }
 .outline-capability-metadata .outline-task-progress { display: inline-flex; align-items: center; padding: 0 var(--space-4); color: var(--faint); }
 .outline-task-late { color: var(--danger); }
+.outline-task-priority { color: var(--faint); }
+.outline-task-priority[data-priority="high"] { color: var(--danger); }
 /* An unplanned open task offers Plan only where the pointer or selection is, so a list of todos does not repeat it.
    It reads as a control, a hairline chip with the calendar glyph, not as faint prose. */
 .outline-capability-metadata .outline-plan-empty { display: none; gap: var(--space-4); align-items: center; padding: 0 var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); color: var(--muted); }
