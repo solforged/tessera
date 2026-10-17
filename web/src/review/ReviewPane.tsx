@@ -14,6 +14,8 @@ import { Popup } from '../ui/Popup';
 import { createSlowFlag } from '../ui/loading';
 import { documentReady } from '../tasks/JournalAgenda';
 import { CardComposer } from './CardComposer';
+import type { CreateRequest } from '../create/request';
+import type { PopupAnchor } from '../ui/Popup';
 import { DeckEditor } from './DeckEditor';
 import { cardSubject } from './card-text';
 import { CardBack, CardFront } from './CardSides';
@@ -35,6 +37,7 @@ export interface ReviewPaneProps {
   onActivate(): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onViewChange(view: ReviewViewState): void;
+  onCreate(request: CreateRequest, anchor?: PopupAnchor): void;
 }
 
 type Presentation = { item: CardRow; previews: CardPreviews; context: ReviewSource | null };
@@ -604,7 +607,7 @@ function CardReviewPane(props: ReviewPaneProps) {
           <div><dt>Cards</dt><dd>{value().total_cards}</dd></div>
         </dl>
         <section class="review-decks" aria-label="Decks">
-          <header><h2>Decks</h2><Button disabled={locked()} onClick={event => setEditor({ anchor: event.currentTarget, deck: null })}>+ New deck</Button></header>
+          <header><h2>Decks</h2><Button icon="plus" disabled={locked()} onClick={event => props.onCreate({ kind: 'card', text: '' }, event.currentTarget)}>New card</Button><Button icon="plus" disabled={locked()} onClick={event => setEditor({ anchor: event.currentTarget, deck: null })}>New deck</Button></header>
           <table><thead><tr><th>Deck</th><th>Due</th><th>New</th><th>Cards</th></tr></thead><tbody><For each={ledger()}>{deck => <tr>
             <td><Button class="review-ledger-deck" classList={{ selected: deck.id === deckId() }} disabled={locked() || loading()} onClick={event => requestMove({ deckId: deck.id, sessionId: null }, event.currentTarget)}>{deck.name}</Button></td><td>{deck.due}</td><td>{deck.new}</td><td>{deck.all}</td>
           </tr>}</For></tbody></table>

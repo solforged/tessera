@@ -8,6 +8,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Added New card to non-empty Review and reused the front/back composer inside the creation slip.
 - Added one creation slip for notes, questions, tasks, cards, sources, projects and typed pages, with inferred kinds and Today or page destinations.
 - Added durable under-page captures and question lines, with Open and Undo acknowledgements.
 - Added New question to untyped Questions registers and kept typed table creation in the same slip.

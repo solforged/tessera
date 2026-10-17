@@ -2,7 +2,7 @@ import { Show, createMemo, createSignal, createUniqueId, onCleanup, onMount } fr
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
-import { forwardCardText } from './card-text';
+import { forwardCardText, parseCardText } from './card-text';
 import './card-composer.css';
 
 export interface CardComposerProps {
@@ -17,6 +17,16 @@ export interface CardComposerProps {
   onDismiss(): void;
 }
 
+export interface CardComposerBodyProps extends Omit<CardComposerProps, 'anchor' | 'where'> {
+  initialText?: string;
+  onTextChange?(text: string): void;
+  onBusyChange?(busy: boolean): void;
+  sheet?: boolean;
+  status?: string;
+  /** The slip has its own rubric; the standalone wrapper supplies this one. */
+  where?: string;
+}
+
 /** Grow with the text up to the CSS max-height, then scroll. */
 function fit(field: HTMLTextAreaElement) {
   field.style.height = 'auto';
@@ -25,14 +35,19 @@ function fit(field: HTMLTextAreaElement) {
 
 /** A front/back draft laid out like the card it makes: the question in the display voice over a fold, the answer under it,
  * then its keys and Create on a hairline, as in Add to today. */
-export function CardComposer(props: CardComposerProps) {
-  const [front, setFront] = createSignal('');
-  const [back, setBack] = createSignal(props.initialBack ?? '');
+export function CardComposerBody(props: CardComposerBodyProps) {
+  const parsed = parseCardText(props.initialText ?? '').cards[0];
+  const [front, setFront] = createSignal(parsed?.front ?? props.initialText ?? '');
+  const [back, setBack] = createSignal(parsed?.back ?? props.initialBack ?? '');
+  const [original, setOriginal] = createSignal(parsed ? props.initialText : undefined);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const [added, setAdded] = createSignal(0);
   const id = createUniqueId();
-  const sheet = window.matchMedia('(pointer: coarse)').matches;
+  function changed() {
+    setOriginal(undefined);
+    props.onTextChange?.(back().trim() ? `${front()} >> ${back()}` : front());
+  }
   let frontField!: HTMLTextAreaElement;
   let backField!: HTMLTextAreaElement;
   let disposed = false;
@@ -41,6 +56,7 @@ export function CardComposer(props: CardComposerProps) {
 
   // An unfinished side is not a problem to report; only text that cannot make one forward card is.
   const draft = createMemo((): { text: string } | { problem: string } | null => {
+    if (original()) return { text: original()! };
     if (!front().trim() || !back().trim()) return null;
     try { return { text: forwardCardText(front(), back()) }; } catch (reason) { return { problem: reason instanceof Error ? reason.message : String(reason) }; }
   });
@@ -51,12 +67,14 @@ export function CardComposer(props: CardComposerProps) {
     if (busy() || !value || !('text' in value)) return;
     setError('');
     setBusy(true);
+    props.onBusyChange?.(true);
     let next = false;
     try {
       await props.onSave(value.text, again);
       if (disposed) return;
       if (!again) { props.onDismiss(); return; }
       setAdded(count => count + 1);
+      setOriginal(undefined);
       setFront('');
       setBack(props.initialBack ?? '');
       fit(frontField); fit(backField);
@@ -65,6 +83,7 @@ export function CardComposer(props: CardComposerProps) {
       if (!disposed) setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
       if (!disposed) setBusy(false);
+      props.onBusyChange?.(false);
     }
     // The fields were disabled while saving; focus can return only once they are enabled again.
     if (next) frontField.focus();
@@ -83,33 +102,40 @@ export function CardComposer(props: CardComposerProps) {
     }
   };
 
-  const status = () => busy() ? 'Saving…' : added() ? `${added()} ${added() === 1 ? 'card' : 'cards'} added` : '';
-  return <Popup anchor={props.anchor ?? document.body} label="Create a card" placement={sheet ? 'sheet' : props.anchor ? 'anchor' : 'top'} fitContent width={560} class="card-composer" onDismiss={() => { if (!busy()) props.onDismiss(); }}>
-    <form class="card-composer-form" onSubmit={event => { event.preventDefault(); void save(false); }} onKeyDown={keydown} aria-busy={busy()}>
-      <header class="card-composer-head">
+  const status = () => busy() ? 'Saving…' : props.status ?? (added() ? `${added()} ${added() === 1 ? 'card' : 'cards'} added` : '');
+  return <form class="card-composer-form" onSubmit={event => { event.preventDefault(); void save(false); }} onKeyDown={keydown} aria-busy={busy()}>
+      <Show when={props.where !== undefined}><header class="card-composer-head">
         <span class="card-composer-title">New card</span>
         <span class="card-composer-where">{props.where}</span>
-      </header>
+      </header></Show>
       <div class="card-composer-side card-composer-front">
         <label class="card-composer-label" for={`${id}-front`}>Front</label>
         <textarea ref={frontField} id={`${id}-front`} class="card-composer-input" rows={1} enterkeyhint="next" value={front()} disabled={busy()} placeholder="What do you want to remember?"
-          onInput={event => { setFront(event.currentTarget.value); fit(event.currentTarget); }} />
+          onInput={event => { setFront(event.currentTarget.value); fit(event.currentTarget); changed(); }} />
       </div>
       <div class="card-composer-side card-composer-back">
         <label class="card-composer-label" for={`${id}-back`}>Back</label>
         <textarea ref={backField} id={`${id}-back`} class="card-composer-input" rows={2} value={back()} disabled={busy()} placeholder="The answer"
-          aria-describedby={problem() ? `${id}-problem` : undefined} onInput={event => { setBack(event.currentTarget.value); fit(event.currentTarget); }} />
+          aria-describedby={problem() ? `${id}-problem` : undefined} onInput={event => { setBack(event.currentTarget.value); fit(event.currentTarget); changed(); }} />
       </div>
       <Show when={error() || problem()}><p id={`${id}-problem`} class="card-composer-problem" role="alert">{error() || problem()}</p></Show>
       <footer class="card-composer-foot">
         <span class="card-composer-keys">
-          <Show when={status()} fallback={<span class="card-composer-key-hints"><kbd>⌘↵</kbd> Create <kbd>⇧⌘↵</kbd> Create another <kbd>esc</kbd> Close</span>}>
+          <Show when={status()} fallback={<Show when={!props.sheet}><span class="card-composer-key-hints"><kbd>⌘↵</kbd> Create <kbd>⇧⌘↵</kbd> Create another <kbd>esc</kbd> Close</span></Show>}>
             <span role="status">{status()}</span>
           </Show>
         </span>
-        <Button disabled={busy()} onClick={props.onDismiss}>{added() ? 'Done' : 'Cancel'}</Button>
+        <Show when={!props.sheet}><Button disabled={busy()} onClick={props.onDismiss}>{added() ? 'Done' : 'Cancel'}</Button></Show>
         <Button type="submit" class="bordered" disabled={busy() || !draft() || !!problem()}>Create card</Button>
       </footer>
-    </form>
+    </form>;
+}
+
+/** Highlights keep the standalone composer, with the same keys and save contract. */
+export function CardComposer(props: CardComposerProps) {
+  const sheet = window.matchMedia('(pointer: coarse)').matches;
+  const [busy, setBusy] = createSignal(false);
+  return <Popup anchor={props.anchor ?? document.body} label="Create a card" placement={sheet ? 'sheet' : props.anchor ? 'anchor' : 'top'} fitContent width={560} class="card-composer" onDismiss={() => { if (!busy()) props.onDismiss(); }}>
+    <CardComposerBody {...props} sheet={sheet} onBusyChange={setBusy} />
   </Popup>;
 }
