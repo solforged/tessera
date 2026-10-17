@@ -49,7 +49,7 @@ import { installLinkDrop } from '../create/link-drop';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
 import { NotebookOpening, registerNotebookCommands } from '../settings/notebooks';
 import { NotebookSwitcher } from '../settings/NotebookSwitcher';
-import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
+import { indexKindTarget, kindLabel, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 import { DEMO } from '../demo/mode';
 import { AgentDock } from '../agent/AgentDock';
 import type { ContextChip } from '../agent/AgentDock';
@@ -1044,7 +1044,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           <h3 class="index-shelf">{label}</h3>
           <Index each={shelfKinds()[shelf] ?? []}>{kind => <>
             <div classList={{ 'index-question-heading': kind().key === 'question' }}>
-            <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kind().plural} onClick={event => open(indexKindTarget(kind()), opensBeside(event))}><span>{kind().plural}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
+            <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kindLabel(kind())} onClick={event => open(indexKindTarget(kind()), opensBeside(event))}><span>{kindLabel(kind())}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
             <Show when={kind().key === 'question'}><Button icon="more" label="Questions menu" aria-haspopup="menu" onClick={event => setQuestionsMenu(event.currentTarget)} /></Show>
             </div>
             <Show when={otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>

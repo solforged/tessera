@@ -21,7 +21,7 @@ import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { createSettledChanges, createSlowFlag } from '../ui/loading';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
-import { indexKindTarget, noteKindIcon, tagOnly } from './kinds';
+import { indexKindTarget, kindLabel, noteKindIcon, tagOnly } from './kinds';
 import { filingGroups, filingOperations, settleFindingAid, wholeKindIndex } from './finding-aid';
 import type { FindingAidSnapshot } from './finding-aid';
 import { CreateSlip } from '../create/CreateSlip';
@@ -78,9 +78,9 @@ export function IndexDirectory(props: IndexPaneProps) {
           <div class="index-directory-list"><For each={list().kinds}>{kind =>
             <div class="index-directory-row">
               <Icon name={noteKindIcon(kind)} />
-              <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>{kind.plural}</Button>
+              <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>{kindLabel(kind)}</Button>
               <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, kind.key === 'source' ? 'source' : kind.key === 'question' ? 'question' : 'note')}</span>
-              <Button class="index-directory-open" label={`Open ${kind.plural} ${tagOnly(kind) ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>Open {tagOnly(kind) ? 'table' : 'index'}<Icon name="right" /></Button>
+              <Button class="index-directory-open" label={`Open ${kindLabel(kind)} ${tagOnly(kind) ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>Open {tagOnly(kind) ? 'table' : 'index'}<Icon name="right" /></Button>
             </div>
           }</For><For each={list().spreads}>{spread =>
             <div class="index-directory-row">
@@ -446,7 +446,7 @@ function EmptyKind(props: { kindKey: string; kind: NoteKind | IndexKind | undefi
       <NewKindAction {...props} />
     </>}>{kind => <>
       <p class="index-empty-title">No notes filed as {kind().name}.</p>
-      <p class="index-empty-hint">{kind().plural} tags {kind().tagged_block_count === 1 ? 'one block' : `${kind().tagged_block_count.toLocaleString()} blocks`}, listed in its table.</p>
+      <p class="index-empty-hint">{kindLabel(kind())} tags {kind().tagged_block_count === 1 ? 'one block' : `${kind().tagged_block_count.toLocaleString()} blocks`}, listed in its table.</p>
       <Button class="bordered" icon="table" onClick={event => props.onOpen(indexKindTarget(kind()), opensBeside(event))}>Open table</Button>
     </>}</Show>
   </div>;

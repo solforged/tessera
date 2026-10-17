@@ -1,3 +1,4 @@
+import { autoPlural } from '../fields/presentation';
 import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
 import type { IndexKind, NoteIndex, NoteKind } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -23,6 +24,11 @@ export function noteKindIcon(kind: string | Pick<NoteKind, 'key' | 'icon'>): Ico
 /** A kind whose only members are tagged non-page blocks; an empty built-in kind is not one. */
 export function tagOnly(kind: IndexKind): kind is IndexKind & { type_id: string } {
   return kind.count === 0 && kind.tagged_block_count > 0 && kind.type_id !== null;
+}
+
+/** A tag that only marks blocks keeps the spelling you wrote. An explicit plural still wins, and a kind with notes keeps its plural. */
+export function kindLabel(kind: IndexKind): string {
+  return kind.key.startsWith('type:') && tagOnly(kind) && kind.plural === autoPlural(kind.name) ? kind.name : kind.plural;
 }
 
 /** A tag-only kind opens its useful member table rather than an empty note index. */

@@ -96,7 +96,7 @@
 .row-bullet .icon { fill: currentColor; }
 .row-bullet.bullet-collapsed { opacity: 1; }
 .row-bullet.bullet-collapsed .icon { background: var(--raised); border: 1px solid var(--muted); border-radius: 50%; padding: 1px; }
-.row-bullet.row-card-mark .icon { fill: none; }
+.row-bullet.row-card-mark .icon { fill: none; width: 8px; height: 8px; stroke-width: 2.8; }
 .outline-row .row-card-mark, .outline-row.row-selected .row-card-mark, .outline-row .row-card-mark:hover { color: var(--faint); }
 /* Prose pages read as paragraphs: bullets rest hidden and return on hover or selection, where they
    still zoom and drag. Hairline threads under each ancestor's handle show depth. Folded rows keep

@@ -510,7 +510,7 @@ The mask editor turns an image into [occlusion cards](domain-model.md#image-occl
 
 [Cards](surfaces/cards-review.md) show their syntax quietly outside editing: `>>`, `<<` and `<>` become →, ← and ↔ in `--faint`, and cloze answers carry a dotted accent underline with the hint in their tooltip. Clicking places the caret at the same source offset.
 
-A block that makes cards takes a small outlined index card in `--faint` in place of its bullet as soon as the syntax yields a card, template cards included. A task keeps its checkbox, and the mark keeps the folded-children ring. The count (`1 card`, or `2 cards · 1 not yet` when some are held) opens the Cards popup. A tag on that block follows as `#arabic` and opens its deck.
+A block that makes cards takes a small outlined index card in `--faint` in place of its bullet as soon as the syntax yields a card, template cards included. The mark is drawn at the bullet's size. A task keeps its checkbox, and the mark keeps the folded-children ring. The count (`1 card`, or `2 cards · 1 not yet` when some are held) opens the Cards popup. A tag on that block follows as `#arabic` and opens its deck.
 
 Each card there shows its kind, front and, beneath it in `--muted`, the answer: a cloze as the whole sentence with its answer underlined, a multi-line or list answer as its lines joined by `·`. The state reads New, Due, In 6 days, Not yet or Paused.
 

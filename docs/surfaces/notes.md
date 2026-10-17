@@ -18,13 +18,13 @@ Index is a sidebar section after Pinned. Its count is the distinct notes filed, 
 
 The service assigns each kind its shelf, so a type moves shelf only when most of its notes change capability. Saved spreads follow under their own Spreads head. A shelf with no listed kinds leaves out its head.
 
-Rows stay on one line: the kind's glyph in `--faint`, the plural at control size, and a bare mono count right.
+Rows stay on one line: the kind's glyph in `--faint`, the name at control size, and a bare mono count right. A kind with notes uses its plural. A tag that only marks blocks uses the spelling you wrote, so `#arabic` stays `arabic` unless you set a plural.
 
 | Kind | Count and appearance |
 | --- | --- |
 | Note kind | Titled notes. |
 | Questions | Visible question blocks, including inline questions. |
-| Tag-only type | Tagged blocks. |
+| Tag-only type | Tagged blocks. The row uses the tag's spelling, not an automatic plural. |
 | Empty built-in kind | Folded into one faint mono line after the shelves, `Empty: Groups · Theses · Questions`. Each name opens its finding aid, so the vocabulary stays visible without a row each. |
 
 An empty built-in kind that has a saved view keeps its row, named in `--faint` without a count. Each other type and Unfiled are listed only while they have titled notes or tagged non-page blocks. Note counts and the distinct-note total never include tagged blocks.
