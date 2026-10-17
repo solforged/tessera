@@ -109,9 +109,9 @@ Bindings come from the command registry so the sheet cannot drift. On phones the
 
 First-use hints, one line under the atom in the receipt's style, shown once per workshop each: the first `>>` (`a card · tag it to put it in a deck`), the first `::` (`a field · its tag can carry it as a template`), the first new tag (the receipt above).
 
-### Tags addressed by ID
+### Tag identity
 
-Audit proposal P3, after the surface work and in its own release: a tag canonical as `#[[id|Title]]`, memberships keyed on `type_id`, the spelling after the bar rewritten lazily, `rewrite_incoming_tags` deleted. It needs `tessera check` (P1) first so the one-time text migration has a verifier. Built-in tags make this urgent: a tag that brings behavior must not split across devices on a rename.
+Audit proposal P3, after the surface work and in its own release: a tag canonical as `#[[id|Title]]`, memberships keyed on `type_id`, the spelling after the bar rewritten lazily, `rewrite_incoming_tags` deleted. `tessera check` (P1) exists, so the one-time text migration has its verifier. Built-in tags make this urgent: a tag that brings behavior must not split across devices on a rename.
 
 ## Decisions
 
@@ -134,9 +134,9 @@ Audit proposal P3, after the surface work and in its own release: a tag canonica
 ## Build order
 
 1. **Vocabulary.** This draft's words into `domain-model.md` and `design.md`; interface strings follow surface by surface. No schema change.
-2. **The sheet and first-use hints.** Bindings read from the registry.
+2. **The sheet and first-use hints.** The sheet is built: `⌘/`, Commands and the Mac's Help menu, bindings read from the registry. Still to do: `?` in Vim normal mode, and the first-use hints.
 3. **One registry and one picker.** Core read, then `#`, `/Tag…`, `/Field…`, the slip, tag tables, Review and Find read it. Delete the hardcoded lists. The new-tag receipt and template popup.
 4. **Built-in tags.** `#task`, `#question`, `#project`, `#source` derive their capabilities from membership; glyph rendering; system pages for the built-in type pages.
 5. **Decks read as tags.** Badge, Review header, Cards tab, docs.
 6. **Fields into Index**, if reading 1 stands.
-7. **Tags addressed by ID**, after `tessera check`, in its own release.
+7. **Tags addressed by ID**, in its own release.

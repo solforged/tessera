@@ -36,6 +36,7 @@ import type { AgendaViewState, Command, CommandRegistry, CompareViewState, Depth
 import type { PagePresentation, PageProjection } from './contract';
 import { Palette } from './Palette';
 import { DeletedPages } from './DeletedPages';
+import { Shortcuts } from './Shortcuts';
 import { installOpenedFiles } from '../library/opened-files';
 import { installQuickCapture } from './quick-capture';
 import { opensBeside } from './beside';
@@ -103,7 +104,7 @@ type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 /** A drop replaces a pane, or inserts a new one at a position in the row. */
 type DropZone = { replace: PaneId } | { insert: number };
 const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Blocks' };
-type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new-view' | 'delete' | 'restore-pages' | 'layout'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
+type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new-view' | 'delete' | 'restore-pages' | 'layout' | 'shortcuts'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
 const emptySession = (): PaneSession => ({ entries: [], index: -1, generation: 0 });
 let paneSequence = 0;
 const newPaneId = (): PaneId => `pane-${Date.now().toString(36)}-${++paneSequence}`;
@@ -570,6 +571,12 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         if (!event.repeat) openCreate(blankCapture());
         return;
       }
+      if ((mac ? event.metaKey : event.ctrlKey) && !event.shiftKey && !event.altKey && (event.key === '/' || event.code === 'Slash')) {
+        if (document.documentElement.dataset.windowControls) return;
+        event.preventDefault(); event.stopPropagation();
+        if (!event.repeat) setPopup({ kind: 'shortcuts', anchor: document.body, pane: active() });
+        return;
+      }
       if (!event.ctrlKey || !event.shiftKey || event.metaKey || event.altKey) return;
       const key = event.key.toLocaleLowerCase();
       if (key === 'h') travel(active(), -1);
@@ -670,6 +677,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const unregister = commands.register([
     { id: 'shell.search', title: 'Find or create', section: 'Navigation', keys: ['⌃⇧F'], run: () => showPalette('search') },
     { id: 'shell.commands', title: 'Show commands', section: 'Navigation', keys: ['⌃⇧P'], run: () => showPalette('commands') },
+    { id: 'shell.shortcuts', title: 'Keys and syntax', section: 'Navigation', keys: ['⌘/'], keywords: ['shortcuts', 'keyboard', 'help', 'cheat sheet'], run: () => setPopup({ kind: 'shortcuts', anchor: document.body, pane: active() }) },
     { id: 'shell.settings', title: 'Open settings', section: 'Navigation', run: () => open({ kind: 'settings' }) },
     { id: 'shell.today', title: 'Open today’s journal', section: 'Navigation', keys: ['⌃⇧J'], run: () => { void today(); } },
     { id: 'shell.capture', title: 'Add to today', section: 'Create', keys: ['⌘E'], keywords: ['capture', 'quick note', 'inbox', 'journal'], run: () => openCreate(blankCapture()) },
@@ -1139,6 +1147,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       </Show>
       <Show when={state.kind === 'calendar'}>
         <Calendar notebook={notebook} anchor={state.anchor} date={state.date ?? journalDate(state.pane)} today={todayDate()} onToday={() => { void today(state.pane); }} onDismiss={() => setPopup(null)} onSelect={value => { void journal(value, state.pane); }} />
+      </Show>
+      <Show when={state.kind === 'shortcuts'}>
+        <Shortcuts commands={commands} onDismiss={() => setPopup(null)} />
       </Show>
       <Show when={state.kind === 'new-view'}>
         <Menu anchor={state.anchor} label="New view source" header={<div class="table-popup-heading">Choose a source</div>} items={querySources.map(source => ({ label: source.name, action: () => { setPopup(null); open({ kind: 'table', typeId: null, viewId: null, query: { ...typeQuery(null), source: source.key } }, false, state.pane); } }))} onDismiss={() => setPopup(null)} />

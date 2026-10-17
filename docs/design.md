@@ -762,6 +762,7 @@ Bottom sheets share a grab area and an accessible Close button. Dragging downwar
 |---|---|---|
 | Find or create: pages, blocks and explicit page creation; `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Below the global search trigger, 560 px |
 | Dedicated command palette | Picker, grouped by action section, with shortcuts; disabled reasons appear on the selected row and remain available to assistive technology | Top center, 560 px |
+| Keys and syntax (⌘/, Commands, the Mac's Help menu) | Two registers under mono WRITE and PRESS rubrics: the block syntax with its meaning, and every command that has keys, grouped by section in the registry's order; a note says outline keys appear once a page is open. Bindings hide with `kbd` on coarse touch screens | Top center, 820 px; one column below 720 px; a bottom sheet on the cover |
 | [Creation slip](surfaces/journal.md) (⌘E / ⌘N) | Mono action/destination rubric, Kind chips and Into segments, then the page, line, card or source body; index and table requests lock their kind | 560 px, anchored with a trigger and top-centered without one; a bottom sheet on the cover |
 | [Card composer](surfaces/cards-review.md#card-composer) | Front and back under a mono rubric, the front in the display voice, key hints and Create on a hairline | Below its trigger, 560 px; top center without one; a bottom sheet on coarse pointers |
 | `[[`, `((`, `#`, `name::` completion and Add type | Picker | Below the opening brackets, the caret or the block |

@@ -152,8 +152,8 @@ pub fn run() {
                 tauri::async_runtime::spawn(async move { updates::check(&app, true).await });
             }
             "shell.settings" | "shell.new" | "shell.today" | "shell.import-book"
-            | "create.question" | "create.task" | "create.card" | "create.project"
-            | "create.source" => {
+            | "shell.shortcuts" | "create.question" | "create.task" | "create.card"
+            | "create.project" | "create.source" => {
                 command(app, event.id().as_ref());
             }
             "reload" => {
@@ -357,13 +357,17 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                 HELP_SUBMENU_ID,
                 "Help",
                 true,
-                &[&MenuItem::with_id(
-                    app,
-                    "show-log",
-                    "Show Service Log",
-                    true,
-                    None::<&str>,
-                )?],
+                &[
+                    &MenuItem::with_id(
+                        app,
+                        "shell.shortcuts",
+                        "Keys and Syntax",
+                        true,
+                        Some("CmdOrCtrl+/"),
+                    )?,
+                    &separator()?,
+                    &MenuItem::with_id(app, "show-log", "Show Service Log", true, None::<&str>)?,
+                ],
             )?,
         ],
     )

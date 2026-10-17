@@ -8,6 +8,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Added a Keys and syntax sheet on ⌘/, in Commands and under the Mac's Help menu: what `#`, `::`, `>>`, `@`, `[[`, `((` and `/` write, and every bound key read from the command registry, so only open surfaces list theirs. The cover keeps the syntax half.
 - Added a workshop switcher in place of the sidebar's Settings row: one line naming the open workshop, with a menu that switches workshops, pairs a phone or syncs. Settings became an icon beside Fields; the Mac's sync mark counts paired devices.
 - Added Open or create by name in Settings › Workshops, with names stored under `~/.local/share/tessera/workshops`.
 - Listed workshop folders found in the workshops folder alongside registered workshops.
