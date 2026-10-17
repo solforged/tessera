@@ -46,7 +46,7 @@ import { CreateSlip, type CreateNotice } from '../create/CreateSlip';
 import { creatableKinds, kindNoun } from '../create/kinds';
 import { installLinkDrop } from '../create/link-drop';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
-import { NotebookOpening, knownNotebooks, notebookLabel, registerNotebookCommands } from '../settings/notebooks';
+import { NotebookOpening, registerNotebookCommands } from '../settings/notebooks';
 import { NotebookSwitcher } from '../settings/NotebookSwitcher';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 import { DEMO } from '../demo/mode';
@@ -1012,12 +1012,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       </div>
     </header>
     <aside class="sidebar" aria-label="Workshop navigation" aria-hidden={!sidebarVisible()} inert={!sidebarVisible()}>
-      {/* On the cover screen the rail is hidden, so the overlay carries the oculus, wordmark and notebook. */}
+      {/* On the cover screen the rail is hidden, so the overlay carries the oculus, wordmark and note count; the foot names the workshop. */}
       <header class="sidebar-masthead">
         <span class="wordmark" title={info()?.path}>Tessera</span>
         <Button class="icon-only" icon="sidebar" label="Close sidebar" onClick={toggleSidebar} />
-        {/* A workshop other than the default is named in the warning colour, as at the desktop foot. */}
-        <span class="sidebar-masthead-notebook"><Show when={knownNotebooks()?.notebooks.find(entry => entry.current)}>{current => <><span class="sidebar-masthead-name" classList={{ 'sidebar-masthead-other': !current().default }}>{notebookLabel(current())}</span><Show when={index()}><span aria-hidden="true"> · </span></Show></>}</Show><Show when={index()}>{value => <span class="sidebar-masthead-count">{`${value().notes.toLocaleString()} ${value().notes === 1 ? 'note' : 'notes'}`}</span>}</Show></span>
+        <Show when={index()}>{value => <span class="sidebar-masthead-count">{`${value().notes.toLocaleString()} ${value().notes === 1 ? 'note' : 'notes'}`}</span>}</Show>
       </header>
       <nav class="primary-navigation" aria-label="Workshop">
         <Button icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), opensBeside(event)); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>

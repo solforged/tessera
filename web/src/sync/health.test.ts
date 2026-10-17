@@ -88,7 +88,7 @@ test('hub retirement outranks refusal, which outranks its own review count', () 
 
 test('synced and sending are ok without a cover mark', () => {
   expect(syncHealth(replica(), null, now)).toMatchObject({ kind: 'synced', tone: 'ok', cover: null, hint: 'Click for details.' });
-  expect(syncHealth(hub, devices(), now)).toMatchObject({ kind: 'synced', tone: 'ok', cover: null, hint: 'Click for details.' });
+  expect(syncHealth(hub, devices(), now)).toMatchObject({ kind: 'synced', tone: 'ok', cover: null, rail: '1 device synced', hint: 'Click for details.' });
   for (const changes of [{ pending: 3 }, { syncing: true }, { unapplied: 1 }]) {
     expect(syncHealth(replica(changes), null, now)).toMatchObject({ kind: 'sending', tone: 'ok', cover: null, hint: 'Click for details.' });
   }

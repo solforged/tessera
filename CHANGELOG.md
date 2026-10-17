@@ -8,7 +8,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
-- Added a workshop switcher in place of the sidebar's Settings row: the open workshop's name over its sync relationship, with a menu that switches workshops, pairs a phone or syncs. Settings became an icon beside Fields.
+- Added a workshop switcher in place of the sidebar's Settings row: one line naming the open workshop, with a menu that switches workshops, pairs a phone or syncs. Settings became an icon beside Fields; the Mac's sync mark counts paired devices.
 - Added Open or create by name in Settings › Workshops, with names stored under `~/.local/share/tessera/workshops`.
 - Listed workshop folders found in the workshops folder alongside registered workshops.
 - Added automatic daily backups while the service runs, with unchanged snapshots skipped and immutable files hard-linked where supported.

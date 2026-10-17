@@ -9,19 +9,9 @@ import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { knownNotebooks, notebookLabel, notebookOpening, notebookPlace, openNotebook } from './notebooks';
 
-/** How this copy of the workshop reaches other devices, short enough for the foot. Health stays with the rail's sync mark. */
-function syncRelation(): string {
-  if (DEMO) return 'in this browser';
-  const copy = replica();
-  if (copy) return `copies ${copy.hub_name ?? 'the Mac'}`;
-  if (ANDROID) return 'this phone only';
-  const count = hubDevices.state()?.devices.length ?? 0;
-  return count ? `syncs ${plural(count, 'device')}` : 'this Mac only';
-}
-
 /**
- * The sidebar foot names the open workshop and its sync relationship. Its menu switches workshops and starts
- * pairing; Settings and Fields keep their own icons beside it.
+ * The sidebar foot names the open workshop and nothing else; how it syncs belongs to the rail's sync mark. Its menu
+ * switches workshops and starts pairing; Settings and Fields keep their own icons beside it.
  */
 export function NotebookSwitcher(props: { notebook: NotebookClient; onOpen(target: OpenTarget): void; onError(reason: unknown): void }) {
   const [anchor, setAnchor] = createSignal<HTMLElement | null>(null);
@@ -54,12 +44,9 @@ export function NotebookSwitcher(props: { notebook: NotebookClient; onOpen(targe
   ];
   return <>
     <Button class="notebook-switcher" aria-haspopup="menu" aria-expanded={anchor() !== null} title={current()?.display_path}
-      aria-label={`Workshop: ${current() ? notebookLabel(current()!) : 'this workshop'}, ${syncRelation()}`}
+      aria-label={`Workshop: ${current() ? notebookLabel(current()!) : 'this workshop'}`}
       onClick={event => { void sync.refresh(); setAnchor(event.currentTarget); }}>
-      <span class="notebook-switcher-text">
-        <span class="notebook-switcher-name" classList={{ 'notebook-switcher-other': !!current() && !current()!.default }}>{current() ? notebookLabel(current()!) : 'Workshop'}</span>
-        <span class="notebook-switcher-sync">{syncRelation()}</span>
-      </span>
+      <span class="notebook-switcher-name" classList={{ 'notebook-switcher-other': !!current() && !current()!.default }}>{current() ? notebookLabel(current()!) : 'Workshop'}</span>
       {/* The foot is too narrow for a chevron beside two icons; the menu is announced by aria-haspopup. */}
     </Button>
     <Show when={anchor()}>{target => <Menu anchor={target()} label="Workshop" items={items()} class="notebook-switcher-menu" onDismiss={() => setAnchor(null)} />}</Show>

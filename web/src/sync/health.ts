@@ -28,8 +28,10 @@ export function syncHealth(state: SyncState | null, devices: SyncDevices | null,
   const replica = state.role === 'replica' ? state.replica : null;
   if (!replica && (state.role !== 'hub' || !devices?.devices.length)) return null;
   const hub = devices?.this_device ?? state.this_device;
+  const paired = devices?.devices.length ?? 0;
   const base: SyncHealth = {
-    kind: 'synced', tone: 'ok', rail: 'Devices synced', hint: 'Click for details.', title: 'Devices synced', cover: null, detail: '',
+    kind: 'synced', tone: 'ok', rail: replica ? 'Devices synced' : `${paired} ${paired === 1 ? 'device' : 'devices'} synced`,
+    hint: 'Click for details.', title: 'Devices synced', cover: null, detail: '',
     role: replica ? 'replica' : 'hub', deviceId: replica?.device_id ?? null,
     deviceName: replica?.device_name ?? 'This device', hubName: replica?.hub_name ?? devices?.hub_name ?? 'the Mac',
     pending: replica?.pending ?? 0, kept: replica?.kept_copies ?? conflicts?.kept.length ?? 0,

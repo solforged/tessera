@@ -175,14 +175,10 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .sidebar-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: auto; padding-top: var(--space-8); border-top: var(--rule-width) solid var(--line); }
 .sidebar-foot > .button:first-child { flex: 1; width: auto; min-width: 0; }
 .sidebar-foot > .button.icon-only { flex: none; border-left: 0; }
-/* Two lines: the name, then the sync relationship in faint mono. A notebook other than the default is named in the
-   warning colour, so a test notebook is never taken for the usual one; long names shorten. */
-.sidebar-foot > .notebook-switcher { padding-block: var(--space-2); }
-.notebook-switcher-text { display: flex; flex-direction: column; }
-.notebook-switcher-text > span { overflow: hidden; text-overflow: ellipsis; }
-.notebook-switcher-name { color: var(--text); }
+/* One line: the workshop's name. A workshop other than the default is named in the warning colour, so a test
+   workshop is never taken for the usual one; long names shorten. Sync lives in the rail's sync mark. */
+.notebook-switcher-name { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .notebook-switcher-name.notebook-switcher-other { color: var(--warning); }
-.notebook-switcher-sync { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 /* The pin floats over the row's end, so a selected view spans the full row like pages do. */
 .sidebar-view { position: relative; display: flex; align-items: center; }
 .sidebar-view > .view-link { flex: 1; min-width: 0; }
@@ -206,7 +202,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 /* Each Empty name is a full-height target, so the line grows to the pointer target on touch. */
 .index-empties button { min-height: var(--target-size); }
 /* The cover screen hides the rail, so the overlay opens on its masthead: oculus and wordmark, Close sidebar, and the
-   notebook with its note count in mono beneath, over a hairline. Elsewhere the rail carries all three. */
+   note count in mono beneath, over a hairline. Elsewhere the rail carries the first two. */
 .sidebar-masthead { display: none; }
 .workspace { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0 var(--space-12) var(--space-12) 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-workspace); background: var(--canvas); transition: margin-left var(--motion-ui) var(--motion-ease); }
 .sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
@@ -497,13 +493,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .app.is-reading .workspace { margin: 0; border: 0; border-radius: 0; background: var(--canvas); transition: none; }
   .undo-toast { bottom: calc(var(--bottom-nav-height) + 12px + var(--bottom-inset)); }
   .sidebar-masthead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2) var(--space-8); margin-bottom: var(--space-8); padding: var(--space-4) 0 var(--space-12) calc(var(--space-8) + 2 * var(--rule-width)); border-bottom: var(--rule-width) solid var(--line); }
-  /* A long notebook name shortens; the count after it stays whole. */
-  .sidebar-masthead-notebook { grid-column: 1 / -1; display: flex; min-width: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: pre; }
-  .sidebar-masthead-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .sidebar-masthead-count { flex: none; }
-  .sidebar-masthead-other { color: var(--warning); }
-  /* The masthead names the notebook, so the foot keeps only the sync relationship. */
-  .notebook-switcher-name { display: none; }
+  .sidebar-masthead-count { grid-column: 1 / -1; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 }
 @media (prefers-reduced-motion: reduce) {
   .mode-tabs > .tab-rule, .sidebar .button::before { transition: none; }
