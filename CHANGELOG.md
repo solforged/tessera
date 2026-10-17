@@ -59,6 +59,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Showed typed-page, question and project glyphs in pane headers using already-loaded kind metadata.
 - Opened New page as a bottom sheet on touch-cover layouts.
 - Offered Open page before submitting an existing title in New page.
+- Listed pages whose titles appear inside a longer creation draft under Similar pages, so “Is the kitchen renovation worth it?” offers Kitchen renovation.
+- Stopped offering type pages such as Book as perspective holders, and offered other pages for filing only after a name is typed.
 - Kept Unicode title-folding keys as data during minification so Android WebViews with older Unicode parsers could open the app.
 - Kept Undo of a pending cross-page move waiting for that move instead of undoing earlier text while it saved.
 - Applied an outline's Undo notice directly from ⌘Z, including after its pane became the only remaining pane.

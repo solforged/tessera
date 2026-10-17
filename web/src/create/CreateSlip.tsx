@@ -14,7 +14,7 @@ import { CardComposerBody } from '../review/CardComposer';
 import { AddSourceBody } from '../library/AddSheet';
 import { PageDraft } from './PageDraft';
 import { inferKind, type CreateInto, type CreateKind, type CreateRequest } from './request';
-import { creatableKinds } from './kinds';
+import { creatableKinds, kindNoun } from './kinds';
 import './create.css';
 
 export interface CreateNotice {
@@ -62,7 +62,7 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
   const destinationTitle = () => under() ? props.notebook.lookup(under()!)()?.text ?? props.notebook.roots().find(page => page.id === under())?.text ?? 'Page' : '';
   const pageDraft = () => kind() === 'project' || kind().startsWith('type:') || (kind() === 'note' || kind() === 'question') && into().kind === 'page';
   const moreSelected = () => !primaryKinds.some(value => value.kind === kind());
-  const action = () => kind() === 'source' ? 'Add to library' : kind() === 'task' ? 'New task' : kind() === 'card' ? 'New card' : kind() === 'project' ? 'New project' : kind().startsWith('type:') ? `New ${noteKind()?.name.toLocaleLowerCase() ?? 'note'}` : pageDraft() ? kind() === 'question' ? 'New question' : 'New page' : 'Add to today';
+  const action = () => kind() === 'source' ? 'Add to library' : kind() === 'task' ? 'New task' : kind() === 'card' ? 'New card' : kind() === 'project' ? 'New project' : kind().startsWith('type:') ? `New ${noteKind() ? kindNoun(noteKind()!) : 'note'}` : pageDraft() ? kind() === 'question' ? 'New question' : 'New page' : 'Add to today';
   const where = () => kind() === 'source' ? 'Library inbox' : pageDraft() ? '' : under() ? `End of ${destinationTitle()}` : `${shortDay(props.notebook.todayDate())} · end of journal`;
   const status = () => added() ? `${added()} added` : '';
   const [pages] = createResource(() => picker() ? [query(), props.notebook.roots()] as const : false, ([value, roots]) => completeNames(props.notebook, value, roots));

@@ -43,7 +43,7 @@ import { besideSlot, dividerRatio, insertPane, MAX_PANES, paneCapacity, windowSt
 import { blankCapture } from '../create/request';
 import type { CreateRequest } from '../create/request';
 import { CreateSlip, type CreateNotice } from '../create/CreateSlip';
-import { creatableKinds } from '../create/kinds';
+import { creatableKinds, kindNoun } from '../create/kinds';
 import { installLinkDrop } from '../create/link-drop';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
 import { NotebookMarker, NotebookOpening, knownNotebooks, registerNotebookCommands } from '../settings/notebooks';
@@ -729,7 +729,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   });
   createEffect(() => {
     onCleanup(commands.register(creatableKinds(index()?.kinds ?? []).map(kind => ({
-      id: `create.type:${kind.key}`, title: `New ${kind.name.toLocaleLowerCase()}`, section: 'Create' as const,
+      id: `create.type:${kind.key}`, title: `New ${kindNoun(kind)}`, section: 'Create' as const,
       run: () => openCreate({ kind: `type:${kind.key}`, text: '', lockKind: true }),
     }))));
   });

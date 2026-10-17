@@ -7,6 +7,8 @@ import { Button } from '../ui/Button';
 import type { CreateKind } from './request';
 import { DraftFields } from './DraftFields';
 import { blankDraftFields, createPageDraft } from './draft';
+import { foldName } from '../outline/names';
+import { kindNoun } from './kinds';
 
 const gistPrompt: Record<string, (noun: string) => string> = {
   note: () => 'First line, optional',
@@ -27,13 +29,21 @@ export function PageDraft(props: {
   const id = createUniqueId();
   let title!: HTMLTextAreaElement;
   const mode = () => props.kind.startsWith('type:') ? 'type' : props.kind;
-  const noun = () => props.noteKind?.name.toLocaleLowerCase() ?? (props.kind === 'note' ? 'page' : props.kind);
+  const noun = () => props.noteKind ? kindNoun(props.noteKind) : props.kind === 'note' ? 'page' : props.kind;
   const query = () => props.text.trim();
   const [existing] = createResource(() => query() || false, async text => ({ title: text, id: await props.notebook.pageByTitle(text, false) }));
-  // Find's Pages scope combines completion (aliases) and text search (infix titles).
+  // Find's Pages scope combines completion (aliases) and text search (infix titles); titles named inside a longer draft,
+  // such as Kitchen renovation in “Is the kitchen renovation worth it?”, come first.
   const [similar] = createResource(() => query() || false, async text => {
     const [names, hits] = await Promise.all([props.notebook.api.complete(text, 40), props.notebook.api.search(text)]);
-    const rows = new Map(names.filter(row => row.kind === 'page').map(row => [row.id, { id: row.id, text: row.text, alias: row.alias }]));
+    const folded = ` ${foldName(text).replace(/[^\p{L}\p{N}]+/gu, ' ')} `;
+    const rows = new Map<string, { id: string; text: string; alias: string | null }>();
+    for (const page of props.notebook.roots()) {
+      if (page.kind !== 'page' || page.archived) continue;
+      const name = foldName(page.text).replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+      if (name.length >= 4 && folded.includes(` ${name} `) && name !== folded.trim()) rows.set(page.id, { id: page.id, text: page.text, alias: null });
+    }
+    for (const row of names) if (row.kind === 'page' && !rows.has(row.id)) rows.set(row.id, { id: row.id, text: row.text, alias: row.alias });
     for (const hit of hits) if (hit.block.kind === 'page' && !rows.has(hit.block.id)) rows.set(hit.block.id, { id: hit.block.id, text: hit.block.text, alias: null });
     return [...rows.values()];
   });

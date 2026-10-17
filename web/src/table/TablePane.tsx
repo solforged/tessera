@@ -25,6 +25,7 @@ import { missingFilter, requiredIds, requiredReason } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
 import { noteKindIcon } from '../notes/kinds';
 import { CreateSlip } from '../create/CreateSlip';
+import { kindNoun } from '../create/kinds';
 import { NoteFind } from '../notes/NoteFind';
 import { autoPlural } from '../fields/presentation';
 import { FilterPopup } from './FilterPopup';
@@ -856,7 +857,7 @@ function TableContent(props: TablePaneProps) {
         <div class="table-view-status"><Show when={props.target.viewId && saved()} fallback={<Show when={result()}>{rows => <>{membersLabel(rows().total)}</>}</Show>}>
           <span>{changed() ? 'Modified' : 'Saved view'}</span><Show when={changed()}><Button disabled={savingView()} onClick={() => { void saveChanges().catch(message); }}>Save changes</Button><Button onClick={() => { const value = saved(); if (value) switchView(value); }}>Revert changes</Button></Show>
         </Show><RequiredGaps gaps={gaps.latest} name={id => fieldById(id)?.name} onShow={showMissing} /></div>
-        <Show when={rowKind()}>{kind => <Button class="bordered" icon="plus" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'new-row', anchor: event.currentTarget })}>New {kind().name.toLocaleLowerCase()}…</Button>}</Show>
+        <Show when={rowKind()}>{kind => <Button class="bordered" icon="plus" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'new-row', anchor: event.currentTarget })}>New {kindNoun(kind())}…</Button>}</Show>
       </header>
       <Show when={query().type}>{typeId => <TypeModeTabs active="table" indexCount={missingFields().length ? undefined : query().note_kind ? result()?.total : indexTotal()} tableCount={missingFields().length ? undefined : result()?.total} fieldsCount={type()?.fields.length}
         cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: typeId() }, opensBeside(event))}

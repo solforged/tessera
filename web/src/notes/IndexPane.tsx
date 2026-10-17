@@ -25,6 +25,7 @@ import { indexKindTarget, noteKindIcon, tagOnly } from './kinds';
 import { filingGroups, filingOperations, settleFindingAid, wholeKindIndex } from './finding-aid';
 import type { FindingAidSnapshot } from './finding-aid';
 import { CreateSlip } from '../create/CreateSlip';
+import { kindNoun } from '../create/kinds';
 import './notes.css';
 import { QuestionLedger } from './QuestionLedger';
 
@@ -455,7 +456,7 @@ function NewKindAction(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'noteboo
   const [anchor, setAnchor] = createSignal<HTMLElement>();
   const mode = () => props.kind ? startable[props.kindKey] ?? (props.kind.type_id ? 'type' : undefined) : undefined;
   return <>
-    <Show when={mode()}><Button class="bordered" icon="plus" aria-haspopup="dialog" onClick={event => setAnchor(event.currentTarget)}>New {props.kind!.name.toLocaleLowerCase()}…</Button></Show>
+    <Show when={mode()}><Button class="bordered" icon="plus" aria-haspopup="dialog" onClick={event => setAnchor(event.currentTarget)}>New {kindNoun(props.kind!)}…</Button></Show>
     <Show when={anchor()}>{target => <CreateSlip request={{ kind: mode() === 'question' ? 'question' : mode() === 'project' ? 'project' : `type:${props.kindKey}`, text: '', lockKind: true }} anchor={target()} notebook={props.notebook} onDismiss={() => setAnchor(undefined)} defaultBeside={window.matchMedia('(pointer: coarse)').matches && document.querySelectorAll('.panes > .pane:not(.folded)').length > 1} onOpen={props.onOpen} />}</Show>
   </>;
 }
