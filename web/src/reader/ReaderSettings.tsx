@@ -1,10 +1,11 @@
-import { For, createRoot, createSignal } from 'solid-js';
+import { For, Show, createRoot, createSignal } from 'solid-js';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 
 const sizes = [15, 16, 17, 18, 20, 22] as const;
 // Widths in em follow the reader size: a compact or medium reading measure.
 const widths = { Narrow: '28em', Medium: '34em', Wide: 'var(--measure)' } as const;
+const narrowest = 28;
 const spacings = { Compact: 1.5, Normal: 1.65, Relaxed: 1.8 } as const;
 const layouts = { scroll: 'Scroll', pages: 'Pages' } as const;
 interface ReaderSettings {
@@ -45,9 +46,13 @@ export const readerStyle = () => ({
   '--reader-measure': widths[readerSettings().width],
 });
 
-/** On a touch screen the settings rise as a sheet from the bottom edge, so the text they change stays in sight above. */
-export function ReaderSettingsPopup(props: { anchor: HTMLElement; sheet: boolean; onDismiss(): void }) {
+/**
+ * On a touch screen the settings rise as a sheet from the bottom edge, so the text they change stays in sight above.
+ * `room` is the text's width at most; where even Narrow fills it, every width reads the same and Width steps aside.
+ */
+export function ReaderSettingsPopup(props: { anchor: HTMLElement; sheet: boolean; room: number; onDismiss(): void }) {
   const sizeIndex = () => sizes.indexOf(readerSettings().size);
+  const widthMatters = () => props.room > narrowest * readerSettings().size;
   return <Popup anchor={props.anchor} placement={props.sheet ? 'sheet' : 'anchor'} label="Reader settings" class="reader-settings" onDismiss={props.onDismiss}>
     <div class="reader-settings-body">
     <div class="reader-setting"><span>Layout</span><div class="mode-tabs" role="group" aria-label="Layout"><For each={Object.keys(layouts) as (keyof typeof layouts)[]}>{layout =>
@@ -62,9 +67,9 @@ export function ReaderSettingsPopup(props: { anchor: HTMLElement; sheet: boolean
       <output aria-label="Reader size">{readerSettings().size}</output>
       <Button label="Increase size" disabled={sizeIndex() === sizes.length - 1} onClick={() => setSettings({ size: sizes[sizeIndex() + 1]! })}>+</Button>
     </div></div>
-    <div class="reader-setting"><span>Width</span><div class="mode-tabs" role="group" aria-label="Width"><For each={Object.keys(widths) as (keyof typeof widths)[]}>{width =>
+    <Show when={widthMatters()}><div class="reader-setting"><span>Width</span><div class="mode-tabs" role="group" aria-label="Width"><For each={Object.keys(widths) as (keyof typeof widths)[]}>{width =>
       <Button aria-pressed={readerSettings().width === width} onClick={() => setSettings({ width })}>{width}</Button>
-    }</For></div></div>
+    }</For></div></div></Show>
     <div class="reader-setting"><span>Line spacing</span><div class="mode-tabs" role="group" aria-label="Line spacing"><For each={Object.keys(spacings) as (keyof typeof spacings)[]}>{spacing =>
       <Button aria-pressed={readerSettings().spacing === spacing} onClick={() => setSettings({ spacing })}>{spacing}</Button>
     }</For></div></div>

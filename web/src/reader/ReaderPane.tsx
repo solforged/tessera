@@ -65,6 +65,8 @@ type ReaderPopup = { kind: 'contents' | 'find' | 'highlights' | 'settings' | 'ac
 type SelectionToolbar = PassageSelection & { rect: DOMRect; rects: DOMRect[]; snapshotId: string };
 /** Touch screens write a new highlight's note beside the passage, not in the source page. */
 const coarsePointer = window.matchMedia('(pointer: coarse)');
+/** No hover and a coarse pointer: a phone or tablet without a keyboard and trackpad, as `kbd` hints assume in CSS. */
+const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)');
 /** The cover screen always reads in the reading layout; its chrome toggles with a centre tap, as in full screen. */
 const coverScreen = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
 /** In full screen the reading chrome fades after this long without the mouse moving. */
@@ -300,6 +302,25 @@ export function ReaderPane(props: ReaderPaneProps) {
     setSystemBarsHidden(true);
     onCleanup(() => setSystemBarsHidden(false));
   });
+  // On the cover screen the reader owns a history entry, so the system Back gesture (Android) closes an open sheet and
+  // then leaves the book as its back arrow does, rather than leaving the app. Leaving another way pops the entry.
+  createEffect(() => {
+    if (!props.active || !coverReading() || props.immersive) return;
+    const key = ulid();
+    let owned = true;
+    history.pushState({ ...history.state, tesseraReader: key }, '');
+    const moved = () => {
+      if (history.state?.tesseraReader === key) return;
+      if (popup()) { setPopup(null); history.pushState({ ...history.state, tesseraReader: key }, ''); return; }
+      owned = false;
+      props.onBack();
+    };
+    window.addEventListener('popstate', moved);
+    onCleanup(() => {
+      window.removeEventListener('popstate', moved);
+      if (owned && history.state?.tesseraReader === key) history.back();
+    });
+  });
   createEffect(on([loading, firstVisible, pageIndex, chunk], () => { if (chromeOverlays() && !loading()) hideChrome(); }, { defer: true }));
   // WebKit sends pointermove when the page turns under a resting mouse; only a real move shows the chrome.
   let lastPointer = '';
@@ -463,6 +484,12 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   /** The contents margin takes `--apparatus-width` and a 48 px gap left of the text, inside the pane's padding; it shows only where both fit. */
+  /** The width the text could take at most: the reading column inside the pane's padding. */
+  function textRoom() {
+    const style = getComputedStyle(scroll);
+    return scroll.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+  }
+
   function fitMargin() {
     if (!scroll.clientWidth) return;
     const style = getComputedStyle(scroll);
@@ -1251,6 +1278,13 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   const readerActions = createMemo<MenuItem[]>(() => {
     const needsSelection = selection() ? undefined : 'Select text first';
+    // A touch screen without a keyboard has the selection bar, swipes and taps for these, so only the source's actions show.
+    if (touchOnly.matches) return [
+      { label: 'Open source page', icon: 'page', action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, false) },
+      { label: 'Merge overlapping highlights', icon: 'highlight', disabledReason: editing() ? 'Saving…' : undefined, action: () => { void mergeOverlapping(); } },
+      { label: 'Undo last edit', icon: 'undo', disabledReason: actions.canUndo() || readerDocument.canUndo() ? undefined : 'Nothing to undo', action: () => { void undoHighlight(); } },
+      ...(coverReading() ? [] : [{ label: props.immersive ? 'Exit full screen' : 'Full screen', action: () => props.onImmersive(!props.immersive) }]),
+    ];
     return [
       { label: 'Open source page', icon: 'page', shortcut: `${besideKey} beside`, action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, besidePressed) },
       { label: 'Merge overlapping highlights', icon: 'highlight', disabledReason: editing() ? 'Saving…' : undefined, action: () => { void mergeOverlapping(); } },
@@ -1621,7 +1655,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       </div>
     </div>
     <Show when={popup()}>{state => <>
-      <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} sheet={coarsePointer.matches} onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} sheet={coarsePointer.matches} room={textRoom()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'progress'}><ProgressCard anchor={state().anchor} sheet={coverReading()} chapters={mapChapters()} length={currentSnapshot()?.text_length ?? 0} at={here()} highlights={marks()}
         added={source()?.source.added_at ?? null} onDismiss={() => setPopup(null)}
         onJump={chapter => { const entry = contents().find(value => value.start === chapter.start && value.ordinal !== null); if (entry) void openSection(entry); else setPopup(null); }} /></Show>

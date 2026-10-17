@@ -122,7 +122,7 @@ Focus has one frame per control:
 
 Radius 2 px for controls, 3 px for popups, zero for the workspace and resurfaced slips, full for pills. Popups have a 1 px `--line` border and `--popup-shadow`; dialogs `--dialog-shadow`. The workspace frame has a 1 px `--line` border and no shadow. Rows and tables cast none.
 
-Each pane has 9 px registration corners 4 px inside its content, clear of toolbars, gilt when active and `--line` otherwise. Popups carry a 24 × 2 px rubric mark at the top. The rail notebook name has an oculus mark in gilt.
+Each pane has 9 px registration corners 4 px inside its content, clear of toolbars, gilt when active and `--line` otherwise. A reader whose controls have faded takes its corners with them. Popups carry a 24 × 2 px rubric mark at the top. The rail notebook name has an oculus mark in gilt.
 
 A [resurfaced slip](surfaces/journal.md) sits on `--raised`, marked by its highlight color as a 2 px bar at the left. The mono source line carries the short source title, chapter or passage and date, with Open, Keep and Mute beside it.
 
