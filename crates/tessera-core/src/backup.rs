@@ -1,10 +1,12 @@
+use std::collections::BTreeSet;
 use std::fs::{self, File};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use rusqlite::{Connection, OpenFlags};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::notebook::now_ms;
 use crate::storage::validation;
@@ -20,6 +22,9 @@ pub struct BackupManifest {
     pub created_at: i64,
     pub object_count: u64,
     pub db_page_count: u32,
+    /// Hash of the portable SQLite snapshot; absent in backups from older builds.
+    #[serde(default)]
+    pub database_sha256: String,
 }
 
 /// Take a consistent SQLite snapshot without acquiring the source service lock.
@@ -37,6 +42,25 @@ pub fn backup(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> Result
     })?;
     let db_page_count = conn.pragma_query_value(None, "page_count", |r| r.get(0))?;
     drop(conn);
+    let mut digest = Sha256::new();
+    let mut database = File::open(stage.path().join(DATABASE_FILE))?;
+    let mut buffer = [0; 64 * 1024];
+    loop {
+        let length = database.read(&mut buffer)?;
+        if length == 0 {
+            break;
+        }
+        digest.update(&buffer[..length]);
+    }
+    let database_sha256 =
+        digest
+            .finalize()
+            .iter()
+            .fold(String::with_capacity(64), |mut hex, byte| {
+                use std::fmt::Write as _;
+                write!(hex, "{byte:02x}").expect("writing to String cannot fail");
+                hex
+            });
     let object_count = copy_objects(&source, &destination)?;
     let manifest = BackupManifest {
         notebook_id,
@@ -44,6 +68,7 @@ pub fn backup(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> Result
         created_at: now_ms(),
         object_count,
         db_page_count,
+        database_sha256,
     };
     fs::rename(
         stage.path().join(DATABASE_FILE),
@@ -61,18 +86,65 @@ pub fn backup(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> Result
     Ok(manifest)
 }
 
-/// Where the service lists a notebook's backups: `<parent>/backups/<id>`.
-pub fn backup_directory(notebook: &Path, id: &str) -> Result<PathBuf> {
-    let parent = notebook
-        .parent()
-        .ok_or_else(|| validation("The notebook has no parent directory."))?;
-    Ok(parent.join("backups").join(id))
+/// A store backup either newly published or retained because nothing changed.
+#[derive(Debug)]
+pub struct StoredBackup {
+    pub path: PathBuf,
+    pub manifest: BackupManifest,
+    pub created: bool,
 }
 
-/// Back up into the notebook's [`backup_directory`] under the current UTC
-/// second. Reads the notebook ID without opening, so a newer build can back
-/// up before it migrates.
-pub fn backup_beside(notebook: impl AsRef<Path>) -> Result<(PathBuf, BackupManifest)> {
+/// One workshop's folder within the explicitly supplied backup store.
+pub fn backup_directory(store: &Path, id: &str) -> Result<PathBuf> {
+    crate::storage::validate_id(id)?;
+    Ok(store.join(id))
+}
+
+/// Finished backups for this workshop, newest first. Staging directories and
+/// symlinks are never restore points.
+pub fn finished_backups(store: &Path, id: &str) -> Result<Vec<(PathBuf, BackupManifest)>> {
+    let directory = backup_directory(store, id)?;
+    let entries = match fs::read_dir(&directory) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error.into()),
+    };
+    if !fs::symlink_metadata(&directory)?.is_dir() {
+        return Err(validation("Backup directories must not be symlinks."));
+    }
+    let mut backups = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() || entry.file_name().as_encoded_bytes().starts_with(b".tmp")
+        {
+            continue;
+        }
+        let manifest = match File::open(entry.path().join("manifest.json")) {
+            Ok(file) => {
+                serde_json::from_reader::<_, BackupManifest>(file).map_err(io::Error::other)?
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        if manifest.notebook_id == id {
+            backups.push((entry.path(), manifest));
+        }
+    }
+    backups.sort_by(|a, b| {
+        b.1.created_at
+            .cmp(&a.1.created_at)
+            .then_with(|| b.0.cmp(&a.0))
+    });
+    Ok(backups)
+}
+
+/// Snapshot into the shared store, skip unchanged state, then apply retention.
+/// Reads the identity without opening the workshop, so install can back up
+/// before the new build migrates its database.
+pub fn backup_to_store(
+    notebook: impl AsRef<Path>,
+    store: impl AsRef<Path>,
+) -> Result<StoredBackup> {
     let notebook = fs::canonicalize(notebook.as_ref())?;
     let id: String = {
         let conn = Connection::open_with_flags(
@@ -84,17 +156,110 @@ pub fn backup_beside(notebook: impl AsRef<Path>) -> Result<(PathBuf, BackupManif
             r.get(0)
         })?
     };
-    let directory = backup_directory(&notebook, &id)?;
+    let store = store.as_ref();
+    let directory = backup_directory(store, &id)?;
     fs::create_dir_all(&directory)?;
-    let path = directory.join(
-        jiff::Timestamp::now()
-            .strftime("%Y-%m-%dT%H-%M-%S")
-            .to_string(),
+    if !fs::symlink_metadata(&directory)?.is_dir() {
+        return Err(validation("Backup directories must not be symlinks."));
+    }
+    let stage = tempfile::tempdir_in(&directory)?;
+    let manifest = backup(&notebook, stage.path())?;
+    // This private staging directory is no longer owned after backup returns.
+    fs::remove_file(stage.path().join("service.lock"))?;
+    if let Some((path, previous)) = finished_backups(store, &id)?.into_iter().next()
+        && previous.database_sha256 == manifest.database_sha256
+        && previous.object_count == manifest.object_count
+    {
+        stage.close()?;
+        prune_store(store, &id, now_ms())?;
+        return Ok(StoredBackup {
+            path,
+            manifest: previous,
+            created: false,
+        });
+    }
+    let timestamp = jiff::Timestamp::from_millisecond(manifest.created_at)
+        .map_err(|error| validation(error.to_string()))?;
+    let stem = format!(
+        "{}-{:03}",
+        timestamp.strftime("%Y-%m-%dT%H-%M-%S"),
+        manifest.created_at.rem_euclid(1000)
     );
-    // Fails with AlreadyExists for a second backup within the same second.
-    fs::create_dir(&path)?;
-    let manifest = backup(&notebook, &path)?;
-    Ok((path, manifest))
+    let mut attempt = 1;
+    let path = loop {
+        let path = directory.join(if attempt == 1 {
+            stem.clone()
+        } else {
+            format!("{stem}-{attempt}")
+        });
+        match fs::create_dir(&path) {
+            Ok(()) => break path,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => attempt += 1,
+            Err(error) => return Err(error.into()),
+        }
+    };
+    fs::rename(stage.path(), &path)?;
+    File::open(&directory)?.sync_all()?;
+    prune_store(store, &id, now_ms())?;
+    Ok(StoredBackup {
+        path,
+        manifest,
+        created: true,
+    })
+}
+
+const DAY_MS: i64 = 86_400_000;
+
+/// Indices to retain: three newest, one per UTC day including today for seven
+/// days, then one per seven-day window for the preceding four weeks.
+fn retained_backups(timestamps: &[i64], now: i64) -> BTreeSet<usize> {
+    let mut newest: Vec<_> = (0..timestamps.len()).collect();
+    newest.sort_by_key(|&index| std::cmp::Reverse(timestamps[index]));
+    let mut keep: BTreeSet<_> = newest.iter().take(3).copied().collect();
+    let mut buckets = BTreeSet::new();
+    for index in newest {
+        let age = now.div_euclid(DAY_MS) - timestamps[index].div_euclid(DAY_MS);
+        let bucket = match age {
+            0..=6 => age,
+            7..=34 => 7 + (age - 7) / 7,
+            _ => continue,
+        };
+        if buckets.insert(bucket) {
+            keep.insert(index);
+        }
+    }
+    keep
+}
+
+fn prune_store(store: &Path, id: &str, now: i64) -> Result<()> {
+    let backups = finished_backups(store, id)?;
+    let timestamps: Vec<_> = backups
+        .iter()
+        .map(|(_, manifest)| manifest.created_at)
+        .collect();
+    let keep = retained_backups(&timestamps, now);
+    for (index, (path, _)) in backups.into_iter().enumerate() {
+        if !keep.contains(&index) {
+            fs::remove_dir_all(path)?;
+        }
+    }
+    let now = SystemTime::UNIX_EPOCH + Duration::from_millis(now.max(0) as u64);
+    for entry in fs::read_dir(backup_directory(store, id)?)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let staging = entry.file_name().as_encoded_bytes().starts_with(b".tmp");
+        if (staging || !entry.path().join("manifest.json").try_exists()?)
+            && now
+                .duration_since(entry.metadata()?.modified()?)
+                .unwrap_or_default()
+                >= Duration::from_secs(3600)
+        {
+            fs::remove_dir_all(entry.path())?;
+        }
+    }
+    Ok(())
 }
 
 /// Restore into an offline notebook. Hold the same OS lock as the service for
@@ -245,10 +410,12 @@ fn copy_objects(source: &Path, destination: &Path) -> Result<u64> {
                 Ok(metadata) if metadata.is_file() => (),
                 Ok(_) => return Err(validation("Objects must be regular files.")),
                 Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                    let mut temp = tempfile::NamedTempFile::new_in(&target)?;
-                    io::copy(&mut File::open(object.path())?, &mut temp)?;
-                    temp.as_file().sync_all()?;
-                    temp.persist_noclobber(path).map_err(|error| error.error)?;
+                    if fs::hard_link(object.path(), &path).is_err() {
+                        let mut temp = tempfile::NamedTempFile::new_in(&target)?;
+                        io::copy(&mut File::open(object.path())?, &mut temp)?;
+                        temp.as_file().sync_all()?;
+                        temp.persist_noclobber(path).map_err(|error| error.error)?;
+                    }
                 }
                 Err(error) => return Err(error.into()),
             }
@@ -258,4 +425,96 @@ fn copy_objects(source: &Path, destination: &Path) -> Result<u64> {
     }
     File::open(destination)?.sync_all()?;
     Ok(count)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retention_keeps_three_newest_even_outside_the_time_windows() {
+        assert_eq!(retained_backups(&[], 0), BTreeSet::new());
+        assert_eq!(
+            retained_backups(&[1, 4, 2, 3], 100 * DAY_MS),
+            BTreeSet::from([1, 2, 3])
+        );
+    }
+
+    #[test]
+    fn retention_uses_utc_days_and_four_prior_seven_day_windows() {
+        let midnight = 100 * DAY_MS;
+        // Two backups in each day, deliberately oldest first.
+        let mut timestamps = Vec::new();
+        for age in (0..=40).rev() {
+            timestamps.push(midnight - age * DAY_MS);
+            timestamps.push(midnight - age * DAY_MS + 1);
+        }
+        timestamps.extend([midnight + 2, midnight + 3]);
+        let actual: BTreeSet<_> = retained_backups(&timestamps, midnight + 4)
+            .into_iter()
+            .map(|index| timestamps[index])
+            .collect();
+        let mut expected = BTreeSet::from([midnight + 1, midnight + 2, midnight + 3]);
+        for age in [1, 2, 3, 4, 5, 6, 7, 14, 21, 28] {
+            expected.insert(midnight - age * DAY_MS + 1);
+        }
+        assert_eq!(actual, expected);
+        // The last millisecond of yesterday remains in yesterday's bucket,
+        // even one millisecond after midnight.
+        let timestamps = [
+            midnight + 3,
+            midnight + 2,
+            midnight + 1,
+            midnight,
+            midnight - 1,
+        ];
+        assert_eq!(
+            retained_backups(&timestamps, midnight + 4),
+            BTreeSet::from([0, 1, 2, 4])
+        );
+    }
+
+    #[test]
+    fn retention_includes_last_day_of_each_week_but_not_day_thirty_six() {
+        let now = 100 * DAY_MS;
+        let timestamps = [
+            now,
+            now - 1,
+            now - 2,
+            now - 13 * DAY_MS,
+            now - 20 * DAY_MS,
+            now - 27 * DAY_MS,
+            now - 34 * DAY_MS,
+            now - 35 * DAY_MS,
+        ];
+        assert_eq!(
+            retained_backups(&timestamps, now),
+            BTreeSet::from([0, 1, 2, 3, 4, 5, 6])
+        );
+    }
+
+    #[test]
+    fn pruning_removes_only_old_unfinished_directories() {
+        let root = tempfile::tempdir().unwrap();
+        let id = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        let directory = backup_directory(root.path(), id).unwrap();
+        fs::create_dir_all(&directory).unwrap();
+        let now = now_ms();
+        for (name, age) in [
+            ("old", 3_600_001),
+            ("boundary", 3_600_000),
+            ("recent", 3_599_000),
+        ] {
+            let path = directory.join(name);
+            fs::create_dir(&path).unwrap();
+            File::open(path)
+                .unwrap()
+                .set_modified(SystemTime::UNIX_EPOCH + Duration::from_millis((now - age) as u64))
+                .unwrap();
+        }
+        prune_store(root.path(), id, now).unwrap();
+        assert!(!directory.join("old").exists());
+        assert!(!directory.join("boundary").exists());
+        assert!(directory.join("recent").exists());
+    }
 }

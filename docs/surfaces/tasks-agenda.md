@@ -50,7 +50,7 @@ Typing `@` after a space or at block start opens date suggestions under the `@`:
 | `12am`, `12pm` | Midnight and noon, respectively |
 | Leading `by` or `due`, followed by a space or the token's end | Deadline; for example, `@by oct 12 3pm`, `@due fri` |
 
-Typed dates count from the notebook's today, also on another day's journal page or Agenda day, so `@today` on last Tuesday's page schedules today. Agenda's New task still schedules a dateless task on the shown day.
+Typed dates count from the workshop's today, also on another day's journal page or Agenda day, so `@today` on last Tuesday's page schedules today. Agenda's New task still schedules a dateless task on the shown day.
 
 The picker's first, non-selectable row reads Scheduled or Deadline, with a mono Tab hint. Tab flips the field by inserting `by ` or removing `by `/`due ` while retaining the query. Other pickers keep Tab to pick.
 
@@ -69,7 +69,7 @@ Date pickers pair the text field with a Monday-start month grid shared with the 
 | Scheduled work | Solid dot |
 | Deadlines | Outlined square |
 
-Planning marks count open tasks only, with accessible labels such as `3 scheduled · 1 deadline`. The task's other planning date keeps a separate related-date line. Planning counts load and cache per visible month, and refresh after notebook commits without moving the grid.
+Planning marks count open tasks only, with accessible labels such as `3 scheduled · 1 deadline`. The task's other planning date keeps a separate related-date line. Planning counts load and cache per visible month, and refresh after workshop commits without moving the grid.
 
 Clicking a day applies it. Arrows move by day and week, Page Up and Page Down by month. The optional time, Clear and Apply stay in a fixed footer; only the calendar body scrolls when the viewport is short.
 
@@ -149,7 +149,7 @@ Add condition opens one searchable picker grouped into Task, Source and Fields:
 |---|---|
 | Task | Selection, status, priority, project, scheduled/deadline ranges and result limit |
 | Source | Type and text |
-| Fields | The notebook's definitions |
+| Fields | The workshop's definitions |
 
 Choosing a condition replaces the picker with its editor at the same trigger. Changing a syntax-backed condition rewrites the query line. Field predicates stay outside the syntax as editable, removable chips in the condition row, with the task count at the trailing edge. Editing a field predicate preserves its place and the other predicates.
 
@@ -225,7 +225,7 @@ At 600 px and wider the grid remains. Intermediate-width panes, including the un
 
 ### Dragging and keyboard moves
 
-Dragging a task into the grid sets its scheduled date and time, snapped to 15 minutes. Dropping in the all-day strip sets its date and clears the time. Each drop or keyboard move is one undoable notebook command. Rapid moves compose from the latest pending plan and save in order. When a keyboard move takes a card outside the displayed week, the calendar keeps keyboard ownership of that task so the next planning key still applies. The position changes immediately and rolls back if the commit fails. After a drop, keyboard focus follows the card; ⌘Z or Ctrl+Z restores the previous plan even while it is saving, and Shift repeats the chord to redo.
+Dragging a task into the grid sets its scheduled date and time, snapped to 15 minutes. Dropping in the all-day strip sets its date and clears the time. Each drop or keyboard move is one undoable workshop command. Rapid moves compose from the latest pending plan and save in order. When a keyboard move takes a card outside the displayed week, the calendar keeps keyboard ownership of that task so the next planning key still applies. The position changes immediately and rolls back if the commit fails. After a drop, keyboard focus follows the card; ⌘Z or Ctrl+Z restores the previous plan even while it is saving, and Shift repeats the chord to redo.
 
 | Focused-task key | Action |
 |---|---|

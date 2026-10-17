@@ -27,6 +27,7 @@ base64 = "0.22"
 # Sync records each change's row-level effect with SQLite's session
 # extension. The browser build does not sync.
 [target.'cfg(not(all(target_arch = "wasm32", target_os = "unknown")))'.dependencies]
+dirs.workspace = true
 rusqlite = { workspace = true, features = ["session"] }
 
 [target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]

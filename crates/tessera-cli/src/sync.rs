@@ -11,7 +11,7 @@ use tessera_service::sync_client::{HttpHub, Pairing};
 
 #[derive(Subcommand)]
 pub(crate) enum SyncCommand {
-    /// Make the notebook directory a new replica of the hub at URL, e.g.
+    /// Make the workshop directory a new replica of the hub at URL, e.g.
     /// http://127.0.0.1:4318.
     Clone {
         url: String,
@@ -23,7 +23,7 @@ pub(crate) enum SyncCommand {
         name: Option<String>,
     },
     /// Show this replica's hub and unpushed changes. While a service owns the
-    /// notebook, show the service's sync state, with the last sync and error.
+    /// workshop, show the service's sync state, with the last sync and error.
     Status,
     /// List kept conflict text and changes the hub rejected, from the running
     /// service when there is one.
@@ -112,7 +112,7 @@ struct Replica {
 
 fn open(notebook: &Path) -> anyhow::Result<Replica> {
     let ownership = NotebookOwnership::acquire(notebook, 0)
-        .context("stop the service using this notebook before syncing it from the command line")?;
+        .context("stop the service using this workshop before syncing it from the command line")?;
     Ok(Replica {
         notebook: Notebook::open(notebook)?,
         _ownership: ownership,
@@ -148,7 +148,7 @@ fn clone(
     let database = notebook.join(DATABASE_FILE);
     anyhow::ensure!(
         !database.exists(),
-        "{} already holds a notebook; clone into a new directory",
+        "{} already holds a workshop; clone into a new directory",
         notebook.display()
     );
     let _ownership = NotebookOwnership::acquire(notebook, 0)?;

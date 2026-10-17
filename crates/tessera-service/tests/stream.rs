@@ -29,7 +29,7 @@ fn edit(revision: i64, text: &str) -> Batch {
 async fn server(nb: Notebook) -> (String, tokio::task::JoinHandle<()>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
-    let app = tessera_service::router(nb, port, None, None).unwrap();
+    let app = tessera_service::router(nb, port, None, None, None).unwrap();
     let task = tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
     });

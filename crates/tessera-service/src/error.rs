@@ -43,7 +43,7 @@ impl ApiError {
         Self::new(
             StatusCode::INTERNAL_SERVER_ERROR,
             "internal",
-            "The notebook operation failed. See the server log for details.",
+            "The workshop operation failed. See the server log for details.",
         )
     }
 

@@ -1,6 +1,6 @@
 # Design
 
-How the browser client looks and behaves. Tokens live in `web/src/tokens.css`; components use tokens, never raw values. Orrery gives the notebook a midnight desk, an ink-blue canvas and gilt focus. Reference slips, registers and perspective sheets carry the same type hierarchy into floating and comparative surfaces.
+How the browser client looks and behaves. Tokens live in `web/src/tokens.css`; components use tokens, never raw values. Orrery gives the workshop a midnight desk, an ink-blue canvas and gilt focus. Reference slips, registers and perspective sheets carry the same type hierarchy into floating and comparative surfaces.
 
 Status: applied to the shell, the outline and the table. The permanent global rail and inset workspace are being evaluated in the running app. Later stages add their sections here before they are built.
 
@@ -20,7 +20,7 @@ Status: applied to the shell, the outline and the table. The permanent global ra
 
 ### Type
 
-Three voices separate writing from publication and apparatus. IBM Plex Sans Variable is bundled for your writing, inputs and ordinary controls. Piazzolla Variable is bundled in normal and italic for the names of things and for what someone else wrote: page titles, heading rows, library and work titles, displayed highlights, quotes and the reader. A quotation, highlight or passage from a book or article stays in Piazzolla wherever it is shown, including inside an outline row. The notebook's own sentences stay in Plex wherever they appear, including an outline row that cites a source: glosses and standfirsts, positions and questions, and their previews in Find and on hover. Read projection prose, including its in-place editor, stays in Piazzolla. The font belongs to the projection, never to focus. Berkeley Mono is used when installed, with system monospace fallbacks. Its commercial font files are not bundled.
+Three voices separate writing from publication and apparatus. IBM Plex Sans Variable is bundled for your writing, inputs and ordinary controls. Piazzolla Variable is bundled in normal and italic for the names of things and for what someone else wrote: page titles, heading rows, library and work titles, displayed highlights, quotes and the reader. A quotation, highlight or passage from a book or article stays in Piazzolla wherever it is shown, including inside an outline row. The workshop's own sentences stay in Plex wherever they appear, including an outline row that cites a source: glosses and standfirsts, positions and questions, and their previews in Find and on hover. Read projection prose, including its in-place editor, stays in Piazzolla. The font belongs to the projection, never to focus. Berkeley Mono is used when installed, with system monospace fallbacks. Its commercial font files are not bundled.
 
 Apparatus uses `--apparatus`: 400 at 11.5 / 16, with tabular numerals and slight tracking. It covers breadcrumbs, save state, Vim mode, sidebar section headings, picker metadata, counts, progress and resurfaced metadata. UI labels stay in sentence case. Key hints (`⌃⇧F`, `⇧↵`, `Space`) keep the apparatus size in the sans voice.
 
@@ -81,7 +81,7 @@ Orrery uses midnight `--shell` (#0a0d13), ink-blue `--canvas` (#0e121a), parchme
 
 Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f5ee inside a #ebe5d8 shell, ink `--text` (#1f1b15), antique gold `--accent` (#93650f), oxblood `--danger` (#ad3a2b) and a deeper steel blue. It overrides color tokens only, under `:root[data-theme="light"]`; type, space and shape never change, and reader figures are not dimmed.
 
-[Settings › Appearance](surfaces/settings.md) chooses System (the default, following the operating system), Light or Dark per device, stored in local storage rather than the notebook. The entry imports `shell/theme.ts` first so the page paints in the right theme, and `index.html` paints the system theme before any script runs.
+[Settings › Appearance](surfaces/settings.md) chooses System (the default, following the operating system), Light or Dark per device, stored in local storage rather than the workshop. The entry imports `shell/theme.ts` first so the page paints in the right theme, and `index.html` paints the system theme before any script runs.
 
 | Role | Token |
 |---|---|
@@ -122,7 +122,7 @@ Focus has one frame per control:
 
 Radius 2 px for controls, 3 px for popups, zero for the workspace and resurfaced slips, full for pills. Popups have a 1 px `--line` border and `--popup-shadow`; dialogs `--dialog-shadow`. The workspace frame has a 1 px `--line` border and no shadow. Rows and tables cast none.
 
-Each pane has 9 px registration corners 4 px inside its content, clear of toolbars, gilt when active and `--line` otherwise. A reader whose controls have faded takes its corners with them. Popups carry a 24 × 2 px rubric mark at the top. The rail notebook name has an oculus mark in gilt.
+Each pane has 9 px registration corners 4 px inside its content, clear of toolbars, gilt when active and `--line` otherwise. A reader whose controls have faded takes its corners with them. Popups carry a 24 × 2 px rubric mark at the top. The rail workshop name has an oculus mark in gilt.
 
 A [resurfaced slip](surfaces/journal.md) sits on `--raised`, marked by its highlight color as a 2 px bar at the left. The mono source line carries the short source title, chapter or passage and date, with Open, Keep and Mute beside it.
 
@@ -179,7 +179,7 @@ Permanent across every pane. A three-column grid:
 
 | Position | Controls |
 |---|---|
-| Left | Sidebar toggle, Tessera wordmark with its oculus and notebook-path tooltip, then the bare sync mark |
+| Left | Sidebar toggle, Tessera wordmark with its oculus and workshop-path tooltip, then the bare sync mark |
 | Center of the window | Find or create with the Commands icon in one 400 px search-shaped control |
 | Right | Icon-only Layout button |
 
@@ -207,9 +207,11 @@ After the desk, sections appear in this order:
 3. Unpinned saved Views whose type is not a kind in the Index.
 4. Collapsible Recent.
 
-Section headings are mono: a rubric numeral counted over the sections shown, the name, a hairline rule and a count. Saved table views have a pin control on hover or keyboard focus, always shown on a screen without hover. Pinning is stored per notebook alongside page pins. Task views and decks are selected in their own destinations.
+Section headings are mono: a rubric numeral counted over the sections shown, the name, a hairline rule and a count. Saved table views have a pin control on hover or keyboard focus, always shown on a screen without hover. Pinning is stored per workshop alongside page pins. Task views and decks are selected in their own destinations.
 
-The notebook switcher sits at the foot above a hairline, with icon-only Settings and Fields buttons beside it. It is two lines: the open notebook's name (`Default notebook` for the default, in `--warning` for any other, so a test notebook is never taken for the usual one), then its sync relationship in faint mono: `this Mac only`, `syncs 2 devices`, `copies hyperion`, `this phone only` or `in this browser`. Health stays with the rail's sync mark. Its menu lists the known notebooks with the open one checked and another's parent folders in mono, then `Open or create a notebook…` (Settings › Notebooks), then a Sync group: `Pair a phone…` or `Devices` on the Mac, `Sync now` and `Devices` on a copy, `Use my Mac's notebook…` on a phone without one. The foot carries no build. Rows are 28 px with one left edge at 8 px. The row for the active pane's target gets the 2 px gilt bar, the selection fill and a gilt glyph. Destinations open in the active pane; ⌘-click opens beside.
+The workshop switcher sits at the foot above a hairline, with icon-only Settings and Fields buttons beside it. The first line is the folder name with its first letter capitalized; the default is `Main`. A non-default workshop uses `--warning`. The second line gives its sync relationship in faint mono: `this Mac only`, `syncs 2 devices`, `copies hyperion`, `this phone only` or `in this browser`. Health stays with the rail's sync mark. The menu lists available workshops and checks the open one. A place line appears only for a workshop outside the workshops folder or one that shares its name with another; shared names show the full path. `Open or create…` opens Settings › Workshops. A Sync group offers `Pair a phone…` or `Devices` on the Mac, `Sync now` and `Devices` on a copy, or `Use my Mac's workshop…` on an unpaired phone. The path remains in the trigger's tooltip.
+
+Settings › Workshops lists registered workshops and workshop folders found in the workshops folder. Open or create accepts a name or a full path. Settings › Backups starts with one sentence on automatic backups and retention, then a Database and files row with Back up now. Earlier backups and Other workshops fold into disclosures; both offer confirmed deletion. The [settings surface](surfaces/settings.md) defines the rows and states.
 
 ### Workspace frame
 
@@ -253,7 +255,7 @@ The Vim mode shows only in the active pane, as a hairline-boxed mono tag of fixe
 
 Every label is six letters, so a mode change never shifts the header.
 
-[Journal headers](surfaces/journal.md) also hold their own previous-day, calendar and next-day controls; these always target the owning pane. Page errors stay under their owning header. Notebook recovery feedback appears once above every pane, so activating a pane cannot move a control between pointer-down and click.
+[Journal headers](surfaces/journal.md) also hold their own previous-day, calendar and next-day controls; these always target the owning pane. Page errors stay under their owning header. Workshop recovery feedback appears once above every pane, so activating a pane cannot move a control between pointer-down and click.
 
 Non-page panes (table, fields, settings, agenda, review, library, reader, index) share the workspace frame.
 
@@ -270,7 +272,7 @@ From the top:
 
 With no model connected the thread says `Connect a model` and offers Agent settings. Rows the agent changed carry a 2 px `--agent` bar at the left and the agent glyph in the outside rail, above any backlink count; the glyph opens the change with Undo. Marks last as long as the thread.
 
-Settings › Agent lists the models: name, then mono kind, model and whether a key is saved, and the address. Each has Test, Edit, Remove and Make default. Adding or editing opens a form in place: presets (Anthropic, OpenAI, OpenRouter, Ollama, llama-server) fill the name and address; Speaks chooses Anthropic or OpenAI-compatible; Model is typed as the provider names it; Key is write-only, with Forget the saved key. Models and keys stay on the machine, outside the notebook, its backups and sync.
+Settings › Agent lists the models: name, then mono kind, model and whether a key is saved, and the address. Each has Test, Edit, Remove and Make default. Adding or editing opens a form in place: presets (Anthropic, OpenAI, OpenRouter, Ollama, llama-server) fill the name and address; Speaks chooses Anthropic or OpenAI-compatible; Model is typed as the provider names it; Key is write-only, with Forget the saved key. Models and keys stay on the machine, outside the workshop, its backups and sync.
 
 ### Narrow layouts
 
@@ -280,7 +282,7 @@ Settings › Agent lists the models: name, then mono kind, model and whether a k
 | Below 840 px | Working-pane tabs show one pane at a time, in the mode-tab style: rubric pane number, mono title, gilt rule under the current pane, and a close beside each tab that closes that pane |
 | Below 600 px | Find or create, Commands and Layout retain accessible labels on icon controls; workspace gutter shrinks to 4 px |
 
-While the sidebar is open, a shade in the shell color dims the workspace beside it. Tapping or clicking the shade closes the sidebar. On the cover screen the open sidebar covers its own toggle, so it opens on a masthead instead: the oculus and TESSERA wordmark with Close sidebar at the right, then the notebook name and its note count in mono apparatus, over a hairline. The name is always shown there, in `--warning` for a notebook other than the default, and the foot's notebook switcher keeps only its sync line. Hidden navigation is inert immediately, including during its exit.
+While the sidebar is open, a shade in the shell color dims the workspace beside it. Tapping or clicking the shade closes the sidebar. On the cover screen the open sidebar covers its own toggle, so it opens on a masthead instead: the oculus and TESSERA wordmark with Close sidebar at the right, then the workshop name and its note count in mono apparatus, over a hairline. The name is always shown there, in `--warning` for a workshop other than the default, and the foot's workshop switcher keeps only its sync line. Hidden navigation is inert immediately, including during its exit.
 
 Below 600 px:
 
@@ -332,11 +334,11 @@ On the touch cover Find and Commands occupy the keyboard-resized visual viewport
 - New page opens the shared creation slip with Note and New page selected, top-centered without a trigger and anchored when invoked from a button. Its ⌘N hint appears only in the desktop app. The cover uses a bottom sheet with Close, no second Cancel and no keyboard hints. Existing titles offer Open page; typed drafts offer File as their kind when needed.
 - Creating from Find or the slip commits a first block with the page and opens its unzoomed Outline with the body caret live. A gist becomes that block's text, except for projects, where it sets the outcome shown in the header and leaves the body empty. Kind-specific field rows sit between gist and Similar pages, with mono labels, value columns and hairlines; question metadata, the first perspective, project deadlines and up to four template fields save with creation. Longer templates show More fields after creating. Filled fields on existing pages are read-only. Tab moves through title, gist and rows to Create. Typing immediately after submit continues into the body, including while the page loads. Shift+Enter in the slip opens beside; Shift+⌘Enter creates another without navigating. Opening an existing page does not force an editing caret.
 
-Command mode starts with Go to: [Highlights, Unfiled, Sources](surfaces/library.md), [Agenda week, Agenda tasks](surfaces/tasks-agenda.md), [This week, This month, This quarter and This year](surfaces/journal.md), followed by each notebook type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. ⌘ opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, Page, View and Editing retain their existing commands and shortcut hints below.
+Command mode starts with Go to: [Highlights, Unfiled, Sources](surfaces/library.md), [Agenda week, Agenda tasks](surfaces/tasks-agenda.md), [This week, This month, This quarter and This year](surfaces/journal.md), followed by each workshop type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. ⌘ opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, Page, View and Editing retain their existing commands and shortcut hints below.
 
 Create groups New page, New question (⌥⌘N), New project, New task, New card, Add source and Add to today (⌘E), plus New {kind} for every page kind in the slip's More menu. Typed commands lock their kind; tasks and cards start in Today. Command queries match titles, sections and keywords: `>capture` finds Add to today, `>todo` finds New task, and source keywords include book, article, paper, library, import and isbn. ⌥⌘N also works in the browser; the macOS app lets its menu dispatch the shortcut once.
 
-With no command query, Page lists only applicable actions; searching retains the full catalog, including unavailable actions with their reasons. Copy page reference copies the active page's notebook link. Undo and Redo remain in Commands with ⌘Z and ⌘⇧Z, and Compare perspectives remains searchable alongside the visible Compare projection tab.
+With no command query, Page lists only applicable actions; searching retains the full catalog, including unavailable actions with their reasons. Copy page reference copies the active page's workshop link. Undo and Redo remain in Commands with ⌘Z and ⌘⇧Z, and Compare perspectives remains searchable alongside the visible Compare projection tab.
 
 Renaming a titled page to an existing title offers **Merge into “Title”**; the page menu's **Merge into…** uses the page picker. A confirmation explains that the merge is permanent.
 
@@ -355,7 +357,7 @@ The permanent merge confirmation stays a bounded short-control popup, with the s
 - [Notes](surfaces/notes.md): Index, finding aids, note header, aliases, type icons and names.
 - [Fields and tables](surfaces/fields-tables.md): Fields register, field and type pages, tables and views.
 - [Research desk](surfaces/desk.md): linked question, perspective and cited-source queries.
-- [Settings](surfaces/settings.md): notebook and device settings, Appearance, time zone and sync controls.
+- [Settings](surfaces/settings.md): workshop and device settings, Appearance, time zone and sync controls.
 
 ## Block row
 
@@ -386,7 +388,7 @@ The bullet is a filled dot in `--faint`, 24 px target, gilt on hover and selecti
 
 [Journal days](surfaces/journal.md) show bullets; [titled pages](surfaces/notes.md) read as prose. On a prose page the bullet rests hidden and returns on hover or selection, where it still zooms and drags, and a collapsed block keeps its ringed bullet. Depth starts as 1 px `--line` threads under the first four ancestors' bullet columns; deeper rows retain their compressed indentation and mono depth cue.
 
-Show bullets and Hide bullets under Appearance… in the page menu override a page's default; overrides are stored per notebook with the pins. Appearance also holds Show archived or Hide archived. Editing, keys and export are the same in both.
+Show bullets and Hide bullets under Appearance… in the page menu override a page's default; overrides are stored per workshop with the pins. Appearance also holds Show archived or Hide archived. Editing, keys and export are the same in both.
 
 ### Gloss and depth
 
@@ -517,7 +519,7 @@ Each card there shows its kind, front and, beneath it in `--muted`, the answer: 
 | New | Not yet or Start |
 | Reviewed | Pause or Resume, and Reset with confirmation |
 
-Start all appears when several cards include held ones, then Review.
+Start all appears when the cards include held ones, then Review.
 
 Held cards leave Review, its counts and forecasts and keep their schedule; holding is undoable. Malformed syntax is reported beneath the row once the block is left or its text has rested for 1.5 seconds, politely rather than as an alert. ⌘ on Review opens it beside.
 
@@ -535,7 +537,7 @@ An offline reload shows the cached outline with queued edits applied and leaves 
 
 Reopening the same browser profile recovers drafts left by closed windows. A window still open retains its own queued edits; another window never replays them on its behalf.
 
-A change the notebook refused shows and copies the words it carried. Only a change without words, such as a task date or a grade, keeps its raw record, because that is all there is to recover.
+A change the workshop refused shows and copies the words it carried. Only a change without words, such as a task date or a grade, keeps its raw record, because that is all there is to recover.
 
 Undo preserves another window's later text by patching only non-overlapping regions. If the regions overlap, it skips that history entry and says `Changed elsewhere; nothing to undo here`.
 
@@ -555,7 +557,7 @@ Non-Shift caret navigation, including modified arrows and Home/End, clears any c
 
 ⌘A in row-selection mode selects all visible outline rows. Backspace and forward Delete remove a row range, and either removes a single selected row when Vim is off.
 
-Copy and cut act on a single selected row or range and include every descendant, folded or archived, as indented plain text plus Tessera's structured clipboard format. Structured paste inserts intact subtrees at the destination depth: copy creates new identities with task state and card syntax, while cut within the same notebook restores and moves the original identities, capabilities, planning and work or review history.
+Copy and cut act on a single selected row or range and include every descendant, folded or archived, as indented plain text plus Tessera's structured clipboard format. Structured paste inserts intact subtrees at the destination depth: copy creates new identities with task state and card syntax, while cut within the same workshop restores and moves the original identities, capabilities, planning and work or review history.
 
 Pasting over selected rows replaces those rows and their subtrees in one undo step. External HTML becomes native content, never stored markup: headings keep their level (up to three), list items become nested rows, table rows keep their cells separated by ` | `, images keep their URL or alt text, and soft breaks stay within their row. Markdown paste consumes heading, bullet, numbered-list and task markers into native rows, headings and task states; fenced code keeps its markers literal.
 
@@ -705,7 +707,7 @@ Chords are for what happens constantly. ⌘ acts on the current block:
 
 ⌃⇧ is shell navigation. ⌥↑ and ⌥↓ move blocks. No ⌥-letter chords: on macOS they type accented letters.
 
-Insert newline and Split block are available in the palette only while editing a block. In Vim, plain `u` invokes notebook undo only in normal mode with no pending command; visual `u`, modified keys and pending commands stay with Vim. Completed Vim commands and insert sessions have separate undo groups.
+Insert newline and Split block are available in the palette only while editing a block. In Vim, plain `u` invokes workshop undo only in normal mode with no pending command; visual `u`, modified keys and pending commands stay with Vim. Completed Vim commands and insert sessions have separate undo groups.
 
 ### Leader
 
@@ -771,14 +773,14 @@ Bottom sheets share a grab area and an accessible Close button. Dragging downwar
 | Note actions | Titled Menu with the existing note header; Open, File under, Rename and Delete, then More for Merge and Copy reference | Below its trigger; bottom sheet on coarse phones |
 | Source actions | Edit details, Copy citation key, Collections…, Export…, Source settings… and Delete source last; drill-ins replace rows with a header Back | Below the trigger; a bottom sheet below 600 px with a coarse pointer |
 | Field entry | Open field page, Definition…, Templates… when an owning type exists, Remove from this note last; Kind, Hide, Role and Counts as drill into Definition | Below the field name; a bottom sheet below 600 px with a coarse pointer |
-| Notebook, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
+| Workshop, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | Delete page | Confirm | Below its trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
 | Block backlinks | Each referring block with its page breadcrumb, parent and children, and an Open beside glyph on hover; `--measure` wide | Below the row's reference count |
 | Notice / Undo toast | One shell notice at a time, with up to two actions such as Open and Undo; eight seconds, paused under pointer or focus. Page deletions use the same surface. An outline's local notice still owns that pane's ⌘Z until a newer edit returns Undo to its document | Bottom center |
 | Sync status | An icon-only button after the Tessera wordmark wherever a hub has paired devices or a copy has a Mac. Shape and color together: an 8 px filled circle in `--status-done` for synced or sending (`ok`); an 8 px hollow ring with a 1.5 px `--warning` stroke for unreachable or review (`wait`); a 7 px square rotated 45° in `--danger` for version mismatch, forgotten or retired (`act`). No animation. On pointer devices, hover after 350 ms or keyboard focus shows a slip: the state in mono, colored `--text`, `--warning` or `--danger`, then a short hint in muted sans. The slip has no controls and hides on leave, blur, Escape or an open summary. Click or tap opens the summary; coarse pointers never show the slip. On the cover screen a row above the bottom nav shows only `wait` or `act`, with the same glyph, label and detail | Global rail's left, immediately after the wordmark; above the bottom nav on the cover screen |
-| Sync summary | Device → Mac register over the state's title, one or two sentences naming the side that is behind or what to check, the one fixing action (Download page on the Mac and GitHub releases, Try again or Sync now, Pair again, Download the notebook again) and `Settings › Devices`, which opens Settings with that device expanded. The top bar uses `--danger` for `act`, `--warning` for `wait`, and no bar for `ok`, clear of the pointer | Under the mark, left-aligned, 380 px with its pointer under the glyph; a bottom sheet on touch |
-| Phone setup | Where is your notebook? with two numbered choices: Use my Mac's notebook (Scan code or Type code, then the Mac's address and code) and Start a notebook on this phone. Pair again shows only the first, with the address filled in | Top center, 560 px; a bottom sheet on touch; on first run |
+| Sync summary | Device → Mac register over the state's title, one or two sentences naming the side that is behind or what to check, the one fixing action (Download page on the Mac and GitHub releases, Try again or Sync now, Pair again, Download the workshop again) and `Settings › Devices`, which opens Settings with that device expanded. The top bar uses `--danger` for `act`, `--warning` for `wait`, and no bar for `ok`, clear of the pointer | Under the mark, left-aligned, 380 px with its pointer under the glyph; a bottom sheet on touch |
+| Phone setup | Where is your workshop? with two numbered choices: Use my Mac's workshop (Scan code or Type code, then the Mac's address and code) and Start a workshop on this phone. Pair again shows only the first, with the address filled in | Top center, 560 px; a bottom sheet on touch; on first run |
 | Save state | Says Saving… only when a save takes longer than a second | Pane header, never a toolbar or a row |
 | Loading notices | Only after 300 ms, so fast reads show nothing until the content arrives | In place of the content they precede, in the pane or section that is loading |
 
@@ -812,7 +814,7 @@ Open perspective and source links preserve access to the original outline; [Comp
 
 A quote row reads as cited text, not as a link. The frozen rows sit behind a hairline left rule in Piazzolla at the quote size, muted, indented by depth without bullets, like the outline at rest. A final faint mono line `… truncated at capture` marks a snapshot cut at its limit.
 
-One mono rubric line follows: `QUOTE` · the source's page as an accent link (⌘ opens it beside) · the capture date in the notebook's time zone. When the source has moved on it adds `Source changed` and `Update`; when the source is gone it reads `Source deleted` and offers no update. Clicking the frame edits the row, which exposes the raw `((ID))`. Children of a quote row are ordinary blocks, for annotating the quote.
+One mono rubric line follows: `QUOTE` · the source's page as an accent link (⌘ opens it beside) · the capture date in the workshop's time zone. When the source has moved on it adds `Source changed` and `Update`; when the source is gone it reads `Source deleted` and offers no update. Clicking the frame edits the row, which exposes the raw `((ID))`. Children of a quote row are ordinary blocks, for annotating the quote.
 
 A `((ID))` row without a snapshot shows the target's live text in the same frame with `Capture quote`, or `Unresolved quote <ID>` when the target is gone. Elsewhere, in backlinks, breadcrumbs and search, a quote row reads as a mono `QUOTE` rubric followed by its target in the quote face. Copying a captured quote as text writes its frozen rows as `> ` lines.
 
@@ -828,7 +830,7 @@ Unlinked mentions follows, collapsed and fetched only once opened. Each mention 
 
 ## Icon
 
-The app icon carries the notebook's central idea and its material. The idea is multiperspectival notes: one subject held in several attributed perspectives, with the source beside what you think of it; see [perspectives](surfaces/perspectives.md). The material is clockwork gold, the brass of an instrument: rings, rules and bevelled facets drawn in a few flat gilt tones. No glows and no multi-stop metallic gradients.
+The app icon carries the workshop's central idea and its material. The idea is multiperspectival notes: one subject held in distinct attributed perspectives, with the source beside what you think of it; see [perspectives](surfaces/perspectives.md). The material is clockwork gold, the brass of an instrument: rings, rules and bevelled facets drawn in a few flat gilt tones. No glows and no multi-stop metallic gradients.
 
 ### Direction
 
@@ -879,10 +881,10 @@ Rounds live in `~/Documents/tessera-design/icon-2026-10-10/`.
 4. Fields, Settings, tables and views are panes, not dialogs.
 5. Pills are hue-tinted at meta size; bullets stay neutral.
 6. [Tables](surfaces/fields-tables.md) divide rows, not columns; the title column is sticky.
-7. A permanent global rail owns notebook-wide actions; pane headers own document actions.
+7. A permanent global rail owns workshop-wide actions; pane headers own document actions.
 
 ## Open
 
 - Type hue assignment: by a stable hash of the type title, or chosen per type and stored on the type page.
 - Whether single-value field rows should also fold into the parent block's line.
-- Direct drag resizing and notebook-shared column presentation; the current title-width control is pane-local.
+- Direct drag resizing and workshop-shared column presentation; the current title-width control is pane-local.

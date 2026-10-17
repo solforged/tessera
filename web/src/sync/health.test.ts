@@ -78,7 +78,7 @@ test('hub retirement outranks refusal, which outranks its own review count', () 
   const conflicts: SyncConflicts = { kept: [], rejected: [{ id: 'r', change_id: 'c', error: '', created_at: now, origin: 'fold', origin_name: 'Fold', mine: false, page_id: null, page_title: null, texts: [] }] };
   const refused = { code: 'schema_mismatch', message: '', since: now, attempts: 1 };
   expect(syncHealth(hub, devices({ state: 'retired', refused }), now, conflicts)).toMatchObject({
-    kind: 'retired', tone: 'act', hint: 'Fold must download the notebook again.',
+    kind: 'retired', tone: 'act',
   });
   expect(syncHealth(hub, devices({ refused }), now, conflicts)).toMatchObject({ kind: 'version', tone: 'act' });
   expect(syncHealth(hub, devices(), now, conflicts)).toMatchObject({

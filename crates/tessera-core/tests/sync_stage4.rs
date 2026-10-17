@@ -269,3 +269,33 @@ fn rebase_keeps_editor_cursor_monotonic_and_marks_same_revision_changes() {
             .is_empty()
     );
 }
+
+#[test]
+fn clone_recovery_keeps_only_the_latest_copy_of_each_kind() {
+    let root = tempfile::tempdir().unwrap();
+    let mut hub = Notebook::open(root.path().join("hub")).unwrap();
+    let phone_dir = root.path().join("phone");
+    let mut phone = Notebook::open(&phone_dir).unwrap();
+    let clone = root.path().join("clone.db");
+    let mut saved = Vec::new();
+    for suffix in ["before-pairing", "retired", "before-pairing", "retired"] {
+        let ticket = hub.sync_clone(&clone).unwrap().finish().unwrap();
+        saved.push(
+            phone
+                .sync_install_clone(&clone, "in-process", &ticket, suffix, None)
+                .unwrap(),
+        );
+    }
+    assert!(!saved[0].exists());
+    assert!(!saved[1].exists());
+    for path in &saved[2..] {
+        assert!(path.exists());
+        let db = rusqlite::Connection::open(path).unwrap();
+        assert_eq!(
+            db.query_row("PRAGMA quick_check", [], |row| row.get::<_, String>(0))
+                .unwrap(),
+            "ok"
+        );
+    }
+    assert!(phone_dir.join(DATABASE_FILE).exists());
+}

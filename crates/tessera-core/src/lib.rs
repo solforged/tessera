@@ -32,6 +32,8 @@ mod notes_summary;
 pub mod occlusion;
 mod operations;
 mod ownership;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub mod paths;
 mod position_store;
 mod query;
 pub mod question_store;
@@ -67,7 +69,10 @@ pub use agent::{
     UndoReceipt,
 };
 pub use aliases::{Completion, NameMatch};
-pub use backup::{BackupManifest, backup, backup_beside, backup_directory, restore};
+pub use backup::{
+    BackupManifest, StoredBackup, backup, backup_directory, backup_to_store, finished_backups,
+    restore,
+};
 pub use capabilities::ImageRef;
 pub use capabilities::{
     Agenda, AgendaItem, AgendaReason, BlockCapabilities, CardAnswerBlock, CardPreviews, CardQuery,

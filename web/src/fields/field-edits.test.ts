@@ -16,7 +16,7 @@ test('template rows rename, relink and change a young field in place, each with 
   const port = listener.port!; listener.stop(true);
   const baseUrl = `http://127.0.0.1:${port}`;
   const api = createApi(baseUrl);
-  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   let notebook: Notebook | undefined;
   try {
     const deadline = Date.now() + 5000;

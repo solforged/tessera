@@ -14,6 +14,7 @@ fn app(root: &std::path::Path, assets: Option<std::path::PathBuf>) -> Router {
         PORT,
         assets,
         None,
+        None,
     )
     .unwrap()
 }

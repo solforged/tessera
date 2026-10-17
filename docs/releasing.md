@@ -90,7 +90,7 @@ The demo needs `VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID`. Without 
 
 ## This Mac and the phone
 
-`mise run ship [commit]` builds that commit in `~/Library/Caches/tessera/ship` and installs it over `/Applications/Tessera.app`. Uncommitted edits never ship. If the new build does not answer, the previous app and notebook backup are restored.
+`mise run ship [commit]` builds that commit in `${XDG_CACHE_HOME:-$HOME/.cache}/tessera/ship` and installs it over `/Applications/Tessera.app`. Uncommitted edits never ship. If the new build does not answer, the previous app and workshop backup are restored.
 
 `mise run android:publish [commit]` builds a signed APK and replaces the page at `https://<this Mac>.<tailnet>:8443/`. That page is on the tailnet only. It can update a phone that installed a GitHub release APK, and the other way around, because both use the release key.
 

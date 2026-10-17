@@ -70,7 +70,7 @@ Built in stage 1 as `ensure_built_in_fields`, a synced, operation-based change l
 - **When it runs:** on open, and after a sync clone is adopted.
 - **For each live built-in definition**, it recases the name and gives a relation with no Links to types the types it expects, where those pages exist. Source is always there. A kind change to relation files them too.
 - **For each built-in type page that exists**, it appends missing required fields to the template. Expected fields still arrive only with a starting template.
-- **It never changes an existing field's kind,** which stays a reviewed interpretation. A notebook whose `lived` is text keeps it.
+- **It never changes an existing field's kind,** which stays a reviewed interpretation. A workshop whose `lived` is text keeps it.
 - Still to come: running when a built-in type page is created. Counts-as needs no ensuring, since built-in fields read theirs from the schema.
 
 ### Lowercase names
@@ -79,15 +79,15 @@ Built in stage 1. Every creation site takes names from `built_in.rs`, and the en
 
 ## Decisions
 
-- **Holder stays with perspectives.** A thesis gets no holder field. A perspective's holder remains its first link, which costs a note-taker nothing to write. Several holders' perspectives on one proposition, and counterperspectives between them, belong to the perspectives work, not to type schemas.
+- **Holder stays with perspectives.** A thesis gets no holder field. A perspective's holder remains its first link, which costs a note-taker nothing to write. Different holders' perspectives on one proposition, and counterperspectives between them, belong to the perspectives work, not to type schemas.
 - **Required is rare.** Only book requires author. Everything else is expected, so taking notes by hand never starts with a list of gaps.
 - **Author leads.** Translators count as contributors, shown after the author and never in bylines, sigla or sorting.
 - **Built-in fields cannot be renamed.** A change of case is allowed, so existing Title Case names can become lowercase. Identity stays the name, so no setting is needed.
-- **Type pages appear on demand.** The schema exists in every notebook, but a person, group, concept or thesis page and its fields are created only when the first such note is.
+- **Type pages appear on demand.** The schema exists in every workshop, but a person, group, concept or thesis page and its fields are created only when the first such note is.
 
 ## Build order
 
 1. **Built.** The schema table, lowercase names, ensuring on open and the rename refusal. The web's starting-template list mirrors the schema.
 2. **Built.** Required: slots, incomplete counts in Table and Index, the field's empty filter, and the disabled Remove with a core refusal.
 3. **Built.** Counts as: the definition property, its operation, and `@creator`, `@contributor`, sigla, bylines, search and exports reading it. Built-in fields count as the schema says, read rather than stored. The source header's editable byline still lists only author, editor and translator.
-4. Several holders on one proposition, with the perspectives work.
+4. Different holders on one proposition, with the perspectives work.

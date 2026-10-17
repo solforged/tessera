@@ -32,7 +32,7 @@ async function json<T>(method: string, path: string, body?: unknown): Promise<T>
   const response = await wasm.handle(method, path, body === undefined ? [] : ['content-type', 'application/json'], body === undefined ? new Uint8Array() : encoder.encode(JSON.stringify(body)));
   try {
     const text = decoder.decode(response.body);
-    if (response.status < 200 || response.status >= 300) throw new Error(`internal: The demo could not prepare its notebook (${response.status}): ${text}`);
+    if (response.status < 200 || response.status >= 300) throw new Error(`internal: The demo could not prepare its workshop (${response.status}): ${text}`);
     return JSON.parse(text) as T;
   } finally { response.free(); }
 }

@@ -1,10 +1,10 @@
 # Sync
 
-Tessera syncs one person's notebook between devices they own: the Mac, the Android phone and later other machines on their tailnet. Collaboration and end-to-end encryption are not built. The rules below keep both possible without a rewrite.
+Tessera syncs one person's workshop between devices they own: the Mac, the Android phone and later other machines on their tailnet. Collaboration and end-to-end encryption are not built. The rules below keep both possible without a rewrite.
 
 ## Shape
 
-One notebook is the hub and puts every change in order. The others are replicas. A replica holds the whole outline and the library's text, fetches original book files when they are opened or pinned for offline reading, and keeps unconfirmed changes in a durable outbox.
+One workshop is the hub and puts every change in order. The others are replicas. A replica holds the whole outline and the library's text, fetches original book files when they are opened or pinned for offline reading, and keeps unconfirmed changes in a durable outbox.
 
 The first hub is the Mac's service. The phone syncs while the Mac is awake and reachable on the tailnet. The hub is the same `tessera-service` binary, so it can move to an always-on machine later and the Mac becomes a replica.
 
@@ -29,7 +29,7 @@ This is the editor's existing outbox model with a durable replica behind it. Row
 
 ### Clone
 
-The hub registers the device and copies its database while holding the notebook. After releasing it, the hub strips its own state (patches, other replicas, import jobs, agent records, pins) and compacts the copy. The new device writes the streamed file to disk as it arrives.
+The hub registers the device and copies its database while holding the workshop. After releasing it, the hub strips its own state (patches, other replicas, import jobs, agent records, pins) and compacts the copy. The new device writes the streamed file to disk as it arrives.
 
 ### Push
 
@@ -100,7 +100,7 @@ flowchart TD
     B --> D
     S -->|Cannot apply| E{"Rejectable change error?"}
     E -->|Yes| J["Record without effect; keep the batch<br/>Return rejected receipt"]
-    E -->|No| F["Return notebook failure"]
+    E -->|No| F["Return workshop failure"]
     J -.-> Q["tessera sync conflicts<br/>lists rejected changes and kept copies"]
     C -.-> Q
 ```
@@ -156,9 +156,9 @@ Files are never evicted. Missing hub files are reported rather than failing sync
 
 Reading positions and highlight surfacings are written outside the change log. Each row carries:
 
-- A hybrid logical clock in milliseconds, ahead of every clock the notebook has seen.
+- A hybrid logical clock in milliseconds, ahead of every clock the workshop has seen.
 - The writing device.
-- Its position in the notebook's arrival order.
+- Its position in the workshop's arrival order.
 
 A replica sends its rows written since the last push immediately after pushing changes, before pulling. After applying pulled changes, it receives hub rows that arrived since its last pull.
 
@@ -175,7 +175,7 @@ Open pages follow a local arrival journal (`editor_events`), not `changes.seq`, 
 Every device must reach the same state from the same changes, so applying a change depends only on the batch, its stamp and the current state.
 
 - Each change has a global ID (a ULID) and an origin device, stored in `changes.change_id` and `changes.origin`. Its stamp time is `changes.created_at` and becomes every `created_at`/`updated_at` the change writes. `seq` stays the local order.
-- Each notebook directory has a device ID in the `replica` table. Cloning a notebook for a new device must mint a new one; a backup restored on the same device keeps it.
+- Each workshop directory has a device ID in the `replica` table. Cloning a workshop for a new device must mint a new one; a backup restored on the same device keeps it.
 - Clients choose the IDs of what they create (blocks, citations, sessions, events, views) and send them in operations, as they do now.
 - IDs that `apply` itself creates are derived, never random:
 
@@ -189,7 +189,7 @@ Every device must reach the same state from the same changes, so applying a chan
 | Record of a rejected change | change ID |
 
 - Library content IDs come from content. A snapshot's ID derives from its SHA-256, which is already unique per snapshot. A passage's ID derives from its snapshot and its locator, which is unique within the snapshot.
-- Writes at open time (the notebook row and the Fields page) happen before a notebook is cloned, and the clone copies them.
+- Writes at open time (the `notebook` row and the Fields page) happen before a workshop is cloned, and the clone copies them.
 
 `replication::TABLES` in `tessera-core` classifies every table by how a replica gets it. A test fails when a migration adds a table without a class.
 
@@ -202,7 +202,7 @@ Every device must reach the same state from the same changes, so applying a chan
 | Unlogged | reading positions, highlight surfacings | last-writer-wins rows |
 | Local | the device ID, ingestion jobs, agent undo records | never; they stay on the device |
 
-The `vim` setting describes a keyboard, not a notebook. It becomes local to the device before replicas exist; `time_zone` stays notebook-wide.
+The `vim` setting describes a keyboard, not a workshop. It becomes local to the device before replicas exist; `time_zone` stays workshop-wide.
 
 ## Transport
 
@@ -230,7 +230,7 @@ Network errors trigger backoff from five seconds to five minutes. While on scree
 - When opened or returning from the background, even after failure.
 - When the last sync is half a minute old, unless the last attempt failed; backoff then handles retries.
 
-Android freezes background apps, so a closed phone waits until opened. Each local step takes the notebook lock separately; no network request holds it. The phone stays editable while waiting for the Mac.
+Android freezes background apps, so a closed phone waits until opened. Each local step takes the workshop lock separately; no network request holds it. The phone stays editable while waiting for the Mac.
 
 The runner logs counts for each sync that moved changes, files or rows, and logs every failure. The hub logs each push's device and accepted/rejected change counts.
 
@@ -238,10 +238,10 @@ Every sync request carries the replica's schema, version and build in `x-tessera
 
 Both sides keep a short health record in memory, lost when the service restarts, so recording it needs no migration:
 
-- The hub keeps, per paired device, the version it last reported, its last attempt, the refusal it is under (reason, since when, how many attempts) until a request succeeds, and its last 20 attempts. Attempts in a row with the same outcome count as one entry, so a sync's several requests read as one. `/api/sync/devices` returns them.
+- The hub keeps, per paired device, the version it last reported, its last attempt, the refusal it is under (reason, since when, how many attempts) until a request succeeds, and its last 20 attempts. Attempts in a row with the same outcome count as one entry, so a sync's requests read as one. `/api/sync/devices` returns them.
 - A replica keeps the hub's last reported version, when its current run of failures started (`failing_since`) and its last 20 attempts, coalesced the same way. `/api/sync/state` returns them with this device's version.
 
-While a service owns a replica, commands use its routes instead of opening the notebook:
+While a service owns a replica, commands use its routes instead of opening the workshop:
 
 | Command | Route |
 |---|---|
@@ -249,26 +249,26 @@ While a service owns a replica, commands use its routes instead of opening the n
 | `sync status` | `/api/sync/state` |
 | `sync conflicts` | `/api/sync/conflicts` |
 
-A phone with its own notebook sends the hub its whole change log with empty text bases, plus snapshots, files, reading positions and surfacings. It then clones the hub and swaps the clone in place.
+A phone with its own workshop sends the hub its whole change log with empty text bases, plus snapshots, files, reading positions and surfacings. It then clones the hub and swaps the clone in place.
 
-As with any push, matching page titles and journal dates resolve to the hub's root; changes the hub cannot apply remain in `sync_conflicts`. The Fields page predates the log and has different IDs in each notebook, so import first sends its creation for the hub to resolve by title.
+As with any push, matching page titles and journal dates resolve to the hub's root; changes the hub cannot apply remain in `sync_conflicts`. The Fields page predates the log and has different IDs in each workshop, so import first sends its creation for the hub to resolve by title.
 
-The old database stays beside the new one as `notebook.db.before-pairing-<unix seconds>`. Two independent histories are never merged.
+The old database stays beside the new one as `notebook.db.before-pairing-<unix seconds>`. Only the newest recovery copy of each kind is kept, including pairing and recloning copies. Two independent histories are never merged.
 
 ## Later: end-to-end encryption and collaboration
 
-The hub reads changes only to validate them. Once applying a change is deterministic everywhere and a stale operation resolves to the same outcome on every device instead of being rejected, the hub can become a blind sequencer: it numbers and stores encrypted batches it cannot read, and every device decrypts and applies them in order. The resolution rules above (revision rebase, text copies, aliases) are already deterministic; session patches are a convenience a blind hub would give up, with every device running those rules itself. The notebook key would be wrapped once per device key. A shared subtree would be a second log with its own key and members.
+The hub reads changes only to validate them. Once applying a change is deterministic everywhere and a stale operation resolves to the same outcome on every device instead of being rejected, the hub can become a blind sequencer: it numbers and stores encrypted batches it cannot read, and every device decrypts and applies them in order. The resolution rules above (revision rebase, text copies, aliases) are already deterministic; session patches are a convenience a blind hub would give up, with every device running those rules itself. The workshop key would be wrapped once per device key. A shared subtree would be a second log with its own key and members.
 
 Text edits replace a block's whole text. That is enough for one person's conflicts. Live collaboration would replace it with a text CRDT per block, so the block stays the unit of text and the outline model does not change.
 
 ## Stages
 
-1. **Determinism and identity.** Done: change IDs and origins, a device ID, stamped apply, derived IDs inside apply, content-derived library IDs, table classes, and a test that two copies of a notebook reach identical state from the same changes.
+1. **Determinism and identity.** Done: change IDs and origins, a device ID, stamped apply, derived IDs inside apply, content-derived library IDs, table classes, and a test that two copies of a workshop reach identical state from the same changes.
 2. **Replica protocol on loopback.** Done: clone with a new device ID, push, pull as session patches, rebase with inverted patches, text conflict copies, rejected changes, natural-key aliases, library text both ways, and `tessera sync` against a running hub. The browser build does not sync.
 3. **Objects and library.** Done: files by hash with covers kept eagerly, other files fetched when opened, pinning, last-writer-wins reading positions and surfacings with a hybrid logical clock, and one source and one set of fields for books imported on two devices offline.
 4. **Tailnet and Android.** Done: the sync listener behind Tailscale Serve, pairing, the in-process replica runner and the Android client. Interface, chosen from mockups (`~/Documents/tessera-design/sync-devices-mock/`):
-   - **Devices** is a Settings section after Backups. On the Mac: the tailnet sharing switch and address, Pair a phone, each device with its last sync and Forget, and how much the hub keeps for devices that have not caught up. On the phone: the Mac it copies, Sync now and offline books, or Use my Mac's notebook.
-   - **Pairing.** A new phone first chooses between the Mac's notebook and a separate one of its own, then scans the Mac's QR code or types the Mac's address and its short code. A code is used once and expires after five minutes.
+   - **Devices** is a Settings section after Backups. On the Mac: the tailnet sharing switch and address, Pair a phone, each device with its last sync and Forget, and how much the hub keeps for devices that have not caught up. On the phone: the Mac it copies, Sync now and offline books, or Use my Mac's workshop.
+   - **Pairing.** A new phone first chooses between the Mac's workshop and a separate one of its own, then scans the Mac's QR code or types the Mac's address and its short code. A code is used once and expires after five minutes.
    - **Status.** The third round, approved 2026-10-12, replaces the rail's mono line with a bare mark beside the Tessera wordmark (`wm-*` mockups in `~/Documents/tessera-design/sync-indicator-2026-10-12/`). A filled `--status-done` dot means synced or sending; a hollow `--warning` ring means unreachable or needs review; a `--danger` diamond means version mismatch, forgotten or retired. Shape and color always agree. Pointer hover after 350 ms or keyboard focus shows the state and a short hint in a slip; click or tap opens the short summary under the mark, with the fixing action and a link to Settings › Devices. Touch opens a bottom sheet without a slip. The cover screen has no rail, so a row above the bottom nav shows only waiting or action states, with the same glyph, label and detail.
    - **Devices detail.** Each device in Settings › Devices expands into both sides' versions, the fix, the refusal or failure with its attempts, and a ledger of recent attempts. Needs review lists kept copies and rejected changes with their page and words.
    - **Rejected changes.** Copy the text back adds a rejected change's words as new blocks at the end of its page, or of today's journal when the page is gone, and settles it; Dismiss settles it alone (`settle_sync_rejection`, which hides it on every device). Each is one undoable step.

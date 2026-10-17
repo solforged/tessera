@@ -6,7 +6,7 @@
 # Builds in a separate worktree, so uncommitted edits never ship. Strips the
 # debug info from the native library (about 90 MB instead of 300 to 700 MB),
 # signs it again with the release key the GitHub release APKs carry, so the
-# two update each other and keep the notebook. The key comes from
+# two update each other and keep the workshop. The key comes from
 # TESSERA_ANDROID_KEYSTORE and TESSERA_ANDROID_KEYSTORE_PASSWORD, as Gradle
 # takes them; else from ~/.android/tessera-release.jks with its password in the
 # login Keychain (service tessera-android-release-keystore), which needs no
@@ -22,8 +22,10 @@ commit=$(git -C "$root" rev-parse --verify "${usage_commit:-HEAD}^{commit}")
 build=$(git -C "$root" rev-parse --short "$commit")
 subject=$(git -C "$root" log -1 --format=%s "$commit")
 committed=$(git -C "$root" log -1 --format=%cs "$commit")
-src="$HOME/Library/Caches/tessera/android-publish"
-site="$HOME/Library/Application Support/tessera/android-downloads"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/tessera"
+src="$cache/android-publish"
+site="$cache/android-downloads"
+logs="${XDG_STATE_HOME:-$HOME/.local/state}/tessera/logs"
 port=18791
 https=8443
 label=dev.tessera.downloads
@@ -102,7 +104,7 @@ cat >"$work/index.html" <<EOF
   <h1>Tessera for Android</h1>
   <p class="meta">$build · $(html "$subject")</p>
   <a class="download" href="$name">Download Tessera · $size MB</a>
-  <p>Open the file and allow this browser to install apps if Android asks. It installs over a Tessera from this page or a GitHub release as an update and keeps its notebook; a new install starts with notebook setup. A Tessera built for development has another signature: Android refuses the update until it is uninstalled, which deletes that phone's notebook.</p>
+  <p>Open the file and allow this browser to install apps if Android asks. It installs over a Tessera from this page or a GitHub release as an update and keeps its workshop; a new install starts with workshop setup. A Tessera built for development has another signature: Android refuses the update until it is uninstalled, which deletes that phone's workshop.</p>
   <dl>
     <dt>Commit</dt><dd>$build, $committed</dd>
     <dt>Published</dt><dd>$(date '+%Y-%m-%d %H:%M %Z')</dd>
@@ -114,10 +116,9 @@ EOF
 mv "$work/index.html" "$site/index.html"
 find "$site" -name 'tessera-*.apk' ! -name "$name" -delete
 
-# The server and the tailnet address only need setting up once.
-if ! launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
-  mkdir -p "$(dirname "$plist")"
-  cat >"$plist" <<EOF
+# Rewrite the server's paths when migrating an existing launch agent too.
+mkdir -p "$(dirname "$plist")" "$logs"
+cat >"$work/downloads.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -130,11 +131,15 @@ if ! launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
   </array>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>StandardErrorPath</key><string>$HOME/Library/Logs/tessera/downloads.log</string>
+  <key>StandardErrorPath</key><string>$logs/downloads.log</string>
 </dict>
 </plist>
 EOF
-  mkdir -p "$HOME/Library/Logs/tessera"
+if ! cmp -s "$work/downloads.plist" "$plist" || ! launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
+  if launchctl print "gui/$(id -u)/$label" >/dev/null 2>&1; then
+    launchctl bootout "gui/$(id -u)/$label"
+  fi
+  cp "$work/downloads.plist" "$plist"
   launchctl bootstrap "gui/$(id -u)" "$plist"
 fi
 host=$(tailscale status --json | /usr/bin/python3 -c 'import json, sys; print(json.load(sys.stdin)["Self"]["DNSName"].rstrip("."))')

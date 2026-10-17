@@ -12,7 +12,7 @@ fn id(value: u128) -> String {
 }
 
 fn app(dir: &std::path::Path) -> Router {
-    tessera_service::router(Notebook::open(dir).unwrap(), 4318, None, None).unwrap()
+    tessera_service::router(Notebook::open(dir).unwrap(), 4318, None, None, None).unwrap()
 }
 
 async fn request(

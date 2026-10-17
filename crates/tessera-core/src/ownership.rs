@@ -23,7 +23,7 @@ impl NotebookOwnership {
         std::fs::create_dir_all(notebook).map_err(|error| {
             io::Error::new(
                 error.kind(),
-                format!("cannot create notebook {}: {error}", notebook.display()),
+                format!("cannot create workshop {}: {error}", notebook.display()),
             )
         })?;
         let path = notebook.join(LOCK_FILE);
@@ -52,15 +52,15 @@ impl NotebookOwnership {
                         pid,
                         port: Some(port),
                     }) => format!(
-                        "notebook {} is already served by PID {pid} on port {port}",
+                        "workshop {} is already served by PID {pid} on port {port}",
                         notebook.display()
                     ),
                     Some(Holder { pid, port: None }) => format!(
-                        "notebook {} is already served by PID {pid} (port not bound yet)",
+                        "workshop {} is already served by PID {pid} (port not bound yet)",
                         notebook.display()
                     ),
                     None => format!(
-                        "notebook {} is already served by another process (holder details unavailable)",
+                        "workshop {} is already served by another process (holder details unavailable)",
                         notebook.display()
                     ),
                 };

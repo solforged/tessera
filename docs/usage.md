@@ -12,22 +12,22 @@ Later updates need no quarantine step.
 
 ### Service and updates
 
-The window uses a notebook service that runs as a launch agent. Closing the window leaves the service, command line, agents and ingestion jobs running. An existing agent keeps its notebook and port.
+The window uses a workshop service that runs as a launch agent. Closing the window leaves the service, command line, agents and ingestion jobs running. An existing agent keeps its workshop and port.
 
 At launch, the app checks that the agent runs its bundled `tessera`. If it runs another build, the app:
 
-1. Stops the service and backs up the notebook.
+1. Stops the service and backs up the workshop.
 2. Starts the bundled build and waits for an answer.
 3. If it does not answer, the previous build restores the backup and runs again; the app reports the failure.
 
-The app checks the latest GitHub release a minute after launch, every six hours, and through Tessera → Check for Updates…. It downloads and verifies a signed update, then asks to restart. Restarting backs up the notebook before moving the service onto the new build.
+The app checks the latest GitHub release a minute after launch, every six hours, and through Tessera → Check for Updates…. It downloads and verifies a signed update, then asks to restart. Restarting backs up the workshop before moving the service onto the new build.
 
 | Action | Effect |
 |---|---|
 | Close the window | Hides it. |
 | Quit | Stops the window, not the service. |
 | View → Reload | Reloads the page; it also reloads automatically when another build starts serving. |
-| Help → Show Service Log | Opens `~/Library/Logs/tessera/serve.log`. The app records its own steps in `desktop.log` beside it. |
+| Help → Show Service Log | Opens `~/.local/state/tessera/logs/serve.log`. The app records its own steps in `desktop.log` beside it. |
 
 To put the bundled command line on your path:
 
@@ -37,15 +37,15 @@ ln -s /Applications/Tessera.app/Contents/MacOS/tessera ~/.local/bin/tessera
 
 ### Import and capture
 
-Opening an EPUB from Finder imports it into the notebook and shows the Library. To make Tessera the default, select an `.epub` in Finder and choose **Get Info → Open with → Tessera → Change All…**. The Library shows upload errors and ingestion progress.
+Opening an EPUB from Finder imports it into the workshop and shows the Library. To make Tessera the default, select an `.epub` in Finder and choose **Get Info → Open with → Tessera → Change All…**. The Library shows upload errors and ingestion progress.
 
 - While Tessera runs, **⌘⇧E** from any app opens a small Add to today panel. Type a line and press Enter to append it to today's journal; focus returns to the previous app.
 - Inside Tessera, **⌘E** (File → Add to Today) opens the same line over the current page.
-- If another app holds ⌘⇧E, Tessera starts without it and records this in `~/Library/Logs/tessera/desktop.log`.
+- If another app holds ⌘⇧E, Tessera starts without it and records this in `~/.local/state/tessera/logs/desktop.log`.
 
 ## Android app
 
-[`crates/tessera-android`](../crates/tessera-android) is a Tauri 2 app for Android phones and foldables. Its notebook lives in private app storage; pages reach it over Tauri's IPC, with no listening port. A paired phone copies the Mac's notebook and syncs with it. An unpaired phone keeps a notebook of its own. Web articles, backups and service details are omitted.
+[`crates/tessera-android`](../crates/tessera-android) is a Tauri 2 app for Android phones and foldables. Its workshop lives in private app storage; pages reach it over Tauri's IPC, with no listening port. A paired phone copies the Mac's workshop and syncs with it. An unpaired phone keeps a workshop of its own. Web articles, backups and service details are omitted.
 
 ### Import and capture
 
@@ -76,7 +76,7 @@ It is signed when `TESSERA_ANDROID_KEYSTORE` names a keystore with a `tessera` k
 
 ### Tailnet download
 
-`mise run android:publish [commit]` (default `HEAD`) builds the commit in its own worktree, strips the native library's debug info (about 90 MB) and signs it again with the release key. It and the GitHub release APKs can update each other without losing the notebook.
+`mise run android:publish [commit]` (default `HEAD`) builds the commit in its own worktree, strips the native library's debug info (about 90 MB) and signs it again with the release key. It and the GitHub release APKs can update each other without losing the workshop.
 
 The task replaces the previous APK at `https://<this Mac>.<tailnet>:8443/`. On its first run it starts the `dev.tessera.downloads` launch agent, serving from `127.0.0.1:18791`, and adds the Tailscale Serve entry. The page is reachable only from the tailnet.
 
@@ -88,10 +88,10 @@ The signing key comes from the first available source:
 
 ## Browser app
 
-<https://tessera.solforged.io> keeps a notebook in the browser's private storage on one device. Chromium browsers can install it as an app (tested in Brave and Helium): use the install button in the address bar or the browser menu. The app opens in its own window, starts without a network connection, and loads the newest version whenever it is online.
+<https://tessera.solforged.io> keeps a workshop in the browser's private storage on one device. Chromium browsers can install it as an app (tested in Brave and Helium): use the install button in the address bar or the browser menu. The app opens in its own window, starts without a network connection, and loads the newest version whenever it is online.
 
-- **Storage:** the app asks the browser to keep its storage. Settings › Backups shows whether it does and how much is used, and downloads the notebook as one file. That file is the only copy outside the browser.
-- **One window at a time:** a second window or tab says `Tessera is open in another window.` Use it here moves the notebook there: the first window saves what you typed, closes the notebook and offers Use it here to take it back. A window that does not answer within five seconds has to be closed first.
+- **Storage:** the app asks the browser to keep its storage. Settings › Backups shows whether it does and how much is used, and downloads the workshop as one file. That file is the only copy outside the browser.
+- **One window at a time:** a second window or tab says `Tessera is open in another window.` Use it here moves the workshop there: the first window saves what you typed, closes the workshop and offers Use it here to take it back. A window that does not answer within five seconds has to be closed first.
 - **Title bar:** the chevron in the window's title bar hides it. Tessera's top bar then holds the window buttons and moves the window.
 - **Shortcuts:** in the app window, ⌘N makes a page, ⌘T opens today and ⌘, opens Settings. A browser tab keeps those for the browser. ⌘E adds to today in both.
 
@@ -118,73 +118,116 @@ mise run cli:install
 tessera install
 ```
 
-On macOS, `tessera install` starts a launch agent and opens the service at <http://127.0.0.1:4318>; open that URL in a browser. The agent starts at login, restarts the service if it exits and writes stdout and stderr to `~/Library/Logs/tessera/serve.log`.
+On macOS, `tessera install` starts a launch agent and opens the service at <http://127.0.0.1:4318>; open that URL in a browser. The agent starts at login, restarts the service if it exits and writes stdout and stderr to `~/.local/state/tessera/logs/serve.log`.
 
-`tessera uninstall` stops the agent and removes its plist, not the notebook. Install and uninstall are macOS-only; on Linux, run `tessera serve` directly.
+`tessera uninstall` stops the agent and removes its plist, not the workshop. Install and uninstall are macOS-only; on Linux, run `tessera serve` directly.
 
 ### Installing a new build
 
-Install stops the running service, backs up the notebook beside it, starts the new service and waits up to a minute for this build to answer. Settings → Backups lists the backup. With `--rollback /path/to/previous/tessera`, an unresponsive build is replaced by that executable, which restores the backup first.
+Install stops the running service, migrates the old layout if needed, backs up the workshop in the shared backup store, then starts the new service. An unchanged workshop reuses its newest backup. The new build has up to a minute to answer. Settings › Backups lists the restore points. With `--rollback /path/to/previous/tessera`, an unresponsive build is replaced by that executable, which restores the backup first. The first upgrade from a build that only accepts the removed CLI flag needs manual supervision; its old executable cannot use the new flag during automatic rollback.
 
 Install refuses a binary under `target/debug` unless you pass `--allow-debug`.
 
-### Choosing a notebook
+### Choosing a workshop
 
-To choose a notebook and port:
+To choose a workshop and port:
 
 ```sh
-tessera --notebook /absolute/path/to/notebook install --port 4397
+tessera --workshop /absolute/path/to/workshop install --port 4397
 ```
 
-`TESSERA_NOTEBOOK` also persists the notebook choice in the agent. Without either option, the service uses the notebook last chosen in Settings → Notebooks, or the platform data directory's `tessera/notebook`. A missing notebook is created; an existing one is never overwritten.
+`TESSERA_WORKSHOP` also selects a workshop and persists that choice in the launch agent. The flag and environment variable accept a path. Without either, the service uses the workshop last chosen in Settings › Workshops, or `~/.local/share/tessera/workshops/main`. A missing workshop is created; an existing one is never overwritten. The old flag and environment variable are removed, with no aliases.
 
-Settings → Notebooks switches the running service to another folder or starts an empty notebook:
+Settings › Workshops switches the running service to another folder or creates an empty workshop. Open or create accepts a name such as `reading`, an absolute path, or `~/Documents/reading`. A name resolves inside the workshops folder. Names are trimmed, nonempty, at most 64 Unicode characters, contain no slash and start with neither `.` nor `~`. The list includes registered workshops and workshop folders found inside the workshops folder. Each name is its folder name with the first letter capitalized.
 
-- The service drains, releases the old notebook and restarts on the new one at the same ports. Every open window reloads.
-- A window still holding the old identity gets `409 notebook_changed` rather than writing into the new notebook.
-- The list lives in `notebooks.json` in the platform data directory's `tessera` folder.
-- A service started with `--notebook` can switch too, but that choice lasts only until it restarts.
+- The service drains, releases the old workshop and restarts on the new one at the same ports. Every open window reloads.
+- A window still holding the old identity gets `409 notebook_changed` rather than writing into the new workshop.
+- The registry lives at `~/.local/state/tessera/workshops.json`, or its XDG state override. Its JSON fields remain `current` and `notebooks`.
+- A service started with `--workshop` can switch too, but that choice lasts only until it restarts.
+
+The API names stay unchanged: `GET /api/notebooks` lists workshops, `POST /api/notebooks/open` accepts `{"path":"reading","create":true}`, and `POST /api/notebooks/forget` accepts a full `path`. Use `create:false` to open an existing workshop. List entries include `display_path`, with home shown as `~`, and `named`, which marks a direct child of the workshops folder.
 
 ### Assets and logs
 
 The `embed-web` feature compiles `web/dist` into the binary, so `tessera serve` needs no `--assets` flag. During development, `--assets web/dist` overrides the embedded editor. Without the feature, builds serve only the API unless given `--assets`. The service binds to loopback only and rejects other hosts and browser origins.
 
-Logs go to stderr through `tracing`. `RUST_LOG` selects the filter, defaulting to `info`; the launch agent sets `RUST_LOG=info`. CLI JSON and exports remain on stdout. `tessera info` prints the notebook's identity as JSON.
+Logs go to stderr through `tracing`. `RUST_LOG` selects the filter, defaulting to `info`; the launch agent sets `RUST_LOG=info`. CLI JSON and exports remain on stdout. `tessera info` prints the workshop's identity as JSON.
+
+All desktop platforms use XDG directories, including macOS. Only absolute XDG overrides count. The paths below use the defaults:
+
+| Kind | Default path | Override |
+|---|---|---|
+| Data | `~/.local/share/tessera` | `XDG_DATA_HOME` |
+| State | `~/.local/state/tessera` | `XDG_STATE_HOME` |
+| Cache | `~/.cache/tessera` | `XDG_CACHE_HOME` |
+
+Data holds `workshops/main`, named `workshops/<name>`, `backups/<workshop id>/<UTC timestamp>` and the previous desktop executable at `previous/tessera`. State holds `workshops.json`, `agent.json`, `desktop.json` and `logs/{serve,desktop,downloads}.log`. Cache holds `ship`, `android-publish` and `android-downloads`. An override names the base directory; Tessera adds its `tessera` folder.
+
+Registry-following service startup and installation migrate the old layout automatically:
+
+- `~/Library/Application Support/tessera/notebook` moves to `~/.local/share/tessera/workshops/main` on macOS. The old platform default on other desktops moves to the same XDG layout.
+- Old `backups/<id>/<timestamp>` folders move into the XDG data backup store.
+- `notebooks.json` moves from the old data folder to `~/.local/state/tessera/workshops.json`. Entries merge with an existing new registry; its current selection wins.
+- `~/.local/share/tessera/notebooks/<name>` moves to `~/.local/share/tessera/workshops/<name>`. Registry paths follow moved folders.
+- Old `agent.json` moves to the state folder, and `android-downloads` moves to the cache folder. Desktop startup moves its old `state.json` to `~/.local/state/tessera/desktop.json`.
+
+Existing targets are never overwritten. A folder collision leaves both workshops and their registry paths in place. Cross-filesystem moves copy and sync before removing the source. Invalid registry data or a workshop owned by a live service stops migration without discarding it.
+
+New logs use `~/.local/state/tessera/logs`, not `~/Library/Logs/tessera`. New caches use `~/.cache/tessera`, not `~/Library/Caches/tessera`. Those old folders and the old desktop rollback executable are left intact. Launch-agent plists stay in `~/Library/LaunchAgents`. Tauri's window-state file stays at `~/Library/Application Support/dev.tessera.desktop/.window-state.json`. Android app-private storage and browser OPFS do not move. Workshops stored elsewhere stay where they are.
 
 ## Backup and restore
 
+The desktop service backs up once a day while it runs, before installing an update, and when you choose Back up now in Settings › Backups. The first daily check is two minutes after startup; later checks run hourly. A backup is due when none exists or the newest is at least 24 hours old.
+
+These backups share one store at `~/.local/share/tessera/backups/<workshop id>/<UTC timestamp>`, or its XDG data override, wherever the live workshop lives. A snapshot is skipped when its database hash and object count match the newest backup. Immutable files are hard-linked rather than copied; if a hard link fails, that file is copied. Deleting a backup does not delete the live files or another backup's links.
+
+Retention runs after every backup attempt that creates a snapshot or finds it unchanged. It keeps the three newest backups, plus the newest in each of seven UTC calendar days including today, plus the newest in each seven-day window for days 8 through 35. A backup can satisfy more than one tier. Explicit command-line destinations below are separate from this store and its retention.
+
+Settings › Backups shows the latest time, backup count and store size beside Database and files, with Back up now. Store size counts each linked file once. Earlier backups fold into a disclosure with Delete. Other workshops lists stores for other workshop IDs, including workshops no longer registered; Delete removes that ID's backups, not its live workshop. Both deletion actions ask for confirmation. There is no Keep the latest 10 control.
+
+| Endpoint | Result |
+|---|---|
+| `GET /api/backups` | `{backups, store_size, others}`; backups are newest first. |
+| `POST /api/backups` | `{created, backups}`; `created` is false when unchanged, and `backups` is the full listing envelope. |
+| `DELETE /api/backups/{name}` | Deletes one backup and returns the listing envelope. The newest backup is kept. |
+| `DELETE /api/backups/others/{workshop_id}` | Deletes another workshop ID's backup store and returns the listing envelope. |
+
+The manual prune route is removed. Sync recovery copies are separate from this store; only the newest copy of each kind is kept.
+
+For a backup at an explicit destination:
+
 ```sh
 tessera backup /path/to/new-backup
-tessera info --notebook /path/to/new-backup
-tessera --notebook /path/to/restored-notebook restore /path/to/new-backup
+tessera info --workshop /path/to/new-backup
+tessera --workshop /path/to/restored-workshop restore /path/to/new-backup
 ```
 
 Backup can run while the service runs, but its destination must be empty. It contains:
 
 - An online SQLite snapshot, `notebook.db`.
 - Immutable files in `objects/`.
-- `manifest.json`: notebook ID, schema version, backup timestamp, object count and database page count.
+- `manifest.json`: workshop ID, schema version, backup timestamp, object count, database page count and database SHA-256.
 
-Restore preserves notebook identity and checks migrations. Stop the destination service first. A non-empty destination requires `--force`; that flag never bypasses a live service lock.
+Restore preserves workshop identity and checks migrations. Stop the destination service first. A non-empty destination requires `--force`; that flag never bypasses a live service lock.
 
-Both refuse a database that fails SQLite's `quick_check`. `tessera check` runs that check along with the foreign keys, the derived tables and the model's rules, and prints the report as JSON; `tessera check --repair` rebuilds the derived tables. It works through the running service when one owns the notebook.
+Both refuse a database that fails SQLite's `quick_check`. `tessera check` runs that check along with the foreign keys, the derived tables and the model's rules, and prints the report as JSON; `tessera check --repair` rebuilds the derived tables. It works through the running service when one owns the workshop.
 
 ## Syncing a replica
 
 A running service is the hub. Use these commands with a replica:
 
 ```sh
-tessera --notebook /path/to/replica sync clone http://127.0.0.1:4318
-tessera --notebook /path/to/replica sync
-tessera --notebook /path/to/replica sync status
-tessera --notebook /path/to/replica sync conflicts
-tessera --notebook /path/to/replica sync pin <source-id>
-tessera --notebook /path/to/replica sync reclone
+tessera --workshop /path/to/replica sync clone http://127.0.0.1:4318
+tessera --workshop /path/to/replica sync
+tessera --workshop /path/to/replica sync status
+tessera --workshop /path/to/replica sync conflicts
+tessera --workshop /path/to/replica sync pin <source-id>
+tessera --workshop /path/to/replica sync reclone
 ```
 
 | Command | Behavior |
 |---|---|
-| `sync clone` | Copies the hub's notebook, without original book files, into an empty directory and registers a new device. On another machine, pass `--code` from the hub's Settings › Devices. |
+| `sync clone` | Copies the hub's workshop, without original book files, into an empty directory and registers a new device. On another machine, pass `--code` from the hub's Settings › Devices. |
 | `sync` | Pushes the replica's changes, files and reading positions and pulls the hub's. |
 | `sync conflicts` | Lists conflict copies and changes the hub could not apply. If both sides changed a block's text, the hub keeps its text and adds the replica's wording immediately after it. |
 | `sync pin` | Keeps a book's original file and images ahead of time. Every cover is kept; otherwise, images arrive when the book is opened. |
@@ -210,7 +253,7 @@ Other clients use this JSON configuration:
 {"command": "tessera", "args": ["mcp"]}
 ```
 
-For a non-default notebook, add `--notebook /path` before `mcp`.
+For a non-default workshop, add `--workshop /path` before `mcp`.
 
 ### Read tools
 
@@ -225,7 +268,7 @@ Nine tools read:
 | `tessera_cards` | A block's or page's cards, the due, new or full queue (optionally a deck's or a type's), review statistics, or decks. |
 | `tessera_query` | Types, fields and saved views, or notes, questions, positions, sources, tasks and highlights selected by `source`. Filters and sorts accept field names or `@` attributes; rows include editable field value IDs. Date values may be relative, such as `-30d`, and `or_empty` includes absent values. |
 | `tessera_library` | Sources, a source's contents, its passages in order from an ordinal with passage IDs, passage search, or highlights. |
-| `tessera_sync` | Whether the notebook is a replica, when it last synced, how many of its changes have not reached the hub, and the last sync error; `now` syncs first. |
+| `tessera_sync` | Whether the workshop is a replica, when it last synced, how many of its changes have not reached the hub, and the last sync error; `now` syncs first. |
 | `tessera_relations` | Authored argument edges filtered by `kind`, `source`, `target`, `source_holder` or `target_holder`, with an optional `limit`. At least one filter is required; rows name both endpoints and holders, and any problem. |
 
 ### Write tools
@@ -261,7 +304,7 @@ Each write is one change attributed to the agent by its MCP client name. Open wi
 
 - `tessera_recent_changes` lists agent changes; `tessera_undo` reverses one.
 - Settings › Agent changes also lists them, with an Undo button.
-- Undo refuses to overwrite anyone's later edit, so undo several changes newest first.
+- Undo refuses to overwrite anyone's later edit, so undo changes newest first.
 - A page or field created by the change stays while other blocks use it.
 
 ### Clients without MCP

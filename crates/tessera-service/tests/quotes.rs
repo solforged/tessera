@@ -34,7 +34,7 @@ async fn native_and_embedded_quote_routes_freeze_rows_and_report_changes() {
         let app = if embedded {
             tessera_service::embedded_router(nb).unwrap().0
         } else {
-            tessera_service::router(nb, 14339, None, None).unwrap()
+            tessera_service::router(nb, 14339, None, None, None).unwrap()
         };
         let id = |n| ulid::Ulid::from(n).to_string();
         let (page, source, child, quote_row) = (id(1), id(2), id(3), id(4));

@@ -90,7 +90,7 @@ async fn update(app: &AppHandle, interactive: bool) -> Result<(), String> {
     let dialog = app
         .dialog()
         .message(
-            "Restart now to finish updating. Tessera backs up the notebook before the new version opens it.",
+            "Restart now to finish updating. Tessera backs up the workshop before the new version opens it.",
         )
         .title(format!("Tessera {} is ready", update.version))
         .kind(MessageDialogKind::Info)
@@ -104,7 +104,7 @@ async fn update(app: &AppHandle, interactive: bool) -> Result<(), String> {
     if !restart {
         return Ok(());
     }
-    keep_previous(app)?;
+    keep_previous()?;
     update.install(&bytes).map_err(|error| error.to_string())?;
     log(&format!("installed {}; restarting", update.version));
     app.restart();
@@ -113,11 +113,11 @@ async fn update(app: &AppHandle, interactive: bool) -> Result<(), String> {
 /// Copy this build's `tessera` aside: the update replaces the whole bundle,
 /// and the restarted app rolls the service back to this copy if the new one
 /// does not start.
-fn keep_previous(app: &AppHandle) -> Result<(), String> {
+fn keep_previous() -> Result<(), String> {
     let bundled = std::env::current_exe()
         .map_err(|error| error.to_string())?
         .with_file_name("tessera");
-    let previous = previous_cli(app).ok_or("no app data directory")?;
+    let previous = previous_cli().ok_or("no app data directory")?;
     let staged = previous.with_extension("next");
     std::fs::create_dir_all(previous.parent().ok_or("no parent directory")?)
         .and_then(|()| std::fs::copy(&bundled, &staged))

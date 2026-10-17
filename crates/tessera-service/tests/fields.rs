@@ -36,8 +36,8 @@ async fn request(app: &Router, method: &str, path: &str, body: Value) -> (Status
 #[tokio::test]
 async fn fields_queries_and_saved_views_round_trip_through_http_and_conflict_envelopes() {
     let dir = tempfile::tempdir().unwrap();
-    let app =
-        tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None).unwrap();
+    let app = tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None, None)
+        .unwrap();
     let (status, fields) = request(&app, "GET", "/api/fields", Value::Null).await;
     assert_eq!(status, StatusCode::OK);
     let operations = json!([
@@ -115,8 +115,8 @@ async fn fields_queries_and_saved_views_round_trip_through_http_and_conflict_env
 #[tokio::test]
 async fn field_detail_previews_are_read_only_and_missing_definitions_are_not_found() {
     let dir = tempfile::tempdir().unwrap();
-    let app =
-        tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None).unwrap();
+    let app = tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None, None)
+        .unwrap();
     let (_, fields) = request(&app, "GET", "/api/fields", Value::Null).await;
     let (status, _) = request(&app, "POST", "/api/batches", json!({
         "actor": {"kind": "person"},
@@ -166,8 +166,8 @@ async fn field_detail_previews_are_read_only_and_missing_definitions_are_not_fou
 #[tokio::test]
 async fn query_http_offsets_page_sorted_members_without_changing_total() {
     let dir = tempfile::tempdir().unwrap();
-    let app =
-        tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None).unwrap();
+    let app = tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None, None)
+        .unwrap();
     let (status, _) = request(&app, "POST", "/api/batches", json!({
         "actor": {"kind": "person"},
         "operations": [
@@ -206,8 +206,8 @@ async fn query_http_offsets_page_sorted_members_without_changing_total() {
 #[tokio::test]
 async fn types_list_only_visible_members_of_live_unarchived_type_pages() {
     let dir = tempfile::tempdir().unwrap();
-    let app =
-        tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None).unwrap();
+    let app = tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None, None)
+        .unwrap();
     let (status, types) = request(&app, "GET", "/api/types", Value::Null).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(types, json!([]));
@@ -256,8 +256,8 @@ async fn types_list_only_visible_members_of_live_unarchived_type_pages() {
 #[tokio::test]
 async fn fields_count_distinct_live_entry_owners_and_template_types() {
     let dir = tempfile::tempdir().unwrap();
-    let app =
-        tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None).unwrap();
+    let app = tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None, None)
+        .unwrap();
     let (_, fields) = request(&app, "GET", "/api/fields", Value::Null).await;
     let operations = json!([
         {"op":"create_page","id":id(1),"title":"Books"},
@@ -358,8 +358,8 @@ async fn fields_count_distinct_live_entry_owners_and_template_types() {
 #[tokio::test]
 async fn manual_membership_batch_round_trips_page_pills_and_type_members() {
     let dir = tempfile::tempdir().unwrap();
-    let app =
-        tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None).unwrap();
+    let app = tessera_service::router(Notebook::open(dir.path()).unwrap(), 4318, None, None, None)
+        .unwrap();
     let (status, committed) = request(&app, "POST", "/api/batches", json!({
         "actor": {"kind": "person"},
         "operations": [

@@ -46,7 +46,7 @@ import { CreateSlip, type CreateNotice } from '../create/CreateSlip';
 import { creatableKinds, kindNoun } from '../create/kinds';
 import { installLinkDrop } from '../create/link-drop';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
-import { NotebookOpening, knownNotebooks, registerNotebookCommands } from '../settings/notebooks';
+import { NotebookOpening, knownNotebooks, notebookLabel, registerNotebookCommands } from '../settings/notebooks';
 import { NotebookSwitcher } from '../settings/NotebookSwitcher';
 import { indexKindTarget, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
 import { DEMO } from '../demo/mode';
@@ -596,9 +596,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     initializing = true;
     const notebookInfo = info();
     void (async () => {
-      if (!notebookInfo && !navigator.onLine) { setOfflineUnavailable(true); setError('Notebook unavailable offline · Open this notebook online once.'); return; }
+      if (!notebookInfo && !navigator.onLine) { setOfflineUnavailable(true); setError('Workshop unavailable offline · Open this workshop online once.'); return; }
       await notebook.ready;
-      if (notebook.connection() === 'offline' && !notebook.roots().length) { setOfflineUnavailable(true); setError('Notebook unavailable offline · Open this notebook online once.'); return; }
+      if (notebook.connection() === 'offline' && !notebook.roots().length) { setOfflineUnavailable(true); setError('Workshop unavailable offline · Open this workshop online once.'); return; }
       if (!notebookInfo) { await today(); return; }
       let stored: SavedNavigation = {};
       try { stored = JSON.parse(localStorage.getItem(`tessera.navigation.${notebookInfo.id}`) ?? '{}') ?? {}; } catch { /* Navigation preferences are optional; document durability is IndexedDB. */ }
@@ -700,7 +700,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.delete', title: 'Delete page', section: 'Page', run: () => { const anchor = document.querySelector<HTMLButtonElement>(`[data-pane="${active()}"] .page-menu-button`); if (anchor) setPopup({ kind: 'delete', anchor, pane: active() }); } },
     { id: 'shell.restore-page', title: 'Undo page deletion', section: 'Page', disabledReason: () => deleted() ? undefined : retainedDeletions.error ? 'Could not read deleted pages' : retainedDeletions.loading ? 'Loading deleted pages…' : retainedDeletions()?.length ? undefined : 'No deleted page to restore', run: () => { void restorePage(); } },
     { id: 'shell.deleted-pages', title: 'Restore deleted page…', section: 'Page', run: () => setPopup({ kind: 'restore-pages', anchor: searchButton, pane: active() }) },
-    { id: 'shell.review-conflict', title: 'Review notebook conflict', section: 'Editing', disabledReason: () => notebook.conflictedPages().length ? undefined : 'No conflicting blocks', run: reviewConflict },
+    { id: 'shell.review-conflict', title: 'Review workshop conflict', section: 'Editing', disabledReason: () => notebook.conflictedPages().length ? undefined : 'No conflicting blocks', run: reviewConflict },
     { id: 'shell.retry', title: 'Retry saving', section: 'Editing', disabledReason: () => notebook.saveState() === 'saved' && notebook.connection() === 'live' ? 'All changes are saved' : undefined, run: () => notebook.retry() },
     { id: 'shell.copy-unsaved', title: 'Copy unsaved text', section: 'Editing', disabledReason: () => notebook.localPersistence() === 'failed' || notebook.rejectedText() ? undefined : 'Local recovery storage is working', run: () => { void navigator.clipboard.writeText(notebook.rejectedText() || notebook.unsavedText()).catch(reportError); } },
     { id: 'shell.dismiss-rejected', title: 'Dismiss rejected changes', section: 'Editing', disabledReason: () => notebook.rejectedText() ? undefined : 'No rejected changes', run: () => notebook.dismissRejected() },
@@ -1011,15 +1011,15 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <Button icon="panes" label="Layout" aria-haspopup="menu" aria-expanded={popup()?.kind === 'layout'} onClick={event => setPopup({ kind: 'layout', anchor: event.currentTarget, pane: active() })} />
       </div>
     </header>
-    <aside class="sidebar" aria-label="Notebook navigation" aria-hidden={!sidebarVisible()} inert={!sidebarVisible()}>
+    <aside class="sidebar" aria-label="Workshop navigation" aria-hidden={!sidebarVisible()} inert={!sidebarVisible()}>
       {/* On the cover screen the rail is hidden, so the overlay carries the oculus, wordmark and notebook. */}
       <header class="sidebar-masthead">
         <span class="wordmark" title={info()?.path}>Tessera</span>
         <Button class="icon-only" icon="sidebar" label="Close sidebar" onClick={toggleSidebar} />
-        {/* A notebook other than the default is named in the warning colour, as at the desktop foot. */}
-        <span class="sidebar-masthead-notebook"><Show when={knownNotebooks()?.notebooks.find(entry => entry.current)}>{current => <><span class="sidebar-masthead-name" classList={{ 'sidebar-masthead-other': !current().default }}>{current().name}</span><Show when={index()}><span aria-hidden="true"> · </span></Show></>}</Show><Show when={index()}>{value => <span class="sidebar-masthead-count">{`${value().notes.toLocaleString()} ${value().notes === 1 ? 'note' : 'notes'}`}</span>}</Show></span>
+        {/* A workshop other than the default is named in the warning colour, as at the desktop foot. */}
+        <span class="sidebar-masthead-notebook"><Show when={knownNotebooks()?.notebooks.find(entry => entry.current)}>{current => <><span class="sidebar-masthead-name" classList={{ 'sidebar-masthead-other': !current().default }}>{notebookLabel(current())}</span><Show when={index()}><span aria-hidden="true"> · </span></Show></>}</Show><Show when={index()}>{value => <span class="sidebar-masthead-count">{`${value().notes.toLocaleString()} ${value().notes === 1 ? 'note' : 'notes'}`}</span>}</Show></span>
       </header>
-      <nav class="primary-navigation" aria-label="Notebook">
+      <nav class="primary-navigation" aria-label="Workshop">
         <Button icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), opensBeside(event)); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>
         <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={event => open({ kind: 'agenda', date: journalDate(active()) }, opensBeside(event))}><span>Agenda</span><Show when={counts()?.planned}>{planned => <span class={`desk-count ${counts()!.overdue ? 'late' : ''}`} title={counts()!.overdue ? `${planned()} to do today · ${counts()!.overdue} overdue` : `${planned()} to do today`}>{planned()}</span>}</Show></Button>
         <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} aria-label={`Review · ${counts()?.cards ?? 0} cards · ${counts()?.revisits ?? 0} to revisit`} onClick={event => open({ kind: 'review' }, opensBeside(event))}><span>Review</span><Show when={(counts()?.cards ?? 0) + (counts()?.revisits ?? 0)}>{due => <span class="desk-count" title={`${counts()?.cards ?? 0} cards · ${counts()?.revisits ?? 0} to revisit`}>{due()}</span>}</Show></Button>
@@ -1117,7 +1117,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     </Show>
     <SyncLifecycle notebook={notebook} anchor={syncAnchor()} onClose={() => setSyncAnchor(null)} onDevices={deviceId => open({ kind: 'settings', section: 'devices', deviceId })} />
     <SyncCover open={!!syncAnchor()} onOpen={setSyncAnchor} />
-    <nav class="bottom-nav" aria-label="Notebook">
+    <nav class="bottom-nav" aria-label="Workshop">
       <Button icon="today" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={() => { void today(); }}><span>Today</span></Button>
       <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={() => open({ kind: 'agenda', date: journalDate(active()) })}><span>Agenda</span></Button>
       <Button icon="plus" class={creation() ? 'selected' : ''} aria-haspopup="dialog" aria-expanded={!!creation()} onClick={() => openCreate(blankCapture())}><span>New</span></Button>
@@ -1473,7 +1473,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   return <section class="pane" classList={{ active: props.active, immersive: props.immersive, folded: props.folded }} style={{ 'flex-grow': props.grow }} data-pane={props.pane} data-page-style={pageStyle()} aria-label={`Pane ${props.number}`} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
     <header class="pane-header">
       {/* The cover screen has no rail; its sidebar opens from here. */}
-      <Button class="pane-sidebar" icon="sidebar" label="Notebook" aria-expanded={props.sidebarOpen} onClick={props.onSidebar} />
+      <Button class="pane-sidebar" icon="sidebar" label="Workshop" aria-expanded={props.sidebarOpen} onClick={props.onSidebar} />
       <div class="pane-navigation"><Button icon="left" label="Back" shortcut="⌃⇧H" disabled={props.session().index <= 0} onClick={() => props.onTravel(-1)} /><Button icon="right" label="Forward" shortcut="⌃⇧L" disabled={props.session().index >= props.session().entries.length - 1} onClick={() => props.onTravel(1)} /></div>
       <Icon class="pane-kind" name={kindIcon()} />
       <Show when={props.split}><span class="pane-number" aria-hidden="true">{props.number}</span></Show>

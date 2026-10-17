@@ -37,7 +37,7 @@ export const notebookFetch: Transport = async (url, init) => {
   const bytes = request.body ? new Uint8Array(await request.arrayBuffer()) : null;
   const message: NotebookRequest = { method: request.method, path: `${parsed.pathname}${parsed.search}`, headers: [...request.headers], body: bytes && base64(bytes) };
   const reply = await abortable(invoke<ArrayBuffer | number[]>('notebook_request', { request: message }), request.signal).catch((reason: unknown) => {
-    if (!request.signal.aborted) console.error('The notebook did not answer.', reason);
+    if (!request.signal.aborted) console.error('The workshop did not answer.', reason);
     throw reason;
   });
   const frame = reply instanceof ArrayBuffer ? new Uint8Array(reply) : Uint8Array.from(reply);

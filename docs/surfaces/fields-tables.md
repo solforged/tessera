@@ -1,6 +1,6 @@
 # Fields, types and tables
 
-Fields defines the notebook's fields and type templates. Tables show a query as rows: a type's members or a saved view.
+Fields defines the workshop's fields and type templates. Tables show a query as rows: a type's members or a saved view.
 
 Tokens, shell and shared popup patterns are in [design](../design.md).
 
@@ -63,7 +63,7 @@ Creating a definition always uses a new block ID. Blank outline rows under Field
 
 Changing kind opens an interpretation map on the field page before applying. Register rows, the inspector and a note's field menu open the same map. It lists every distinct written value and its use count under Mapped values, Readable as written, or Ambiguous or unreadable.
 
-Choice rows have an editable option name and a mapping checkbox. Existing options are reused; several written values can share one name. Unchecking a row leaves it as written. Relation rows propose a page only when its title or alias matches exactly and uniquely. Choose page adjusts the target; Create page explicitly requests creation during Apply and files the page under the field's only Links to type, or makes it a source when that is Source. Blocks are chosen by hand after the change. Other kinds show their readings, including inclusive year bounds for Span.
+Choice rows have an editable option name and a mapping checkbox. Existing options are reused; different written values can share one name. Unchecking a row leaves it as written. Relation rows propose a page only when its title or alias matches exactly and uniquely. Choose page adjusts the target; Create page explicitly requests creation during Apply and files the page under the field's only Links to type, or makes it a source when that is Source. Blocks are chosen by hand after the change. Other kinds show their readings, including inclusive year bounds for Span.
 
 Apply changes the kind and all reviewed mappings in one undoable edit. Unmapped values stay as written and show a problem when unreadable. Owners and child notes stay in place. Cancel writes nothing.
 
@@ -71,9 +71,9 @@ Apply changes the kind and all reviewed mappings in one undoable edit. Unmapped 
 
 Relation definitions show **Links to** below Kind, both on their page and in the Fields inspector. The checklist offers Source first, then the types, and applies as one undoable change; no selection reads **Any block**. Members of the selected types qualify whether they are pages or tagged blocks inside a page, and Source admits any source. A reference outside the selected types stays written and reads as a problem.
 
-Library Author, Editor and Translator start with Person and Group targets. Import and the one-time notebook backfill file untyped creator pages as Person without changing pages already filed elsewhere.
+Library Author, Editor and Translator start with Person and Group targets. Import and the one-time workshop backfill file untyped creator pages as Person without changing pages already filed elsewhere.
 
-Metadata suggestions, field-slot pickers and value pickers for such a field show members of the target types. Page titles and aliases match with the notebook's name folding; an exact alias match does not offer duplicate creation. Blocks match by label and show their page beside it. Blocks on the owner's page lead under **On this page**, and the owner is never offered. A query that names no page exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together. A field that links to Source offers **Create source “Title”**, a manual record in the Inbox. A type with block members offers no creation.
+Metadata suggestions, field-slot pickers and value pickers for such a field show members of the target types. Page titles and aliases match with the workshop's name folding; an exact alias match does not offer duplicate creation. Blocks match by label and show their page beside it. Blocks on the owner's page lead under **On this page**, and the owner is never offered. A query that names no page exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together. A field that links to Source offers **Create source “Title”**, a manual record in the Inbox. A type with block members offers no creation.
 
 Enter commits the relation query as it is written at that moment, including before its candidates arrive. A pending query never permits accepting an older query's highlighted target. The accepted query and target constraints enter the value's durable outbox immediately; reloading during lookup resumes the selection and stores its canonical reference without reopening the picker.
 
@@ -95,11 +95,11 @@ The type page and the Fields tab list a template with one row design: Name, Kind
 - A required field reads `required` after its name, and its Remove is disabled with the reason, such as Books require author. The field menu's Templates… and the table's column menu disable their Remove from template the same way.
 - Each rename, kind change and Links to change reports itself beside Add field, such as rank links to Person, with an Undo while it is the latest change.
 
-Under the list sits a count of the members that lack template fields and Fill missing fields. This gives each of them an empty entry for every template field it lacks, placed in template order, in one notebook command. Undo beside the result removes the entries it added that are still empty; an entry that gained a value or a note stays. Changing the template never rewrites members.
+Under the list sits a count of the members that lack template fields and Fill missing fields. This gives each of them an empty entry for every template field it lacks, placed in template order, in one workshop command. Undo beside the result removes the entries it added that are still empty; an entry that gained a value or a note stays. Changing the template never rewrites members.
 
 ## Type fields tab
 
-The type's Fields tab opens its field template as a third in-pane view, with the same Index, Table, Fields and Cards strip. All four tabs title the kind by its glyph and plural, and Index, Fields and Cards share one left edge. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists the template in the [field rows](#field-rows) the type page uses. Usage counts are notebook-wide distinct owners, including empty entries.
+The type's Fields tab opens its field template as a third in-pane view, with the same Index, Table, Fields and Cards strip. All four tabs title the kind by its glyph and plural, and Index, Fields and Cards share one left edge. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists the template in the [field rows](#field-rows) the type page uses. Usage counts are workshop-wide distinct owners, including empty entries.
 
 Add field and Fill missing fields keep the type page's editing behavior. The underlined type crumb opens the ordinary type page; the global Fields register remains separate.
 
@@ -145,7 +145,7 @@ After deleting a table view, its confirmation closes and the table keeps the que
 
 A saved view's menu offers Embed on page…. Its page picker inserts an ordinary reference block and opens it on that page. `/Embed view` and Commands offer the same saved views while writing.
 
-An embed follows the saved query, columns, sorts, groups and layout, with twelve visible rows and Show all N to open the full view. Editing an ordinary field uses its canonical value block and one undo; derived attributes remain read-only. Committed notebook changes update the result. Phone cards use the saved card fields.
+An embed follows the saved query, columns, sorts, groups and layout, with twelve visible rows and Show all N to open the full view. Editing an ordinary field uses its canonical value block and one undo; derived attributes remain read-only. Committed workshop changes update the result. Phone cards use the saved card fields.
 
 Enter returns focus to the committed cell before its save finishes. ⌘Z then undoes that commit, even when it created the field's first entry and value.
 
@@ -153,7 +153,7 @@ Enter returns focus to the committed cell before its save finishes. ⌘Z then un
 
 The source chip, Search rows, Filters, Sort, Group and Columns align to the register. Applied filter and numbered sort chips sit beneath the controls and remove with their own ×. Chips wrap on narrow panes. A new sort follows the existing keys rather than replacing the primary key. Its left arrow raises its priority.
 
-Sort, Group and Filters list the type template's fields first, then built-in attributes, then the notebook's other fields. Sort and Group head each run with its section and check the fields in use; choosing a sorted field again flips its direction. Filters names each field's kind at the row's end.
+Sort, Group and Filters list the type template's fields first, then built-in attributes, then the workshop's other fields. Sort and Group head each run with its section and check the fields in use; choosing a sorted field again flips its direction. Filters names each field's kind at the row's end.
 
 Filter and sort chips wait for field definitions before naming their fields, so loading does not briefly label a saved field as missing.
 
@@ -204,7 +204,7 @@ Columns past the right edge fade under the rows. `+N ›` at the header's end co
 
 ### Editing
 
-Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, relation or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Editing a missing field creates its entry on that owner, including a position, question or highlight block. Choosing an option writes a reference to that option, as in `Field:: [[option]]`. This works for non-template columns too. Pills follow the outline: a choice pill opens its options and a relation pill opens its target. ⌘-click opens either beside (Ctrl-click off Mac). Cells with several values open the field's source outline beside the table. Attribute cells are read-only.
+Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, relation or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Editing a missing field creates its entry on that owner, including a position, question or highlight block. Choosing an option writes a reference to that option, as in `Field:: [[option]]`. This works for non-template columns too. Pills follow the outline: a choice pill opens its options and a relation pill opens its target. ⌘-click opens either beside (Ctrl-click off Mac). Cells with more than one value open the field's source outline beside the table. Attribute cells are read-only.
 
 Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value and returns focus to its cell before saving finishes. An immediate undo follows that save. Leaving with Tab or a click commits without taking focus back from the new target.
 

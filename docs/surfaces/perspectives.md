@@ -1,6 +1,6 @@
 # Perspectives and questions
 
-A concept page holds several attributed perspectives. Questions and answers mark authored blocks, and a titled page can be a question. Tokens, shell and shared popup patterns are in [design](../design.md).
+A concept page holds distinct attributed perspectives. Questions and answers mark authored blocks, and a titled page can be a question. Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ## Page projections
 
@@ -16,7 +16,7 @@ Read puts the title, Gloss and opening on one text edge. Piazzolla remains the p
 
 Perspectives puts the perspective and holder counts, Compare and Add perspective on the section heading's line, in mono: the counts faint, the actions muted until hovered. A page without an authored heading above its perspectives gets a Perspectives heading. A pane narrower than 480 px moves them to their own line at the text edge.
 
-Each slip leads with the source siglum and holder in mono, then its standfirst as a Piazzolla headline at the gloss size and Work as one faint mono line that truncates. Account has its own quiet label, followed by authored argument relations. Prose-role fields take the full measure; authored non-field prose opens in place. Attributes and citation fields open under Facts, except criteria asked about under Where they disagree. Neither disclosure writes to the notebook. Open perspective ends the slip's last line.
+Each slip leads with the source siglum and holder in mono, then its standfirst as a Piazzolla headline at the gloss size and Work as one faint mono line that truncates. Account has its own quiet label, followed by authored argument relations. Prose-role fields take the full measure; authored non-field prose opens in place. Attributes and citation fields open under Facts, except criteria asked about under Where they disagree. Neither disclosure writes to the workshop. Open perspective ends the slip's last line.
 
 Slips sit in two columns when the pane is at least 620 px wide and stack otherwise, so a split unfolded Fold reads like a phone. A lone perspective takes the full measure. A stored Work that points at a highlight takes its source's siglum.
 
@@ -40,7 +40,7 @@ Compare shows the perspectives/holders count once in its header; Criteria's tool
 
 Add perspective is in the register, the Outline header and Commands. Who holds this? lists people and groups, including members of refined types such as Philosopher. Up to three other matching pages offer File as person or File as group, and a new name offers Create person and Create group. Choosing appends an attributed perspective after the last perspective in its section, or at the page's end when there are none.
 
-The holder link, position capability and empty Gist slot are one undoable edit. The caret starts in the Gist value in filling mode, in Read and Outline. Typing keeps the same editor mounted while the blank value becomes a sentence; Tab moves to Work, then the subject's criteria. Work is the built-in work relation to sources; a notebook without it gets it, already linked to Sources, from the first Add perspective. Creating a holder makes a page filed as a person or group in one change; undoing the perspective keeps that page.
+The holder link, position capability and empty Gist slot are one undoable edit. The caret starts in the Gist value in filling mode, in Read and Outline. Typing keeps the same editor mounted while the blank value becomes a sentence; Tab moves to Work, then the subject's criteria. Work is the built-in work relation to sources; a workshop without it gets it, already linked to Sources, from the first Add perspective. Creating a holder makes a page filed as a person or group in one change; undoing the perspective keeps that page.
 
 ### Section navigator
 
@@ -126,7 +126,7 @@ Choice and Relation cells use the field bed's option and relation pickers, writi
 
 Span and other text cells use the outline's CodeMirror block editor, including paired references, completion, Unicode and composition. Spans keep their written historical notation. Enter commits, Shift-Enter adds a newline and Escape cancels. Saving resolves hand-typed `[[Title]]` references by title or alias, retaining the authored spelling, as in the outline. Shared names stay unlinked rather than choosing a page.
 
-Text accepted while a hand-typed reference is resolving remains part of the cell's commit, including references added during that lookup. Enter puts the literal authored value in the notebook's durable outbox before resolving names, and accepted edits during resolution update that same page-history entry. Reloading during the lookup recovers or commits the literal value rather than losing it; a later edit can finish resolving its references.
+Text accepted while a hand-typed reference is resolving remains part of the cell's commit, including references added during that lookup. Enter puts the literal authored value in the workshop's durable outbox before resolving names, and accepted edits during resolution update that same page-history entry. Reloading during the lookup recovers or commits the literal value rather than losing it; a later edit can finish resolving its references.
 
 A whole-cell `((` choice captures the same frozen quote as the outline, with `((ID))` text and dated Quote attribution. Inline `((` inserts a live reference. Quote text, snapshot and any missing field structure commit together; undo and redo preserve the snapshot.
 

@@ -10,7 +10,7 @@ const PORT: u16 = 4318;
 
 fn app(dir: &std::path::Path, assets: Option<std::path::PathBuf>, dev: Option<&str>) -> Router {
     let notebook = Notebook::open(dir.join("nb")).unwrap();
-    tessera_service::router(notebook, PORT, assets, dev.map(str::to_string)).unwrap()
+    tessera_service::router(notebook, PORT, assets, dev.map(str::to_string), None).unwrap()
 }
 
 async fn send(app: Router, path: &str, headers: &[(&str, &str)]) -> (StatusCode, Vec<u8>) {

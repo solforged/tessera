@@ -278,11 +278,15 @@ export interface ServiceInfo {
   launch_agent: { installed: boolean; path: string | null };
 }
 
-export interface BackupInfo { path: string; created_at: number; object_count: number; size: number }
-export interface CreatedBackup extends Omit<BackupInfo, 'size'> { notebook_id: string; schema_version: number; db_page_count: number }
-export interface PrunedBackups { deleted: number; freed: number; backups: BackupInfo[] }
-/** A notebook the switcher knows. `available` is false when its folder no longer holds a notebook. */
-export interface KnownNotebook { path: string; name: string; current: boolean; default: boolean; available: boolean }
+export interface BackupInfo { path: string; name: string; created_at: number; object_count: number; size: number }
+export interface OtherBackups { workshop_id: string; count: number; size: number; newest_at: number | null; path: string }
+export interface Backups { backups: BackupInfo[]; store_size: number; others: OtherBackups[] }
+export interface CreatedBackup { created: boolean; backups: Backups }
+/**
+ * A workshop the switcher knows. `available` is false when its folder no longer holds a workshop; `display_path`
+ * writes the home folder as `~`; `named` marks one made by name in the workshops folder.
+ */
+export interface KnownNotebook { path: string; display_path: string; name: string; current: boolean; default: boolean; available: boolean; named: boolean }
 export interface KnownNotebooks { notebooks: KnownNotebook[] }
 
 /** Hub side: Tailscale Serve publishing this Mac's sync listener. */

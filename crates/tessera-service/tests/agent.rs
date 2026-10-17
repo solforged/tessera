@@ -50,9 +50,10 @@ async fn request(app: &Router, method: &str, path: &str, body: Value) -> (Status
 }
 
 fn embedded(dir: &std::path::Path) -> (Router, tessera_service::EmbeddedHandles) {
-    tessera_service::embedded_router_with_agent_path(
+    tessera_service::embedded_router_with_paths(
         Notebook::open(dir.join("notebook")).unwrap(),
         dir.join("agent.json"),
+        None,
     )
     .unwrap()
 }
@@ -101,9 +102,10 @@ async fn providers_round_trip_keeps_clears_and_never_returns_keys() {
         );
     }
     // Another notebook on this machine sees the same settings, not notebook data.
-    let (other, _) = tessera_service::embedded_router_with_agent_path(
+    let (other, _) = tessera_service::embedded_router_with_paths(
         Notebook::open(dir.path().join("other")).unwrap(),
         dir.path().join("agent.json"),
+        None,
     )
     .unwrap();
     assert_eq!(

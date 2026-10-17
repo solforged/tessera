@@ -117,7 +117,7 @@ erDiagram
 | Page | A named root block |
 | Note | A titled page, with the blocks beneath it as its content |
 | Kind | What a note is about: a built-in kind such as Person or Concept, or a type you define |
-| Journal day | A root block for one calendar date in the notebook's time zone |
+| Journal day | A root block for one calendar date in the workshop's time zone |
 | Reference | `[[id]]`, `[[id\|label]]` or `[[id\|label\|locator]]` in a block's text, pointing at another block |
 | Link | The indexed occurrence of a reference; derived |
 | Type | Reusable membership, such as `#book`, with an optional field template |
@@ -143,7 +143,7 @@ Parentage gives a block its reading context. A question beneath a source is abou
 
 ## Images
 
-An image block is an ordinary block with an image capability: the SHA-256 of a content-addressed file, its media type (PNG, JPEG, WebP or GIF) and its pixel size. The block's text is the caption and keeps every text behavior, including links, tags, card syntax and search. Upload reads the bytes rather than the declared type, refuses other formats such as SVG, and stores a file once however many blocks show it. Attaching an image the notebook does not hold is refused; a change from another device never is.
+An image block is an ordinary block with an image capability: the SHA-256 of a content-addressed file, its media type (PNG, JPEG, WebP or GIF) and its pixel size. The block's text is the caption and keeps every text behavior, including links, tags, card syntax and search. Upload reads the bytes rather than the declared type, refuses other formats such as SVG, and stores a file once however many blocks show it. Attaching an image the workshop does not hold is refused; a change from another device never is.
 
 - **Split** keeps the image on the left part, with the original ID.
 - **Merge** refuses when either block has an image.
@@ -171,7 +171,7 @@ A saved-view reference uses `[[view:ID|remembered name]]`. The target is a canon
 
 The plain-text clipboard export keeps the authored view reference, just as it keeps page references. It exports the view's remembered name and target, not a snapshot of the result rows. Full-text search can find the remembered name in the authored text.
 
-Committing a live view cell returns keyboard undo to its page history before the save finishes. An immediate undo follows the committed write in the notebook's queue, including when that write creates the field entry and value.
+Committing a live view cell returns keyboard undo to its page history before the save finishes. An immediate undo follows the committed write in the workshop's queue, including when that write creates the field entry and value.
 
 ### Quotes
 
@@ -187,7 +187,7 @@ A quote is frozen; a reference is live. A block whose whole text is `((ID))` is 
 
 A type is an ordinary page used as the target of memberships. A block can have many types. Membership records whether it came from the text (`#book`) or was added manually; either keeps it.
 
-A field definition is a block under the live page titled `Fields`, the system page every notebook has:
+A field definition is a block under the live page titled `Fields`, the system page every workshop has:
 
 - Its name is the block's text.
 - Its kind is text, number, date, span, checkbox, choice, relation, URL or identifier; the default is text. Relation is stored as `instance`.
@@ -216,7 +216,7 @@ A relation target's label is its first line as plain text: trailing tags are dro
 
 A relation reads from both ends. Its target lists each owner whose value is exactly a reference to it, as `← qualifies` followed by the owners' labels, with no inverse name to define. A reference inside longer text stays a mention. Archived definitions and hidden owners or values are left out. author, editor, translator and collections read back elsewhere, as a person's Works and a collection's members, so the target's line omits them.
 
-Changing a field's kind opens a reviewed interpretation map of every distinct written value. Choice mappings reuse or create options, and several spellings can share one option. Relation mappings propose only a page with a unique exact title or alias; creating a page requires an explicit choice, and the new page joins the field's Links to type when it has exactly one, or becomes a source when that one is Source. Ambiguous and unreadable values stay as written. Applying the map and kind is one undoable change across every owner. Owner counts include empty entries and count each owning block once. Archived or deleted entries and owners do not count.
+Changing a field's kind opens a reviewed interpretation map of every distinct written value. Choice mappings reuse or create options, and different spellings can share one option. Relation mappings propose only a page with a unique exact title or alias; creating a page requires an explicit choice, and the new page joins the field's Links to type when it has exactly one, or becomes a source when that one is Source. Ambiguous and unreadable values stay as written. Applying the map and kind is one undoable change across every owner. Owner counts include empty entries and count each owning block once. Archived or deleted entries and owners do not count.
 
 Renaming to another definition's name offers a merge preview with affected owners, pages, templates, saved views and conflicts. A merge redirects entries, template slots and saved view references to the surviving definition. It keeps conflicting entries side by side and moves option blocks without changing their identities. Filters, sort keys, column widths, grouping, collapsed headings and phone card fields stay in their original order. One undo restores both definitions, their entries and the exact saved queries.
 
@@ -269,11 +269,11 @@ Attributes use a leading `@` wherever a field key is accepted, including filters
 | Tasks | `@status`, `@due`, `@scheduled`, `@project` |
 | Highlights | `@source`, `@color` |
 
-The shared attributes are `@title` (text), `@page` (instance), `@created` and `@updated` (dates in the notebook's time zone). Questions use active, recurrent, parked and answered states. `@last_assessed` is the latest live assessment date, accepted or not. `@readings` counts positions about the question. Sources count distinct citing positions and highlighted blocks. Instance attributes compare stable IDs, not labels. `@creator` and `@contributor` read the fields that [count as](#counts-as) creator or contributor. Links and citations on a block source refer to its subtree.
+The shared attributes are `@title` (text), `@page` (instance), `@created` and `@updated` (dates in the workshop's time zone). Questions use active, recurrent, parked and answered states. `@last_assessed` is the latest live assessment date, accepted or not. `@readings` counts positions about the question. Sources count distinct citing positions and highlighted blocks. Instance attributes compare stable IDs, not labels. `@creator` and `@contributor` read the fields that [count as](#counts-as) creator or contributor. Links and citations on a block source refer to its subtree.
 
 Positions' `@question` includes their subject when it is a live question and every effective parent question above it. A parent question therefore selects positions about its branches too. Sources' `@cited_in` names each live block whose subtree cites that source, including positions and containing pages. Both are instance attributes and compare stable IDs. Repeated citations count once per block; hidden or deleted subtrees do not contribute.
 
-Date filters accept `today`, `-30d` and `+7d`, resolved in the notebook's time zone on each read. A filter such as `{"field":"@last_assessed","op":"lt","value":"-30d","or_empty":true}` also matches an absent value. Saved filters keep the relative expression, not its current date.
+Date filters accept `today`, `-30d` and `+7d`, resolved in the workshop's time zone on each read. A filter such as `{"field":"@last_assessed","op":"lt","value":"-30d","or_empty":true}` also matches an absent value. Saved filters keep the relative expression, not its current date.
 
 Grouping uses `group: {key, collapsed?}` and returns distinct row IDs and counts under every applicable heading, including None for empty values. Counts cover the full match before pagination. Relation headings use target IDs, so renaming a target keeps the collapsed group identity.
 
@@ -326,7 +326,7 @@ stateDiagram-v2
     end note
 ```
 
-Clocked work sessions retain their start, end, note and revision. Only one unreversed session may run in a notebook. Completion, cancellation, removal and hiding the running task require an explicit stop first; stop and completion can commit atomically. Reversing a work command retains its audit record.
+Clocked work sessions retain their start, end, note and revision. Only one unreversed session may run in a workshop. Completion, cancellation, removal and hiding the running task require an explicit stop first; stop and completion can commit atomically. Reversing a work command retains its audit record.
 
 Task queries compose source type/text/field constraints with task status, priority, project ancestry and independent date ranges. Unfinished-or-recent selection includes unfinished tasks or an unreversed completion in the inclusive context-date range. Filtering precedes the outer result limit. The client query line resolves type and project titles to canonical IDs and relative dates to civil dates; field predicates remain separate from its text syntax. Named task views retain the full query, including its date context, rather than a textual query.
 
@@ -349,7 +349,7 @@ A question is in one of four states:
 
 Stored with the question are whether it is recurrent (`unsettled`), whether it is parked, its review date, its current assessment and its answer history. State is derived in this order: parked, recurrent, answered when a live accepted assessment exists, otherwise active. Accept current answer on a recurrent question records an answer without resolving it. Make recurrent keeps it open. Allow resolution lets a current answer resolve it. Park stops it coming back. Resume returns it to its derived state.
 
-Accept current answer records a dated decision. Accepting another assessment records that the earlier answer was superseded on that date. Withdraw current answer clears the pointer and records its withdrawal date. The block, text and citations stay. Decisions live in the question's existing JSON state, with defaults for older notebooks. Each change uses the ordinary revision-checked, undoable capability operation; undo restores the previous pointer and history together. Sync uses the same later-change-wins rule as other capabilities.
+Accept current answer records a dated decision. Accepting another assessment records that the earlier answer was superseded on that date. Withdraw current answer clears the pointer and records its withdrawal date. The block, text and citations stay. Decisions live in the question's existing JSON state, with defaults for older workshops. Each change uses the ordinary revision-checked, undoable capability operation; undo restores the previous pointer and history together. Sync uses the same later-change-wins rule as other capabilities.
 
 Remove assessment remains a separate destructive action: it removes the assessment capability, not its text, and clears acceptance in the same change. Undo restores the assessment before restoring acceptance. Removing and restoring a question with a current answer, including a parked question, restores its state and history. A parked question may withdraw its current answer but cannot accept a new one until resumed.
 
@@ -368,7 +368,7 @@ The Questions ledger groups questions by their top-level program, includes inlin
 A source is a page with a source capability. Ingesting the same URL or file with different bytes creates a new, immutable snapshot identified by its content hash.
 
 - A snapshot holds the document's structure and passages: headings, paragraphs, footnotes and other units, each with a locator.
-- Original bytes live in the notebook's object store, addressed by SHA-256.
+- Original bytes live in the workshop's object store, addressed by SHA-256.
 - Passages, structure and reading position live in the database.
 - Passages are evidence, not authored blocks, and are never edited.
 
@@ -455,7 +455,7 @@ Every source has a siglum, a short mark as in a critical edition:
 
 Only the authored override is stored, as an ordinary field. The effective siglum, full letter-only basis and whether it is authored are derived on reads, so editing an author changes the default mark. CSL JSON exports it as `citation-label`.
 
-Unlike citation keys, sigla need not be unique. Library shows each source's own mark. In a citation context with several sources:
+Unlike citation keys, sigla need not be unique. Library shows each source's own mark. In a citation context with more than one source:
 
 - Extend a later colliding derived siglum with further letters of its basis name, in order of first appearance (`THO`, `THOM`, `THOMA`).
 - Once the basis runs out, append `2`, `3`, … .
@@ -491,7 +491,7 @@ A position's recipe offers Gist, Work, then its subject's criteria, explicit whe
 
 Questions beneath the subject attach to the first criterion linked in their text. They are scoped to the linked holder pages of its positions, or to all holders when none are named. These attachments are derived.
 
-Compare question focus is view state, never notebook content. It shows the perspectives of the question's linked holders and marks its criterion; the two sheets share a perspective selection. Cell commits edit the ordinary value blocks through their page document and use that document's history.
+Compare question focus is view state, never workshop content. It shows the perspectives of the question's linked holders and marks its criterion; the two sheets share a perspective selection. Cell commits edit the ordinary value blocks through their page document and use that document's history.
 
 A criterion cell is identified by its position and field IDs. A refreshed position read preserves its focused cell; keyboard commit returns focus to that cell for the next history command.
 
@@ -552,14 +552,14 @@ A kind says what a note is about. These are built in:
 
 Person and Group are entities: pages referred to by a position's holder or a source's creators. A page is an entity when it is filed as Person or Group, or as a type that is itself filed as one.
 
-- Person, Group, Concept and Thesis are system types in every notebook, like the Fields page. They take templates and fields like any type and cannot be deleted or merged.
+- Person, Group, Concept and Thesis are system types in every workshop, like the Fields page. They take templates and fields like any type and cannot be deleted or merged.
 - An existing type with one of those titles becomes the built-in kind, keeping its page, members, fields and template.
 - Question, Source and Project come from capabilities and need no tag.
 
 Types you define are also kinds, listed after the built-ins:
 
 - A type can refine one built-in kind, as Philosopher refines Person. Its members are filed under both; positions and creators treat them as that kind.
-- A note can have several kinds and is filed under each. A note with none is unfiled.
+- A note can have more than one kind and is filed under each. A note with none is unfiled.
 - Tasks and cards are not kinds. They belong to blocks within notes; Agenda and Review are their places.
 
 A source's form is a built-in Form choice field: book, chapter, article, paper, report, post, thread, video or web page, with more options added as for any choice field. Lookup and ingestion fill it, and export writes it as the CSL type and BibTeX entry type.
@@ -575,9 +575,9 @@ Built-in kinds start with templates, filled in only when wanted. Their fields ar
 | article | author, site, published, url |
 
 - A new type page with one of these titles gets its template. An existing page with an empty template offers it instead.
-- Required is rare: only a book requires author. Opening the notebook adds a missing author to Book's template; every other template field can be removed or reordered.
+- Required is rare: only a book requires author. Opening the workshop adds a missing author to Book's template; every other template field can be removed or reordered.
 - Required asks for attention and never refuses a note. A required field stays in its template: a change that drops it is refused with the reason, such as “Books require author.” A member without a nonblank value is incomplete. Its slot shows whatever the field's Hide setting, and the type reads each required field with a count of the members that lack it, which is the field's `empty` filter.
-- A built-in field cannot be renamed, only recased. Opening the notebook recases older Title Case names, such as Author, and gives a built-in relation with no Links to types the types it expects, where those type pages exist. A built-in field changed to a relation gets them in the same change. Opening never changes a field's kind, so an older `lived` stays text until a reviewed kind change. These are ordinary synced edits.
+- A built-in field cannot be renamed, only recased. Opening the workshop recases older Title Case names, such as Author, and gives a built-in relation with no Links to types the types it expects, where those type pages exist. A built-in field changed to a relation gets them in the same change. Opening never changes a field's kind, so an older `lived` stays text until a reviewed kind change. These are ordinary synced edits.
 - A built-in relation links to its types only where those type pages exist; it never creates Person or Group.
 - A question page uses Add alias, since it has no type to carry a template.
 - A Group's members are the people affiliated with it, read back on its page as `← affiliated with`, not a second list.
@@ -586,7 +586,7 @@ Built-in kinds start with templates, filled in only when wanted. Their fields ar
 
 ### Counts as
 
-A field may count as creator, contributor or originator, so readers find who made a work by what a field means rather than by its name. A built-in field counts as the schema says and cannot change, like its name: author and editor count as creator, translator as contributor, and coined by and coined in as originator. Any text or relation field of the notebook's own can count as one of them, or as nothing, the default. A field of another kind cannot.
+A field may count as creator, contributor or originator, so readers find who made a work by what a field means rather than by its name. A built-in field counts as the schema says and cannot change, like its name: author and editor count as creator, translator as contributor, and coined by and coined in as originator. Any text or relation field of the workshop's own can count as one of them, or as nothing, the default. A field of another kind cannot.
 
 - A work's creators are its creator fields' values, author first and then the other fields in Fields page order. Editors count only when a work has no other creator.
 - `@creator`, sigla, the bibliography byline, Library search and the Markdown export header read these creators. A director that counts as creator files a film under its director with no code change.
@@ -627,7 +627,7 @@ Other alias rules:
 
 An agent may propose aliases, such as other phrasings of a question that a search might use. Each is an ordinary value written by the agent, marked as suggested until kept or removed, and undone like any agent change.
 
-Events are a likely future built-in kind; the notebook's own types cover them until then.
+Events are a likely future built-in kind; the workshop's own types cover them until then.
 
 ### State
 
@@ -689,11 +689,11 @@ When detaching or deleting a field leaves a saved recipe naming a missing defini
 
 A research desk is one saved view with `layout: "desk"`. The top-level query selects questions; `desk: {positions: Query, sources: Query}` carries the other two columns. All three use the existing query language. Selecting a question sets the positions query's `@question` condition. Selecting a position sets the sources query's `@cited_in` condition. Other conditions remain specific to their column.
 
-The default questions query excludes parked and answered questions and groups by `@program`. Saving and reopening keep the three queries together, including their linked conditions. The focused column and selected row IDs belong to pane navigation state, so Back, Forward and reload restore them without changing notebook content. Linked filter labels resolve live reference titles while the column results load. Save and update use the ordinary attributed, revision-checked view operations and offer undo.
+The default questions query excludes parked and answered questions and groups by `@program`. Saving and reopening keep the three queries together, including their linked conditions. The focused column and selected row IDs belong to pane navigation state, so Back, Forward and reload restore them without changing workshop content. Linked filter labels resolve live reference titles while the column results load. Save and update use the ordinary attributed, revision-checked view operations and offer undo.
 
 ### Spreads
 
-A spread sets several notes side by side. Selecting two to five notes in a view offers Spread. Each note is a column, with aligned rows:
+A spread sets two to five notes side by side. Selecting two to five notes in a view offers Spread. Each note is a column, with aligned rows:
 
 1. Kind, title, gloss and state.
 2. Each field any selected note has, blank where absent.
@@ -780,7 +780,7 @@ A card template belongs to a type and stores a name, front/back patterns, an app
 
 Each template has its own daily introduction allowance:
 
-- Due and New queues, Today counts and forecasts subtract units first reviewed on the notebook's local day before selecting new template cards.
+- Due and New queues, Today counts and forecasts subtract units first reviewed on the workshop's local day before selecting new template cards.
 - All is active, visible, non-held inventory, including deferred introductions. Explicitly reviewing All bypasses introduction pacing.
 - Authored cards and already-reviewed units keep their existing queue rules.
 - Apply forecasts separate existing due reviews from new introductions, without simulating follow-up reviews.
@@ -818,7 +818,7 @@ Undo last grade appends an immutable correction linked to the original review ev
 
 ## Settings
 
-A notebook has settings: its time zone and editing preferences. Setting one is an operation like any other.
+A workshop has settings: its time zone and editing preferences. Setting one is an operation like any other.
 
 ## Changes and attribution
 

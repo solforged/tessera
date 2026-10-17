@@ -2,13 +2,13 @@ use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("cannot create notebook directory {path}: {source}")]
+    #[error("cannot create workshop directory {path}: {source}")]
     CreateDir {
         path: PathBuf,
         source: std::io::Error,
     },
     #[error(
-        "notebook schema version {found} is newer than this build supports ({supported}); upgrade Tessera"
+        "workshop schema version {found} is newer than this build supports ({supported}); upgrade Tessera"
     )]
     SchemaTooNew { found: u32, supported: u32 },
     /// SQLite's `quick_check` found the file damaged; nothing was copied.
@@ -35,7 +35,7 @@ pub enum Error {
     },
     #[error(transparent)]
     Sqlite(#[from] rusqlite::Error),
-    #[error("notebook I/O: {0}")]
+    #[error("workshop I/O: {0}")]
     Io(#[from] std::io::Error),
 }
 

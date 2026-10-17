@@ -75,12 +75,12 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
   </>;
   const restoreQuestion = () => {
     const action = confirm();
-    return action?.kind === 'file' ? `Replace this notebook with ${action.file.name}?` : 'Replaces this notebook with one from a file. Download a backup first to keep this one.';
+    return action?.kind === 'file' ? `Replace this workshop with ${action.file.name}?` : 'Replaces this workshop with one from a file. Download a backup first to keep this one.';
   };
   return <section id={props.id} aria-labelledby={`${props.id}-heading`} aria-busy={busy()}>
     {props.heading}
     <div class="settings-row">
-      <div class="settings-label"><span class="settings-name">Notebook file</span>
+      <div class="settings-label"><span class="settings-name">Workshop file</span>
         <p>One file with every page, card and book. Keep it somewhere outside this browser.</p>
         <p class="settings-mono" role="status">{lastBackup() ? `Last downloaded ${props.when(lastBackup()!)}` : 'Not downloaded yet.'}</p>
       </div>
@@ -96,7 +96,7 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
     </div>
     <Show when={copy()}>{value => <div class="settings-row">
       <div class="settings-label"><span class="settings-name">Before the last upgrade</span>
-        <p>{confirm()?.kind === 'upgrade' ? 'Replace this notebook with the copy from before the upgrade?' : 'Tessera saved this copy before it upgraded the notebook to a newer format.'}</p>
+        <p>{confirm()?.kind === 'upgrade' ? 'Replace this workshop with the copy from before the upgrade?' : 'Tessera saved this copy before it upgraded the workshop to a newer format.'}</p>
         <p class="settings-mono">schema {value().schema_version} · {props.when(value().created_at)} · {size(value().size)}</p>
       </div>
       <span class="settings-backup-actions"><Show when={confirm()?.kind === 'upgrade'} fallback={<>
@@ -106,7 +106,7 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
     </div>}</Show>
     <Show when={storage()}>{value => <div class="settings-row">
       <div class="settings-label"><span class="settings-name">Storage</span>
-        <p>{value().persisted ? 'This browser keeps the notebook until you clear its site data.' : 'This browser may clear the notebook when the disk runs low.'}</p>
+        <p>{value().persisted ? 'This browser keeps the workshop until you clear its site data.' : 'This browser may clear the workshop when the disk runs low.'}</p>
         <Show when={declined() && !value().persisted}><p role="status">The browser declined. Download backups to keep a copy.</p></Show>
         <Show when={value().estimate.usage !== undefined && value().estimate.quota !== undefined}>
           <p class="settings-mono">{size(value().estimate.usage!)} used of {size(value().estimate.quota!)}</p>
@@ -116,7 +116,7 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
     </div>}</Show>
     <div class="settings-row">
       <div class="settings-label"><span class="settings-name">Start over</span>
-        <p>{confirm()?.kind === 'reset' ? 'Erase this notebook? Download a backup first to keep it.' : 'Erases the notebook in this browser and returns to the first-run choice.'}</p>
+        <p>{confirm()?.kind === 'reset' ? 'Erase this workshop? Download a backup first to keep it.' : 'Erases the workshop in this browser and returns to the first-run choice.'}</p>
       </div>
       <span class="settings-backup-actions"><Show when={confirm()?.kind === 'reset'} fallback={<Button class="bordered danger" disabled={busy()} onClick={() => { props.onError(''); setConfirm({ kind: 'reset' }); }}>Start over…</Button>}>{confirmation()}</Show></span>
     </div>

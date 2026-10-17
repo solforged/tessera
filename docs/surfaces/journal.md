@@ -8,7 +8,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 Add to today (⌘E) opens the shared creation slip centered near the top, 560 px wide. On the cover it rises from the bottom edge above the keyboard; New in the center of the bottom nav opens the same Note-into-Today sheet. Commands finds Add to today through capture, quick note, inbox or journal. A mono rubric names the action in gilt and its destination in `--faint`.
 
-The Kind row offers Note, Question, Task, Card and Source; More offers Project and the notebook's page kinds. Arrow keys select a kind. Until a kind is chosen explicitly, a trailing `?` infers Question, `[] ` or a planning `@date` infers Task, complete card syntax infers Card, and a whole URL, ISBN, DOI or arXiv identifier infers Source. The draft carries across kind switches.
+The Kind row offers Note, Question, Task, Card and Source; More offers Project and the workshop's page kinds. Arrow keys select a kind. Until a kind is chosen explicitly, a trailing `?` infers Question, `[] ` or a planning `@date` infers Task, complete card syntax infers Card, and a whole URL, ISBN, DOI or arXiv identifier infers Source. The draft carries across kind switches.
 
 Into offers Today, New page (notes and questions), and Page…. Notes, tasks and cards default to Today; questions default to New page. An explicit destination stays selected while the kind changes. ⌘N starts Note into New page. Index, ledger and table buttons lock their kind and hide both controls.
 

@@ -58,7 +58,7 @@ impl Session<'_> {
             ));
         }
         Ok(if text.is_empty() {
-            "The notebook has no pages yet.".into()
+            "The workshop has no pages yet.".into()
         } else {
             text
         })

@@ -21,7 +21,7 @@ let notebook: Notebook;
 beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), 'tessera-collection-tests-'));
   const root = resolve(import.meta.dir, '../../..');
-  process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', port], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', port], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   const expectedPath = await realpath(directory);
   // A subprocess's real HTTP listener cannot be advanced by fake timers.
   const deadline = Date.now() + 10000;

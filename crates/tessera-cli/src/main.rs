@@ -13,9 +13,14 @@ use tessera_core::Notebook;
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
-    /// Notebook directory. Defaults to the notebook last opened from the app's notebook
-    /// switcher, or the platform data directory's notebook.
-    #[arg(long, global = true, env = "TESSERA_NOTEBOOK")]
+    /// Workshop directory. Defaults to the workshop last opened from the app's
+    /// switcher, or $XDG_DATA_HOME/tessera/workshops/main.
+    #[arg(
+        long = "workshop",
+        value_name = "WORKSHOP",
+        global = true,
+        env = "TESSERA_WORKSHOP"
+    )]
     notebook: Option<PathBuf>,
     #[command(subcommand)]
     command: Command,
@@ -23,9 +28,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Print the notebook's identity and schema as JSON, creating it if missing.
+    /// Print the workshop's identity and schema as JSON, creating it if missing.
     Info,
-    /// Queue files or HTTP URLs in the running notebook service.
+    /// Queue files or HTTP URLs in the running workshop service.
     Add {
         #[arg(required = true)]
         inputs: Vec<String>,
@@ -41,10 +46,10 @@ enum Command {
         #[arg(long, conflicts_with = "source_ids")]
         view: Option<String>,
     },
-    /// Serve the running notebook to agents as a Model Context Protocol
+    /// Serve the running workshop to agents as a Model Context Protocol
     /// server on stdin and stdout.
     Mcp,
-    /// Serve the notebook and the browser editor on loopback.
+    /// Serve the workshop and the browser editor on loopback.
     Serve {
         #[arg(long, default_value_t = tessera_service::DEFAULT_PORT)]
         port: u16,
@@ -59,7 +64,7 @@ enum Command {
         dev_origin: Option<String>,
     },
     /// Install the local service as a macOS launch agent. Stops the old
-    /// service, backs up the notebook, and waits for this build to answer.
+    /// service, backs up the workshop, and waits for this build to answer.
     Install {
         #[arg(long, default_value_t = tessera_service::DEFAULT_PORT, value_parser = clap::value_parser!(u16).range(1..))]
         port: u16,
@@ -70,11 +75,11 @@ enum Command {
         #[arg(long)]
         rollback: Option<PathBuf>,
     },
-    /// Remove the macOS launch agent without deleting the notebook.
+    /// Remove the macOS launch agent without deleting the workshop.
     Uninstall,
-    /// Back up a notebook while its service is running.
+    /// Back up a workshop while its service is running.
     Backup { dest: PathBuf },
-    /// Restore a backup into an offline notebook.
+    /// Restore a backup into an offline workshop.
     Restore {
         src: PathBuf,
         #[arg(long)]
@@ -82,7 +87,7 @@ enum Command {
     },
     /// Check the database file, the derived tables and the model's rules,
     /// and print per-table hashes as JSON. Exits with status 1 when a problem
-    /// remains. Goes through the running service when one owns the notebook.
+    /// remains. Goes through the running service when one owns the workshop.
     Check {
         /// Replace the derived tables with freshly derived rows, as one change
         /// by the `check` client. Authored text and review history are never written.
@@ -90,7 +95,7 @@ enum Command {
         repair: bool,
     },
     /// Push this replica's changes to its hub and pull the hub's, or manage
-    /// the replica. While a service owns the notebook, sync, status and
+    /// the replica. While a service owns the workshop, sync, status and
     /// conflicts go through that service; pins need it stopped.
     Sync {
         #[command(subcommand)]
@@ -109,12 +114,15 @@ fn main() -> anyhow::Result<()> {
         .init();
     let cli = Cli::parse();
     let explicit_notebook = cli.notebook.is_some();
+    if !explicit_notebook && matches!(cli.command, Command::Serve { .. }) {
+        tessera_service::migration::migrate_layout()?;
+    }
     let registry = tessera_service::notebooks::Registry::platform();
     let notebook = match cli.notebook {
         Some(path) => path,
         None => registry
             .as_ref()
-            .context("no platform data directory; pass --notebook")?
+            .context("no workshop directory; pass --workshop")?
             .startup(),
     };
     match cli.command {
@@ -156,6 +164,7 @@ fn main() -> anyhow::Result<()> {
                 registry,
                 follows_registry: !explicit_notebook,
                 agent_path: None,
+                backup_store: tessera_service::paths::backups_dir(),
             }))?;
             if let Some(restart) = restart {
                 return reopen(restart, explicit_notebook, assets, dev_origin);
@@ -190,7 +199,7 @@ fn main() -> anyhow::Result<()> {
 }
 
 /// Start this executable again on the switched-to notebook, at the ports the old one had.
-/// A service following the registry starts without `--notebook`, because the registry now
+/// A service following the registry starts without `--workshop`, because the registry now
 /// names the new notebook; on Unix the process image is replaced, keeping the PID launchd watches.
 fn reopen(
     restart: tessera_service::Restart,
@@ -201,9 +210,9 @@ fn reopen(
     let mut command = std::process::Command::new(
         std::env::current_exe().context("cannot find this executable to reopen")?,
     );
-    command.env_remove("TESSERA_NOTEBOOK");
+    command.env_remove("TESSERA_WORKSHOP");
     if explicit_notebook {
-        command.arg("--notebook").arg(&restart.notebook);
+        command.arg("--workshop").arg(&restart.notebook);
     }
     command
         .arg("serve")
@@ -220,20 +229,20 @@ fn reopen(
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
-        Err(command.exec()).context("cannot restart on the switched notebook")
+        Err(command.exec()).context("cannot restart on the switched workshop")
     }
     #[cfg(not(unix))]
     {
         let status = command
             .status()
-            .context("cannot restart on the switched notebook")?;
+            .context("cannot restart on the switched workshop")?;
         std::process::exit(status.code().unwrap_or(1));
     }
 }
 
 async fn service(notebook: &std::path::Path) -> anyhow::Result<(reqwest::Client, String)> {
     let message = format!(
-        "No service is running for {}. Start it with tessera --notebook {} serve.",
+        "No service is running for {}. Start it with tessera --workshop {} serve.",
         notebook.display(),
         notebook.display()
     );

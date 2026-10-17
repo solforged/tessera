@@ -206,7 +206,7 @@ impl Notebook {
         let cloned = Connection::open(path)?;
         let id: String = cloned.query_row("SELECT id FROM notebook", [], |r| r.get(0))?;
         if id != ticket.notebook_id {
-            return Err(validation("the snapshot is not the ticket's notebook"));
+            return Err(validation("the snapshot is not the ticket's workshop"));
         }
         // Never overwrite a previous recovery copy; a same-second attempt gets `-2`, `-3`, …
         let stem = format!("{DATABASE_FILE}.{suffix}-{}", crate::now_ms() / 1000);
@@ -227,6 +227,7 @@ impl Notebook {
             }
         };
         self.conn.backup("main", &previous, None)?;
+        super::prune_recovery_copies(&self.dir, suffix, &previous)?;
         cloned.execute(
             "ATTACH DATABASE ?1 AS previous",
             [previous.to_string_lossy().as_ref()],

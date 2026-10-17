@@ -395,7 +395,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   async appendCapture(text: string, task: TaskState | null, picked: readonly [string, string][] = [], options: Pick<CaptureIntent, 'targetPageId' | 'question'> = {}): Promise<CaptureReceipt> {
     await this.ready;
-    if (this.closed) throw new Error('The notebook is closed.');
+    if (this.closed) throw new Error('The workshop is closed.');
     if (!this.outbox) throw new Error('Recovery storage has not opened.');
     const command: NotebookCommand = {
       kind: 'notebook', id: ulid(), order: ++this.order, pageId: null,
@@ -487,7 +487,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     const frozen = JSON.stringify({ actor: { kind: 'client', name: this.actorName }, idempotency_key: id, reason, operations });
     const snapshot: Batch = JSON.parse(frozen);
     if (!this.initialized) await this.ready;
-    if (this.closed) throw new Error('The notebook is closed.');
+    if (this.closed) throw new Error('The workshop is closed.');
     if (!snapshot.operations.length) throw new Error('A command needs an operation.');
     const command: NotebookCommand = { kind: 'notebook', id, order: ++this.order, pageId: null, operations: snapshot.operations, reason, refreshPages: refreshPages ? [...refreshPages] : undefined, actions: [], inverse: [], before: null, after: null, frozen };
     const waiter = Promise.withResolvers<Committed>();
@@ -1471,7 +1471,7 @@ export class Notebook implements NotebookClient, DocumentHost {
               return true;
             });
             if (structural) {
-              await this.reject(command, doc, 'A structural change could not be applied because the notebook changed. Rejected text is kept for copying; the operation was not reapplied.');
+              await this.reject(command, doc, 'A structural change could not be applied because the workshop changed. Rejected text is kept for copying; the operation was not reapplied.');
               continue;
             } else {
               const choices = command.resolutions?.filter(choice => doc.isResolving(choice.id)) ?? [];
@@ -1697,7 +1697,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         this.streamWork = this.streamWork.then(async () => {
           if (!this.closed && this.socket === socket) await this.change(JSON.parse(String(message.data)) as ChangeEvent);
         }).catch(error => {
-          this.failure = `Could not read notebook changes: ${error instanceof Error ? error.message : String(error)}`;
+          this.failure = `Could not read workshop changes: ${error instanceof Error ? error.message : String(error)}`;
           this.touch();
         });
       };

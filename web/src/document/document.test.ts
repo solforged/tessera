@@ -62,7 +62,7 @@ function ids(doc: PageDocument) { return Array.from({ length: doc.outline.size()
 beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), 'tessera-Document-tests-'));
   const root = resolve(import.meta.dir, '../../..');
-  process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', port, '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', port, '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   const deadline = Date.now() + 5000;
   const expectedPath = await realpath(directory);
   while (true) {
