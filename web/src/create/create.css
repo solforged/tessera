@@ -22,7 +22,17 @@
 .create-page .new-kind-gist:focus { outline: none; border-bottom-color: var(--accent); }
 .create-page .new-kind-gist::placeholder { color: var(--faint); }
 .create-page .new-kind-note { margin: var(--space-8) 0 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
-.create-page .new-kind-template { display: flex; gap: var(--space-8); margin: var(--space-12) 0 0; color: var(--muted); font: var(--apparatus); }
-.create-page .new-kind-template > span { color: var(--faint); text-transform: uppercase; letter-spacing: var(--tracking-apparatus); }
 .create-matches { margin-top: var(--space-16); border-top: var(--rule-width) solid var(--line); }
 .create-page .new-kind-matches-label { margin: var(--space-8) 0 var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.create-page { display: flex; flex-direction: column; }
+.create-page > .create-foot { order: 1; }
+.create-page .create-keys { order: -2; }
+.create-page .create-cancel { order: -1; }
+.create-fields { min-width: 0; margin-top: var(--space-12); }
+.create-fields:empty { display: none; }
+.create-field-row.button { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); align-items: baseline; gap: var(--space-12); width: 100%; padding: var(--space-8) 0; border-radius: 0; border-top: var(--rule-width) solid var(--line); text-align: left; white-space: normal; }
+.create-field-label { color: var(--muted); font: var(--apparatus); }
+.create-field-value { min-width: 0; overflow-wrap: anywhere; color: var(--text); font-size: var(--text-control); line-height: var(--line-control); }
+.create-field-empty, .create-fields-more { color: var(--faint); }
+.create-field-row.button:disabled { opacity: 1; cursor: default; }
+.create-fields-more { margin: var(--space-8) 0 0; font: var(--apparatus); }

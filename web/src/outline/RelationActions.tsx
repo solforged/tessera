@@ -1,5 +1,6 @@
 import { Show, createResource, createSignal } from 'solid-js';
 import type { Block } from '../api/types';
+import type { NotebookClient } from '../document/contract';
 import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
 import { Icon } from '../ui/Icon';
@@ -11,8 +12,23 @@ import { createEntity, entityKinds, entityLabel, fileAsEntity } from './holders'
 import type { EntityKind } from './holders';
 
 type RelationAction = 'holder' | 'subject' | 'integrate' | 'reading';
-interface Choice { block: Block; section: string; alias?: string | null; create?: EntityKind; file?: EntityKind }
+export interface HolderChoice { block: Block; section: string; alias?: string | null; create?: EntityKind; file?: EntityKind }
+type Choice = HolderChoice;
 const labels: Record<RelationAction, string> = { holder: 'Change holder', subject: 'File under', integrate: 'Integrate', reading: 'Who holds this?' };
+
+/** The same people, groups, filing and creation choices in a perspective and a question draft. */
+export async function holderChoices(notebook: NotebookClient, text: string, preferred?: { ids: Set<string>; types: Set<string> }, roots = notebook.roots()): Promise<HolderChoice[]> {
+  if (!preferred) {
+    const [entities, types] = await Promise.all([notebook.api.entities(), notebook.api.types()]);
+    preferred = { ids: new Set(entities), types: new Set(types.map(type => type.page.id)) };
+  }
+  const names = await completeNames(notebook, text, roots);
+  const people: HolderChoice[] = names.rows.filter(({ page }) => preferred.ids.has(page.id)).map(({ page, alias }) => ({ block: page, alias, section: 'People and groups' }));
+  const others = text.trim() ? names.rows.filter(({ page }) => !preferred.ids.has(page.id) && !preferred.types.has(page.id)).slice(0, 3) : [];
+  const filing: HolderChoice[] = others.flatMap(({ page, alias }) => entityKinds.map(kind => ({ block: page, alias, file: kind, section: 'File as a person or group' })));
+  const creating: HolderChoice[] = names.canCreate && text.trim() ? entityKinds.map(kind => ({ create: kind, section: 'Create', block: { id: `create-${kind}`, kind: 'page', parent_id: null, page_id: `create-${kind}`, text: text.trim(), heading: null, archived: false, revision: 0, created_at: 0, updated_at: 0, kept_copy: null } })) : [];
+  return [...people, ...filing, ...creating];
+}
 
 /** The existing picker serves authored links and journal destinations; none are inferred from prose. */
 export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'props' | 'rowAnchor' | 'setMessage' | 'restoreFocus' | 'editor' | 'showNotice' | 'scheduleReport'>, onAddReading?: (holderId: string) => Promise<void>) {
@@ -70,15 +86,8 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
       });
       const [choices] = createResource(() => [query(), preferred(), props.notebook.roots()] as const, async ([text, preferred, roots]): Promise<Choice[]> => {
         if (!preferred) return [];
+        if (holding) return holderChoices(props.notebook, text, preferred, roots);
         const names = await completeNames(props.notebook, text, roots);
-        if (holding) {
-          // Only people and groups hold perspectives: a page named in the query is offered for filing, a new name for creating.
-          const people: Choice[] = names.rows.filter(({ page }) => preferred.ids.has(page.id)).map(({ page, alias }) => ({ block: page, alias, section: 'People and groups' }));
-          const others = text.trim() ? names.rows.filter(({ page }) => !preferred.ids.has(page.id) && !preferred.types.has(page.id)).slice(0, 3) : [];
-          const filing: Choice[] = others.flatMap(({ page, alias }) => entityKinds.map(kind => ({ block: page, alias, file: kind, section: 'File as a person or group' })));
-          const creating: Choice[] = names.canCreate && text.trim() ? entityKinds.map(kind => ({ create: kind, section: 'Create', block: { id: `create-${kind}`, kind: 'page', parent_id: null, page_id: `create-${kind}`, text: text.trim(), heading: null, archived: false, revision: 0, created_at: 0, updated_at: 0, kept_copy: null } })) : [];
-          return [...people, ...filing, ...creating];
-        }
         const result: Choice[] = names.rows.map(({ page, alias }) => ({ block: page, alias, section: current.kind === 'integrate' ? 'Pages' : preferred.ids.has(page.id) ? 'Questions and concepts' : 'Pages' }));
         if (current.kind === 'subject') {
           // Question pages use the shared name resolver; inline questions use reference search below.

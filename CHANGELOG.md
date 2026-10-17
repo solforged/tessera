@@ -8,6 +8,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Added parent, revisit, recurrent and first-perspective fields to question creation.
+- Added project outcomes and deadlines to the creation slip without repeating the outcome in the body.
+- Added editable template fields to typed-page creation and preserved filled values when filing existing pages.
 - Added New card to non-empty Review and reused the front/back composer inside the creation slip.
 - Added one creation slip for notes, questions, tasks, cards, sources, projects and typed pages, with inferred kinds and Today or page destinations.
 - Added durable under-page captures and question lines, with Open and Undo acknowledgements.

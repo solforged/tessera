@@ -1,13 +1,12 @@
 import { For, Show, createMemo, createResource, createSignal, createUniqueId, onMount } from 'solid-js';
-import { ulid } from 'ulid';
-import type { NoteKind, Operation } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
-import { documentReady } from '../outline/source-fields';
-import { filingOperations } from '../notes/finding-aid';
+import type { NoteKind } from '../api/types';
+import type { NotebookClient } from '../document/contract';
 import { pendingCaretInput } from '../shell/pending-caret';
 import type { OpenTarget } from '../shell/contract';
 import { Button } from '../ui/Button';
 import type { CreateKind } from './request';
+import { DraftFields } from './DraftFields';
+import { blankDraftFields, createPageDraft } from './draft';
 
 const gistPrompt: Record<string, (noun: string) => string> = {
   note: () => 'First line, optional',
@@ -24,6 +23,7 @@ export function PageDraft(props: {
 }) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
+  const [fields, setFields] = createSignal(blankDraftFields());
   const id = createUniqueId();
   let title!: HTMLTextAreaElement;
   const mode = () => props.kind.startsWith('type:') ? 'type' : props.kind;
@@ -38,7 +38,6 @@ export function PageDraft(props: {
     return [...rows.values()];
   });
   const [type] = createResource(() => props.noteKind?.type_id || false, key => props.notebook.api.type(key));
-  const template = () => (type.latest?.fields ?? []).map(key => props.notebook.lookup(key)()?.text).filter(Boolean);
   const found = () => existing.latest?.title === query() ? existing.latest.id ?? undefined : undefined;
   const [kinds] = createResource(() => found() || false, key => props.notebook.api.noteKinds(key));
   const member = () => !!found() && (props.kind === 'note' || kinds()?.some(kind => kind.key === (props.noteKind?.key ?? props.kind)));
@@ -53,38 +52,22 @@ export function PageDraft(props: {
     setBusy(true); setError('');
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const pending = pendingCaretInput.prepare();
-    let doc: PageDocument | undefined;
     try {
-      const existingId = await props.notebook.pageByTitle(text, false);
-      const filed = existingId && (props.kind === 'note' || (await props.notebook.api.noteKinds(existingId)).some(kind => kind.key === (props.noteKind?.key ?? props.kind)));
-      const pageId = existingId ?? ulid(), caretId = existingId ? undefined : ulid();
-      const line = props.gist.trim();
-      if (!filed) {
-        let revision = 1;
-        if (existingId) { doc = props.notebook.open(existingId); await documentReady(doc); await doc.flush(); revision = (await props.notebook.api.block(pageId)).revision; }
-        const kindPage = mode() === 'type' ? await props.notebook.pageByTitle(props.noteKind!.name, false) : null;
-        const operations: Operation[] = [
-          ...existingId ? [] : [{ op: 'create_page' as const, id: pageId, title: text }],
-          ...caretId ? [{ op: 'insert' as const, id: caretId, parent_id: pageId, after: null, text: line, heading: null }] : [],
-          ...mode() === 'type' ? filingOperations(pageId, revision, props.noteKind!.name, kindPage ? undefined : ulid())
-            : props.kind === 'question' ? [{ op: 'set_question' as const, id: pageId, base_revision: revision, question: { unsettled: false, parked: false, accepted: null, review_on: null } }]
-              : props.kind === 'project' ? [{ op: 'set_project' as const, id: pageId, base_revision: revision, project: { status: 'active' as const, outcome: '', deadline: null } }] : [],
-        ];
-        await props.notebook.commit(operations, `New ${noun()}`);
-        if (!existingId) props.onCreated?.(pageId);
-      }
+      const { pageId, caretId, caretOffset, created } = await createPageDraft(props.notebook, { kind: props.kind, noteKind: props.noteKind, text, gist: props.gist, fields: fields() });
+      if (created) props.onCreated?.(pageId);
       if (again) {
-        pending(); props.onAdded(); props.onTextChange(''); props.onGistChange('');
+        pending(); props.onAdded(); props.onTextChange(''); props.onGistChange(''); setFields(blankDraftFields());
         queueMicrotask(() => { fit(); title.focus(); });
       } else {
         if (!caretId) pending();
-        props.onOpen({ kind: 'page', pageId, ...(caretId ? { caretId, caretOffset: line.length } : {}) }, beside || !!props.defaultBeside);
+        props.onOpen({ kind: 'page', pageId, ...(caretId ? { caretId, caretOffset } : {}) }, beside || !!props.defaultBeside);
       }
     } catch (reason) { pending(); setError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { doc?.release(); setBusy(false); }
+    finally { setBusy(false); }
   }
   function keydown(event: KeyboardEvent) {
     if (event.key !== 'Enter' || event.isComposing) return;
+    if (!event.metaKey && !event.ctrlKey && event.target instanceof HTMLElement && !event.target.matches('.create-page-title, .new-kind-gist')) return;
     event.preventDefault(); event.stopPropagation();
     void submit(event.shiftKey && !event.metaKey && !event.ctrlKey, event.shiftKey && (event.metaKey || event.ctrlKey));
   }
@@ -96,13 +79,13 @@ export function PageDraft(props: {
       <input id={`${id}-gist`} class="new-kind-gist" value={props.gist} disabled={busy()} autocomplete="off" placeholder={gistPrompt[mode()]?.(noun())} onInput={event => props.onGistChange(event.currentTarget.value)} />
     </Show>}><p class="new-kind-note">“{query()}” {member() ? `is already a ${noun()}.` : `already exists; it will be ${mode() === 'type' ? `filed under ${props.noteKind!.name}` : `made a ${noun()}`}.`}</p></Show>
     <Show when={typePage()}><p class="new-kind-note">“{props.noteKind!.name}” names the type itself.</p></Show>
-    <Show when={template().length}><p class="new-kind-template"><span>Template</span>{template().join(' · ')}</p></Show>
+    <Show when={!typePage()}><DraftFields notebook={props.notebook} kind={props.kind} fieldIds={type()?.fields ?? []} existingId={found()} disabled={busy()} value={fields()} onChange={setFields} /></Show>
+    <Show when={error() || existing.error || similar.error}><p class="error" role="alert">{error() || String(existing.error ?? similar.error)}</p></Show>
+    <footer class="create-foot"><span class="create-keys"><Show when={props.status} fallback={<Show when={!props.sheet}><kbd>↵</kbd> Create <kbd>⇧↵</kbd> Beside <kbd>⇧⌘↵</kbd> Another <kbd>esc</kbd> Close</Show>}>{text => <span role="status">{text()}</span>}</Show></span>
+      <Button type="submit" class="bordered" disabled={!query() || busy() || typePage() || mode() === 'type' && !props.noteKind}>{busy() ? 'Saving…' : member() ? `Open ${noun()}` : found() ? `File as ${noun()}` : `Create ${noun()}`}</Button><Show when={!props.sheet}><Button class="create-cancel" disabled={busy()} onClick={props.onDismiss}>Cancel</Button></Show>
+    </footer>
     <Show when={matches().length}><div class="create-matches" role="group" aria-label="Similar pages"><p class="new-kind-matches-label">Similar pages</p>
       <For each={matches()}>{row => <div class="create-match"><span>{row.text}<Show when={row.alias}>{alias => <span class="reference-via"> via {alias()}</span>}</Show></span><Button onClick={() => props.onGistChange(`${props.gist} [[${row.text}]]`)}>Link</Button><Button onClick={() => props.onOpen({ kind: 'page', pageId: row.id }, false)}>Open</Button></div>}</For>
     </div></Show>
-    <Show when={error() || existing.error || similar.error}><p class="error" role="alert">{error() || String(existing.error ?? similar.error)}</p></Show>
-    <footer class="create-foot"><span class="create-keys"><Show when={props.status} fallback={<Show when={!props.sheet}><kbd>↵</kbd> Create <kbd>⇧↵</kbd> Beside <kbd>⇧⌘↵</kbd> Another <kbd>esc</kbd> Close</Show>}>{text => <span role="status">{text()}</span>}</Show></span>
-      <Show when={!props.sheet}><Button disabled={busy()} onClick={props.onDismiss}>Cancel</Button></Show><Button type="submit" class="bordered" disabled={!query() || busy() || typePage() || mode() === 'type' && !props.noteKind}>{busy() ? 'Saving…' : member() ? `Open ${noun()}` : found() ? `File as ${noun()}` : `Create ${noun()}`}</Button>
-    </footer>
   </form>;
 }

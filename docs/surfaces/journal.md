@@ -12,6 +12,8 @@ The Kind row offers Note, Question, Task, Card and Source; More offers Project a
 
 Into offers Today, New page (notes and questions), and Page…. Notes, tasks and cards default to Today; questions default to New page. An explicit destination stays selected while the kind changes. ⌘N starts Note into New page. Index, ledger and table buttons lock their kind and hide both controls.
 
+Page drafts show kind-specific field rows beneath the gist: Parent question, Revisit, Recurrent and First perspective for questions; Deadline for projects; and up to four template fields for typed pages. A project's gist sets its outcome rather than repeating it in its body. Fields use the page's label/value voice and the table's editors, stay full-width on the cover, and save in the creation batch. Filing an existing title keeps already-filled fields read-only.
+
 ### Line kind and completions
 
 - A note, question or task line appends at the end of Today or the chosen page, reusing a trailing empty block. A question adds its question state in the same batch.

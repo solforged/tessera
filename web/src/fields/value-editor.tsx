@@ -9,6 +9,25 @@ import type { PopupAnchor } from '../ui/Popup';
 import { RelationPicker } from './RelationPicker';
 import { choiceRows } from './value-options';
 import type { ChoiceRow } from './value-options';
+import { partialDatePlaceholder } from './kinds';
+
+/** Plain table values retain multiline input, native input modes and Enter/blur commit behavior. */
+export function PlainValueInput(props: {
+  field?: FieldDefinition; text: string; class?: string;
+  onInput(text: string): void; onCommit(returnFocus: boolean): void; onCancel(): void;
+}) {
+  const placeholders = { date: partialDatePlaceholder, url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
+  return <textarea class={`input ${props.class ?? ''}`} aria-label={`Edit ${props.field?.name ?? 'field'} value`}
+    placeholder={props.field && props.field.kind in placeholders ? placeholders[props.field.kind as keyof typeof placeholders] : undefined}
+    inputmode={props.field?.kind === 'number' ? 'decimal' : props.field?.kind === 'url' ? 'url' : undefined}
+    rows={Math.min(8, Math.max(1, (props.text.match(/\n/g)?.length ?? 0) + 1))} value={props.text}
+    ref={input => queueMicrotask(() => { input.focus({ preventScroll: true }); input.select(); })}
+    onInput={event => props.onInput(event.currentTarget.value)} onKeyDown={event => {
+      if (event.isComposing) return;
+      if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); props.onCommit(true); }
+      else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); props.onCancel(); }
+    }} onBlur={() => props.onCommit(false)} />;
+}
 
 /** One value write for both outlines and tables. Blank readings keep their block. */
 export function writeFieldValue(doc: PageDocument, target: { field: FieldDefinition; ownerId: string; valueId?: string; after?: string | null }, text: string, edit?: PageDocument['edit'], relationPick?: RelationPickIntent): Extract<EditResult, { ok: true }> {

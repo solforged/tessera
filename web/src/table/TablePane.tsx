@@ -17,8 +17,8 @@ import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
-import { checkboxValue, partialDatePlaceholder } from '../fields/kinds';
-import { ValueEditor, writeFieldValue } from '../fields/value-editor';
+import { checkboxValue } from '../fields/kinds';
+import { PlainValueInput, ValueEditor, writeFieldValue } from '../fields/value-editor';
 import { hasValueEditor } from '../fields/value-options';
 import { createOptionValue } from '../fields/commands';
 import { missingFilter, requiredIds, requiredReason } from '../fields/required';
@@ -59,7 +59,6 @@ type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label:
   | { kind: 'embed-page'; anchor: HTMLElement; view: View }
   | { kind: 'value'; anchor: HTMLElement; row: QueryRow; field: FieldDefinition; value?: FieldValue }
   | null;
-const valuePlaceholders: Partial<Record<FieldKind, string>> = { date: partialDatePlaceholder, url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
 const titleWidthLimits = { min: 170, max: 340, default: 240 };
 const clampTitleWidth = (width: number | undefined) => Number.isFinite(width) ? Math.max(titleWidthLimits.min, Math.min(titleWidthLimits.max, width!)) : titleWidthLimits.default;
 const refsColumn = '$refs';
@@ -793,11 +792,9 @@ function TableContent(props: TablePaneProps) {
   const renderCell = (row: QueryRow, id: string) => {
     const field = () => fieldById(id); const current = () => editing();
     return <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<Show when={required().has(id) && !row.values[id]?.length} fallback={renderValue(row, id)}><span class="table-needed">needed</span></Show>}>
-      <textarea class="input table-cell-input" aria-label={`Edit ${field()?.name ?? 'field'} value`} placeholder={field() ? valuePlaceholders[field()!.kind] : undefined} inputmode={field()?.kind === 'number' ? 'decimal' : field()?.kind === 'url' ? 'url' : undefined} rows={Math.min(8, Math.max(1, (current()?.text.match(/\n/g)?.length ?? 0) + 1))} value={current()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus({ preventScroll: true }); input.select(); })} onInput={event => { const text = event.currentTarget.value; setEditing(value => value ? { ...value, text } : null); }} onKeyDown={event => {
-        if (event.isComposing) return;
-        if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); void commitEdit(true); }
-        else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditing(null); region.focus(); }
-      }} onBlur={() => { void commitEdit(); }} />
+      <PlainValueInput class="table-cell-input" field={field()} text={current()?.text ?? ''}
+        onInput={text => setEditing(value => value ? { ...value, text } : null)}
+        onCommit={returnFocus => { void commitEdit(returnFocus); }} onCancel={() => { setEditing(null); region.focus(); }} />
     </Show>;
   };
   const renderCardCell = (row: QueryRow, field: FieldDefinition) => <div class={`table-card-field table-kind-${field.kind}`} classList={{ 'table-card-source': field.id === sourceField()?.id, 'table-card-gloss': field.name.trim().toLocaleLowerCase() === 'gloss', 'table-card-grouped-field': !!query().group && field.id === query().group?.key }} role="button" tabIndex={0} aria-label={`Open ${field.name} field`} onClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('button') && !field.id.startsWith('@')) openField(row, field); }} onKeyDown={event => { if ((event.key === 'Enter' || event.key === ' ') && !field.id.startsWith('@')) { event.preventDefault(); event.stopPropagation(); openField(row, field); } }}><span class="table-card-field-name">{field.name}</span>{renderValue(row, field.id, true)}</div>;
