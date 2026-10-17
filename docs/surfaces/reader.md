@@ -189,7 +189,7 @@ Full screen, the corner-arrows button after `Aa` or `F`, turns the whole app win
 | Screen | Fade and return | Layout while faded |
 | --- | --- | --- |
 | Mouse | The toolbar and book map at the foot fade 2.5 s after the pointer rests and return when it moves. The line under the map stays. | Everything keeps its room, so the text never moves. |
-| Touch, in full screen or on the cover screen | A tap in the middle of the page, not on a highlight, link or button, fades or returns the toolbar and book map with the cover screen's masthead and pane tabs. | The masthead, toolbar and book map lie over the page, painted the screen's full width with the text fading into them. Once they fade, the page has the screen from the top band's top to the line under the map. |
+| Touch, in full screen or on the cover screen | A tap in the middle of the page, not on a highlight, link or button, fades or returns the toolbar and book map with the cover screen's masthead and pane tabs. | The pane tabs, masthead, toolbar and book map lie over the page, painted the screen's full width with the text fading into them. Once they fade, the page has the screen from the top band's top to the line under the map. |
 
 On Android the status and navigation bars leave and return with the active reader's controls, and a swipe from the screen's edge shows them for a moment. Inactive readers never hide the system bars or working-pane tabs. The native app keeps that bar mode through folding and keyboard changes. Closing a note after folding returns both bars to the reader's current mode. Full screen on a touch screen 600 px or wider also gives the page the status bar's room, and the toolbar returns below the bar. The cover screen keeps that room for its camera.
 

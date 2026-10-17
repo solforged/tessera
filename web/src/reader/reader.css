@@ -53,6 +53,7 @@
 .reader-chrome-over { display: grid; grid-template: auto auto minmax(0, 1fr) auto / minmax(0, 1fr); }
 .reader-chrome-over > * { grid-column: 1; }
 .reader-chrome-over > .reader-masthead { grid-row: 1; }
+.is-split:not(.is-immersive) .reader-chrome-over > .reader-masthead { margin-top: var(--target-size); }
 .reader-chrome-over > .reader-header { grid-row: 2; position: relative; }
 .reader-chrome-over > :is(.reader-status, .reader-error) { grid-row: 3; align-self: start; position: relative; z-index: 1; }
 .reader-chrome-over > .reader-body { grid-row: 1 / 4; }

@@ -210,12 +210,17 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .pane-tabs { display: none; align-items: stretch; gap: var(--space-8); padding-inline: var(--space-8) var(--space-4); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); transition: opacity var(--motion-ui) var(--motion-ease); }
 /* While a book reads with its chrome away, the pane tabs fade with it and keep their room, so the page never moves. */
 .app:has(.pane.active .reader-chrome-hidden) .pane-tabs { opacity: 0; pointer-events: none; }
+/* Where the reader's chrome lies over the page (touch), the pane tabs lie over it too, as the top of that band: the page has the whole pane, and the reader's own band starts below them. */
+.app:has(.pane.active .reader-chrome-over) .workspace { position: relative; }
+.app:has(.pane.active .reader-chrome-over) .pane-tabs { position: absolute; inset: 0 0 auto; z-index: 3; height: var(--target-size); background: var(--canvas); }
 /* Pane tabs use the mode-tab vocabulary: mono labels, a rubric pane number, and the gilt rule under the current pane. */
 .pane-tab-strip.tab-strip { flex: 1; min-width: 0; box-shadow: none; }
 .pane-tab-strip > .button { flex: 1 1 0; min-width: 0; justify-content: flex-start; gap: var(--space-8); }
 .pane-tab-number { flex: none; color: var(--danger); }
 .pane-tab-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pane-tabs-close.button { flex: none; align-self: center; }
+/* Each tab carries its own close, so the pane that goes is the one named beside it, not whichever pane is showing. */
+.pane-tab-close.button { flex: none; align-self: center; margin-right: var(--space-4); color: var(--faint); }
+.pane-tab-close.button:hover { color: var(--text); }
 /* The workspace is a row of panes; dividers share widths, and panes the window cannot fit stand as spines at its ends. */
 .panes { position: relative; display: flex; flex: 1; min-height: 0; }
 .pane { position: relative; display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; min-height: 0; background: var(--canvas); container: pane / inline-size; }

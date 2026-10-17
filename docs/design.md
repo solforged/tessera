@@ -277,7 +277,7 @@ Settings › Agent lists the models: name, then mono kind, model and whether a k
 | Width | Behavior |
 |---|---|
 | Below 1048 px | Sidebar becomes a toggleable overlay |
-| Below 840 px | Working-pane tabs show one pane at a time, in the mode-tab style: rubric pane number, mono title, gilt rule under the current pane, and Close pane at the strip's end |
+| Below 840 px | Working-pane tabs show one pane at a time, in the mode-tab style: rubric pane number, mono title, gilt rule under the current pane, and a close beside each tab that closes that pane |
 | Below 600 px | Find or create, Commands and Layout retain accessible labels on icon controls; workspace gutter shrinks to 4 px |
 
 While the sidebar is open, a shade in the shell color dims the workspace beside it. Tapping or clicking the shade closes the sidebar. On the cover screen the open sidebar covers its own toggle, so it opens on a masthead instead: the oculus and TESSERA wordmark with Close sidebar at the right, then the notebook name and its note count in mono apparatus, over a hairline. The name is always shown there, in `--warning` for a notebook other than the default, and the foot leaves it out. Hidden navigation is inert immediately, including during its exit.
