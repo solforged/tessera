@@ -40,7 +40,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
   const documents = new Map<string, PageDocument>();
   const tagPrompt = createHighlightTagPrompt();
   const [lastDocument, setLastDocument] = createSignal<PageDocument>();
-  const [cardDraft, setCardDraft] = createSignal<{ document: PageDocument; row: HighlightRow; anchor: DOMRect }>();
+  const [cardDraft, setCardDraft] = createSignal<{ document: PageDocument; row: HighlightRow; anchor?: DOMRect }>();
   const [documentsVersion, setDocumentsVersion] = createSignal(0);
   const [removal, setRemoval] = createSignal<{ anchor: DOMRect; written: number; references: number; remove(): Promise<void> }>();
   let disposed = false;
@@ -67,8 +67,10 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       await documentReady(document);
       if (disposed) return;
       if (action === 'card') {
-        const anchor = globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : globalThis.document.body;
-        setCardDraft({ document, row, anchor: anchor.getBoundingClientRect() });
+        // Hang the draft from the focused row; a menu item or the page body leaves it near the top of the viewport.
+        const focused = globalThis.document.activeElement;
+        const anchor = focused instanceof HTMLElement && focused !== globalThis.document.body && !focused.closest('.popup') ? focused.getBoundingClientRect() : undefined;
+        setCardDraft({ document, row, anchor });
         return;
       }
       if (action === 'remove' && !confirmed) {
@@ -169,9 +171,10 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
         }}>Remove highlight</Button></div>
       </Popup>;
     }}</Show><Show keyed when={cardDraft()}>{draft => <CardComposer anchor={draft.anchor} initialBack={draft.row.citation.quote}
-      context={<p class="muted">{draft.row.source_title} · ¶{draft.row.citation.ordinal + 1}</p>} onDismiss={() => setCardDraft(undefined)}
-      onSave={async text => {
-        const cancelInput = pendingCaretInput.prepare();
+      where={`${draft.row.source_title} · ¶${draft.row.citation.ordinal + 1}`} onDismiss={() => setCardDraft(undefined)}
+      onSave={async (text, again) => {
+        // Another card keeps the draft open, so only the last one opens its editor.
+        const cancelInput = again ? undefined : pendingCaretInput.prepare();
         try {
           const doc = draft.document, parentId = draft.row.citation.block_id;
           await documentReady(doc);
@@ -179,10 +182,12 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
           if (!result.ok) throw new Error(result.reason);
           const id = result.created[0]!;
           setLastDocument(doc);
-          if (!disposed && !cancelInput.signal.aborted) onOpen({ kind: 'page', pageId: draft.row.block.page.id, blockId: parentId, caretId: id, caretOffset: 0 }, true);
-          else cancelInput();
+          if (cancelInput) {
+            if (!disposed && !cancelInput.signal.aborted) onOpen({ kind: 'page', pageId: draft.row.block.page.id, blockId: parentId, caretId: id, caretOffset: 0 }, true);
+            else cancelInput();
+          }
           await doc.flush();
-        } catch (reason) { cancelInput(); throw reason; }
+        } catch (reason) { cancelInput?.(); throw reason; }
       }} />}</Show></>,
     canUndo: () => lastDocument()?.canUndo() ?? false,
     undo: async () => {

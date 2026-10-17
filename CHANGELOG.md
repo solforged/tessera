@@ -17,6 +17,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Added inline, keyboard-reachable status and priority triage to Agenda task rows.
 - Image blocks: paste, drop or insert a PNG, JPEG, WebP or GIF as its own block, with the block's text as its caption. Images open full screen, sync between devices, and show in multi-line and list card answers.
 - Image occlusion cards: draw rectangle and ellipse masks over an image block, group them into cards with a hint, answer and crop, and review them in Hide one or Hide all mode with the uncovered areas ringed on reveal.
+- Redesigned the card composer as a slip under its trigger: the front in the display voice over the answer, growing fields, live syntax errors, ⌘↵ to create and ⇧⌘↵ to create another.
 
 ### Fixed
 

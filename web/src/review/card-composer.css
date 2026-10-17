@@ -1,7 +1,28 @@
-.card-composer { width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
-.card-composer form { display: flex; flex-direction: column; gap: var(--space-16); }
-.card-composer h2 { margin: 0; font-size: var(--text-h2); line-height: var(--line-h2); }
-.card-composer label { display: flex; flex-direction: column; gap: var(--space-4); }
-.card-composer textarea { resize: vertical; min-height: var(--space-48); }
-.card-composer p { margin: 0; }
-.card-composer-context { color: var(--muted); }
+/* Card composer: a slip like Add to today. A mono rubric line names where the card goes; the front is set in the
+   display voice of a review card, folded from the answer by a hairline; keys and Create sit on a hairline below. */
+.popup.card-composer, .popup-exit.card-composer { padding: 0; }
+.card-composer-form { display: flex; flex-direction: column; }
+.card-composer-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); min-width: 0; padding: var(--space-12) var(--space-16) 0; font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.card-composer-title { flex: none; color: var(--accent); }
+.card-composer-where { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--faint); }
+
+.card-composer-side { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-8) var(--space-16); }
+.card-composer-front { padding-top: var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
+/* The label names the side being written; it takes gilt while its field has the caret. */
+:is(.popup, .popup-exit) .card-composer-label { display: block; margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); transition: color var(--motion-fast) var(--motion-ease); }
+.card-composer-side:focus-within .card-composer-label { color: var(--accent); }
+.card-composer-input { display: block; width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--text); resize: none; overflow-y: auto; }
+.card-composer-input::placeholder { color: var(--faint); }
+.card-composer-input:focus-visible { outline: none; }
+.card-composer-input:disabled { opacity: .7; }
+.card-composer-front .card-composer-input { max-height: calc(6 * var(--line-h2)); font: var(--weight-body) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
+.card-composer-back .card-composer-input { max-height: calc(10 * var(--line-body)); font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); }
+
+:is(.popup, .popup-exit) .card-composer-problem { margin: 0; padding: 0 var(--space-16) var(--space-8); color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+
+.card-composer-foot { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-8) var(--space-16); border-top: var(--rule-width) solid var(--line); }
+.card-composer-keys { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: var(--space-4) var(--space-8); min-width: 0; color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
+.card-composer-key-hints { display: contents; }
+@media (hover: none) and (pointer: coarse) {
+  .card-composer-keys:not(:has([role="status"])) { visibility: hidden; }
+}

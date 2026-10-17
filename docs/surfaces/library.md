@@ -257,7 +257,7 @@ The shared highlight menu keeps the quotation, color choices, note and card acti
 
 ### Make card
 
-Make card opens a deliberate front/back draft with the quotation in Back and source context above it. It creates no empty syntax block and shows no initial invalid-state warning. Cancel leaves no card behind. Submitting creates one child locally and opens its editor before acknowledgment. The form stays busy until delivery settles, preventing duplicate submission and keeping errors in the draft.
+Make card opens the [card composer](cards-review.md#card-composer) with the quotation in Back and the source title and paragraph in its rubric line. It hangs from the focused highlight row, or opens near the top of the viewport from a menu. It creates no empty syntax block and shows no initial invalid-state warning. Cancel leaves no card behind. Create makes one child locally and opens its editor before acknowledgment; Create another adds the child without opening it and keeps the quotation for the next card. The form stays busy until delivery settles, preventing duplicate submission and keeping errors in the draft.
 
 Typing during opening, including Backspace corrections, reaches its caret once even when acknowledgment is slow.
 

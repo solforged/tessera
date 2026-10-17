@@ -5,6 +5,7 @@ import type { CardKind, CardPreviews, CardQuery, CardRow, CardSelection, Deck, G
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import type { CommandRegistry, OpenTarget, PaneId, ReviewViewState } from '../shell/contract';
+import { shortDay } from '../shell/desk-counts';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
@@ -528,7 +529,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     props.onOpen({ kind: 'page', pageId }, false);
   }
 
-  async function createCard(text: string) {
+  async function createCard(text: string, again: boolean) {
     const pageId = await props.notebook.today();
     const doc = props.notebook.open(pageId);
     try {
@@ -537,7 +538,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       await props.notebook.commit([{
         op: 'insert', id, parent_id: pageId, after: doc.outline.children(pageId).at(-1) ?? null, text, heading: null,
       }], 'Create card', [pageId]);
-      if (!disposed) {
+      if (!disposed && !again) {
         setComposer(null);
         props.onOpen({ kind: 'page', pageId, blockId: id, caretId: id }, false);
       }
@@ -651,7 +652,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         <Button disabled={locked() || loading() || !!readError()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'abandoned' }); }}>Abandon review</Button>
       </Show>
     </footer></Show>
-    <Show keyed when={composer()}>{anchor => <CardComposer anchor={anchor} context={<p>Saved in Today</p>} onSave={createCard} onDismiss={() => setComposer(null)} />}</Show>
+    <Show keyed when={composer()}>{anchor => <CardComposer anchor={anchor} where={`${shortDay(props.notebook.todayDate())} · end of journal`} onSave={createCard} onDismiss={() => setComposer(null)} />}</Show>
     <Show keyed when={picker()}>{state => state.kind === 'decks'
       ? <Picker<DeckChoice> anchor={state.anchor} label="Deck" query={search()} onQuery={setSearch} placeholder="Find a deck" items={deckChoices()} key={value => value.id ?? 'all'} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); if (value.id !== deckId()) requestMove({ deckId: value.id, sessionId: null }, state.anchor); }} row={value => <><Icon name={value.id === deckId() ? 'check' : 'table'} /><span class="picker-text">{value.name}</span></>} empty="No matching decks." />
       : <Picker<ReviewSession> anchor={state.anchor} label="Open reviews" query={search()} onQuery={setSearch} placeholder="Find a review" items={sessionChoices()} key={value => value.id} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); requestMove({ deckId: value.deck_id, sessionId: value.id }, state.anchor); }} row={value => <><Icon name={value.id === sessionId() ? 'check' : 'page'} /><span class="picker-text">{sessionLabel(value)}</span></>} empty="No open reviews." />}</Show>

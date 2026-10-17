@@ -146,4 +146,10 @@ The current card stays until a grade is acknowledged. Pending commands survive o
 
 Exhausting a confirmed queue shows Finishing review… until the finish is acknowledged, then Done and normal deck actions. Finishing early, abandoning or switching an open review is explicit; committed grades and their shown-text evidence remain. Pane history and reload preserve the deck, queue selection and session.
 
-A notebook with no cards offers Create a card, a front/back draft saved in [Today](journal.md). An empty deck or held-only inventory keeps its distinct explanation.
+A notebook with no cards offers Create a card, which opens the card composer under the button. An empty deck or held-only inventory keeps its distinct explanation.
+
+## Card composer
+
+The composer is a 560 px slip laid out like Add to today and like the card it makes. A mono rubric line names New card in gilt and, at the right in `--faint`, where the card goes: `Fri 16 · end of journal` from Review, or the source title and paragraph from a highlight. Front is set in the 18 px display voice of a review card and folds from Back on a hairline. Each side has a mono label that turns gilt while it holds the caret. Both fields grow with their text to a cap, then scroll; neither has a resize grip.
+
+Enter in Front moves to Back and Shift-Enter breaks the line. ⌘↵ (Ctrl-Enter elsewhere) creates the card and closes; ⇧⌘↵ creates it and clears the draft for the next one, counting `2 cards added` where the key hints were. Create stays disabled until both sides have text. Text that cannot make exactly one forward card, such as a second `>>`, shows the parser's message under the fields in `--danger` as you type. From Review, Create opens Today at the new block and Create another stays in Review. On coarse pointers the composer is a bottom sheet without key hints.
