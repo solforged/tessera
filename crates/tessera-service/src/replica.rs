@@ -327,7 +327,7 @@ async fn join(
     if replica && !revoked {
         return Err(LastError::new(
             "already_replica",
-            "This notebook is already a replica.",
+            "This workshop is already a replica.",
         ));
     }
     state.replica.memory.lock().syncing = true;
@@ -388,7 +388,7 @@ async fn reclone(State(state): State<AppState>) -> Result<Json<serde_json::Value
         let result = (|| {
             hub = Some(
                 hub_for(&worker.notebook.lock())?
-                    .ok_or_else(|| anyhow::anyhow!("this notebook is not a replica"))?,
+                    .ok_or_else(|| anyhow::anyhow!("this workshop is not a replica"))?,
             );
             replace(&worker, hub.as_mut().expect("replica hub"), None)
         })();

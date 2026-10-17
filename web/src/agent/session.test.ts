@@ -236,7 +236,7 @@ test('service error details and done stop reasons reach the assistant message', 
   await until(() => server.polls.length > 0);
   server.polls.shift()!.fail(new Error('offline'));
   await until(() => !dock.running());
-  expect(assistant(dock)).toMatchObject({ status: 'error', error: 'The notebook service is not reachable.' });
+  expect(assistant(dock)).toMatchObject({ status: 'error', error: 'The workshop service is not reachable.' });
 });
 
 test('the default marks context works without a dock provider', () => {

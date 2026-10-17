@@ -18,9 +18,7 @@ use serde::{Deserialize, Serialize};
 use tessera_core::{DATABASE_FILE, Notebook, NotebookOwnership};
 use tokio::sync::watch;
 
-use crate::{AppState, error::ApiError, run};
-
-const REGISTRY_FILE: &str = "notebooks.json";
+use crate::{AppState, error::ApiError, paths, run};
 
 /// The registry file and the notebook a service opens when none was named.
 #[derive(Clone, Debug)]
@@ -29,26 +27,25 @@ pub struct Registry {
     pub default: PathBuf,
 }
 
-#[derive(Default, Deserialize, Serialize)]
-struct Stored {
+#[derive(Default, Deserialize, Serialize, PartialEq)]
+pub(crate) struct Stored {
     /// The notebook last switched to by a service that follows the registry.
     #[serde(default)]
-    current: Option<PathBuf>,
+    pub(crate) current: Option<PathBuf>,
     #[serde(default)]
-    notebooks: Vec<PathBuf>,
+    pub(crate) notebooks: Vec<PathBuf>,
 }
 
 impl Registry {
-    /// The platform data directory's registry and default notebook.
+    /// The XDG state registry and default workshop.
     pub fn platform() -> Option<Self> {
-        let dir = dirs::data_dir()?.join("tessera");
         Some(Self {
-            path: dir.join(REGISTRY_FILE),
-            default: dir.join("notebook"),
+            path: paths::registry_file()?,
+            default: paths::default_workshop()?,
         })
     }
 
-    /// The notebook to open without `--notebook`: the last one switched to while it still holds
+    /// The workshop to open without `--workshop`: the last one switched to while it still holds
     /// a database, otherwise the default.
     pub fn startup(&self) -> PathBuf {
         match self.load() {
@@ -60,18 +57,32 @@ impl Registry {
                 current: Some(path),
                 ..
             }) => {
-                tracing::warn!(path = %path.display(), "last notebook is gone; opening the default");
+                tracing::warn!(path = %path.display(), "last workshop is gone; opening the default");
                 self.default.clone()
             }
             Ok(_) => self.default.clone(),
             Err(error) => {
-                tracing::warn!(%error, path = %self.path.display(), "cannot read the notebook list; opening the default");
+                tracing::warn!(%error, path = %self.path.display(), "cannot read the workshop list; opening the default");
                 self.default.clone()
             }
         }
     }
 
     fn load(&self) -> io::Result<Stored> {
+        let mut stored = self.load_raw()?;
+        let count = stored.notebooks.len();
+        stored.notebooks.retain(|path| {
+            path == &self.default
+                || Some(path) == stored.current.as_ref()
+                || path.join(DATABASE_FILE).is_file()
+        });
+        if count != stored.notebooks.len() {
+            self.save(&stored)?;
+        }
+        Ok(stored)
+    }
+
+    pub(crate) fn load_raw(&self) -> io::Result<Stored> {
         match std::fs::read(&self.path) {
             Ok(bytes) => serde_json::from_slice(&bytes).map_err(io::Error::other),
             Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Stored::default()),
@@ -80,18 +91,25 @@ impl Registry {
     }
 
     /// Replace the file atomically, so a crash leaves the old list or the new one.
-    fn save(&self, stored: &Stored) -> io::Result<()> {
+    pub(crate) fn save(&self, stored: &Stored) -> io::Result<()> {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         let temporary = self.path.with_extension("json.tmp");
-        std::fs::write(&temporary, serde_json::to_vec_pretty(stored)?)?;
-        std::fs::rename(&temporary, &self.path)
+        use std::io::Write;
+        let mut file = std::fs::File::create(&temporary)?;
+        file.write_all(&serde_json::to_vec_pretty(stored)?)?;
+        file.sync_all()?;
+        std::fs::rename(&temporary, &self.path)?;
+        if let Some(parent) = self.path.parent() {
+            std::fs::File::open(parent)?.sync_all()?;
+        }
+        Ok(())
     }
 }
 
 /// Switching state for a service started by `serve`. `remember` is set when the service follows
-/// the registry rather than a `--notebook` argument, so a switch also changes what later starts open.
+/// the registry rather than a `--workshop` argument, so a switch also changes what later starts open.
 pub(crate) struct Switcher {
     registry: Registry,
     remember: bool,
@@ -123,6 +141,8 @@ pub(crate) fn routes() -> Router<AppState> {
 struct Entry {
     path: PathBuf,
     name: String,
+    display_path: String,
+    named: bool,
     current: bool,
     default: bool,
     /// False when the folder no longer holds a notebook database.
@@ -156,7 +176,7 @@ fn switcher(state: &AppState) -> Result<Arc<Switcher>, ApiError> {
         ApiError::new(
             StatusCode::NOT_FOUND,
             "not_found",
-            "This service cannot switch notebooks.",
+            "This service cannot switch workshops.",
         )
     })
 }
@@ -173,10 +193,30 @@ fn canonical(path: &Path) -> PathBuf {
 fn listing(registry: &Registry, current: &Path) -> io::Result<Notebooks> {
     let stored = registry.load()?;
     let default = canonical(&registry.default);
+    let named_root = paths::workshops_dir().map(|path| canonical(&path));
     let mut paths = vec![default.clone()];
     for path in stored.notebooks.iter().map(|path| canonical(path)) {
         if !paths.contains(&path) {
             paths.push(path);
+        }
+    }
+    // A workshop put in the workshops folder by hand or by a script is listed without being opened first.
+    if let Some(root) = &named_root {
+        let mut found: Vec<PathBuf> = match std::fs::read_dir(root) {
+            Ok(entries) => entries
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .filter(|path| path.join(DATABASE_FILE).is_file())
+                .map(|path| canonical(&path))
+                .collect(),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+            Err(error) => return Err(error),
+        };
+        found.sort();
+        for path in found {
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
         }
     }
     if !paths.iter().any(|path| path == current) {
@@ -193,6 +233,8 @@ fn listing(registry: &Registry, current: &Path) -> io::Result<Notebooks> {
                 current: path == current,
                 default: path == default,
                 available: path.join(DATABASE_FILE).is_file(),
+                display_path: paths::display(&path),
+                named: path.parent() == named_root.as_deref(),
                 path,
             })
             .collect(),
@@ -211,6 +253,15 @@ async fn list(State(state): State<AppState>) -> Result<Json<Notebooks>, ApiError
 
 fn expand(path: &str) -> Result<PathBuf, ApiError> {
     let path = path.trim();
+    if !path.is_empty()
+        && !path.contains('/')
+        && !path.starts_with(['~', '.'])
+        && path.chars().count() <= 64
+    {
+        return paths::workshops_dir()
+            .map(|directory| directory.join(path))
+            .ok_or_else(|| ApiError::internal("no workshop directory"));
+    }
     let expanded = match path.strip_prefix('~') {
         Some(rest) if rest.is_empty() || rest.starts_with('/') => dirs::home_dir()
             .ok_or_else(|| ApiError::internal("no home directory"))?
@@ -221,7 +272,7 @@ fn expand(path: &str) -> Result<PathBuf, ApiError> {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "invalid_path",
-            "Give the notebook folder as a full path, such as ~/Notebooks/Work.",
+            "Give a workshop name, such as reading, or a folder's full path, such as ~/Documents/reading.",
         ));
     }
     Ok(expanded)
@@ -237,7 +288,7 @@ fn prepare(path: &Path, create: bool, current: &Path) -> Result<PathBuf, ApiErro
             return Err(ApiError::new(
                 StatusCode::NOT_FOUND,
                 "no_notebook",
-                format!("{} holds no Tessera notebook.", path.display()),
+                format!("{} holds no Tessera workshop.", path.display()),
             ));
         }
         if path.exists() {
@@ -259,7 +310,7 @@ fn prepare(path: &Path, create: bool, current: &Path) -> Result<PathBuf, ApiErro
         .map_err(|error| conflict(format!("Cannot create {}: {error}", path.display())))?;
     let path = canonical(path);
     if path == current {
-        return Err(conflict("That notebook is already open.".into()));
+        return Err(conflict("That workshop is already open.".into()));
     }
     let ownership = NotebookOwnership::acquire(&path, 0).map_err(|error| {
         if error.kind() == io::ErrorKind::WouldBlock {
@@ -283,7 +334,7 @@ async fn open(
         return Err(ApiError::new(
             StatusCode::CONFLICT,
             "switching",
-            "Another notebook is already opening.",
+            "Another workshop is already opening.",
         ));
     }
     let target = expand(&request.path)?;
@@ -306,7 +357,7 @@ async fn open(
     })
     .await
     .map_err(ApiError::internal)??;
-    tracing::info!(path = %path.display(), "switching notebook");
+    tracing::info!(path = %path.display(), "switching workshop");
     switcher.request.send_replace(Some(path.clone()));
     Ok((StatusCode::ACCEPTED, Json(Opening { path })))
 }
@@ -325,7 +376,7 @@ async fn forget(
             return Err(ApiError::new(
                 StatusCode::CONFLICT,
                 "invalid_notebook",
-                "The open notebook and the default notebook stay on the list.",
+                "The open workshop and the default workshop stay on the list.",
             ));
         }
         let mut stored = registry.load().map_err(ApiError::internal)?;
@@ -345,4 +396,85 @@ async fn forget(
     .await
     .map_err(ApiError::internal)?
     .map(Json)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn loading_prunes_missing_entries_but_keeps_current_and_default() {
+        let root = tempfile::tempdir().unwrap();
+        let registry = Registry {
+            path: root.path().join("workshops.json"),
+            default: root.path().join("main"),
+        };
+        let current = root.path().join("current");
+        let available = root.path().join("available");
+        std::fs::create_dir(&available).unwrap();
+        std::fs::write(available.join(DATABASE_FILE), b"database").unwrap();
+        registry
+            .save(&Stored {
+                current: Some(current.clone()),
+                notebooks: vec![
+                    registry.default.clone(),
+                    current.clone(),
+                    available.clone(),
+                    root.path().join("gone"),
+                ],
+            })
+            .unwrap();
+        let listed = listing(&registry, &current).unwrap();
+        assert_eq!(listed.notebooks.len(), 3);
+        assert!(
+            listed
+                .notebooks
+                .iter()
+                .any(|entry| entry.current && !entry.available)
+        );
+        assert!(
+            listed
+                .notebooks
+                .iter()
+                .any(|entry| entry.default && !entry.available)
+        );
+        assert!(
+            listed
+                .notebooks
+                .iter()
+                .any(|entry| entry.path == canonical(&available) && entry.available)
+        );
+        assert_eq!(registry.load_raw().unwrap().notebooks.len(), 3);
+    }
+
+    #[test]
+    fn names_have_a_bounded_plain_component_and_paths_stay_absolute() {
+        let root = paths::workshops_dir().unwrap();
+        assert_eq!(expand("reading").ok(), Some(root.join("reading")));
+        assert_eq!(
+            expand(&"é".repeat(64)).ok(),
+            Some(root.join("é".repeat(64)))
+        );
+        for invalid in [
+            "",
+            " ",
+            ".",
+            "..",
+            ".hidden",
+            "./reading",
+            "folder/reading",
+            "~other",
+        ] {
+            assert!(expand(invalid).is_err(), "{invalid:?}");
+        }
+        assert!(expand(&"a".repeat(65)).is_err());
+        assert_eq!(
+            expand("/tmp/reading").ok(),
+            Some(PathBuf::from("/tmp/reading"))
+        );
+        assert_eq!(
+            expand("~/Workshops/reading").ok(),
+            Some(dirs::home_dir().unwrap().join("Workshops/reading"))
+        );
+    }
 }

@@ -4,26 +4,27 @@ Tessera stores an outline in SQLite. The browser keeps an optimistic document, t
 
 ## The shape in one page
 
-The CLI runs the service; each browser window creates a notebook client.
+The CLI runs the service; each browser window creates a workshop client.
 
 - `tessera serve` calls `tessera_service::serve` in the CLI process. `embed-web` compiles the editor into the binary, with no runtime asset directory; `--assets` overrides it for development.
 - `tessera install` runs the service as a macOS launch agent. `uninstall` removes the agent, not data.
-- `info` reads notebook identity directly. `add` and `export` find a running service through `service.lock`. No command dispatcher starts the service automatically.
+- `info` reads workshop identity directly. `add` and `export` find a running service through `service.lock`. No command dispatcher starts the service automatically.
 
 Code: `crates/tessera-cli/src/main.rs`, `install.rs`; `crates/tessera-service/src/assets.rs`.
 
-The service acquires `service.lock`, opens the notebook and binds to loopback. `AppState` holds one `Notebook` in `Arc<Mutex<Notebook>>`, sharing one SQLite connection for reads and writes. Code: `crates/tessera-core/src/ownership.rs` (`NotebookOwnership::acquire`); `crates/tessera-service/src/lib.rs` (`serve`, `run`).
+The service acquires `service.lock`, opens the workshop and binds to loopback. `AppState` holds one `Notebook` in `Arc<Mutex<Notebook>>`, sharing one SQLite connection for reads and writes. The `Notebook` type owns a workshop. Code: `crates/tessera-core/src/ownership.rs` (`NotebookOwnership::acquire`); `crates/tessera-service/src/lib.rs` (`serve`, `run`).
 
-`Notebook::open` opens `notebook.db` in the notebook directory, enables WAL, `synchronous=FULL` and foreign keys, then runs migrations. The singleton `notebook` row's ID namespaces browser recovery data. Code: `crates/tessera-core/src/notebook.rs:10` (`Notebook::open`, `Notebook::info`); `crates/tessera-core/migrations/001_notebook.sql`.
+`Notebook::open` opens `notebook.db` in the workshop directory, enables WAL, `synchronous=FULL` and foreign keys, then runs migrations. The singleton `notebook` row's ID namespaces browser recovery data. Code: `crates/tessera-core/src/notebook.rs:10` (`Notebook::open`, `Notebook::info`); `crates/tessera-core/migrations/001_notebook.sql`.
 
-Every CLI command initializes `tracing` on stderr with `RUST_LOG`, defaulting to `info`. Service events report URL, notebook path, migration versions, ingestion job starts/outcomes and shutdown. The macOS agent sets `RUST_LOG=info` and sends both output streams to `~/Library/Logs/tessera/serve.log`; CLI JSON and exports remain on stdout.
+Every CLI command initializes `tracing` on stderr with `RUST_LOG`, defaulting to `info`. Service events report URL, workshop path, migration versions, ingestion job starts/outcomes and shutdown. The macOS agent sets `RUST_LOG=info` and sends both output streams to `~/.local/state/tessera/logs/serve.log`; CLI JSON and exports remain on stdout.
 
-- `tessera backup <dest>` uses a fresh read connection and SQLite's online backup API while the service can keep writing WAL commits. It copies published content-addressed objects and writes a manifest: notebook ID, schema version, Unix-millisecond backup time, object count and database page count. The destination must be empty.
-- `tessera --notebook <dest> restore <src>` holds the service ownership lock through replacement and migration checks. A live service prevents restore even with `--force`; that flag only permits a non-empty destination. Existing immutable objects are retained.
+- `tessera backup <dest>` uses a fresh read connection and SQLite's online backup API while the service can keep writing WAL commits. It hard-links immutable objects, falling back to copying when linking fails. The manifest records the workshop ID, schema version, Unix-millisecond backup time, object count, database page count and database SHA-256. The destination must be empty.
+- `tessera --workshop <dest> restore <src>` holds the service ownership lock through replacement and migration checks. A live service prevents restore even with `--force`; that flag only permits a non-empty destination. Existing immutable objects are retained.
+- Store backups run daily, before installation and from Settings. They skip unchanged database hashes and object counts, then prune to the three newest, seven UTC daily buckets and four seven-day buckets. The daily task checks after two minutes, then hourly; a backup is due after 24 hours. Store paths follow XDG data, not the live workshop's parent. See [Backup and restore](usage.md#backup-and-restore).
 
-- `tessera check` verifies a notebook and prints a JSON report. It runs SQLite's `quick_check` and `foreign_key_check`, asks each full-text index whether it matches its table, and derives `links`, `memberships`, `field_values`, card definitions and `search_blocks` again to report how the stored rows differ, with counts and up to 20 sample IDs per table. It also checks the model's invariants: one live page per title key and one journal per date, every block filed under its root's page, no live block under a tombstoned parent, and every reviewed card keeping its source. The report ends with a SHA-256 per replicated table in primary-key order, so two devices can compare state.
+- `tessera check` verifies a workshop and prints a JSON report. It runs SQLite's `quick_check` and `foreign_key_check`, asks each full-text index whether it matches its table, and derives `links`, `memberships`, `field_values`, card definitions and `search_blocks` again to report how the stored rows differ, with counts and up to 20 sample IDs per table. It also checks the model's invariants: one live page per title key and one journal per date, every block filed under its root's page, no live block under a tombstoned parent, and every reviewed card keeping its source. The report ends with a SHA-256 per replicated table in primary-key order, so two devices can compare state.
 - The derivation runs inside a transaction that is rolled back. `--repair` commits it instead, as one change by the `check` client with no operations, and never writes authored blocks or evidence tables. A hub records the repair as a patch for its replicas; a replica's repair stays local.
-- While a service owns the notebook the command goes through `GET /api/check` and `POST /api/check/repair`; otherwise it takes the ownership lock and opens the notebook itself. The command exits with status 1 when a problem remains. Backup and restore run `quick_check` on their source first and refuse a damaged file.
+- While a service owns the workshop the command goes through `GET /api/check` and `POST /api/check/repair`; otherwise it takes the ownership lock and opens the workshop itself. The command exits with status 1 when a problem remains. Backup and restore run `quick_check` on their source first and refuse a damaged file.
 
 Code: `crates/tessera-core/src/backup.rs`, `check.rs`; [backup and restore](usage.md#backup-and-restore).
 
@@ -46,7 +47,7 @@ flowchart TD
 
 The input half lives in `web/src/outline/editor.ts` (`PaneEditor`), `web/src/outline/OutlinePane.tsx:1070` and `web/src/document/page-document.ts` (`Document.edit`, `apply`). The durable half lives in `web/src/document/index.ts` (`enqueue`, `compile`, `drain`), `web/src/document/outbox.ts` and `crates/tessera-core/src/operations.rs` (`Notebook::apply`).
 
-A successful batch commits authored rows, derived indexes and its receipt together. The service broadcasts the sequence number under the notebook lock. POST returns the receipt; WebSocket consumers fetch committed changes after their cursor. Code: `crates/tessera-core/src/operations.rs:22`; `crates/tessera-service/src/lib.rs:447` (`catch_up`, `stream_changes`).
+A successful batch commits authored rows, derived indexes and its receipt together. The service broadcasts the sequence number under the workshop lock. POST returns the receipt; WebSocket consumers fetch committed changes after their cursor. Code: `crates/tessera-core/src/operations.rs:22`; `crates/tessera-service/src/lib.rs:447` (`catch_up`, `stream_changes`).
 
 Receipts list touched blocks removed by the batch, including provisional type pages pruned by derivation. Acknowledgment hydration removes those IDs from local caches without requesting their block endpoints.
 
@@ -79,7 +80,7 @@ Insert takes `parent_id` and `after`, not a browser-supplied ordinal. Core check
 
 `Notebook::page` fetches live rows once, groups by parent and walks preorder. It returns a root, rows with computed depth (not a database column), manual memberships, external reference targets and capability sidecars. Code: `crates/tessera-core/src/reads.rs:72` (`Notebook::page`).
 
-Revisions belong to resources, not the notebook. Blocks start at 1. Text, heading, archive, location or capability changes can bump revisions; equal-text edits do not. Multiple operations can bump one block repeatedly; receipts record its final revision once. Notebook-wide `changes.seq` is a separate commit cursor. Code: `crates/tessera-core/src/operations.rs:241` (`create`, `edit`, `bump`, `operation`); `crates/tessera-core/migrations/002_outline.sql:1`.
+Revisions belong to resources, not the workshop. Blocks start at 1. Text, heading, archive, location or capability changes can bump revisions; equal-text edits do not. Multiple operations can bump one block repeatedly; receipts record its final revision once. Workshop-wide `changes.seq` is a separate commit cursor. Code: `crates/tessera-core/src/operations.rs:241` (`create`, `edit`, `bump`, `operation`); `crates/tessera-core/migrations/002_outline.sql:1`.
 
 `base_revision` must match an existing block's revision at that operation's batch position. `Engine::checked` reports operation index, ID, expected and found revision; missing/deleted rows have no live revision. Failure rolls back the transaction and maps to HTTP 409. Code: `crates/tessera-core/src/operations.rs:572` (`Notebook::apply`); `crates/tessera-service/src/error.rs:49`.
 
@@ -89,7 +90,7 @@ Deletion tombstones the live subtree under one event; restore revives only its r
 
 ## Text is the source of truth for some things
 
-Text writes rebuild affected reference/membership indexes and reconcile affected fields/cards, not the whole notebook. Links derive during create/edit; tag, card and field work finishes inside the batch transaction. Code: `crates/tessera-core/src/operations.rs:89` (`create`, `edit`, `derive_tags`, `derive_cards`); `crates/tessera-core/src/fields.rs` (`FieldChanges`).
+Text writes rebuild affected reference/membership indexes and reconcile affected fields/cards, not the whole workshop. Links derive during create/edit; tag, card and field work finishes inside the batch transaction. Code: `crates/tessera-core/src/operations.rs:89` (`create`, `edit`, `derive_tags`, `derive_cards`); `crates/tessera-core/src/fields.rs` (`FieldChanges`).
 
 What a text write derives, and what it leaves alone. Task, project, question and source state is never parsed back out of wording; card units keep their identity, schedule and history when their definition changes.
 
@@ -379,7 +380,7 @@ Deck rows implement the [saved-deck rules](domain-model.md#cards), storing names
 
 The review pane holds shown text until acknowledgment. Refresh detects changed cards/sessions, refusing stale grades; the current session excludes units already graded there. Grade/session/deck commands share page edits' ordered durable outbox. Code: `web/src/review/ReviewPane.tsx:127`, `240`; `web/src/document/index.ts:271` (`sendNotebook`).
 
-`GET /api/review/stats?deck=<id>&date=YYYY-MM-DD` projects active visible schedules and immutable grade events without writes. Context dates use the notebook's IANA timezone, like Agenda and resurfacing; omission uses the current notebook day. Civil midnights define boundaries, including DST days. A deck applies only its source predicate, not queue selection or display limit.
+`GET /api/review/stats?deck=<id>&date=YYYY-MM-DD` projects active visible schedules and immutable grade events without writes. Context dates use the workshop's IANA timezone, like Agenda and resurfacing; omission uses the current workshop day. Civil midnights define boundaries, including DST days. A deck applies only its source predicate, not queue selection or display limit.
 
 | Result | Meaning |
 |---|---|
@@ -455,9 +456,9 @@ The Add to library sheet accepts EPUBs, article URLs, checked ISBNs, DOIs and ar
 - Source details and Fill missing details use one undoable document edit on those fields; fill preserves nonempty authored values.
 - Cover fields reference immutable object bytes. Replacement is undoable; re-ingestion does not overwrite it.
 
-Library rows show publication year separately and sort by author or year. The last built-in tab persists per notebook; first visit prefers nonempty Inbox, then Reading, then All.
+Library rows show publication year separately and sort by author or year. The last built-in tab persists per workshop; first visit prefers nonempty Inbox, then Reading, then All.
 
-Source-page highlights follow passage ordinal/start offset, keeping note subtrees together. Totals use the library's notebook-wide citation query; highlights on other pages appear under Filed elsewhere.
+Source-page highlights follow passage ordinal/start offset, keeping note subtrees together. Totals use the library's workshop-wide citation query; highlights on other pages appear under Filed elsewhere.
 
 Citation endpoints name the snapshot, passages and UTF-16 offsets. Reads assemble frozen quotations with blank lines between passages. Passage search has its own FTS index and defaults to current snapshots unless a source is explicit.
 
@@ -490,7 +491,7 @@ In the active reader:
 
 The reader's Highlights picker lists this source's open-snapshot highlights in reading order. Picking one scrolls and flashes its range without saving position.
 
-Library Highlights shows the covering chapter, or one-based passage number, and creation date in notebook time zone. Chapters resolve against the citation's snapshot, including historical ones. Row actions open the passage beside Library, manage notes/cards, set triage or remove the highlight.
+Library Highlights shows the covering chapter, or one-based passage number, and creation date in workshop time zone. Chapters resolve against the citation's snapshot, including historical ones. Row actions open the passage beside Library, manage notes/cards, set triage or remove the highlight.
 
 Highlights use yellow, green, blue, red, purple or null for default tint. Selection keys 1–5 create colors; H/N keep the default. Migration 014 stores `citations.color`; `SetCitationColor` checks/bumps the block revision like triage.
 
@@ -498,7 +499,7 @@ The menu changes color with document undo and appends ordinary `#tag` tokens thr
 
 Journal Resurfaced shows up to three older highlights. Date-specific picks stay stable across reloads and new highlights:
 
-- Only active, visible citations on active, visible sources qualify. Creation must precede the journal date in notebook time zone; future dates show none.
+- Only active, visible citations on active, visible sources qualify. Creation must precede the journal date in workshop time zone; future dates show none.
 - Highlights rest for 14 days after display. Never-shown comes first, then least recently shown, with date-seeded tie ordering.
 - Open reads beside the journal; Keep leaves a checked card; Mute removes it and excludes later picks.
 
@@ -516,7 +517,7 @@ Checkboxes, invalid readings and unmapped labels are excluded. `tests/library.rs
 Markdown export reads authored titles, authors, publication dates, URLs and citation keys:
 
 - Frozen quotations follow passage/offset order: current snapshot first, older citations under `Earlier snapshot`.
-- Chapters resolve per citation snapshot, falling back to one-based paragraph numbers; creation dates use notebook time zone.
+- Chapters resolve per citation snapshot, falling back to one-based paragraph numbers; creation dates use workshop time zone.
 - Live non-blank note children follow outline order; nested notes become indented lists.
 - Empty sources retain a header and no-highlights message; `---` separates sources.
 
@@ -528,7 +529,7 @@ Selection stays in the pane and clears on query changes. Selection export uses s
 
 Code: `crates/tessera-core/src/library_views.rs`; `library_export.rs` (`export_query`); `web/src/library/LibraryPane.tsx`.
 
-Passage responses include the snapshot's Contents, including historical snapshots. Job lists retain queued/running/failed jobs regardless of age and completed jobs for 24 hours. Rows show attempt count and scheduled retry time in notebook time zone; failed jobs retain Retry after reload.
+Passage responses include the snapshot's Contents, including historical snapshots. Job lists retain queued/running/failed jobs regardless of age and completed jobs for 24 hours. Rows show attempt count and scheduled retry time in workshop time zone; failed jobs retain Retry after reload.
 
 The service exposes uploads, persistent ingestion jobs, sources, passages, resources, position, search, triage and export under `/api/library`, `/api/sources`, `/api/snapshots`, `/api/passages/search` and `/api/highlights/query`.
 
@@ -563,7 +564,7 @@ The client separates intent, optimistic actions, acknowledged state and delivery
 | File | Responsibility |
 |---|---|
 | `web/src/document/contract.ts` | Public `Edit`, `PageDocument`, `NotebookClient`, `BlockState` and save-state contract |
-| `web/src/document/types.ts` | Actions, snapshots, inverses, page/notebook command records and history entries |
+| `web/src/document/types.ts` | Actions, snapshots, inverses, page/workshop command records and history entries |
 | `web/src/document/page-document.ts` | Plan/apply page edits, retain base state, reconcile remote state, undo/redo and resolve conflicts |
 | `web/src/document/index.ts` | Share documents, coalesce/persist/compile/send commands, catch up changes and maintain caches |
 | `web/src/document/outbox.ts` | IndexedDB command storage and acknowledged offline page recovery |
@@ -577,12 +578,12 @@ sequenceDiagram
     participant Editor as PaneEditor / CodeMirror
     participant Pane as OutlinePane
     participant Doc as Document
-    participant Queue as Notebook queue
+    participant Queue as Workshop queue
     participant Outbox as Outbox / IndexedDB
     participant HTTP as Service batch route
     participant Core as Core / SQLite
     participant Stream as Service change stream
-    participant Other as Other window's Notebook
+    participant Other as Other window's workshop client
 
     Editor->>Pane: hooks.text(text, caret) on docChanged
     Pane->>Doc: edit(text intent, caret)
@@ -597,7 +598,7 @@ sequenceDiagram
     Queue->>Outbox: Persist frozen command before sending
     Outbox-->>Queue: IndexedDB write completes
     Queue->>HTTP: POST /api/batches, unchanged JSON and command ID key
-    HTTP->>Core: Notebook.apply(batch) under notebook mutex
+    HTTP->>Core: `Notebook.apply(batch)` under workshop mutex
     Core->>Core: Begin immediate transaction, insert changes row
     alt base_revision matches at each operation
         Core->>Core: Apply operations, derive links, tags, cards and fields
@@ -645,7 +646,7 @@ Undo/redo applies local actions and enqueues new revision-checked work, not a SQ
 
 ### Pending, offline and conflicts
 
-Save state distinguishes unpersisted/queued work, active requests, offline delivery, text conflicts and retained failures. `saved` means no pending work in the applicable queue, not blur or IndexedDB persistence. Notebook status also counts rejected commands and conflicts on retained documents. Code: `web/src/document/contract.ts:156`; `web/src/document/index.ts:712` (`commandState`).
+Save state distinguishes unpersisted/queued work, active requests, offline delivery, text conflicts and retained failures. `saved` means no pending work in the applicable queue, not blur or IndexedDB persistence. Workshop status also counts rejected commands and conflicts on retained documents. Code: `web/src/document/contract.ts:156`; `web/src/document/index.ts:712` (`commandState`).
 
 The states are `saved`, `saving`, `queued`, `offline`, `conflict` and `error`. They are computed by `state(pageId?)` and `commandState`, not stored. Choosing a conflict version retries without clearing `conflict`; the acknowledgment clears it.
 
@@ -688,13 +689,13 @@ Network failure or HTTP 5xx means uncertain delivery. The client retains and ret
 
 IndexedDB stores commands, root/page snapshots, acknowledged block patches, deletion tickets and capability sidecars:
 
-- Commands are scoped by notebook and window-session ID.
-- Page/block recovery is scoped by notebook.
+- Commands are scoped by workshop and window-session ID.
+- Page/block recovery is scoped by workshop.
 - `sessionStorage` remembers the window-session ID for queue recovery on reload.
 
 Code: `web/src/document/outbox.ts:7` (`load`); `web/src/document/index.ts:93`.
 
-Initialization restores ordered commands, opens recovered documents and replays actions over a service or cached offline page. Recovery combines the base page snapshot, structural patches, newer acknowledged blocks and capability sidecars. Frozen commands stay frozen. An offline first visit needs remembered notebook identity and cached data. Code: `web/src/document/index.ts:129` (`loadPage`); `web/src/document/outbox.ts:122`; `web/src/shell/App.tsx:263`.
+Initialization restores ordered commands, opens recovered documents and replays actions over a service or cached offline page. Recovery combines the base page snapshot, structural patches, newer acknowledged blocks and capability sidecars. Frozen commands stay frozen. An offline first visit needs remembered workshop identity and cached data. Code: `web/src/document/index.ts:129` (`loadPage`); `web/src/document/outbox.ts:122`; `web/src/shell/App.tsx:263`.
 
 The production service worker caches the complete shell asset graph for warm offline reloads with either embedded assets or `--assets`. Vite's `assets/` preload dependency paths resolve from the build root, while chunk-relative imports and CSS URLs resolve from their containing asset.
 
@@ -720,7 +721,7 @@ Each pane session holds history entries, current index and generation. Entries p
 
 Opening chooses the active/opposite pane, truncates forward history and appends an entry. Back/forward changes the index. Zoom creates page-view entries; ordinary view updates replace the current entry. Generation tells mounted content to restore the selected view. Code: `web/src/shell/App.tsx:128` (`changeView`, `travel`).
 
-`localStorage` key `tessera.navigation.<notebook-id>` persists pins, pinned table views, recent pages, Vim preference hint, active pane and **only each pane's current entry**. Reload starts each pane with one entry, not the full back/forward stack. Navigation storage is separate from the IndexedDB outbox. Code: `web/src/shell/App.tsx:28`, `273`, `298`, `307`.
+`localStorage` key `tessera.navigation.<workshop-id>` persists pins, pinned table views, recent pages, Vim preference hint, active pane and **only each pane's current entry**. Reload starts each pane with one entry, not the full back/forward stack. Navigation storage is separate from the IndexedDB outbox. Code: `web/src/shell/App.tsx:28`, `273`, `298`, `307`.
 
 Mounted shell/pane code registers commands through `createCommandRegistry`, each with a symbol-owned group and cleanup. Commands supply title, section, displayed shortcuts, optional disabled reason, execution callback and optional capture callback. Owning components handle shortcuts; the registry binds no keys. Code: `web/src/shell/commands.ts:5`; `web/src/shell/contract.ts:18`; shell key routing in `web/src/shell/App.tsx:246`.
 

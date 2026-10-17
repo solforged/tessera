@@ -11,13 +11,13 @@ Use when the user wants to compare the tessera rewrite against the remcard refer
 
 Tessera (from ~/src/tessera):
 ```sh
-bun run --cwd web build && cargo run -p tessera-cli -- --notebook .tessera/dev serve --assets web/dist
+bun run --cwd web build && cargo run -p tessera-cli -- --workshop .tessera/dev serve --assets web/dist
 ```
 Remcard (from ~/src/remcard):
 ```sh
 bun run --cwd web build && cargo run -p remcard-web -- --notebook .remcard/notebook
 ```
-Both often already run from an earlier session. Tessera fails with `notebook .tessera/dev is already served by PID N on port 4318`; remcard fails with `Address already in use`. Either failure means just use the existing server; do not kill it.
+Both often already run from an earlier session. Tessera fails with `workshop .tessera/dev is already served by PID N on port 4318`; remcard fails with `Address already in use`. Either failure means just use the existing server; do not kill it.
 
 ## Browser
 

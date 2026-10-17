@@ -56,7 +56,7 @@ impl Agent {
         let mut rest = arguments.iter().skip(1);
         while let Some(argument) = rest.next() {
             match argument.as_str() {
-                "--notebook" => agent.notebook = rest.next().map(PathBuf::from),
+                "--workshop" => agent.notebook = rest.next().map(PathBuf::from),
                 "--port" => agent.port = rest.next().and_then(|port| port.parse().ok()),
                 _ => (),
             }
@@ -94,9 +94,9 @@ pub async fn probe(client: &reqwest::Client, port: u16) -> Option<String> {
 pub fn activate(bundled: &Path, agent: &Agent, rollback: Option<&Path>) -> Result<(), String> {
     let mut command = Command::new(bundled);
     // The agent's own arguments decide the notebook, not this process's environment.
-    command.env_remove("TESSERA_NOTEBOOK");
+    command.env_remove("TESSERA_WORKSHOP");
     if let Some(notebook) = &agent.notebook {
-        command.arg("--notebook").arg(notebook);
+        command.arg("--workshop").arg(notebook);
     }
     command
         .arg("install")
@@ -134,7 +134,7 @@ mod tests {
     fn keeps_the_agents_notebook_and_port() {
         let agent = Agent::parse(&arguments(&[
             "/Users/a/.local/bin/tessera",
-            "--notebook",
+            "--workshop",
             "/notes/work",
             "serve",
             "--port",

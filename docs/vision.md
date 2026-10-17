@@ -42,7 +42,7 @@ First-class means explicit relationships, lifecycle rules, operations and views.
 | Concern | Meaning |
 |---|---|
 | Blocks and references | Stable identity; references render the original's current text |
-| Journals | One root per calendar day in the notebook's time zone |
+| Journals | One root per calendar day in the workshop's time zone |
 | Types and fields | Many-to-many membership; typed fields whose values are blocks; type pills and type tables |
 | Notes | Titled pages filed by kind, working or settled, and revisited when given a date |
 | Queries | Structured filters by type, field, task state, dates and text; saved as views and review decks |
@@ -59,7 +59,7 @@ In scope for the first usable release: the daily outline, references, types and 
 
 Out of scope until the daily tool works: multi-device sync, collaboration, native mobile, plugin and schema builders, graph visualization and autonomous background agents.
 
-Reading lives in Tessera too. Books, papers, articles and posts are ingested into the notebook as immutable snapshots broken into passages, read in a pane beside the outline, and cited from the blocks written about them. This absorbs Bibliotheca, the earlier separate reading tool. Its evidence rules carry over; its extractors are rewritten, and its own storage and terminal interface are retired.
+Reading lives in Tessera too. Books, papers, articles and posts are ingested into the workshop as immutable snapshots broken into passages, read in a pane beside the outline, and cited from the blocks written about them. This absorbs Bibliotheca, the earlier separate reading tool. Its evidence rules carry over; its extractors are rewritten, and its own storage and terminal interface are retired.
 
 ## How design work happens
 

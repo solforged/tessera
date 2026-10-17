@@ -84,7 +84,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
 
   return <section id={props.id} aria-labelledby={`${props.id}-heading`} aria-busy={busy()}>
     {props.heading}
-    <p class="settings-empty">The agent dock talks to a model you choose: a hosted one with your own key, or one running on this machine. Models and keys are kept on this machine, outside the notebook and its backups.</p>
+    <p class="settings-empty">The agent dock talks to a model you choose: a hosted one with your own key, or one running on this machine. Models and keys are kept on this machine, outside the workshop and its backups.</p>
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
     <Show when={saved.error}><p class="error" role="alert">{message(saved.error)}</p></Show>
     <For each={saved()?.providers}>{provider => <Show when={draft()?.id !== provider.id} fallback={<Form value={draft()!} />}>

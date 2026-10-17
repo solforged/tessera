@@ -79,7 +79,7 @@ export function AgentDock(props: {
     const refusal = await props.session.undo(seq);
     setRefusals(values => { const { [seq]: _, ...rest } = values; return refusal ? { ...rest, [seq]: refusal } : rest; });
   };
-  const pageTitle = (id: string | null) => (id && props.notebook.lookup(id)()?.text) || 'Notebook';
+  const pageTitle = (id: string | null) => (id && props.notebook.lookup(id)()?.text) || 'Workshop';
 
   const Part = (part: AssistantPart) => <Switch>
     <Match when={part.kind === 'text' && part}>{text => <For each={text().text.split(/\n{2,}/).filter(paragraph => paragraph.trim())}>{paragraph =>

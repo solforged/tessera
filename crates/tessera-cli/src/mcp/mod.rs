@@ -31,7 +31,7 @@ use render::{kind_label, quoted};
 /// Newest first; the client's version is echoed when it is one of these.
 const PROTOCOL_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
-const INSTRUCTIONS: &str = "Tessera is a local outline notebook. Every note is a tree of \
+const INSTRUCTIONS: &str = "Tessera is a local outline workshop. Every note is a tree of \
 blocks on a named page or a journal day. Search or read before writing to avoid duplicates. \
 tessera_add_note appends to the end of a page, journal day or block; tessera_edit_block, \
 tessera_move_block, tessera_delete_block, tessera_set_task and tessera_set_relation change existing blocks by the \
@@ -40,7 +40,7 @@ IDs tessera_read_page shows. Flashcards, tasks and field entries are written as 
 tessera_hold_card suspends a card; tessera_save_deck groups cards into decks. \
 tessera_relations reads explicitly authored supports, disputes, qualifies and answers relations. \
 tessera_library reads books and articles and tessera_cite links blocks to their passages. \
-tessera_sync tells whether your edits have reached the notebook's hub. Every write is one \
+tessera_sync tells whether your edits have reached the workshop's hub. Every write is one \
 change attributed to you and can be reversed with tessera_undo; tessera_recent_changes lists \
 them.";
 

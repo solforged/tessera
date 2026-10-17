@@ -23,7 +23,7 @@ test('type presentation persists through document undo, redo and reset', async (
   const port = Bun.env.TESSERA_PRESENTATION_TEST_PORT ?? '4462';
   const baseUrl = `http://127.0.0.1:${port}`;
   const api = createApi(baseUrl);
-  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', port], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', port], { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   let client: Notebook | undefined;
   try {
     const expectedPath = await realpath(directory);

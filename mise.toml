@@ -38,9 +38,9 @@ description = "Check the prose in README.md and docs/ with Vale"
 run = "vale README.md docs"
 
 [tasks.serve]
-description = "Serve the development notebook in .tessera/dev on port 4320"
+description = "Serve the development workshop in .tessera/dev on port 4320"
 depends = ["web:build"]
-run = "cargo run -p tessera-cli -- --notebook .tessera/dev serve --port 4320 --assets web/dist"
+run = "cargo run -p tessera-cli -- --workshop .tessera/dev serve --port 4320 --assets web/dist"
 
 [tasks.fmt]
 description = "Format the Rust code"

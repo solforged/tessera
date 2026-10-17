@@ -46,7 +46,7 @@ fn plist(
     if let Some(notebook) = notebook {
         writeln!(
             arguments,
-            "    <string>--notebook</string>\n    <string>{}</string>",
+            "    <string>--workshop</string>\n    <string>{}</string>",
             path(notebook)?
         )?;
     }
@@ -56,6 +56,18 @@ fn plist(
             arguments,
             "    <string>--port</string>\n    <string>{port}</string>"
         )?;
+    }
+    let mut environment = String::new();
+    for variable in ["XDG_DATA_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME"] {
+        if let Some(value) = std::env::var_os(variable)
+            && Path::new(&value).is_absolute()
+        {
+            writeln!(
+                environment,
+                "    <key>{variable}</key><string>{}</string>",
+                path(Path::new(&value))?
+            )?;
+        }
     }
     let log = path(log)?;
     Ok(format!(
@@ -72,7 +84,8 @@ fn plist(
   <key>StandardOutPath</key><string>{log}</string>
   <key>StandardErrorPath</key><string>{log}</string>
   <key>EnvironmentVariables</key>
-  <dict><key>RUST_LOG</key><string>info</string></dict>
+  <dict><key>RUST_LOG</key><string>info</string>
+{environment}  </dict>
 </dict>
 </plist>
 "#
@@ -204,29 +217,54 @@ pub fn install(
         .transpose()?;
     let home = dirs::home_dir().context("no home directory for the launch agent")?;
     let path = tessera_service::launch_agent_path(&home);
-    let logs = home.join("Library/Logs/tessera");
+    let logs = tessera_service::paths::logs_dir().context("no service log directory")?;
     let log = logs.join("serve.log");
-    let notebook = std::path::absolute(notebook)?;
-    let pinned = explicit_notebook.then_some(notebook.as_path());
-    let content = plist(&executable, pinned, port, &log)?;
     std::fs::create_dir_all(path.parent().context("launch agent path has no parent")?)?;
     std::fs::create_dir_all(&logs)?;
     let domain = domain()?;
     // Stop first, so the backup holds every edit the old service acknowledged.
     bootout(&domain)?;
+    let moved = tessera_service::migration::migrate_layout()?;
+    let notebook = if explicit_notebook {
+        let absolute = std::path::absolute(notebook)?;
+        moved
+            .into_iter()
+            .find_map(|(source, target)| (source == absolute).then_some(target))
+            .unwrap_or(absolute)
+    } else {
+        tessera_service::notebooks::Registry::platform()
+            .context("no workshop directory")?
+            .startup()
+    };
+    let pinned = explicit_notebook.then_some(notebook.as_path());
+    let content = plist(&executable, pinned, port, &log)?;
     let backup = if notebook.join(tessera_core::DATABASE_FILE).exists() {
-        match tessera_core::backup_beside(&notebook) {
-            Ok((backup, _)) => {
-                eprintln!("tessera: backed up the notebook to {}", backup.display());
-                Some(backup)
+        let result = tessera_service::paths::backups_dir()
+            .context("cannot find the workshop backup store")
+            .and_then(|store| tessera_core::backup_to_store(&notebook, store).map_err(Into::into));
+        match result {
+            Ok(backup) => {
+                if backup.created {
+                    eprintln!(
+                        "tessera: backed up the workshop to {}",
+                        backup.path.display()
+                    );
+                } else {
+                    eprintln!(
+                        "tessera: the workshop is unchanged since the backup at {}",
+                        backup.path.display()
+                    );
+                }
+                Some(backup.path)
             }
             Err(error) => {
                 // The old plist is untouched; bring its service back.
                 if path.exists() {
                     bootstrap(&domain, &path)?;
                 }
-                return Err(anyhow::Error::from(error)
-                    .context("cannot back up the notebook; the previous service is unchanged"));
+                return Err(
+                    error.context("cannot back up the workshop; the previous service is unchanged")
+                );
             }
         }
     } else {
@@ -253,7 +291,7 @@ pub fn install(
     if let Some(backup) = &backup {
         // The previous build restores, so the notebook keeps a schema it can open.
         let status = std::process::Command::new(&previous)
-            .arg("--notebook")
+            .arg("--workshop")
             .arg(&notebook)
             .arg("restore")
             .arg(backup)
@@ -314,19 +352,19 @@ mod tests {
             Path::new("/opt/tessera"),
             None,
             tessera_service::DEFAULT_PORT,
-            Path::new("/home/user/Library/Logs/tessera/serve.log"),
+            Path::new("/home/user/.local/state/tessera/logs/serve.log"),
         )
         .unwrap();
         assert!(rendered.contains("<key>Label</key><string>dev.tessera.serve</string>"));
         assert!(rendered.contains("<string>/opt/tessera</string>\n    <string>serve</string>"));
-        assert!(!rendered.contains("--notebook"));
+        assert!(!rendered.contains("--workshop"));
         assert!(!rendered.contains("--port"));
         assert!(rendered.contains("<key>RunAtLoad</key><true/>"));
         assert!(rendered.contains("<key>KeepAlive</key><true/>"));
         assert!(rendered.contains("<key>RUST_LOG</key><string>info</string>"));
         assert_eq!(
             rendered
-                .matches("<string>/home/user/Library/Logs/tessera/serve.log</string>")
+                .matches("<string>/home/user/.local/state/tessera/logs/serve.log</string>")
                 .count(),
             2
         );
@@ -344,7 +382,7 @@ mod tests {
         .unwrap();
         assert!(rendered.contains("<string>/Applications/A &amp; B/tessera</string>"));
         assert!(rendered.contains(
-            "<string>--notebook</string>\n    <string>/notes/&lt;work&gt;&quot;&apos;</string>"
+            "<string>--workshop</string>\n    <string>/notes/&lt;work&gt;&quot;&apos;</string>"
         ));
         assert!(rendered.contains("<string>--port</string>\n    <string>4397</string>"));
         assert_eq!(

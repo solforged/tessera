@@ -1,22 +1,22 @@
 #!/usr/bin/env bun
-//MISE description="Seed a notebook with a realistic past week for clickarounds; arguments: [dir] [--replace]"
+//MISE description="Seed a workshop with a realistic past week for clickarounds; arguments: [dir] [--replace]"
 //
-// Writes a fresh notebook (default ~/.local/share/tessera/notebooks/clickaround)
+// Writes a fresh workshop (default ~/.local/share/tessera/workshops/clickaround)
 // holding the week ending today: journal days, two projects with tasks, clocked
 // work and completions, repeating routines, people and concept pages with typed
 // fields in every kind, empty and multi-value entries, meeting templates and
 // nested field owners, flashcards with a week of review history, the bundled
 // Meditations EPUB with highlights and a reading position, three catalogue
 // records, two collections and saved views. Everything goes through a throwaway
-// service's HTTP API, so it is the same data the app would write. The notebook is added
-// to this computer's notebook list, so Settings → Notebooks can open it.
+// service's HTTP API, so it is the same data the app would write. The workshop is added
+// to this computer's workshop list, so Settings → Workshops can open it.
 //
 // Dates are relative to the day it runs. Run it again with --replace to start
-// over on a new week; it refuses while a service has the notebook open.
+// over on a new week; it refuses while a service has the workshop open.
 
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dir, '../..');
 const args = process.argv.slice(2);
@@ -24,7 +24,8 @@ const replace = args.includes('--replace');
 const positional = args.filter(arg => !arg.startsWith('--'));
 const unknown = args.filter(arg => arg.startsWith('--') && arg !== '--replace');
 if (unknown.length || positional.length > 1) fail(`usage: mise run seed:clickaround [dir] [--replace]`);
-const dir = resolve((positional[0] ?? '~/.local/share/tessera/notebooks/clickaround').replace(/^~(?=$|\/)/, homedir()));
+const xdg = (variable: string, fallback: string) => process.env[variable] && isAbsolute(process.env[variable]!) ? process.env[variable]! : join(homedir(), fallback);
+const dir = resolve((positional[0] ?? join(xdg('XDG_DATA_HOME', '.local/share'), 'tessera/workshops/clickaround')).replace(/^~(?=$|\/)/, homedir()));
 
 function fail(message: string): never {
   console.error(`seed: ${message}`);
@@ -34,11 +35,11 @@ function fail(message: string): never {
 // ---------------------------------------------------------------- preflight
 
 if (existsSync(join(dir, 'notebook.db'))) {
-  if (!replace) fail(`${dir} already holds a notebook; pass --replace to seed it again`);
+  if (!replace) fail(`${dir} already holds a workshop; pass --replace to seed it again`);
   const holder = heldBy(dir);
   if (holder) fail(`${dir} is open in the service with PID ${holder}; switch away from it or stop that service first`);
 } else if (existsSync(dir) && !replace) {
-  fail(`${dir} exists but holds no notebook; remove it or pass --replace`);
+  fail(`${dir} exists but holds no workshop; remove it or pass --replace`);
 }
 
 /** The PID in the service's ownership file when that process is still alive. The file is advisory, but a live PID means a service probably has the notebook open. */
@@ -70,8 +71,8 @@ mkdirSync(dirname(dir), { recursive: true });
 const port = await freePort();
 const base = `http://127.0.0.1:${port}`;
 const log = `${staging}.log`;
-const { TESSERA_NOTEBOOK: _, ...env } = process.env;
-const service = Bun.spawn([bin, '--notebook', staging, 'serve', '--port', String(port), '--sync-port', '0'], {
+const { TESSERA_WORKSHOP: _, ...env } = process.env;
+const service = Bun.spawn([bin, '--workshop', staging, 'serve', '--port', String(port), '--sync-port', '0'], {
   stdout: Bun.file(log), stderr: Bun.file(log), env,
 });
 
@@ -93,12 +94,9 @@ async function ready() {
   throw new Error('the service did not start within 10 s');
 }
 
-/** Add the notebook to the list the app's Notebooks settings read, keeping the current choice. Same file and shape as `notebooks.rs`. */
+/** Add the workshop to the app's Workshops list, keeping the current choice. Same file and shape as `notebooks.rs`. */
 function register(path: string) {
-  const data = process.platform === 'darwin'
-    ? join(homedir(), 'Library', 'Application Support')
-    : process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share');
-  const file = join(data, 'tessera', 'notebooks.json');
+  const file = join(xdg('XDG_STATE_HOME', '.local/state'), 'tessera', 'workshops.json');
   let stored: { current?: string | null; notebooks?: string[] } = {};
   if (existsSync(file)) stored = JSON.parse(readFileSync(file, 'utf8'));
   const notebooks = stored.notebooks ?? [];
@@ -580,5 +578,5 @@ renameSync(staging, dir);
 rmSync(log, { force: true });
 register(dir);
 console.log(`seed: wrote ${dir}`);
-console.log(`seed: open it from Settings → Notebooks, or serve it with: tessera --notebook ${dir} serve --port <port>`);
+console.log(`seed: open it from Settings → Workshops, or serve it with: tessera --workshop ${dir} serve --port <port>`);
 

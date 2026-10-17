@@ -29,6 +29,29 @@ pub use driver::{NotebookAccess, sync_import, sync_send, sync_send_as, sync_with
 mod replica;
 pub use replica::{KeptCopy, OfflineFiles, RejectedChange, ReplicaConflicts};
 
+/// A successful replacement recovery snapshot supersedes older copies of the
+/// same kind, but never another recovery kind or an unrelated workshop file.
+fn prune_recovery_copies(directory: &Path, suffix: &str, newest: &Path) -> Result<()> {
+    let prefix = format!("{}.{suffix}-", crate::DATABASE_FILE);
+    for entry in std::fs::read_dir(directory)? {
+        let entry = entry?;
+        if entry.path() == newest || !entry.file_type()?.is_file() {
+            continue;
+        }
+        let name = entry.file_name();
+        let Some(stamp) = name.to_str().and_then(|name| name.strip_prefix(&prefix)) else {
+            continue;
+        };
+        if stamp
+            .split('-')
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_digit()))
+        {
+            std::fs::remove_file(entry.path())?;
+        }
+    }
+    Ok(())
+}
+
 /// A change a replica sends to its hub: the batch as it was made there, its
 /// stamp, and the text of each block it rewrites as it was before.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -563,7 +586,7 @@ impl Patcher {
 
 fn diverged(detail: &str) -> Error {
     validation(format!(
-        "this notebook no longer matches its hub ({detail}); clone it again"
+        "this workshop no longer matches its hub ({detail}); clone it again"
     ))
 }
 
@@ -692,7 +715,7 @@ impl Notebook {
             Ok(())
         } else {
             Err(validation(format!(
-                "device {device} is not a replica of this notebook; clone it again"
+                "device {device} is not a replica of this workshop; clone it again"
             )))
         }
     }
@@ -952,7 +975,7 @@ impl Notebook {
             )));
         }
         if self.info()?.id != ticket.notebook_id {
-            return Err(validation("the snapshot is not the ticket's notebook"));
+            return Err(validation("the snapshot is not the ticket's workshop"));
         }
         let tx = self.conn.transaction()?;
         tx.execute(
@@ -1004,7 +1027,7 @@ impl Notebook {
 
     pub(crate) fn require_replica(&self) -> Result<SyncStatus> {
         self.sync_status()?
-            .ok_or_else(|| validation("this notebook is not a replica; clone it from a hub first"))
+            .ok_or_else(|| validation("this workshop is not a replica; clone it from a hub first"))
     }
 
     /// The changes to push and the snapshots they reference.

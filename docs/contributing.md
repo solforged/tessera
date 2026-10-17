@@ -35,7 +35,7 @@ mise install
 mise run serve
 ```
 
-`serve` builds the editor and serves the notebook in `.tessera/dev` at <http://127.0.0.1:4320>. Port 4318 belongs to the installed app. See [Choosing a notebook](usage.md#choosing-a-notebook) for default paths and notebook selection, and [Assets and logs](usage.md#assets-and-logs) for the loopback policy and identity output.
+`serve` builds the editor and serves the workshop in `.tessera/dev` at <http://127.0.0.1:4320>. Port 4318 belongs to the installed app. See [Choosing a workshop](usage.md#choosing-a-workshop) for default paths and workshop selection, and [Assets and logs](usage.md#assets-and-logs) for the loopback policy and identity output.
 
 For live reloading, use two terminals:
 
@@ -49,7 +49,7 @@ mise run web:dev
 
 Then open <http://127.0.0.1:5173>.
 
-### Seeded clickaround notebook
+### Seeded clickaround workshop
 
 [`mise-tasks/seed/clickaround`](../mise-tasks/seed/clickaround) defines:
 
@@ -57,7 +57,7 @@ Then open <http://127.0.0.1:5173>.
 mise run seed:clickaround [dir] [--replace]
 ```
 
-It writes a click-through testing notebook to `~/.local/share/tessera/notebooks/clickaround`, or the folder given, and adds it to Settings → Notebooks. It holds the week ending today:
+It writes a click-through testing workshop to `~/.local/share/tessera/workshops/clickaround`, or the folder given, and adds it to Settings → Workshops. It holds the week ending today:
 
 - Journal days, two projects with tasks, clocked work and completions, and repeating routines.
 - People and concepts with typed fields.
@@ -65,7 +65,7 @@ It writes a click-through testing notebook to `~/.local/share/tessera/notebooks/
 - The bundled *Meditations* with highlights.
 - Catalog records, collections and saved views.
 
-Everything is written through a temporary service's API. Pass `--replace` to start again on the current week; it refuses while a service has that notebook open.
+Everything is written through a temporary service's API. Pass `--replace` to start again on the current week; it refuses while a service has that workshop open.
 
 ### Checks
 
@@ -82,9 +82,9 @@ Everything is written through a temporary service's API. Pass `--replace` to sta
 
 ### Browser demo
 
-<https://tessera.solforged.io> runs the real notebook engine in the browser. `tessera-core` and the service's notebook and library routes compile to wasm in [`crates/tessera-web`](../crates/tessera-web), then run in a worker over SQLite in the browser's private storage.
+<https://tessera.solforged.io> runs the real workshop engine in the browser. `tessera-core` and the service's workshop and library routes compile to wasm in [`crates/tessera-web`](../crates/tessera-web), then run in a worker over SQLite in the browser's private storage.
 
-A new browser notebook starts with a choice: empty, the tour, or a restored backup. The tour seeds Marcus Aurelius' public-domain *Meditations* from Project Gutenberg ([`web/src/demo/meditations.epub`](../web/src/demo/meditations.epub)) for the library and reader, and shows a notice bar with Start over…. Visitors can upload their own EPUBs, and Settings › Backups downloads and restores the notebook as one file. Web articles, sync and service details are omitted.
+A new browser workshop starts with a choice: empty, the tour, or a restored backup. The tour seeds Marcus Aurelius' public-domain *Meditations* from Project Gutenberg ([`web/src/demo/meditations.epub`](../web/src/demo/meditations.epub)) for the library and reader, and shows a notice bar with Start over…. Visitors can upload their own EPUBs, and Settings › Backups downloads and restores the workshop as one file. Web articles, sync and service details are omitted.
 
 ```sh
 mise run demo:build
@@ -118,12 +118,12 @@ Public downloads come from `v*` tags. [Releasing](releasing.md) is the version b
 
 ## Shipping a build
 
-`mise run ship [commit]` makes a commit (default `HEAD`) the installed app on this Mac. It builds Tessera.app in a separate worktree under `~/Library/Caches/tessera/ship`, so uncommitted edits never ship.
+`mise run ship [commit]` makes a commit (default `HEAD`) the installed app on this Mac. It builds Tessera.app in a separate worktree under `${XDG_CACHE_HOME:-$HOME/.cache}/tessera/ship`, so uncommitted edits never ship.
 
 The task:
 
 1. Quits the app if running and replaces `/Applications/Tessera.app`.
-2. Runs the app's `tessera install` with the agent's previous executable as rollback. The notebook is backed up and the new build must answer.
+2. Runs the app's `tessera install` with the agent's previous executable as rollback. The workshop is backed up and the new build must answer.
 3. On success, links `~/.local/bin/tessera` to the app's command line. On failure, also restores the previous app.
 4. Reopens the app if it was running.
 

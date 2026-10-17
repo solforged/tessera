@@ -8,7 +8,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ### Header and tabs
 
-The header starts with Reading, Inbox and Highlights with its unprocessed count, then All, Collections, Finished, Abandoned and saved views. Zero counts are left out. The selected tab's 2 px gilt rule spans its label and count on the strip's baseline. The last tab is remembered per notebook.
+The header starts with Reading, Inbox and Highlights with its unprocessed count, then All, Collections, Finished, Abandoned and saved views. Zero counts are left out. The selected tab's 2 px gilt rule spans its label and count on the strip's baseline. The last tab is remembered per workshop.
 
 Under the tabs sit a 28 px search field, a sort menu (Added, Title, Author, Year, Last read, Progress, then Group and Save view…), the List and Shelf toggles, Browse, an Export menu (BibTeX, CSL JSON, Markdown) for the selection or the listed sources, and Add. Every tab keeps this row at one height and the same controls, Browse disabled where the tab has nothing to browse and Export disabled while nothing is listed; Collections puts its heading and New collection in the same row. On wide panes the tab strip and the list keep the Browse rail's offset on every tab, so switching tabs never moves them sideways. A library with no sources has no rail on any tab, so its tabs, controls and empty state center in one measure, Highlights included.
 
@@ -29,7 +29,7 @@ Rows read as a ledger on one 28 px line:
 - On Inbox the siglum steps aside. The title is followed by a fixed author column in `--muted`: the first author, else the editor, else the site. A long title cannot eat the name, and a duplicate second name stays in the record rather than the row. A faint mono `Author` head sits over that column, aligned with it in grouped and ungrouped lists. Other tabs keep the mono siglum, gilt on hover, and the ragged byline (creators, else site), which truncates before the title.
 - Trailing fixed-width mono columns show year, progress and the unprocessed highlight count, so figures line up across rows. Inside a year group the year column steps aside, because the heading already says it. An empty progress or highlight cell reserves no width on Inbox.
 
-Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows only its state-change date (`Oct 11`, named `Finished Oct 11` on hover), never a percentage, since the tab or the state column already says Finished. All and saved views spanning several states add a state column (`Inbox`, `Reading`, `Finished`, `Abandoned`) in `--faint` before the year.
+Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows only its state-change date (`Oct 11`, named `Finished Oct 11` on hover), never a percentage, since the tab or the state column already says Finished. All and saved views spanning states add a state column (`Inbox`, `Reading`, `Finished`, `Abandoned`) in `--faint` before the year.
 
 In a pane narrower than 560 px on a wide screen, the state, author and year columns step aside and progress keeps only its number, so the title keeps its room. Below 600 px, ledger rows stack the title and author or byline across the available width, omit the siglum, and put compact metadata beneath; empty progress, highlight and year cells reserve no space. All and collection ledgers retain their taller card layout.
 
@@ -43,7 +43,7 @@ Delete asks once for all the chosen sources, removes their pages and highlights,
 
 ### List and shelf
 
-Two icon toggles beside the sort menu, List (ledger rows) and Shelf (covers), choose how sources show. The choice is a device preference per notebook. Icons keep the controls on one line on a phone, where the sort button leaves out its grouping and Export shows only its glyph.
+Two icon toggles beside the sort menu, List (ledger rows) and Shelf (covers), choose how sources show. The choice is a device preference per workshop. Icons keep the controls on one line on a phone, where the sort button leaves out its grouping and Export shows only its glyph.
 
 The shelf is a grid of 2:3 covers at least `--shelf-cover-width` wide, sharing any spare width, at the list's measure. Under each cover sit:
 
@@ -144,11 +144,11 @@ A manual or looked-up title already in the library shows `“{title}” is alrea
 
 Queued and running file or article submissions show a job row above the sources: a state icon, name, state, and any error sentence on a second line aligned with the name. Completed jobs leave once their source exists.
 
-Failed jobs appear only in Inbox, under a heading such as `40 imports failed`. The first two are open, with Retry and Dismiss; the rest sit behind `38 more`, beside Dismiss all. Dismissal uses the existing device preference per notebook, including the batch action; it does not delete the service's jobs. Other registers show no failed backlog.
+Failed jobs appear only in Inbox, under a heading such as `40 imports failed`. The first two are open, with Retry and Dismiss; the rest sit behind `38 more`, beside Dismiss all. Dismissal uses the existing device preference per workshop, including the batch action; it does not delete the service's jobs. Other registers show no failed backlog.
 
 URL names retain the host and final path identifier (the complete DOI for doi.org), with middle ellipsis for long identifiers, and expose the full URL as their title and accessible name. In narrow panes the identifying name wraps to two lines above the state and actions.
 
-An EPUB creator entry that holds several people (`A; B`, `A & B`, or inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`) becomes one creator each. Calibre's unknown date, `0101-01-01`, is no date. Earlier EPUB imports carrying that sentinel in their extracted metadata read as undated in Library rows, Decades, year sorting, exports, the source header and the catalog card; other ancient dates and authored dates are kept, and stored fields are not rewritten. Browse facets skip blank values.
+An EPUB creator entry that holds more than one person (`A; B`, `A & B`, or inverted pairs such as `Bowen, William G., Guthrie, Kevin M.`) becomes one creator each. Calibre's unknown date, `0101-01-01`, is no date. Earlier EPUB imports carrying that sentinel in their extracted metadata read as undated in Library rows, Decades, year sorting, exports, the source header and the catalog card; other ancient dates and authored dates are kept, and stored fields are not rewritten. Browse facets skip blank values.
 
 Snapshots are deduplicated by the original file's bytes. Re-adding an unchanged file reuses its stored passages; parser updates do not reprocess existing snapshots, and there is no reprocess action or parser-version migration.
 
@@ -201,7 +201,7 @@ Save state belongs only to the pane header. Saving… appears after a second and
 
 Creator links use the holder-link treatment: `--text`, a `--line` underline, and gilt only on hover or focus. Author, Editor and Translator belong to each book.
 
-The person's menu separates Open person, inline Rename person… (with the notebook-wide book count), Merge into… and removal from the current book links.
+The person's menu separates Open person, inline Rename person… (with the workshop-wide book count), Merge into… and removal from the current book links.
 
 Move up and Move down in that menu reorder creators within the same role, preserving their links and other roles. With a creator row focused, ⌥↑ and ⌥↓ perform the same moves and keep focus with that creator. Each move uses the inspector's normal save and Undo.
 
@@ -209,21 +209,21 @@ Merge is a short explicit confirmation naming the books and notes that follow, t
 
 ### Multi-selection
 
-Several selected sources share one inspector headed N sources selected, with one line saying an entered value replaces the field on all of them unless a source is named; a single source's card carries no instruction line. Shared values show once. Differing values show a distinct-value count with disclosure and source counts, with known values and empty counts kept separate. A mixed value and a per-source register share one control in the field's value column: a hairline row with its summary (`2 values · per source`) at the leading edge and the source count at the trailing edge.
+Selected sources share one inspector headed N sources selected, with one line saying an entered value replaces the field on all of them unless a source is named; a single source's card carries no instruction line. Shared values show once. Differing values show a distinct-value count with disclosure and source counts, with known values and empty counts kept separate. A mixed value and a per-source register share one control in the field's value column: a hairline row with its summary (`2 values · per source`) at the leading edge and the source count at the trailing edge.
 
 A field editor states that Enter or blur sets every selected source, then offers a counted toast and Undo. Dates, series numbers and differing ordered creator roles remain compact per-source registers, initially folded, so editing a register cell changes only its named source. Mixed titles and citation keys also use named per-source editors, because those values must be unique.
 
-Each committed field across the selection is one revision-checked notebook batch and one undo step, including previously empty fields. No server-side metadata operation or alternate storage is introduced. The document layer's shared source-details planner supplies the same ordinary-field actions for individual edits, Add and multi-page batches.
+Each committed field across the selection is one revision-checked workshop batch and one undo step, including previously empty fields. No server-side metadata operation or alternate storage is introduced. The document layer's shared source-details planner supplies the same ordinary-field actions for individual edits, Add and multi-page batches.
 
 ### Transactions
 
-An inspector transaction is not adopted into document state before acknowledgment. A definitive validation rejection writes nothing and is retired from the shared recovery journal. The attempted value stays in its inline editor until corrected or canceled. An uncertain transport outcome remains durable and retries through the existing idempotent notebook command path.
+An inspector transaction is not adopted into document state before acknowledgment. A definitive validation rejection writes nothing and is retired from the shared recovery journal. The attempted value stays in its inline editor until corrected or canceled. An uncertain transport outcome remains durable and retries through the existing idempotent workshop command path.
 
 ## Highlights desk
 
 ### Queue and passage
 
-Highlights is a processing desk: a reading-order queue and selected passage share the desktop and unfolded pane, with source and chapter pickers in the toolbar rather than a permanent navigator. The tab strip keeps its place from the other tabs; the desk's controls span the desk below it. Until the notebook has a highlight there is no desk, so the controls and the empty message keep the other tabs' measure and offset.
+Highlights is a processing desk: a reading-order queue and selected passage share the desktop and unfolded pane, with source and chapter pickers in the toolbar rather than a permanent navigator. The tab strip keeps its place from the other tabs; the desk's controls span the desk below it. Until the workshop has a highlight there is no desk, so the controls and the empty message keep the other tabs' measure and offset.
 
 Sources retain newest-highlight order. Each source's passages retain ordinal and selection-offset order, including distinct overlapping selections. Queue previews clamp to three lines, marked by a 2 px color bar, with the actual paragraph, date, note count and filing page in mono. A quotation that supplies its own chapter title does not repeat that title above it.
 
@@ -233,7 +233,7 @@ Markdown export keeps the frozen evidence, authored highlight text, filing tags 
 
 On the cover, tapping a queue row opens a dedicated passage state with Back to highlights, Previous and Next. The scrollable passage sits above an always-visible action dock, clear of the bottom nav.
 
-Color and tag filters open a labeled sheet; No color matches unassigned citations. Color counts appear only for the loaded, unfiltered rows, never as whole-notebook facets, and a truncated queue names its loaded count. The sheet's footer holds Clear filters and a primary `Show N highlights` that carries the match count. With no highlights in the notebook, Filters and the source and section pickers step aside, leaving Unprocessed and All above the empty message.
+Color and tag filters open a labeled sheet; No color matches unassigned citations. Color counts appear only for the loaded, unfiltered rows, never as whole-workshop facets, and a truncated queue names its loaded count. The sheet's footer holds Clear filters and a primary `Show N highlights` that carries the match count. With no highlights in the workshop, Filters and the source and section pickers step aside, leaving Unprocessed and All above the empty message.
 
 ### Dock and keys
 
@@ -273,8 +273,8 @@ When processing empties the scoped queue, Undo stays in the Highlights toolbar s
 
 | State | Message |
 | --- | --- |
-| Notebook with no highlights | "Select text in the reader to add highlights." |
-| Empty Unprocessed queue in a notebook that still has highlights | "No unprocessed highlights." |
+| Workshop with no highlights | "Select text in the reader to add highlights." |
+| Empty Unprocessed queue in a workshop that still has highlights | "No unprocessed highlights." |
 | Empty color or tag filter | "No highlights match these filters." |
 
 ## Source pages
@@ -348,7 +348,7 @@ Zooming into a source annotation uses a compact citation masthead: imprint, crea
 
 Every source has a siglum, a short mark as in a critical edition. An authored `Siglum::` field wins when its trimmed value is one to four letters, upper-cased. Empty, longer or non-letter values are ignored.
 
-Otherwise it is the first three letters of the first author's family name (else editor, site, then the title's first word containing letters), upper-cased with Unicode letters kept and non-letters skipped. Shorter names use what they have. Sigla and collision hints are computed from the current fields, not stored assignments, so editing the author changes the stem and existing notebooks need no migration.
+Otherwise it is the first three letters of the first author's family name (else editor, site, then the title's first word containing letters), upper-cased with Unicode letters kept and non-letters skipped. Shorter names use what they have. Sigla and collision hints are computed from the current fields, not stored assignments, so editing the author changes the stem and existing workshops need no migration.
 
 The source header includes it as a bare mono mark in its one-line imprint, never boxed, and CSL JSON exports it as `citation-label`.
 

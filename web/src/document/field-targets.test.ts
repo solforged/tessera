@@ -24,7 +24,7 @@ test('target edits undo and redo, while instance choices follow actual page memb
   const port = listener.port!; listener.stop(true);
   const baseUrl = `http://127.0.0.1:${port}`;
   const api = createApi(baseUrl);
-  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   let notebook: Notebook | undefined;
   try {
     const deadline = Date.now() + 5000;
@@ -102,7 +102,7 @@ test('work becomes a relation to Sources, and its review makes created pages sou
   const port = listener.port!; listener.stop(true);
   const baseUrl = `http://127.0.0.1:${port}`;
   const api = createApi(baseUrl);
-  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   let notebook: Notebook | undefined;
   try {
     const deadline = Date.now() + 5000;

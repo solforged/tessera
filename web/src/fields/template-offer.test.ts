@@ -17,7 +17,7 @@ test('a field is offered to a tag on its second use, once, and adding it undoes 
   const port = listener.port!; listener.stop(true);
   const baseUrl = `http://127.0.0.1:${port}`;
   const api = createApi(baseUrl);
-  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  const process = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', String(port), '--sync-port', '0'], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   const notebooks: Notebook[] = [];
   const client = async () => {
     const info = await api.notebook();

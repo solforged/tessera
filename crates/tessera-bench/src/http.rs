@@ -15,8 +15,8 @@ impl Http {
         let notebook = Notebook::open(dir)?;
         let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
         let port = listener.local_addr()?.port();
-        let router =
-            tessera_service::router(notebook, port, None, None).map_err(anyhow::Error::msg)?;
+        let router = tessera_service::router(notebook, port, None, None, None)
+            .map_err(anyhow::Error::msg)?;
         let task = tokio::spawn(async move { axum::serve(listener, router).await });
         let client = reqwest::Client::builder().no_proxy().build()?;
         Ok(Self {

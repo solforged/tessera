@@ -32,7 +32,7 @@ Review is a pane on the outline measure, like [Library](library.md). Its mono re
 
 The landing's Due, New and All tabs share the tab-strip baseline, with a 2 px gilt rule under the whole selected tab. The landing is a ruled register rather than a dashboard: one hairline opens the overview, with no boxes. The selected queue leads with its total as a Piazzolla figure at `--text-figure`; Due says due now, while New and All say cards in this queue.
 
-One apparatus line follows: how many come due later today (after due now, on New and All), and, when nothing is due now, the next card's time in the notebook's time zone (`next at 10:59`, or its date and time when it is not today). Review N cards (Space) starts the bounded batch and is a gilt hairline button, as are Review's other start actions. The fourteen-day forecast stays secondary at the right, square bars on a baseline rule; All includes deferred introductions.
+One apparatus line follows: how many come due later today (after due now, on New and All), and, when nothing is due now, the next card's time in the workshop's time zone (`next at 10:59`, or its date and time when it is not today). Review N cards (Space) starts the bounded batch and is a gilt hairline button, as are Review's other start actions. The fourteen-day forecast stays secondary at the right, square bars on a baseline rule; All includes deferred introductions.
 
 The forecast's first bar is gilt. Every forecast bar has a two-letter weekday label; today's accessible name is “today”. Retention over thirty local days, this week's review count, the streak and total cards follow as one mono ledger line between rules, then a deck ledger with Due, New and Cards. The session summary uses the same stats line.
 
@@ -58,7 +58,7 @@ A completed or explicitly closed session with at least one review keeps its coun
 
 The card reads as a quiet sheet on the page rather than a boxed panel. On a fine-pointer device it is headed by the same rubric mark as popups. Its top rule turns gilt only on fine-pointer keyboard focus; touch shows neither this rule nor the rubric, leaving the progress strip alone.
 
-One mono line heads every card: the source at the left, then the kind in faint capitals (`FORWARD`, `REVERSE`, `CLOZE`, `MULTI-LINE`, `LIST`, `DESCRIPTOR`, `OCCLUSION`) and Card actions at the right. A cloze or occlusion card is numbered (`CLOZE 2`, `OCCLUSION 2`) only when its block makes several. A cited card's source shows siglum, title, chapter and paragraph and opens that citation. ⌘-click opens it beside (Ctrl-click off Mac). An uncited card's source path opens its block. Card actions holds the same open action, Edit card, which opens the canonical block, and Reset progress, which requires a revealed answer and confirmation. On an occlusion card, Edit card also opens the mask editor.
+One mono line heads every card: the source at the left, then the kind in faint capitals (`FORWARD`, `REVERSE`, `CLOZE`, `MULTI-LINE`, `LIST`, `DESCRIPTOR`, `OCCLUSION`) and Card actions at the right. A cloze or occlusion card is numbered (`CLOZE 2`, `OCCLUSION 2`) only when its block makes more than one. A cited card's source shows siglum, title, chapter and paragraph and opens that citation. ⌘-click opens it beside (Ctrl-click off Mac). An uncited card's source path opens its block. Card actions holds the same open action, Edit card, which opens the canonical block, and Reset progress, which requires a revealed answer and confirmation. On an occlusion card, Edit card also opens the mask editor.
 
 Cards beneath a highlight inherit the nearest ancestor citation when they have none of their own. Their source line identifies the book and location, not the ancestor quotation. The cited passage and following sentence wait for reveal.
 
@@ -146,7 +146,7 @@ The current card stays until a grade is acknowledged. Pending commands survive o
 
 Exhausting a confirmed queue shows Finishing review… until the finish is acknowledged, then Done and normal deck actions. Finishing early, abandoning or switching an open review is explicit; committed grades and their shown-text evidence remain. Pane history and reload preserve the deck, queue selection and session.
 
-A notebook with no cards offers Create a card, which opens the card composer under the button. A non-empty Review landing keeps New card beside New deck and opens the shared creation slip with Card selected. An empty deck or held-only inventory keeps its distinct explanation.
+A workshop with no cards offers Create a card, which opens the card composer under the button. A non-empty Review landing keeps New card beside New deck and opens the shared creation slip with Card selected. An empty deck or held-only inventory keeps its distinct explanation.
 
 ## Card composer
 

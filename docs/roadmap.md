@@ -37,7 +37,7 @@ Exit: write, rearrange, navigate away and reopen for a week of real notes withou
 
 Exit: record a reading list with authors and dates, then sort, filter and save it as a view.
 
-Status: done. Fields, templates, type tables with sorting and filtering, saved queries, manual membership from a pill menu, a Fields destination and notebook settings (time zone, Vim) are in. Task-state and date filters are available in Agenda's Tasks view. The [design](design.md) language applies to the shell, outline, tables and capability surfaces.
+Status: done. Fields, templates, type tables with sorting and filtering, saved queries, manual membership from a pill menu, a Fields destination and workshop settings (time zone, Vim) are in. Task-state and date filters are available in Agenda's Tasks view. The [design](design.md) language applies to the shell, outline, tables and capability surfaces.
 
 ## 3. Action
 
@@ -45,7 +45,7 @@ Status: done. Fields, templates, type tables with sorting and filtering, saved q
 - Quick date entry (`@friday`, a shortcut, a popup with quick picks).
 - Agenda in the journal; projects with outcomes and actions; clocked work sessions.
 
-Exit: plan a small project, work it over several days with clocked time, and find the result from the agenda.
+Exit: plan a small project, work it across days with clocked time, and find the result from the agenda.
 
 Status: done. Browser proof planned a language-model project, recorded clocked work and notes, completed work in historical journals, advanced a recurring task across adjacent days, reopened and undid a completion without duplicating history, and saved and restored a project task query. Agenda rows open the canonical source beside the historical day. A parity pass added ⌘Enter and `[] ` task creation, the `@` date popup on any block, quick capture in Agenda, and a journal agenda that summarizes the day when collapsed. A keyboard pass added the `/` command menu, `@due` deadlines, the ⌘⇧Enter status menu and a Space leader for planning, clocking and cards.
 
@@ -68,7 +68,7 @@ Next: cards from field entries. A field definition could make cards, so every `N
 
 - Fields that sources need: ordered creators with roles (author, editor, translator) as references to person pages; partial dates such as a bare year; URL and identifier kinds for ISBN, DOI and arXiv; values supplied by a snapshot's extracted metadata until an authored value replaces them, with reset back to the extracted value.
 - A source is a page with a source capability and a source type (`#book`, `#article`), so its metadata is ordinary fields ordered by the type's template. A compact header shows creators, year, reading state and progress instead of one outline row per field.
-- `tessera-ingest`, written fresh with Bibliotheca as reference only. EPUB first, then web articles: immutable, content-hashed snapshots; original files in the notebook's object store; passages with their own search index. Ingestion jobs with retry and resume run in the service.
+- `tessera-ingest`, written fresh with Bibliotheca as reference only. EPUB first, then web articles: immutable, content-hashed snapshots; original files in the workshop's object store; passages with their own search index. Ingestion jobs with retry and resume run in the service.
 - Library joins the sidebar as its own pane over source pages, with Inbox, Reading, Finished, Abandoned and All tabs and Highlights for triage.
 - A reader pane beside the outline, with reading position and progress.
 - Highlighting a passage writes an ordinary block on the source's page that cites it; citations pin source, snapshot and passage. A triage view lists unprocessed highlights across sources.
@@ -151,11 +151,11 @@ The [research desk](surfaces/desk.md) links three entity queries: questions, the
 
 Exit: offline, highlight a book on the phone while editing today's journal on the Mac; reconnect, and both devices show the highlights and the journal. See [sync](sync.md).
 
-Progress: determinism and identity, the replica protocol on loopback, and objects and library state are done. `tessera sync clone` and `tessera sync` replicate a notebook from a running service, with text conflicts kept as copies, same-day journals, same-title pages and the same book merged, covers kept on every replica, other files fetched when used or pinned, and reading positions and surfacings ordered by a hybrid logical clock. The tailnet listener, pairing and the Android client are in. A paired phone syncs with the Mac; an unpaired phone keeps its own notebook.
+Progress: determinism and identity, the replica protocol on loopback, and objects and library state are done. `tessera sync clone` and `tessera sync` replicate a workshop from a running service, with text conflicts kept as copies, same-day journals, same-title pages and the same book merged, covers kept on every replica, other files fetched when used or pinned, and reading positions and surfacings ordered by a hybrid logical clock. The tailnet listener, pairing and the Android client are in. A paired phone syncs with the Mac; an unpaired phone keeps its own workshop.
 
 ## Later
 
-- A writing typeface choice in Settings › Appearance that sets the notebook's own sentences in Piazzolla, as the reader's Typeface setting does for books. Plex stays the default.
+- A writing typeface choice in Settings › Appearance that sets the workshop's own sentences in Piazzolla, as the reader's Typeface setting does for books. Plex stays the default.
 
 ## Not planned
 

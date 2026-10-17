@@ -49,7 +49,7 @@ export function syncHealth(state: SyncState | null, devices: SyncDevices | null,
     base.title = base.kind === 'forgotten' ? 'Pair again' : 'Download again';
     base.rail = replica ? base.title : `${base.deviceName} retired`;
     base.hint = base.kind === 'forgotten' ? `${base.hubName} no longer knows this device.`
-      : replica ? 'Away more than 30 days.' : `${base.deviceName} must download the notebook again.`;
+      : replica ? 'Away more than 30 days.' : `${base.deviceName} must download the workshop again.`;
   } else if (mismatch(replica?.last_error) || refused) {
     base.kind = 'version'; base.title = 'Version mismatch'; base.behind = behind(base.hubVersion, base.deviceVersion);
     base.rail = replica ? `Update ${base.behind === 'hub' ? base.hubName : base.deviceName}${base.pending ? ` · ${base.pending} waiting` : ''}`

@@ -12,7 +12,7 @@ Tessera is a local-first outline workstation for notes, questions, evidence, tas
 
 ## Screenshots
 
-The notebook below studies anacyclosis, Polybius's cycle of constitutions. Its quotations come from Evelyn S. Shuckburgh's public-domain translation.
+The workshop below studies anacyclosis, Polybius's cycle of constitutions. Its quotations come from Evelyn S. Shuckburgh's public-domain translation.
 
 ### Perspectives on one idea
 
@@ -49,7 +49,7 @@ Review a deck beside the notes its cards come from, on a quiet reading sheet wit
 - **Writing in outlines.** Nest, move, fold and zoom blocks with the keyboard or the mouse. Vim users get real Vim motions inside a block and structural commands across blocks.
 - **Reusing thoughts without copying them.** A reference shows the original block's current text. Editing the original updates every place it appears.
 - **Questions that change their answers.** An investigation keeps its dated assessments. Accepting a new answer supersedes the old one without erasing it.
-- **Several accounts of one thing.** Sources, passages and attributed positions stay distinct, so disagreement is visible instead of averaged away.
+- **Distinct accounts of one thing.** Sources, passages and attributed positions stay distinct, so disagreement is visible instead of averaged away.
 - **Work and study attached to knowledge.** Tasks, schedules and flashcards live on the blocks they concern, with their history intact.
 - **Agents as ordinary clients.** Command-line tools and language-model agents use the same checked operations as the editor. They never write to the database directly.
 
@@ -58,7 +58,7 @@ Review a deck beside the notes its cards come from, on a quiet reading sheet wit
 1. Never lose work. Unsaved, saved, conflicted and superseded are different states, and the interface says which one applies.
 2. Identity outlives wording. Moving, editing or referencing a block keeps its ID, its cards and its history.
 3. Structure is added, not chosen up front. A block can gain a task, a question, a card or a type without becoming a different object.
-4. Don't drop a frame. Typing, scrolling and navigation have explicit budgets, measured on large notebooks.
+4. Don't drop a frame. Typing, scrolling and navigation have explicit budgets, measured on large workshops.
 5. Quiet and keyboard-first, in a dark or light theme, with every action also reachable by a visible control.
 
 ## Documents
@@ -86,11 +86,11 @@ Review a deck beside the notes its cards come from, on a quiet reading sheet wit
 - [Lessons](docs/lessons.md): what the prototype proved and what it got wrong.
 - [Performance](docs/performance.md): budgets, the measured baseline and the spikes that decide the stack.
 - [Roadmap](docs/roadmap.md): build order and exit criteria.
-- [Sync](docs/sync.md): replicating a notebook between your own devices, and what keeps collaboration possible.
+- [Sync](docs/sync.md): replicating a workshop between your own devices, and what keeps collaboration possible.
 
 ## Install
 
-For a running notebook without installation, open the [browser demo](https://tessera.solforged.io).
+For a running workshop without installation, open the [browser demo](https://tessera.solforged.io).
 
 - **macOS app:** download the [latest release](https://github.com/solforged/tessera/releases/latest), drag Tessera into Applications and follow the [first-launch steps](docs/usage.md#macos-app).
 - **Android app:** [build and install an arm64 APK](docs/usage.md#android-app) on a phone with USB debugging enabled.

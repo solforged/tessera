@@ -93,7 +93,7 @@ export function SyncExplanation(props: { health: SyncHealth }) {
       <p><Show when={value().kept}>The kept versions are still beside their blocks. </Show><Show when={value().rejected}>Rejected changes are available in Settings.</Show></p><p class="sync-waiting">Review when convenient. Nothing has been discarded.</p>
     </Match>
     <Match when={value().kind === 'forgotten'}><p>{value().hubName} no longer accepts this device's key. Pair it again to sync.</p><p class="sync-waiting">Changes waiting here stay on this device.</p></Match>
-    <Match when={value().kind === 'retired'}><p>{value().role === 'hub' ? `${value().deviceName} needs to download the notebook again.` : `${value().hubName} stopped keeping changes for this device after 30 days away.`}</p><p class="sync-waiting">Pins and downloaded books stay.</p></Match>
+    <Match when={value().kind === 'retired'}><p>{value().role === 'hub' ? `${value().deviceName} needs to download the workshop again.` : `${value().hubName} stopped keeping changes for this device after 30 days away.`}</p><p class="sync-waiting">Pins and downloaded books stay.</p></Match>
     <Match when={value().kind === 'sending'}><p>{value().pending ? `${plural(value().pending, 'change')} waiting. Tessera is sending them.` : 'Tessera is getting the latest changes.'}</p></Match>
     <Match when={value().kind === 'synced'}><p>{value().role === 'hub' ? 'Your paired devices have no reported sync problems.' : 'No changes waiting.'}<Show when={value().role === 'replica' && replica()?.synced_at}>{at => <> Synced {ago(at() as number, sync.now())}.</>}</Show></p></Match>
   </Switch>;
@@ -124,7 +124,7 @@ export function SyncFix(props: { health: SyncHealth; onError(message: string): v
       <Button class="bordered" disabled={running() || replica()?.syncing} onClick={() => { void act(api.runSync); }}>{running() ? 'Trying…' : value().kind === 'unreachable' ? 'Try again' : 'Sync now'}</Button>
     </Show>
     <Show when={value().role === 'replica' && value().kind === 'forgotten'}><Button class="bordered" onClick={() => setPairing(true)}>Pair again</Button></Show>
-    <Show when={value().role === 'replica' && value().kind === 'retired'}><Button class="bordered" disabled={running()} onClick={() => { void act(api.reclone); }}>{running() ? 'Downloading…' : 'Download the notebook again'}</Button></Show>
+    <Show when={value().role === 'replica' && value().kind === 'retired'}><Button class="bordered" disabled={running()} onClick={() => { void act(api.reclone); }}>{running() ? 'Downloading…' : 'Download the workshop again'}</Button></Show>
     <Show when={pairing()}><SyncSetup again={{ url: replica()!.hub_url }} onDone={() => setPairing(false)} /></Show>
   </>;
 }

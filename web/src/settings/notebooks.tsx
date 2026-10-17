@@ -11,7 +11,25 @@ const [known, setKnown] = createSignal<KnownNotebooks>();
 const [opening, setOpening] = createSignal<string | null>(null);
 export { known as knownNotebooks, opening as notebookOpening };
 
-export const notebookLabel = (notebook: KnownNotebook) => notebook.default ? 'Default notebook' : notebook.name;
+/** Workshops go by their folder name, capitalized for display; the folder keeps its own spelling. */
+export const workshopName = (folder: string) => folder.charAt(0).toLocaleUpperCase() + folder.slice(1);
+export const notebookLabel = (notebook: KnownNotebook) => workshopName(notebook.name);
+
+/** The folder that holds workshops made by name, as `~/…`, read off one of them. */
+export const workshopsHome = () => {
+  const named = known()?.notebooks.find(entry => entry.named);
+  return named ? named.display_path.slice(0, named.display_path.lastIndexOf('/')) : undefined;
+};
+
+/**
+ * Where a workshop lives, when its name alone doesn't say: nothing for one made by name, its location for one
+ * elsewhere, and its whole path when another workshop shares its name.
+ */
+export function notebookPlace(notebook: KnownNotebook): string | undefined {
+  const twin = known()?.notebooks.some(entry => entry !== notebook && notebookLabel(entry) === notebookLabel(notebook));
+  if (twin) return notebook.display_path;
+  return notebook.named ? undefined : notebook.display_path;
+}
 
 export async function loadNotebooks(): Promise<void> {
   if (!EMBEDDED) setKnown(await api.notebooks());
@@ -48,7 +66,7 @@ export async function openNotebook(notebook: NotebookClient, path: string, creat
         if (error instanceof ApiError && error.code === 'notebook_changed') return;
       }
     }
-    throw new Error(`${label} did not open within 30 seconds. Reload the window to see which notebook is open.`);
+    throw new Error(`${label} did not open within 30 seconds. Reload the window to see which workshop is open.`);
   } catch (error) {
     setOpening(null);
     throw error;
@@ -62,8 +80,8 @@ export function registerNotebookCommands(commands: CommandRegistry, notebook: No
   createEffect(() => {
     const others = (known()?.notebooks ?? []).filter(entry => !entry.current && entry.available);
     onCleanup(commands.register(others.map(entry => ({
-      id: `shell.notebook.${entry.path}`, title: `Switch to notebook: ${notebookLabel(entry)}`, section: 'Navigation' as const,
-      disabledReason: () => opening() ? 'A notebook is already opening' : undefined,
+      id: `shell.notebook.${entry.path}`, title: `Switch to workshop: ${notebookLabel(entry)}`, section: 'Navigation' as const,
+      disabledReason: () => opening() ? 'A workshop is already opening' : undefined,
       run: () => { void openNotebook(notebook, entry.path, false, notebookLabel(entry)).catch(report); },
     }))));
   });

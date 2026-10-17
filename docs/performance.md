@@ -1,10 +1,10 @@
 # Performance
 
-The goal is that ordinary use never drops a frame on the owner's machines: typing, scrolling, folding, moving blocks and switching pages, on notebooks of 50,000 blocks or more. No design can promise that on all hardware, so Tessera sets budgets, measures them on named devices and treats a missed budget as a bug.
+The goal is that ordinary use never drops a frame on the owner's machines: typing, scrolling, folding, moving blocks and switching pages, on workshops of 50,000 blocks or more. No design can promise that on all hardware, so Tessera sets budgets, measures them on named devices and treats a missed budget as a bug.
 
 ## Budgets
 
-Measured on 50,000-block notebooks with 2,000- and 10,000-row pages, mixed heights and two panes open.
+Measured on 50,000-block workshops with 2,000- and 10,000-row pages, mixed heights and two panes open.
 
 | Surface | 120 Hz display | 60 Hz display |
 |---|---|---|
@@ -24,13 +24,13 @@ Measured on 50,000-block notebooks with 2,000- and 10,000-row pages, mixed heigh
 Rules that follow from the budgets:
 
 - Typing never waits on the network, the service or SQLite.
-- No per-keystroke work is proportional to page size or notebook size.
+- No per-keystroke work is proportional to page size or workshop size.
 - No synchronous storage write on the input path.
 - Undo history and drafts grow with the number of edits, not with page size times edits.
 
 ## Baseline from the prototype
 
-The prototype was measured on an Apple M5 Max in headless Chrome 151 with a 52,000-block notebook.
+The prototype was measured on an Apple M5 Max in headless Chrome 151 with a 52,000-block workshop.
 
 | Scenario | Result |
 |---|---|
@@ -49,11 +49,11 @@ What this shows:
 - **Rendering is not the limit.** The browser scrolled a fully rendered 2,000-block page within a 120 Hz budget. Virtualization is for memory and load time.
 - **Work per edit is.** Typing cost grew with page size because each key re-rendered and reserialized the whole page.
 - **Backend load and save were the worst offenders,** at about 1.3 ms per block.
-- **Search and completion scanned** and grew linearly with notebook size.
+- **Search and completion scanned** and grew linearly with workshop size.
 
 ## Spike 1 result: backend operations
 
-Spike 1 passed on 2026-10-01: Apple M5 Max, release build, SQLite 3.53.2, 50,000-block notebook, 31 runs per measurement. Each measured read was checked against the generator's own model.
+Spike 1 passed on 2026-10-01: Apple M5 Max, release build, SQLite 3.53.2, 50,000-block workshop, 31 runs per measurement. Each measured read was checked against the generator's own model.
 
 | Operation | Core p95 | HTTP p95 | Budget |
 |---|---|---|---|
@@ -91,7 +91,7 @@ What it left to spike 3:
 
 ## Client pass, 2026-10-06
 
-Measured on an Apple M5 Max in headless Chrome 150 against a release service and the 50,000-block bench notebook, with 1,500 seeded tasks. Times run from the key or click to two frames after the target rows render.
+Measured on an Apple M5 Max in headless Chrome 150 against a release service and the 50,000-block bench workshop, with 1,500 seeded tasks. Times run from the key or click to two frames after the target rows render.
 
 | Scenario | Before | After |
 |---|---|---|
@@ -110,7 +110,7 @@ Remaining: the table's server query costs about 270 ms at 42,000 members, with t
 
 ## Client pass, 2026-10-11
 
-Measured in headless Brave against a release service and the 10,000-block bench notebook (60 pages, an 8,474-member type).
+Measured in headless Brave against a release service and the 10,000-block bench workshop (60 pages, an 8,474-member type).
 
 | Scenario | Before | After |
 |---|---|---|
@@ -119,9 +119,9 @@ Measured in headless Brave against a release service and the 10,000-block bench 
 | A 5,792-character tagged block in a type table | 705 px tall | 57 px, three lines |
 | Open Unfiled | two index reads, 300 ms apart | one |
 
-On the 50,000-block notebook the same Find opened with 384 rows sent 351 to 866 capability reads, which held `/api/search` back by about 5 s. Page icons now read source formats from one shared Sources index, reloaded only when a change adds, removes or reformats a source page.
+On the 50,000-block workshop the same Find opened with 384 rows sent 351 to 866 capability reads, which held `/api/search` back by about 5 s. Page icons now read source formats from one shared Sources index, reloaded only when a change adds, removes or reformats a source page.
 
-Remaining: every launch replays `/api/changes` from sequence 0; on the 50,000-block notebook that is 98 MB and about 1 s, and `tessera-bench` at 10,000 blocks misses the 100 ms `changes_since:0` budget (p95 189 ms in core, 214 ms over HTTP).
+Remaining: every launch replays `/api/changes` from sequence 0; on the 50,000-block workshop that is 98 MB and about 1 s, and `tessera-bench` at 10,000 blocks misses the 100 ms `changes_since:0` budget (p95 189 ms in core, 214 ms over HTTP).
 
 ## Spikes that decide the stack
 
@@ -135,9 +135,9 @@ Each runs before the matching feature is built. Each can overturn a choice in [a
 
 ## How it is measured
 
-- `tessera-bench` generates seeded notebooks of 1k, 10k and 50k blocks through the same batches clients use, and checks every measured query against the generator's model.
+- `tessera-bench` generates seeded workshops of 1k, 10k and 50k blocks through the same batches clients use, and checks every measured query against the generator's model.
 - Release builds, median and p95 over 31 runs, query plans saved for regressions.
-- `cargo run --release -p tessera-bench -- --root /tmp/tessera-bench --fail-on budgets` is the gate on a named device. CI runs the 50k notebook with `--fail-on scaling`: it fails on any correctness error or on per-row work, and reports absolute budgets without failing, since shared runners are not the devices the budgets describe.
+- `cargo run --release -p tessera-bench -- --root /tmp/tessera-bench --fail-on budgets` is the gate on a named device. CI runs the 50k workshop with `--fail-on scaling`: it fails on any correctness error or on per-row work, and reports absolute budgets without failing, since shared runners are not the devices the budgets describe.
 - Scaling checks compare medians: the 10,000-block page's commit must cost at most twice the 100-block page's plus 1 ms.
 - Browser traces for input latency and long tasks; on-device presentation traces for frame claims, since headless paint timing is only a proxy.
 - Results recorded per commit, so regressions show up when they happen.

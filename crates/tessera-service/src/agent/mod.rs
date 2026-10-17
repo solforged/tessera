@@ -341,7 +341,7 @@ async fn run_turn(
     let system =
         tokio::task::spawn_blocking(move || tools::context(&notebook.lock(), &request.context))
             .await
-            .map_err(|_| "Cannot read notebook context.".to_owned())?
+            .map_err(|_| "Cannot read workshop context.".to_owned())?
             .map_err(|e| provider.redact(&e.to_string()))?;
     let actor = format!("{} · {}", provider.name, provider.model);
     let reason: String = request.prompt.trim().chars().take(200).collect();
@@ -409,7 +409,7 @@ async fn run_turn(
                             .map_err(|e| e.to_string())
                     })
                     .await
-                    .map_err(|_| "The notebook tool failed.".to_owned())?
+                    .map_err(|_| "The workshop tool failed.".to_owned())?
                 }
             };
             let (text, error) = match result {

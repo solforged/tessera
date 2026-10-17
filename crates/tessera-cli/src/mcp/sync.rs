@@ -22,14 +22,14 @@ fn describe(state: &Value, now: i64) -> String {
     let replica = &state["replica"];
     if replica.is_null() {
         return match state["role"].as_str() {
-            Some("hub") => "This notebook is the hub other devices sync with.".into(),
-            _ => "This notebook does not sync with any other device.".into(),
+            Some("hub") => "This workshop is the hub other devices sync with.".into(),
+            _ => "This workshop does not sync with any other device.".into(),
         };
     }
     let mut text = match (replica["hub_name"].as_str(), replica["hub_url"].as_str()) {
-        (Some(name), _) => format!("This notebook is a copy of the notebook on {name}"),
-        (None, Some(url)) => format!("This notebook is a copy of the notebook at {url}"),
-        (None, None) => "This notebook is a copy of a hub's notebook".into(),
+        (Some(name), _) => format!("This workshop is a copy of the workshop on {name}"),
+        (None, Some(url)) => format!("This workshop is a copy of the workshop at {url}"),
+        (None, None) => "This workshop is a copy of a hub's workshop".into(),
     };
     if let Some(device) = replica["device_name"].as_str() {
         text.push_str(&format!(", synced as {device}"));

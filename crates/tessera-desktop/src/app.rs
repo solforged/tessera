@@ -45,19 +45,58 @@ struct State {
 }
 
 impl State {
-    fn path(app: &AppHandle) -> Option<PathBuf> {
-        Some(app.path().app_data_dir().ok()?.join("state.json"))
+    fn path() -> Option<PathBuf> {
+        Some(tessera_core::paths::state_dir()?.join("desktop.json"))
     }
 
     fn load(app: &AppHandle) -> Self {
-        Self::path(app)
-            .and_then(|path| std::fs::read(path).ok())
+        let path = Self::path();
+        if let (Some(target), Ok(legacy)) = (&path, app.path().app_data_dir())
+            && let Err(error) = Self::migrate(&legacy.join("state.json"), target)
+        {
+            log(&format!("cannot move desktop state: {error}"));
+        }
+        path.and_then(|path| std::fs::read(path).ok())
             .and_then(|bytes| serde_json::from_slice(&bytes).ok())
             .unwrap_or_default()
     }
 
-    fn save(&self, app: &AppHandle) {
-        let Some(path) = Self::path(app) else { return };
+    fn migrate(source: &std::path::Path, target: &std::path::Path) -> std::io::Result<()> {
+        use std::fs::File;
+        use std::io;
+        let mut old = match File::open(source) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        let parent = target
+            .parent()
+            .ok_or_else(|| io::Error::other("desktop state has no parent"))?;
+        std::fs::create_dir_all(parent)?;
+        let mut new = match File::options().write(true).create_new(true).open(target) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => return Ok(()),
+            Err(error) => return Err(error),
+        };
+        let copied = io::copy(&mut old, &mut new)
+            .and_then(|_| new.sync_all())
+            .and_then(|()| File::open(parent)?.sync_all());
+        if let Err(error) = copied {
+            drop(new);
+            let _ = std::fs::remove_file(target);
+            return Err(error);
+        }
+        std::fs::remove_file(source)?;
+        log(&format!(
+            "moved desktop state from {} to {}",
+            source.display(),
+            target.display()
+        ));
+        Ok(())
+    }
+
+    fn save(&self) {
+        let Some(path) = Self::path() else { return };
         let written = path
             .parent()
             .map_or(Ok(()), std::fs::create_dir_all)
@@ -69,9 +108,7 @@ impl State {
 }
 
 pub fn logs() -> PathBuf {
-    std::env::home_dir()
-        .unwrap_or_default()
-        .join("Library/Logs/tessera")
+    tessera_core::paths::logs_dir().unwrap_or_default()
 }
 
 /// Append to `desktop.log` beside the service's `serve.log`.
@@ -88,8 +125,8 @@ pub fn log(message: &str) {
 }
 
 /// Where the updater keeps the outgoing build's `tessera`, for rollback.
-pub fn previous_cli(app: &AppHandle) -> Option<PathBuf> {
-    Some(app.path().app_data_dir().ok()?.join("previous/tessera"))
+pub fn previous_cli() -> Option<PathBuf> {
+    Some(tessera_core::paths::data_dir()?.join("previous/tessera"))
 }
 
 pub fn run() {
@@ -541,7 +578,7 @@ async fn start(app: AppHandle) {
             status(
                 &app,
                 "Tessera couldn’t start",
-                "The notebook service did not answer. Nothing in the notebook was changed without a backup.",
+                "The workshop service did not answer. Nothing in the workshop was changed without a backup.",
                 &detail,
             );
             return;
@@ -578,10 +615,10 @@ async fn prepare(app: &AppHandle) -> Result<Url, String> {
         Url::parse(&format!("http://127.0.0.1:{port}/")).map_err(|error| error.to_string())?;
     let ours = agent::identity(agent::VERSION, agent::BUILD);
     let running = agent::probe(&shell.client, port).await;
+    let mut state = State::load(app);
     if agent.runs(&bundled) && running.as_deref() == Some(ours.as_str()) {
         return Ok(url);
     }
-    let mut state = State::load(app);
     if running.is_some() && state.failed.as_deref() == Some(ours.as_str()) {
         log(&format!(
             "{ours} failed to start before; staying on {}",
@@ -596,7 +633,7 @@ async fn prepare(app: &AppHandle) -> Result<Url, String> {
         } else {
             "Starting Tessera…"
         },
-        "Backing up the notebook before this version opens it.",
+        "Backing up the workshop before this version opens it.",
         "",
     );
     // Roll back to the agent's other executable, or to the copy the updater
@@ -605,7 +642,7 @@ async fn prepare(app: &AppHandle) -> Result<Url, String> {
         .program
         .clone()
         .filter(|program| !agent.runs(&bundled) && program.exists())
-        .or_else(|| previous_cli(app).filter(|path| path.exists()));
+        .or_else(|| previous_cli().filter(|path| path.exists()));
     log(&format!(
         "activating {ours} (was {}), rollback {:?}",
         running.as_deref().unwrap_or("not running"),
@@ -619,20 +656,20 @@ async fn prepare(app: &AppHandle) -> Result<Url, String> {
     match activated {
         Ok(()) => {
             if state.failed.take().is_some() {
-                state.save(app);
+                state.save();
             }
             Ok(url)
         }
         Err(detail) => {
             log(&detail);
             state.failed = Some(ours);
-            state.save(app);
+            state.save();
             if agent::probe(&shell.client, port).await.is_none() {
                 return Err(detail);
             }
             app.dialog()
                 .message(format!(
-                    "Tessera {} could not start its notebook service, so the previous version is running. The notebook was restored from the backup taken just before.\n\n{}",
+                    "Tessera {} could not start its workshop service, so the previous version is running. The workshop was restored from the backup taken just before.\n\n{}",
                     agent::VERSION,
                     tail(&detail, 1200)
                 ))
@@ -675,7 +712,7 @@ async fn watch(app: AppHandle, url: Url) {
 
 #[cfg(test)]
 mod tests {
-    use super::about_metadata;
+    use super::{State, about_metadata};
 
     #[test]
     fn about_separates_release_and_build() {
@@ -691,5 +728,22 @@ mod tests {
             assert_eq!(about.version.as_deref(), Some("0.2.0"));
             assert_eq!(about.short_version.as_deref(), Some(""));
         }
+    }
+
+    #[test]
+    fn desktop_state_migrates_once_without_overwriting_an_existing_choice() {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("old.json");
+        let target = root.path().join("state/desktop.json");
+        let bytes = br#"{"failed":"build"}"#;
+        std::fs::write(&source, bytes).unwrap();
+        State::migrate(&source, &target).unwrap();
+        assert!(!source.exists());
+        assert_eq!(std::fs::read(&target).unwrap(), bytes);
+        State::migrate(&source, &target).unwrap();
+        std::fs::write(&source, b"keep both").unwrap();
+        State::migrate(&source, &target).unwrap();
+        assert_eq!(std::fs::read(&target).unwrap(), bytes);
+        assert_eq!(std::fs::read(&source).unwrap(), b"keep both");
     }
 }

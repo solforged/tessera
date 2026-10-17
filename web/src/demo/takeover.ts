@@ -27,7 +27,7 @@ export class NotebookHandoff {
         this.releasing = true;
         void this.options.release().then(released => {
           if (released && !this.closed) channel.postMessage({ type: 'released', id: message.id! });
-        }).catch(reason => console.error('Notebook handoff failed.', reason)).finally(() => { this.releasing = false; });
+        }).catch(reason => console.error('Workshop handoff failed.', reason)).finally(() => { this.releasing = false; });
       }
     };
   }

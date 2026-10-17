@@ -28,8 +28,8 @@ export class DemoTransport {
 
   constructor(private worker: Worker) {
     worker.addEventListener('message', event => this.receive(event.data as FromWorker));
-    worker.addEventListener('error', event => { event.preventDefault(); this.fail(new DemoFailure('internal', event.message || 'The notebook worker could not start.')); });
-    worker.addEventListener('messageerror', () => this.fail(new DemoFailure('internal', 'The notebook worker sent an unreadable response.')));
+    worker.addEventListener('error', event => { event.preventDefault(); this.fail(new DemoFailure('internal', event.message || 'The workshop worker could not start.')); });
+    worker.addEventListener('messageerror', () => this.fail(new DemoFailure('internal', 'The workshop worker sent an unreadable response.')));
   }
 
   private fail(reason: DemoFailure): void {
@@ -90,7 +90,7 @@ export class DemoTransport {
   }
 
   readonly fetch: Transport = (url, init) => {
-    if (this.closing) return Promise.reject(new DemoFailure('internal', 'The notebook worker was closed.'));
+    if (this.closing) return Promise.reject(new DemoFailure('internal', 'The workshop worker was closed.'));
     const request = this.request(url, init);
     this.requests.add(request);
     void request.then(() => this.requests.delete(request), () => this.requests.delete(request));
@@ -102,7 +102,7 @@ export class DemoTransport {
     const request = new Request(parsed, init);
     const body = request.body ? await request.arrayBuffer() : null;
     const message = await this.exchange({ id: ++this.nextId, type: 'request', method: request.method, path: `${parsed.pathname}${parsed.search}`, headers: [...request.headers], body }, body ? [body] : [], request.signal);
-    if (message.type !== 'response') throw new Error('The notebook worker did not return a response.');
+    if (message.type !== 'response') throw new Error('The workshop worker did not return a response.');
     return new Response([204, 205, 304].includes(message.status) ? null : message.body, { status: message.status, headers: { 'content-type': message.contentType } });
   };
 
@@ -126,43 +126,43 @@ export class DemoTransport {
 
   async start(kind: 'empty' | 'tour'): Promise<void> {
     const message = await this.exchange({ id: ++this.nextId, type: 'start', kind });
-    if (message.type !== 'done') throw new Error('The notebook worker did not return a response.');
+    if (message.type !== 'done') throw new Error('The workshop worker did not return a response.');
   }
 
   async exportNotebook(): Promise<ArrayBuffer> {
     const message = await this.exchange({ id: ++this.nextId, type: 'export' });
-    if (message.type !== 'bytes') throw new Error('The notebook worker did not return a response.');
+    if (message.type !== 'bytes') throw new Error('The workshop worker did not return a response.');
     return message.body;
   }
 
   async upgradeCopy(): Promise<UpgradeCopy | null> {
     const message = await this.exchange({ id: ++this.nextId, type: 'upgrade-copy' });
-    if (message.type !== 'upgrade-copy') throw new Error('The notebook worker did not return a response.');
+    if (message.type !== 'upgrade-copy') throw new Error('The workshop worker did not return a response.');
     return message.copy;
   }
 
   async exportUpgradeCopy(): Promise<ArrayBuffer> {
     const message = await this.exchange({ id: ++this.nextId, type: 'export-upgrade-copy' });
-    if (message.type !== 'bytes') throw new Error('The notebook worker did not return a response.');
+    if (message.type !== 'bytes') throw new Error('The workshop worker did not return a response.');
     return message.body;
   }
 
   /** Transfers ownership of the backup's bytes to the worker. */
   async restore(body: ArrayBuffer): Promise<NotebookInfo> {
     const message = await this.exchange({ id: ++this.nextId, type: 'restore', body }, [body]);
-    if (message.type !== 'restored') throw new Error('The notebook worker did not return a response.');
+    if (message.type !== 'restored') throw new Error('The workshop worker did not return a response.');
     return message.info;
   }
 
   async restoreUpgradeCopy(): Promise<NotebookInfo> {
     const message = await this.exchange({ id: ++this.nextId, type: 'restore-upgrade-copy' });
-    if (message.type !== 'restored') throw new Error('The notebook worker did not return a response.');
+    if (message.type !== 'restored') throw new Error('The workshop worker did not return a response.');
     return message.info;
   }
 
   async reset(): Promise<void> {
     const message = await this.exchange({ id: ++this.nextId, type: 'reset' });
-    if (message.type !== 'done') throw new Error('The notebook worker did not finish resetting.');
+    if (message.type !== 'done') throw new Error('The workshop worker did not finish resetting.');
   }
 
   /** Drain accepted requests, including bodies still being read, before releasing the pool. */
@@ -170,12 +170,12 @@ export class DemoTransport {
     this.closing = true;
     await Promise.allSettled(this.requests);
     const message = await this.exchange({ id: ++this.nextId, type: 'close' });
-    if (message.type !== 'done') throw new Error('The notebook worker did not return a response.');
+    if (message.type !== 'done') throw new Error('The workshop worker did not return a response.');
     this.dispose();
   }
 
   dispose(): void {
-    this.fail(new DemoFailure('internal', 'The notebook worker was closed.'));
+    this.fail(new DemoFailure('internal', 'The workshop worker was closed.'));
     this.worker.terminate();
   }
 }

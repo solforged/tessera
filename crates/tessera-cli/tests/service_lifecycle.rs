@@ -18,7 +18,7 @@ impl Drop for ChildGuard {
 fn command(notebook: &Path) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_tessera"));
     command
-        .arg("--notebook")
+        .arg("--workshop")
         .arg(notebook)
         .arg("serve")
         .arg("--port")
@@ -105,7 +105,7 @@ async fn notebook_has_one_service_owner_until_that_process_exits() {
         .await
         .unwrap();
     let reader = Command::new(env!("CARGO_BIN_EXE_tessera"))
-        .arg("--notebook")
+        .arg("--workshop")
         .arg(dir.path())
         .arg("info")
         .output()
@@ -238,7 +238,7 @@ fn cli_backup_and_restore_round_trip_while_service_runs() {
     let mut service = Service::start(&source);
     let run = |notebook: &Path, args: &[&std::ffi::OsStr]| {
         Command::new(env!("CARGO_BIN_EXE_tessera"))
-            .arg("--notebook")
+            .arg("--workshop")
             .arg(notebook)
             .args(args)
             .output()
@@ -278,13 +278,16 @@ fn cli_backup_and_restore_round_trip_while_service_runs() {
 
 /// A service whose platform data directory, and so its notebook list, lives under `home`.
 fn isolated(home: &Path, notebook: Option<&Path>) -> Command {
+    let home = std::fs::canonicalize(home).unwrap();
     let mut command = Command::new(env!("CARGO_BIN_EXE_tessera"));
     command
-        .env("HOME", home)
-        .env_remove("XDG_DATA_HOME")
-        .env_remove("TESSERA_NOTEBOOK");
+        .env("HOME", &home)
+        .env("XDG_DATA_HOME", home.join(".local/share"))
+        .env("XDG_STATE_HOME", home.join(".local/state"))
+        .env("XDG_CACHE_HOME", home.join(".cache"))
+        .env_remove("TESSERA_WORKSHOP");
     if let Some(notebook) = notebook {
-        command.arg("--notebook").arg(notebook);
+        command.arg("--workshop").arg(notebook);
     }
     command
         .args(["serve", "--port", "0", "--sync-port", "0"])
@@ -402,4 +405,36 @@ async fn a_switch_without_notebook_argument_becomes_the_startup_notebook() {
     let mut explicit = Service::spawn(isolated(root.path(), Some(&pinned)));
     serving(&explicit.host, &pinned).await;
     explicit.stop();
+}
+
+#[tokio::test]
+async fn bare_names_open_in_the_xdg_workshops_directory_and_survive_restart() {
+    let root = tempfile::tempdir().unwrap();
+    let mut service = Service::spawn(isolated(root.path(), None));
+    let target = root.path().join(".local/share/tessera/workshops/reading");
+    let response = open_notebook(&service.host, Path::new("reading"), true).await;
+    assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    let opened = serving(&service.host, &target).await;
+    let list: serde_json::Value = reqwest::get(format!("http://{}/api/notebooks", service.host))
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let entry = list["notebooks"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["current"] == true)
+        .unwrap();
+    assert_eq!(entry["named"], true);
+    assert_eq!(entry["available"], true);
+    assert_eq!(
+        entry["display_path"],
+        "~/.local/share/tessera/workshops/reading"
+    );
+    service.stop();
+    let mut restarted = Service::spawn(isolated(root.path(), None));
+    assert_eq!(serving(&restarted.host, &target).await["id"], opened["id"]);
+    restarted.stop();
 }

@@ -36,10 +36,10 @@ function State(props: { message: string; failure?: boolean; back?: boolean; acti
   return <div class="demo-shell"><main class="demo-state" role={props.failure ? 'alert' : 'status'}>
     <h1>Tessera</h1><p>{props.message}</p>
     {props.action && <Button class="bordered" onClick={props.onAction}>{props.action}</Button>}
-    {props.failure && <Button class="bordered" onClick={() => window.location.reload()}>{props.back ? 'Back to the notebook' : 'Reload'}</Button>}
+    {props.failure && <Button class="bordered" onClick={() => window.location.reload()}>{props.back ? 'Back to the workshop' : 'Reload'}</Button>}
   </main></div>;
 }
-let dispose = render(() => <State message="Opening your local notebook…" />, root);
+let dispose = render(() => <State message="Opening your local workshop…" />, root);
 function replace(view: () => JSX.Element): void {
   notebook = undefined;
   dispose(); dispose = render(view, root!);
@@ -85,7 +85,7 @@ function useHere(): void {
 /** False when another window still holds the notebook and `showLocked` is off. */
 async function openNotebook(retryLockedMs = 0, showLocked = true): Promise<boolean> {
   handoff.cancel();
-  replace(() => <State message="Opening your local notebook…" />);
+  replace(() => <State message="Opening your local workshop…" />);
   const deadline = Date.now() + retryLockedMs;
   for (;;) {
     transport = new DemoTransport(new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }));
@@ -115,7 +115,7 @@ function showFailure(reason: unknown): void {
     replace(() => <State message="Tessera is open in another window." action="Use it here" onAction={useHere} />);
     return;
   }
-  const message = failure.code === 'unsupported' ? 'This browser lacks the private file storage Tessera needs (OPFS). Try a recent version of Chrome, Edge, Firefox or Safari.' : `The notebook could not open. ${failure.message}`;
+  const message = failure.code === 'unsupported' ? 'This browser lacks the private file storage Tessera needs (OPFS). Try a recent version of Chrome, Edge, Firefox or Safari.' : `The workshop could not open. ${failure.message}`;
   replace(() => <State message={message} failure />);
 }
 const notebookKey = 'tessera.browser.notebook';
@@ -168,12 +168,12 @@ function FirstRun() {
     } });
   };
   return <Show when={busy()} fallback={<div class="demo-shell"><main class="demo-state">
-    <h1>Start a notebook</h1>
-    <p>This notebook lives in this browser's private storage, on this device only. Download backups from Settings › Backups.</p>
+    <h1>Start a workshop</h1>
+    <p>This workshop lives in this browser's private storage, on this device only. Download backups from Settings › Backups.</p>
     <div class="demo-choices">
-      <div><Button class="bordered" onClick={() => { void start('empty'); }}>Start empty</Button><p>A blank notebook.</p></div>
+      <div><Button class="bordered" onClick={() => { void start('empty'); }}>Start empty</Button><p>A blank workshop.</p></div>
       <div><Button class="bordered" onClick={() => { void start('tour'); }}>Take the tour</Button><p>Sample pages, cards and Marcus Aurelius' Meditations to try things on.</p></div>
-      <div><Button class="bordered" onClick={() => picker.click()}>Restore a backup…</Button><p>A notebook file downloaded from Tessera in a browser.</p></div>
+      <div><Button class="bordered" onClick={() => picker.click()}>Restore a backup…</Button><p>A workshop file downloaded from Tessera in a browser.</p></div>
     </div>
     <input ref={picker} type="file" hidden onChange={event => {
       const file = event.currentTarget.files?.[0]; event.currentTarget.value = '';
@@ -187,10 +187,10 @@ function DemoApp() {
   const [confirmReset, setConfirmReset] = createSignal(false);
   return <div class="demo-shell">
     <Show when={localStorage.getItem(notebookKey) !== 'own'}>
-      <aside class="demo-notice" aria-label="Tour notebook">
-        <span>This is the tour notebook. It lives only in this browser. <a href="https://github.com/solforged/tessera">Source</a> <a href="https://github.com/solforged/tessera/releases/latest">Download</a></span>
+      <aside class="demo-notice" aria-label="Tour workshop">
+        <span>This is the tour workshop. It lives only in this browser. <a href="https://github.com/solforged/tessera">Source</a> <a href="https://github.com/solforged/tessera/releases/latest">Download</a></span>
         <span class="settings-backup-actions"><Show when={confirmReset()} fallback={<Button class="bordered" onClick={() => setConfirmReset(true)}>Start over…</Button>}>
-          <span>Erase this notebook? Download a backup first to keep it.</span>
+          <span>Erase this workshop? Download a backup first to keep it.</span>
           <Button onClick={() => setConfirmReset(false)}>Cancel</Button>
           <Button class="bordered danger" onClick={() => { void resetNotebook(); }}>Confirm</Button>
         </Show></span>

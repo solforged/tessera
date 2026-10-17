@@ -9,14 +9,14 @@ use tessera_core::{CheckReport, DATABASE_FILE, Notebook, NotebookOwnership};
 pub(crate) fn run(notebook: &Path, repair: bool) -> anyhow::Result<()> {
     anyhow::ensure!(
         notebook.join(DATABASE_FILE).exists(),
-        "{} holds no notebook",
+        "{} holds no workshop",
         notebook.display()
     );
     let report = match NotebookOwnership::acquire(notebook, 0) {
         Ok(_ownership) => serde_json::to_value(Notebook::open(notebook)?.check(repair)?)?,
         Err(unowned) => {
             let unowned = anyhow::Error::from(unowned)
-                .context("the notebook is owned by a service that did not answer");
+                .context("the workshop is owned by a service that did not answer");
             let (method, path) = if repair {
                 (reqwest::Method::POST, "/api/check/repair")
             } else {

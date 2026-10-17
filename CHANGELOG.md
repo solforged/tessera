@@ -8,7 +8,12 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
-- Added a notebook switcher in place of the sidebar's Settings row: the open notebook's name over its sync relationship, with a menu that switches notebooks, pairs a phone or syncs. Settings became an icon beside Fields.
+- Added a workshop switcher in place of the sidebar's Settings row: the open workshop's name over its sync relationship, with a menu that switches workshops, pairs a phone or syncs. Settings became an icon beside Fields.
+- Added Open or create by name in Settings › Workshops, with names stored under `~/.local/share/tessera/workshops`.
+- Listed workshop folders found in the workshops folder alongside registered workshops.
+- Added automatic daily backups while the service runs, with unchanged snapshots skipped and immutable files hard-linked where supported.
+- Added automatic backup retention: the three newest, the newest per UTC day for seven days, and the newest per seven-day window for days 8 through 35.
+- Added other workshops' backup stores to Settings › Backups, with confirmed deletion.
 - Added parent, revisit, recurrent and first-perspective fields to question creation.
 - Added project outcomes and deadlines to the creation slip without repeating the outcome in the body.
 - Added editable template fields to typed-page creation and preserved filled values when filing existing pages.
@@ -43,6 +48,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Renamed the top-level container to workshop throughout the interface, command line and docs; code identifiers and API names stayed unchanged.
+- Moved desktop data from `~/Library/Application Support/tessera` to `~/.local/share/tessera`, logs from `~/Library/Logs/tessera` to `~/.local/state/tessera/logs`, and new caches from `~/Library/Caches/tessera` to `~/.cache/tessera`. Added XDG overrides and automatic migration of the old workshop, registry, backups and settings without overwriting existing targets.
+- Named workshops by their folder name with the first letter capitalized, and showed their location only when outside the workshops folder or sharing a name.
+- Kept every workshop's backups in one store at `~/.local/share/tessera/backups`, wherever the workshop lives, and kept only the newest sync recovery copy of each kind in a workshop folder.
 - Hid phone Library checkboxes until Select, so covers show whole; in Select a tap toggles a source instead of opening it.
 - Flowed a grouped Library shelf as one grid with each group's name on its first cover, so a one-book year no longer takes a whole row.
 - Moved Library tabs and saved views that do not fit a narrow pane into a More menu instead of clipping the scrolling strip.
@@ -50,10 +59,15 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Raised the macOS capture panel's maximum height from 340 to 560 px for kind fields.
 - Opened pages created in the macOS capture panel in the main window without returning focus to the previous app.
 
+### Removed
+
+- Removed `--notebook` and `TESSERA_NOTEBOOK`; use `--workshop` and `TESSERA_WORKSHOP`.
+- Removed the Keep the latest 10 backup control and manual prune route; retention runs automatically.
+
 ### Fixed
 
 - Showed the sharing switch and Pair a phone under Settings › Devices on a Mac with no paired device, instead of `Sync is off` with no way to start.
-- Centered an empty Library on wide panes instead of leaving the Browse rail's offset beside nothing, and kept Highlights at the page measure until the notebook has a highlight to process.
+- Centered an empty Library on wide panes instead of leaving the Browse rail's offset beside nothing, and kept Highlights at the page measure until the workshop has a highlight to process.
 - Aligned the Inbox `Author` head with its column, wrote `1 import failed` in the singular, and disabled Export while a tab lists nothing.
 - Offered Add a source only on empty tabs that would list a new source; an empty collection now explains how to fill it and links to All sources.
 - Folded the highlight filter count into `Show N highlights`, so the sheet's footer stays on one line, and hid Filters and the source pickers while there are no highlights.
@@ -81,11 +95,11 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Made type-table row creation undoable in one step, with redo restoring the same page, memberships and children.
 - Preserved text typed into a new field when Escape or reload interrupted its pending creation.
 - Kept coalesced new-field keystrokes waiting for the same save receipt.
-- Kept queued notebook commands counted and marked offline after uncertain saves while retaining reload-safe input.
+- Kept queued workshop commands counted and marked offline after uncertain saves while retaining reload-safe input.
 - Kept Page menu field additions page-owned while preserving selected-block targeting in Commands.
 - Replayed accepted reference continuations after reload without false conflicts from their own delayed saves.
 - Kept accepted relation queries in the durable outbox and resumed their target selection after reload.
-- Made Unicode title-key upgrades safe to replay during notebook recovery.
+- Made Unicode title-key upgrades safe to replay during workshop recovery.
 - Restored original row identities and order when undoing a paste over selected rows, including rows previously moved by cut and paste.
 - Preserved adjacent authored external links and their captions in table source registers.
 - Recovered locally queued edits from closed browser windows without replaying another open window's drafts.

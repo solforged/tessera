@@ -2,8 +2,8 @@
 //! agents reach the notebook only through its operation API.
 //! `GET /api/service` reports local runtime details. `POST /api/backups` takes a
 //! portable snapshot, and `GET /api/backups` lists completed snapshots newest first.
-//! `DELETE /api/backups/{name}` removes an earlier snapshot, and
-//! `POST /api/backups/prune` keeps the requested number of newest snapshots.
+//! `DELETE /api/backups/{name}` removes an earlier snapshot. Retention is automatic.
+//! `DELETE /api/backups/others/{workshop_id}` removes another workshop's backups.
 //! `GET /api/check` verifies the notebook and `POST /api/check/repair` rebuilds its derived tables.
 //! `/api/notebooks` lists known notebooks and switches the service to another one.
 
@@ -14,13 +14,19 @@ pub mod agent_render;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod assets;
 mod capabilities;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+mod daily_backup;
 mod error;
 mod images;
 pub mod library;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub mod migration;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub mod notebooks;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod pairing;
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub use tessera_core::paths;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 mod replica;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -125,11 +131,13 @@ pub struct Config {
     pub dev_origin: Option<String>,
     /// Known notebooks for the in-app switcher; without it the service cannot switch.
     pub registry: Option<notebooks::Registry>,
-    /// The notebook came from the registry rather than `--notebook`, so a switch also changes
+    /// The notebook came from the registry rather than `--workshop`, so a switch also changes
     /// which notebook later starts open.
     pub follows_registry: bool,
     /// Machine-local provider settings; defaults to the registry's sibling `agent.json`.
     pub agent_path: Option<PathBuf>,
+    /// Shared backup store; absent when this host does not provide backups.
+    pub backup_store: Option<PathBuf>,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -151,6 +159,8 @@ pub(crate) struct AppState {
     port: u16,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     backup: Arc<tokio::sync::Mutex<()>>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    backup_store: Option<PathBuf>,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     sync_port: u16,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -175,14 +185,26 @@ pub fn router(
     port: u16,
     assets: Option<PathBuf>,
     dev_origin: Option<String>,
+    backup_store: Option<PathBuf>,
 ) -> Result<Router, String> {
     let sync_port = port
         .checked_add(1)
         .ok_or("the sync port needs an explicit value")?;
-    Ok(routers(notebook, port, sync_port, assets, dev_origin, None, None)?.0)
+    Ok(routers(
+        notebook,
+        port,
+        sync_port,
+        assets,
+        dev_origin,
+        None,
+        None,
+        backup_store,
+    )?
+    .0)
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[allow(clippy::too_many_arguments)]
 fn routers(
     notebook: Notebook,
     port: u16,
@@ -191,7 +213,8 @@ fn routers(
     dev_origin: Option<String>,
     switcher: Option<Arc<notebooks::Switcher>>,
     agent_path: Option<PathBuf>,
-) -> Result<(Router, Router), String> {
+    backup_store: Option<PathBuf>,
+) -> Result<(Router, Router, AppState), String> {
     let policy = security::RequestPolicy::new(port, dev_origin)?;
     let notebook = Arc::new(Mutex::new(notebook));
     let notifications = broadcast::channel(256).0;
@@ -204,6 +227,7 @@ fn routers(
         library,
         port,
         backup: Arc::new(tokio::sync::Mutex::new(())),
+        backup_store,
         sync_port,
         pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
         sharing: Arc::new(tokio::sync::Mutex::new(())),
@@ -233,9 +257,7 @@ fn routers(
         .with_state(state.clone());
     let editor = notebook_routes()
         .route("/api/service", get(service_info))
-        .route("/api/backups", get(backups).post(create_backup))
-        .route("/api/backups/{name}", axum::routing::delete(delete_backup))
-        .route("/api/backups/prune", post(prune_backups))
+        .merge(backup_routes())
         .route("/api/changes/stream", get(change_stream))
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
         .fallback(assets::serve)
@@ -259,8 +281,8 @@ fn routers(
         .merge(agent::routes())
         .layer(middleware::from_fn_with_state(state.clone(), same_notebook))
         .layer(middleware::from_fn_with_state(policy, security::protect))
-        .with_state(state);
-    Ok((editor, sync))
+        .with_state(state.clone());
+    Ok((editor, sync, state))
 }
 
 /// The notebook and commit notifications backing an embedded router.
@@ -269,45 +291,45 @@ pub struct EmbeddedHandles {
     pub changes: broadcast::Sender<i64>,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     pub replica: Arc<replica::ReplicaRuntime>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    _daily_backup: Option<daily_backup::Task>,
 }
 
 /// Build the notebook and library API for a host that runs the notebook in its own process,
 /// such as the browser worker or the Android app. It has no socket, so it omits the host and
-/// origin policy, static assets, backups, service details and the WebSocket change stream;
-/// hosts deliver changes from [`EmbeddedHandles`]. Natively, call it inside a Tokio runtime.
+/// origin policy, static assets, service details and the WebSocket change stream;
+/// hosts deliver changes from [`EmbeddedHandles`]. Backups require an explicit store.
 /// The browser worker ingests queued uploads before this returns.
 pub fn embedded_router(notebook: Notebook) -> Result<(Router, EmbeddedHandles), String> {
     embedded_router_inner(
         notebook,
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         None,
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        None,
     )
 }
 
-/// Build a native embedded router with machine-local provider settings at an explicit path.
+/// Build a native embedded router with explicit provider settings and backup storage.
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-pub fn embedded_router_with_agent_path(
+pub fn embedded_router_with_paths(
     notebook: Notebook,
     agent_path: PathBuf,
+    backup_store: Option<PathBuf>,
 ) -> Result<(Router, EmbeddedHandles), String> {
-    embedded_router_inner(notebook, Some(agent_path))
+    embedded_router_inner(notebook, Some(agent_path), backup_store)
 }
 
 fn embedded_router_inner(
     notebook: Notebook,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))] agent_path: Option<PathBuf>,
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))] backup_store: Option<PathBuf>,
 ) -> Result<(Router, EmbeddedHandles), String> {
     let notebook = Arc::new(Mutex::new(notebook));
     let changes = broadcast::channel(256).0;
     let library = library::Library::start(notebook.clone(), changes.clone(), library::extract)?;
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     let replica = Arc::default();
-    let handles = EmbeddedHandles {
-        notebook: notebook.clone(),
-        changes: changes.clone(),
-        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-        replica: Arc::clone(&replica),
-    };
     let state = AppState {
         notebook,
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -318,6 +340,8 @@ fn embedded_router_inner(
         port: 0,
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         backup: Arc::new(tokio::sync::Mutex::new(())),
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        backup_store,
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         sync_port: 0,
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -333,6 +357,14 @@ fn embedded_router_inner(
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         agent: Arc::new(agent::Runtime::new(agent_path)?),
     };
+    let handles = EmbeddedHandles {
+        notebook: state.notebook.clone(),
+        changes: state.changes.clone(),
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        replica: state.replica.clone(),
+        #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+        _daily_backup: daily_backup::start(&state),
+    };
     let router = notebook_routes()
         .method_not_allowed_fallback(|| async { ApiError::method_not_allowed() })
         .fallback(|| async { ApiError::not_found() })
@@ -340,7 +372,7 @@ fn embedded_router_inner(
         .merge(library::routes())
         .merge(images::routes());
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-    let router = router.merge(agent::routes());
+    let router = router.merge(agent::routes()).merge(backup_routes());
     let router = router.with_state(state);
     Ok((router, handles))
 }
@@ -458,7 +490,7 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
     let (notebook, mut ownership) = tokio::task::spawn_blocking(move || {
         let ownership = NotebookOwnership::acquire(&dir, requested_port)?;
         let notebook = Notebook::open(&dir)
-            .with_context(|| format!("cannot open notebook {}", dir.display()))?;
+            .with_context(|| format!("cannot open workshop {}", dir.display()))?;
         Ok::<_, anyhow::Error>((notebook, ownership))
     })
     .await??;
@@ -487,7 +519,7 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
     let switcher = config
         .registry
         .map(|registry| notebooks::Switcher::new(registry, config.follows_registry, switch));
-    let (app, sync_app) = routers(
+    let (app, sync_app, state) = routers(
         notebook,
         port,
         sync_port,
@@ -495,11 +527,13 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
         config.dev_origin,
         switcher,
         agent_path,
+        config.backup_store,
     )
     .map_err(anyhow::Error::msg)?;
+    let daily_backup = daily_backup::start(&state);
     tracing::info!(url = %format_args!("http://127.0.0.1:{port}"), "service listening");
     tracing::info!(url = %format_args!("http://127.0.0.1:{sync_port}"), "sync listening");
-    tracing::info!(path = %path.display(), "notebook opened");
+    tracing::info!(path = %path.display(), "workshop opened");
     let (stop, stopped) = tokio::sync::watch::channel(false);
     let mut editor_stopped = stopped.clone();
     let mut sync_stopped = stopped;
@@ -537,6 +571,9 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
             }
             restart = target.map(|notebook| Restart { notebook, port, sync_port });
         }
+    }
+    if let Some(task) = daily_backup {
+        task.stop().await;
     }
     drop(ownership);
     tracing::info!("service stopped");
@@ -676,9 +713,21 @@ async fn service_info(State(state): State<AppState>) -> Result<Json<ServiceInfo>
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+fn backup_routes() -> Router<AppState> {
+    Router::new()
+        .route("/api/backups", get(backups).post(create_backup))
+        .route("/api/backups/{name}", axum::routing::delete(delete_backup))
+        .route(
+            "/api/backups/others/{workshop_id}",
+            axum::routing::delete(delete_other_backups),
+        )
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
 struct BackupInfo {
     path: PathBuf,
+    name: String,
     created_at: i64,
     object_count: u64,
     size: u64,
@@ -686,77 +735,147 @@ struct BackupInfo {
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 #[derive(Serialize)]
-struct CreatedBackup {
+struct OtherBackups {
+    workshop_id: String,
+    count: usize,
+    size: u64,
+    newest_at: Option<i64>,
     path: PathBuf,
-    #[serde(flatten)]
-    manifest: tessera_core::BackupManifest,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-fn backup_directory(info: &NotebookInfo) -> Result<PathBuf, ApiError> {
-    tessera_core::backup_directory(&info.path, &info.id).map_err(ApiError::internal)
+#[derive(Serialize)]
+struct Backups {
+    backups: Vec<BackupInfo>,
+    store_size: u64,
+    others: Vec<OtherBackups>,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-fn backup_size(path: &std::path::Path) -> Result<u64, ApiError> {
-    let mut size = 0;
-    for entry in std::fs::read_dir(path).map_err(ApiError::internal)? {
-        let entry = entry.map_err(ApiError::internal)?;
-        let kind = entry.file_type().map_err(ApiError::internal)?;
-        if kind.is_dir() {
-            size += backup_size(&entry.path())?;
-        } else if kind.is_file() {
-            size += entry.metadata().map_err(ApiError::internal)?.len();
-        }
-    }
-    Ok(size)
+#[derive(Serialize)]
+struct CreatedBackup {
+    created: bool,
+    backups: Backups,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-fn list_backups(info: &NotebookInfo) -> Result<Vec<BackupInfo>, ApiError> {
-    let entries = match std::fs::read_dir(backup_directory(info)?) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(ApiError::internal(error)),
-    };
-    let mut backups = Vec::new();
-    for entry in entries {
-        let entry = entry.map_err(ApiError::internal)?;
-        if !entry.file_type().map_err(ApiError::internal)?.is_dir() {
-            continue;
-        }
-        // The manifest is published last. An interrupted backup is not listed.
-        let file = match std::fs::File::open(entry.path().join("manifest.json")) {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(error) => return Err(ApiError::internal(error)),
+fn backup_store(state: &AppState) -> Result<PathBuf, ApiError> {
+    state.backup_store.clone().ok_or_else(ApiError::not_found)
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+fn backup_directory(store: &std::path::Path, info: &NotebookInfo) -> Result<PathBuf, ApiError> {
+    tessera_core::backup_directory(store, &info.id).map_err(ApiError::from)
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+fn backup_size(path: &std::path::Path, exclusive: bool) -> Result<u64, ApiError> {
+    fn visit(
+        path: &std::path::Path,
+        exclusive: bool,
+        seen: &mut std::collections::HashSet<(u64, u64)>,
+    ) -> std::io::Result<u64> {
+        let entries = match std::fs::read_dir(path) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(0),
+            Err(error) => return Err(error),
         };
-        let manifest: tessera_core::BackupManifest =
-            serde_json::from_reader(file).map_err(ApiError::internal)?;
-        if manifest.notebook_id == info.id {
-            backups.push(BackupInfo {
-                path: entry.path(),
+        let mut size = 0;
+        for entry in entries {
+            let entry = entry?;
+            let kind = entry.file_type()?;
+            if kind.is_dir() {
+                size += visit(&entry.path(), exclusive, seen)?;
+            } else if kind.is_file() {
+                let metadata = entry.metadata()?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::MetadataExt;
+                    if (exclusive && metadata.nlink() > 1)
+                        || !seen.insert((metadata.dev(), metadata.ino()))
+                    {
+                        continue;
+                    }
+                }
+                size += metadata.len();
+            }
+        }
+        Ok(size)
+    }
+    visit(path, exclusive, &mut std::collections::HashSet::new()).map_err(ApiError::internal)
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+fn valid_workshop_id(id: &str) -> bool {
+    id.parse::<ulid::Ulid>()
+        .is_ok_and(|value| value.to_string() == id)
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+fn list_backups(store: &std::path::Path, info: &NotebookInfo) -> Result<Backups, ApiError> {
+    let backups = tessera_core::finished_backups(store, &info.id)
+        .map_err(ApiError::from)?
+        .into_iter()
+        .map(|(path, manifest)| {
+            Ok(BackupInfo {
+                name: path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .into_owned(),
+                size: backup_size(&path, true)?,
+                path,
                 created_at: manifest.created_at,
                 object_count: manifest.object_count,
-                size: backup_size(&entry.path())?,
-            });
+            })
+        })
+        .collect::<Result<Vec<_>, ApiError>>()?;
+    let mut others = Vec::new();
+    match std::fs::read_dir(store) {
+        Ok(entries) => {
+            for entry in entries {
+                let entry = entry.map_err(ApiError::internal)?;
+                let id = entry.file_name().to_string_lossy().into_owned();
+                if id == info.id
+                    || !valid_workshop_id(&id)
+                    || !entry.file_type().map_err(ApiError::internal)?.is_dir()
+                {
+                    continue;
+                }
+                let finished =
+                    tessera_core::finished_backups(store, &id).map_err(ApiError::from)?;
+                others.push(OtherBackups {
+                    workshop_id: id,
+                    count: finished.len(),
+                    newest_at: finished.first().map(|(_, manifest)| manifest.created_at),
+                    size: backup_size(&entry.path(), false)?,
+                    path: entry.path(),
+                });
+            }
         }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => (),
+        Err(error) => return Err(ApiError::internal(error)),
     }
-    backups.sort_by(|a, b| {
-        b.created_at
-            .cmp(&a.created_at)
-            .then_with(|| b.path.cmp(&a.path))
+    others.sort_by(|a, b| {
+        b.newest_at
+            .cmp(&a.newest_at)
+            .then_with(|| a.workshop_id.cmp(&b.workshop_id))
     });
-    Ok(backups)
+    Ok(Backups {
+        backups,
+        store_size: backup_size(&backup_directory(store, info)?, false)?,
+        others,
+    })
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-async fn backups(State(state): State<AppState>) -> Result<Json<Vec<BackupInfo>>, ApiError> {
+async fn backups(State(state): State<AppState>) -> Result<Json<Backups>, ApiError> {
+    let store = backup_store(&state)?;
     let guard = state.backup.clone().lock_owned().await;
     let info = run(&state, |notebook| notebook.info()).await?;
     tokio::task::spawn_blocking(move || {
         let _guard = guard;
-        list_backups(&info).map(Json)
+        list_backups(&store, &info).map(Json)
     })
     .await
     .map_err(ApiError::internal)?
@@ -778,22 +897,18 @@ fn validate_backup_name(name: &str) -> Result<(), ApiError> {
 async fn delete_backup(
     State(state): State<AppState>,
     name: Result<Path<String>, PathRejection>,
-) -> Result<Json<Vec<BackupInfo>>, ApiError> {
+) -> Result<Json<Backups>, ApiError> {
+    let store = backup_store(&state)?;
     let Path(name) = name.map_err(ApiError::from)?;
     validate_backup_name(&name)?;
     let guard = state.backup.clone().lock_owned().await;
     let info = run(&state, |notebook| notebook.info()).await?;
     tokio::task::spawn_blocking(move || {
         let _guard = guard;
-        let mut backups = list_backups(&info)?;
+        let backups = list_backups(&store, &info)?.backups;
         let index = backups
             .iter()
-            .position(|backup| {
-                backup
-                    .path
-                    .file_name()
-                    .is_some_and(|value| value == name.as_str())
-            })
+            .position(|backup| backup.name == name)
             .ok_or_else(ApiError::not_found)?;
         if index == 0 {
             return Err(ApiError::new(
@@ -803,59 +918,44 @@ async fn delete_backup(
             ));
         }
         std::fs::remove_dir_all(&backups[index].path).map_err(ApiError::internal)?;
-        backups.remove(index);
-        Ok(Json(backups))
+        list_backups(&store, &info).map(Json)
     })
     .await
     .map_err(ApiError::internal)?
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-#[derive(Deserialize)]
-struct PruneBackups {
-    keep: i64,
-}
-
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-#[derive(Serialize)]
-struct PrunedBackups {
-    deleted: usize,
-    freed: u64,
-    backups: Vec<BackupInfo>,
-}
-
-#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-async fn prune_backups(
+async fn delete_other_backups(
     State(state): State<AppState>,
-    body: Result<Json<PruneBackups>, JsonRejection>,
-) -> Result<Json<PrunedBackups>, ApiError> {
-    let Json(request) = body.map_err(ApiError::from)?;
-    if request.keep < 1 {
+    id: Result<Path<String>, PathRejection>,
+) -> Result<Json<Backups>, ApiError> {
+    let store = backup_store(&state)?;
+    let Path(id) = id.map_err(ApiError::from)?;
+    if !valid_workshop_id(&id) {
         return Err(ApiError::new(
             axum::http::StatusCode::BAD_REQUEST,
-            "invalid_keep",
-            "Keep at least one backup.",
+            "invalid_path",
+            "The workshop id must be a ULID.",
         ));
     }
-    let keep = usize::try_from(request.keep).unwrap_or(usize::MAX);
     let guard = state.backup.clone().lock_owned().await;
     let info = run(&state, |notebook| notebook.info()).await?;
+    if info.id == id {
+        return Err(ApiError::new(
+            axum::http::StatusCode::CONFLICT,
+            "conflict",
+            "Delete the open workshop's backups one at a time.",
+        ));
+    }
     tokio::task::spawn_blocking(move || {
         let _guard = guard;
-        let mut backups = list_backups(&info)?;
-        let mut deleted = 0;
-        let mut freed = 0;
-        for backup in backups.iter().skip(keep) {
-            std::fs::remove_dir_all(&backup.path).map_err(ApiError::internal)?;
-            deleted += 1;
-            freed += backup.size;
-        }
-        backups.truncate(keep);
-        Ok(Json(PrunedBackups {
-            deleted,
-            freed,
-            backups,
-        }))
+        let other = list_backups(&store, &info)?
+            .others
+            .into_iter()
+            .find(|other| other.workshop_id == id)
+            .ok_or_else(ApiError::not_found)?;
+        std::fs::remove_dir_all(other.path).map_err(ApiError::internal)?;
+        list_backups(&store, &info).map(Json)
     })
     .await
     .map_err(ApiError::internal)?
@@ -863,6 +963,7 @@ async fn prune_backups(
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 async fn create_backup(State(state): State<AppState>) -> Result<Json<CreatedBackup>, ApiError> {
+    let store = backup_store(&state)?;
     let guard = state.backup.clone().try_lock_owned().map_err(|_| {
         ApiError::new(
             axum::http::StatusCode::CONFLICT,
@@ -874,19 +975,11 @@ async fn create_backup(State(state): State<AppState>) -> Result<Json<CreatedBack
     tokio::task::spawn_blocking(move || {
         // Keep the guard here so cancelling the HTTP request cannot release it early.
         let _guard = guard;
-        match tessera_core::backup_beside(&info.path) {
-            Ok((path, manifest)) => Ok(Json(CreatedBackup { path, manifest })),
-            Err(tessera_core::Error::Io(error))
-                if error.kind() == std::io::ErrorKind::AlreadyExists =>
-            {
-                Err(ApiError::new(
-                    axum::http::StatusCode::CONFLICT,
-                    "conflict",
-                    "A backup already exists for this second.",
-                ))
-            }
-            Err(error) => Err(ApiError::from(error)),
-        }
+        let backup = tessera_core::backup_to_store(&info.path, &store).map_err(ApiError::from)?;
+        Ok(Json(CreatedBackup {
+            created: backup.created,
+            backups: list_backups(&store, &info)?,
+        }))
     })
     .await
     .map_err(ApiError::internal)?
@@ -1895,6 +1988,7 @@ mod tests {
                 library,
                 port: 4396,
                 backup: backup.clone(),
+                backup_store: Some(dir.path().join("backups")),
                 sync_port: 4501,
                 pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
                 sharing: Arc::new(tokio::sync::Mutex::new(())),
@@ -1913,7 +2007,6 @@ mod tests {
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let error: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(error["error"]["code"], "conflict");
-        assert_eq!(error["error"]["message"], "A backup is already running.");
         drop(guard);
 
         let blocked = info.path.parent().unwrap().join("backups");
@@ -1943,27 +2036,24 @@ mod tests {
         let changes = broadcast::channel(32).0;
         let library =
             library::Library::start(notebook.clone(), changes.clone(), library::extract).unwrap();
-        let app = Router::new()
-            .route("/api/backups", get(backups))
-            .route("/api/backups/{name}", axum::routing::delete(delete_backup))
-            .route("/api/backups/prune", post(prune_backups))
-            .with_state(AppState {
-                notebook,
-                assets: None,
-                changes,
-                library,
-                port: 4561,
-                backup: Arc::new(tokio::sync::Mutex::new(())),
-                sync_port: 4562,
-                pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
-                sharing: Arc::new(tokio::sync::Mutex::new(())),
-                replica: Arc::default(),
-                sync_health: Arc::default(),
-                switcher: None,
-                agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
-            });
+        let app = backup_routes().with_state(AppState {
+            notebook,
+            assets: None,
+            changes,
+            library,
+            port: 4561,
+            backup: Arc::new(tokio::sync::Mutex::new(())),
+            backup_store: Some(dir.path().join("backups")),
+            sync_port: 4562,
+            pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
+            sharing: Arc::new(tokio::sync::Mutex::new(())),
+            replica: Arc::default(),
+            sync_health: Arc::default(),
+            switcher: None,
+            agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
+        });
         for created_at in 1..=4 {
-            let path = backup_directory(&info)
+            let path = backup_directory(&info.path.parent().unwrap().join("backups"), &info)
                 .ok()
                 .unwrap()
                 .join(format!("backup-{created_at}"));
@@ -1976,6 +2066,7 @@ mod tests {
                 created_at,
                 object_count: 1,
                 db_page_count: 1,
+                database_sha256: String::new(),
             };
             std::fs::write(
                 path.join("manifest.json"),
@@ -1999,7 +2090,7 @@ mod tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::CONFLICT);
         assert!(
-            backup_directory(&info)
+            backup_directory(&info.path.parent().unwrap().join("backups"), &info)
                 .ok()
                 .unwrap()
                 .join("backup-4")
@@ -2042,10 +2133,10 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let values: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(values.as_array().unwrap().len(), 3);
-        assert_eq!(values[0]["created_at"], 4);
+        assert_eq!(values["backups"].as_array().unwrap().len(), 3);
+        assert_eq!(values["backups"][0]["created_at"], 4);
         assert!(
-            !backup_directory(&info)
+            !backup_directory(&info.path.parent().unwrap().join("backups"), &info)
                 .ok()
                 .unwrap()
                 .join("backup-2")
@@ -2063,18 +2154,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn prune_backups_keeps_newest_and_ignores_unfinished_and_other_notebooks() {
+    async fn backup_routes_ignore_unfinished_and_foreign_manifests() {
         let (_dir, app, info) = backup_fixture();
-        let root = backup_directory(&info).ok().unwrap();
+        let root = backup_directory(&info.path.parent().unwrap().join("backups"), &info)
+            .ok()
+            .unwrap();
         std::fs::create_dir(root.join("unfinished")).unwrap();
         std::fs::write(root.join("unfinished/notebook.db"), b"in progress").unwrap();
         std::fs::create_dir(root.join("foreign")).unwrap();
         let foreign = tessera_core::BackupManifest {
-            notebook_id: "another-notebook".into(),
+            notebook_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".into(),
             schema_version: 1,
             created_at: 0,
             object_count: 0,
             db_page_count: 1,
+            database_sha256: String::new(),
         };
         std::fs::write(
             root.join("foreign/manifest.json"),
@@ -2092,59 +2186,24 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(response.status(), StatusCode::NOT_FOUND);
-        }
-        let expected_freed: u64 = ["backup-1", "backup-2"]
-            .iter()
-            .map(|name| {
-                14 + std::fs::metadata(root.join(name).join("manifest.json"))
-                    .unwrap()
-                    .len()
-            })
-            .sum();
-        let response = app
-            .clone()
-            .oneshot(
-                Request::post("/api/backups/prune")
-                    .header("content-type", "application/json")
-                    .body(Body::from(r#"{"keep":2}"#))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
-        let result: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(result["deleted"], 2);
-        assert_eq!(result["freed"], expected_freed);
-        assert_eq!(result["backups"].as_array().unwrap().len(), 2);
-        assert_eq!(result["backups"][0]["created_at"], 4);
-        assert_eq!(result["backups"][1]["created_at"], 3);
-        for name in ["backup-3", "backup-4", "unfinished", "foreign"] {
             assert!(root.join(name).exists());
         }
-        for name in ["backup-1", "backup-2"] {
-            assert!(!root.join(name).exists());
-        }
-        for keep in [0, -1] {
-            let response = app
-                .clone()
-                .oneshot(
-                    Request::post("/api/backups/prune")
-                        .header("content-type", "application/json")
-                        .body(Body::from(format!(r#"{{"keep":{keep}}}"#)))
-                        .unwrap(),
-                )
-                .await
-                .unwrap();
-            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        }
+        let response = app
+            .oneshot(Request::get("/api/backups").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let listed: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(listed["backups"].as_array().unwrap().len(), 4);
     }
 
     #[cfg(unix)]
     #[tokio::test]
     async fn backup_sizes_count_nested_regular_files_without_following_symlinks() {
         let (dir, app, info) = backup_fixture();
-        let root = backup_directory(&info).ok().unwrap();
+        let root = backup_directory(&info.path.parent().unwrap().join("backups"), &info)
+            .ok()
+            .unwrap();
         let path = root.join("backup-4");
         std::fs::write(dir.path().join("outside"), [0; 1024]).unwrap();
         std::os::unix::fs::symlink(dir.path().join("outside"), path.join("objects/link")).unwrap();
@@ -2158,7 +2217,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let values: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(values.as_array().unwrap().len(), 4);
-        assert_eq!(values[0]["size"], expected);
+        assert_eq!(values["backups"].as_array().unwrap().len(), 4);
+        assert_eq!(values["backups"][0]["size"], expected);
     }
 }

@@ -138,3 +138,131 @@ fn backup_refuses_existing_notebook_without_changing_it() {
     assert!(backup(&source, &destination).is_err());
     assert_eq!(Notebook::open(&destination).unwrap().info().unwrap().id, id);
 }
+
+#[test]
+fn store_backups_skip_unchanged_state_and_keep_edits_and_new_objects() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("workshop");
+    let store = root.path().join("shared-store");
+    let (mut notebook, _) = seed(&source);
+    let first = tessera_core::backup_to_store(&source, &store).unwrap();
+    assert!(first.created);
+    assert_eq!(first.manifest.database_sha256.len(), 64);
+    let repeated = tessera_core::backup_to_store(&source, &store).unwrap();
+    assert!(!repeated.created);
+    assert_eq!(first.path, repeated.path);
+    assert_eq!(
+        std::fs::read_dir(first.path.parent().unwrap())
+            .unwrap()
+            .count(),
+        1
+    );
+    notebook
+        .apply(&Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: vec![Operation::EditText {
+                id: BLOCK.into(),
+                base_revision: 1,
+                text: "Edited after backup".into(),
+            }],
+        })
+        .unwrap();
+    let edited = tessera_core::backup_to_store(&source, &store).unwrap();
+    assert!(edited.created);
+    assert_ne!(
+        edited.manifest.database_sha256,
+        first.manifest.database_sha256
+    );
+    assert_eq!(
+        std::fs::read_dir(first.path.parent().unwrap())
+            .unwrap()
+            .count(),
+        2
+    );
+    notebook
+        .put_object(b"new object without a database edit")
+        .unwrap();
+    let object = tessera_core::backup_to_store(&source, &store).unwrap();
+    assert!(object.created);
+    assert_eq!(
+        object.manifest.database_sha256,
+        edited.manifest.database_sha256
+    );
+    assert_eq!(object.manifest.object_count, 2);
+}
+
+#[cfg(unix)]
+#[test]
+fn backup_objects_share_the_live_inode_and_survive_unlinking_the_live_file() {
+    use std::os::unix::fs::MetadataExt;
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("source");
+    let (notebook, sha) = seed(&source);
+    let destination = root.path().join("backup");
+    backup(&source, &destination).unwrap();
+    let live = notebook.object_path(&sha).unwrap();
+    let saved = destination.join("objects").join(&sha[..2]).join(&sha[2..]);
+    let live_meta = std::fs::metadata(&live).unwrap();
+    let saved_meta = std::fs::metadata(&saved).unwrap();
+    assert_eq!(
+        (live_meta.dev(), live_meta.ino()),
+        (saved_meta.dev(), saved_meta.ino())
+    );
+    assert_eq!(saved_meta.nlink(), 2);
+    std::fs::remove_file(live).unwrap();
+    assert_eq!(std::fs::read(saved).unwrap(), b"immutable source bytes");
+}
+
+#[test]
+fn old_manifests_remain_readable_and_do_not_skip_the_first_hashed_snapshot() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("workshop");
+    let store = root.path().join("backups");
+    seed(&source);
+    let first = tessera_core::backup_to_store(&source, &store).unwrap();
+    let path = first.path.join("manifest.json");
+    let mut manifest = serde_json::to_value(first.manifest).unwrap();
+    manifest.as_object_mut().unwrap().remove("database_sha256");
+    std::fs::write(&path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    let decoded: tessera_core::BackupManifest = serde_json::from_value(manifest).unwrap();
+    assert!(decoded.database_sha256.is_empty());
+    assert!(
+        tessera_core::backup_to_store(&source, &store)
+            .unwrap()
+            .created
+    );
+}
+
+#[test]
+fn skipped_backups_also_prune_finished_history_without_touching_other_workshops() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("workshop");
+    let store = root.path().join("backups");
+    seed(&source);
+    let newest = tessera_core::backup_to_store(&source, &store).unwrap();
+    let directory = newest.path.parent().unwrap();
+    for index in 1..=5 {
+        let path = directory.join(format!("old-{index}"));
+        let mut manifest = backup(&source, &path).unwrap();
+        manifest.created_at = index;
+        std::fs::write(
+            path.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+    }
+    let other_source = root.path().join("other");
+    Notebook::open(&other_source).unwrap();
+    let other = tessera_core::backup_to_store(&other_source, &store).unwrap();
+    assert!(
+        !tessera_core::backup_to_store(&source, &store)
+            .unwrap()
+            .created
+    );
+    assert_eq!(std::fs::read_dir(directory).unwrap().count(), 3);
+    assert!(directory.join("old-5").exists());
+    assert!(directory.join("old-4").exists());
+    assert!(other.path.exists());
+}

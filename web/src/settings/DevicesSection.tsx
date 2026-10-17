@@ -40,7 +40,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
   return <>
     {props.heading}
     <Show when={checked() && !hubDevices.state()}>
-      <div class="settings-row"><div class="settings-label"><span class="settings-name">Sync is off</span><p>This Mac is not serving its notebook to other devices, so no phone can pair with it.</p></div><span /></div>
+      <div class="settings-row"><div class="settings-label"><span class="settings-name">Sync is off</span><p>This Mac is not serving its workshop to other devices, so no phone can pair with it.</p></div><span /></div>
     </Show>
     <Show when={hubDevices.state()}>{value => <>
       <div class="settings-row devices-hub-row">
@@ -55,7 +55,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
         <input id="settings-sharing" class="settings-switch" type="checkbox" role="switch" checked={value().sharing.on} disabled={busy() || !value().sharing.available} onChange={event => { void share(event.currentTarget.checked); }} />
       </div>
       <div class="settings-row">
-        <div class="settings-label"><span class="settings-name">Pair a phone</span><p>The phone gets a copy of this notebook. Changes go both ways.</p></div>
+        <div class="settings-label"><span class="settings-name">Pair a phone</span><p>The phone gets a copy of this workshop. Changes go both ways.</p></div>
         <Button class="bordered" disabled={!value().sharing.on} title={value().sharing.on ? undefined : 'Turn on sharing first'} onClick={() => setPairing(true)}>Pair a phone</Button>
       </div>
       <For each={value().devices.map(device => device.id)}>{id => {
@@ -126,11 +126,11 @@ function PairDialog(props: { url: string | null; onDone(): void }) {
       </figure>
       <ol class="pair-steps">
         <li><span class="section-number">01</span>Open Tessera on the phone.</li>
-        <li><span class="section-number">02</span><span>Choose <strong>Use my Mac's notebook</strong>.</span></li>
+        <li><span class="section-number">02</span><span>Choose <strong>Use my Mac's workshop</strong>.</span></li>
         <li><span class="section-number">03</span>Scan this code.</li>
       </ol>
     </div>}</Show>}>
-      <p class="pair-paired" role="status">{paired()} is paired and copying the notebook.</p>
+      <p class="pair-paired" role="status">{paired()} is paired and copying the workshop.</p>
     </Show>
     <footer class="pair-foot">
       <div class="pair-wait" role="status">
@@ -159,7 +159,7 @@ export function PhoneDevices(props: DeviceProps) {
     {props.heading}
     <Show when={sync.state()}>{state => <Show when={replica()} fallback={<>
       <div class="settings-row">
-        <div class="settings-label"><span class="settings-name">Use my Mac's notebook</span><p>A copy of your Mac's notebook. Changes go both ways.</p></div>
+        <div class="settings-label"><span class="settings-name">Use my Mac's workshop</span><p>A copy of your Mac's workshop. Changes go both ways.</p></div>
         <Button class="bordered" disabled={state().role !== 'none'} onClick={() => setSetup(true)}>Set up</Button>
       </div>
       <Show when={setup()}><SyncSetup onDone={() => setSetup(false)} /></Show>

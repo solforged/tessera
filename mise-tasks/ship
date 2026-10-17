@@ -4,7 +4,7 @@
 #
 # Builds in a separate worktree, so uncommitted edits never ship. Replaces
 # /Applications/Tessera.app, then runs its `tessera install`, which backs up
-# the notebook, restarts the launch agent on port 4318 with the new build and
+# the workshop, restarts the launch agent on port 4318 with the new build and
 # waits for it. If the new build does not answer, install restores the backup
 # with the previous build and puts that build back; this task then puts the
 # previous app back too.
@@ -13,7 +13,7 @@ set -euo pipefail
 root=$(git rev-parse --show-toplevel)
 commit=$(git -C "$root" rev-parse --verify "${usage_commit:-HEAD}^{commit}")
 build=$(git -C "$root" rev-parse --short "$commit")
-cache="$HOME/Library/Caches/tessera"
+cache="${XDG_CACHE_HOME:-$HOME/.cache}/tessera"
 src="$cache/ship"
 app=/Applications/Tessera.app
 cli="$app/Contents/MacOS/tessera"

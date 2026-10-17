@@ -16,9 +16,8 @@ import type {
   PageReferences,
   ReferenceCount,
   UnlinkedMentions,
-  BackupInfo,
+  Backups,
   CreatedBackup,
-  PrunedBackups,
   PairingCode,
   PairingStatus,
   SyncConflicts,
@@ -185,7 +184,7 @@ async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }
     response = await transport(url, init);
   } catch (error) {
     if (init.signal?.aborted) throw error;
-    throw new ApiError('The notebook service is not reachable.', 0, 'unreachable');
+    throw new ApiError('The workshop service is not reachable.', 0, 'unreachable');
   }
   if (response.ok && decode) return decode(response);
   const parsed: unknown = await response.json().catch(() => null);
@@ -213,10 +212,10 @@ const segment = encodeURIComponent;
 export interface ApiClient {
   notebook(signal?: AbortSignal): Promise<NotebookInfo>;
   service(signal?: AbortSignal): Promise<ServiceInfo>;
-  backups(signal?: AbortSignal): Promise<BackupInfo[]>;
+  backups(signal?: AbortSignal): Promise<Backups>;
   createBackup(signal?: AbortSignal): Promise<CreatedBackup>;
-  deleteBackup(name: string, signal?: AbortSignal): Promise<BackupInfo[]>;
-  pruneBackups(keep: number, signal?: AbortSignal): Promise<PrunedBackups>;
+  deleteBackup(name: string, signal?: AbortSignal): Promise<Backups>;
+  deleteOtherBackups(workshopId: string, signal?: AbortSignal): Promise<Backups>;
   /** The Mac service only: known notebooks, and switching the service to one. */
   notebooks(signal?: AbortSignal): Promise<KnownNotebooks>;
   /** Resolves once the service has accepted; it then restarts on `path`, and this window reloads. */
@@ -347,7 +346,7 @@ export interface ApiClient {
   exportQuery(format: ExportFormat, query: LibraryQuery, signal?: AbortSignal): Promise<Blob>;
 }
 
-type NativeMethod = 'service' | 'backups' | 'createBackup' | 'deleteBackup' | 'pruneBackups' | 'notebooks' | 'openNotebook' | 'forgetNotebook' | 'queueUrl' | 'syncDevices' | 'setSharing' | 'forgetDevice' | 'startPairing' | 'pairingStatus' | 'cancelPairing';
+type NativeMethod = 'service' | 'backups' | 'createBackup' | 'deleteBackup' | 'deleteOtherBackups' | 'notebooks' | 'openNotebook' | 'forgetNotebook' | 'queueUrl' | 'syncDevices' | 'setSharing' | 'forgetDevice' | 'startPairing' | 'pairingStatus' | 'cancelPairing';
 
 export function createApi(base = ''): ApiClient {
   const get = <T>(path: string, signal?: AbortSignal) => request<T>(base, 'GET', path, undefined, signal);
@@ -359,10 +358,10 @@ export function createApi(base = ''): ApiClient {
     notebook: (signal?: AbortSignal) => get<NotebookInfo>('/notebook', signal),
     ...(!EMBEDDED ? {
       service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
-      backups: (signal?: AbortSignal) => get<BackupInfo[]>('/backups', signal),
+      backups: (signal?: AbortSignal) => get<Backups>('/backups', signal),
       createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
-      deleteBackup: (name: string, signal?: AbortSignal) => request<BackupInfo[]>(base, 'DELETE', `/backups/${segment(name)}`, undefined, signal),
-      pruneBackups: (keep: number, signal?: AbortSignal) => request<PrunedBackups>(base, 'POST', '/backups/prune', { keep }, signal),
+      deleteBackup: (name: string, signal?: AbortSignal) => request<Backups>(base, 'DELETE', `/backups/${segment(name)}`, undefined, signal),
+      deleteOtherBackups: (workshopId: string, signal?: AbortSignal) => request<Backups>(base, 'DELETE', `/backups/others/${segment(workshopId)}`, undefined, signal),
       notebooks: (signal?: AbortSignal) => get<KnownNotebooks>('/notebooks', signal),
       openNotebook: (path: string, create: boolean, signal?: AbortSignal) => request<{ path: string }>(base, 'POST', '/notebooks/open', { path, create }, signal),
       forgetNotebook: (path: string, signal?: AbortSignal) => request<KnownNotebooks>(base, 'POST', '/notebooks/forget', { path }, signal),

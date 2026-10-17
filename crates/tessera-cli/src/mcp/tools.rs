@@ -412,7 +412,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_sync",
             "title": "Check sync",
-            "description": "Whether this notebook syncs with a hub, when it last synced, how many changes made here have not reached the hub, and the last sync error. The service syncs on its own a few seconds after each change and every three minutes; now: true syncs at once and reports the result.",
+            "description": "Whether this workshop syncs with a hub, when it last synced, how many changes made here have not reached the hub, and the last sync error. The service syncs on its own a few seconds after each change and every three minutes; now: true syncs at once and reports the result.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

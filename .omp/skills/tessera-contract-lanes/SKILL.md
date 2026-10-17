@@ -21,5 +21,5 @@ Behavior with file:line citations; core migration + operations; service shape; w
 ## Merge
 - Patches that fail auto-merge live at `~/.local/share/omp/sessions/-src-tessera/<session>/<Lane>.patch`; `git apply --3way` then resolve with `conflict://`. `@both` for adjacent case/test additions, but check each side closes its braces (ours' switch case without `{}` broke twice).
 - Two lanes appending migrations: renumber the later one and add its `DROP TABLE` to every downgrade fixture in `crates/tessera-core/tests/{fields,types_changes}.rs`.
-- Rerun all checks, restart the dev service (`./target/debug/tessera --notebook .tessera/dev serve --assets web/dist`), smoke in the browser, then one Conventional Commit per lane with a 72-col body and no lists.
+- Rerun all checks, restart the dev service (`./target/debug/tessera --workshop .tessera/dev serve --assets web/dist`), smoke in the browser, then one Conventional Commit per lane with a 72-col body and no lists.
 - Style the lane's pane yourself afterwards against `docs/design.md`.

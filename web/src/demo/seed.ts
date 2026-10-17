@@ -50,9 +50,9 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
   const ideaType = page('Demo idea');
   const journal = ulid(); operations.push({ op: 'create_journal', id: journal, date: today });
 
-  insert(welcome, 'A notebook to think in', 1);
-  insert(welcome, 'Welcome! This is the real Tessera editor and notebook engine, running entirely in your browser. No account, server notebook or cloud sync is involved.');
-  insert(welcome, 'Your notebook stays in this browser on this device, and clearing site data removes it. Keep one Tessera tab open at a time. Settings › Backups downloads a copy, restores one or starts over.');
+  insert(welcome, 'A workshop to think in', 1);
+  insert(welcome, 'Welcome! This is the real Tessera editor and workshop engine, running entirely in your browser. No account, server workshop or cloud sync is involved.');
+  insert(welcome, 'Your workshop stays in this browser on this device, and clearing site data removes it. Keep one Tessera tab open at a time. Settings › Backups downloads a copy, restores one or starts over.');
   const outline = insert(welcome, 'Make room for a thought', 2);
   insert(outline, 'Click a block to edit it. Enter makes another block; Tab nests it and Shift+Tab brings it back out.');
   insert(outline, `Try undo and redo, fold a branch, or open a linked page beside this one: ${besideHint}.`);
@@ -83,9 +83,9 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
 
   insert(learning, 'A few cards to try', 1);
   insert(learning, 'Cards come from ordinary block text. Edit these examples to see their syntax, then open Review.');
-  insert(learning, 'Where does this demo store your notebook? >> In this browser, on this device.');
+  insert(learning, 'Where does this demo store your workshop? >> In this browser, on this device.');
   insert(learning, 'Outline <> A thought with room for smaller thoughts beneath it.');
-  insert(learning, 'A linked notebook connects {{c1::ideas}} rather than isolating them.');
+  insert(learning, 'A linked workshop connects {{c1::ideas}} rather than isolating them.');
   insert(learning, `Return to ${link(welcome, 'Welcome to Tessera')} whenever you want the tour.`);
 
   const effort = insert(fieldsPage, 'Demo effort');

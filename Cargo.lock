@@ -5428,6 +5428,7 @@ dependencies = [
  "base64 0.22.1",
  "caseless",
  "deunicode",
+ "dirs",
  "getrandom 0.4.3",
  "imagesize",
  "isolang",
@@ -5465,6 +5466,8 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-updater",
  "tauri-plugin-window-state",
+ "tempfile",
+ "tessera-core",
  "tokio",
 ]
 

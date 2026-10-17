@@ -34,7 +34,7 @@ async fn native_and_embedded_spreads_derive_ids_and_list_saved_pages() {
         let app = if embedded {
             tessera_service::embedded_router(notebook).unwrap().0
         } else {
-            tessera_service::router(notebook, 14342, None, None).unwrap()
+            tessera_service::router(notebook, 14342, None, None, None).unwrap()
         };
         let id = |n| ulid::Ulid::from(n).to_string();
         let (status, _) = request(&app, Method::POST, "/api/batches", json!({"actor":{"kind":"person"},"operations":[

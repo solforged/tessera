@@ -1,6 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
+import type { Backups } from '../api/types';
 import { ANDROID, DEMO, EMBEDDED } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
@@ -13,7 +14,7 @@ import { size, sync } from '../sync/state';
 import { backupLabel } from './backup';
 import { HubDevices, PhoneDevices } from './DevicesSection';
 import { BrowserBackups } from './BrowserBackups';
-import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, openNotebook } from './notebooks';
+import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, notebookPlace, openNotebook, workshopName, workshopsHome } from './notebooks';
 import { AgentSettings } from '../agent/AgentSettings';
 import './settings.css';
 import './devices.css';
@@ -47,31 +48,29 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   const [backingUp, setBackingUp] = createSignal(false);
   const [removingBackups, setRemovingBackups] = createSignal(false);
   const [confirmBackup, setConfirmBackup] = createSignal<string | null>(null);
+  // Back up now with nothing changed since the newest backup makes none; the status says so.
+  const [unchanged, setUnchanged] = createSignal(false);
   const backupBusy = () => backingUp() || removingBackups();
-  const backupBytes = createMemo(() => backups()?.reduce((total, backup) => total + backup.size, 0) ?? 0);
-  const olderBackups = createMemo(() => backups()?.slice(10) ?? []);
-  const olderBytes = createMemo(() => olderBackups().reduce((total, backup) => total + backup.size, 0));
-  const removeBackups = async (name?: string) => {
+  const otherBytes = createMemo(() => backups()?.others.reduce((total, other) => total + other.size, 0) ?? 0);
+  const removeBackups = async (remove: () => Promise<Backups>) => {
     if (backupBusy()) return;
     setRemovingBackups(true); setError('');
-    try {
-      updateBackups(name === undefined ? (await api.pruneBackups(10)).backups : await api.deleteBackup(name));
-      setConfirmBackup(null);
-    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    try { updateBackups(await remove()); setConfirmBackup(null); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setRemovingBackups(false); }
   };
   const backUp = async () => {
     if (backupBusy()) return;
-    setBackingUp(true); setError('');
-    try { await api.createBackup(); await refreshBackups(); }
+    setBackingUp(true); setError(''); setUnchanged(false);
+    try { const result = await api.createBackup(); updateBackups(result.backups); setUnchanged(!result.created); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBackingUp(false); }
   };
   const [notebookPath, setNotebookPath] = createSignal('');
   const [forgetting, setForgetting] = createSignal<string | null>(null);
   const report = (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason));
-  // A typed path goes by its last folder name while it opens.
-  const switchTo = (path: string, create: boolean, label = path.split('/').filter(Boolean).at(-1) ?? path) => { setError(''); void openNotebook(props.notebook, path, create, label).catch(report); };
+  // A typed name or path goes by its last folder name while it opens.
+  const switchTo = (path: string, create: boolean, label = workshopName(path.split('/').filter(Boolean).at(-1) ?? path)) => { setError(''); void openNotebook(props.notebook, path, create, label).catch(report); };
   const forget = async (path: string) => {
     if (forgetting()) return;
     setForgetting(path); setError('');
@@ -94,7 +93,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   const sections = createMemo(() => [
     { key: 'preferences', label: 'Preferences', count: 0 },
     ...(DEMO && !ANDROID ? [{ key: 'backups', label: 'Backups', count: 0 }] : []),
-    ...(EMBEDDED ? [] : [{ key: 'notebooks', label: 'Notebooks', count: knownNotebooks()?.notebooks.length ?? 0 }, { key: 'backups', label: 'Backups', count: backups()?.length ?? 0 }]),
+    ...(EMBEDDED ? [] : [{ key: 'notebooks', label: 'Workshops', count: knownNotebooks()?.notebooks.length ?? 0 }, { key: 'backups', label: 'Backups', count: backups()?.backups.length ?? 0 }]),
     ...(devices ? [{ key: 'devices', label: 'Devices', count: deviceCount() }] : []),
     ...(DEMO ? [] : [{ key: 'agent', label: 'Agent', count: 0 }]),
     { key: 'agent-changes', label: 'Agent changes', count: agentChanges()?.length ?? 0 },
@@ -171,7 +170,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
       <div class="settings-main">
         <header class="settings-header" data-scrolled={scrolled() ? '' : undefined}>
           <div class="settings-heading">
-            <div class="settings-register">Notebook and device</div>
+            <div class="settings-register">Workshop and device</div>
             <h1>Settings</h1>
           </div>
           <span class="settings-status" role="status">{props.notebook.settingsMessage()}</span>
@@ -189,15 +188,15 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
             </div>
           </div>
           <div class="settings-row">
-            <div class="settings-label"><span class="settings-name"><label for={`settings-vim-${props.pane}`}>Vim keys</label><span class="settings-scope">Notebook</span></span><p>Normal, insert and visual modes inside a block; j and k move between blocks.</p></div>
+            <div class="settings-label"><span class="settings-name"><label for={`settings-vim-${props.pane}`}>Vim keys</label><span class="settings-scope">Workshop</span></span><p>Normal, insert and visual modes inside a block; j and k move between blocks.</p></div>
             <input id={`settings-vim-${props.pane}`} class="settings-switch" type="checkbox" role="switch" checked={props.notebook.vim()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('vim', String(event.currentTarget.checked)); }} />
           </div>
           <div class="settings-row">
-            <div class="settings-label"><span class="settings-name"><label for={`settings-confirm_view_delete-${props.pane}`}>Ask before deleting views</label><span class="settings-scope">Notebook</span></span><p>Library, task and table views.</p></div>
+            <div class="settings-label"><span class="settings-name"><label for={`settings-confirm_view_delete-${props.pane}`}>Ask before deleting views</label><span class="settings-scope">Workshop</span></span><p>Library, task and table views.</p></div>
             <input id={`settings-confirm_view_delete-${props.pane}`} class="settings-switch" type="checkbox" role="switch" checked={props.notebook.confirmViewDelete()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('confirm_view_delete', String(event.currentTarget.checked)); }} />
           </div>
           <div class="settings-row">
-            <div class="settings-label"><span class="settings-name">Journal day<span class="settings-scope">Notebook</span></span><p>Decides which day Today opens and when scheduled times fall.</p></div>
+            <div class="settings-label"><span class="settings-name">Journal day<span class="settings-scope">Workshop</span></span><p>Decides which day Today opens and when scheduled times fall.</p></div>
             <Button class="bordered settings-select" aria-label="Time zone" aria-haspopup="listbox" aria-expanded={zoneAnchor() !== null} disabled={props.notebook.settingsBusy()} onClick={event => setZoneAnchor(event.currentTarget)}>
               <span class="settings-select-text"><Show when={zone() === deviceZone}><span>Device</span></Show><span class="settings-mono">{zone()}</span></span><Icon name="down" />
             </Button>
@@ -214,11 +213,12 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         </section>
         {DEMO && !ANDROID && <BrowserBackups id={sectionId('backups')} heading={heading(number('backups'), 'backups', 'Backups')} when={when} onError={setError} />}
         {!EMBEDDED && <section id={sectionId('notebooks')} aria-labelledby={`${sectionId('notebooks')}-heading`} aria-busy={notebookOpening() !== null}>
-          {heading(number('notebooks'), 'notebooks', 'Notebooks')}
+          {heading(number('notebooks'), 'notebooks', 'Workshops')}
+          <Show when={workshopsHome()}>{home => <p class="settings-empty">Workshops made by name live in <span class="settings-mono">{home()}</span>. Opening one reloads this window.</p>}</Show>
           <For each={knownNotebooks()?.notebooks}>{entry => <div class="settings-row notebooks-entry" data-current={entry.current ? '' : undefined}>
             <div class="settings-label">
               <span class="settings-name">{notebookLabel(entry)}<Show when={entry.current}><span class="settings-scope">Open</span></Show></span>
-              <p class="settings-mono notebooks-path">{entry.path}</p>
+              <Show when={notebookPlace(entry)}>{place => <p class="settings-mono notebooks-path" title={entry.path}>{place()}</p>}</Show>
             </div>
             <Show when={!entry.current} fallback={<span />}>
               <span class="notebooks-actions">
@@ -231,9 +231,9 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           </div>}</For>
           <form class="settings-row notebooks-add" onSubmit={event => { event.preventDefault(); switchTo(notebookPath().trim(), false); }}>
             <div class="settings-label">
-              <span class="settings-name"><label for={`settings-notebook-path-${props.pane}`}>Another notebook</label></span>
-              <p>A folder’s full path. Open uses the notebook in it; New starts an empty notebook in a new or empty folder. This window reloads on the notebook you choose.</p>
-              <input id={`settings-notebook-path-${props.pane}`} class="input notebooks-path-input" type="text" autocapitalize="off" autocomplete="off" spellcheck={false} placeholder="~/Notebooks/Clickaround" value={notebookPath()} disabled={notebookOpening() !== null} onInput={event => setNotebookPath(event.currentTarget.value)} />
+              <span class="settings-name"><label for={`settings-notebook-path-${props.pane}`}>Open or create</label></span>
+              <p>A name, such as reading, or a folder anywhere, such as ~/Documents/reading. Open uses a workshop that is there; New starts an empty one.</p>
+              <input id={`settings-notebook-path-${props.pane}`} class="input notebooks-path-input" type="text" autocapitalize="off" autocomplete="off" spellcheck={false} placeholder="reading" value={notebookPath()} disabled={notebookOpening() !== null} onInput={event => setNotebookPath(event.currentTarget.value)} />
             </div>
             <span class="notebooks-actions">
               <Button type="submit" class="bordered" disabled={!notebookPath().trim() || notebookOpening() !== null}>Open</Button>
@@ -243,30 +243,34 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         </section>}
         {!EMBEDDED && <section id={sectionId('backups')} aria-labelledby={`${sectionId('backups')}-heading`} aria-busy={backupBusy()}>
           {heading(number('backups'), 'backups', 'Backups')}
+          <p class="settings-empty">This workshop is backed up once a day and before each update, unless nothing has changed. The newest three are kept, then one a day for a week and one a week for a month.</p>
           <div class="settings-row">
-            <div class="settings-label"><span class="settings-name">Database and files</span><Show when={backups()}>{values => <>
-              <p role="status">{values()[0] ? `Last backup ${when(values()[0]!.created_at)}` : 'No backups yet.'}</p>
-              <p class="settings-mono">{values().length} {values().length === 1 ? 'backup' : 'backups'} · {size(backupBytes())}</p>
+            <div class="settings-label"><span class="settings-name">Database and files</span><Show when={backups()}>{value => <>
+              <p role="status">{value().backups[0] ? `Last backup ${when(value().backups[0]!.created_at)}${unchanged() ? '; nothing has changed since' : ''}` : 'No backups yet.'}</p>
+              <p class="settings-mono">{value().backups.length} {value().backups.length === 1 ? 'backup' : 'backups'} · {size(value().store_size)}</p>
             </>}</Show></div>
             <Button class="bordered" disabled={backupBusy()} onClick={() => { setConfirmBackup(null); void backUp(); }}>{backingUp() ? 'Backing up…' : 'Back up now'}</Button>
           </div>
-          <Show when={olderBackups().length > 0}><div class="settings-row">
-            <div class="settings-label"><span class="settings-name">Keep the latest 10</span>
-              <p>{confirmBackup() === 'older' ? `Delete ${olderBackups().length} older ${olderBackups().length === 1 ? 'backup' : 'backups'} and free ${size(olderBytes())}? This cannot be undone.` : 'The newest backup is always kept as a restore point.'}</p>
-            </div>
-            <span class="settings-backup-actions"><Show when={confirmBackup() === 'older'} fallback={<Button class="bordered danger" disabled={backupBusy()} onClick={() => setConfirmBackup('older')}>Delete older backups</Button>}>
-              <Button disabled={backupBusy()} onClick={() => setConfirmBackup(null)}>Cancel</Button>
-              <Button class="bordered danger" disabled={backupBusy()} onClick={() => { void removeBackups(); }}>Confirm</Button>
-            </Show></span>
-          </div></Show>
-          <Show when={(backups()?.length ?? 0) > 1}><details class="settings-more">
-            <summary><Icon name="right" />{backups()!.length - 1} earlier {backups()!.length === 2 ? 'backup' : 'backups'}</summary>
-            <ul><For each={backups()!.slice(1)}>{backup => <li class="settings-backup-row">
+          <Show when={(backups()?.backups.length ?? 0) > 1}><details class="settings-more">
+            <summary><Icon name="right" />{backups()!.backups.length - 1} earlier {backups()!.backups.length === 2 ? 'backup' : 'backups'}</summary>
+            <ul><For each={backups()!.backups.slice(1)}>{backup => <li class="settings-backup-row">
               <span>{backupLabel(backup)} · {size(backup.size)}</span>
               <span class="settings-backup-actions"><Show when={confirmBackup() === backup.path} fallback={<Button class="danger" disabled={backupBusy()} onClick={() => setConfirmBackup(backup.path)}>Delete</Button>}>
                 <span class="settings-backup-question">Delete?</span>
                 <Button disabled={backupBusy()} onClick={() => setConfirmBackup(null)}>Cancel</Button>
-                <Button class="bordered danger" disabled={backupBusy()} onClick={() => { void removeBackups(backup.path.split('/').at(-1)!); }}>Confirm</Button>
+                <Button class="bordered danger" disabled={backupBusy()} onClick={() => { void removeBackups(() => api.deleteBackup(backup.name)); }}>Confirm</Button>
+              </Show></span>
+            </li>}</For></ul>
+          </details></Show>
+          {/* Backups of workshops other than this one, including ones no longer on the list, until deleted here. */}
+          <Show when={backups()?.others.length}><details class="settings-more">
+            <summary><Icon name="right" />Other workshops · {size(otherBytes())}</summary>
+            <ul><For each={backups()!.others}>{other => <li class="settings-backup-row">
+              <span title={other.path}>{other.workshop_id.slice(0, 10)}… · {other.count} {other.count === 1 ? 'backup' : 'backups'}{other.newest_at === null ? '' : ` · newest ${when(other.newest_at)}`} · {size(other.size)}</span>
+              <span class="settings-backup-actions"><Show when={confirmBackup() === other.path} fallback={<Button class="danger" disabled={backupBusy()} onClick={() => setConfirmBackup(other.path)}>Delete</Button>}>
+                <span class="settings-backup-question">Delete all?</span>
+                <Button disabled={backupBusy()} onClick={() => setConfirmBackup(null)}>Cancel</Button>
+                <Button class="bordered danger" disabled={backupBusy()} onClick={() => { void removeBackups(() => api.deleteOtherBackups(other.workshop_id)); }}>Confirm</Button>
               </Show></span>
             </li>}</For></ul>
           </details></Show>
@@ -279,7 +283,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         {!DEMO && <AgentSettings id={sectionId('agent')} heading={heading(number('agent'), 'agent', 'Agent')} />}
         <section id={sectionId('agent-changes')} aria-labelledby={`${sectionId('agent-changes')}-heading`} aria-busy={undoing() !== null}>
           {heading(number('agent-changes'), 'agent-changes', 'Agent changes')}
-          <Show when={agentChanges()}>{values => <Show when={values().length > 0} fallback={<p class="settings-empty">No agent changes yet. When an agent edits this notebook, each change appears here with its own Undo.</p>}>
+          <Show when={agentChanges()}>{values => <Show when={values().length > 0} fallback={<p class="settings-empty">No agent changes yet. When an agent edits this workshop, each change appears here with its own Undo.</p>}>
             <ol class="settings-changes">
               <For each={allChanges() ? values() : values().slice(0, 3)}>{change => <li class="settings-change" data-undone={change.undone_by === null ? undefined : ''}>
                 <div class="settings-label">
@@ -301,7 +305,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         <section id={sectionId('about')} aria-labelledby={`${sectionId('about')}-heading`}>
           {heading(number('about'), 'about', 'About')}
           <Show when={info()}>{value => <dl>
-            <dt>Notebook</dt><dd>{value().path}</dd>
+            <dt>Workshop</dt><dd>{value().path}</dd>
             <dt>Created</dt><dd>{new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(value().created_at)}</dd>
             <dt>Id</dt><dd>{value().id}</dd>
           </dl>}</Show>

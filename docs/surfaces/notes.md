@@ -59,9 +59,9 @@ If a saved finding aid names a detached or deleted field, it shows the remembere
 
 Counts, empty states and field-filter chips wait for the relevant reads; a pending request never claims there are zero notes or a missing field. Search and grouping keep the previous rows, headings and counts visible together until the new query finishes. Index and note panes reserve scrollbar space so shorter results do not move the text column sideways.
 
-Index rows reveal a checkbox on hover or focus and keep it visible on touch. Its label supplies the shared pointer target without enlarging the glyph. Cmd/Ctrl-click on the checkbox toggles a note; Shift-click extends from the selection anchor. The bar shows `N selected` and Clear, plus Spread when the shell provides it. Spread accepts two to five notes. ⌘-click opens it beside (Ctrl-click off Mac). Selection counts distinct notes even when a note occurs under several headings.
+Index rows reveal a checkbox on hover or focus and keep it visible on touch. Its label supplies the shared pointer target without enlarging the glyph. Cmd/Ctrl-click on the checkbox toggles a note; Shift-click extends from the selection anchor. The bar shows `N selected` and Clear, plus Spread when the shell provides it. Spread accepts two to five notes. ⌘-click opens it beside (Ctrl-click off Mac). Selection counts distinct notes even when a note occurs under more than one heading.
 
-`is:resolved` filters `@resolved` to true. `revisit:due` filters `@revisit` through today in the notebook's time zone; `revisit:set` and `revisit:none` select set and empty dates. Question notes use their question's revisit date. These predicates share the query's field filters and remain live when saved. State grouping in the finding aid's Group menu is not implemented.
+`is:resolved` filters `@resolved` to true. `revisit:due` filters `@revisit` through today in the workshop's time zone; `revisit:set` and `revisit:none` select set and empty dates. Question notes use their question's revisit date. These predicates share the query's field filters and remain live when saved. State grouping in the finding aid's Group menu is not implemented.
 
 Their chips use the same attribute labels as entity views: Resolved and Revisit on or before today. Raw query keys stay out of the finding aid.
 
@@ -117,7 +117,7 @@ A whole-row link to a block, other than a field entry or value, shows that block
 
 `/Embed view` and Embed view in Commands offer saved views by name. Choosing one fills an empty block or inserts a sibling after the selected block, then selects it. A view's Embed on page… menu action appends the reference to the chosen page and opens its block.
 
-The embed names the view, with its purpose beneath, then shows up to twelve live rows using the saved layout and recipe. Its name and Show all N open the saved view. ⌘-click opens beside (Ctrl-click off Mac). Edits use the same field cells and page history as the view. Committed notebook changes refresh its query without a manual refresh, and reload keeps the reference. Read shows the same quiet result under its heading.
+The embed names the view, with its purpose beneath, then shows up to twelve live rows using the saved layout and recipe. Its name and Show all N open the saved view. ⌘-click opens beside (Ctrl-click off Mac). Edits use the same field cells and page history as the view. Committed workshop changes refresh its query without a manual refresh, and reload keeps the reference. Read shows the same quiet result under its heading.
 
 A desk recipe stays compact: its name, purpose and Open desk. Opening it shows the linked columns in a pane. ⌘-click opens beside (Ctrl-click off Mac).
 
@@ -135,7 +135,7 @@ The note waits for its kinds and alias fields before appearing. Its title, alias
 
 The title wraps within its available header width, including unbroken names and URLs, without overlapping the header actions.
 
-A note with aliases shows them under the title: `ALSO` in faint mono, then the aliases in italic Piazzolla at the quote size, separated by faint dots. Then one mono line reads `Created 2026-10-06` in the notebook's time zone, without the note's ID at any width, then Revisit. Revisit is muted, reads `Revisit 2026-11-12` once a date is set and turns gilt when that date is due; a resolved note reads Resolved. The gloss follows as the first row.
+A note with aliases shows them under the title: `ALSO` in faint mono, then the aliases in italic Piazzolla at the quote size, separated by faint dots. Then one mono line reads `Created 2026-10-06` in the workshop's time zone, without the note's ID at any width, then Revisit. Revisit is muted, reads `Revisit 2026-11-12` once a date is set and turns gilt when that date is due; a resolved note reads Resolved. The gloss follows as the first row.
 
 Unfiled notes show no kinds. Sources keep their own header; journal days and the Fields page have none.
 
@@ -185,7 +185,7 @@ A Person, Group or Concept type page with an empty template offers `Start from t
 
 A type's template offers **Icon and name…**: a compact glyph grid and an editable plural name. The empty name previews the automatic English plural; Reset removes both overrides. Apply records one undoable change on the type page, shared across devices.
 
-The sidebar, Index directory, note eyebrow and table title read the same kind presentation. Book, Article and Collection default to their book, article and shelf glyphs without writing notebook data; other made types use a tag. An unknown glyph also reads as a tag.
+The sidebar, Index directory, note eyebrow and table title read the same kind presentation. Book, Article and Collection default to their book, article and shelf glyphs without writing workshop data; other made types use a tag. An unknown glyph also reads as a tag.
 
 ## Spreads
 

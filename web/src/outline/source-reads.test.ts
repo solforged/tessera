@@ -43,7 +43,7 @@ async function eventually(predicate: () => boolean, message: string) {
 beforeAll(async () => {
   directory = await mkdtemp(join(tmpdir(), 'tessera-source-reads-tests-'));
   const root = resolve(import.meta.dir, '../../..');
-  service = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--notebook', directory, 'serve', '--port', port], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
+  service = Bun.spawn([Bun.env.TESSERA_TEST_BINARY ?? join(root, 'target/debug/tessera'), '--workshop', directory, 'serve', '--port', port], { cwd: root, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
   const expectedPath = await realpath(directory);
   const deadline = Date.now() + 10000;
   while (true) {
