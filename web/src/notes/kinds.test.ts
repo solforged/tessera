@@ -4,7 +4,7 @@ import { kindLabel } from './kinds';
 
 const kind = (over: Partial<IndexKind> = {}): IndexKind => ({
   key: 'type:1', name: 'arabic', plural: 'arabics', icon: null, type_id: '1',
-  count: 0, tagged_block_count: 1, shelf: 'tags', ...over,
+  count: 0, tagged_block_count: 1, cards: 0, fields: [], tag: true, shelf: 'tags', ...over,
 });
 
 test('a tag-only kind keeps the spelling you wrote', () => {

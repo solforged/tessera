@@ -29,6 +29,7 @@ import { createProjectSummary } from '../projects/ProjectSummary';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
+import { Popup } from '../ui/Popup';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { BlockText } from './BlockText';
 import { plainText } from './names';
@@ -45,6 +46,7 @@ import { Apparatus } from './Apparatus';
 import { createFieldEntryConversion, createSourceFieldResets, ensureField, ensureWorkField, isFreshField, settleField } from './source-fields';
 import { addTemplateField, setFreshFieldKind } from '../fields/commands';
 import { templateOffer } from '../fields/template-offer';
+import { createOutlineHints } from './hints';
 import { kindNoun } from '../fields/kinds';
 import { guessFieldKind } from '../fields/value-reading';
 import { sourceFieldName } from './source';
@@ -140,6 +142,7 @@ function Pane(props: OutlinePaneProps) {
   const [depth, setDepth] = createSignal<Depth>(initial.depth ?? 'full');
   const [caret, setCaret] = createSignal<Caret | null>(initial.caret);
   const [editing, setEditing] = createSignal<string | null>(initial.caret?.id ?? null);
+  const [editorFocused, setEditorFocused] = createSignal(false);
   const [selected, setSelected] = createSignal<string | null>(initial.caret?.id ?? null);
   const [rowRange, setRowRange] = createSignal<RowRange | null>(null);
   const [textRange, setTextRange] = createSignal<TextRange | null>(null);
@@ -245,6 +248,21 @@ function Pane(props: OutlinePaneProps) {
     return names.length ? [names.join('\u0000'), props.notebook.changeSequence()] as const : false;
   }, async ([names]) => new Map(await Promise.all(names.split('\u0000').map(async name => [foldName(name), await resolveName(props.notebook, name)] as const))));
   const sourceResets = createSourceFieldResets({ doc, notebook: props.notebook, definitions: definitionsById, caret, onError: setMessage });
+  const hints = createOutlineHints({ notebook: props.notebook, doc, editing: () => editorFocused() ? editing() : null, visible: () => ids(), fieldKnown: id => definitionsById().has(id) });
+  const [tagTemplate, setTagTemplate] = createSignal<{ id: string; anchor: HTMLElement }>();
+  const [receiptType] = createResource(() => {
+    const target = tagTemplate();
+    return target ? [target.id, props.notebook.changeSequence(), live()] as const : false;
+  }, ([id]) => api.type(id));
+  function DiscoveryHints(row: { id: string }) {
+    return <For each={hints.forBlock(row.id)}>{hint => <div class="outline-discovery" role="status" onMouseDown={event => event.stopPropagation()}>
+      <Show when={hint.kind === 'tag' ? hint.type : undefined} fallback={<span>{hint.kind === 'card' ? 'a card · tag it to put it in a deck' : 'a field · its tag can carry it as a template'}</span>}>{type => <>
+        <span>#{type().title} is new</span><span aria-hidden="true">·</span>
+        <Button class="notice-undo" aria-haspopup="dialog" aria-expanded={tagTemplate()?.id === type().id} onClick={event => setTagTemplate({ id: type().id, anchor: event.currentTarget.closest<HTMLElement>('.outline-discovery')! })}>Add fields</Button>
+        <span aria-hidden="true">·</span><Button class="notice-undo" onClick={event => props.onOpen({ kind: 'page', pageId: type().id }, opensBeside(event))}>Open</Button>
+      </>}</Show>
+    </div>}</For>;
+  }
 
   const contextDate = () => doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate();
   const rowAnchor = (id: string) => id === props.pageId ? heading ?? null : hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null;
@@ -260,6 +278,7 @@ function Pane(props: OutlinePaneProps) {
     onCommitted: (id, next, epoch, focus, field) => {
       setMessage('');
       offerTemplateField(id);
+      hints.fieldEntry(id);
       setFolds(previous => { const next = new Set(previous); next.delete(id); return next; });
       if (next && focusEpoch === epoch) {
         setSelected(next.id);
@@ -861,6 +880,7 @@ function Pane(props: OutlinePaneProps) {
   }
   function apply(intent: Edit, keepEditing = editing() !== null): EditResult | undefined {
     if (disposed || composition()) return undefined;
+    if (intent.kind === 'text' || intent.kind === 'replaceRange' || intent.kind === 'split' || intent.kind === 'merge' || intent.kind === 'pasteBlocks' || intent.kind === 'pasteRows') hints.typed();
     const rearrange = intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move' || intent.kind === 'moveTo';
     if (intent.kind === 'indent' || intent.kind === 'outdent' || intent.kind === 'move') intent = { ...intent, zoomRoot: zoom() };
     const before = ids();
@@ -1342,7 +1362,7 @@ function Pane(props: OutlinePaneProps) {
   const holderBoundary = createMemo(() => !zoom() && related()?.heldReadings.length
     ? ids().find(id => doc.outline.parentOf(id) === props.pageId && !!doc.block(id)?.heading) : undefined);
   const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, RowRelations, openValueEditor,
-    row => <Show when={holderBoundary() === row.id}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>);
+    row => <Show when={holderBoundary() === row.id}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>, DiscoveryHints);
   const { CapabilityPopups } = createCapabilityPopups(context);
   const projectSummary = createProjectSummary({ doc, notebook: props.notebook, date: contextDate, onOpen: props.onOpen, onEdit: anchor => capabilities.open(props.pageId, 'project', anchor) });
   createEffect(on(() => props.projection, () => {
@@ -1419,6 +1439,7 @@ function Pane(props: OutlinePaneProps) {
       blur: () => {
         const id = editor?.id;
         if (!id) return;
+        setEditorFocused(false);
         doc.holdTag(id, false);
         if (editing() === id) commitFieldEntry(id, false);
         queueMicrotask(() => {
@@ -1430,6 +1451,7 @@ function Pane(props: OutlinePaneProps) {
       text: (text, at, group) => measure('typing', () => {
         resetVerticalGoal();
         if (compositionSelection) return;
+        hints.typed();
         const heading = composition() ? null : headingPrefix(doc.block(at.id)?.text ?? '', text, at.offset);
         const task = heading ? null : taskPrefix(text, at);
         if (heading) {
@@ -1613,7 +1635,7 @@ function Pane(props: OutlinePaneProps) {
     return groups;
   });
   return <>
-    <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging(), 'projection-compare': props.projection === 'compare' }} style={{ visibility: pageReady() ? undefined : 'hidden' }} aria-busy={!pageReady()} data-pane-pending={pageReady() ? undefined : ''} data-pane={props.pane} data-projection={reading() ? 'read' : 'outline'} tabIndex={0} role="tree" aria-label={reading() ? 'Page reading register' : 'Page outline'} aria-owns={ids().map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={props.onActivate} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
+    <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging(), 'projection-compare': props.projection === 'compare' }} style={{ visibility: pageReady() ? undefined : 'hidden' }} aria-busy={!pageReady()} data-pane-pending={pageReady() ? undefined : ''} data-pane={props.pane} data-projection={reading() ? 'read' : 'outline'} tabIndex={0} role="tree" aria-label={reading() ? 'Page reading register' : 'Page outline'} aria-owns={ids().map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={event => { props.onActivate(); if ((event.target as Element).closest('.cm-editor')) setEditorFocused(true); }} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
       <Show when={doc.root()?.kind === 'page' && !zoom() && props.projection !== 'compare'}><div ref={navigator} class="section-navigator" classList={{ 'section-navigator-shown': longPage() && scrolledAway() }} onKeyDown={event => event.stopPropagation()}><Button aria-haspopup="menu" onClick={event => {
         const sections = Array.from({ length: doc.outline.size() }, (_, at) => doc.outline.idAt(at)).filter(id => !doc.isArchived(id) && (doc.block(id)?.position || doc.block(id)?.heading && doc.outline.parentOf(id) === props.pageId));
         setMenu({ anchor: event.currentTarget, label: 'Sections and perspectives', items: [{ label: 'Opening', action: () => { cancelScroll(); scroll.scrollTop = 0; scrolled(); } }, ...sections.map(id => ({ label: doc.block(id)?.position ? `Perspectives · ${doc.block(id)?.position?.holder_id ? props.notebook.lookup(doc.block(id)!.position!.holder_id!)()?.text ?? 'Loading holder…' : 'Unattributed'}` : plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)), action: () => {
@@ -1758,6 +1780,10 @@ function Pane(props: OutlinePaneProps) {
     <Show when={doc.status() === 'ready' && zoom()}><div class="related-sections"><Backlinks /></div></Show>
     <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>
     <Show keyed when={mergeTarget()}>{target => <PageMergeConfirmation anchor={target.anchor} notebook={props.notebook} from={target.from} into={target.page} onDismiss={() => setMergeTarget(undefined)} onMerged={id => { setMergeTarget(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
+    <Show when={tagTemplate()}>{target => <Popup anchor={target().anchor} label={receiptType.error ? 'Tag fields' : `Fields for #${receiptType()?.page.text ?? ''}`} class="tag-template-popup" width={560} fitContent ready={!receiptType.loading || !!receiptType.error} onDismiss={() => setTagTemplate(undefined)}>
+      <Show when={receiptType.error}><p class="error" role="alert">Couldn't load template · {String(receiptType.error)}</p></Show>
+      <Show when={!receiptType.error && receiptType()}>{value => <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} onOpen={props.onOpen} register={{ fields: fields()?.fields ?? [], pageId: value().page.id }} />}</Show>
+    </Popup>}</Show>
     <CapabilityPopups />
     <CompletionPopups />
     <fieldSheet.Popups />

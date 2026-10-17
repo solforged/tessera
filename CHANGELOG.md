@@ -8,6 +8,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Added once-per-workshop card and field hints, a new-tag receipt with an anchored template editor, and `?` to open Keys and syntax from an outline row selection.
 - Added a Keys and syntax sheet on ⌘/, in Commands and under the Mac's Help menu: what `#`, `::`, `>>`, `@`, `[[`, `((` and `/` write, and every bound key read from the command registry, so only open surfaces list theirs. The cover keeps the syntax half.
 - Made the index the tag registry: each kind carries its glyph, template, card count and whether `#name` names it. `#` completion offers built-in tags before their pages exist with their glyphs, the deck editor chooses among tags with card counts, and `/Tag` and `/Field…` join the slash menu. The web no longer keeps its own copy of starting templates, kind glyphs or nouns.
 - Added a workshop switcher in place of the sidebar's Settings row: one line naming the open workshop, with a menu that switches workshops, pairs a phone or syncs. Settings became an icon beside Fields; the Mac's sync mark counts paired devices.

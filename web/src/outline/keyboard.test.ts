@@ -193,3 +193,25 @@ test('Enter normalizes an interior caret left by a text write before splitting',
   harness.keyboard.split(harness.view);
   expect(harness.position()).toEqual({ row: 0, offset: 5 });
 });
+
+describe('selected-row syntax sheet shortcut', () => {
+  for (const vim of [false, true]) {
+    test(`? opens the registered sheet with Vim ${vim ? 'on' : 'off'}`, () => {
+      const scroll = {} as HTMLDivElement;
+      let opened = 0, prevented = false;
+      const keyboard = createOutlineKeyboard({
+        scroll, props: { active: true, vim, commands: { list: () => [{ id: 'shell.shortcuts', run: () => { opened++; } }] } },
+        editing: () => null, selected: () => 'row', composition: () => false,
+        textRange: () => null, rowRange: () => null,
+        forgetReferenceSpace: () => false,
+      } as unknown as Parameters<typeof createOutlineKeyboard>[0]);
+      keyboard.structuralKey({ target: scroll, key: '?', shiftKey: true, preventDefault: () => { prevented = true; } } as unknown as KeyboardEvent);
+      expect(opened).toBe(1);
+      expect(prevented).toBe(true);
+    });
+  }
+  test('? in an editing block remains owned by CodeMirror', async () => {
+    const harness = navigationHarness(['a question']);
+    expect(await harness.press('?', { shiftKey: true })).toBe(false);
+  });
+});
