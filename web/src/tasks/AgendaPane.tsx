@@ -338,6 +338,32 @@ export function AgendaPane(props: AgendaPaneProps) {
   /** Overdue work moves as one command, keeping each task's time and deadline, with Undo until the next move. */
   const overdueMove = createBulkMove(props.notebook, () => setRefresh(value => value + 1));
   const taskHistory = new TaskSourceHistory(props.notebook);
+  const [addedTask, setAddedTask] = createSignal<string>();
+  let revealedTask: HTMLElement | undefined;
+  let revealTimer: number | undefined;
+  createEffect(() => {
+    const id = addedTask();
+    agenda(); weekRows(); loading();
+    if (!id) return;
+    queueMicrotask(() => {
+      const row = scroll.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`);
+      if (!row) return;
+      setAddedTask(undefined);
+      clearTimeout(revealTimer);
+      revealedTask?.style.removeProperty('outline');
+      revealedTask = row;
+      row.scrollIntoView({ block: 'nearest' });
+      const capture = scroll.querySelector<HTMLElement>('.agenda-add');
+      if (capture && getComputedStyle(capture).position === 'fixed') {
+        const gap = Number.parseFloat(getComputedStyle(scroll).getPropertyValue('--space-8')) || 0;
+        const obscured = row.getBoundingClientRect().bottom - capture.getBoundingClientRect().top + gap;
+        if (obscured > 0) scroll.scrollTop += obscured;
+      }
+      row.style.outline = 'var(--rule-width) solid var(--accent)';
+      revealTimer = window.setTimeout(() => { row.style.removeProperty('outline'); revealedTask = undefined; }, 1500);
+    });
+  });
+  onCleanup(() => { clearTimeout(revealTimer); revealedTask?.style.removeProperty('outline'); });
   onCleanup(() => taskHistory.dispose());
   const historyKeydown = (event: KeyboardEvent) => {
     if (event.isComposing || event.altKey || !(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z'
@@ -366,7 +392,7 @@ export function AgendaPane(props: AgendaPaneProps) {
         <div class="agenda-add">
           <CaptureField notebook={props.notebook} contextDate={date} schedule taskOnly label="New task"
             placeholder={`Add a task for ${date() === props.notebook.todayDate() ? 'today' : spokenJournalDate(date())} · try “mon 9am”`}
-            onSaved={() => setRefresh(value => value + 1)} />
+            onSaved={(_, receipt) => { void receipt.delivered.then(result => { if (result) { setAddedTask(result.blockId); setRefresh(value => value + 1); } }, reason => setCommandError(reason instanceof Error ? reason.message : String(reason))); }} />
         </div>
       </Show>
       <Show when={weekError()}><div class="agenda-error" role="alert"><span>{weekError()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry week</Button></div></Show>

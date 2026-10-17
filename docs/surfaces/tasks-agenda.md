@@ -116,6 +116,8 @@ On the cover the field stays fixed above bottom navigation and moves down when t
 
 The preview shows exactly the first date suggestion that submission will use, including preset prefixes such as `@t` for Today. Protected references and code remain authored text.
 
+After acknowledgement, the list refreshes, scrolls the new task row into view and outlines it once in gilt for 1.5 seconds. The capture stays inline and keeps keyboard focus for another task.
+
 ## Tasks query
 
 Tasks has one mono query line on a hairline. Focus edits plain text; Enter or blur applies it. Outside editing each term is a chip with its own remove control. Invalid terms keep their text, carry a `--danger` underline and explain the error beneath; the last valid query stays applied.

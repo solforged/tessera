@@ -44,6 +44,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Aligned the Inbox `Author` head with its column, wrote `1 import failed` in the singular, and disabled Export while a tab lists nothing.
 - Offered Add a source only on empty tabs that would list a new source; an empty collection now explains how to fill it and links to All sources.
 - Folded the highlight filter count into `Show N highlights`, so the sheet's footer stays on one line, and hid Filters and the source pickers while there are no highlights.
+- Revealed newly added Agenda tasks with a one-shot highlight above the cover's fixed capture field.
 - Opened Add to library as a bottom sheet on the touch cover layout.
 - Focused Title when entering library details by hand.
 - Placed the caret in new pages' unzoomed Outline bodies, preserving immediate typing and continuing at the end of an optional gist.
