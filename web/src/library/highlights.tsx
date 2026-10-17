@@ -36,8 +36,11 @@ export async function highlightSections(api: ApiClient, snapshotId: string, sign
   return toc.filter((entry): entry is HighlightSection => entry.ordinal !== null).sort((a, b) => a.ordinal - b.ordinal);
 }
 
-/** Keep edited documents alive with the surface so their undo history survives the menu. */
-export function createHighlightActions(notebook: NotebookClient, onOpen: (target: OpenTarget, beside: boolean) => void, onError: (message: string) => void, onProcessed?: (row: HighlightRow) => void, onRemoved?: () => void) {
+/**
+ * Keep edited documents alive with the surface so their undo history survives the menu. A surface that can write a
+ * new note in place passes `composeNote`; it returns false to fall back to opening the note on its page.
+ */
+export function createHighlightActions(notebook: NotebookClient, onOpen: (target: OpenTarget, beside: boolean) => void, onError: (message: string) => void, onProcessed?: (row: HighlightRow) => void, onRemoved?: () => void, composeNote?: (row: HighlightRow, noteId: string) => boolean) {
   const documents = new Map<string, PageDocument>();
   const tagPrompt = createHighlightTagPrompt();
   const [lastDocument, setLastDocument] = createSignal<PageDocument>();
@@ -64,7 +67,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
     const id = row.citation.block_id, pageId = row.block.page.id;
     const document = await loadDocument(pageId);
     const hasNote = notes(document, id).some(child => !!document.block(child)?.text.trim());
-    const run = async (action: 'note' | 'card' | 'triage' | 'remove', confirmed = false, caretSignal?: AbortSignal) => {
+    const run = async (action: 'note' | 'card' | 'triage' | 'remove', confirmed = false, cancelInput?: (() => void) & { signal: AbortSignal }) => {
       await documentReady(document);
       if (disposed) return;
       if (action === 'card') {
@@ -108,7 +111,8 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       setLastDocument(document);
       if (action === 'remove') onRemoved?.();
       // The child is already in the shared local document. Delivery must not hold up typing.
-      if (caretId && !caretSignal?.aborted) onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: 0 }, true);
+      if (caretId && !hasNote && composeNote?.(row, caretId)) cancelInput?.();
+      else if (caretId && !cancelInput?.signal.aborted) onOpen({ kind: 'page', pageId, blockId: id, caretId, caretOffset: 0 }, true);
       await document.flush();
       if (disposed) return;
       if (action === 'triage') onProcessed?.(row);
@@ -116,7 +120,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
     const fail = (reason: unknown) => { if (!disposed) onError(reason instanceof Error ? reason.message : String(reason)); };
     const fire = (action: Parameters<typeof run>[0]) => {
       const cancelInput = action === 'note' ? pendingCaretInput.prepare() : undefined;
-      void run(action, false, cancelInput?.signal).catch(reason => { cancelInput?.(); fail(reason); });
+      void run(action, false, cancelInput).catch(reason => { cancelInput?.(); fail(reason); });
     };
     const tag = () => { setLastDocument(document); tagPrompt.open(document, id); };
     const color = document.block(id)?.citations.find(citation => citation.id === row.citation.id)?.color ?? null;
