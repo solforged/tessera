@@ -17,7 +17,7 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { captureQuoteCompletion, completedReference, completionPickKey, completionTakesKey, engagedToken, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { captureQuoteCompletion, completedReference, completionPickKey, completionTakesKey, engagedToken, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt, taskPrefixInput } from './completion';
 import type { CompletionToken } from './completion';
 import { rankSlash, slashTokenAt } from './slash';
 import { insertCard } from './card-insert';
@@ -627,17 +627,20 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'copy-reference', title: 'Copy reference', section: 'Block', icon: 'copy', run: id => copy(`[[${id}]]`) },
     ];
   }
-  /** Typing `[] ` or `[ ] ` at the start of a block makes it a task; on a block that already is one, the prefix just disappears. */
-  function taskPrefix(text: string, at: Caret): boolean {
-    const prefix = /^\[ ?\] /.exec(text)?.[0];
-    if (!prefix || at.offset !== prefix.length || composition()) return false;
-    const rest = text.slice(prefix.length);
-    const result = doc.block(at.id)?.task ? doc.edit({ kind: 'text', id: at.id, text: rest, caret: 0 }, caret()) : doc.edit({ kind: 'planTask', id: at.id, text: rest, value: newTask() }, caret());
-    if (!result.ok) { setMessage(result.reason); return true; }
-    queueMicrotask(() => { if (context.editor?.id !== at.id) return; context.editor.sync(rest); context.editor.view.dispatch({ selection: { anchor: 0 } }); });
-    setCaret({ id: at.id, offset: 0 });
+  /**
+   * Typing `[] ` or `[ ] ` at the start of a block makes it a task; on a block that already is one, the prefix just disappears.
+   * Returns the text and caret left after the prefix, false when the change failed, or null when no prefix was typed.
+   */
+  function taskPrefix(text: string, at: Caret): { text: string; caret: Caret } | false | null {
+    const input = composition() ? null : taskPrefixInput(doc.block(at.id)?.text ?? '', text, at.offset);
+    if (!input) return null;
+    const rest = input.text, next = { id: at.id, offset: input.caret };
+    const result = doc.block(at.id)?.task ? doc.edit({ kind: 'text', id: at.id, text: rest, caret: next.offset }, caret()) : doc.edit({ kind: 'planTask', id: at.id, text: rest, value: newTask() }, caret());
+    if (!result.ok) { setMessage(result.reason); return false; }
+    queueMicrotask(() => { if (context.editor?.id !== at.id) return; context.editor.sync(rest); context.editor.view.dispatch({ selection: { anchor: next.offset } }); });
+    setCaret(next);
     void doc.flush().catch(reason => capabilities.failure(at.id, reason));
-    return true;
+    return { text: rest, caret: next };
   }
 function CompletionPopups(){ return <>
     <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.relationTarget ? 'Relation target' : completion()?.manual ? 'Add type…' : completion()?.types ? 'Type' : completion()?.fields ? 'Field' : completion()?.quote ? 'Quote block' : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual || completion()?.relationTarget ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!(completion()?.manual || completion()?.relationTarget)}>

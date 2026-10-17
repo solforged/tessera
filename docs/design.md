@@ -545,7 +545,7 @@ A version that sync kept beside a block sits under it, inset behind a hairline a
 
 ### Headings and selection
 
-Headings are Piazzolla block styles at the h1, outline-h2 and h3 tokens, weight 480. Typing `# `, `## ` or `### ` at block start sets the corresponding heading and removes the prefix, preserving any text after it.
+Headings are Piazzolla block styles at the h1, outline-h2 and h3 tokens, weight 480. Typing `# `, `## ` or `### ` at block start sets the corresponding heading and removes the prefix, preserving any text after it, including text typed in one burst with the prefix.
 
 Rows highlight on hover with `--hover`; selection uses `--selection` plus the accent bar. While a range is selected, every row under a selected block takes the same fill and bar, field values included, because those rows move, copy and delete with it.
 

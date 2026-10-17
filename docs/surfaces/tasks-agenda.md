@@ -9,7 +9,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 Tasks are made as in Tana, Roam and Logseq:
 
 - ⌘Enter makes a block a todo, then toggles it between todo and done; ⌥Enter is an alias.
-- `[] ` or `[ ] ` at the start of a plain block makes it a todo.
+- `[] ` or `[ ] ` at the start of a plain block makes it a todo. Text that arrives in one burst, such as typing right after Enter, converts the same way and keeps the caret after the rest, so an `@fri` typed with it still offers its date.
 - `/todo`, `/doing` and the other statuses set any status, as does the ⌘⇧Enter menu.
 - Make task sits in block and page menus.
 

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { cachedExactPage, completedReference, completionPickKey, completionTakesKey, engagedToken, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt } from './completion';
+import { cachedExactPage, completedReference, completionPickKey, completionTakesKey, engagedToken, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt, taskPrefixInput } from './completion';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { foldName } from './names';
 import { typeTokenAt } from './type-completion';
@@ -129,12 +129,23 @@ describe('typed completion triggers', () => {
 
   test('removes a heading prefix typed before existing text without removing the text', () => {
     for (const [prefix, heading] of [['# ', 1], ['## ', 2], ['### ', 3]] as const) {
-      expect(headingPrefix(`${prefix}Existing sentence`, prefix.length)).toEqual({ text: 'Existing sentence', heading });
-      expect(headingPrefix(prefix, prefix.length)).toEqual({ text: '', heading });
-      expect(headingPrefix(`${prefix}Existing sentence`, prefix.length + 1)).toBeNull();
+      expect(headingPrefix(`${prefix.trim()}Existing sentence`, `${prefix}Existing sentence`, prefix.length)).toEqual({ text: 'Existing sentence', heading, caret: 0 });
+      expect(headingPrefix(prefix.trim(), prefix, prefix.length)).toEqual({ text: '', heading, caret: 0 });
+      expect(headingPrefix(`${prefix}xisting sentence`, `${prefix}Existing sentence`, prefix.length + 1)).toBeNull();
     }
-    expect(headingPrefix('#### Existing sentence', 5)).toBeNull();
-    expect(headingPrefix('Text # sentence', 7)).toBeNull();
+    expect(headingPrefix('###Existing sentence', '#### Existing sentence', 5)).toBeNull();
+    expect(headingPrefix('Text #sentence', 'Text # sentence', 7)).toBeNull();
+    expect(headingPrefix(' Existing', '# Existing', 1)).toBeNull();
+  });
+
+  test('applies leading input rules to typing delivered in one chunk', () => {
+    expect(headingPrefix('', '## Plan the week', 16)).toEqual({ text: 'Plan the week', heading: 2, caret: 13 });
+    expect(taskPrefixInput('', '[] Some task', 12)).toEqual({ text: 'Some task', caret: 9 });
+    expect(taskPrefixInput('', '[ ] Call @fri', 13)).toEqual({ text: 'Call @fri', caret: 9 });
+    expect(taskPrefixInput('[]', '[] ', 3)).toEqual({ text: '', caret: 0 });
+    expect(taskPrefixInput('[] Some tas', '[] Some task', 12)).toBeNull();
+    expect(taskPrefixInput('x[] Some task', '[] Some task', 0)).toBeNull();
+    expect(taskPrefixInput('', 'Some [] task', 12)).toBeNull();
   });
 });
 

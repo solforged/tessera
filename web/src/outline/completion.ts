@@ -11,10 +11,26 @@ export async function captureQuoteCompletion(notebook: NotebookClient, target: s
   return { text: `((${target}))`, quote };
 }
 
-/** A heading trigger belongs to the space just typed, not to a prefix found later in the text. */
-export function headingPrefix(text: string, caret: number): { text: string; heading: 1 | 2 | 3 } | null {
-  const prefix = /^(#{1,3}) /.exec(text);
-  return prefix && caret === prefix[0].length ? { text: text.slice(prefix[0].length), heading: prefix[1]!.length as 1 | 2 | 3 } : null;
+/**
+ * A leading input rule belongs to the edit that completes it: the block's text lacked the prefix before, and the
+ * caret now stands at or past its end. Typing that arrives in one chunk (buffered while the caret moved to a new
+ * block, or inserted whole) fires it as keystrokes would; a prefix that was already there does not.
+ */
+function completedPrefix(pattern: RegExp, previous: string, text: string, caret: number): RegExpExecArray | null {
+  const match = pattern.exec(text);
+  return match && caret >= match[0].length && !pattern.test(previous) ? match : null;
+}
+
+/** `# `, `## ` or `### ` typed at the start of a block makes it a heading; the caret keeps its place in the rest. */
+export function headingPrefix(previous: string, text: string, caret: number): { text: string; heading: 1 | 2 | 3; caret: number } | null {
+  const prefix = completedPrefix(/^(#{1,3}) /, previous, text, caret);
+  return prefix ? { text: text.slice(prefix[0].length), heading: prefix[1]!.length as 1 | 2 | 3, caret: caret - prefix[0].length } : null;
+}
+
+/** `[] ` or `[ ] ` typed at the start of a block makes it a task; the caret keeps its place in the rest. */
+export function taskPrefixInput(previous: string, text: string, caret: number): { text: string; caret: number } | null {
+  const prefix = completedPrefix(/^\[ ?\] /, previous, text, caret);
+  return prefix ? { text: text.slice(prefix[0].length), caret: caret - prefix[0].length } : null;
 }
 
 /** Only unmodified Enter or Tab accepts a completion; editing chords retain their own meaning. */

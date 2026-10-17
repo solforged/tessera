@@ -1430,17 +1430,18 @@ function Pane(props: OutlinePaneProps) {
       text: (text, at, group) => measure('typing', () => {
         resetVerticalGoal();
         if (compositionSelection) return;
-        const heading = headingPrefix(text, at.offset);
-        if (heading && !composition()) {
-          const result = doc.edit({ kind: 'text', id: at.id, text: heading.text, heading: heading.heading, caret: 0 }, caret());
-          if (!result.ok) setMessage(result.reason);
-          else {
-            queueMicrotask(() => { if (editor?.id === at.id) { editor.sync(heading.text); editor.view.dispatch({ selection: { anchor: 0 } }); } });
-            setCaret({ id: at.id, offset: 0 });
-          }
-          return;
-        } else if (taskPrefix(text, at)) return;
+        const heading = composition() ? null : headingPrefix(doc.block(at.id)?.text ?? '', text, at.offset);
+        const task = heading ? null : taskPrefix(text, at);
+        if (heading) {
+          const result = doc.edit({ kind: 'text', id: at.id, text: heading.text, heading: heading.heading, caret: heading.caret }, caret());
+          if (!result.ok) { setMessage(result.reason); return; }
+          queueMicrotask(() => { if (editor?.id === at.id) { editor.sync(heading.text); editor.view.dispatch({ selection: { anchor: heading.caret } }); } });
+          text = heading.text; at = { id: at.id, offset: heading.caret };
+          setCaret(at);
+        } else if (task === false) return;
+        else if (task) { text = task.text; at = task.caret; }
         else { const result = doc.edit({ kind: 'text', id: at.id, text, caret: at.offset, group }, caret()); if (!result.ok) setMessage(result.reason); }
+        // Text left after an input rule still offers its completions, so a date typed with the prefix plans the task.
         doc.holdTag(at.id, !!typeTokenAt(text, at.offset));
         updateCompletion(text, at, true);
         updateTriggers(text, at);
