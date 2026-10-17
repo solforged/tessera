@@ -106,11 +106,11 @@ Reading now appears only on the unsearched, unfiltered Reading tab, with one car
 
 Coverless articles omit the spine tile on Reading cards, leaving that width to their title and creators rather than an empty cover.
 
-On the Reading tab a card's top corner selects it, like a shelf cover.
+On the Reading tab a card's top corner selects it, like a shelf cover. On a phone the checkbox appears only in Select, as on every other tab.
 
 Cards load the source's contents and text length and cancel their requests when removed. If chapter boundaries are unavailable, the map stays one book-length span and the time is labeled for the book, never a guessed chapter.
 
-Clicking a card opens its source page. It fills the pane to the right when one exists; otherwise it uses the Library's pane. ⌘-click opens it beside (Ctrl-click off Mac), as with rows. A wide touch screen opens it beside by default. Cards wrap into a vertical stack in narrow panes without dropping books.
+Clicking a card opens its source page. On the cover screen it opens the reader at the saved position instead, as Today's reading line does, and Open page in the card's actions reaches the source page. It fills the pane to the right when one exists; otherwise it uses the Library's pane. ⌘-click opens it beside (Ctrl-click off Mac), as with rows. A wide touch screen opens it beside by default. Cards wrap into a vertical stack in narrow panes without dropping books.
 
 On the cover, Reading is the first and initial state tab, the cards replace duplicate Reading rows, and the Inbox follows as `Up next · Inbox`. Search and Add sit beside the Library title. Search reveals the search field and the other library controls. No reading-session totals, pace or finish estimates are shown.
 
