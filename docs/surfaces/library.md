@@ -217,7 +217,7 @@ An inspector transaction is not adopted into document state before acknowledgmen
 
 ### Queue and passage
 
-Highlights is a processing desk: a reading-order queue and selected passage share the desktop and unfolded pane, with source and chapter pickers in the toolbar rather than a permanent navigator. The tab strip keeps its place from the other tabs; the desk's controls span the desk below it.
+Highlights is a processing desk: a reading-order queue and selected passage share the desktop and unfolded pane, with source and chapter pickers in the toolbar rather than a permanent navigator. The tab strip keeps its place from the other tabs; the desk's controls span the desk below it. Until the notebook has a highlight there is no desk, so the controls and the empty message keep the other tabs' measure and offset.
 
 Sources retain newest-highlight order. Each source's passages retain ordinal and selection-offset order, including distinct overlapping selections. Queue previews clamp to three lines, marked by a 2 px color bar, with the actual paragraph, date, note count and filing page in mono. A quotation that supplies its own chapter title does not repeat that title above it.
 
