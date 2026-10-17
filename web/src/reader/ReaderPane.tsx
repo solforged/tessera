@@ -84,6 +84,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [error, setError] = createSignal('');
   const [popup, setPopup] = createSignal<ReaderPopup | null>(null);
   const [noteReturn, setNoteReturn] = createSignal<{ ordinal: number; offset: number; page: PageAnchor | null; passageId?: string; locator: string } | null>(null);
+  /** Where reading was before a jump from the contents, the book map, a highlight or a search; offered while the reading stays in the section it landed in. */
+  const [jumpReturn, setJumpReturn] = createSignal<{ ordinal: number; offset: number; page: PageAnchor | null; label: string; landing: number } | null>(null);
   const [query, setQuery] = createSignal('');
   const [hits, setHits] = createSignal<PassageHit[]>([]);
   const [searching, setSearching] = createSignal(false);
@@ -398,7 +400,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     pages.clear(); passages.clear(); ordinals.clear(); pending.clear(); locating.clear();
     clearTimeout(positionTimer);
     setCursor(null); setKeyboardRange(null);
-    setNoteReturn(null);
+    setNoteReturn(null); setJumpReturn(null);
     batch(() => {
       setSelection(null); setFlash(null); setSnapshot(id); setChunk(null);
       setContents([]);
@@ -758,12 +760,46 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   /** Contents moves the reading position: unlike opening a citation, choosing a section is reading on from there. */
-  async function openSection(entry: TocEntry) {
+  /** `begin` starts reading there (the title page's Begin at); any other jump is a peek with a way back. */
+  async function openSection(entry: TocEntry, begin = false) {
     setPopup(null);
+    const back = begin ? null : returnMark();
     if (!await (entry.ordinal === null ? jumpTo(entry.locator) : jump(entry.ordinal))) return;
-    userScroll = true; suppressed = false;
+    if (begin) setJumpReturn(null); else offerReturn(back);
+    // A peek moves the saved place only once reading goes on from it: a page turn, or a screen's scroll.
+    userScroll = true; suppressed = !begin;
     report();
-    await savePosition();
+    if (begin) await savePosition();
+  }
+
+  /** The place a jump leaves: the earlier one while a return is still offered, so a run of peeks comes back to where reading was. */
+  function returnMark() {
+    const offered = jumpReturn();
+    if (offered) return offered;
+    const origin = visibleRange();
+    if (!origin) return null;
+    const section = sectionAt(origin.ordinal);
+    return { ...origin, page: paged() ? firstOnPage() : null, label: section && !isFrontMatter(section.title) ? sectionLabel(section.title) : `passage ${origin.ordinal + 1}` };
+  }
+  function offerReturn(back: ReturnType<typeof returnMark>) {
+    const landing = visibleRange()?.ordinal;
+    if (!back || landing === undefined || sectionAt(landing) === sectionAt(back.ordinal) && Math.abs(landing - back.ordinal) < 2) { setJumpReturn(null); return; }
+    setJumpReturn({ ...back, landing });
+  }
+  // Reading on out of the section a jump landed in keeps the new place, so the way back goes.
+  createEffect(on(currentSection, section => { const back = jumpReturn(); if (back && section !== sectionAt(back.landing)) setJumpReturn(null); }, { defer: true }));
+
+  async function returnFromJump() {
+    const back = jumpReturn();
+    if (!back) return;
+    setJumpReturn(null);
+    try {
+      if (paged() && back.page) { pageAnchor = back.page; await relayoutPages(); }
+      else if (!await jump(back.ordinal, { offset: back.offset })) return;
+      userScroll = true; suppressed = false;
+      report();
+      await savePosition();
+    } catch (reason) { if (!disposed) { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); } }
   }
 
   function visibleRange() {
@@ -961,11 +997,13 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   async function jumpHighlight(citation: Citation) {
     setPopup(null); suppressed = true;
+    const back = returnMark();
     try {
       await locate(citation.end.passage_id);
       const ordinal = await locate(citation.start.passage_id);
       if (ordinal === null) throw new Error('Passage not found.');
-      await jump(ordinal, { character: citation.start.offset, reveal: true });
+      if (!await jump(ordinal, { character: citation.start.offset, reveal: true })) return;
+      offerReturn(back);
       if (!disposed) {
         clearTimeout(flashTimer); setFlash(citation);
         flashTimer = window.setTimeout(() => setFlash(null), 1500);
@@ -1439,7 +1477,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         <Show when={creators()}><p class="reader-title-author">{creators()}</p></Show>
         <span class="reader-title-rule" aria-hidden="true" />
         <Show when={facts()}><p class="reader-title-facts">{facts()}</p></Show>
-        <Show when={begin()?.ordinal ? begin() : null}>{value => <Button class="reader-title-begin" onClick={() => { const entry = contents().find(item => item.ordinal === value().ordinal); if (entry) void openSection(entry); }}>
+        <Show when={begin()?.ordinal ? begin() : null}>{value => <Button class="reader-title-begin" onClick={() => { const entry = contents().find(item => item.ordinal === value().ordinal); if (entry) void openSection(entry, true); }}>
           Begin at {value().name}
         </Button>}</Show>
       </div>
@@ -1575,7 +1613,8 @@ export function ReaderPane(props: ReaderPaneProps) {
       </Show></div>
       <div class="reader-folio">
         <span class="reader-folio-name"><Show when={chapterName()}><SectionLabel title={chapterEntry()!.title} /></Show></span>
-        <span class="reader-folio-time"><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left</Show><Show when={paged() && !loading()}>{chapterLeft() !== null ? ' · ' : ''}p. {pageIndex() + 1} of {pageCount()}</Show></span>
+        <Show when={jumpReturn()}>{back => <Button class="reader-folio-return" icon="left" onClick={() => { void returnFromJump(); }}><span>Back to {back().label}</span></Button>}</Show>
+        <span class="reader-folio-time" hidden={!!jumpReturn()}><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left</Show><Show when={paged() && !loading()}>{chapterLeft() !== null ? ' · ' : ''}p. {pageIndex() + 1} of {pageCount()}</Show></span>
         <Button class="reader-folio-book" label="Reading progress" aria-haspopup="dialog" disabled={!mapChapters().length} onClick={event => setPopup({ kind: 'progress', anchor: event.currentTarget })}>
           {formatProgress(position())}<Show when={bookLeft() !== null}> · {timeLeft(bookLeft()!)}</Show>
         </Button>
@@ -1597,7 +1636,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
         status={<div class="reader-find-status"><span role="status">{hits().length} passages{morePassages() ? ' shown' : ''}</span><Show when={morePassages()}>{' '}<Button disabled={searching()} onClick={() => { void loadSearchPage(); }}>Load more passages</Button></Show></div>}
         row={hit => <span class="reader-search-entry"><span class="reader-search-snippet"><For each={hit.snippet_parts}>{part => part.match ? <mark class="reader-search-match">{part.text}</mark> : part.text}</For></span><span class="reader-highlight-section">Passage {hit.passage.ordinal + 1}<Show when={sectionAt(hit.passage.ordinal)}>{entry => <> · {sectionLabel(entry().title)}</>}</Show></span></span>} busy={searching() && !hits().length} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
-        onPick={hit => { setPopup(null); switchSnapshot(hit.snapshot_id); void jump(hit.passage.ordinal).catch(reason => { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); }); }}
+        onPick={hit => { setPopup(null); const back = hit.snapshot_id === snapshot() ? returnMark() : null; switchSnapshot(hit.snapshot_id); void jump(hit.passage.ordinal).then(moved => { if (moved) offerReturn(back); }).catch(reason => { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); }); }}
         onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'note'}><Popup anchor={state().anchor} label="Footnote" class="reader-note" onDismiss={() => setPopup(null)}>
         <p>{(() => { const value = state(); return value.kind === 'note' ? value.loading ? 'Loading…' : value.text : ''; })()}</p>

@@ -17,6 +17,9 @@
 .reader-folio-time { flex-shrink: 0; }
 /* A half pane has no room for the chapter's name beside the times; the toolbar names it there. */
 @container (max-width: 460px) { .reader-folio-name { display: none; } }
+/* After a jump the way back takes the chapter's time left, in the folio that always shows, so it covers no text and never moves the page. */
+.reader-folio-return.button { flex: 0 1 auto; min-width: 0; height: auto; min-height: 0; margin-left: calc(-1 * var(--space-4)); padding: var(--space-2) var(--space-4); color: var(--accent); font: inherit; letter-spacing: inherit; }
+.reader-folio-return.button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-folio-book.button { flex-shrink: 0; height: auto; min-height: 0; margin: 0 calc(-1 * var(--space-4)) 0 auto; padding: var(--space-2) var(--space-4); color: var(--muted); font: inherit; font-weight: var(--weight-body); letter-spacing: inherit; }
 /* The progress card, from the percentage: big numbers in Piazzolla, labels and lengths in mono, the chapters ahead as rows. */
 .reader-progress-card:not(.popup-sheet) { padding: var(--space-16); }
@@ -270,8 +273,8 @@
   .menu-sheet .highlight-menu-colors .button { flex: none; min-width: var(--touch-target); min-height: var(--touch-target); }
   /* The targets carry their own room, so the toolbar closes its gaps and the running head keeps its width. */
   .reader-header { gap: var(--space-2); }
-  :is(.reader-highlight-note, .reader-folio-book).button { position: relative; }
-  :is(.reader-highlight-note, .reader-folio-book).button::after { content: ''; position: absolute; inset: min(0px, calc((100% - var(--touch-target)) / 2)); }
+  :is(.reader-highlight-note, .reader-folio-book, .reader-folio-return).button { position: relative; }
+  :is(.reader-highlight-note, .reader-folio-book, .reader-folio-return).button::after { content: ''; position: absolute; inset: min(0px, calc((100% - var(--touch-target)) / 2)); }
 }
 .reader-picker .picker-query { position: sticky; top: 0; z-index: 1; background: var(--raised); }
 .reader-picker .reader-find-status { position: sticky; top: calc(var(--line-body) + var(--space-16) + 1px); z-index: 1; margin: 0; background: var(--raised); }

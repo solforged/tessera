@@ -83,6 +83,7 @@ On touch, settings open as a bottom sheet. Short landscape screens put the setti
 ### Text and media
 
 - Headings scale from the reader size.
+- A jump from Contents, the book map, the progress card, Highlights or Find leaves Back to the section it left (or the passage, before the first section) in the line under the map, in place of the chapter's time left. It returns to the exact place, page included, while reading stays in the section the jump landed in; a further jump keeps the first place, and reading on out of the landed section drops it.
 - Footnote references stay live inside highlights. They open the note in a popover with Open footnote to reach its annotatable passage. Back to footnote reference returns to the reading place. On touch screens the superscript keeps its printed size with a 44 px hit area. Imports recognize explicit note markup, numeric superscript links and numeric references whose targets begin with a backlink.
 - Images keep their natural size up to the measure and 70% of the viewport height. On the dark canvas they are dimmed to 85% brightness until hovered.
 - Code sits on `--surface` in a horizontally scrolling block.
@@ -110,7 +111,7 @@ Wherever the pane has room for `--apparatus-width` and a 48 px gap left of the t
 - The margin scrolls on its own.
 - Narrower panes, split panes and phones keep only the Contents menu.
 
-Unlike opening a citation, choosing a section in either the margin or Contents moves the reading position there at once, so reopening the book returns to it.
+Choosing a section in the margin, Contents, the book map or the progress card is a peek, like opening a citation: the saved reading position stays where it was until reading goes on from there, by a page turn or a screen's scroll. Begin at on the title page starts reading at once and saves there.
 
 ### Find in source
 
