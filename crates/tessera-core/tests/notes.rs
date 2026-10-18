@@ -158,6 +158,52 @@ fn notes_file_under_built_in_kinds_capabilities_and_types_you_made() {
         nb.kind_notes(&format!("type:{}", id(99))),
         Err(Error::NotFound { .. })
     ));
+    let fields = nb.fields().unwrap();
+    assert_eq!(nb.note_index().unwrap().fields, fields.fields.len());
+    let initial_fields = fields.fields.len();
+    apply(
+        &mut nb,
+        vec![
+            Operation::Insert {
+                id: id(80),
+                parent_id: fields.page_id.clone(),
+                after: None,
+                text: "Index field".into(),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(81),
+                parent_id: fields.page_id,
+                after: None,
+                text: "\u{2003}".into(),
+                heading: None,
+            },
+        ],
+    );
+    assert_eq!(nb.note_index().unwrap().fields, initial_fields + 1);
+    let base_revision = revision(&nb, 80);
+    apply(
+        &mut nb,
+        vec![Operation::SetArchived {
+            id: id(80),
+            base_revision,
+            archived: true,
+        }],
+    );
+    assert_eq!(
+        nb.note_index().unwrap().fields,
+        nb.fields().unwrap().fields.len()
+    );
+    assert_eq!(nb.note_index().unwrap().fields, initial_fields + 1);
+    let base_revision = revision(&nb, 80);
+    apply(
+        &mut nb,
+        vec![Operation::Delete {
+            id: id(80),
+            base_revision,
+        }],
+    );
+    assert_eq!(nb.note_index().unwrap().fields, initial_fields);
 }
 
 #[test]

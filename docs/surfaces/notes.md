@@ -10,13 +10,13 @@ Index is a sidebar section after Pinned. Its count is the distinct notes filed, 
 
 | Shelf | Kinds |
 | --- | --- |
-| Notes | People, Groups, Concepts and Theses (types with those titles), then Questions (a capability on the page). |
+| Notes | People, Groups, Concepts and Theses (types with those titles), then Questions (a capability on the page), then the fixed Fields register row. |
 | Sources | Sources (a capability), Book, Article and Collection, and any other type most of whose notes are sources. |
 | Work | Projects (a capability), and any other type most of whose notes are projects. |
 | Tags | Every other type you made, including types that only tag blocks. |
 | Loose | Unfiled. |
 
-The service assigns each kind its shelf, so a type moves shelf only when most of its notes change capability. Saved spreads follow under their own Spreads head. A shelf with no listed kinds leaves out its head.
+The service assigns each kind its shelf, so a type moves shelf only when most of its notes change capability. Saved spreads follow under their own Spreads head. A shelf with no listed rows leaves out its head; Notes always contains Fields.
 
 Rows stay on one line: the kind's glyph in `--faint`, the name at control size, and a bare mono count right. A kind with notes uses its plural. A tag that only marks blocks uses the spelling you wrote, so `#arabic` stays `arabic` unless you set a plural.
 
@@ -25,11 +25,14 @@ Rows stay on one line: the kind's glyph in `--faint`, the name at control size, 
 | Note kind | Titled notes. |
 | Questions | Visible question blocks, including inline questions. |
 | Tag-only type | Tagged blocks. The row uses the tag's spelling, not an automatic plural. |
+| Fields | Live named definitions, including archived definitions, as in the Fields register. Always shown, including at zero. |
 | Empty built-in kind | Folded into one faint mono line after the shelves, `Empty: Groups · Theses · Questions`. Each name opens its finding aid, so the vocabulary stays visible without a row each. |
 
 An empty built-in kind that has a saved view keeps its row, named in `--faint` without a count. Each other type and Unfiled are listed only while they have titled notes or tagged non-page blocks. Note counts and the distinct-note total never include tagged blocks.
 
 The Index heading opens a bounded directory in the same order, with explicit note, source or `N tagged` counts. Tag-only rows open their [member table](fields-tables.md#tables-and-views) directly; other kinds open their finding aid. A saved view sits under the kind whose type it lists, on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
+
+Fields is a fixed row, not a kind. Its field glyph and definition count come from the index read, separate from the tag registry. It closes the Notes shelf in both destinations and opens the [Fields register](fields-tables.md#fields-register). Its sidebar row reads selected while the global register is active; a tag's Fields tab still selects that tag instead.
 
 ## Finding aid
 

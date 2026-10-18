@@ -76,12 +76,12 @@ The template-grows-from-use offer stays and keeps its two-member threshold.
 
 ### Fields
 
-**Sol has not decided this one.** Two readings:
+**Reading 1 is built.** The alternatives considered were:
 
-1. **Fold into Index.** The Fields register becomes an Index row beside People and Concepts, and the sidebar section goes. Every tag page already has a Fields tab, so fields are reached through the tags that use them, and the register remains for the ones no template holds. The `'fields'` exclusions collapse to one place, the registry.
+1. **Fold into Index.** The Fields register is the last row on the Notes shelf in the sidebar and Index directory, with a field glyph and live definition count. It is a fixed register row, not a tag registry kind, so kind pickers never offer it. The sidebar foot button is gone; tag templates, routes, commands and menus stay intact.
 2. **Keep the section.** Fields stay a top-level register, on the argument that a field is defined once and used by many tags, so it is not naturally found under any one of them.
 
-The draft takes reading 1 because it removes a word from the chrome and matches Tana, where fields live in supertag definitions and a global list exists but is secondary. If reading 2 wins, the rest of the proposal is unchanged.
+Reading 1 removes a word from the chrome and matches Tana, where fields live in supertag definitions and a global list exists but is secondary.
 
 ### Roots and where things live
 
@@ -122,7 +122,7 @@ Audit proposal P3, after the surface work and in its own release: a tag canonica
 - **`@friday` only schedules.** Agreed 2026-10-17. A dated atom with no `#task` is an appointment on the Agenda, with no checkbox. In the engine the task capability's status becomes optional and `#task` sets it to todo; today the `@` menu adds the capability as a todo, so step 4 changes that.
 - **Pages are not dropped.** Roots stay as storage and the user never picks one.
 - **Titles stay unique.**
-- **Fields fold into Index**, pending Sol's call; see above.
+- **Fields fold into Index.** Reading 1 is built; see above.
 - **Supertag is not a word Tessera uses.** The primitive is stronger than Tana's name for it, and the name carries Tana's look, which Sol does not want.
 
 ## Open questions
@@ -138,5 +138,5 @@ Audit proposal P3, after the surface work and in its own release: a tag canonica
 3. **One registry and one picker.** Core read, then `#`, `/Tag…`, `/Field…`, the slip, tag tables, Review and Find read it. Delete the hardcoded lists. The new-tag receipt and template popup.
 4. **Built-in tags.** `#task`, `#question`, `#project`, `#source` derive their capabilities from membership; glyph rendering; system pages for the built-in type pages.
 5. **Decks read as tags.** Badge, Review header, Cards tab, docs.
-6. **Fields into Index**, if reading 1 stands.
+6. **Fields into Index. Built, reading 1.** The fixed Fields row closes the Notes shelf in the sidebar and directory, with the register's live definition count.
 7. **Tags addressed by ID**, in its own release.

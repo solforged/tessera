@@ -1040,7 +1040,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <Show when={index()?.kinds.length}><section class="page-list index-list" aria-label="Index">
         <h2><span class="section-number">{sectionNumber('index')}</span><button type="button" class="index-directory-link" aria-current={activeKindKey() === 'all' ? 'page' : undefined} title="Open Index" onClick={event => open({ kind: 'index', key: 'all' }, opensBeside(event))}>Index</button><span class="section-rule" /><Show when={index()!.notes}>{notes => <span class="section-count" title={`${notes().toLocaleString()} ${notes() === 1 ? 'note' : 'notes'} filed`}>{notes().toLocaleString()}</span>}</Show></h2>
         {/* Kinds sit on shelves, as a finding aid's heads; kinds re-arrive as fresh objects after each change, so Index keeps rows mounted by position. */}
-        <For each={shelves}>{([shelf, label]) => <Show when={shelfKinds()[shelf]?.length}>
+        <For each={shelves}>{([shelf, label]) => <Show when={shelf === 'notes' || shelfKinds()[shelf]?.length}>
           <h3 class="index-shelf">{label}</h3>
           <Index each={shelfKinds()[shelf] ?? []}>{kind => <>
             <div classList={{ 'index-question-heading': kind().key === 'question' }}>
@@ -1049,6 +1049,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
             </div>
             <Show when={otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
           </>}</Index>
+          <Show when={shelf === 'notes'}><Button class={`index-kind ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`} icon="field" title="Fields" aria-current={entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'page' : undefined} onClick={event => open({ kind: 'fields' }, opensBeside(event))}><span>Fields</span><span class="desk-count">{index()!.fields.toLocaleString()}</span></Button></Show>
         </Show>}</For>
         <Show when={index()?.spreads.length}>
           <h3 class="index-shelf">Spreads</h3>
@@ -1069,7 +1070,6 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <div class="sidebar-foot">
         <NotebookSwitcher notebook={notebook} onOpen={target => open(target)} onError={reportError} />
         <Button icon="settings" label="Settings" class={`icon-only ${entry(active())?.target.kind === 'settings' ? 'selected' : ''}`} onClick={event => open({ kind: 'settings' }, opensBeside(event))} />
-        <Button icon="field" label="Fields" class={`icon-only ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`} onClick={event => open({ kind: 'fields' }, opensBeside(event))} />
       </div>
     </aside>
     {/* The overlay sidebar covers the cover screen's own toggle; tapping beside it closes it. */}

@@ -67,6 +67,7 @@ export function IndexDirectory(props: IndexPaneProps) {
   const [index] = createResource(changes, () => props.notebook.api.noteIndex().then(result => { directoryReads.set(props.notebook, result); return result; }), cached ? { initialValue: cached } : {});
   const slow = createSlowFlag(() => !index.latest && !index.error);
   let scroll!: HTMLDivElement;
+  const onFields = (event: MouseEvent) => props.onOpen({ kind: 'fields' }, opensBeside(event));
   onMount(() => { scroll.scrollTop = props.view.scroll; });
   return <div ref={scroll} class="index-pane index-directory" role="region" tabIndex={0} aria-label="Index" aria-busy={index.loading} data-pane-pending={!index.latest && !index.error ? '' : undefined} onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
     <div class="index-sheet">
@@ -75,14 +76,21 @@ export function IndexDirectory(props: IndexPaneProps) {
       <Show when={index.error}><p class="error" role="alert">Couldn’t load the index · {String(index.error)}</p></Show>
       <Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading kinds…</p></Show>}>{list =>
         <Show when={list().kinds.length} fallback={<p class="empty-state">No kinds yet.</p>}>
-          <div class="index-directory-list"><For each={list().kinds}>{kind =>
+          <div class="index-directory-list"><For each={['notes', 'sources', 'work', 'tags', 'loose'] as const}>{shelf => <><For each={list().kinds.filter(kind => kind.shelf === shelf)}>{kind =>
             <div class="index-directory-row">
               <Icon name={noteKindIcon(kind)} />
               <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>{kindLabel(kind)}</Button>
               <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, kind.key === 'source' ? 'source' : kind.key === 'question' ? 'question' : 'note')}</span>
               <Button class="index-directory-open" label={`Open ${kindLabel(kind)} ${tagOnly(kind) ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>Open {tagOnly(kind) ? 'table' : 'index'}<Icon name="right" /></Button>
             </div>
-          }</For><For each={list().spreads}>{spread =>
+          }</For><Show when={shelf === 'notes'}>
+            <div class="index-directory-row">
+              <Icon name="field" />
+              <Button class="index-directory-name" onClick={onFields}>Fields</Button>
+              <span class="index-directory-count">{tally(list().fields, 'field')}</span>
+              <Button class="index-directory-open" label="Open Fields register" onClick={onFields}>Open register<Icon name="right" /></Button>
+            </div>
+          </Show></>}</For><For each={list().spreads}>{spread =>
             <div class="index-directory-row">
               <Icon name="panes" />
               <Button class="index-directory-name" onClick={event => props.onOpen({ kind: 'page', pageId: spread.id }, opensBeside(event))}>{spread.title}</Button>

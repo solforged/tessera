@@ -134,6 +134,7 @@ pub struct IndexKind {
 pub struct NoteIndex {
     pub kinds: Vec<IndexKind>,
     pub notes: usize,
+    pub fields: usize,
     #[serde(default)]
     pub spreads: Vec<SeeTarget>,
 }
@@ -296,9 +297,23 @@ impl Notebook {
                 fields,
             });
         }
+        // Match the Fields register: named, undeleted children of its live page,
+        // including archived definitions. Read only names, not the full definitions.
+        let fields = self
+            .conn
+            .prepare_cached(
+                "SELECT d.text FROM blocks p JOIN blocks d ON d.parent_id = p.id
+                 WHERE p.kind = 'page' AND p.title_key = 'fields'
+                   AND p.deletion_id IS NULL AND d.deletion_id IS NULL",
+            )?
+            .query_map([], |row| {
+                Ok(usize::from(!row.get_ref(0)?.as_str()?.trim().is_empty()))
+            })?
+            .try_fold(0, |count, named| named.map(|named| count + named))?;
         Ok(NoteIndex {
             kinds,
             notes: listed,
+            fields,
             spreads: self.saved_spreads()?,
         })
     }

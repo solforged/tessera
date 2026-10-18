@@ -386,7 +386,7 @@ export interface NoteKind { key: string; name: string; plural: string; icon: str
 export type Shelf = 'notes' | 'sources' | 'work' | 'tags' | 'loose';
 /** The tag registry row: counts, the tag deck's card count, the template's field ids (empty without a type page) and whether `#name` names it. */
 export interface IndexKind extends NoteKind { count: number; tagged_block_count: number; cards: number; fields: string[]; tag: boolean; shelf: Shelf }
-export interface NoteIndex { kinds: IndexKind[]; notes: number; spreads: SeeTarget[] }
+export interface NoteIndex { kinds: IndexKind[]; notes: number; fields: number; spreads: SeeTarget[] }
 export interface NoteEntry { id: string; title: string; sort_as: string | null; created_at: number }
 export interface SeeTarget { id: string; title: string }
 export interface SpreadValue { text: string; target_id: string | null; shared: boolean; between_columns: boolean }
