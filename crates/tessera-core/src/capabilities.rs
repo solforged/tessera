@@ -26,7 +26,8 @@ pub enum TaskPriority {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TaskState {
-    pub status: TaskStatus,
+    #[serde(default)]
+    pub status: Option<TaskStatus>,
     pub scheduled: Option<String>,
     pub scheduled_time: Option<String>,
     pub deadline: Option<String>,
@@ -326,6 +327,8 @@ pub struct ImageRef {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BlockCapabilities {
     pub block_id: String,
+    #[serde(default)]
+    pub built_in_tag: bool,
     pub task: Option<TaskState>,
     pub project: Option<ProjectState>,
     #[serde(default)]

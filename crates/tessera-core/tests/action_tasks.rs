@@ -4,6 +4,13 @@ use tessera_core::{
     TaskState, TaskStatus,
 };
 
+fn todo() -> TaskState {
+    TaskState {
+        status: Some(TaskStatus::Todo),
+        ..Default::default()
+    }
+}
+
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
@@ -108,7 +115,7 @@ fn recurring(scheduled: &str, mode: RepeatMode) -> TaskState {
             unit: RepeatUnit::Month,
             mode,
         }),
-        ..TaskState::default()
+        ..todo()
     }
 }
 
@@ -118,33 +125,33 @@ fn planning_validation_keeps_dates_independent_and_noops_do_not_bump() {
     let invalid = [
         TaskState {
             scheduled: Some("2025-02-29".into()),
-            ..TaskState::default()
+            ..todo()
         },
         TaskState {
             deadline: Some("2024-2-29".into()),
-            ..TaskState::default()
+            ..todo()
         },
         TaskState {
             scheduled_time: Some("09:00".into()),
-            ..TaskState::default()
+            ..todo()
         },
         TaskState {
             deadline_time: Some("09:00".into()),
-            ..TaskState::default()
+            ..todo()
         },
         TaskState {
             scheduled: Some("2024-02-29".into()),
             scheduled_time: Some("9:00".into()),
-            ..TaskState::default()
+            ..todo()
         },
         TaskState {
             deadline: Some("2024-02-29".into()),
             deadline_time: Some("24:00".into()),
-            ..TaskState::default()
+            ..todo()
         },
         TaskState {
             warning_days: Some(0),
-            ..TaskState::default()
+            ..todo()
         },
         TaskState {
             repeater: Some(Repeater {
@@ -152,7 +159,7 @@ fn planning_validation_keeps_dates_independent_and_noops_do_not_bump() {
                 unit: RepeatUnit::Day,
                 mode: RepeatMode::Fixed,
             }),
-            ..TaskState::default()
+            ..todo()
         },
         TaskState {
             scheduled: Some("2024-02-29".into()),
@@ -161,7 +168,7 @@ fn planning_validation_keeps_dates_independent_and_noops_do_not_bump() {
                 unit: RepeatUnit::Day,
                 mode: RepeatMode::Fixed,
             }),
-            ..TaskState::default()
+            ..todo()
         },
         TaskState {
             scheduled: Some("2024-02-29".into()),
@@ -170,20 +177,20 @@ fn planning_validation_keeps_dates_independent_and_noops_do_not_bump() {
                 unit: RepeatUnit::Year,
                 mode: RepeatMode::Fixed,
             }),
-            ..TaskState::default()
+            ..todo()
         },
         TaskState {
             completed_on: Some("2024-02-29".into()),
-            ..TaskState::default()
+            ..todo()
         },
         TaskState {
-            status: TaskStatus::Done,
-            ..TaskState::default()
+            status: Some(TaskStatus::Done),
+            ..todo()
         },
         TaskState {
-            status: TaskStatus::Done,
+            status: Some(TaskStatus::Done),
             completed_on: Some("2024-02-29".into()),
-            ..TaskState::default()
+            ..todo()
         },
     ];
     let original = nb.page(&id(1)).unwrap();
@@ -199,7 +206,7 @@ fn planning_validation_keeps_dates_independent_and_noops_do_not_bump() {
         deadline_time: Some("23:59".into()),
         warning_days: Some(0),
         priority: Some(TaskPriority::High),
-        ..TaskState::default()
+        ..todo()
     };
     apply(&mut nb, vec![set_task(10, 1, Some(task.clone()))]);
     assert_eq!(state(&nb, 10), task);
@@ -218,7 +225,7 @@ fn planning_validation_keeps_dates_independent_and_noops_do_not_bump() {
 #[test]
 fn status_transitions_require_completion_and_reopening_retains_evidence() {
     let (_dir, mut nb) = fixture();
-    apply(&mut nb, vec![set_task(10, 1, Some(TaskState::default()))]);
+    apply(&mut nb, vec![set_task(10, 1, Some(todo()))]);
     for (revision, status) in [
         (2, TaskStatus::Doing),
         (3, TaskStatus::Waiting),
@@ -230,25 +237,25 @@ fn status_transitions_require_completion_and_reopening_retains_evidence() {
                 10,
                 revision,
                 Some(TaskState {
-                    status,
-                    ..TaskState::default()
+                    status: Some(status),
+                    ..todo()
                 }),
             )],
         );
-        assert_eq!(state(&nb, 10).status, status);
+        assert_eq!(state(&nb, 10).status, Some(status));
     }
     reject(&mut nb, vec![complete(10, 5, 100, "2024-02-29")]);
     assert_eq!(nb.block(&id(10)).unwrap().revision, 5);
-    apply(&mut nb, vec![set_task(10, 5, Some(TaskState::default()))]);
+    apply(&mut nb, vec![set_task(10, 5, Some(todo()))]);
     reject(
         &mut nb,
         vec![set_task(
             10,
             6,
             Some(TaskState {
-                status: TaskStatus::Done,
+                status: Some(TaskStatus::Done),
                 completed_on: Some("2024-02-29".into()),
-                ..TaskState::default()
+                ..todo()
             }),
         )],
     );
@@ -258,13 +265,13 @@ fn status_transitions_require_completion_and_reopening_retains_evidence() {
     assert_eq!(nb.apply(&delivery).unwrap().seq, completed.seq);
     assert_eq!(nb.task_occurrences(&id(10)).unwrap().len(), 1);
     let done = TaskState {
-        status: TaskStatus::Done,
+        status: Some(TaskStatus::Done),
         completed_on: Some("2024-02-29".into()),
-        ..TaskState::default()
+        ..todo()
     };
     assert_eq!(state(&nb, 10), done);
     let history = nb.task_occurrences(&id(10)).unwrap();
-    assert_eq!(history[0].snapshot, TaskState::default());
+    assert_eq!(history[0].snapshot, todo());
     assert_eq!(history[0].change_seq, completed.seq);
     assert!(!nb.block(&id(10)).unwrap().archived);
     let noop = apply(&mut nb, vec![complete(10, 7, 101, "2024-03-01")]);
@@ -289,8 +296,8 @@ fn status_transitions_require_completion_and_reopening_retains_evidence() {
     apply(&mut nb, vec![set_task(10, 7, Some(edited.clone()))]);
     assert_eq!(state(&nb, 10), edited);
     reject(&mut nb, vec![reverse(10, 8, 100)]);
-    apply(&mut nb, vec![set_task(10, 8, Some(TaskState::default()))]);
-    assert_eq!(state(&nb, 10), TaskState::default());
+    apply(&mut nb, vec![set_task(10, 8, Some(todo()))]);
+    assert_eq!(state(&nb, 10), todo());
     assert_eq!(nb.task_occurrences(&id(10)).unwrap(), history);
     reject(&mut nb, vec![complete(10, 9, 100, "2024-03-01")]);
     assert_eq!(nb.block(&id(10)).unwrap().revision, 9);
@@ -305,7 +312,7 @@ fn recurrence_preserves_signed_offsets_labels_and_exact_snapshot() {
     ] {
         let (_dir, mut nb) = fixture();
         let before = TaskState {
-            status: TaskStatus::Waiting,
+            status: Some(TaskStatus::Waiting),
             scheduled_time: Some("09:30".into()),
             deadline: Some("2024-01-28".into()),
             deadline_time: Some("17:45".into()),
@@ -316,7 +323,7 @@ fn recurrence_preserves_signed_offsets_labels_and_exact_snapshot() {
         apply(&mut nb, vec![set_task(10, 1, Some(before.clone()))]);
         let completed = apply(&mut nb, vec![complete(10, 2, 100, "2024-03-15")]);
         let after = TaskState {
-            status: TaskStatus::Todo,
+            status: Some(TaskStatus::Todo),
             scheduled: Some(expected_schedule.into()),
             deadline: Some(expected_deadline.into()),
             ..before.clone()
@@ -339,7 +346,7 @@ fn recurrence_preserves_signed_offsets_labels_and_exact_snapshot() {
             unit: RepeatUnit::Year,
             mode: RepeatMode::Fixed,
         }),
-        ..TaskState::default()
+        ..todo()
     };
     apply(
         &mut nb,
@@ -363,7 +370,7 @@ fn recurrence_preserves_signed_offsets_labels_and_exact_snapshot() {
             unit: RepeatUnit::Week,
             mode: RepeatMode::AfterCompletion,
         }),
-        ..TaskState::default()
+        ..todo()
     };
     apply(
         &mut nb,
@@ -452,7 +459,7 @@ fn reverse_uses_insertion_order_with_tied_timestamps_and_retains_audit() {
     reject(&mut nb, vec![reverse(10, 7, 200)]);
     assert_eq!(nb.task_occurrences(&id(10)).unwrap(), expected);
     // An occurrence from another canonical source cannot be reversed here.
-    apply(&mut nb, vec![set_task(11, 1, Some(TaskState::default()))]);
+    apply(&mut nb, vec![set_task(11, 1, Some(todo()))]);
     assert!(matches!(
         nb.apply(&batch(vec![reverse(11, 2, 200)])),
         Err(Error::NotFound { .. })
@@ -469,7 +476,7 @@ fn done_deactivation_undo_and_exact_delete_restore_keep_same_identity() {
     apply(
         &mut nb,
         vec![
-            set_task(10, 1, Some(TaskState::default())),
+            set_task(10, 1, Some(todo())),
             set_project(10, 2, Some(project.clone())),
             complete(10, 3, 100, "2024-02-29"),
         ],
@@ -534,7 +541,7 @@ fn done_deactivation_undo_and_exact_delete_restore_keep_same_identity() {
     assert_eq!(nb.task_occurrences(&id(10)).unwrap(), history);
     assert_eq!(nb.projects().unwrap()[0].state, project);
     apply(&mut nb, vec![reverse(10, 8, 100)]);
-    assert_eq!(state(&nb, 10), TaskState::default());
+    assert_eq!(state(&nb, 10), todo());
     assert!(nb.task_occurrences(&id(10)).unwrap()[0].reversed);
 }
 
@@ -544,7 +551,7 @@ fn moves_and_splits_preserve_capability_identity_and_merges_protect_history() {
     apply(
         &mut nb,
         vec![
-            set_task(10, 1, Some(TaskState::default())),
+            set_task(10, 1, Some(todo())),
             set_project(10, 2, Some(ProjectState::default())),
             complete(10, 3, 100, "2024-02-29"),
             Operation::CreatePage {
@@ -634,7 +641,7 @@ fn moves_and_splits_preserve_capability_identity_and_merges_protect_history() {
 fn removing_tasks_without_history_allows_merge_and_retains_delete_restore_state() {
     for reversed_completion in [false, true] {
         let (_dir, mut nb) = fixture();
-        apply(&mut nb, vec![set_task(11, 1, Some(TaskState::default()))]);
+        apply(&mut nb, vec![set_task(11, 1, Some(todo()))]);
         if reversed_completion {
             apply(
                 &mut nb,
@@ -692,7 +699,7 @@ fn running_clock_refuses_completion_removal_and_cancellation_until_atomic_stop()
     apply(
         &mut nb,
         vec![
-            set_task(10, 1, Some(TaskState::default())),
+            set_task(10, 1, Some(todo())),
             Operation::StartWork {
                 id: id(10),
                 base_revision: 2,
@@ -710,13 +717,13 @@ fn running_clock_refuses_completion_removal_and_cancellation_until_atomic_stop()
             10,
             3,
             Some(TaskState {
-                status: TaskStatus::Cancelled,
-                ..TaskState::default()
+                status: Some(TaskStatus::Cancelled),
+                ..todo()
             }),
         ),
     ] {
         reject(&mut nb, vec![operation]);
-        assert_eq!(state(&nb, 10), TaskState::default());
+        assert_eq!(state(&nb, 10), todo());
         assert_eq!(nb.active_work_session().unwrap(), Some(running.clone()));
         assert_eq!(nb.block(&id(10)).unwrap().revision, 3);
         assert!(nb.task_occurrences(&id(10)).unwrap().is_empty());
@@ -737,7 +744,7 @@ fn running_clock_refuses_completion_removal_and_cancellation_until_atomic_stop()
     assert_eq!(nb.block(&id(10)).unwrap().revision, 3);
     let committed = apply(&mut nb, vec![stop, complete(10, 4, 100, "2024-02-29")]);
     assert!(nb.active_work_session().unwrap().is_none());
-    assert_eq!(state(&nb, 10).status, TaskStatus::Done);
+    assert_eq!(state(&nb, 10).status, Some(TaskStatus::Done));
     assert_eq!(nb.block(&id(10)).unwrap().revision, 5);
     assert_eq!(
         nb.task_occurrences(&id(10)).unwrap()[0].change_seq,
@@ -752,7 +759,7 @@ fn running_clock_refuses_completion_removal_and_cancellation_until_atomic_stop()
 #[test]
 fn owning_revisions_conflict_even_for_noops_and_roll_back_earlier_mutations() {
     let (dir, mut nb) = fixture();
-    apply(&mut nb, vec![set_task(10, 1, Some(TaskState::default()))]);
+    apply(&mut nb, vec![set_task(10, 1, Some(todo()))]);
     let mut other = Notebook::open(dir.path()).unwrap();
     apply(&mut nb, vec![complete(10, 2, 100, "2024-02-29")]);
     let committed_history = nb.task_occurrences(&id(10)).unwrap();
@@ -762,10 +769,7 @@ fn owning_revisions_conflict_even_for_noops_and_roll_back_earlier_mutations() {
         set_task(10, 2, None),
         set_project(10, 2, Some(ProjectState::default())),
     ] {
-        let result = other.apply(&batch(vec![
-            set_task(11, 1, Some(TaskState::default())),
-            operation,
-        ]));
+        let result = other.apply(&batch(vec![set_task(11, 1, Some(todo())), operation]));
         assert!(matches!(
             result,
             Err(Error::Conflict {
@@ -778,7 +782,7 @@ fn owning_revisions_conflict_even_for_noops_and_roll_back_earlier_mutations() {
         assert!(nb.capabilities(&id(11)).unwrap().task.is_none());
         assert_eq!(nb.block(&id(11)).unwrap().revision, 1);
         assert_eq!(nb.task_occurrences(&id(10)).unwrap(), committed_history);
-        assert_eq!(state(&nb, 10).status, TaskStatus::Done);
+        assert_eq!(state(&nb, 10).status, Some(TaskStatus::Done));
     }
     let done = state(&nb, 10);
     assert!(matches!(
@@ -816,7 +820,7 @@ fn projects_list_all_statuses_but_exclude_hidden_deleted_and_inactive_without_ca
                 13,
                 1,
                 Some(TaskState {
-                    status: TaskStatus::Waiting,
+                    status: Some(TaskStatus::Waiting),
                     ..TaskState::default()
                 }),
             ),
@@ -849,7 +853,7 @@ fn projects_list_all_statuses_but_exclude_hidden_deleted_and_inactive_without_ca
         outcome: "Shipped".into(),
     };
     apply(&mut nb, vec![set_project(10, 2, Some(done.clone()))]);
-    assert_eq!(state(&nb, 13).status, TaskStatus::Waiting);
+    assert_eq!(state(&nb, 13).status, Some(TaskStatus::Waiting));
     assert_eq!(nb.block(&id(13)).unwrap().revision, 2);
     assert!(
         apply(&mut nb, vec![set_project(10, 3, Some(done))])
@@ -883,7 +887,7 @@ fn projects_list_all_statuses_but_exclude_hidden_deleted_and_inactive_without_ca
         }],
     );
     assert!(nb.projects().unwrap().is_empty());
-    assert_eq!(state(&nb, 13).status, TaskStatus::Waiting);
+    assert_eq!(state(&nb, 13).status, Some(TaskStatus::Waiting));
     apply(
         &mut nb,
         vec![Operation::Restore {
@@ -900,7 +904,7 @@ fn projects_list_all_statuses_but_exclude_hidden_deleted_and_inactive_without_ca
             .collect::<Vec<_>>(),
         vec![id(10), id(12)]
     );
-    assert_eq!(state(&nb, 13).status, TaskStatus::Waiting);
+    assert_eq!(state(&nb, 13).status, Some(TaskStatus::Waiting));
     assert!(!nb.capabilities(&id(11)).unwrap().merge_protected);
 }
 
@@ -964,7 +968,7 @@ fn failed_repeat_advancement_is_atomic_and_occurrence_ids_are_canonical() {
             unit: RepeatUnit::Day,
             mode: RepeatMode::AfterCompletion,
         }),
-        ..TaskState::default()
+        ..todo()
     };
     apply(&mut nb, vec![set_task(10, 1, Some(task.clone()))]);
     let before = nb.page(&id(1)).unwrap();
@@ -986,7 +990,7 @@ fn failed_repeat_advancement_is_atomic_and_occurrence_ids_are_canonical() {
     assert_eq!(state(&nb, 10).deadline.as_deref(), Some("9999-12-31"));
     assert_eq!(nb.task_occurrences(&id(10)).unwrap()[0].id, id(100));
     let edited = TaskState {
-        status: TaskStatus::Waiting,
+        status: Some(TaskStatus::Waiting),
         ..state(&nb, 10)
     };
     apply(&mut nb, vec![set_task(10, 3, Some(edited.clone()))]);
@@ -1003,12 +1007,12 @@ fn reversing_a_recurrence_to_done_also_requires_an_explicit_clock_stop() {
     apply(
         &mut nb,
         vec![
-            set_task(10, 1, Some(TaskState::default())),
+            set_task(10, 1, Some(todo())),
             complete(10, 2, 100, "2024-01-01"),
         ],
     );
     let recurring_done = TaskState {
-        status: TaskStatus::Done,
+        status: Some(TaskStatus::Done),
         completed_on: Some("2024-01-01".into()),
         ..recurring("2024-01-01", RepeatMode::Fixed)
     };
@@ -1054,15 +1058,15 @@ fn explicit_stop_can_atomically_remove_or_cancel_a_task() {
     for next in [
         None,
         Some(TaskState {
-            status: TaskStatus::Cancelled,
-            ..TaskState::default()
+            status: Some(TaskStatus::Cancelled),
+            ..todo()
         }),
     ] {
         let (_dir, mut nb) = fixture();
         apply(
             &mut nb,
             vec![
-                set_task(10, 1, Some(TaskState::default())),
+                set_task(10, 1, Some(todo())),
                 Operation::StartWork {
                     id: id(10),
                     base_revision: 2,
@@ -1109,7 +1113,7 @@ fn reopening_undo_restores_exact_done_metadata_without_another_occurrence() {
     apply(
         &mut nb,
         vec![
-            set_task(10, 1, Some(TaskState::default())),
+            set_task(10, 1, Some(todo())),
             complete(10, 2, 100, "2024-01-01"),
         ],
     );
@@ -1119,7 +1123,7 @@ fn reopening_undo_restores_exact_done_metadata_without_another_occurrence() {
         ..state(&nb, 10)
     };
     let reopened = TaskState {
-        status: TaskStatus::Todo,
+        status: Some(TaskStatus::Todo),
         completed_on: None,
         ..done.clone()
     };
@@ -1207,9 +1211,9 @@ fn reopening_undo_restores_exact_done_metadata_without_another_occurrence() {
 #[test]
 fn restoring_done_cannot_invent_or_reuse_a_superseded_completion() {
     let (_dir, mut nb) = fixture();
-    let todo = TaskState::default();
+    let todo = todo();
     let done = TaskState {
-        status: TaskStatus::Done,
+        status: Some(TaskStatus::Done),
         completed_on: Some("2024-01-01".into()),
         ..todo.clone()
     };
@@ -1247,7 +1251,7 @@ fn restoring_done_cannot_invent_or_reuse_a_superseded_completion() {
     );
     let advanced = state(&nb, 11);
     let invented_done = TaskState {
-        status: TaskStatus::Done,
+        status: Some(TaskStatus::Done),
         completed_on: Some("2024-01-01".into()),
         ..advanced.clone()
     };

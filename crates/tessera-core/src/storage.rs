@@ -494,6 +494,28 @@ pub(crate) fn rewrite_tags<'a>(
     Some(rewritten)
 }
 
+/// Remove matching tag tokens and one adjoining space, without changing other prose.
+pub(crate) fn remove_tag(text: &str, key: &str) -> Option<String> {
+    let mut rewritten = String::new();
+    let mut cursor = 0;
+    let mut found = false;
+    for token in tag_tokens(text).filter(|token| tag_title_matches(token.title, key)) {
+        found = true;
+        rewritten.push_str(&text[cursor..token.span.start.max(cursor)]);
+        cursor = token.span.end;
+        if text[cursor..].starts_with(' ') {
+            cursor += 1;
+        } else if rewritten.ends_with(' ') {
+            rewritten.pop();
+        }
+    }
+    if !found {
+        return None;
+    }
+    rewritten.push_str(&text[cursor..]);
+    Some(rewritten)
+}
+
 /// How to create a type page that a tag names but no live page has.
 #[derive(Clone, Copy)]
 pub(crate) struct TypeCreation<'a> {
@@ -544,6 +566,7 @@ pub(crate) fn resolve_type(
     let Some(create) = create.filter(|_| existing.is_none()) else {
         return Ok(existing);
     };
+    let title = crate::notes::built_in_tag_name(title_key).unwrap_or(title);
     // A change creates a title's page at most once: the page stays live
     // until the batch's final cleanup.
     let id = match create.change_id {

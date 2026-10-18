@@ -177,10 +177,10 @@ fn memberships_follow_edits_subtree_deletion_and_same_id_restore() {
         &mut nb,
         vec![
             page(1, "Notes"),
-            page(2, "Book"),
+            page(2, "Codex"),
             page(3, "Film"),
-            insert(10, 1, "#book"),
-            insert(11, 10, "#book"),
+            insert(10, 1, "#codex"),
+            insert(11, 10, "#codex"),
         ],
     );
     apply(&mut nb, vec![edit(10, 1, "#film")]);
@@ -200,7 +200,7 @@ fn memberships_follow_edits_subtree_deletion_and_same_id_restore() {
     assert_eq!(nb.members(&id(2), 10).unwrap()[0].block.id, id(11));
     assert_eq!(nb.members(&id(3), 10).unwrap()[0].block.id, id(10));
     let deleted = apply(&mut nb, vec![delete(2, 1)]);
-    assert!(nb.page_by_title("book").unwrap().is_none());
+    assert!(nb.page_by_title("codex").unwrap().is_none());
     assert!(nb.members(&id(2), 10).unwrap().is_empty());
     apply(&mut nb, vec![restore(2, 2, &deleted.deletions[0])]);
     assert_eq!(nb.members(&id(2), 10).unwrap()[0].block.id, id(11));
@@ -472,7 +472,7 @@ fn stale_rename_inverse_conflicts_atomically_instead_of_overwriting_a_source_edi
     let mut nb = Notebook::open(dir.path()).unwrap();
     apply(
         &mut nb,
-        vec![page(1, "Notes"), page(2, "Book"), insert(10, 1, "#book")],
+        vec![page(1, "Notes"), page(2, "Codex"), insert(10, 1, "#codex")],
     );
     let renamed = apply(&mut nb, vec![edit(2, 1, "Film")]);
     apply(&mut nb, vec![edit(10, 2, "Later source edit #Film")]);
@@ -480,7 +480,7 @@ fn stale_rename_inverse_conflicts_atomically_instead_of_overwriting_a_source_edi
         actor: Actor::Person,
         reason: None,
         idempotency_key: None,
-        operations: rename_inverse(&id(2), "Book", &renamed),
+        operations: rename_inverse(&id(2), "Codex", &renamed),
     });
     assert!(
         matches!(result, Err(tessera_core::Error::Conflict { id: target, expected: 2, found: Some(3), .. }) if target == id(10))
@@ -499,9 +499,9 @@ fn rename_collision_and_unrepresentable_tag_titles_leave_every_source_unchanged(
         &mut nb,
         vec![
             page(1, "Notes"),
-            page(2, "Book"),
+            page(2, "Codex"),
             page(3, "Already exists"),
-            insert(10, 1, "#book"),
+            insert(10, 1, "#codex"),
         ],
     );
     for title in [
@@ -528,8 +528,8 @@ fn rename_collision_and_unrepresentable_tag_titles_leave_every_source_unchanged(
             ),
             "{title:?}"
         );
-        assert_eq!(nb.block(&id(2)).unwrap().text, "Book");
-        assert_eq!(nb.block(&id(10)).unwrap().text, "#book");
+        assert_eq!(nb.block(&id(2)).unwrap().text, "Codex");
+        assert_eq!(nb.block(&id(10)).unwrap().text, "#codex");
         assert_eq!(nb.block(&id(10)).unwrap().revision, 1);
         assert_eq!(nb.members(&id(2), 10).unwrap().len(), 1);
     }
@@ -564,7 +564,7 @@ fn retrying_a_rename_replays_original_source_receipts_without_a_second_rewrite()
     let mut nb = Notebook::open(dir.path()).unwrap();
     apply(
         &mut nb,
-        vec![page(1, "Notes"), page(2, "Book"), insert(10, 1, "#book")],
+        vec![page(1, "Notes"), page(2, "Codex"), insert(10, 1, "#codex")],
     );
     let request = Batch {
         actor: Actor::Person,
@@ -589,7 +589,7 @@ fn repeated_renames_in_one_batch_resolve_sources_to_the_final_title_without_inte
     let mut nb = Notebook::open(dir.path()).unwrap();
     apply(
         &mut nb,
-        vec![page(1, "Notes"), page(2, "Book"), insert(10, 1, "#BOOK")],
+        vec![page(1, "Notes"), page(2, "Codex"), insert(10, 1, "#CODEX")],
     );
     let renamed = apply(
         &mut nb,
@@ -603,7 +603,7 @@ fn repeated_renames_in_one_batch_resolve_sources_to_the_final_title_without_inte
     assert_eq!(nb.block(&id(11)).unwrap().text, "#Final");
     assert_eq!(nb.page_by_title("Final").unwrap().unwrap().id, id(2));
     assert!(nb.page_by_title("Middle").unwrap().is_none());
-    assert!(nb.page_by_title("Book").unwrap().is_none());
+    assert!(nb.page_by_title("Codex").unwrap().is_none());
     assert_eq!(nb.members(&id(2), 10).unwrap().len(), 2);
     assert_eq!(renamed.text_rewrites.len(), 2);
 }
@@ -616,9 +616,9 @@ fn renaming_two_types_in_one_source_emits_one_complete_receipt_and_undo_is_atomi
         &mut nb,
         vec![
             page(1, "Notes"),
-            page(2, "Book"),
+            page(2, "Codex"),
             page(3, "Film"),
-            insert(10, 1, "#book #[[FILM]]"),
+            insert(10, 1, "#codex #[[FILM]]"),
         ],
     );
     let renamed = apply(
@@ -626,12 +626,12 @@ fn renaming_two_types_in_one_source_emits_one_complete_receipt_and_undo_is_atomi
         vec![edit(2, 1, "Work notes"), edit(3, 1, "Movies")],
     );
     assert_eq!(renamed.text_rewrites.len(), 1);
-    assert_eq!(renamed.text_rewrites[0].before, "#book #[[FILM]]");
+    assert_eq!(renamed.text_rewrites[0].before, "#codex #[[FILM]]");
     assert_eq!(renamed.text_rewrites[0].after, "#[[Work notes]] #Movies");
-    let mut inverse = rename_inverse(&id(2), "Book", &renamed);
+    let mut inverse = rename_inverse(&id(2), "Codex", &renamed);
     inverse.insert(1, edit(3, 2, "Film"));
     apply(&mut nb, inverse);
-    assert_eq!(nb.block(&id(10)).unwrap().text, "#book #[[FILM]]");
+    assert_eq!(nb.block(&id(10)).unwrap().text, "#codex #[[FILM]]");
     assert_eq!(nb.members(&id(2), 10).unwrap().len(), 1);
     assert_eq!(nb.members(&id(3), 10).unwrap().len(), 1);
 }
@@ -1256,17 +1256,17 @@ fn manual_membership_follows_type_rename_without_changing_block_text() {
         &mut nb,
         vec![
             page(1, "Notes"),
-            page(2, "Book"),
+            page(2, "Codex"),
             page(3, "Film"),
             insert(10, 1, "Reading"),
-            add_type(10, 1, "BOOK"),
+            add_type(10, 1, "CODEX"),
             add_type(10, 2, "film"),
         ],
     );
-    let receipt = apply(&mut nb, vec![edit(2, 1, "Novel"), edit(3, 1, "Book")]);
+    let receipt = apply(&mut nb, vec![edit(2, 1, "Novel"), edit(3, 1, "Codex")]);
     assert_eq!(
         nb.page(&id(1)).unwrap().rows[0].manual_types,
-        vec!["Book", "Novel"]
+        vec!["Codex", "Novel"]
     );
     assert_eq!(nb.block(&id(10)).unwrap().text, "Reading");
     assert!(receipt.text_rewrites.is_empty());
@@ -1342,8 +1342,8 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
         &mut nb,
         vec![
             page(1, "Notes"),
-            page(2, "Book"),
-            insert(10, 1, "#BOOK #[[Long Title]]"),
+            page(2, "Codex"),
+            insert(10, 1, "#CODEX #[[Long Title]]"),
         ],
     );
     apply(&mut nb, vec![delete(2, 1)]);
@@ -1421,7 +1421,7 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
     ).unwrap();
     drop(conn);
     let nb = Notebook::open(dir.path()).unwrap();
-    assert!(nb.page_by_title("Book").unwrap().is_none());
+    assert!(nb.page_by_title("Codex").unwrap().is_none());
     assert!(nb.page(&id(1)).unwrap().rows[0].manual_types.is_empty());
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     let titles = conn
@@ -1433,7 +1433,7 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
         .unwrap()
         .collect::<rusqlite::Result<Vec<_>>>()
         .unwrap();
-    assert_eq!(titles, vec![("BOOK".into(), 0), ("Long Title".into(), 0)]);
+    assert_eq!(titles, vec![("CODEX".into(), 0), ("Long Title".into(), 0)]);
 }
 
 #[test]

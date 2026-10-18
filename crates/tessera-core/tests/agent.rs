@@ -85,8 +85,8 @@ fn edit(value: &str, text: &str) -> AgentRequest {
 }
 fn task(status: TaskStatus) -> TaskState {
     TaskState {
-        status,
-        ..TaskState::default()
+        status: Some(status),
+        ..Default::default()
     }
 }
 /// Each row of the page as indented text, in reading order.
@@ -294,7 +294,10 @@ fn saved_view_references_survive_authoring_without_creating_pages_or_links() {
     let (_dir, mut nb) = fixture();
     dune(&mut nb);
     let text = format!("[[view:{}|Open questions]]", id(1));
-    let receipt = run(&mut nb, &note(page("Project"), vec![block(&text, vec![])]));
+    let receipt = run(
+        &mut nb,
+        &note(page("Research project"), vec![block(&text, vec![])]),
+    );
     assert_eq!(nb.block(&receipt.blocks[0].id).unwrap().text, text);
     assert_eq!(receipt.created_pages.len(), 1);
     assert!(nb.backlinks(&id(1), 10).unwrap().is_empty());
@@ -570,7 +573,7 @@ fn tasks_are_set_completed_and_restored_by_undo() {
     assert_eq!(made.summary, "Set to todo “second” on Dune");
 
     let done = TaskState {
-        status: TaskStatus::Done,
+        status: Some(TaskStatus::Done),
         priority: Some(TaskPriority::Low),
         completed_on: Some("2026-10-07".into()),
         ..planned.clone()
@@ -612,7 +615,7 @@ fn note_blocks_can_be_tasks_including_done_ones() {
     let states: Vec<_> = receipt
         .blocks
         .iter()
-        .map(|b| nb.capabilities(&b.id).unwrap().task.map(|t| t.status))
+        .map(|b| nb.capabilities(&b.id).unwrap().task.and_then(|t| t.status))
         .collect();
     assert_eq!(states, [Some(TaskStatus::Todo), Some(TaskStatus::Done)]);
     assert_eq!(receipt.blocks[1].revision, 3);

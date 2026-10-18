@@ -326,17 +326,19 @@ impl Notebook {
                 {
                     let enclosing = outer.remove(&row.source.block.id).unwrap_or_default();
                     let attrs = entities.entry(row.source.block.id).or_default();
-                    text(
-                        attrs,
-                        "@status",
-                        match row.task.status {
-                            crate::TaskStatus::Todo => "todo",
-                            crate::TaskStatus::Doing => "doing",
-                            crate::TaskStatus::Waiting => "waiting",
-                            crate::TaskStatus::Done => "done",
-                            crate::TaskStatus::Cancelled => "cancelled",
-                        },
-                    );
+                    if let Some(status) = row.task.status {
+                        text(
+                            attrs,
+                            "@status",
+                            match status {
+                                crate::TaskStatus::Todo => "todo",
+                                crate::TaskStatus::Doing => "doing",
+                                crate::TaskStatus::Waiting => "waiting",
+                                crate::TaskStatus::Done => "done",
+                                crate::TaskStatus::Cancelled => "cancelled",
+                            },
+                        );
+                    }
                     optional(attrs, "@due", row.task.deadline);
                     optional(attrs, "@scheduled", row.task.scheduled);
                     // The task's own project leads; enclosing projects follow, as a project's task query includes them.

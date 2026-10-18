@@ -1353,20 +1353,26 @@ impl Notebook {
             set(plan, current, None);
             return Ok("Removed the task from".into());
         };
-        let finishing = target.status == TaskStatus::Done
+        let finishing = target.status == Some(TaskStatus::Done)
             && current
                 .as_ref()
-                .is_none_or(|current| current.status != TaskStatus::Done);
+                .is_none_or(|current| current.status != Some(TaskStatus::Done));
         if !finishing {
-            let verb = format!("Set to {}", status_name(target.status));
+            let verb = target.status.map_or_else(
+                || "Scheduled".to_owned(),
+                |status| format!("Set to {}", status_name(status)),
+            );
             set(plan, current, Some(target));
             return Ok(verb);
         }
+        if current.as_ref().is_some_and(|task| task.status.is_none()) {
+            return Err(validation("Add #task before completing."));
+        }
         let open = TaskState {
-            status: match current.as_ref().map(|current| current.status) {
+            status: Some(match current.as_ref().and_then(|current| current.status) {
                 Some(status @ (TaskStatus::Doing | TaskStatus::Waiting)) => status,
                 _ => TaskStatus::Todo,
-            },
+            }),
             completed_on: None,
             ..target.clone()
         };

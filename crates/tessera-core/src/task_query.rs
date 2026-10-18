@@ -177,10 +177,10 @@ pub(crate) fn ancestry_projects(conn: &Connection) -> Result<HashMap<String, Vec
     Ok(result)
 }
 
-fn unfinished(status: TaskStatus) -> bool {
+fn unfinished(status: Option<TaskStatus>) -> bool {
     matches!(
         status,
-        TaskStatus::Todo | TaskStatus::Doing | TaskStatus::Waiting
+        Some(TaskStatus::Todo | TaskStatus::Doing | TaskStatus::Waiting)
     )
 }
 
@@ -253,6 +253,21 @@ fn outline_ranks(conn: &Connection, project: Option<&str>) -> Result<HashMap<Str
 }
 
 fn agenda_plan(state: &TaskState, date: &str) -> Result<(Vec<AgendaReason>, Option<String>)> {
+    if state.status.is_none() {
+        let mut reasons = Vec::new();
+        let mut time = None;
+        if state.scheduled.as_deref() == Some(date) {
+            reasons.push(AgendaReason::Scheduled);
+            time.clone_from(&state.scheduled_time);
+        }
+        if state.deadline.as_deref() == Some(date) {
+            reasons.push(AgendaReason::Deadline);
+            if time.is_none() {
+                time.clone_from(&state.deadline_time);
+            }
+        }
+        return Ok((reasons, time));
+    }
     let scheduled = state.scheduled.as_deref().is_some_and(|day| day <= date);
     let deadline = state.deadline.as_deref().is_some_and(|day| day <= date);
     let warning = match (state.deadline.as_deref(), state.warning_days) {
@@ -275,7 +290,7 @@ fn agenda_plan(state: &TaskState, date: &str) -> Result<(Vec<AgendaReason>, Opti
     if state.scheduled.is_none() && state.deadline.is_none() {
         reasons.push(AgendaReason::Unplanned);
     }
-    if state.status == TaskStatus::Doing {
+    if state.status == Some(TaskStatus::Doing) {
         reasons.push(AgendaReason::InProgress);
     }
     let scheduled_time = scheduled
@@ -410,12 +425,15 @@ impl Notebook {
         let mut rows = visible_tasks(&self.conn, filter.project_id.as_deref(), filter.project_via)?;
         rows.retain(|row| {
             let state = &row.task;
-            (state.status != TaskStatus::Cancelled
+            let Some(status) = state.status else {
+                return false;
+            };
+            (state.status != Some(TaskStatus::Cancelled)
                 || filter.statuses.contains(&TaskStatus::Cancelled))
                 && sources
                     .as_ref()
                     .is_none_or(|sources| sources.contains(&row.source.block.id))
-                && (filter.statuses.is_empty() || filter.statuses.contains(&state.status))
+                && (filter.statuses.is_empty() || filter.statuses.contains(&status))
                 && (match filter.selection {
                     TaskSelection::All => true,
                     TaskSelection::Unfinished => unfinished(state.status),
@@ -460,11 +478,11 @@ impl Notebook {
             .collect::<rusqlite::Result<HashMap<_, _>>>()?;
         let mut items = Vec::new();
         for row in visible_tasks(&self.conn, None, TaskProjectVia::Both)? {
-            if row.task.status == TaskStatus::Cancelled {
+            if row.task.status == Some(TaskStatus::Cancelled) {
                 continue;
             }
             if let Some(mut task) = completed.remove(&row.source.block.id) {
-                task.status = TaskStatus::Done;
+                task.status = Some(TaskStatus::Done);
                 task.completed_on = Some(date.to_owned());
                 let (mut reasons, time) = agenda_plan(&task, date)?;
                 reasons.push(AgendaReason::RecentlyCompleted);
@@ -476,7 +494,7 @@ impl Notebook {
                     project_id: row.project_id.clone(),
                 });
             }
-            if !unfinished(row.task.status) {
+            if row.task.status.is_some() && !unfinished(row.task.status) {
                 continue;
             }
             let task = row.task;

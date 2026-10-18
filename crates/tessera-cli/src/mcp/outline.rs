@@ -218,7 +218,7 @@ fn item_block(content: &str) -> NoteBlock {
         .unwrap_or((None, content));
     NoteBlock {
         task: status.map(|status| TaskState {
-            status,
+            status: Some(status),
             ..TaskState::default()
         }),
         ..text_block(text.trim_start().to_owned())
@@ -372,7 +372,12 @@ mod tests {
             outline("- [ ] a\n- [x] b\n- [doing] c\n- [waiting] d\n- [cancelled] e\n- [later] f");
         let statuses: Vec<_> = blocks
             .iter()
-            .map(|block| (block.text.as_str(), block.task.as_ref().map(|t| t.status)))
+            .map(|block| {
+                (
+                    block.text.as_str(),
+                    block.task.as_ref().and_then(|t| t.status),
+                )
+            })
             .collect();
         assert_eq!(
             statuses,

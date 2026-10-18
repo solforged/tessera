@@ -142,6 +142,7 @@ impl Notebook {
             restructured_pages: HashSet::new(),
             changed_titles: HashSet::new(),
             pending_renames: Vec::new(),
+            capability_memberships: BTreeMap::new(),
             text_rewrites: Vec::new(),
             rewrite_positions: HashMap::new(),
             operations: &batch.operations,
@@ -379,6 +380,103 @@ fn indexed(error: Error, index: usize) -> Error {
     }
 }
 
+/// Membership, not capability presence, decides whether a text edit added or removed behavior.
+pub(crate) fn capability_memberships(conn: &rusqlite::Connection, id: &str) -> Result<u8> {
+    let mut mask = 0;
+    let mut statement =
+        conn.prepare_cached("SELECT DISTINCT title_key FROM memberships WHERE block_id = ?1")?;
+    for key in statement.query_map([id], |row| row.get::<_, String>(0))? {
+        let key = key?;
+        if let Some(index) = crate::notes::CAPABILITY_KINDS
+            .iter()
+            .position(|(name, ..)| *name == key)
+        {
+            mask |= 1 << index;
+        }
+    }
+    Ok(mask)
+}
+
+/// Apply the same lifecycle rules for membership derivation and check repair.
+pub(crate) fn derive_capability(
+    conn: &rusqlite::Connection,
+    id: &str,
+    key: &str,
+    present: bool,
+    now: i64,
+    seq: i64,
+) -> Result<bool> {
+    let (_, _, _, table, _) = crate::notes::CAPABILITY_KINDS
+        .iter()
+        .find(|(name, ..)| *name == key)
+        .expect("built-in capability");
+    let active: bool = conn
+        .prepare_cached(&format!(
+            "SELECT EXISTS(SELECT 1 FROM {table} WHERE block_id = ?1 AND active = 1)"
+        ))?
+        .query_row([id], |row| row.get(0))?;
+    if present
+        && active
+        && (key != "task"
+            || crate::task_store::task(conn, id)?.is_some_and(|task| task.status.is_some()))
+    {
+        return Ok(false);
+    }
+    let id = id.to_owned();
+    let operation = match key {
+        "task" => Operation::SetTask {
+            task: if present {
+                let mut task = crate::task_store::task(conn, &id)?.unwrap_or_default();
+                task.status = Some(crate::TaskStatus::Todo);
+                Some(task)
+            } else {
+                None
+            },
+            id,
+            base_revision: 0,
+        },
+        "project" => Operation::SetProject {
+            id,
+            base_revision: 0,
+            project: present.then(crate::ProjectState::default),
+        },
+        "question" => Operation::SetQuestion {
+            id,
+            base_revision: 0,
+            question: present.then(crate::QuestionState::default),
+        },
+        "source" => Operation::SetSource {
+            id,
+            base_revision: 0,
+            source: present.then_some(crate::library::SourceState {
+                format: crate::library::SourceFormat::Record,
+                state: crate::library::ReadingState::Inbox,
+                origin: None,
+                match_key: None,
+                citation_key: None,
+            }),
+        },
+        _ => unreachable!("built-in capability"),
+    };
+    match &operation {
+        Operation::SetQuestion { id, .. } => {
+            if present && stored(conn, id)?.is_some_and(|row| row.block.kind == BlockKind::Journal)
+            {
+                return Err(validation("Make an ordinary block or page a question."));
+            }
+            let before = crate::revisit_store::snapshot(conn, id)?;
+            let today = crate::settings::today_in_connection(conn, now)?;
+            let changed = crate::question_store::apply(conn, &operation, &today)?;
+            if changed {
+                crate::revisit_store::question_changed(conn, id, &before, now)?;
+            }
+            Ok(changed)
+        }
+        Operation::SetSource { .. } => crate::library_store::apply(conn, &operation, now, seq),
+        _ => crate::task_store::apply(conn, &operation, now, seq),
+    }
+}
+
 struct Engine<'a, 'conn> {
     tx: &'a Transaction<'conn>,
     object_dir: &'a std::path::Path,
@@ -404,6 +502,7 @@ struct Engine<'a, 'conn> {
     restructured_pages: HashSet<String>,
     changed_titles: HashSet<String>,
     pending_renames: Vec<TagRename>,
+    capability_memberships: BTreeMap<String, u8>,
     text_rewrites: Vec<TextRewrite>,
     rewrite_positions: HashMap<String, usize>,
     operations: &'a [Operation],
@@ -470,8 +569,51 @@ impl Engine<'_, '_> {
         }
     }
 
-    fn tags_changed(&mut self, id: &str) {
+    fn tags_changed(&mut self, id: &str) -> Result<()> {
+        if !self.capability_memberships.contains_key(id) {
+            self.capability_memberships
+                .insert(id.to_owned(), capability_memberships(self.tx, id)?);
+        }
         self.positions.get_mut(id).expect("touched block").tags = true;
+        Ok(())
+    }
+
+    fn remove_capability_tag(&mut self, id: &str, key: &str) -> Result<bool> {
+        let current = self.live(id)?;
+        let text = crate::storage::remove_tag(&current.block.text, key);
+        let manual: bool = self.tx.prepare_cached(
+            "SELECT EXISTS(SELECT 1 FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1)",
+        )?.query_row(params![id, key], |row| row.get(0))?;
+        if text.is_none() && !manual {
+            return Ok(false);
+        }
+        self.record_revision(id, current.block.revision);
+        self.tags_changed(id)?;
+        // The explicit removal has already deactivated this record. A later edit
+        // in the same batch that adds its tag again must count as a new gain.
+        let index = crate::notes::CAPABILITY_KINDS
+            .iter()
+            .position(|(name, ..)| *name == key)
+            .expect("built-in capability");
+        *self
+            .capability_memberships
+            .get_mut(id)
+            .expect("captured membership") &= !(1 << index);
+        let manual = self.tx.execute(
+            "DELETE FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1",
+            params![id, key],
+        )?;
+        if let Some(text) = text {
+            self.edit(&current, &text)?;
+            self.record_text_rewrite(id, current.block.text, text, current.block.revision + 1);
+        } else if manual != 0 {
+            self.bump(&current, true)?;
+        }
+        if manual != 0 {
+            self.restructured_pages.insert(current.block.page_id);
+        }
+        self.capability_sources.insert(id.to_owned());
+        Ok(true)
     }
 
     fn derive_cards(&mut self) -> Result<()> {
@@ -683,6 +825,10 @@ impl Engine<'_, '_> {
                         (title != &replacement.title).then_some((key, &replacement.title))
                     })
                     .collect();
+                if !manual_rewrites.is_empty() {
+                    self.record_revision(&id, current.block.revision);
+                    self.tags_changed(&id)?;
+                }
                 for (key, _) in &manual_rewrites {
                     self.tx.execute(
                         "DELETE FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1",
@@ -794,12 +940,29 @@ impl Engine<'_, '_> {
                             .query_row([&revision.id], |row| row.get(0))?;
                         self.changed_titles.insert(title_key);
                         self.touch(&revision.id, revision.revision);
-                        self.tags_changed(&revision.id);
+                        self.tags_changed(&revision.id)?;
                         self.restructured_pages.insert(revision.id);
                     }
                 }
             }
             position += 1;
+        }
+        for (id, before) in std::mem::take(&mut self.capability_memberships) {
+            let Some(current) = stored(self.tx, &id)?.filter(|row| row.deletion_id.is_none())
+            else {
+                continue;
+            };
+            let after = capability_memberships(self.tx, &id)?;
+            for (index, (key, ..)) in crate::notes::CAPABILITY_KINDS.iter().enumerate() {
+                let mask = 1 << index;
+                if (before ^ after) & mask != 0
+                    && derive_capability(self.tx, &id, key, after & mask != 0, self.now, self.seq)?
+                {
+                    let current = self.live(&current.block.id)?;
+                    self.bump(&current, false)?;
+                    self.capability_sources.insert(id.clone());
+                }
+            }
         }
         Ok(())
     }
@@ -864,6 +1027,9 @@ impl Engine<'_, '_> {
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             let mut deleted = false;
             for (id, title) in candidates {
+                if crate::notes::built_in_tag_name(&title).is_some() {
+                    continue;
+                }
                 let claimed = query_values.iter().any(|value| {
                     value.eq_ignore_ascii_case(&id)
                         || value.match_indices(title.as_str()).any(|(start, matched)| {
@@ -975,7 +1141,7 @@ impl Engine<'_, '_> {
         }
         derive_links(self.tx, id, text)?;
         self.touch(id, 1);
-        self.tags_changed(id);
+        self.tags_changed(id)?;
         self.restructured_pages.insert(page.to_owned());
         Ok(())
     }
@@ -990,6 +1156,13 @@ impl Engine<'_, '_> {
         let old_key = title_key
             .as_ref()
             .map(|_| crate::storage::title_key(&current.block.text));
+        if let Some(name) = old_key.as_deref().and_then(crate::notes::built_in_tag_name)
+            && old_key != title_key
+        {
+            return Err(validation(format!(
+                "{name} is a built-in tag; its name cannot change."
+            )));
+        }
         let rename = if let Some(title_key) = title_key.as_deref() {
             self.prepare_tag_rename(
                 current,
@@ -1017,7 +1190,7 @@ impl Engine<'_, '_> {
         for id in descriptors.query_map([&current.block.id], |row| row.get::<_, String>(0))? {
             self.card_sources.insert(id?);
         }
-        self.tags_changed(&current.block.id);
+        self.tags_changed(&current.block.id)?;
         if let Some(position) = self.rewrite_positions.get(&current.block.id) {
             text.clone_into(&mut self.text_rewrites[*position].after);
         }
@@ -1061,6 +1234,13 @@ impl Engine<'_, '_> {
         let current = self.live(id)?;
         crate::work_store::guard_hide_subtree(self.tx, id)?;
         if current.block.kind == BlockKind::Page {
+            if let Some(name) =
+                crate::notes::built_in_tag_name(&crate::storage::title_key(&current.block.text))
+            {
+                return Err(validation(format!(
+                    "{name} is a built-in tag; its page cannot be deleted."
+                )));
+            }
             self.changed_titles
                 .insert(crate::storage::title_key(&current.block.text));
         }
@@ -1107,7 +1287,7 @@ impl Engine<'_, '_> {
                 }
                 self.touch(&id, revision + 1);
                 self.removed.remove(&id);
-                self.tags_changed(&id);
+                self.tags_changed(&id)?;
             }
         }
         Ok(())
@@ -1414,6 +1594,14 @@ impl Engine<'_, '_> {
         if source.block.id == destination.block.id {
             return Err(validation("a page cannot be merged into itself"));
         }
+        if source.block.kind == BlockKind::Page
+            && let Some(name) =
+                crate::notes::built_in_tag_name(&crate::storage::title_key(&source.block.text))
+        {
+            return Err(validation(format!(
+                "{name} is a built-in tag; its page cannot merge."
+            )));
+        }
         self.page_merge_endpoint(source)?;
         self.page_merge_endpoint(destination)?;
         crate::task_store::guard_merge(self.tx, &source.block.id)?;
@@ -1695,6 +1883,8 @@ impl Engine<'_, '_> {
                 let current = self.checked(id, *base_revision, index, false)?;
                 validate_text(BlockKind::Page, title)?;
                 validate_tag_title(title)?;
+                self.record_revision(id, current.block.revision);
+                self.tags_changed(id)?;
                 self.tx.execute(
                     "INSERT OR IGNORE INTO memberships(block_id, title_key, type_id, manual, title)
                      SELECT ?1, ?2, (SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?2), 1, ?3
@@ -1702,7 +1892,6 @@ impl Engine<'_, '_> {
                     params![id, crate::storage::title_key(title), title],
                 )?;
                 self.bump(&current, true)?;
-                self.tags_changed(id);
                 self.restructured_pages
                     .insert(current.block.page_id.clone());
                 Ok(())
@@ -1715,6 +1904,8 @@ impl Engine<'_, '_> {
                 let current = self.checked(id, *base_revision, index, false)?;
                 validate_text(BlockKind::Page, title)?;
                 validate_tag_title(title)?;
+                self.record_revision(id, current.block.revision);
+                self.tags_changed(id)?;
                 let removed = self.tx.execute(
                     "DELETE FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1",
                     params![id, crate::storage::title_key(title)],
@@ -2106,8 +2297,13 @@ impl Engine<'_, '_> {
                 id, base_revision, ..
             } => {
                 let current = self.checked(id, *base_revision, index, false)?;
-                if crate::library_store::apply(self.tx, operation, self.now, self.seq)? {
-                    self.bump(&current, false)?;
+                let changed = crate::library_store::apply(self.tx, operation, self.now, self.seq)?;
+                let removed = matches!(operation, Operation::SetSource { source: None, .. })
+                    && self.remove_capability_tag(id, "source")?;
+                if changed {
+                    if !removed {
+                        self.bump(&current, false)?;
+                    }
                     self.capability_sources.insert(id.clone());
                 }
                 Ok(())
@@ -2267,11 +2463,16 @@ impl Engine<'_, '_> {
                     None
                 };
                 let today = crate::settings::today_in_connection(self.tx, self.now)?;
-                if crate::question_store::apply(self.tx, operation, &today)? {
+                let changed = crate::question_store::apply(self.tx, operation, &today)?;
+                let removed = matches!(operation, Operation::SetQuestion { question: None, .. })
+                    && self.remove_capability_tag(id, "question")?;
+                if changed {
                     if let Some(before) = revisit_before {
                         crate::revisit_store::question_changed(self.tx, id, &before, self.now)?;
                     }
-                    self.bump(&current, false)?;
+                    if !removed {
+                        self.bump(&current, false)?;
+                    }
                     self.capability_sources.insert(id.clone());
                     if matches!(
                         operation,
@@ -2305,8 +2506,20 @@ impl Engine<'_, '_> {
                 id, base_revision, ..
             } => {
                 let current = self.checked(id, *base_revision, index, false)?;
-                if crate::task_store::apply(self.tx, operation, self.now, self.seq)? {
-                    self.bump(&current, false)?;
+                let changed = crate::task_store::apply(self.tx, operation, self.now, self.seq)?;
+                let removed = match operation {
+                    Operation::SetTask { task: None, .. } => {
+                        self.remove_capability_tag(id, "task")?
+                    }
+                    Operation::SetProject { project: None, .. } => {
+                        self.remove_capability_tag(id, "project")?
+                    }
+                    _ => false,
+                };
+                if changed {
+                    if !removed {
+                        self.bump(&current, false)?;
+                    }
                     self.capability_sources.insert(id.clone());
                 }
                 Ok(())

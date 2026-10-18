@@ -242,13 +242,14 @@ fn field_entry(text: &str) -> Option<&str> {
 }
 
 /// The checkbox-style marker `outline` reads back as the same status.
-pub fn marker(status: TaskStatus) -> &'static str {
+pub fn marker(status: Option<TaskStatus>) -> &'static str {
     match status {
-        TaskStatus::Todo => "[ ] ",
-        TaskStatus::Done => "[x] ",
-        TaskStatus::Doing => "[doing] ",
-        TaskStatus::Waiting => "[waiting] ",
-        TaskStatus::Cancelled => "[cancelled] ",
+        Some(TaskStatus::Todo) => "[ ] ",
+        Some(TaskStatus::Done) => "[x] ",
+        Some(TaskStatus::Doing) => "[doing] ",
+        Some(TaskStatus::Waiting) => "[waiting] ",
+        Some(TaskStatus::Cancelled) => "[cancelled] ",
+        None => "",
     }
 }
 

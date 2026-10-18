@@ -354,10 +354,8 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
             id, source: state, ..
         } => {
             let block = crate::storage::stored(conn, id)?.ok_or_else(|| not_found(id))?;
-            if block.block.kind != BlockKind::Page {
-                return Err(validation(
-                    "A source must be a page, not a journal or outline row.",
-                ));
+            if block.block.kind == BlockKind::Journal {
+                return Err(validation("A journal cannot be a source."));
             }
             let current = source(conn, id)?;
             if current.as_ref().map(SourceRecord::source_state).as_ref() == state.as_ref() {

@@ -5,6 +5,13 @@ use tessera_core::{
     TaskQueryResult, TaskSelection, TaskState, TaskStatus,
 };
 
+fn todo() -> TaskState {
+    TaskState {
+        status: Some(TaskStatus::Todo),
+        ..Default::default()
+    }
+}
+
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
@@ -144,7 +151,7 @@ fn planned(scheduled: Option<&str>, deadline: Option<&str>) -> TaskState {
     TaskState {
         scheduled: scheduled.map(str::to_owned),
         deadline: deadline.map(str::to_owned),
-        ..TaskState::default()
+        ..todo()
     }
 }
 
@@ -161,8 +168,8 @@ fn selection_uses_inclusive_unreversed_occurrences_and_explicit_status_intersect
             &mut nb,
             value,
             TaskState {
-                status,
-                ..TaskState::default()
+                status: Some(status),
+                ..todo()
             },
         );
     }
@@ -174,7 +181,7 @@ fn selection_uses_inclusive_unreversed_occurrences_and_explicit_status_intersect
         (18, "2026-10-03"),
         (19, "2026-10-03"),
     ] {
-        task(&mut nb, value, TaskState::default());
+        task(&mut nb, value, todo());
         complete(&mut nb, value, value + 100, date);
     }
     reverse(&mut nb, 18, 118);
@@ -182,22 +189,22 @@ fn selection_uses_inclusive_unreversed_occurrences_and_explicit_status_intersect
         &mut nb,
         19,
         Some(TaskState {
-            status: TaskStatus::Cancelled,
-            ..TaskState::default()
+            status: Some(TaskStatus::Cancelled),
+            ..todo()
         }),
     );
-    task(&mut nb, 20, TaskState::default());
+    task(&mut nb, 20, todo());
     complete(&mut nb, 20, 120, "2026-10-03");
     set_task(&mut nb, 20, None);
-    task(&mut nb, 21, TaskState::default());
+    task(&mut nb, 21, todo());
     complete(&mut nb, 21, 121, "2026-10-03");
     reverse(&mut nb, 21, 121);
     set_task(
         &mut nb,
         21,
         Some(TaskState {
-            status: TaskStatus::Cancelled,
-            ..TaskState::default()
+            status: Some(TaskStatus::Cancelled),
+            ..todo()
         }),
     );
 
@@ -384,12 +391,12 @@ fn agenda_uses_displayed_day_all_reasons_and_only_applicable_clock_labels() {
     warned.warning_days = Some(2);
     task(&mut nb, 12, warned);
     task(&mut nb, 13, planned(Some("2026-10-04"), None));
-    task(&mut nb, 14, TaskState::default());
+    task(&mut nb, 14, todo());
     task(
         &mut nb,
         15,
         TaskState {
-            status: TaskStatus::Waiting,
+            status: Some(TaskStatus::Waiting),
             ..planned(Some("2026-10-02"), None)
         },
     );
@@ -397,8 +404,8 @@ fn agenda_uses_displayed_day_all_reasons_and_only_applicable_clock_labels() {
         &mut nb,
         16,
         TaskState {
-            status: TaskStatus::Cancelled,
-            ..TaskState::default()
+            status: Some(TaskStatus::Cancelled),
+            ..todo()
         },
     );
     task(&mut nb, 17, planned(None, Some("2026-10-04")));
@@ -482,7 +489,7 @@ fn agenda_keeps_latest_occurrence_separate_from_the_live_recurrence() {
     );
     let recent = nb.task_query(&query()).unwrap();
     assert_eq!(recent.total, 1);
-    assert_eq!(recent.rows[0].task.status, TaskStatus::Todo);
+    assert_eq!(recent.rows[0].task.status, Some(TaskStatus::Todo));
     assert_eq!(recent.rows[0].task.scheduled.as_deref(), Some("2026-10-03"));
     assert_eq!(recent.rows[0].task.deadline.as_deref(), Some("2026-10-02"));
     let agenda = nb.agenda("2026-10-03").unwrap();
@@ -494,7 +501,7 @@ fn agenda_keeps_latest_occurrence_separate_from_the_live_recurrence() {
         .unwrap();
     assert_eq!(row.source.block.id, id(10));
     assert_eq!(row.source.page.id, id(2));
-    assert_eq!(row.task.status, TaskStatus::Done);
+    assert_eq!(row.task.status, Some(TaskStatus::Done));
     assert_eq!(row.task.completed_on.as_deref(), Some("2026-10-03"));
     assert_eq!(row.task.scheduled.as_deref(), Some("2026-10-02"));
     assert_eq!(row.task.deadline.as_deref(), Some("2026-10-01"));
@@ -534,8 +541,8 @@ fn agenda_keeps_latest_occurrence_separate_from_the_live_recurrence() {
         &mut nb,
         10,
         Some(TaskState {
-            status: TaskStatus::Cancelled,
-            ..TaskState::default()
+            status: Some(TaskStatus::Cancelled),
+            ..todo()
         }),
     );
     assert!(nb.agenda("2026-10-03").unwrap().items.is_empty());
@@ -560,7 +567,7 @@ fn agenda_ignores_future_and_reversed_completions_and_keeps_reopened_history() {
         agenda
             .items
             .iter()
-            .all(|row| row.task.status == TaskStatus::Done
+            .all(|row| row.task.status == Some(TaskStatus::Done)
                 && row.task.completed_on.as_deref() == Some("2026-10-03"))
     );
     assert_eq!(agenda_ids(nb.agenda("2026-10-04").unwrap()), vec![id(10)]);
@@ -588,7 +595,7 @@ fn agenda_keeps_repeating_doing_work_with_its_completed_history() {
         complete(&mut nb, value, value + 100, "2026-10-03");
         let mut live = nb.capabilities(&id(value)).unwrap().task.unwrap();
         assert_eq!(live.scheduled.as_deref(), Some(next));
-        live.status = TaskStatus::Doing;
+        live.status = Some(TaskStatus::Doing);
         set_task(&mut nb, value, Some(live.clone()));
         let rows = nb.agenda("2026-10-03").unwrap().items;
         let rows: Vec<_> = rows
@@ -600,9 +607,12 @@ fn agenda_keeps_repeating_doing_work_with_its_completed_history() {
             rows.iter()
                 .any(|row| row.task == live && row.reasons.contains(&AgendaReason::InProgress))
         );
-        assert!(rows.iter().any(|row| row.task.status == TaskStatus::Done
-            && row.task.scheduled.as_deref() == Some("2026-10-01")
-            && row.reasons.contains(&AgendaReason::RecentlyCompleted)));
+        assert!(
+            rows.iter()
+                .any(|row| row.task.status == Some(TaskStatus::Done)
+                    && row.task.scheduled.as_deref() == Some("2026-10-01")
+                    && row.reasons.contains(&AgendaReason::RecentlyCompleted))
+        );
     }
 }
 
@@ -630,7 +640,7 @@ fn project_membership_follows_canonical_nested_ancestry_visibility_and_moves() {
         }),
     );
     for value in [10, 20, 21, 22] {
-        set_task(&mut nb, value, Some(TaskState::default()));
+        set_task(&mut nb, value, Some(todo()));
     }
     let mut q = query();
     q.filter.project_id = Some(id(10));
@@ -704,7 +714,7 @@ fn more_than_five_hundred_source_candidates_are_filtered_before_task_limit() {
             base_revision: 1,
             task: Some(TaskState {
                 priority: Some(priority),
-                ..TaskState::default()
+                ..todo()
             }),
         });
     }
@@ -768,7 +778,7 @@ fn source_type_text_and_field_filters_intersect_before_task_selection() {
         ],
     );
     for value in [10, 11, 12, 13] {
-        set_task(&mut nb, value, Some(TaskState::default()));
+        set_task(&mut nb, value, Some(todo()));
     }
     let mut q = query();
     q.source = Some(Query {
@@ -795,9 +805,9 @@ fn source_type_text_and_field_filters_intersect_before_task_selection() {
 #[test]
 fn query_validation_covers_civil_boundaries_ranges_limits_and_live_inputs() {
     let (_dir, mut nb) = fixture();
-    task(&mut nb, 10, TaskState::default());
+    task(&mut nb, 10, todo());
     complete(&mut nb, 10, 110, "0001-01-01");
-    task(&mut nb, 11, TaskState::default());
+    task(&mut nb, 11, todo());
     complete(&mut nb, 11, 111, "9999-12-31");
     let mut q = query();
     q.context_date = "0001-01-01".into();
@@ -902,7 +912,7 @@ fn saved_task_views_validate_revisions_replay_and_execute_after_reload() {
             ..planned(Some("2026-10-03"), None)
         },
     );
-    task(&mut nb, 11, TaskState::default());
+    task(&mut nb, 11, todo());
     let mut q = query();
     q.filter.priority = Some(TaskPriority::High);
     q.filter.scheduled = Some(DateRange {
@@ -1099,7 +1109,7 @@ fn project_fields_include_journal_tasks_override_ancestry_and_require_live_proje
         project(&mut nb, value, Some(ProjectState::default()));
     }
     for value in [20, 21, 22] {
-        set_task(&mut nb, value, Some(TaskState::default()));
+        set_task(&mut nb, value, Some(todo()));
     }
     link_project(&mut nb, 20, 100, 11);
     link_project(&mut nb, 21, 110, 11);
@@ -1177,7 +1187,7 @@ fn outline_sort_keeps_preorder_sections_and_appends_linked_tasks_in_plan_order()
     );
     project(&mut nb, 10, Some(ProjectState::default()));
     for value in [19, 21, 22, 23, 25, 31, 40, 41] {
-        set_task(&mut nb, value, Some(TaskState::default()));
+        set_task(&mut nb, value, Some(todo()));
     }
     set_task(&mut nb, 31, Some(planned(Some("2026-10-01"), None)));
     set_task(&mut nb, 41, Some(planned(Some("2026-10-02"), None)));
@@ -1269,7 +1279,7 @@ fn task_table_project_filter_matches_the_project_task_query() {
         project(&mut nb, value, Some(ProjectState::default()));
     }
     for value in [20, 21, 22, 23, 24] {
-        set_task(&mut nb, value, Some(TaskState::default()));
+        set_task(&mut nb, value, Some(todo()));
     }
     link_project(&mut nb, 22, 100, 12);
     link_project(&mut nb, 23, 110, 10);

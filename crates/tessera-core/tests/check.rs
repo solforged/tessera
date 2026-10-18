@@ -146,7 +146,7 @@ fn a_clean_notebook_reports_no_differences_and_repair_writes_nothing() {
         ]
     );
     assert!(report.invariants.iter().all(|rule| rule.violations == 0));
-    assert_eq!(report.invariants.len(), 5);
+    assert_eq!(report.invariants.len(), 6);
     assert_eq!(
         report
             .hashes

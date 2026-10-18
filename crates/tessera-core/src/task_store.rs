@@ -48,8 +48,10 @@ fn validate_task(state: &TaskState) -> Result<()> {
         advance_repeat("0001-01-01", "0001-01-01", repeat)?;
     }
     match (state.status, state.completed_on.as_deref()) {
-        (TaskStatus::Done, Some(date)) => validate_civil_date(date)?,
-        (TaskStatus::Done, None) => return Err(validation("done task requires a completion date")),
+        (Some(TaskStatus::Done), Some(date)) => validate_civil_date(date)?,
+        (Some(TaskStatus::Done), None) => {
+            return Err(validation("done task requires a completion date"));
+        }
         (_, Some(_)) => return Err(validation("unfinished task cannot have a completion date")),
         (_, None) => {}
     }
@@ -107,7 +109,7 @@ fn set_task(
         return Ok(true);
     };
     validate_task(next)?;
-    if next.status == TaskStatus::Done {
+    if next.status == Some(TaskStatus::Done) {
         if expected.is_some() {
             let recorded: bool = conn
                 .prepare_cached(
@@ -128,7 +130,7 @@ fn set_task(
             let prior = current
                 .as_ref()
                 .map(|(_, state)| state)
-                .filter(|state| state.status == TaskStatus::Done)
+                .filter(|state| state.status == Some(TaskStatus::Done))
                 .ok_or_else(|| validation("use task completion to mark a task done"))?;
             if next.completed_on != prior.completed_on {
                 return Err(validation(
@@ -143,8 +145,9 @@ fn set_task(
     {
         return Ok(false);
     }
-    if next.status == TaskStatus::Cancelled
-        || (expected.is_some() && next.status == TaskStatus::Done)
+    if next.status.is_none()
+        || next.status == Some(TaskStatus::Cancelled)
+        || (expected.is_some() && next.status == Some(TaskStatus::Done))
     {
         guard_running_work(conn, id)?;
     }
@@ -198,7 +201,10 @@ fn complete_task(
     validate_id(occurrence_id)?;
     validate_civil_date(completed_on)?;
     let before = task(conn, id)?.ok_or_else(|| validation("task is not active"))?;
-    if before.status == TaskStatus::Cancelled {
+    if before.status.is_none() {
+        return Err(validation("Add #task before completing."));
+    }
+    if before.status == Some(TaskStatus::Cancelled) {
         return Err(validation("cancelled task cannot be completed"));
     }
     let used: bool = conn
@@ -207,7 +213,7 @@ fn complete_task(
     if used {
         return Err(validation("task occurrence ID is already used"));
     }
-    if before.status == TaskStatus::Done && before.repeater.is_none() {
+    if before.status == Some(TaskStatus::Done) && before.repeater.is_none() {
         return Ok(false);
     }
     guard_running_work(conn, id)?;
@@ -219,10 +225,10 @@ fn complete_task(
             completed_on,
             repeat,
         )?;
-        after.status = TaskStatus::Todo;
+        after.status = Some(TaskStatus::Todo);
         after.completed_on = None;
     } else {
-        after.status = TaskStatus::Done;
+        after.status = Some(TaskStatus::Done);
         after.completed_on = Some(completed_on.to_owned());
     }
     let after_json = serde_json::to_string(&after).expect("task state serializes");
@@ -282,7 +288,10 @@ fn reverse_completion(conn: &Connection, id: &str, occurrence_id: &str, seq: i64
     }
     // A done snapshot is possible if a repeater was added to an already-done
     // task. Reversing that later recurrence must not strand a running clock.
-    if matches!(snapshot.status, TaskStatus::Done | TaskStatus::Cancelled) {
+    if matches!(
+        snapshot.status,
+        None | Some(TaskStatus::Done | TaskStatus::Cancelled)
+    ) {
         guard_running_work(conn, id)?;
     }
     conn.prepare_cached("UPDATE tasks SET state = ?2 WHERE block_id = ?1")?
@@ -364,7 +373,8 @@ macro_rules! capability_rows {
               OR EXISTS(SELECT 1 FROM citations c WHERE c.block_id=b.id)) AS retained,
              (SELECT COUNT(*) FROM card_units c WHERE c.source_block_id = b.id AND c.active = 1 AND c.key LIKE 'tpl:%') AS template_cards,
              q.state AS quote_state, b.text,
-             EXISTS(SELECT 1 FROM spreads sp WHERE sp.block_id=b.id AND sp.active=1) AS spread
+             EXISTS(SELECT 1 FROM spreads sp WHERE sp.block_id=b.id AND sp.active=1) AS spread,
+             CASE WHEN b.kind = 'page' THEN b.title_key END AS tag_key
              FROM blocks b LEFT JOIN tasks t ON t.block_id = b.id
              LEFT JOIN projects p ON p.block_id = b.id
              LEFT JOIN quotes q ON q.block_id = b.id "
@@ -400,6 +410,11 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
     };
     Ok(BlockCapabilities {
         block_id: row.get(0)?,
+        built_in_tag: row
+            .get::<_, Option<String>>(10)?
+            .as_deref()
+            .and_then(crate::notes::built_in_tag_name)
+            .is_some(),
         merge_protected: task.is_some()
             || project.is_some()
             || history
@@ -473,9 +488,16 @@ pub(crate) fn page_capabilities(
                     "SELECT * FROM (",
                     capability_rows!(),
                     "WHERE b.page_id = ?1 AND b.deletion_id IS NULL)
-             WHERE retained OR history OR reviewed OR template_cards > 0 ORDER BY id"
+             WHERE retained OR history OR reviewed OR template_cards > 0 OR tag_key IS NOT NULL ORDER BY id"
                 ))?
-                .query_map([page_id], capability_at)?
+                .query_map([page_id], |row| {
+                    let capability = capability_at(row)?;
+                    let retained: bool = row.get(5)?;
+                    Ok((retained || capability.built_in_tag || capability.history
+                        || capability.reviewed_cards || capability.template_cards > 0)
+                        .then_some(capability))
+                })?
+                .filter_map(|row| row.transpose())
                 .collect::<rusqlite::Result<_>>()?,
             )?,
         )?,

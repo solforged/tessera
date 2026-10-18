@@ -81,7 +81,11 @@ async fn task_sources_recurrence_and_work_history_survive_reversal_and_deletion(
         ]),
     )
     .await;
-    let mut task = serde_json::to_value(TaskState::default()).unwrap();
+    let mut task = serde_json::to_value(TaskState {
+        status: Some(tessera_core::TaskStatus::Todo),
+        ..Default::default()
+    })
+    .unwrap();
     task["scheduled"] = json!("2026-10-03");
     task["scheduled_time"] = json!("09:00");
     task["repeater"] = json!({"every": 1, "unit": "day", "mode": "fixed"});

@@ -69,7 +69,7 @@ fn require_unfinished_task(conn: &Connection, id: &str) -> Result<()> {
     if !task.is_some_and(|task| {
         matches!(
             task.status,
-            TaskStatus::Todo | TaskStatus::Doing | TaskStatus::Waiting
+            Some(TaskStatus::Todo | TaskStatus::Doing | TaskStatus::Waiting)
         )
     }) || !visible(conn, id)?
     {

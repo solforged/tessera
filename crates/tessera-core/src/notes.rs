@@ -4,6 +4,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 
 use crate::aliases::fold;
@@ -19,10 +20,10 @@ const TYPE_KINDS: [(&str, &str, &str, &str); 4] = [
     ("thesis", "Thesis", "Theses", "thesis"),
 ];
 
-const TYPE_ICONS: [(&str, &str); 3] = [
-    ("book", "book"),
-    ("article", "article"),
-    ("collection", "shelf"),
+const TYPE_ICONS: [(&str, &str, &str); 3] = [
+    ("book", "Book", "book"),
+    ("article", "Article", "article"),
+    ("collection", "Collection", "shelf"),
 ];
 
 /// Conservative English suffixes; an explicit plural covers ambiguous and irregular titles.
@@ -71,7 +72,8 @@ pub(crate) fn auto_plural(title: &str) -> String {
 }
 /// Built-in kinds read from capabilities on the page, in index order after the type kinds: key,
 /// singular, plural, table, icon.
-const CAPABILITY_KINDS: [(&str, &str, &str, &str, &str); 3] = [
+pub(crate) const CAPABILITY_KINDS: [(&str, &str, &str, &str, &str); 4] = [
+    ("task", "Task", "Tasks", "tasks", "task"),
     (
         "question",
         "Question",
@@ -82,6 +84,15 @@ const CAPABILITY_KINDS: [(&str, &str, &str, &str, &str); 3] = [
     ("source", "Source", "Sources", "sources", "library"),
     ("project", "Project", "Projects", "projects", "flag"),
 ];
+
+pub(crate) fn built_in_tag_name(key: &str) -> Option<&'static str> {
+    TYPE_KINDS
+        .iter()
+        .map(|(key, name, ..)| (*key, *name))
+        .chain(CAPABILITY_KINDS.iter().map(|(key, name, ..)| (*key, *name)))
+        .chain(TYPE_ICONS.iter().map(|(key, name, _)| (*key, *name)))
+        .find_map(|(candidate, name)| (candidate == key).then_some(name))
+}
 const UNFILED: &str = "unfiled";
 
 /// One kind a note can be filed under. `key` is `person`, `group`, `concept`, `thesis`, `question`,
@@ -92,7 +103,7 @@ pub struct NoteKind {
     pub name: String,
     pub plural: String,
     pub icon: Option<String>,
-    /// The type page a kind reads its members from; capability kinds and Unfiled have none.
+    /// The live page named by this tag; Unfiled has none.
     pub type_id: Option<String>,
 }
 
@@ -203,8 +214,12 @@ impl Notebook {
     /// Kinds with independent note and tagged-block counts, for the sidebar.
     pub fn note_index(&self) -> Result<NoteIndex> {
         let filing = self.filing()?;
-        let (question, source, project) =
-            (TYPE_KINDS.len(), TYPE_KINDS.len() + 1, TYPE_KINDS.len() + 2);
+        let (task, question, source, project) = (
+            TYPE_KINDS.len(),
+            TYPE_KINDS.len() + 1,
+            TYPE_KINDS.len() + 2,
+            TYPE_KINDS.len() + 3,
+        );
         let mut counts = vec![0; filing.kinds.len()];
         // Per kind, how many of its notes are also sources or projects; a type you made is shelved by its majority.
         let mut sources = vec![0; filing.kinds.len()];
@@ -233,6 +248,7 @@ impl Notebook {
         let unfiled = filing.kinds.len() - 1;
         // Library types (books, articles, collections) shelve with sources even before their notes carry a source record.
         let shelf = |index: usize, kind: &NoteKind, count: usize| match index {
+            _ if index == task => Shelf::Work,
             _ if index <= question => Shelf::Notes,
             _ if index == source => Shelf::Sources,
             _ if index == project => Shelf::Work,
@@ -240,7 +256,7 @@ impl Notebook {
             _ if 2 * sources[index] > count
                 || TYPE_ICONS
                     .iter()
-                    .any(|(name, _)| *name == kind.name.to_lowercase()) =>
+                    .any(|(key, ..)| *key == kind.name.to_lowercase()) =>
             {
                 Shelf::Sources
             }
@@ -289,7 +305,8 @@ impl Notebook {
             };
             kinds.push(IndexKind {
                 shelf: shelf(index, &kind, count),
-                tag: index < TYPE_KINDS.len() || kind.key.starts_with("type:"),
+                tag: index < TYPE_KINDS.len() + CAPABILITY_KINDS.len()
+                    || kind.key.starts_with("type:"),
                 kind,
                 count,
                 tagged_block_count,
@@ -521,6 +538,14 @@ impl Notebook {
                 type_id: None,
             })
             .collect();
+        let mut builtin_page = self.conn.prepare_cached(
+            "SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?1",
+        )?;
+        for kind in &mut kinds {
+            kind.type_id = builtin_page
+                .query_row([&kind.key], |row| row.get(0))
+                .optional()?;
+        }
         // Types you made, ordered by title after the built-in kinds.
         let made: BTreeMap<(&str, &str), &str> = memberships
             .iter()
@@ -530,7 +555,7 @@ impl Notebook {
                     .iter()
                     .map(|(id, title, title_key, _)| (id, title, title_key)),
             )
-            .filter(|(_, _, title_key)| !TYPE_KINDS.iter().any(|(key, ..)| key == title_key))
+            .filter(|(_, _, title_key)| !kinds.iter().any(|kind| &kind.key == *title_key))
             .map(|(id, title, title_key)| ((title_key.as_str(), id.as_str()), title.as_str()))
             .collect();
         let mut by_type: HashMap<&str, usize> = HashMap::new();
@@ -557,7 +582,11 @@ impl Notebook {
             let Some(&note) = position.get(note_id) else {
                 continue;
             };
-            let kind = match TYPE_KINDS.iter().position(|(key, ..)| key == title_key) {
+            let kind = match kinds
+                .iter()
+                .take(TYPE_KINDS.len() + CAPABILITY_KINDS.len())
+                .position(|kind| &kind.key == title_key)
+            {
                 Some(builtin) => {
                     kinds[builtin]
                         .type_id
@@ -570,7 +599,11 @@ impl Notebook {
         }
         let mut tagged_block_counts = vec![0; kinds.len()];
         for (type_id, _, title_key, count) in &tagged_types {
-            let kind = match TYPE_KINDS.iter().position(|(key, ..)| key == title_key) {
+            let kind = match kinds
+                .iter()
+                .take(TYPE_KINDS.len() + CAPABILITY_KINDS.len())
+                .position(|kind| &kind.key == title_key)
+            {
                 Some(builtin) => {
                     kinds[builtin]
                         .type_id
@@ -601,12 +634,19 @@ impl Notebook {
                 let title_key = kind.name.to_lowercase();
                 kind.icon = TYPE_ICONS
                     .iter()
-                    .find(|(name, _)| *name == title_key)
-                    .map(|(_, icon)| (*icon).to_owned());
+                    .find(|(key, ..)| *key == title_key)
+                    .map(|(_, _, icon)| (*icon).to_owned());
             }
         }
         for (offset, (_, _, _, table, _)) in CAPABILITY_KINDS.iter().enumerate() {
-            let sql = format!("SELECT block_id FROM {table} WHERE active = 1");
+            let sql = format!(
+                "SELECT block_id FROM {table} WHERE active = 1{}",
+                if *table == "tasks" {
+                    " AND json_extract(state, '$.status') IS NOT NULL"
+                } else {
+                    ""
+                }
+            );
             let ids = self
                 .conn
                 .prepare_cached(&sql)?
@@ -630,10 +670,14 @@ impl Notebook {
             )?
             .query_map([], |row| row.get::<_, String>(0))?
             .collect::<rusqlite::Result<_>>()?;
+        // A built-in tag's page is the kind itself, so it is never an unfiled note.
         for note in &mut notes {
             note.kinds.sort_unstable();
             note.kinds.dedup();
-            if note.kinds.is_empty() && !listed.contains(&note.entry.id) {
+            if note.kinds.is_empty()
+                && !listed.contains(&note.entry.id)
+                && built_in_tag_name(&crate::storage::title_key(&note.entry.title)).is_none()
+            {
                 note.kinds.push(unfiled);
             }
         }

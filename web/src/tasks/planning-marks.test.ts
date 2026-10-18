@@ -13,6 +13,7 @@ function taskRow(id: string, patch: Partial<TaskState> = {}): TaskRow {
 
 function queryRows(rows: readonly TaskRow[], query: TaskQuery): TaskQueryResult {
   const filtered = rows.filter(({ task }) => {
+    if (task.status === null) return false;
     if (query.filter.selection === 'unfinished' && (task.status === 'done' || task.status === 'cancelled')) return false;
     if (query.filter.statuses.length && !query.filter.statuses.includes(task.status)) return false;
     for (const field of ['scheduled', 'deadline'] as const) {

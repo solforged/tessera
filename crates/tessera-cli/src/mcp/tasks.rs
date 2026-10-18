@@ -29,9 +29,9 @@ impl Session<'_> {
             status => {
                 let mut task = current.task.clone().unwrap_or_default();
                 if let Some(status) = status {
-                    task.status = choice(status, "status", &format!("{STATUSES} or none"))?;
+                    task.status = Some(choice(status, "status", &format!("{STATUSES} or none"))?);
                 }
-                if task.status != TaskStatus::Done {
+                if task.status != Some(TaskStatus::Done) {
                     task.completed_on = None;
                 }
                 if let Some(date) = string(arguments, "completed_on")? {
@@ -246,7 +246,7 @@ impl Session<'_> {
 
 /// `- [ ] text (block ID) on page "Title" (page ID): details`.
 fn task_line(
-    status: TaskStatus,
+    status: Option<TaskStatus>,
     text: &str,
     id: &str,
     location: &str,

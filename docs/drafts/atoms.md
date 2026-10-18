@@ -136,7 +136,7 @@ Audit proposal P3, after the surface work and in its own release: a tag canonica
 1. **Vocabulary.** This draft's words into `domain-model.md` and `design.md`; interface strings follow surface by surface. No schema change.
 2. **The sheet and first-use hints.** The sheet is built: `⌘/`, Commands and the Mac's Help menu, bindings read from the registry. Still to do: `?` in Vim normal mode, and the first-use hints.
 3. **One registry and one picker.** Core read, then `#`, `/Tag…`, `/Field…`, the slip, tag tables, Review and Find read it. Delete the hardcoded lists. The new-tag receipt and template popup.
-4. **Built-in tags.** `#task`, `#question`, `#project`, `#source` derive their capabilities from membership; glyph rendering; system pages for the built-in type pages.
+4. **Built-in tags. Engine built.** `#task`, `#question`, `#project` and `#source` derive their records from membership, with removal receipts and retained history. Built-in tag pages have canonical names and refuse deletion, merging away and renaming. Task status is optional for appointments; Agenda includes them and task views do not. Check reports and repairs missing tagged records. Glyph rendering remains the web part of this step.
 5. **Decks read as tags.** Badge, Review header, Cards tab, docs.
 6. **Fields into Index. Built, reading 1.** The fixed Fields row closes the Notes shelf in the sidebar and directory, with the register's live definition count.
 7. **Tags addressed by ID**, in its own release.

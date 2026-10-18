@@ -175,8 +175,28 @@ const DERIVED: &[Derived] = &[
     },
 ];
 
+macro_rules! missing_capabilities {
+    () => {
+        "SELECT DISTINCT b.id AS block_id, m.title_key FROM blocks b
+         JOIN memberships m ON m.block_id = b.id
+         WHERE b.deletion_id IS NULL AND (
+           (m.title_key = 'task' AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.block_id = b.id AND t.active = 1))
+           OR (m.title_key = 'question' AND NOT EXISTS (SELECT 1 FROM questions q WHERE q.block_id = b.id AND q.active = 1))
+           OR (m.title_key = 'project' AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.block_id = b.id AND p.active = 1))
+           OR (m.title_key = 'source' AND NOT EXISTS (SELECT 1 FROM sources s WHERE s.block_id = b.id AND s.active = 1)))"
+    };
+}
+
 /// Rules the schema cannot state, each a query listing the rows that break it.
 const INVARIANTS: &[(&str, &str)] = &[
+    (
+        "built_in_tag_keeps_capability",
+        concat!(
+            "SELECT DISTINCT block_id FROM (",
+            missing_capabilities!(),
+            ") ORDER BY block_id"
+        ),
+    ),
     (
         "one_live_page_per_title",
         "SELECT title_key FROM blocks WHERE kind = 'page' AND deletion_id IS NULL
@@ -234,13 +254,19 @@ impl Notebook {
         let search = search_check(&self.conn)?;
         let invariants = invariants(&self.conn)?;
         let (derived, repaired) = self.compare_derived(repair, !search.is_empty())?;
+        let originally_valid = invariants.iter().all(|rule| rule.violations == 0);
+        let invariants = if repaired.is_some() {
+            self::invariants(&self.conn)?
+        } else {
+            invariants
+        };
         let hashes = applied_tables()
             .map(|table| table_hash(&self.conn, table))
             .collect::<Result<Vec<_>>>()?;
         let ok = quick_check.is_empty()
             && foreign_keys.is_empty()
             && search.is_empty()
-            && invariants.iter().all(|rule| rule.violations == 0)
+            && originally_valid
             && derived.iter().all(|table| table.stale + table.missing == 0);
         Ok(CheckReport {
             ok,
@@ -282,12 +308,27 @@ impl Notebook {
             ))?;
         }
         let cards = derive_all(&tx, now)?;
+        let missing = tx
+            .prepare_cached(concat!(
+                missing_capabilities!(),
+                " ORDER BY b.id, m.title_key"
+            ))?
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut blocks = BTreeSet::new();
+        for (id, key) in missing {
+            if crate::operations::derive_capability(&tx, &id, &key, true, now, 0)? {
+                blocks.insert(id);
+            }
+        }
+        let repaired_capabilities = !blocks.is_empty();
         if guard_digests(&tx)? != guarded {
             return Err(validation(
                 "deriving again would change authored or evidence rows; nothing was written",
             ));
         }
-        let mut blocks = BTreeSet::new();
         let derived = DERIVED
             .iter()
             .map(|table| compare(&tx, table, &mut blocks))
@@ -295,7 +336,8 @@ impl Notebook {
         for derived in DERIVED {
             tx.execute(&format!("DROP TABLE temp.check_{}", derived.table), [])?;
         }
-        let differs = derived.iter().any(|table| table.stale + table.missing > 0);
+        let differs =
+            repaired_capabilities || derived.iter().any(|table| table.stale + table.missing > 0);
         if !repair || !(differs || rebuild_search) {
             return Ok((derived, None));
         }
@@ -539,6 +581,8 @@ fn record_change(
         ],
     )?;
     let seq = tx.last_insert_rowid();
+    let capabilities =
+        crate::task_store::capabilities_for(tx, &blocks.iter().cloned().collect::<Vec<_>>())?;
     let blocks = serde_json::to_string(blocks).expect("block IDs serialize");
     let pages = tx
         .prepare(
@@ -555,7 +599,7 @@ fn record_change(
         pages: Some(pages),
         text_rewrites: Vec::new(),
         settings: Vec::new(),
-        capabilities: Vec::new(),
+        capabilities,
         cards,
         work_sessions: Vec::new(),
         review_sessions: Vec::new(),

@@ -3,6 +3,13 @@ use tessera_core::{
     WorkSession,
 };
 
+fn todo() -> TaskState {
+    TaskState {
+        status: Some(TaskStatus::Todo),
+        ..Default::default()
+    }
+}
+
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
 }
@@ -58,12 +65,12 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
             Operation::SetTask {
                 id: id(11),
                 base_revision: 1,
-                task: Some(TaskState::default()),
+                task: Some(todo()),
             },
             Operation::SetTask {
                 id: id(12),
                 base_revision: 1,
-                task: Some(TaskState::default()),
+                task: Some(todo()),
             },
         ],
     );
@@ -143,8 +150,8 @@ fn assert_validation(error: Error, expected_index: usize) {
 fn one_clock_per_notebook_across_connections_without_task_status_changes() {
     let (dir, mut nb) = fixture();
     let waiting = TaskState {
-        status: TaskStatus::Waiting,
-        ..TaskState::default()
+        status: Some(TaskStatus::Waiting),
+        ..todo()
     };
     let set_waiting = Operation::SetTask {
         id: id(12),
@@ -159,10 +166,7 @@ fn one_clock_per_notebook_across_connections_without_task_status_changes() {
     assert_eq!(running.ended_at, None);
     assert_eq!(running.revision, 1);
     assert_eq!(committed.work_sessions, vec![running.clone()]);
-    assert_eq!(
-        nb.capabilities(&id(11)).unwrap().task,
-        Some(TaskState::default())
-    );
+    assert_eq!(nb.capabilities(&id(11)).unwrap().task, Some(todo()));
 
     let mut other = Notebook::open(dir.path()).unwrap();
     let competing = start(&other, 12, 101, 1_100);
@@ -190,10 +194,7 @@ fn one_clock_per_notebook_across_connections_without_task_status_changes() {
     apply(&mut other, vec![second]);
     assert_eq!(nb.active_work_session().unwrap().unwrap().block_id, id(12));
     assert_eq!(nb.capabilities(&id(12)).unwrap().task, Some(waiting));
-    assert_eq!(
-        nb.capabilities(&id(11)).unwrap().task,
-        Some(TaskState::default())
-    );
+    assert_eq!(nb.capabilities(&id(11)).unwrap().task, Some(todo()));
     let stopped = session(&nb, 11, 100);
     assert_eq!(stopped.ended_at, Some(1_500));
     assert_eq!(stopped.note, "Finished α\nnotes");
@@ -331,8 +332,8 @@ fn stop_and_complete_are_explicit_and_atomic_on_failure_success_and_retry() {
     let running = session(&nb, 11, 100);
     let before_revision = revision(&nb, 11);
     let cancelled = TaskState {
-        status: TaskStatus::Cancelled,
-        ..TaskState::default()
+        status: Some(TaskStatus::Cancelled),
+        ..todo()
     };
     for operation in [
         complete(11, before_revision, 500, "2026-10-03"),
@@ -349,10 +350,7 @@ fn stop_and_complete_are_explicit_and_atomic_on_failure_success_and_retry() {
     ] {
         assert_validation(nb.apply(&batch(vec![operation])).unwrap_err(), 0);
         assert_eq!(nb.active_work_session().unwrap(), Some(running.clone()));
-        assert_eq!(
-            nb.capabilities(&id(11)).unwrap().task,
-            Some(TaskState::default())
-        );
+        assert_eq!(nb.capabilities(&id(11)).unwrap().task, Some(todo()));
     }
     let changes_before = nb.changes_since(0, 100).unwrap();
     let bad = batch(vec![
@@ -373,7 +371,7 @@ fn stop_and_complete_are_explicit_and_atomic_on_failure_success_and_retry() {
     let committed = nb.apply(&good).unwrap();
     assert_eq!(nb.active_work_session().unwrap(), None);
     let task = nb.capabilities(&id(11)).unwrap().task.unwrap();
-    assert_eq!(task.status, TaskStatus::Done);
+    assert_eq!(task.status, Some(TaskStatus::Done));
     assert_eq!(task.completed_on.as_deref(), Some("2026-10-03"));
     assert_eq!(revision(&nb, 11), before_revision + 2);
     assert_eq!(
@@ -532,8 +530,8 @@ fn only_active_visible_unfinished_tasks_can_start_or_reopen_work() {
     }
     for task in [
         Some(TaskState {
-            status: TaskStatus::Cancelled,
-            ..TaskState::default()
+            status: Some(TaskStatus::Cancelled),
+            ..todo()
         }),
         None,
     ] {
@@ -550,7 +548,7 @@ fn only_active_visible_unfinished_tasks_can_start_or_reopen_work() {
     let restoring_task = Operation::SetTask {
         id: id(11),
         base_revision: revision(&nb, 11),
-        task: Some(TaskState::default()),
+        task: Some(todo()),
     };
     apply(&mut nb, vec![restoring_task]);
     let hiding = Operation::SetArchived {

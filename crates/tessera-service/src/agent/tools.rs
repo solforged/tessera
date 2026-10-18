@@ -395,7 +395,7 @@ mod tests {
         )
         .unwrap();
         let task = notebook.capabilities(last).unwrap().task.unwrap();
-        assert_eq!(task.status, tessera_core::TaskStatus::Todo);
+        assert_eq!(task.status, Some(tessera_core::TaskStatus::Todo));
         assert_eq!(task.scheduled.as_deref(), Some("2026-10-13"));
         execute(
             &mut notebook,

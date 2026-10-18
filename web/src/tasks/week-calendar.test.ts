@@ -29,7 +29,7 @@ function simulatedQuery(rows: readonly TaskRow[], calls: TaskQuery[]) {
     const matches = rows.filter(value => {
       const date = value.task[field];
       return date !== null && (!range.from || date >= range.from) && (!range.through || date <= range.through)
-        && query.filter.statuses.includes(value.task.status);
+        && value.task.status !== null && query.filter.statuses.includes(value.task.status);
     });
     return { rows: matches.slice(0, query.limit ?? 500), total: matches.length };
   };

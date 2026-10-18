@@ -187,6 +187,12 @@ A quote is frozen; a reference is live. A block whose whole text is `((ID))` is 
 
 A type is an ordinary page used as the target of memberships. A block can have many types. Membership records whether it came from the text (`#book`) or was added manually; either keeps it.
 
+The built-in tags `#task`, `#question`, `#project` and `#source` add behavior to an atom through text or manual membership. Gaining membership activates the matching record with its default state. Losing the last membership deactivates it and keeps its history. An action can still add behavior without writing a tag; unrelated text edits leave that record alone. Removing behavior also removes its text tokens and manual membership, with text rewrites in the change receipt.
+
+Built-in tag pages use their canonical names, such as `Task` and `Person`, when first created by membership. A page named for a built-in tag cannot be deleted, merged away or renamed, except for a change of case. The block's `built_in_tag` flag identifies these pages. The tag registry includes all four behavior tags and the live page ID for each. `tessera check` reports missing or inactive records on tagged atoms; repair activates them again without removing evidence.
+
+`#source` makes a manual Library record with no snapshot, including on an outline atom. Journal roots cannot be sources.
+
 A field definition is a block under the live page titled `Fields`, the system page every workshop has:
 
 - Its name is the block's text.
@@ -285,9 +291,11 @@ An unsaved entity view starts with its key attributes, applicable standfirst fie
 
 ## Tasks
 
-A task capability adds status (todo, doing, waiting, done, canceled), scheduled and deadline dates with optional times, warning lead, repeater and priority. Dates are local civil dates; times are `HH:MM` labels, not timestamps. Scheduling after a deadline is valid. Removing the capability deactivates it without erasing its history.
+A task record adds optional status (todo, doing, waiting, done, canceled), scheduled and deadline dates with optional times, warning lead, repeater and priority. No status means an appointment: a scheduled atom with no checkbox. `@` planning creates an appointment; `#task` and task commands set todo. Adding `#task` to an appointment keeps its dates and adds todo status. Dates are local civil dates; times are `HH:MM` labels, not timestamps. Scheduling after a deadline is valid. Removing the task deactivates it without erasing its history.
 
 Completion records the exact planning snapshot and explicit completion date. A nonrecurring task becomes done; a recurring task stays on its original block and advances its dates. Fixed repeats advance one interval, catch-up repeats skip to the first interval after completion, and after-completion repeats count from the completion date. The scheduled date is the anchor when present, otherwise the deadline. Month/year repeats clamp to the last valid day; the signed separation between scheduled and deadline dates stays intact. Completion never archives. Undo reverses the exact latest occurrence only while its resulting task state still matches.
+
+An appointment cannot be completed or advanced by a repeater. Completion is refused with `Add #task before completing.` A work session also requires an unfinished status.
 
 Status is stored, not a fixed workflow. `SetTask` moves between the unfinished statuses, cancels, or reopens a done task; only `CompleteTask` makes a task done, and a repeating task goes back to todo with its dates advanced. Undo restores the saved status and plan, so it has no arrow.
 
@@ -330,6 +338,8 @@ Clocked work sessions retain their start, end, note and revision. Only one unrev
 
 Task queries compose source type/text/field constraints with task status, priority, project ancestry and independent date ranges. Unfinished-or-recent selection includes unfinished tasks or an unreversed completion in the inclusive context-date range. Filtering precedes the outer result limit. The client query line resolves type and project titles to canonical IDs and relative dates to civil dates; field predicates remain separate from its text syntax. Named task views retain the full query, including its date context, rather than a textual query.
 
+Task views exclude appointments, even with no status filter. Agenda day reads include appointments on their exact scheduled or deadline date, with the time and no checkbox. They do not carry an appointment forward as overdue work.
+
 An agenda takes the displayed civil date, never an implicit device date. It merges schedule, deadline, warning, overdue, unplanned and in-progress reasons into one live row per canonical source. A completion on that date separately shows the latest occurrence's planning snapshot as done history; it never replaces the live task's advanced plan or current status. Canceled tasks are excluded. Opening a row edits the original block; the journal contains no copied tasks.
 
 ## Investigations
@@ -365,7 +375,7 @@ The Questions ledger groups questions by their top-level program, includes inlin
 
 ### Snapshots and passages
 
-A source is a page with a source capability. Ingesting the same URL or file with different bytes creates a new, immutable snapshot identified by its content hash.
+A source is an atom with a source record. Library ingestion creates a page; `#source` can also activate an outline atom with no snapshot. Ingesting the same URL or file with different bytes creates a new, immutable snapshot identified by its content hash.
 
 - A snapshot holds the document's structure and passages: headings, paragraphs, footnotes and other units, each with a locator.
 - Original bytes live in the workshop's object store, addressed by SHA-256.
@@ -560,7 +570,7 @@ Types you define are also kinds, listed after the built-ins:
 
 - A type can refine one built-in kind, as Philosopher refines Person. Its members are filed under both; positions and creators treat them as that kind.
 - A note can have more than one kind and is filed under each. A note with none is unfiled.
-- Tasks and cards are not kinds. They belong to blocks within notes; Agenda and Review are their places.
+- Tasks are a built-in tag kind, available on pages and outline atoms. Cards are faces derived from atom text. Agenda and Review remain their places.
 
 A source's form is a built-in Form choice field: book, chapter, article, paper, report, post, thread, video or web page, with more options added as for any choice field. Lookup and ingestion fill it, and export writes it as the CSL type and BibTeX entry type.
 
@@ -658,7 +668,7 @@ A note capability on the page holds the resolved timestamp, revisit date and whe
 
 The index lists kinds with note members or tagged non-page blocks, keeping their counts independent. Kinds with notes open a finding aid; tag-only types open their member table. Tagged blocks do not increase the distinct-note total or file their containing page under that kind. The finding aid is the unsaved note view for that kind, as a type table is for a type. It is derived from kinds and is never stored.
 
-The index is also the tag registry. Every kind carries its glyph, its type page's template as field IDs, the count of live cards on its members (its tag deck) and whether `#name` names it: built-in type kinds and types you make do, capabilities and Unfiled do not. Every surface that offers a kind reads it: the sidebar, the creation slip, `#` completion, the deck editor's type choice and the Commands list. `#` completion offers a built-in kind by name before its page exists; choosing it writes the tag, and the save makes the page and applies its starting template. A type's read names the starting template's fields while its template is empty, so no client keeps a copy of the schema.
+The index is also the tag registry. Every kind carries its glyph, its type page's template as field IDs, the count of live cards on its members (its tag deck) and whether `#name` names it. Built-in types, behavior tags and types you make report `tag: true`; Unfiled does not. Every surface that offers a kind reads it: the sidebar, the creation slip, `#` completion, the deck editor's type choice and the Commands list. `#` completion offers a built-in kind by name before its page exists. Choosing it writes the tag, and the save makes the page and applies its starting template. A type's read names the starting template's fields while its template is empty, so no client keeps a copy of the schema.
 
 A note view queries notes with a layout and grouping. It selects by kind and supports the block query's type, text and field predicates, plus:
 
@@ -714,6 +724,8 @@ A spread opened from a selection is unsaved navigation state; Save spread create
 Compare perspectives remains the sheet for positions on one subject; a spread compares whole notes.
 
 ## Cards
+
+Cards are not a built-in tag. Card syntax adds a face to an atom; its tags determine which tag decks include it. Adding a behavior tag such as `#task` does not create a card or change existing review history.
 
 ### Syntax
 

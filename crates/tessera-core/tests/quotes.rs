@@ -41,7 +41,7 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
         vec![
             Operation::CreatePage {
                 id: id(1),
-                title: "Source".into(),
+                title: "Quoted source".into(),
             },
             Operation::CreatePage {
                 id: id(2),
