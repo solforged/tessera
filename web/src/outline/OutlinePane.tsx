@@ -315,8 +315,8 @@ function Pane(props: OutlinePaneProps) {
       if (!offer || disposed) return;
       const name = definitionsById().get(fieldId)?.name ?? 'This field';
       // The tag as the owner spells it, else the type's title.
-      const typed = textTokens(owner.text).find(token => token.kind === 'tag' && token.value.trim().toLowerCase() === offer.type.page.text.toLowerCase());
-      const tag = typed ? `#${typed.value.trim()}` : offer.type.page.text;
+      const typed = textTokens(owner.text).find(token => token.kind === 'tag' && (token.id ? token.id === offer.type.page.id : token.value.trim().toLowerCase() === offer.type.page.text.toLowerCase()));
+      const tag = typed ? `#${offer.type.page.text}` : offer.type.page.text;
       showNotice(`${name} is on another ${tag} too.`, undefined, { label: `Add to ${tag}`, run: async () => {
         const change = await addTemplateField(props.notebook, offer.type, fieldId);
         showNotice(`${name} added to ${tag}.`, change.undo);
@@ -1425,9 +1425,11 @@ function Pane(props: OutlinePaneProps) {
       input: referenceInput,
       label: id => { const target = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(id) ? props.notebook.lookup(id)() : undefined; return target ? plainText(target.text, reference => props.notebook.lookup(reference)) : undefined; },
       isSource: id => !!referenceSources()?.has(id),
-      tag: title => {
-        const kind = tagRegistry.error ? undefined : tagRegistry()?.kinds.find(kind => kind.tag && foldName(kind.name) === foldName(title));
-        return kind ? { name: kind.name, icon: noteKindIcon(kind) } : undefined;
+      tag: (title, id) => {
+        const target = id ? props.notebook.lookup(id)() : undefined;
+        const name = target?.text || title || id || '';
+        const kind = tagRegistry.error ? undefined : tagRegistry()?.kinds.find(kind => kind.tag && (id ? kind.type_id === id : foldName(kind.name) === foldName(title)));
+        return { name, icon: kind ? noteKindIcon(kind) : undefined, unresolved: !!id && target === null };
       },
       nameMatches: name => editingNames.error ? undefined : editingNames()?.get(foldName(name)),
       referenceMenu: (token, anchor) => {
@@ -1439,6 +1441,11 @@ function Pane(props: OutlinePaneProps) {
           if (isViewReference(token)) {
             const view = (await props.notebook.api.views()).find(view => view.id === token.id);
             if (view && !disposed) props.onOpen({ kind: 'table', typeId: view.query.type, viewId: view.id, query: view.query }, beside);
+            return;
+          }
+          if (token.kind === 'tag') {
+            const id = token.id ?? await props.notebook.pageByTitle(token.value, false);
+            if (id && !disposed) props.onOpen({ kind: 'page', pageId: id }, beside);
             return;
           }
           const matches = isStableReference(token) ? null : await resolveName(props.notebook, token.id!);
@@ -1599,7 +1606,7 @@ function Pane(props: OutlinePaneProps) {
     if (!editingNames.error) editingNames();
     referenceSources();
     if (!tagRegistry.error) tagRegistry();
-    for (const token of textTokens(text)) if (isStableReference(token)) props.notebook.lookup(token.id!)();
+    for (const token of textTokens(text)) if (isStableReference(token) || token.kind === 'tag' && token.id) props.notebook.lookup(token.id!)();
     queueMicrotask(() => { if (!disposed && editor?.id === id) editor.refreshLabels(); });
   });
   let previousVisible: string[] = [];

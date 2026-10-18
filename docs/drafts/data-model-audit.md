@@ -45,7 +45,7 @@ Severity is about data loss or silent divergence first, then cost at 50,000 bloc
 
 ### R1. Tags are addressed by title
 
-Engine built in migration 051: tags and memberships address page IDs, rename leaves member text alone, and check reports and repairs tag derivation. Web rendering and completion remain.
+Built in migration 051 and the web client: tags and memberships address page IDs, rename leaves member text alone, pills read live titles, and completion inserts IDs. Check reports and repairs tag derivation.
 
 `memberships` keys on `title_key`, with `type_id` resolved at derivation time (`storage.rs::resolve_type`). A type rename runs `rewrite_incoming_tags`, which rewrites the text of every member block and reports `text_rewrites` to the client. The Unicode migration (047) had to widen the primary key to `(block_id, title, manual)` to keep "legacy canonical collisions", which is the schema admitting the key is not an identity.
 
@@ -118,13 +118,13 @@ Addresses R8. Use P1's per-table hashes. After a pull, a replica sends the hashe
 
 ### P3. Tags addressed by ID
 
-Engine built. `text_rewrites` stays for normalization, removal and merging, not rename. Migration leaves unresolved legacy tags in the text for check to report.
+Built. `text_rewrites` stays for normalization, removal and merging, not rename. The editor accepts normalized text and keeps the caret and undo history. Migration leaves unresolved legacy tags in the text for check to report.
 
 Addresses R1. Make a tag canonical as `#[[id|Title]]`, the same shape references already use, and derive memberships from the ID. The spelling after the bar is display only and is rewritten lazily when the block is next edited, never in bulk.
 
 - Hand-typed `#Title` resolves at commit exactly as hand-typed `[[Title]]` does today: one match links, none creates, several stay unlinked and marked. The client already does this for references.
 - `memberships` drops `title_key` and `title` as keys, keeping `type_id` as the identity and `title` as the authored spelling for display.
-- Renaming a type page touches one row. `rewrite_incoming_tags`, `prepare_tag_rename` and the `text_rewrites` receipt field go away.
+- Renaming a tag page touches one row. `rewrite_incoming_tags` and `prepare_tag_rename` are gone; `text_rewrites` remains for normalization.
 - Migration rewrites `#Title` tokens to `#[[id|Title]]` once, resolving by the current title key, and records unresolvable ones as unlinked tags exactly as a hand-typed ambiguous reference is marked today.
 
 Borrowed from Tana's supertags and Logseq DB's classes. Cost: the largest proposal here, perhaps two weeks including the editor's tag completion and rendering. Risk: a one-time text migration, so it needs P1 first and a pre-migration backup, which install already takes.

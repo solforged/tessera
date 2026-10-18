@@ -55,12 +55,11 @@ export async function completeTypes(notebook: NotebookClient, query: string): Pr
   };
 }
 
-/** Match the inline tag grammar; titles containing spaces or punctuation use the bracketed spelling. */
-export function typeSpelling(title: string): string {
-  return /^[\p{L}\p{M}\p{N}_/-]+$/u.test(title) ? `#${title}` : `#[[${title}]]`;
+/** Existing pages are addressed by identity; new tags normalize when their write commits. */
+export function typeSpelling(title: string, id?: string): string {
+  return id ? `#[[${id}|${/[\[\]|\r\n]/.test(title) ? '' : title}]]` : /^[\p{L}\p{M}\p{N}_/-]+$/u.test(title) ? `#${title}` : `#[[${title}]]`;
 }
 
-/** A typed tag that already names the chosen type keeps the writer's spelling; only a different title replaces it. */
-export function typeChoiceSpelling(query: string, title: string): string {
-  return typeSpelling(query.toLocaleLowerCase() === title.toLocaleLowerCase() ? query : title);
+export function typeChoiceSpelling(query: string, title: string, id?: string): string {
+  return typeSpelling(id ? title : query.toLocaleLowerCase() === title.toLocaleLowerCase() ? query : title, id);
 }

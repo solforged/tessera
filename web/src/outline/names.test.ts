@@ -18,6 +18,19 @@ test('folded Find highlights map back to complete original glyphs and UTF-16 off
   expect(foldedHighlights('no match', '?!')).toEqual([]);
   expect(foldedHighlights('ΟΣ', 'ΟΣ')).toEqual([[0, 2]]);
 });
+
+test('tag labels follow the live title, falling back to an alias or missing identity', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  const text = `read #[[${id}|Arabic]]`;
+  let target: Block | null = page(id, 'Arabic');
+  const lookup = () => () => target;
+  expect(plainText(text, lookup)).toBe('read #Arabic');
+  target = page(id, 'Arabe');
+  expect(plainText(text, lookup)).toBe('read #Arabe');
+  target = null;
+  expect(plainText(text, lookup)).toBe('read #Arabic');
+  expect(plainText(`#[[${id}|]]`, lookup)).toBe(`#${id}`);
+});
 const match: NameMatch = { page: page('target', 'Cicero'), alias: 'Tully' };
 
 test('plain-text exports and ambiguous-name choices preserve locators', () => {

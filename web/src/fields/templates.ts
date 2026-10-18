@@ -8,7 +8,7 @@ import { titleKey } from '../document/title-key';
 /** A block's types as canonical case-folded keys: `#tags`, then manual types, each once. */
 export function typeKeys(text: string, manual: readonly string[]): string[] {
   const keys = new Set<string>();
-  for (const token of textTokens(text)) if (token.kind === 'tag' && token.value.trim()) keys.add(titleKey(token.value.trim()));
+  for (const token of textTokens(text)) if (token.kind === 'tag' && (token.id || token.value.trim())) keys.add(token.id?.toLowerCase() ?? titleKey(token.value.trim()));
   for (const title of manual) if (title.trim()) keys.add(titleKey(title.trim()));
   return [...keys];
 }

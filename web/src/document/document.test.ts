@@ -23,6 +23,7 @@ import { addArrival, embedTarget } from '../outline/streams';
 import { isReadingSubject, readingDisagreementRows, readingRegister } from '../outline/read-register';
 import { changeRevisit } from '../review/revisits';
 import { TaskSourceHistory } from '../tasks/source-history';
+import { plainText } from '../outline/names';
 
 const port = Bun.env.TESSERA_TEST_PORT ?? '4330';
 const baseUrl = `http://127.0.0.1:${port}`;
@@ -706,8 +707,29 @@ describe('real notebook operations and recovery', () => {
     success(doc.edit({ kind: 'text', id: first, text: `#${tag} ` }));
     doc.holdTag(first, false);
     await eventually(() => doc.saveState() === 'saved', 'the finished tag did not save');
-    expect((await api.block(first)).text).toBe(`#${tag} `);
-    expect(await api.pageByTitle(tag)).not.toBeNull();
+    const target = await api.pageByTitle(tag);
+    expect((await api.block(first)).text).toBe(`#[[${target.id}|${tag}]] `);
+    expect(doc.block(first)?.text).toBe(`#[[${target.id}|${tag}]] `);
+    doc.release();
+  });
+
+  test('a hand-typed tag receipt updates the open document and preserves the redo caret', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'base');
+    const title = `CaretTag${++serial}`, text = `read #${title}`;
+    const before = { id: first, offset: 4 };
+    success(doc.edit({ kind: 'text', id: first, text, caret: text.length, group: 91 }, before));
+    await instance.flush();
+    const target = await api.pageByTitle(title);
+    const canonical = `read #[[${target.id}|${title}]]`;
+    expect(doc.block(first)?.text).toBe(canonical);
+    expect((await api.block(first)).text).toBe(canonical);
+    expect(doc.undo()).toEqual(before);
+    await instance.flush();
+    expect(doc.block(first)?.text).toBe('base');
+    expect(doc.redo()).toEqual({ id: first, offset: canonical.length });
+    await instance.flush();
+    expect(doc.block(first)?.text).toBe(canonical);
     doc.release();
   });
 
@@ -1096,7 +1118,7 @@ describe('real notebook operations and recovery', () => {
         expect(acknowledged).toEqual([scenario.title]);
         const row = (await api.page(id)).rows.find(row => row.block.id === first)!;
         if (scenario.manual) expect(row.manual_types).toEqual([scenario.title]);
-        else expect(row.block.text).toBe(`#${scenario.title}`);
+        else expect(row.block.text).toBe(`#[[${target.id}|${scenario.title}]]`);
       } finally {
         instance.api.startingTemplate = startingTemplate;
         doc.release();
@@ -1805,12 +1827,13 @@ describe('real notebook operations and recovery', () => {
     } finally { globalThis.fetch = actualFetch; }
   });
 
-  test('undo queued before a rename acknowledgement restores exact cross-page tag spellings', async () => {
+  test('undo queued before a tag rename acknowledgement keeps member text unchanged', async () => {
     const instance = await client();
     const number = ++serial;
     const before = `#rACE${number} / #[[Race${number}]]`;
     const source = await page(instance, before);
     const root = await api.pageByTitle(`Race${number}`);
+    const canonical = (await api.block(source.first)).text;
     const tagged = instance.open(root.id);
     await eventually(() => tagged.status() === 'ready', 'race tag page did not load');
     await instance.flush();
@@ -1831,13 +1854,13 @@ describe('real notebook operations and recovery', () => {
       gate.resolve();
       await saving;
       expect((await api.block(root.id)).text).toBe(root.text);
-      expect((await api.block(source.first)).text).toBe(before);
-      expect(source.doc.block(source.first)?.text).toBe(before);
+      expect((await api.block(source.first)).text).toBe(canonical);
+      expect(source.doc.block(source.first)?.text).toBe(canonical);
       expect(instance.queuedChanges()).toBe(0);
     } finally { gate.resolve(); globalThis.fetch = actualFetch; }
   });
 
-  test('tag rename receipts update shared sources and undo restores exact spelling and membership', async () => {
+  test('tag page rename updates live labels without changing member text or membership', async () => {
     const instance = await client();
     const number = ++serial;
     const title = `Tag${number}`;
@@ -1845,49 +1868,28 @@ describe('real notebook operations and recovery', () => {
     const source = await page(instance, before);
     const other = await page(instance, `#TAG${number}`);
     const root = await api.pageByTitle(title);
+    const canonical = (await api.block(source.first)).text;
+    const otherCanonical = (await api.block(other.first)).text;
     const tagged = instance.open(root.id);
     await eventually(() => tagged.status() === 'ready', 'tag page did not load');
     await instance.flush();
     const renamed = `Renamed Tag ${number}`;
     success(tagged.rename(renamed));
     await instance.flush();
-    const after = `#[[${renamed}]] / #[[${renamed}]] / [[${title}]]`;
-    expect(source.doc.block(source.first)?.text).toBe(after);
-    expect(instance.lookup(other.first)()?.text).toBe(`#[[${renamed}]]`);
+    expect(source.doc.block(source.first)?.text).toBe(canonical);
+    expect(instance.lookup(other.first)()?.text).toBe(otherCanonical);
+    expect(plainText(canonical, id => instance.lookup(id))).toContain(`#${renamed}`);
     tagged.undo();
     await instance.flush();
     expect((await api.block(root.id)).text).toBe(root.text);
-    expect((await api.block(source.first)).text).toBe(before);
-    expect((await api.block(other.first)).text).toBe(`#TAG${number}`);
+    expect((await api.block(source.first)).text).toBe(canonical);
+    expect((await api.block(other.first)).text).toBe(otherCanonical);
     expect((await api.members(root.id)).map(row => row.block.id).sort()).toEqual([source.first, other.first].sort());
     tagged.redo();
     await instance.flush();
-    expect((await api.block(source.first)).text).toBe(after);
+    expect((await api.block(source.first)).text).toBe(canonical);
   });
 
-  test('equal-text tag receipts guard rename undo against a concurrently edited source', async () => {
-    const instance = await client();
-    const number = ++serial;
-    const original = `GUARD${number}`;
-    const source = await page(instance, `#${original}`);
-    const root = await api.pageByTitle(original);
-    const tagged = instance.open(root.id);
-    await eventually(() => tagged.status() === 'ready', 'guard tag did not load');
-    const renamed = `Guard${number}`;
-    success(tagged.rename(renamed));
-    await instance.flush();
-    tagged.undo();
-    await instance.flush();
-    tagged.redo();
-    await instance.flush();
-    const current = await api.block(source.first);
-    await api.submit({ actor: { kind: 'agent', name: 'concurrent guarded source edit' }, operations: [{ op: 'edit_text', id: source.first, base_revision: current.revision, text: `#${original} concurrent` }] });
-    tagged.undo();
-    await instance.flush();
-    expect((await api.block(root.id)).text).toBe(renamed);
-    expect((await api.block(source.first)).text).toBe(`#${original} concurrent`);
-    expect(instance.saveState()).toBe('error');
-  });
 
   test('ReceiptBook rename updates its own source before the next ordinary edit can recreate the old tag', async () => {
     const instance = await client();
@@ -1898,10 +1900,10 @@ describe('real notebook operations and recovery', () => {
     await instance.flush();
     success(doc.rename('ReceiptFilm'));
     await instance.flush();
-    expect(doc.block(first)?.text).toBe('#ReceiptFilm');
+    expect(doc.block(first)?.text).toBe(`#[[${id}|ReceiptBook]]`);
     success(doc.edit({ kind: 'text', id: first, text: `${doc.block(first)!.text} .` }));
     await instance.flush();
-    expect((await api.block(first)).text).toBe('#ReceiptFilm .');
+    expect((await api.block(first)).text).toBe(`#[[${id}|ReceiptFilm]] .`);
     expect((await api.pageByTitle('ReceiptFilm')).id).toBe(id);
     await expect(api.pageByTitle('ReceiptBook')).rejects.toHaveProperty('status', 404);
     doc.undo();
@@ -1909,7 +1911,8 @@ describe('real notebook operations and recovery', () => {
     doc.undo();
     await instance.flush();
     expect((await api.block(id)).text).toBe('ReceiptBook');
-    expect((await api.block(first)).text).toBe('#ReceiptBook');
+    expect((await api.block(first)).text).toBe(`#[[${id}|ReceiptFilm]]`);
+    expect(plainText(doc.block(first)!.text, id => instance.lookup(id))).toBe('#ReceiptBook');
   });
 
   test('split, merge, move and delete preserve identities across saves and shared undo', async () => {

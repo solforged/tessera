@@ -141,11 +141,12 @@ export function fieldEntryExtension(resolve: FieldResolver, kindOf: FieldKindRes
 const refreshLabels = StateEffect.define<null>();
 
 class ReferenceWidget extends WidgetType {
-  constructor(readonly label: string, readonly length: number, readonly token: Token, readonly ambiguous: boolean, readonly choose?: EditorHooks['referenceMenu'], readonly citation = false, readonly open?: EditorHooks['openReference'], readonly icon?: IconName) { super(); }
-  eq(other: ReferenceWidget): boolean { return this.label === other.label && this.length === other.length && this.token.start === other.token.start && this.token.id === other.token.id && this.token.locator === other.token.locator && this.ambiguous === other.ambiguous && this.citation === other.citation && this.icon === other.icon; }
+  constructor(readonly label: string, readonly length: number, readonly token: Token, readonly ambiguous: boolean, readonly choose?: EditorHooks['referenceMenu'], readonly citation = false, readonly open?: EditorHooks['openReference'], readonly icon?: IconName, readonly unresolved = false) { super(); }
+  eq(other: ReferenceWidget): boolean { return this.label === other.label && this.length === other.length && this.token.start === other.token.start && this.token.id === other.token.id && this.token.locator === other.token.locator && this.ambiguous === other.ambiguous && this.citation === other.citation && this.icon === other.icon && this.unresolved === other.unresolved; }
   toDOM(view: EditorView): HTMLElement {
     const dom = document.createElement('span');
     dom.className = this.token.kind === 'tag' ? 'outline-tag' : `outline-reference${this.ambiguous ? ' outline-reference-ambiguous' : ''}${this.citation ? ' outline-citation' : ''}`;
+    if (this.unresolved) dom.classList.add('outline-reference-unresolved');
     if (this.icon) dom.append(glyphElement(this.icon));
     dom.append(document.createTextNode(this.label));
     if (this.citation) dom.dataset.citation = '';
@@ -194,8 +195,8 @@ export function referenceDecorations(text: string, head: number, label: EditorHo
   return Decoration.set(textTokens(text).flatMap(token => {
     if (token.kind === 'tag') {
       if (head > token.start && head < token.end) return [];
-      const presentation = tag?.(token.value);
-      return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(`#${presentation?.name ?? token.value}`, token.end - token.start, token, false, undefined, false, undefined, presentation?.icon) }).range(token.start, token.end)];
+      const presentation = tag?.(token.value, token.id);
+      return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(`#${presentation?.name || token.alias || token.value || token.id}`, token.end - token.start, token, false, undefined, false, open, presentation?.icon, presentation?.unresolved) }).range(token.start, token.end)];
     }
     if (token.kind !== 'reference' || /[\r\n]/.test(token.value) || head > token.start && head < token.end) return [];
     const stable = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id!);
@@ -298,7 +299,7 @@ export interface EditorHooks {
   input(view: EditorView, from: number, to: number, text: string): boolean;
   label(id: string): string | undefined;
   isSource?(id: string): boolean;
-  tag?(title: string): { name: string; icon: IconName } | undefined;
+  tag?(title: string, id?: string): { name: string; icon?: IconName; unresolved?: boolean } | undefined;
   nameMatches?(name: string): NameMatch[] | undefined;
   referenceMenu?(token: Token, anchor: HTMLElement): void;
   openReference?(token: Token, beside: boolean): void;
@@ -506,8 +507,11 @@ export class PaneEditor {
   sync(text: string): void {
     if (this.composing || text === this.view.state.doc.toString()) return;
     this.replacing = true;
-    const offset = Math.min(this.view.state.selection.main.head, text.length);
-    this.view.dispatch({ changes: { from: 0, to: this.view.state.doc.length, insert: text }, selection: { anchor: offset } });
+    const previous = this.view.state.doc.toString();
+    let from = 0, beforeEnd = previous.length, afterEnd = text.length;
+    while (from < beforeEnd && from < afterEnd && previous[from] === text[from]) from++;
+    while (beforeEnd > from && afterEnd > from && previous[beforeEnd - 1] === text[afterEnd - 1]) { beforeEnd--; afterEnd--; }
+    this.view.dispatch({ changes: { from, to: beforeEnd, insert: text.slice(from, afterEnd) } });
     this.replacing = false;
   }
 

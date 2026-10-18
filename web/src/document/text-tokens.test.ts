@@ -78,6 +78,23 @@ test('bare Unicode tags include every combining mark and agree with type spellin
   ]);
 });
 
+test('canonical and legacy tags keep their identity, alias and exact source span', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  const source = `#Arabic #[[Reading list]] #[[${id}|Arabic]] #[[${id}|]] \`#[[${id}|hidden]]\``;
+  expect(textTokens(source).filter(token => token.kind === 'tag').map(token => ({
+    id: token.id, alias: token.alias, value: token.value, source: source.slice(token.start, token.end),
+  }))).toEqual([
+    { id: undefined, alias: undefined, value: 'Arabic', source: '#Arabic' },
+    { id: undefined, alias: undefined, value: 'Reading list', source: '#[[Reading list]]' },
+    { id, alias: 'Arabic', value: 'Arabic', source: `#[[${id}|Arabic]]` },
+    { id, alias: '', value: '', source: `#[[${id}|]]` },
+  ]);
+  for (const alias of ['a|b', 'a[b', 'a\nb']) {
+    expect(textTokens(`#[[${id}|${alias}]]`).filter(token => token.kind === 'tag')).toEqual([]);
+  }
+  expect(textTokens(`#[[${id.toLowerCase()}|Arabic]]`)[0]?.id).toBeUndefined();
+});
+
 test('saved view targets keep their name and never become block targets', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
   const text = `[[view:${id}|Open questions]]`;

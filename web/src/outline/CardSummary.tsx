@@ -13,7 +13,7 @@ import { Popup } from '../ui/Popup';
 import { BlockText } from './BlockText';
 import { OcclusionFigure } from '../review/OcclusionFigure';
 
-export function CardSummary(props: { blockId: string; cards: ParsedCard[]; deckNames?: readonly string[]; templateCount?: number; notebook: NotebookClient; register?: (control: { open(anchor: HTMLElement): void } | undefined) => void; onOpen(target: OpenTarget, beside: boolean): void }) {
+export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks?: readonly { id?: string; name: string }[]; templateCount?: number; notebook: NotebookClient; register?: (control: { open(anchor: HTMLElement): void } | undefined) => void; onOpen(target: OpenTarget, beside: boolean): void }) {
   const keys = createMemo(() => props.cards.map(card => card.key).join('\n'));
   const [stored, setStored] = createSignal<CardUnit[]>([]);
   const [storedSequence, setStoredSequence] = createSignal(-1);
@@ -65,8 +65,8 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; deckN
     const held = cards.filter(card => card.held).length;
     return { count, due, held, text: `${count} ${count === 1 ? 'card' : 'cards'}` };
   });
-  async function openDeck(name: string, beside: boolean) {
-    const id = await props.notebook.pageByTitle(name, false);
+  async function openDeck(deck: { id?: string; name: string }, beside: boolean) {
+    const id = deck.id ?? await props.notebook.pageByTitle(deck.name, false);
     if (!disposed && id) props.onOpen({ kind: 'review', deckId: id }, beside);
   }
   const confirmation = createMemo(() => stored().find(card => card.id === confirm()));
@@ -111,8 +111,8 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; deckN
         open(event.currentTarget);
       }}>{label().text}</Button>
       <span class="outline-card-count" aria-hidden="true"> · </span>
-      <Show when={props.deckNames?.length} fallback={<span class="outline-card-count">untagged</span>}>
-        <For each={props.deckNames}>{(name, index) => <>{index() > 0 ? ' ' : ''}<Button class="outline-planning outline-card-count" title={`Review #${name}`} onClick={event => { event.stopPropagation(); void openDeck(name, opensBeside(event)); }}>#{name}</Button></>}</For>
+      <Show when={props.decks?.length} fallback={<span class="outline-card-count">untagged</span>}>
+        <For each={props.decks}>{(deck, index) => <>{index() > 0 ? ' ' : ''}<Button class="outline-planning outline-card-count" title={`Review #${deck.name}`} onClick={event => { event.stopPropagation(); void openDeck(deck, opensBeside(event)); }}>#{deck.name}</Button></>}</For>
       </Show>
       <Show when={label().due}><span class="outline-card-count">· {label().due} due</span></Show>
       <Show when={label().held}><span class="outline-card-count">· {label().held} not yet</span></Show>

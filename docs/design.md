@@ -549,7 +549,7 @@ A change the workshop refused shows and copies the words it carried. Only a chan
 
 Undo preserves another window's later text by patching only non-overlapping regions. If the regions overlap, it skips that history entry and says `Changed elsewhere; nothing to undo here`.
 
-Undo of a page rename also guards the tag spellings it rewrites in other pages. If a source changed, the rename stays in place and the rejected command is retained.
+A tag page rename changes no member text. Undo restores the page title, and every pill follows the live title by ID.
 
 A version that sync kept beside a block sits under it, inset behind a hairline at its left, under a mono label (`Sol's Fold's version, kept beside`). Use this, Discard and Keep both follow as bordered buttons in the control font. Each is one undoable step.
 
@@ -669,7 +669,7 @@ A hand-typed reference spanning lines or containing a nested `[[opener]]` stays 
 
 #### Types
 
-`#` at block start or after whitespace opens a type picker under the hash once a non-space name character follows. It searches the same pages as Add type and offers Create type for a new name. Enter or Tab replaces the token with `#Title` for a single word of Unicode letters, combining marks, numbers, `_`, `-` or `/`, otherwise `#[[Title]]`, followed by a space. Escape keeps the text. Web rendering and server membership derivation use that same bare-name character set.
+`#` at block start or after whitespace opens a tag picker under the hash once a non-space name character follows. It searches the same pages as Add type and offers Create type for a new name. Enter or Tab inserts `#[[id|Title]]` for an existing page, followed by a space. A new tag or a built-in without a page uses `#Title`, or `#[[Title]]` for a name with spaces or punctuation, until the save normalizes it. Escape keeps the text. Pills read the live title by ID, falling back to the alias and then the ID in faint ink when the target is gone. A rename changes the pill without changing the member's text.
 
 A bare `#`, `# `, repeated hashes, URL fragments, references, code, card/cloze syntax and field shorthand do not open the type picker; `# ` at block start still makes a heading.
 

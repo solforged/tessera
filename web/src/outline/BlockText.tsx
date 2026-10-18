@@ -9,7 +9,7 @@ import { TypePill } from './references';
 import { isCapabilityTag } from './capabilities';
 import { createCitationSources } from './source-reads';
 import { Menu } from '../ui/Menu';
-import { deletedHolderLabel, foldedHighlights, foldName, nameMenuItems, plainText, referenceLabel, resolveName } from './names';
+import { deletedHolderLabel, foldedHighlights, foldName, nameMenuItems, plainText, referenceLabel, resolveName, tagLabel } from './names';
 import type { NameMatch } from '../api/types';
 import { cardMarks, cardOperators } from '../review/card-text';
 import type { CardMark } from '../review/card-text';
@@ -75,9 +75,9 @@ function TokenText(props: Props) {
       const resolved = token.kind === 'reference' && !isStableReference(token) && !isViewReference(token) && !matches.error ? matches()?.get(foldName(token.id!)) : undefined;
       const ambiguous = !!resolved && resolved.length > 1;
       const literal = group.mark?.kind !== 'operator' && (token.kind === 'text' || token.kind === 'reference' && !isStableReference(token) && !isViewReference(token) && !ambiguous);
-      const target = isStableReference(token) ? props.notebook.lookup(token.id!)() : undefined;
+      const target = isStableReference(token) || token.kind === 'tag' && token.id ? props.notebook.lookup(token.id!)() : undefined;
       const field = props.field?.id === token.id ? props.field : undefined;
-      const baseLabel = isViewReference(token) ? views()?.find(view => view.id === token.id)?.name || token.alias || 'Saved view' : ambiguous ? token.alias || token.id! : token.kind === 'url' ? token.alias ?? token.value : group.mark?.kind === 'operator' || literal ? token.value : token.kind === 'tag' ? `#${token.value}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id), undefined, props.deletedHolder && props.deletedHolder.id === token.id ? deletedHolderLabel(props.deletedHolder) : undefined);
+      const baseLabel = isViewReference(token) ? views()?.find(view => view.id === token.id)?.name || token.alias || 'Saved view' : ambiguous ? token.alias || token.id! : token.kind === 'url' ? token.alias ?? token.value : group.mark?.kind === 'operator' || literal ? token.value : token.kind === 'tag' ? `#${tagLabel(token, id => props.notebook.lookup(id))}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id), undefined, props.deletedHolder && props.deletedHolder.id === token.id ? deletedHolderLabel(props.deletedHolder) : undefined);
       const source = props.citationApparatus ? citationSources()?.get(token.id!) : undefined;
       const label = (source?.siglum ?? baseLabel) + (!literal && token.locator ? `${source ? ' · ' : '\u2009'}${token.locator}` : '');
       const result: DisplayToken = { ...token, label, target, literal, visibleStart, matches: ambiguous ? resolved : undefined };
@@ -155,8 +155,8 @@ function TokenText(props: Props) {
             onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}><span data-source-start={token.labelStart ?? token.start} data-source-end={(token.labelStart ?? token.start) + token.label.length} data-source-literal>{text(token)}</span></a>
         </Show>
       </Show>
-      <Show when={token.kind === 'tag' && !isCapabilityTag(token.value)}>
-        <TypePill title={token.value} notebook={props.notebook} onOpen={props.onOpen} interactive={props.interactive} start={token.start} end={token.end}>{text(token)}</TypePill>
+      <Show when={token.kind === 'tag' && !isCapabilityTag(token.target?.text ?? (token.id ? '' : token.value))}>
+        <TypePill id={token.id} title={token.alias || token.value} notebook={props.notebook} onOpen={props.onOpen} interactive={props.interactive} start={token.start} end={token.end}>{text(token)}</TypePill>
       </Show>
     </>)}</For>;
   }

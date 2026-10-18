@@ -107,6 +107,11 @@ export function referenceLabel(token: Token, target: Block | null | undefined, l
   return targetLabel(target.text, lookup, new Set([...seen, target.id])) || 'Empty block';
 }
 
+/** Tag aliases are a fallback, never an override of the live page title. */
+export function tagLabel(token: Pick<Token, 'id' | 'alias' | 'value'>, lookup: NotebookClient['lookup']): string {
+  return (token.id ? lookup(token.id)()?.text : undefined) || token.alias || token.value || token.id || '';
+}
+
 /** One readable attribution for deleted holders in rows, headings and navigation labels. */
 export function deletedHolderLabel(holder: { text: string }): string {
   return `${holder.text || 'Unnamed holder'} · Deleted holder`;
@@ -117,11 +122,11 @@ export function targetLabel(text: string, lookup: NotebookClient['lookup'], seen
   if (quoteTarget(text)) return plainText(text, lookup, seen);
   const tokens = textTokens(text.trim().split('\n', 1)[0] ?? '');
   while (tokens.length && (tokens.at(-1)!.kind === 'tag' || (tokens.at(-1)!.kind === 'text' && !tokens.at(-1)!.value.trim()))) tokens.pop();
-  return tokens.map(token => token.kind === 'tag' ? token.value : plainToken(token, lookup, seen)).join('').trim();
+  return tokens.map(token => token.kind === 'tag' ? tagLabel(token, lookup) : plainToken(token, lookup, seen)).join('').trim();
 }
 
 function plainToken(token: Token, lookup: NotebookClient['lookup'], seen: ReadonlySet<string>, deletedHolder?: { id: string; text: string } | null): string {
-  return isViewReference(token) ? token.alias || 'Saved view' : isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen, deletedHolder && deletedHolder.id === token.id ? deletedHolderLabel(deletedHolder) : undefined) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${token.value}` : token.kind === 'url' ? token.alias ?? token.value : token.value;
+  return isViewReference(token) ? token.alias || 'Saved view' : isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen, deletedHolder && deletedHolder.id === token.id ? deletedHolderLabel(deletedHolder) : undefined) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${tagLabel(token, lookup)}` : token.kind === 'url' ? token.alias ?? token.value : token.value;
 }
 
 /** The shared live display pipeline used by reference labels, breadcrumbs and field previews. */

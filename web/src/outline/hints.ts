@@ -69,7 +69,7 @@ export function createOutlineHints(options: {
       if (detectedTypes.has(type.id)) continue;
       for (let at = 0; at < doc.outline.size(); at++) {
         const block = doc.block(doc.outline.idAt(at));
-        if (!block || block.archived || !typeKeys(block.text, block.manual_types).includes(titleKey(type.title))) continue;
+        if (!block || block.archived || !typeKeys(block.text, block.manual_types).some(key => key === type.id.toLowerCase() || key === titleKey(type.title))) continue;
         detectedTypes.add(type.id);
         queue({ kind: 'tag', blockId: block.id, type });
         break;
@@ -93,7 +93,7 @@ export function createOutlineHints(options: {
     for (const hint of pending()) {
       const block = doc.block(hint.blockId);
       if (!block || block.archived) continue;
-      if (hint.kind === 'tag' ? !typeKeys(block.text, block.manual_types).includes(titleKey(hint.type.title)) : hint.kind === 'card' ? !parseCardText(block.text).cards.length : !fieldEntryId(doc.block(hint.entryId)?.text ?? '')) continue;
+      if (hint.kind === 'tag' ? !typeKeys(block.text, block.manual_types).some(key => key === hint.type.id.toLowerCase() || key === titleKey(hint.type.title)) : hint.kind === 'card' ? !parseCardText(block.text).cards.length : !fieldEntryId(doc.block(hint.entryId)?.text ?? '')) continue;
       if (active === hint.blockId || !visible.has(hint.blockId)) { waiting.push(hint); continue; }
       if (seen.claim(hint.kind, hint.kind === 'tag' ? hint.type.id : undefined)) ready.push(hint);
     }

@@ -127,7 +127,7 @@ export function CaptureField(props: CaptureFieldProps) {
     if (choice.create && current.kind === 'page') {
       try { id = await props.notebook.createPage(choice.title); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return; }
     }
-    if (current.kind === 'type') { replace(current.from, current.to, `${typeSpelling(choice.title)} `); return; }
+    if (current.kind === 'type') { replace(current.from, current.to, `${typeSpelling(choice.title, id || undefined)} `); return; }
     if (id) picked.set(foldName(choice.title), id);
     replace(current.from, current.to, `[[${choice.title}]]`);
   };

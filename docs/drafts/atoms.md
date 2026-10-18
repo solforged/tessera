@@ -111,7 +111,7 @@ First-use hints, one line under the atom in the receipt's style, shown once per 
 
 ### Tag identity
 
-Audit proposal P3, after the surface work and in its own release: a tag canonical as `#[[id|Title]]`, memberships keyed on `type_id`, the spelling after the bar rewritten lazily, `rewrite_incoming_tags` deleted. `tessera check` (P1) exists, so the one-time text migration has its verifier. Built-in tags make this urgent: a tag that brings behavior must not split across devices on a rename.
+Built in step 7: tags are canonical as `#[[id|Title]]`, memberships key on `type_id`, and the alias refreshes lazily when its atom is next edited. Pills read live titles, existing picker choices insert IDs, and receipts normalize hand-typed tags without losing the caret. Rename touches only the tag page. Migration 051 and `tessera check` verify and repair derivation.
 
 ## Decisions
 
@@ -139,4 +139,4 @@ Audit proposal P3, after the surface work and in its own release: a tag canonica
 4. **Built-in tags. Engine built.** `#task`, `#question`, `#project` and `#source` derive their records from membership, with removal receipts and retained history. Built-in tag pages have canonical names and refuse deletion, merging away and renaming. Task status is optional for appointments; Agenda includes them and task views do not. Check reports and repairs missing tagged records. Glyph rendering remains the web part of this step.
 5. **Decks read as tags.** Badge, Review header, Cards tab, docs.
 6. **Fields into Index. Built, reading 1.** The fixed Fields row closes the Notes shelf in the sidebar and directory, with the register's live definition count.
-7. **Tags addressed by ID. Engine built.** Migration 051, normalization receipts, ID-keyed memberships, lazy aliases and check repair are built. Web rendering and completion remain.
+7. **Tags addressed by ID. Built.** Migration 051, normalization receipts, ID-keyed memberships, lazy aliases and check repair are built. Pills read live titles, completion inserts IDs, and editor normalization preserves the caret and undo.

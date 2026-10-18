@@ -20,6 +20,7 @@ export function readTagRegistry(notebook: NotebookClient): Promise<NoteIndex> {
 
 export function TypePill(props: {
   title: string;
+  id?: string;
   notebook: NotebookClient;
   onOpen?(target: OpenTarget, beside: boolean): void;
   onRemove?(): void;
@@ -31,20 +32,23 @@ export function TypePill(props: {
 }) {
   const [anchor, setAnchor] = createSignal<HTMLElement | null>(null);
   const [registry] = createResource(() => [props.notebook.changeSequence(), props.notebook.connection()] as const, () => readTagRegistry(props.notebook));
-  const kind = createMemo(() => registry.error ? undefined : registry()?.kinds.find(kind => kind.tag && kind.name.toLocaleLowerCase() === props.title.trim().toLocaleLowerCase()));
-  const label = () => <><Show when={kind()}>{value => <Icon name={noteKindIcon(value())} />}</Show>{props.children ?? `#${props.title}`}</>;
+  const target = () => props.id ? props.notebook.lookup(props.id)() : undefined;
+  const title = () => target()?.text || props.title || props.id || '';
+  const unresolved = () => !!props.id && target() === null;
+  const kind = createMemo(() => registry.error ? undefined : registry()?.kinds.find(kind => kind.tag && (props.id ? kind.type_id === props.id : kind.name.toLocaleLowerCase() === title().trim().toLocaleLowerCase())));
+  const label = () => <><Show when={kind()}>{value => <Icon name={noteKindIcon(value())} />}</Show>{props.children ?? `#${title()}`}</>;
   const open = async (kind: 'table' | 'page') => {
-    const id = await props.notebook.pageByTitle(props.title, false);
-    if (id) props.onOpen?.(kind === 'page' ? { kind: 'page', pageId: id } : { kind: 'table', typeId: id, viewId: null, query: { type: id, text: null, filters: [], sort: [], limit: null } }, true);
+    const id = props.id ?? await props.notebook.pageByTitle(props.title, false);
+    if (id && !unresolved()) props.onOpen?.(kind === 'page' ? { kind: 'page', pageId: id } : { kind: 'table', typeId: id, viewId: null, query: { type: id, text: null, filters: [], sort: [], limit: null } }, true);
   };
   return <>
-    <Show when={props.interactive !== false} fallback={<span class="outline-tag" data-source-start={props.start} data-source-end={props.end}>{label()}</span>}>
-      <button type="button" class="outline-tag" data-source-start={props.start} data-source-end={props.end}
+    <Show when={props.interactive !== false} fallback={<span class="outline-tag" classList={{ 'outline-reference-unresolved': unresolved() }} data-source-start={props.start} data-source-end={props.end}>{label()}</span>}>
+      <button type="button" class="outline-tag" classList={{ 'outline-reference-unresolved': unresolved() }} data-source-start={props.start} data-source-end={props.end}
         onClick={event => { event.stopPropagation(); setAnchor(event.currentTarget); }}>{label()}</button>
     </Show>
-    <Show when={anchor()}>{element => <Menu anchor={element()} label={`#${props.title}`} onDismiss={() => { setAnchor(null); props.onRestoreFocus?.(); }} items={[
-      { label: 'Open table', action: () => void open('table') },
-      { label: 'Open tag', action: () => void open('page') },
+    <Show when={anchor()}>{element => <Menu anchor={element()} label={`#${title()}`} onDismiss={() => { setAnchor(null); props.onRestoreFocus?.(); }} items={[
+      { label: 'Open table', disabledReason: unresolved() ? 'This tag page is unavailable.' : undefined, action: () => void open('table') },
+      { label: 'Open tag', disabledReason: unresolved() ? 'This tag page is unavailable.' : undefined, action: () => void open('page') },
       { label: 'Remove tag', disabledReason: props.onRemove ? undefined : 'From the text. Edit the #tag there to remove it.', action: () => props.onRemove?.() },
     ]} />}</Show>
   </>;

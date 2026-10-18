@@ -96,6 +96,13 @@ describe('type spelling', () => {
     expect(typeSpelling('C++')).toBe('#[[C++]]');
   });
 
+  test('existing picker choices insert identity and the current title, not the search spelling', () => {
+    const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+    expect(typeChoiceSpelling('arab', 'Arabe', id)).toBe(`#[[${id}|Arabe]]`);
+    expect(typeChoiceSpelling('ARABE', 'Arabe', id)).toBe(`#[[${id}|Arabe]]`);
+    expect(typeSpelling('Reading list', id)).toBe(`#[[${id}|Reading list]]`);
+  });
+
   test('accepting a type that matches the typed tag ignoring case keeps the typed spelling', () => {
     expect(typeChoiceSpelling('proposition', 'Proposition')).toBe('#proposition');
     expect(typeChoiceSpelling('PROPOSITION', 'Proposition')).toBe('#PROPOSITION');

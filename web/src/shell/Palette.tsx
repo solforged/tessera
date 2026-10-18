@@ -21,14 +21,17 @@ import { pendingCaretInput } from './pending-caret';
 import { inferKind, type CreateRequest } from '../create/request';
 import { createPageDraft } from '../create/draft';
 import type { PopupAnchor } from '../ui/Popup';
+import { typeSpelling } from '../outline/type-completion';
+import { textTokens } from '../document/text-tokens';
 
-type CreateEntry = { kind: 'create'; action: 'source' | 'question' | 'page' | 'choose'; title: string };
+type CreateEntry = { kind: 'create'; action: 'source' | 'question' | 'page' | 'choose' | 'tag'; title: string; text?: string };
 type Entry = SearchEntry | { kind: 'command'; command: Command } | CreateEntry
   | { kind: 'highlight'; row: HighlightRow } | { kind: 'passage'; hit: PassageHit };
 type FindScope = 'Everything' | 'Highlights' | 'Books' | 'Pages';
 
 function createLabel(entry: CreateEntry): string {
   if (entry.action === 'source') return `Add “${entry.title}” to library`;
+  if (entry.action === 'tag') return `Create an atom with ${entry.title}`;
   if (entry.action === 'choose') return `Create “${entry.title}” as…`;
   return `Create ${entry.action} “${entry.title}”`;
 }
@@ -161,6 +164,12 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       }
     }
     if (!parent && title && !exact && (findScope() === 'Everything' || findScope() === 'Pages')) {
+      const tag = textTokens(title);
+      if (tag.length === 1 && tag[0]?.kind === 'tag') {
+        const token = tag[0];
+        const page = token.id ? props.notebook.lookup(token.id)() : cachedExactPage(props.notebook, token.value);
+        result.push({ kind: 'create', action: 'tag', title: `#${page?.text || token.value || token.id}`, text: typeSpelling(page?.text || token.value, page?.id || token.id) });
+      }
       const inferred = inferKind(title);
       if (inferred === 'source' || inferred === 'question') result.push({ kind: 'create', action: inferred, title });
       result.push({ kind: 'create', action: 'page', title }, { kind: 'create', action: 'choose', title });
@@ -220,6 +229,9 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     else if (entry.kind === 'highlight' || entry.kind === 'passage') openBook(entry, beside);
     else if (entry.kind === 'more') more(entry.page);
     else if (entry.kind === 'command') run(entry.command, beside);
+    else if (entry.action === 'tag') {
+      props.onCreate({ kind: 'note', text: entry.text!, into: { kind: 'journal' }, lockKind: true }, queryInput?.getBoundingClientRect() ?? props.anchor.getBoundingClientRect());
+    }
     else if (entry.action === 'source' || entry.action === 'choose') {
       const anchor = queryInput?.getBoundingClientRect() ?? props.anchor.getBoundingClientRect();
       props.onCreate(entry.action === 'source' ? { kind: 'source', text: entry.title }

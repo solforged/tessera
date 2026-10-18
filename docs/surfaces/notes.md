@@ -34,6 +34,8 @@ The Index heading opens a bounded directory in the same order, with explicit not
 
 Fields is a fixed row, not a kind. Its field glyph and definition count come from the index read, separate from the tag registry. It closes the Notes shelf in both destinations and opens the [Fields register](fields-tables.md#fields-register). Its sidebar row reads selected while the global register is active; a tag's Fields tab still selects that tag instead.
 
+Tags keep their page identity across renames. The sidebar, pills, table filters and tag decks read the current title by ID. Choosing an existing tag writes `#[[id|Title]]`; a new tag starts as `#Title` and normalizes on save. A missing tag page leaves a faint pill with its remembered name, not membership in another page that reuses that name.
+
 ## Finding aid
 
 A kind opens with rubric `INDEX`, its plural in Piazzolla and a mono note tally. When notes lack a field their type requires, a link such as `1 needs author` follows the tally and adds that field's `is empty` filter, and each such note reads `needs author` under its title. Both count the listed notes, not tagged blocks. A type's Index, Table, Fields and Cards modes share the ruled tab strip. Index and Table count matching members; Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Fields opens [that type's template](fields-tables.md#type-fields-tab), not the global register.

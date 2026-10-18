@@ -14,7 +14,7 @@ import { isFinished, taskFacts } from '../tasks/task-labels';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { BlockText } from './BlockText';
-import { plainText } from './names';
+import { plainText, tagLabel } from './names';
 import { TypePill } from './references';
 import { isCapabilityTag } from './capabilities';
 import { hasCitationDetail } from './source-reads';
@@ -187,19 +187,22 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const derivedCards = createMemo(() => [...(orphanDescriptor() ? [] : cards().cards), ...occlusionCards(block()?.image, block()?.occlusion)]);
     const cardProblems = createMemo(() => orphanDescriptor() ? [{ message: 'A descriptor needs a parent with text.' }] : cards().problems);
     const cardCount = () => derivedCards().length + (block()?.templateCards ?? 0);
-    const cardDeckNames = createMemo(() => {
+    const cardDecks = createMemo(() => {
       if (!cardCount()) return [];
-      const names: string[] = [];
+      const decks: { id?: string; name: string }[] = [];
       const seen = new Set<string>();
       const value = block();
-      for (const title of [...textTokens(value?.text ?? '').filter(token => token.kind === 'tag').map(token => token.value), ...(value?.manual_types ?? [])]) {
-        const name = title.trim();
-        const key = name.toLocaleLowerCase();
-        if (!name || seen.has(key)) continue;
+      const tags = [
+        ...textTokens(value?.text ?? '').filter(token => token.kind === 'tag').map(token => ({ id: token.id, name: tagLabel(token, id => props.notebook.lookup(id)) })),
+        ...(value?.manual_types ?? []).map(name => ({ id: props.notebook.roots().find(page => page.text.toLocaleLowerCase() === name.toLocaleLowerCase())?.id, name })),
+      ];
+      for (const tag of tags) {
+        const key = tag.id ?? tag.name.trim().toLocaleLowerCase();
+        if (!key || seen.has(key) || tag.id && props.notebook.lookup(tag.id)() === null) continue;
         seen.add(key);
-        names.push(name);
+        decks.push(tag);
       }
-      return names;
+      return decks;
     });
     const cardMark = () => !block()?.task?.status && cardCount() > 0;
     let cardControl: { open(anchor: HTMLElement): void } | undefined;
@@ -276,7 +279,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           <Show when={block()?.project}><Button class="outline-planning" label="Project" aria-haspopup="dialog" onClick={event => capabilities.open(id(), 'project', event.currentTarget)}>Project</Button></Show>
           <QuestionSummary id={id()} />
           <AnswerSummary id={id()} />
-          <Show when={cardCount()}><CardSummary blockId={id()} cards={derivedCards()} deckNames={cardDeckNames()} templateCount={block()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} register={control => { cardControl = control; }} /></Show>
+          <Show when={cardCount()}><CardSummary blockId={id()} cards={derivedCards()} decks={cardDecks()} templateCount={block()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} register={control => { cardControl = control; }} /></Show>
           <For each={block()?.citations}>{citation => <CitationChip citation={citation} pageId={props.pageId} notebook={props.notebook} onOpen={props.onOpen} />}</For>
         </span></Show>
         </div>

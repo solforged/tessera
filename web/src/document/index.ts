@@ -302,6 +302,9 @@ export class Notebook implements NotebookClient, DocumentHost {
     }
     if (entry) {
       const current = entry[0]();
+      if (block?.kind === 'page' && current?.kind === 'page' && current.text !== block.text && (force || block.revision >= current.revision)) {
+        for (const doc of this.docs.values()) doc.renameManualType(current.text, block.text);
+      }
       if (force || !block || !current || block.revision >= current.revision) entry[1](block);
     }
     else this.cache.set(id, createSignal<Block | null | undefined>(block));
@@ -1439,10 +1442,6 @@ export class Notebook implements NotebookClient, DocumentHost {
           this.activeCommand = undefined;
           this.touch();
           if (extraRoots || command.actions.some(action => action.kind === 'insert' && action.block.kind !== 'block' || action.kind === 'delete' && action.id === doc.pageId || action.kind === 'restore' && action.id === doc.pageId || action.kind === 'text' && action.id === doc.pageId)) await this.refreshRoots().catch(() => this.connectionSignal[1]('offline'));
-          if (command.actions.some(action => action.kind === 'text' && action.id === doc.pageId)) {
-            const pages = new Set(blocks.filter(block => block.id !== doc.pageId).map(block => block.page_id));
-            for (const page of pages) await this.docs.get(page)?.reload(false);
-          }
           // Derived type pages alone appear as new roots in a text/Add type receipt. Ordinary page creation and
           // references to existing empty type pages do not seed templates; the route is a no-op without a schema.
           const derivedPages: DerivedType[] = [];

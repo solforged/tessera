@@ -81,7 +81,7 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
   }
   function changeText(value: string) {
     setText(value);
-    if (!chosen) changeKind(inferKind(value) ?? props.request.kind, false);
+    if (!chosen) changeKind(inferKind(value, index()?.kinds) ?? props.request.kind, false);
   }
   onMount(() => {
     if (text() && !chosen) changeText(text());

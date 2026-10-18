@@ -21,7 +21,7 @@ export async function templateOffer(notebook: NotebookClient, owner: { id: strin
   const done = mark(offered, notebook);
   const busy = mark(checking, notebook);
   for (const key of typeKeys(owner.text, owner.manual_types)) {
-    const typeId = await notebook.pageByTitle(key, false);
+    const typeId = /^[0-9a-hjkmnp-tv-z]{26}$/i.test(key) ? key.toUpperCase() : await notebook.pageByTitle(key, false);
     if (!typeId) continue;
     const pair = `${typeId} ${fieldId}`;
     if (done.has(pair) || busy.has(pair)) continue;

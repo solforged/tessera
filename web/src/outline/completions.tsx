@@ -4,6 +4,7 @@ import type { Block, Completion as NameCompletion, FieldDefinition, RelationKind
 import { api } from '../api/client';
 import type { BlockState, Caret } from '../document/contract';
 import { fieldEntryId } from '../table/query';
+import { textTokens } from '../document/text-tokens';
 import { kindLabels } from '../fields/kinds';
 import { typeKeys } from '../fields/templates';
 import { ValueEditor, writeFieldValue } from '../fields/value-editor';
@@ -400,7 +401,11 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   });
   /** The open query plus the closing brackets the editor paired with it, including any query text after the caret. */
   function completionRange(state: Completion, text: string) {
-    return state.types || state.fields ? { from: state.from, to: state.to } : openReferenceRange(text, state.from, state.to, !!state.blocks);
+    if (state.types) {
+      const saved = textTokens(text).find(token => token.kind === 'tag' && token.start === state.from);
+      return { from: state.from, to: saved?.end ?? state.to };
+    }
+    return state.fields ? { from: state.from, to: state.to } : openReferenceRange(text, state.from, state.to, !!state.blocks);
   }
   let drafted = false;
   createEffect(() => {
@@ -526,12 +531,13 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       const source = editing();
       const title = row?.kind === 'block' ? row.block.text : canCreate() ? state.query.trim() : null;
       if (!source || !context.editor || !title || matches.error) return;
-      const inserted = `${typeChoiceSpelling(state.query, title)} `;
+      const inserted = `${typeChoiceSpelling(state.query, title, row?.kind === 'block' ? row.block.id : undefined)} `;
       const selectionBefore = activeRange() ?? undefined;
+      const range = completionRange(state, context.editor.view.state.doc.toString());
       setCompletion(null);
       // Text tags and Add type share the notebook's type-page derivation, including new page creation.
-      replaceSelection(inserted, 'text', { anchor: { id: source, offset: state.from }, head: { id: source, offset: state.to } }, selectionBefore);
-      referenceSpace = { id: source, offset: state.from + inserted.length };
+      replaceSelection(inserted, 'text', { anchor: { id: source, offset: range.from }, head: { id: source, offset: range.to } }, selectionBefore);
+      referenceSpace = { id: source, offset: range.from + inserted.length };
       return;
     }
     const accepted = !state.quote && !state.relationTarget ? acceptReference(state) : null;

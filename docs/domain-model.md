@@ -161,7 +161,7 @@ A reference to a source-capable page with a nonempty label or locator is a citat
 
 Full-text search includes the current labels of canonical references. This index is derived from authored text and live targets, and refreshes when either changes; an explicit alias keeps its authored wording.
 
-Canonical tags are memberships, not links, and never create reference backlinks. Their authored aliases remain searchable. Text exports and agent outlines print `#Title` from the live tag page, falling back to the alias or ID when that page is gone.
+Canonical tags are memberships, not links, and never create reference backlinks. Their authored aliases remain searchable. Pills, text exports and agent outlines print `#Title` from the live tag page, falling back to the alias or ID when that page is gone. An unresolved pill is faint and keeps its authored token.
 
 A page's backlinks cover references to its root and to every block on it, grouped by referring page. Sources on the same page are left out of that list but count towards each block's reference count. Unlinked mentions are blocks elsewhere that contain the page's title or an alias as a whole word, outside references, tags, URLs and code, and do not already link to the page.
 
@@ -677,6 +677,8 @@ A note capability on the page holds the resolved timestamp, revisit date and whe
 The index lists kinds with note members or tagged non-page blocks, keeping their counts independent. Kinds with notes open a finding aid; tag-only types open their member table. Tagged blocks do not increase the distinct-note total or file their containing page under that kind. The finding aid is the unsaved note view for that kind, as a type table is for a type. It is derived from kinds and is never stored.
 
 The index is also the tag registry. Every kind carries its glyph, its type page's template as field IDs, the count of live cards on its members (its tag deck) and whether `#name` names it. Built-in types, behavior tags and types you make report `tag: true`; Unfiled does not. Every surface that offers a kind reads it: the sidebar, the creation slip, `#` completion, the deck editor's type choice and the Commands list. `#` completion offers a built-in kind by name before its page exists. Choosing it writes the tag, and the save makes the page and applies its starting template. A type's read names the starting template's fields while its template is empty, so no client keeps a copy of the schema.
+
+Existing tag choices insert `#[[id|Title]]` and open by page ID. Tables, filters and decks retain that ID through renames. A built-in tag without a page uses the legacy spelling until the save normalizes it. The editor accepts the returned text without moving the caret into the token.
 
 A note view queries notes with a layout and grouping. It selects by kind and supports the block query's type, text and field predicates, plus:
 

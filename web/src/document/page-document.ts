@@ -33,6 +33,7 @@ export interface DocumentHost {
   state(pageId?: string): SaveState;
   message(pageId?: string): string;
   publish(block: Block | null, id?: string): void;
+  lookup(id: string): () => Block | null | undefined;
   updateRoot(block: Block | null, id?: string): void;
   release(doc: Document): void;
   retry(): void;
@@ -97,6 +98,16 @@ export class Document implements PageDocument {
     return this.cells.get(id)?.state;
   }
   private presenceChanged(id: string) { this.presence.get(id)?.[1](value => value + 1); }
+  /** Page-only renames refresh cached manual labels without rewriting member text. */
+  renameManualType(before: string, after: string) {
+    const key = titleKey(before);
+    for (const [id, titles] of this.baseManualTypes) if (titles.some(title => titleKey(title) === key)) {
+      this.baseManualTypes.set(id, titles.map(title => titleKey(title) === key ? after : title));
+    }
+    for (const cell of this.cells.values()) if (cell.state.manual_types.some(title => titleKey(title) === key)) {
+      cell.set('manual_types', cell.state.manual_types.map(title => titleKey(title) === key ? after : title));
+    }
+  }
   isArchived(id: string) { return this.archived.has(id); }
   private markArchived(id: string, archived: boolean) {
     if (this.archived.has(id) === archived) return;
@@ -776,10 +787,6 @@ export class Document implements PageDocument {
     for (const operation of sent?.operations ?? []) if ('id' in operation && 'base_revision' in operation && typeof operation.base_revision === 'number' && !sentRevisions.has(operation.id)) sentRevisions.set(operation.id, operation.base_revision);
     batch(() => {
       this.syncGeneration++;
-      for (const rewrite of rewrites) {
-        const block = this.baseBlocks.get(rewrite.id);
-        if (block && block.revision <= rewrite.revision) this.receive({ ...block, text: rewrite.after, revision: rewrite.revision });
-      }
       for (const action of command.actions) {
         const id = action.kind === 'insert' ? action.block.id : action.id;
         const acknowledgedRevision = revisions.get(id);
@@ -800,6 +807,11 @@ export class Document implements PageDocument {
           const destination = this.baseBlocks.get(action.destinationId);
           this.apply(destination && destination.revision > (revisions.get(destination.id) ?? 0) ? { ...action, text: destination.text } : action, true);
         } else this.apply(action, true);
+      }
+      // Normalization is the final accepted text, not an edit to replay before the authored actions.
+      for (const rewrite of rewrites) {
+        const block = this.baseBlocks.get(rewrite.id);
+        if (block && block.revision <= rewrite.revision) this.baseBlocks.set(rewrite.id, { ...block, text: rewrite.after, revision: rewrite.revision });
       }
       for (const [id, revision] of revisions) {
         const block = this.baseBlocks.get(id);
@@ -877,6 +889,30 @@ export class Document implements PageDocument {
     const { entry, undo } = history;
     let copied = false;
     for (const rewrite of rewrites) {
+      const authored = command.actions.some(action => action.kind === 'text' && action.id === rewrite.id
+        || (action.kind === 'insert' || action.kind === 'split') && action.block.id === rewrite.id
+        || action.kind === 'split' && action.id === rewrite.id || action.kind === 'merge' && action.destinationId === rewrite.id);
+      if (authored) {
+        // A normalized authored edit is still one undo step back to its original inverse.
+        for (const action of undo ? entry.inverse : entry.forward) {
+          if (action.kind === 'text' && action.id === rewrite.id && action.text === rewrite.before) action.text = rewrite.after;
+          if ((action.kind === 'insert' || action.kind === 'split') && action.block.id === rewrite.id && action.block.text === rewrite.before) action.block = { ...action.block, text: rewrite.after };
+          if (action.kind === 'split' && action.id === rewrite.id && action.left === rewrite.before) action.left = rewrite.after;
+          if (action.kind === 'merge' && action.destinationId === rewrite.id && action.text === rewrite.before) action.text = rewrite.after;
+        }
+        for (const action of undo ? entry.forward : entry.inverse) {
+          if (action.kind === 'text' && action.id === rewrite.id && action.expectedText === rewrite.before) action.expectedText = rewrite.after;
+        }
+        const caret = undo ? entry.before : entry.after;
+        if (caret?.id === rewrite.id) {
+          let prefix = 0, beforeEnd = rewrite.before.length, afterEnd = rewrite.after.length;
+          while (prefix < beforeEnd && prefix < afterEnd && rewrite.before[prefix] === rewrite.after[prefix]) prefix++;
+          while (beforeEnd > prefix && afterEnd > prefix && rewrite.before[beforeEnd - 1] === rewrite.after[afterEnd - 1]) { beforeEnd--; afterEnd--; }
+          if (caret.offset >= beforeEnd) caret.offset += afterEnd - beforeEnd;
+          else if (caret.offset > prefix) caret.offset = afterEnd;
+        }
+        continue;
+      }
       entry.rewrites ??= new Map();
       let pair = entry.rewrites.get(rewrite.id);
       if (!pair) {
@@ -1133,7 +1169,7 @@ export class Document implements PageDocument {
     };
     const removeCapabilityTag = (id: string, name: string): boolean => {
       const block = this.snapshot(id);
-      const tokens = textTokens(block.text).filter(token => token.kind === 'tag' && titleKey(token.value) === name);
+      const tokens = textTokens(block.text).filter(token => token.kind === 'tag' && titleKey(token.id ? this.host.lookup(token.id)()?.text ?? '' : token.value) === name);
       if (!tokens.length) return false;
       let text = block.text;
       for (const token of tokens.reverse()) text = removeToken(text, { from: token.start, to: token.end }).text;

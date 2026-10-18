@@ -15,7 +15,7 @@ export function quoteTarget(text: string): string | null {
 
 export function textTokens(text: string): Token[] {
   const result: Token[] = [];
-  const pattern = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{M}\p{N}_])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{M}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)|(`+)|\[([^\[\]\r\n]+)\]\((?=https?:\/\/)/giu;
+  const pattern = /\[\[([^\]|]+)(?:\|([^\]]*))?\]\]|(?<![\p{L}\p{M}\p{N}_/-])#(?:\[\[([^\]]+)\]\]|([\p{L}\p{M}\p{N}_/-]+))|(https?:\/\/[^\s<>"']+)|(`+)|\[([^\[\]\r\n]+)\]\((?=https?:\/\/)/giu;
   let offset = 0;
   for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
     const start = match.index;
@@ -70,12 +70,16 @@ export function textTokens(text: string): Token[] {
     const tail = match[2];
     const separator = tail?.lastIndexOf('|') ?? -1;
     const view = match[1]?.match(/^view:([0-7][0-9A-HJKMNP-TV-Z]{25})$/);
+    const title = match[3] ?? match[4] ?? '';
+    const canonical = /^([0-7][0-9A-HJKMNP-TV-Z]{25})\|([\s\S]*)$/.exec(title);
+    const invalidTag = title.includes('[') || !!canonical && /[\[\]|\r\n]/.test(canonical[2]!);
     result.push(match[1] !== undefined
       ? /^https?:\/\/[^\s<>"']+$/i.test(match[1]) && tail !== undefined
         ? { start, end, kind: 'url', value: match[1], alias: tail, labelStart: start + 2 + match[1].length + 1 }
         : { start, end, kind: 'reference', value, id: view?.[1] ?? match[1], ...(view ? { targetKind: 'view' as const } : {}), alias: separator < 0 ? tail : tail!.slice(0, separator), ...(separator < 0 ? {} : { locator: tail!.slice(separator + 1) }) }
       : match[5] !== undefined ? { start, end, kind: 'url', value }
-      : { start, end, kind: 'tag', value: match[3] ?? match[4] ?? '' });
+      : invalidTag ? { start, end, kind: 'text', value }
+      : { start, end, kind: 'tag', value: canonical?.[2] ?? title.trim(), ...(canonical ? { id: canonical[1], alias: canonical[2] } : {}) });
     offset = end;
   }
   if (offset < text.length) result.push({ start: offset, end: text.length, kind: 'text', value: text.slice(offset) });

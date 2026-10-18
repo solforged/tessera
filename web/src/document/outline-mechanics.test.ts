@@ -469,9 +469,10 @@ test('Enter after a finished task starts a fresh todo and does not copy other ca
 });
 
 test('Enter inside a reference or tag splits after it, and a range touching one takes it whole', async () => {
-  for (const token of ['[[01ARZ3NDEKTSV4RRFFQ69G5FAV|label]]', '[[Stoicism]]', '#token']) {
-    const text = `before ${token} after`;
-    const { client, doc, first } = await fixture(text);
+  for (const authored of ['[[01ARZ3NDEKTSV4RRFFQ69G5FAV|label]]', '[[Stoicism]]', '#token']) {
+    const { client, doc, first } = await fixture(`before ${authored} after`);
+    const text = doc.block(first)!.text;
+    const token = text.slice('before '.length, -' after'.length);
     const at = { id: first, offset: 'before '.length + 3 };
     const caret = success(doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at));
     expect([doc.block(first)?.text, doc.block(caret.created[0]!)?.text]).toEqual([`before ${token}`, ' after']);
