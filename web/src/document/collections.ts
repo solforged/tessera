@@ -26,7 +26,13 @@ async function commit(notebook: NotebookClient, plan: Plan, reason: string): Pro
   if (!plan.operations.length) return null;
   const receipt = await notebook.commit(plan.operations, reason);
   const inverse = plan.inverse.map(make => make(receipt));
-  return { undo: async () => { await notebook.commit(inverse, `Undo ${reason.toLocaleLowerCase()}`); } };
+  const createdPages = plan.operations.flatMap(operation => operation.op === 'create_page' ? [operation.id] : []);
+  return { undo: async () => {
+    const capabilities = await Promise.all(createdPages.map(id => notebook.api.capabilities(id)));
+    const systemPages = new Set(capabilities.filter(value => value.built_in_tag).map(value => value.block_id));
+    const operations = inverse.filter(operation => operation.op !== 'delete' || !systemPages.has(operation.id));
+    if (operations.length) await notebook.commit(operations, `Undo ${reason.toLocaleLowerCase()}`);
+  } };
 }
 
 /** Pages, not a separate membership store. Empty collections still appear here. */

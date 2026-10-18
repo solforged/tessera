@@ -193,6 +193,8 @@ Built-in tag pages use their canonical names, such as `Task` and `Person`, when 
 
 `#source` makes a manual Library record with no snapshot, including on an outline atom. Journal roots cannot be sources.
 
+Undoing a first-use collection creation keeps the system tag page. It removes the created collection and restores the field register and templates.
+
 A field definition is a block under the live page titled `Fields`, the system page every workshop has:
 
 - Its name is the block's text.

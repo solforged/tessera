@@ -42,10 +42,13 @@ afterAll(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 
-test('undoing first-use creation restores the field register and templates', async () => {
+test('undoing first-use creation restores fields and templates but retains the system tag page', async () => {
   const fields = await api.fields();
   const created = await createCollection(notebook, 'Undo first use');
+  const tag = (await api.roots()).find(page => page.text === 'Collection')!;
+  expect((await api.capabilities(tag.id)).built_in_tag).toBe(true);
   await created.change.undo();
+  expect((await api.block(tag.id)).text).toBe('Collection');
   expect(await collectionPages(api)).toHaveLength(0);
   expect((await api.fields()).fields.map(field => field.id)).toEqual(fields.fields.map(field => field.id));
   expect((await api.roots()).filter(page => page.text === 'Book' || page.text === 'Article')).toHaveLength(0);
