@@ -789,6 +789,12 @@ Each template has its own daily introduction allowance:
 
 Card reads carry template and type names as provenance, separate from the actual source-page title.
 
+### Decks
+
+A tag deck groups active cards on atoms with that tag, whether the tag comes from text or a manual membership. It uses the tag page's identity and title. An atom can belong to several tag decks without copying its cards or progress. A tag on a parent does not include cards on its children.
+
+Saved decks keep revisioned card queries for other filters. Both appear in Review's deck ledger. A tag deck needs no saved row and leaves the ledger when its last active card loses the tag. Edit its membership on the source atoms, not with deck actions. A saved deck whose only filter is that tag replaces its row in the ledger.
+
 ### Source identity
 
 | Edit | Rule |
@@ -806,7 +812,7 @@ Review events record shown text, grade, scheduler version and state before and a
 
 Scheduling uses FSRS-6 with default parameters, 90% retention and deterministic whole-day intervals. Reviewed cards acquire FSRS memory by replaying historical grades, keeping historical evidence intact.
 
-Grading checks the card revision, definition revision and exact shown front/back. Due queues include new cards after reviewed due cards, with stable tie ordering. Saved decks are revisioned card queries over canonical sources, not copies or separate card stores. A tag on a block that has an active card is also a deck, named with that type's title: Review lists it without a saved row, and it contains the cards on blocks with that tag, held cards included. A tag on a page does not pull in cards written on its children. The deck leaves the list when no tagged block still has an active card. It is not edited or deleted as a deck; a saved deck whose only filter is that type takes its place in the list.
+Grading checks the card revision, definition revision and exact shown front/back. Due queues include new cards after reviewed due cards, with stable tie ordering. Tag and saved decks share these queues. Held cards remain in their decks but stay out of review queues, counts and forecasts.
 
 Optional review sessions have open, finished or abandoned state. Closing one never discards grades. A session excludes cards already graded within it. Deck selection, queue selection and session identity are navigation state, not card ownership.
 

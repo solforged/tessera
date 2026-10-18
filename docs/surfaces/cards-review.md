@@ -36,7 +36,13 @@ One apparatus line follows: how many come due later today (after due now, on New
 
 The forecast's first bar is gilt. Every forecast bar has a two-letter weekday label; today's accessible name is “today”. Retention over thirty local days, this week's review count, the streak and total cards follow as one mono ledger line between rules, then a deck ledger with Due, New and Cards. The session summary uses the same stats line.
 
-Counts come from active visible cards and committed review events, never sample data. No time estimate appears because reviews do not record per-card duration. Decks save source predicates, not copied collections. A tag on a card's own block appears in the same ledger without saving a deck. The row uses the tag's title, not its plural, and reviewing it studies the cards on blocks with that tag. The ledger says to tag a card to make a deck, and to save a deck for other filters. Removing the tag from those cards removes the row. A saved deck that filters only on that type replaces the tag row. New deck remains for a queue a tag cannot express, such as a field filter or more than one condition. Start takes focus on a mouse-and-keyboard device, but touch leaves it alone and the pane has no focus ring.
+Beside Decks, a muted mono sentence reads `Tag a card to make a deck. Save a deck for other filters.` New card and New deck remain in that header.
+
+Counts come from active visible cards and committed review events, never sample data. No time estimate appears because reviews do not record per-card duration.
+
+Decks save source predicates, not copied collections. A tag on a card's own block appears in the same ledger without saving a deck. The row uses the tag's title, not its plural, and reviewing it studies the cards on blocks with that tag. The ledger says to tag a card to make a deck, and to save a deck for other filters. Removing the tag from those cards removes the row. A saved deck that filters only on that type replaces the tag row. New deck remains for a queue a tag cannot express, such as a field filter or more than one condition.
+
+Start takes focus on a mouse-and-keyboard device, but touch leaves it alone and the pane has no focus ring.
 
 ### Session progress
 
@@ -109,6 +115,8 @@ If that restored card is later held or removed, an explicit unavailable state of
 
 A type's Cards tab, after Fields in the same strip, lists its card templates. A mono line counts members, ready members and those waiting, the last in warning ink with the field they lack.
 
+The header offers Review for the tag's deck, using the registry's card count rather than its template count. With no cards it is disabled and its tooltip reads `No cards yet`.
+
 Each template is a numbered section with:
 
 - Its Piazzolla name and Enabled or `Draft · not in review`.
@@ -127,6 +135,8 @@ Enable… opens the Apply view, in this order:
 Disable pauses a template's cards and keeps their progress. In Review a template card shows plain front and back text under a mono `from #Vocab · Recognition`.
 
 ## Cards popup
+
+The outline badge reads `1 card · #arabic`, or `1 card · untagged` when the atom has no tags. Several tags share one separator: `1 card · #arabic #vocabulary`. Text tags and manual memberships both count. Each tag opens Review scoped to that tag's deck; the count still opens Cards.
 
 A block's card count opens its cards. Each row puts the kind in the same faint capitals in a fixed column, so every card's text starts at one edge, then the front, the answer in `--muted` and the due state. Clozes show their gaps and gilt answers as Review does. Multi-line and list answers show as their outline, at most five items, then `N more`. An occlusion card shows a thumbnail of its tested area and its answer, or `Mask A` when it has none. A template card reads `TEMPLATE` with its `#Vocab · Recognition` provenance under the text.
 

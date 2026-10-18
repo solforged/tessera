@@ -58,8 +58,6 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; deckN
     const byKey = new Map(stored().map(card => [card.key, card]));
     return [...props.cards.flatMap(card => byKey.get(card.key) ?? []), ...stored().filter(card => card.key.startsWith('tpl:'))];
   });
-  const shownDecks = createMemo(() => (props.deckNames ?? []).slice(0, 3));
-  const extraDecks = createMemo(() => Math.max(0, (props.deckNames?.length ?? 0) - 3));
   const label = createMemo(() => {
     const count = props.cards.length + (props.templateCount ?? 0);
     const cards = storedSequence() === props.notebook.changeSequence() ? ordered() : [];
@@ -112,8 +110,10 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; deckN
         if (opensBeside(event)) { dismiss(); props.onOpen({ kind: 'review', blockId: props.blockId }, true); return; }
         open(event.currentTarget);
       }}>{label().text}</Button>
-      <For each={shownDecks()}>{name => <><span class="outline-card-count" aria-hidden="true">·</span><Button class="outline-planning outline-card-count" title={`Review #${name}`} onClick={event => { event.stopPropagation(); void openDeck(name, opensBeside(event)); }}>#{name}</Button></>}</For>
-      <Show when={extraDecks()}><span class="outline-card-count">+{extraDecks()}</span></Show>
+      <span class="outline-card-count" aria-hidden="true"> · </span>
+      <Show when={props.deckNames?.length} fallback={<span class="outline-card-count">untagged</span>}>
+        <For each={props.deckNames}>{(name, index) => <>{index() > 0 ? ' ' : ''}<Button class="outline-planning outline-card-count" title={`Review #${name}`} onClick={event => { event.stopPropagation(); void openDeck(name, opensBeside(event)); }}>#{name}</Button></>}</For>
+      </Show>
       <Show when={label().due}><span class="outline-card-count">· {label().due} due</span></Show>
       <Show when={label().held}><span class="outline-card-count">· {label().held} not yet</span></Show>
     </span></Show>

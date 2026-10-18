@@ -80,6 +80,8 @@
 .review-stats dd { margin: 0; font: var(--apparatus); font-variant-numeric: tabular-nums; }
 .review-stats small { margin-left: var(--space-4); color: var(--muted); font: var(--apparatus); }
 .review-forecast header, .review-decks header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
+.review-decks header { flex-wrap: wrap; }
+.review-decks-intro { flex: 1 1 16rem; margin: 0; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .review-forecast header > span { color: var(--faint); font: var(--apparatus); white-space: nowrap; }
 .review-forecast-bars { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-16); }
 .review-landing .review-forecast-bars { margin-top: var(--section-item-gap); }

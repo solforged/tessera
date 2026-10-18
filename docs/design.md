@@ -290,7 +290,9 @@ Below 600 px:
 - Field labels stack above values, so long values keep the measure.
 - The [library search](surfaces/library.md) takes its own line above sort, export and add.
 
-The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a six-column bottom nav replaces it: Today, Agenda, New, Find, Review and Library. New opens the shared creation sheet with Note into Today selected; every target is at least `--target-size`. Today selects only today's journal, Agenda and Review select their own panes, New selects while the slip is open, and Find selects while its picker is open. Library selects only the Library pane or a reader; source pages, type indexes, tables, Fields and Settings select no primary place. The rail's sync status moves to a row above the nav, shown only while sync is not Synced. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
+The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a six-column bottom nav replaces it: Today, Agenda, New, Find, Review and Library. New opens the shared creation sheet with Note into Today selected; every target is at least `--target-size`. Today selects only today's journal, Agenda and Review select their own panes, New selects while the slip is open, and Find selects while its picker is open. Library selects only the Library pane or a reader; source pages, type indexes, tables, Fields and Settings select no primary place.
+
+The rail's sync status moves to a row above the nav, shown only while sync is not Synced. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
 
 ### Mac menus
 
@@ -510,7 +512,7 @@ The mask editor turns an image into [occlusion cards](domain-model.md#image-occl
 
 [Cards](surfaces/cards-review.md) show their syntax quietly outside editing: `>>`, `<<` and `<>` become →, ← and ↔ in `--faint`, and cloze answers carry a dotted accent underline with the hint in their tooltip. Clicking places the caret at the same source offset.
 
-A block that makes cards takes a small outlined index card in `--faint` in place of its bullet as soon as the syntax yields a card, template cards included. The mark is drawn at the bullet's size. A task keeps its checkbox, and the mark keeps the folded-children ring. The count (`1 card`, or `2 cards · 1 not yet` when some are held) opens the Cards popup. A tag on that block follows as `#arabic` and opens its deck.
+A block that makes cards takes a small outlined index card in `--faint` in place of its bullet as soon as the syntax yields a card, template cards included. The mark is drawn at the bullet's size. A task keeps its checkbox, and the mark keeps the folded-children ring. Its badge reads `1 card · #arabic`, joins several tags as `#arabic #vocabulary`, or reads `1 card · untagged` without tags. Text tags and manual memberships both appear. The count opens Cards; each tag opens its Review deck. Due and held counts follow when present.
 
 Each card there shows its kind, front and, beneath it in `--muted`, the answer: a cloze as the whole sentence with its answer underlined, a multi-line or list answer as its lines joined by `·`. The state reads New, Due, In 6 days, Not yet or Paused.
 
@@ -522,6 +524,8 @@ Each card there shows its kind, front and, beneath it in `--muted`, the answer: 
 Start all appears when the cards include held ones, then Review.
 
 Held cards leave Review, its counts and forecasts and keep their schedule; holding is undoable. Malformed syntax is reported beneath the row once the block is left or its text has rested for 1.5 seconds, politely rather than as an alert. ⌘ on Review opens it beside.
+
+Review's Decks header keeps New card and New deck beside the muted mono line `Tag a card to make a deck. Save a deck for other filters.` A tag page's Cards header offers Review for that tag deck. It uses the registry's card count and is disabled with `No cards yet` when that count is zero.
 
 ### Conflicts and recovery
 

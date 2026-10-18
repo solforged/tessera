@@ -645,8 +645,7 @@ function CardReviewPane(props: ReviewPaneProps) {
           <div><dt>Cards</dt><dd>{value().total_cards}</dd></div>
         </dl>
         <section class="review-decks" aria-label="Decks">
-          <header><h2>Decks</h2><Button icon="plus" disabled={locked()} onClick={event => props.onCreate({ kind: 'card', text: '' }, event.currentTarget)}>New card</Button><Button icon="plus" disabled={locked()} onClick={event => setEditor({ anchor: event.currentTarget, deck: null })}>New deck</Button></header>
-          <p class="review-pending">Tag a card to make a deck. Save a deck for other filters.</p>
+          <header><h2>Decks</h2><p class="review-decks-intro">Tag a card to make a deck. Save a deck for other filters.</p><Button icon="plus" disabled={locked()} onClick={event => props.onCreate({ kind: 'card', text: '' }, event.currentTarget)}>New card</Button><Button icon="plus" disabled={locked()} onClick={event => setEditor({ anchor: event.currentTarget, deck: null })}>New deck</Button></header>
           <table><thead><tr><th>Deck</th><th>Due</th><th>New</th><th>Cards</th></tr></thead><tbody><For each={ledger()}>{deck => <tr>
             <td><Button class="review-ledger-deck" classList={{ selected: deck.id === deckId() }} disabled={locked() || loading()} onClick={event => requestMove({ deckId: deck.id, sessionId: null }, event.currentTarget)}>{deck.name}</Button></td><td>{deck.due}</td><td>{deck.new}</td><td>{deck.all}</td>
           </tr>}</For></tbody></table>

@@ -8,6 +8,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Made card badges name their tag decks or say untagged, moved the deck explanation beside Decks, and added Review to each tag's Cards header.
 - Added once-per-workshop card and field hints, a new-tag receipt with an anchored template editor, and `?` to open Keys and syntax from an outline row selection.
 - Added a Keys and syntax sheet on ⌘/, in Commands and under the Mac's Help menu: what `#`, `::`, `>>`, `@`, `[[`, `((` and `/` write, and every bound key read from the command registry, so only open surfaces list theirs. The cover keeps the syntax half.
 - Made the index the tag registry: each kind carries its glyph, template, card count and whether `#name` names it. `#` completion offers built-in tags before their pages exist with their glyphs, the deck editor chooses among tags with card counts, and `/Tag` and `/Field…` join the slash menu. The web no longer keeps its own copy of starting templates, kind glyphs or nouns.
@@ -26,7 +27,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Opened dropped links in the Source slip outside editors, outlines and Library's own drop zone.
 - Added New card to non-empty Review and reused the front/back composer inside the creation slip.
 - Added one creation slip for notes, questions, tasks, cards, sources, projects and typed pages, with inferred kinds and Today or page destinations.
-- Added durable under-page captures and question lines, with Open and Undo acknowledgements.
+- Added durable under-page captures and question lines, with Open and Undo acknowledgments.
 - Added New question to untyped Questions registers and kept typed table creation in the same slip.
 - Added a macOS File › New submenu for pages, questions, tasks, cards, projects and sources.
 - Added Dock actions for Add to Today, New Page and New Question.

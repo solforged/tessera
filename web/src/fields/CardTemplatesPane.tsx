@@ -7,7 +7,7 @@ import { opensBeside } from '../shell/beside';
 import { typeQuery } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
-import { noteKindIcon } from '../notes/kinds';
+import { noteIndex, noteKindIcon } from '../notes/kinds';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { FieldPicker } from './FieldPicker';
 import { displayPattern, patternParts, storedPattern, usedFields } from './card-patterns';
@@ -22,6 +22,9 @@ interface Props {
 
 export function CardTemplatesPane(props: Props) {
   const [version, setVersion] = createSignal(0);
+  const index = noteIndex(props.notebook);
+  const kind = createMemo(() => index()?.kinds.find(value => value.type_id === props.typeId));
+  const cardCount = createMemo(() => kind()?.cards ?? 0);
   const [error, setError] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const [editing, setEditing] = createSignal<string | null>(null);
@@ -38,10 +41,10 @@ export function CardTemplatesPane(props: Props) {
     onCleanup(() => clearTimeout(timer));
   }, { defer: true }));
   const [data, { refetch }] = createResource(() => [props.typeId, version()] as const, async ([id]) => {
-    const [type, fields, templates, index] = await Promise.all([
-      props.notebook.api.type(id), props.notebook.api.fields(), props.notebook.api.cardTemplates(id), props.notebook.api.noteIndex(),
+    const [type, fields, templates] = await Promise.all([
+      props.notebook.api.type(id), props.notebook.api.fields(), props.notebook.api.cardTemplates(id),
     ]);
-    return { type, fields: fields.fields, templates, kind: index.kinds.find(kind => kind.type_id === id) };
+    return { type, fields: fields.fields, templates };
   });
   const title = () => data.latest?.type.page.text ?? props.notebook.lookup(props.typeId)()?.text ?? 'Type';
   const templates = () => data.latest?.templates ?? [];
@@ -99,10 +102,10 @@ export function CardTemplatesPane(props: Props) {
     <div class="ct-sheet">
       <header class="ct-heading">
         <div class="ct-apparatus ct-crumb"><Button onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, opensBeside(event))}>{title()}</Button><span> / {props.applyId ? `${applyTemplate()?.name ?? 'Cards'} / Apply` : 'Card templates'}</span></div>
-        <div class="ct-title-row"><h1><Show when={data.latest?.kind}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>{data.latest?.kind?.plural ?? title()}</h1><span class="ct-apparatus">{templates().length} {templates().length === 1 ? 'template' : 'templates'} · {templates().filter(template => template.applied).length} enabled</span></div>
+        <div class="ct-title-row"><h1><Show when={kind()}>{value => <Icon name={noteKindIcon(value())} />}</Show>{kind()?.plural ?? title()}</h1><span class="ct-apparatus">{templates().length} {templates().length === 1 ? 'template' : 'templates'} · {templates().filter(template => template.applied).length} enabled</span><Button disabled={!cardCount()} title={!cardCount() ? 'No cards yet' : undefined} onClick={event => props.onOpen({ kind: 'review', deckId: props.typeId }, opensBeside(event))}>Review</Button></div>
       </header>
-      <TypeModeTabs active="cards" indexCount={data.latest?.kind?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length} cardsCount={data.latest?.templates.length}
-        onIndex={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}
+      <TypeModeTabs active="cards" indexCount={kind()?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length} cardsCount={data.latest?.templates.length}
+        onIndex={event => props.onOpen({ kind: 'index', key: kind()?.key ?? `type:${props.typeId}` }, opensBeside(event))}
         onTable={event => props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) }, opensBeside(event))}
         onFields={event => props.onOpen({ kind: 'fields', typeId: props.typeId }, opensBeside(event))} onCards={toCards} />
       <Show when={error() || data.error || forecast.error}><p role="alert" class="error">{error() || String(data.error || forecast.error)} <Button onClick={() => { setError(''); setVersion(value => value + 1); }}>Retry</Button></p></Show>
