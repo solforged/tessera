@@ -796,14 +796,12 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   // Saved views sit under the kind whose type they list; views of any other type keep their own section.
   const viewInKind = (view: View, kind: NoteKind) => view.query.note_kind ? view.query.note_kind === kind.key : kind.type_id !== null && kind.type_id === view.query.type;
   const looseViews = createMemo(() => otherViews().filter(view => !index()?.kinds.some(kind => viewInKind(view, kind))));
-  // A kind with notes, tagged blocks or saved views keeps its row on its shelf; an empty one folds into the Empty line.
-  const listedKind = (kind: IndexKind) => !!(kind.count || kind.tagged_block_count) || otherViews().some(view => viewInKind(view, kind));
+  // The index already omits an empty type you made, and Unfiled, until something is filed. Built-in kinds stay on their shelf while empty.
   const shelfKinds = createMemo(() => {
     const shelved: Partial<Record<Shelf, IndexKind[]>> = {};
-    for (const kind of index()?.kinds ?? []) if (listedKind(kind)) (shelved[kind.shelf] ??= []).push(kind);
+    for (const kind of index()?.kinds ?? []) (shelved[kind.shelf] ??= []).push(kind);
     return shelved;
   });
-  const emptyKinds = createMemo(() => (index()?.kinds ?? []).filter(kind => !listedKind(kind)));
   const activeViewId = () => { const target = entry(active())?.target; return target?.kind === 'table' || target?.kind === 'index' ? target.viewId ?? undefined : undefined; };
   const activeTypeId = () => { const target = entry(active())?.target; return target?.kind === 'table' && !target.viewId ? target.typeId : null; };
   const activeKindKey = () => { const target = entry(active())?.target; return target?.kind === 'index' ? target.key : (target?.kind === 'fields' || target?.kind === 'cards') && target.typeId ? index()?.kinds.find(kind => kind.type_id === target.typeId)?.key : undefined; };
@@ -1060,7 +1058,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           <Index each={shelfKinds()[shelf] ?? []}>{kind => <>
             <div classList={{ 'index-question-heading': kind().key === 'question' }}>
             <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kindLabel(kind())} onClick={event => open(indexKindTarget(kind()), opensBeside(event))}><span>{kindLabel(kind())}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
-            <Show when={kind().key === 'question'}><Button icon="more" label="Questions menu" aria-haspopup="menu" onClick={event => setQuestionsMenu(event.currentTarget)} /></Show>
+            <Show when={kind().key === 'question' && (kind().count || kind().tagged_block_count || otherViews().some(view => viewInKind(view, kind())))}><Button icon="more" label="Questions menu" aria-haspopup="menu" onClick={event => setQuestionsMenu(event.currentTarget)} /></Show>
             </div>
             <Show when={otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
           </>}</Index>
@@ -1070,8 +1068,6 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           <h3 class="index-shelf">Spreads</h3>
           <For each={index()?.spreads}>{spread => <Button class={`index-kind ${pageIdOf(entry(active())) === spread.id ? 'selected' : ''}`} icon="panes" title={spread.title} onClick={event => open({ kind: 'page', pageId: spread.id }, opensBeside(event))}><span>{spread.title}</span></Button>}</For>
         </Show>
-        {/* Built-in kinds with nothing filed fold into one faint line, so they stay discoverable without a row each. */}
-        <Show when={emptyKinds().length}><p class="index-empties">Empty: <For each={emptyKinds()}>{(kind, position) => <>{position() ? ' · ' : ''}<button type="button" aria-current={activeKindKey() === kind.key ? 'page' : undefined} onClick={event => open(indexKindTarget(kind), opensBeside(event))}>{kind.plural}</button></>}</For></p></Show>
       </section></Show>
       <section class="page-list" aria-label="Saved views">
         <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{looseViews().length || ''}</span></h2>

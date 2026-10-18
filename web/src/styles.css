@@ -192,15 +192,9 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .index-views .sidebar-view::before { content: ""; position: absolute; left: calc(var(--space-12) + var(--space-2)); top: 0; bottom: 50%; width: var(--space-8); border-left: var(--rule-width) solid var(--line); border-bottom: var(--rule-width) solid var(--line); }
 .index-views .view-link > .icon { display: none; }
 /* The Index is a finding aid: kinds sit under small mono shelf heads, in the interface voice with their glyphs.
-   Heads and the Empty line align with the kind names. */
+   Heads align with the kind names. */
 .index-shelf { margin: var(--space-12) 0 var(--space-2); padding-left: calc(var(--space-8) + 2 * var(--rule-width)); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-notebook); text-transform: uppercase; }
 .index-list > h2 + .index-shelf { margin-top: var(--space-4); }
-.index-empties { margin: var(--space-12) 0 0; padding-left: calc(var(--space-8) + 2 * var(--rule-width)); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.index-empties button { padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; cursor: pointer; }
-.index-empties button:hover, .index-empties button[aria-current="page"] { color: var(--text); }
-.index-empties button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
-/* Each Empty name is a full-height target, so the line grows to the pointer target on touch. */
-.index-empties button { min-height: var(--target-size); }
 /* The cover screen hides the rail, so the overlay opens on its masthead: oculus and wordmark, Close sidebar, and the
    note count in mono beneath, over a hairline. Elsewhere the rail carries the first two. */
 .sidebar-masthead { display: none; }

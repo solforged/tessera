@@ -26,9 +26,9 @@ Rows stay on one line: the kind's glyph in `--faint`, the name at control size, 
 | Questions | Visible question blocks, including inline questions. |
 | Tag-only type | Tagged blocks. The row uses the tag's spelling, not an automatic plural. |
 | Fields | Live named definitions, including archived definitions, as in the Fields register. Always shown, including at zero. |
-| Empty built-in kind | Folded into one faint mono line after the shelves, `Empty: Groups · Theses · Questions`. Each name opens its finding aid, so the vocabulary stays visible without a row each. |
+| Empty built-in kind | The same row, named in `--faint` without a count, on its shelf. Each name opens its finding aid. |
 
-An empty built-in kind that has a saved view keeps its row, named in `--faint` without a count. Each other type and Unfiled are listed only while they have titled notes or tagged non-page blocks. Note counts and the distinct-note total never include tagged blocks.
+An empty built-in kind that has a saved view keeps that row, still without a count. The Questions menu stays off until that kind has notes, tagged blocks or a saved view. Each other type and Unfiled are listed only while they have titled notes or tagged non-page blocks. Note counts and the distinct-note total never include tagged blocks.
 
 The Index heading opens a bounded directory in the same order, with explicit note, source or `N tagged` counts. Tag-only rows open their [member table](fields-tables.md#tables-and-views) directly; other kinds open their finding aid. A saved view sits under the kind whose type it lists, on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
 
