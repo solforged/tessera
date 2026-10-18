@@ -120,12 +120,12 @@ erDiagram
 | Journal day | A root block for one calendar date in the workshop's time zone |
 | Reference | `[[id]]`, `[[id\|label]]` or `[[id\|label\|locator]]` in a block's text, pointing at another block |
 | Link | The indexed occurrence of a reference; derived |
-| Type | Reusable membership, such as `#book`, with an optional field template |
+| Type | Reusable membership, such as `#book`, with an optional field template; a page whose title the tag names |
 | Field | A typed reading of value blocks, such as Author or Read on |
 | Capability | Behavior attached to a block: task, question, assessment, card, source, position, project, note |
 | Change | One committed operation, with its actor and the revisions it produced |
 
-Only these words appear in the schema, the API, the code and the interface.
+Only these words appear in the schema, the API and the code. The interface uses three: an **atom** is any block, a line, a task, a person or a question alike, and opening it is zooming it; a **tag** is a type, named by `#name`, which may carry a template of fields and lists every atom that carries it; a **field** keeps its name. Built-in behavior is a built-in tag (`#task`, `#question`, `#project`, `#source`); the capability tables stay in the engine. "Supertag" is not a word Tessera uses. A page stays as storage: an atom born on a day stays there, its parent is provenance and its tag page is its address, and the user never picks a root.
 
 ## Blocks
 

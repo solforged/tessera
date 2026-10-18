@@ -8,13 +8,14 @@ Status: applied to the shell, the outline and the table. The permanent global ra
 
 1. **The text is the interface.** Controls stay quiet until hover, focus or selection, and every action is also reachable from a visible control.
 2. **Act where you are looking.** Controls attach to the block they affect. Popups open at the caret or at their trigger, never at a pane edge.
-3. **One meaning, one form.** Structure is a neutral bullet. A type is a tinted pill with its name. Task state is a glyph. Color never carries meaning alone, and type hues never reuse status hues.
+3. **One meaning, one form.** Structure is a neutral bullet. A tag is a tinted pill with its name; a built-in tag that has a glyph (`#task`, `#question`, `#project`, `#source`) is its glyph at the bullet, never a pill. Task state is a glyph. Color never carries meaning alone, and tag hues never reuse status hues.
 4. **Work happens in panes.** Tables, views, fields, settings, search results and references open in a pane. Dialogs are for short controls and confirmations only.
 5. **Summaries in the row, details on selection.** A block shows its state as compact trailing metadata; field rows appear as children under it.
 6. **Calm by night and day.** A midnight shell frames the ink-blue canvas, or a vellum one by day. Gilt marks focus and primary actions. Only floating layers cast shadows.
 7. **Built for long sessions.** 28 px rows, 15 px writing, a 760 px measure. Apparatus is 11.5 px; other labels start at 12 px.
 8. **Keyboard and pointer parity.** Menus show shortcuts beside actions. Vim is optional.
    Unavailable menu items remain in the arrow-key order. Focus or hover shows their reason, also exposed as an accessible description; activation leaves the menu open without running the action.
+9. **Three words.** The interface says atom, tag and field. Block, page, type, kind and capability stay in the schema, the API and the code; "supertag" is never used.
 
 ## Tokens
 
