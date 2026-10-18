@@ -968,6 +968,7 @@ export class Notebook implements NotebookClient, DocumentHost {
             Object.assign(citation, action.citation);
           } else if (action.kind === 'completeTask') {
             if (!sameState(value.task, action.previous)) throw new Error('Task metadata changed before completion. Rejected command kept.');
+            if (!value.task?.status) throw new Error('Add #task before completing.');
             operations.push({ op: 'complete_task', id: action.id, base_revision: block.revision, occurrence_id: action.occurrenceId, completed_on: action.completedOn });
             changed = value.task?.status !== 'done' || Boolean(value.task.repeater);
           } else if (action.kind === 'reverseTaskCompletion') {

@@ -7,9 +7,9 @@ describe('creation kind inference', () => {
     expect(inferKind('[] Is X?')).toBe('question');
     expect(inferKind('Is X? Not sure')).toBeNull();
   });
-  test('only a task prefix or a real unprotected planning token makes a task', () => {
-    for (const text of ['[] buy tiles', '[ ] buy tiles', 'buy tiles @fri', 'buy tiles @2026-10-20']) expect(inferKind(text)).toBe('task');
-    for (const text of ['buy tiles friday', 'buy tiles @nonsense', '`@fri`', '[[buy @fri]]', 'mail a@b.com', '[ ]']) expect(inferKind(text)).toBeNull();
+  test('only a task prefix makes a task; planning alone leaves an appointment', () => {
+    for (const text of ['[] buy tiles', '[ ] buy tiles']) expect(inferKind(text)).toBe('task');
+    for (const text of ['buy tiles @fri', 'buy tiles @2026-10-20', 'buy tiles friday', 'buy tiles @nonsense', '`@fri`', '[[buy @fri]]', 'mail a@b.com', '[ ]']) expect(inferKind(text)).toBeNull();
   });
   test('complete card syntax uses the shared parser', () => {
     for (const text of ['Front >> Back', 'Front <> Back', '{{c1::answer}}']) expect(inferKind(text)).toBe('card');

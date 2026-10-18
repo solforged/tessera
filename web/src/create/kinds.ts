@@ -1,8 +1,8 @@
 import type { IndexKind, NoteKind } from '../api/types';
 
-/** Page kinds offered by More and Commands; built-in actions have their own entries, and source kinds start from Add source. */
+/** Registry tags with no dedicated creation command. */
 export function creatableKinds(kinds: readonly IndexKind[]): IndexKind[] {
-  return kinds.filter(kind => kind.shelf !== 'sources' && kind.key !== 'question' && kind.key !== 'project' && kind.key !== 'source' && kind.key !== 'all' && kind.key !== 'unfiled');
+  return kinds.filter(kind => kind.tag && !['task', 'question', 'project', 'source'].includes(kind.key));
 }
 
 /** Built-in kinds read in lower case mid-sentence (`New person`); a notebook's own types keep the name as written (`New Italian word`). */

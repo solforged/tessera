@@ -6,13 +6,17 @@ import './shortcuts.css';
 
 /** What can be written into a block. Operators come from the card parser so the sheet cannot drift from it. */
 const syntax: { write: string; means: string }[] = [
-  { write: '#tag', means: 'What this block is. A new name makes a new tag; a tag on a card is its deck.' },
-  { write: 'name:: value', means: 'A field on this block. A name no field has makes one.' },
-  { write: '>>  <<  <>  {{c1::…}}', means: `A card: ${(['>>', '<<', '<>'] as const).map(op => cardOperators[op].label).join(', ')}, cloze. Also ${(['>>>', '>>1.', ';;'] as const).map(op => `${op} ${cardOperators[op].label}`).join(', ')}.` },
-  { write: '@friday  @due monday', means: 'Schedule or deadline. Typing @ offers the week.' },
-  { write: '[[', means: 'A reference to another block, by title.' },
-  { write: '((', means: 'A frozen quote of another block.' },
-  { write: '/', means: 'Everything else: task states, images, perspectives, views.' },
+  { write: '#tag', means: 'What this atom is. A new name makes a new tag.' },
+  { write: '#task', means: 'A checkbox, status, schedule, deadline, priority and repeat.' },
+  { write: '#question', means: 'A revisit date, criteria and assessments.' },
+  { write: '#project', means: 'An outcome, deadline and active state.' },
+  { write: '#source', means: 'A snapshot, reading state and citation key.' },
+  { write: 'name:: value', means: 'A field on this atom. A name no field has makes one.' },
+  { write: '>>  <<  <>  {{c1::…}}', means: `A card: ${(['>>', '<<', '<>'] as const).map(op => cardOperators[op].label).join(', ')}, cloze. Its tags are its decks. Also ${(['>>>', '>>1.', ';;'] as const).map(op => `${op} ${cardOperators[op].label}`).join(', ')}.` },
+  { write: '@friday  @due monday', means: 'Schedule or deadline on this atom. It is not a task until it is tagged one.' },
+  { write: '[[', means: 'A reference to another atom.' },
+  { write: '((', means: 'A frozen quote of another atom.' },
+  { write: '/', means: 'Everything else: tags, fields, task states, images, views.' },
 ];
 
 const sections: Command['section'][] = ['Navigation', 'Create', 'Editing', 'Outline', 'Block', 'Page', 'View', 'Vim', 'Go to'];

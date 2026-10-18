@@ -105,6 +105,15 @@ function decorations(text: string, head: number, titles: Record<string, string> 
 }
 
 describe('editor reference decorations', () => {
+  test('tags keep their glyph and registry name until their source is edited', () => {
+    const text = 'Call Ana #person #task';
+    const widgets: { label: string; icon: string }[] = [];
+    referenceDecorations(text, 0, () => undefined, () => false, undefined, undefined, undefined, undefined,
+      title => ({ name: title === 'person' ? 'Person' : 'Task', icon: title === 'person' ? 'person' : 'task' }))
+      .between(0, text.length, (_from, _to, decoration) => { widgets.push({ label: decoration.spec.widget.label, icon: decoration.spec.widget.icon }); });
+    expect(widgets).toEqual([{ label: '#Person', icon: 'person' }, { label: '#Task', icon: 'task' }]);
+    expect(decorations(text, text.indexOf('person') + 2)).toEqual([{ from: 17, to: 22, label: '#task' }]);
+  });
   test('citation widgets retain locators and distinguish source citations from plain links', () => {
     const text = '[[source|span|3.12]] [[source]] [[ordinary|span|4]] [[source||5]]';
     const widgets: { label: string; locator?: string; citation: boolean }[] = [];
@@ -143,8 +152,8 @@ describe('editor reference decorations', () => {
     referenceDecorations('[[option]]', 10, id => id === 'option' ? 'Architecture' : undefined, () => false).between(0, 10, (_from, _to, decoration) => { ranges.push(decoration.spec.widget.label); });
     expect(ranges).toEqual(['Architecture']);
   });
-  test('leaves plain text tags and URLs undecorated', () => {
-    expect(decorations('Text #tag https://example.org', 0)).toEqual([]);
+  test('renders tags as pills while leaving URLs as authored text', () => {
+    expect(decorations('Text #tag https://example.org', 0)).toEqual([{ from: 5, to: 9, label: '#tag' }]);
     expect(decorations('By [[author|]]', 0, { author: 'Author' })[0]?.label).toBe('Author');
   });
   test('leaves multiline references raw because plugin replacements cannot span lines', () => {

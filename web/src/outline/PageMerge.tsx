@@ -1,5 +1,5 @@
 import { createMemo, createResource, createSignal, Show } from 'solid-js';
-import type { Block } from '../api/types';
+import type { Block, BlockCapabilities } from '../api/types';
 import type { BlockState, NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -9,8 +9,16 @@ import type { PopupAnchor } from '../ui/Popup';
 
 type Page = Pick<Block, 'id' | 'text'>;
 
-export function pageMergeDisabledReason(root: BlockState | undefined): string | undefined {
+export function builtInTagReason(title: string, capabilities: Pick<BlockCapabilities, 'built_in_tag'> | undefined, action: 'name' | 'delete' | 'merge'): string | undefined {
+  if (!capabilities?.built_in_tag) return undefined;
+  const name = title[0]!.toLocaleUpperCase() + title.slice(1).toLocaleLowerCase();
+  return `${name} is a built-in tag; ${action === 'name' ? 'its name cannot change.' : action === 'delete' ? 'its page cannot be deleted.' : 'its page cannot merge.'}`;
+}
+
+export function pageMergeDisabledReason(root: BlockState | undefined, capabilities?: Pick<BlockCapabilities, 'built_in_tag'>): string | undefined {
   if (!root) return 'Page is still loading.';
+  const system = builtInTagReason(root.text, capabilities, 'merge');
+  if (system) return system;
   if (root.source) return 'Sources cannot merge.';
   if (root.kind !== 'page') return 'Only titled pages can merge.';
   if (root.text.toLocaleLowerCase() === 'fields') return 'Fields cannot merge.';
@@ -33,8 +41,11 @@ export function pageMergeDisabledReason(root: BlockState | undefined): string | 
 export function PageMergeConfirmation(props: { anchor: PopupAnchor; notebook: NotebookClient; from: Page; into: Page; onDismiss(): void; onMerged(id: string): void }) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
+  const [capabilities] = createResource(() => props.from.id, id => props.notebook.api.capabilities(id));
+  const disabled = () => capabilities.error ? String(capabilities.error) : !capabilities() ? 'Page is still loading.' : builtInTagReason(props.from.text, capabilities(), 'merge');
   const merge = async () => {
     if (busy()) return;
+    if (disabled()) { setError(disabled()!); return; }
     setBusy(true); setError('');
     try {
       await props.notebook.mergePage(props.from.id, props.into.id);
@@ -48,7 +59,7 @@ export function PageMergeConfirmation(props: { anchor: PopupAnchor; notebook: No
     <p class="muted">References and blocks will move to “{props.into.text}”. This merge is permanent. “{props.from.text}” stays as an alias.</p>
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
     <Show when={busy()}><p class="muted" role="status">Waiting for the merge to save.</p></Show>
-    <div class="popup-actions"><Button disabled={busy()} onClick={props.onDismiss}>Cancel</Button><Button class="danger bordered" disabled={busy()} onClick={() => { void merge(); }}>Merge pages</Button></div>
+    <div class="popup-actions"><Button disabled={busy()} onClick={props.onDismiss}>Cancel</Button><Button class="danger bordered" disabled={busy() || !!disabled()} title={disabled()} onClick={() => { void merge(); }}>Merge pages</Button></div>
   </Popup>;
 }
 

@@ -52,7 +52,7 @@ export interface CaptureFieldProps {
 }
 
 /**
- * One durable line. `[[` and `#` complete pages and types, `@` dates plan a task, and Enter saves.
+ * One durable line. `[[` and `#` complete atoms and tags, `@` schedules, and Enter saves.
  */
 export function CaptureField(props: CaptureFieldProps) {
   let input!: HTMLInputElement;
@@ -97,9 +97,9 @@ export function CaptureField(props: CaptureFieldProps) {
     const text = bodyText();
     const found = captureDateToken(text, props.notebook.todayDate());
     if (!found) return null;
-    // A plain-word date suffix plans only a task; `@` always plans and so makes one.
+    // A plain-word date suffix plans only a task; an explicit @ can schedule any atom.
     const explicit = text[found.from] === '@';
-    if ((!explicit || props.fixedKind) && !isTask()) return null;
+    if (!explicit && !isTask()) return null;
     const choice = found.query ? dateSuggestions(found.query, props.notebook.todayDate())[0] : undefined;
     return { token: found, choice, explicit };
   });
@@ -108,7 +108,7 @@ export function CaptureField(props: CaptureFieldProps) {
     if (!state) return null;
     if (!state.choice) return { warning: true, label: `Not a date: ${bodyText().slice(state.token.from, state.token.to)} · it stays in the text` };
     const when = `${relativeDate(state.choice.date, props.notebook.todayDate())}${state.choice.time ? ` ${state.choice.time}` : ''}`;
-    return { warning: false, label: `${isTask() ? '' : 'Task · '}${state.token.field === 'deadline' ? `due ${when}` : when}` };
+    return { warning: false, label: `${state.token.field === 'deadline' ? `due ${when}` : when}` };
   });
 
   const replace = (from: number, to: number, insert: string) => {
@@ -140,8 +140,8 @@ export function CaptureField(props: CaptureFieldProps) {
     const submittedDraft = draft();
     const state = plan();
     let body = text, value: TaskState | null = null;
-    if (state?.choice) ({ text: body, value } = planDateToken(text, state.token, state.choice, null));
-    else if (isTask()) value = { ...newTask(), scheduled: props.schedule ? props.contextDate() : null };
+    if (state?.choice) ({ text: body, value } = planDateToken(text, state.token, state.choice, isTask() ? newTask('todo') : null));
+    else if (isTask()) value = { ...newTask('todo'), scheduled: props.schedule ? props.contextDate() : null };
     const links = new Map(picked);
     accepting = true;
     setPending(count => count + 1); setError('');

@@ -125,10 +125,13 @@ export function WeekCalendar(props: WeekCalendarProps) {
     void Promise.all([
       fetchWeekTaskRange(value => props.notebook.api.taskQuery(value), 'scheduled', from, through),
       fetchWeekTaskRange(value => props.notebook.api.taskQuery(value), 'deadline', from, through),
-    ]).then(([scheduled, deadline]) => {
+      Promise.all(dates().filter((date): date is string => date !== null).map(date => props.notebook.api.agenda(date))),
+    ]).then(([scheduled, deadline, agendas]) => {
       if (!current) return;
       batch(() => {
-        setFetchedRows(mergeWeekTaskRows(scheduled.rows, deadline.rows));
+        const appointments: TaskRow[] = agendas.flatMap(agenda => agenda.items.filter(item => item.task.status === null)
+          .map(item => ({ source: item.source, task: item.task, project_id: item.project_id, section_id: null, section_text: null })));
+        setFetchedRows(mergeWeekTaskRows(scheduled.rows, deadline.rows, appointments));
         setIncomplete([...scheduled.incomplete, ...deadline.incomplete]);
         setOptimistic(previous => new Map([...previous].filter(([, value]) => value.pending || value.committedSequence !== null && value.committedSequence > sequence)));
         setLoading(false);
@@ -368,7 +371,7 @@ function WeekTaskCard(props: {
 }) {
   const completed = createMemo(() => isFinished(props.entry.row.task));
   const late = createMemo(() => !completed() && props.entry.date < props.notebook.todayDate());
-  const label = createMemo(() => `${props.entry.row.source.block.text || 'Empty task'}, ${statusLabels[props.entry.row.task.status]}, ${props.entry.kind === 'due' ? 'due' : 'scheduled'} ${props.entry.date}${props.entry.time ? ` at ${props.entry.time}` : ', all-day'}${props.entry.due && props.entry.kind !== 'due' ? `, due${props.entry.row.task.deadline_time ? ` at ${props.entry.row.task.deadline_time}` : ''}` : ''}${late() ? ', overdue' : ''}, source ${props.entry.row.source.page.text}`);
+  const label = createMemo(() => `${props.entry.row.source.block.text || 'Empty atom'}${props.entry.row.task.status ? `, ${statusLabels[props.entry.row.task.status]}` : ''}, ${props.entry.kind === 'due' ? 'due' : 'scheduled'} ${props.entry.date}${props.entry.time ? ` at ${props.entry.time}` : ', all-day'}${props.entry.due && props.entry.kind !== 'due' ? `, due${props.entry.row.task.deadline_time ? ` at ${props.entry.row.task.deadline_time}` : ''}` : ''}${late() ? ', overdue' : ''}, source ${props.entry.row.source.page.text}`);
   const position = createMemo((): JSX.CSSProperties | undefined => {
     const value = props.position;
     if (!value) return undefined;
@@ -382,7 +385,7 @@ function WeekTaskCard(props: {
     style={position()} data-week-task={props.entry.row.source.block.id} data-week-kind={props.entry.kind} data-week-status={props.entry.row.task.status} aria-label={label()} aria-describedby={props.instructionsId} aria-busy={props.busy} title={`${label()} · ${besideHint}`}
     onPointerDown={event => props.onPointerDown(event, props.entry)} onKeyDown={event => props.onKeyDown(event, props.entry)}
     onClick={event => props.onOpen({ kind: 'page', pageId: props.entry.row.source.page.id, blockId: props.entry.row.source.block.id }, opensBeside(event))}>
-    <span class="week-calendar-task-meta"><Icon name={statusIcons[props.entry.row.task.status]} /><Show when={props.entry.due}>Due{props.entry.row.task.deadline_time ? ` ${props.entry.row.task.deadline_time}` : ''}</Show><Show when={!props.entry.due && props.entry.time}>{props.entry.time}</Show></span>
+    <span class="week-calendar-task-meta"><Show when={props.entry.row.task.status}>{status => <Icon name={statusIcons[status()]} />}</Show><Show when={props.entry.due}>Due{props.entry.row.task.deadline_time ? ` ${props.entry.row.task.deadline_time}` : ''}</Show><Show when={!props.entry.due && props.entry.time}>{props.entry.time}</Show></span>
     <span class="week-calendar-task-text"><BlockText text={props.entry.row.source.block.text || 'Empty task'} notebook={props.notebook} interactive={false} /></span>
   </button>;
 }

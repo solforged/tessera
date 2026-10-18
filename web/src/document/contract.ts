@@ -329,6 +329,8 @@ export interface PageDocument {
   root(): BlockState | undefined;
   /** Live blocks of this page, by ID; undefined when absent. */
   block(id: string): BlockState | undefined;
+  /** Engine-derived behavior and system-tag protection for a live atom. */
+  capabilities(id: string): BlockCapabilities;
   /** Whether a block is archived, untracked; pair it with `archivedVersion` to follow every block's flag at once. */
   isArchived(id: string): boolean;
   /** Changes whenever any block's archived flag changes. */

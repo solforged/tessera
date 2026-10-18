@@ -11,7 +11,7 @@ import type { FieldKind, NameMatch } from '../api/types';
 import { kindLabels, kindNoun } from '../fields/kinds';
 import { guessFieldKind } from '../fields/value-reading';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
-import { glyphElement } from '../ui/glyphs';
+import { glyphElement, type IconName } from '../ui/glyphs';
 import type { Token } from '../document/text-tokens';
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
@@ -141,12 +141,13 @@ export function fieldEntryExtension(resolve: FieldResolver, kindOf: FieldKindRes
 const refreshLabels = StateEffect.define<null>();
 
 class ReferenceWidget extends WidgetType {
-  constructor(readonly label: string, readonly length: number, readonly token: Token, readonly ambiguous: boolean, readonly choose?: EditorHooks['referenceMenu'], readonly citation = false, readonly open?: EditorHooks['openReference']) { super(); }
-  eq(other: ReferenceWidget): boolean { return this.label === other.label && this.length === other.length && this.token.start === other.token.start && this.token.id === other.token.id && this.token.locator === other.token.locator && this.ambiguous === other.ambiguous && this.citation === other.citation; }
+  constructor(readonly label: string, readonly length: number, readonly token: Token, readonly ambiguous: boolean, readonly choose?: EditorHooks['referenceMenu'], readonly citation = false, readonly open?: EditorHooks['openReference'], readonly icon?: IconName) { super(); }
+  eq(other: ReferenceWidget): boolean { return this.label === other.label && this.length === other.length && this.token.start === other.token.start && this.token.id === other.token.id && this.token.locator === other.token.locator && this.ambiguous === other.ambiguous && this.citation === other.citation && this.icon === other.icon; }
   toDOM(view: EditorView): HTMLElement {
     const dom = document.createElement('span');
-    dom.className = `outline-reference${this.ambiguous ? ' outline-reference-ambiguous' : ''}${this.citation ? ' outline-citation' : ''}`;
-    dom.textContent = this.label;
+    dom.className = this.token.kind === 'tag' ? 'outline-tag' : `outline-reference${this.ambiguous ? ' outline-reference-ambiguous' : ''}${this.citation ? ' outline-citation' : ''}`;
+    if (this.icon) dom.append(glyphElement(this.icon));
+    dom.append(document.createTextNode(this.label));
     if (this.citation) dom.dataset.citation = '';
     if (this.token.locator !== undefined) dom.dataset.locator = this.token.locator;
     if (this.token.locator) {
@@ -187,10 +188,15 @@ class ReferenceWidget extends WidgetType {
  * Endpoints remain atomic; placing the caret inside a token exposes its source. A whole field entry is the
  * field widget's job; a whole-text reference to anything else, such as a choice value, still gets a label.
  */
-export function referenceDecorations(text: string, head: number, label: EditorHooks['label'], isField: (id: string) => boolean = () => true, names?: EditorHooks['nameMatches'], choose?: EditorHooks['referenceMenu'], isSource?: EditorHooks['isSource'], open?: EditorHooks['openReference']): DecorationSet {
+export function referenceDecorations(text: string, head: number, label: EditorHooks['label'], isField: (id: string) => boolean = () => true, names?: EditorHooks['nameMatches'], choose?: EditorHooks['referenceMenu'], isSource?: EditorHooks['isSource'], open?: EditorHooks['openReference'], tag?: EditorHooks['tag']): DecorationSet {
   const whole = fieldEntryId(text);
   if (whole !== null && isField(whole)) return Decoration.none;
   return Decoration.set(textTokens(text).flatMap(token => {
+    if (token.kind === 'tag') {
+      if (head > token.start && head < token.end) return [];
+      const presentation = tag?.(token.value);
+      return [Decoration.replace({ inclusive: false, widget: new ReferenceWidget(`#${presentation?.name ?? token.value}`, token.end - token.start, token, false, undefined, false, undefined, presentation?.icon) }).range(token.start, token.end)];
+    }
     if (token.kind !== 'reference' || /[\r\n]/.test(token.value) || head > token.start && head < token.end) return [];
     const stable = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(token.id!);
     const ambiguous = !stable && (names?.(token.id!)?.length ?? 0) > 1;
@@ -201,10 +207,10 @@ export function referenceDecorations(text: string, head: number, label: EditorHo
 function references(hooks: EditorHooks) {
   return ViewPlugin.fromClass(class {
     decorations: DecorationSet;
-    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, hooks.label, id => view.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource, hooks.openReference); }
+    constructor(view: EditorView) { this.decorations = referenceDecorations(view.state.doc.toString(), view.state.selection.main.head, hooks.label, id => view.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource, hooks.openReference, hooks.tag); }
     update(update: ViewUpdate) {
       if (update.docChanged || update.selectionSet || update.startState.facet(fieldName) !== update.state.facet(fieldName) || update.transactions.some(transaction => transaction.effects.some(effect => effect.is(refreshLabels)))) {
-        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, hooks.label, id => update.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource, hooks.openReference);
+        this.decorations = referenceDecorations(update.state.doc.toString(), update.state.selection.main.head, hooks.label, id => update.state.facet(fieldName)(id) !== undefined, hooks.nameMatches, hooks.referenceMenu, hooks.isSource, hooks.openReference, hooks.tag);
       }
     }
   }, {
@@ -292,6 +298,7 @@ export interface EditorHooks {
   input(view: EditorView, from: number, to: number, text: string): boolean;
   label(id: string): string | undefined;
   isSource?(id: string): boolean;
+  tag?(title: string): { name: string; icon: IconName } | undefined;
   nameMatches?(name: string): NameMatch[] | undefined;
   referenceMenu?(token: Token, anchor: HTMLElement): void;
   openReference?(token: Token, beside: boolean): void;

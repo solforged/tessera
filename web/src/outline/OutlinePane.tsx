@@ -67,7 +67,9 @@ import { createRelationActions } from './RelationActions';
 import { createViewEmbedActions } from './ViewPicker';
 import { createMoveToPage } from './MoveToPage';
 import type { MenuState, OutlineContext, RowRange } from './context';
-import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
+import { builtInTagReason, PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
+import { readTagRegistry } from './references';
+import { noteKindIcon } from '../notes/kinds';
 import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { createCitationSources, createCitedSources, hasCitationDetail } from './source-reads';
@@ -186,6 +188,7 @@ function Pane(props: OutlinePaneProps) {
   const [renaming, setRenaming] = createSignal(false);
   const [title, setTitle] = createSignal('');
   const [mergeTarget, setMergeTarget] = createSignal<{ page: Block; from: { id: string; text: string }; anchor: HTMLElement }>();
+  const [tagRegistry] = createResource(() => [props.notebook.changeSequence(), props.notebook.connection()] as const, () => readTagRegistry(props.notebook));
   const titleCollision = createMemo(() => {
     const value = title().trim().toLocaleLowerCase();
     return renaming() && value ? props.notebook.roots().find(page => page.id !== props.pageId && page.kind === 'page' && page.text.toLocaleLowerCase() === value) : undefined;
@@ -1157,7 +1160,12 @@ function Pane(props: OutlinePaneProps) {
     scheduleReport();
   }
 
-  function rename() { if (doc.root()?.kind !== 'page') return; setTitle(doc.root()!.text); setRenaming(true); queueMicrotask(() => { titleInput?.focus(); titleInput?.select(); }); }
+  function rename() {
+    if (doc.root()?.kind !== 'page') return;
+    const reason = builtInTagReason(doc.root()!.text, doc.capabilities(props.pageId), 'name');
+    if (reason) { setMessage(reason); return; }
+    setTitle(doc.root()!.text); setRenaming(true); queueMicrotask(() => { titleInput?.focus(); titleInput?.select(); });
+  }
   function closeTitle() {
     focusEpoch++;
     focusRequest = null;
@@ -1175,7 +1183,7 @@ function Pane(props: OutlinePaneProps) {
   function commitTitle() {
     const collision = titleCollision();
     if (collision && titleInput) {
-      const reason = pageMergeDisabledReason(doc.root());
+      const reason = pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId));
       if (reason) { setMessage(reason); return; }
       setMessage('');
       setMergeTarget({ page: collision, from: { id: props.pageId, text: doc.root()!.text }, anchor: titleInput });
@@ -1417,6 +1425,10 @@ function Pane(props: OutlinePaneProps) {
       input: referenceInput,
       label: id => { const target = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(id) ? props.notebook.lookup(id)() : undefined; return target ? plainText(target.text, reference => props.notebook.lookup(reference)) : undefined; },
       isSource: id => !!referenceSources()?.has(id),
+      tag: title => {
+        const kind = tagRegistry.error ? undefined : tagRegistry()?.kinds.find(kind => kind.tag && foldName(kind.name) === foldName(title));
+        return kind ? { name: kind.name, icon: noteKindIcon(kind) } : undefined;
+      },
       nameMatches: name => editingNames.error ? undefined : editingNames()?.get(foldName(name)),
       referenceMenu: (token, anchor) => {
         const matches = editingNames.error ? undefined : editingNames()?.get(foldName(token.id!));
@@ -1586,6 +1598,7 @@ function Pane(props: OutlinePaneProps) {
     if (text === undefined) return;
     if (!editingNames.error) editingNames();
     referenceSources();
+    if (!tagRegistry.error) tagRegistry();
     for (const token of textTokens(text)) if (isStableReference(token)) props.notebook.lookup(token.id!)();
     queueMicrotask(() => { if (!disposed && editor?.id === id) editor.refreshLabels(); });
   });
@@ -1670,10 +1683,10 @@ function Pane(props: OutlinePaneProps) {
       </div>}</Show>
       <Show when={!positionZoom() && (!zoom() || !doc.root()?.source || renaming())}>
       <div class="outline-title-row">
-      <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{rootTitle() || 'Loading…'}</button></h1>}>
+      <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page' || !!builtInTagReason(doc.root()?.text ?? '', doc.capabilities(props.pageId), 'name')} title={builtInTagReason(doc.root()?.text ?? '', doc.capabilities(props.pageId), 'name')} onClick={rename}>{rootTitle() || 'Loading…'}</button></h1>}>
         <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { event.preventDefault(); closeTitle(); } }} />
         <Show when={titleCollision()} fallback={<Button class="bordered" onClick={commitTitle}>Save title</Button>}>{page =>
-          <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root())} title={pageMergeDisabledReason(doc.root())} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>
+          <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} title={pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>
         }</Show><Button onClick={closeTitle}>Cancel</Button>
       </Show>
       <Show when={doc.root()?.kind === 'page' && !doc.root()?.source}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(opensBeside(event))}>Table<Show when={!doc.root()?.project && !type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>

@@ -1,5 +1,6 @@
 import type { TaskQuery, TaskQueryResult, TaskRow, TaskState, TaskStatus } from '../api/types';
 import { parseTaskDate } from './date-input';
+import { isFinished } from './task-labels';
 
 const taskStatuses: TaskStatus[] = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
 const taskQueryLimit = 2000;
@@ -112,7 +113,7 @@ export function weekTaskEntries(rows: readonly TaskRow[], dates: readonly (strin
     }
   }
   return entries.sort((left, right) => left.date.localeCompare(right.date)
-    || Number(['done', 'cancelled'].includes(left.row.task.status)) - Number(['done', 'cancelled'].includes(right.row.task.status))
+    || Number(isFinished(left.row.task)) - Number(isFinished(right.row.task))
     || (left.time ?? '').localeCompare(right.time ?? '')
     || left.row.source.block.text.localeCompare(right.row.source.block.text)
     || left.key.localeCompare(right.key));

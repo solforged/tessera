@@ -344,7 +344,7 @@ Create groups New page, New question (⌥⌘N), New project, New task, New card,
 
 With no command query, Page lists only applicable actions; searching retains the full catalog, including unavailable actions with their reasons. Copy page reference copies the active page's workshop link. Undo and Redo remain in Commands with ⌘Z and ⌘⇧Z, and Compare perspectives remains searchable alongside the visible Compare projection tab.
 
-Renaming a titled page to an existing title offers **Merge into “Title”**; the page menu's **Merge into…** uses the page picker. A confirmation explains that the merge is permanent.
+Renaming a titled atom to an existing title offers **Merge into “Title”**; the atom menu's **Merge into…** uses the picker. A confirmation explains that the merge is permanent. Built-in tag pages cannot be renamed, deleted or merged away. Disabled actions use the engine's refusal, such as `Task is a built-in tag; its page cannot merge.`
 
 The surviving page keeps its title and receives the duplicate's blocks, with matching field entries appending their values. References, aliased references, tags and memberships redirect to the survivor, so its backlinks include both pages' former incoming links. Journal days, the Fields page and library sources cannot be merged; source-details title collisions remain errors.
 
@@ -427,7 +427,7 @@ References to blocks that contain references use the same live display pipeline:
 
 At rest, `**bold**`, `*italic*` and inline backticks render as bold, italic and code. `[label](https://example.org)` and `[[https://example.org|label]]` show the authored label as an external link. Editing shows their unchanged source; clicking formatted prose places the caret at its source position.
 
-Type pills follow the text at meta size. Clicking a pill opens a menu: open the table, open the type page, remove a manual membership. A text membership says so instead of offering removal.
+Tag pills follow the text at meta size, with their glyph from the registry. Clicking a pill opens a menu: open the table, open the tag, remove a manual membership. A text membership says so instead of offering removal. The checkbox, question mark, project flag and source glyph are the pills for `#task`, `#question`, `#project` and `#source`; their text tokens stay hidden at rest. Editing shows those tokens as glyph-and-name widgets, with their authored source exposed when the caret enters. Other built-in tags, such as `#Person`, keep their glyph-and-name pills.
 
 ### Field entries
 
@@ -513,6 +513,8 @@ The mask editor turns an image into [occlusion cards](domain-model.md#image-occl
 ### Cards
 
 [Cards](surfaces/cards-review.md) show their syntax quietly outside editing: `>>`, `<<` and `<>` become →, ← and ↔ in `--faint`, and cloze answers carry a dotted accent underline with the hint in their tooltip. Clicking places the caret at the same source offset.
+
+An atom gets a card face from its operator or cloze. Cards have no tag of their own. The atom's tags decide its decks.
 
 A block that makes cards takes a small outlined index card in `--faint` in place of its bullet as soon as the syntax yields a card, template cards included. The mark is drawn at the bullet's size. A task keeps its checkbox, and the mark keeps the folded-children ring. Its badge reads `1 card · #arabic`, joins several tags as `#arabic #vocabulary`, or reads `1 card · untagged` without tags. Text tags and manual memberships both appear. The count opens Cards; each tag opens its Review deck. Due and held counts follow when present.
 
@@ -642,9 +644,9 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 |---|---|
 | `[[` | Reference to a page, field or block |
 | `((` | On an otherwise empty row: Quote block, a frozen [quote](domain-model.md#quotes) of a block and its subtree. Inside other text: Block reference, searching blocks only |
-| `#name` | Type: picks a page used as a type, or creates one |
-| `@` | When: `@fri` schedules, `@by fri` or `@due fri` sets a deadline; Tab flips the field, Enter picks |
-| `/` | Every block verb: statuses, schedule, deadline, priority, repeat, clock, project, headings, references, types, cards |
+| `#name` | Tag: picks a registered tag or creates one; built-in tags add their behavior |
+| `@` | Schedule or deadline on this atom, without a checkbox: `@fri` schedules, `@by fri` or `@due fri` sets a deadline; Tab flips the field, Enter picks. `#task`, `/Todo` or ⌘Enter adds a checkbox |
+| `/` | Every atom verb: tags, fields, statuses, schedule, deadline, priority, repeat, clock, project, headings, references, cards |
 | `name::`, `::` at block start | Field entry; `::` alone picks the field |
 | `[] `, `# ` | Todo, heading; on a line that is already a task, `[] ` just disappears |
 | `>>`, `<<`, `<>`, `>>>`, `>>1.`, `;;`, `{{c1::}}` | Cards; ⌘⇧C wraps the selection in a cloze |
@@ -770,8 +772,8 @@ Bottom sheets share a grab area and an accessible Close button. Dragging downwar
 |---|---|---|
 | Find or create: pages, blocks and explicit page creation; `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Below the global search trigger, 560 px |
 | Dedicated command palette | Picker, grouped by action section, with shortcuts; disabled reasons appear on the selected row and remain available to assistive technology | Top center, 560 px |
-| Keys and syntax (⌘/, `?` with an outline row selected, Commands, the Mac's Help menu) | Two registers under mono WRITE and PRESS rubrics: the block syntax with its meaning, and every command that has keys, grouped by section in the registry's order; a note says outline keys appear once a page is open. `?` inside an editing block keeps Vim's backward search. Bindings hide with `kbd` on coarse touch screens | Top center, 820 px; one column below 720 px; a bottom sheet on the cover |
-| [Creation slip](surfaces/journal.md) (⌘E / ⌘N) | Mono action/destination rubric, Kind chips and Into segments, then the page, line, card or source body; index and table requests lock their kind | 560 px, anchored with a trigger and top-centered without one; a bottom sheet on the cover |
+| Keys and syntax (⌘/, `?` with an outline row selected, Commands, the Mac's Help menu) | Two registers under mono WRITE and PRESS rubrics: atom syntax, including `#task`, `#question`, `#project` and `#source` with their behavior; `@` only schedules. Every bound command follows in registry order. `?` inside an editing atom keeps Vim's backward search. Bindings hide with `kbd` on coarse touch screens | Top center, 820 px; one column below 720 px; a bottom sheet on the cover |
+| [Creation slip](surfaces/journal.md) (⌘E / ⌘N) | Mono action/destination rubric, then `#task`, `#question`, note, card and `#source`. More lists the other registry tags with glyphs. Into segments precede the body; index and table requests lock their tag | 560 px, anchored with a trigger and top-centered without one; a bottom sheet on the cover |
 | [Card composer](surfaces/cards-review.md#card-composer) | Front and back under a mono rubric, the front in the display voice, key hints and Create on a hairline | Below its trigger, 560 px; top center without one; a bottom sheet on coarse pointers |
 | `[[`, `((`, `#`, `name::` completion and Add type | Picker; `#` rows show the registry's glyph and list built-in tags without a page after matching pages | Below the opening brackets, the caret or the block |
 | New tag's Add fields | Expanded template editor, sharing the tag page's field controls | Below the receipt line, 560 px, fitted to its content |

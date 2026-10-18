@@ -6,6 +6,7 @@ import type { Block, FieldDefinition } from '../api/types';
 import type { OpenTarget } from '../shell/contract';
 import { Icon } from '../ui/Icon';
 import { TypePill } from './references';
+import { isCapabilityTag } from './capabilities';
 import { createCitationSources } from './source-reads';
 import { Menu } from '../ui/Menu';
 import { deletedHolderLabel, foldedHighlights, foldName, nameMenuItems, plainText, referenceLabel, resolveName } from './names';
@@ -154,10 +155,8 @@ function TokenText(props: Props) {
             onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}><span data-source-start={token.labelStart ?? token.start} data-source-end={(token.labelStart ?? token.start) + token.label.length} data-source-literal>{text(token)}</span></a>
         </Show>
       </Show>
-      <Show when={token.kind === 'tag'}>
-        <Show when={props.interactive !== false} fallback={<span class="outline-tag" data-source-start={token.start} data-source-end={token.end}>{text(token)}</span>}>
-          <TypePill title={token.value} notebook={props.notebook} onOpen={props.onOpen} start={token.start} end={token.end}>{text(token)}</TypePill>
-        </Show>
+      <Show when={token.kind === 'tag' && !isCapabilityTag(token.value)}>
+        <TypePill title={token.value} notebook={props.notebook} onOpen={props.onOpen} interactive={props.interactive} start={token.start} end={token.end}>{text(token)}</TypePill>
       </Show>
     </>)}</For>;
   }

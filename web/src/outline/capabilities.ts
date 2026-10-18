@@ -7,6 +7,9 @@ import type { PopupAnchor } from '../ui/Popup';
 import { newTask } from '../tasks/quick-date';
 import { isFinished } from '../tasks/task-labels';
 
+/** These tags are already represented by the atom's behavior glyph. */
+export const isCapabilityTag = (title: string) => ['task', 'question', 'project', 'source'].includes(title.trim().toLocaleLowerCase());
+
 
 export type CapabilityKind = 'task' | 'schedule' | 'deadline' | 'repeat' | 'project' | 'work' | 'review-date' | 'question-parent';
 export type CapabilityPopup = { id: string; anchor: PopupAnchor } & (
@@ -55,8 +58,8 @@ export function createOutlineCapabilities(options: {
     const completedOn = options.contextDate();
     await run(id, async () => {
       // A new task starts Todo; any other status is a second step on the created task.
-      if (status !== null && !doc.block(id)?.task) {
-        await save({ kind: 'task', id, value: newTask() });
+      if (status !== null && !doc.block(id)?.task?.status) {
+        await save({ kind: 'task', id, value: { ...(doc.block(id)?.task ?? newTask()), status: 'todo' } });
         if (status === 'todo') return;
       }
       if (status === 'done') {
@@ -78,8 +81,8 @@ export function createOutlineCapabilities(options: {
       }
     });
   }
-  /** ⌘Enter and the glyph agree: an open task completes, a finished one reopens, a plain block becomes a todo. */
-  const toggle = (id: string) => { const task = doc.block(id)?.task; return status(id, task && !isFinished(task) ? 'done' : 'todo'); };
+  /** ⌘Enter adds a checkbox to an appointment, completes an open task or reopens a finished task. */
+  const toggle = (id: string) => { const task = doc.block(id)?.task; return status(id, task?.status && !isFinished(task) ? 'done' : 'todo'); };
   async function complete(state: Extract<CapabilityPopup, { kind: 'complete' }>) {
     await edit(state.id, { kind: 'completeTask', id: state.id, completedOn: state.completedOn, stopWork: state.session });
     dismiss(state);
@@ -89,14 +92,14 @@ export function createOutlineCapabilities(options: {
     options.onOpen({ kind: 'agenda', date, query: { source: null, filter: { selection: 'unfinished', statuses: [], recent_days: 7, scheduled: null, deadline: null, priority: null, project_id: id, sort: 'outline' }, context_date: date, limit: null } }, beside);
   }
   function source(id: string, beside = false) { options.onOpen({ kind: 'page', pageId: doc.pageId, blockId: id }, beside); }
-  /** Planning commands always land on a task; a plain block becomes a todo first. */
+  /** Planning commands can schedule an atom without giving it a checkbox. */
   function ensureTask(id: string) {
     if (doc.block(id) && !doc.block(id)!.task) invoke(edit(id, { kind: 'task', id, value: newTask() }));
   }
   /** Clock in on this task, or out when its own session is running. */
   async function clock(id: string) {
     await run(id, async () => {
-      if (!doc.block(id)?.task) await save({ kind: 'task', id, value: newTask() });
+      if (!doc.block(id)?.task) await save({ kind: 'task', id, value: newTask('todo') });
       await doc.flush();
       const active = await notebook.api.activeWorkSession();
       const now = Date.now();

@@ -49,7 +49,7 @@ test('project assignment creates an instance field and adds, replaces, removes, 
       { op: 'set_project', id: second, base_revision: 1, project: { outcome: '', deadline: null, status: 'active' } },
       { op: 'create_journal', id: journal, date: '2026-10-12' },
       { op: 'insert', id: task, parent_id: journal, after: null, text: 'Check Fold reader TOC', heading: null },
-      { op: 'set_task', id: task, base_revision: 1, task: newTask() },
+      { op: 'set_task', id: task, base_revision: 1, task: newTask('todo') },
     ]);
     const fieldsDoc = notebook.open((await api.fields()).page_id);
     await ready(fieldsDoc);

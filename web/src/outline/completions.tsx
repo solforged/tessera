@@ -566,7 +566,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   /** The slash menu: block verbs from the command list plus syntax inserts; each row shows its faster key. */
   function slashItems(): SlashItem[] {
     const keys = (commandId: string) => context.commandDefinitions.find(command => command.id === commandId)?.keys?.[0];
-    const status = (value: TaskStatus, aliases: string[]): SlashItem => ({ id: `status-${value}`, title: statusLabels[value], aliases, section: 'Task', icon: statusIcons[value], keys: value === 'todo' || value === 'done' ? keys('toggle-task') : undefined, run: id => capabilities.invoke(capabilities.status(id, value)) });
+    const status = (value: TaskStatus, aliases: string[]): SlashItem => ({ id: `status-${value}`, title: statusLabels[value], aliases, section: 'Task', icon: statusIcons[value], keys: value === 'todo' || value === 'done' ? keys('toggle-task') : undefined, when: block => value === 'todo' || block?.task?.status !== null, run: id => capabilities.invoke(capabilities.status(id, value)) });
     return [
       { id: 'make-image', title: 'Image', aliases: ['picture', 'photo', 'figure', 'screenshot'], section: 'Editing', icon: 'article', run: context.chooseImage },
       status('todo', ['task', 'checkbox']),
@@ -637,7 +637,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const input = composition() ? null : taskPrefixInput(doc.block(at.id)?.text ?? '', text, at.offset);
     if (!input) return null;
     const rest = input.text, next = { id: at.id, offset: input.caret };
-    const result = doc.block(at.id)?.task ? doc.edit({ kind: 'text', id: at.id, text: rest, caret: next.offset }, caret()) : doc.edit({ kind: 'planTask', id: at.id, text: rest, value: newTask() }, caret());
+    const task = doc.block(at.id)?.task;
+    const result = task?.status ? doc.edit({ kind: 'text', id: at.id, text: rest, caret: next.offset }, caret()) : doc.edit({ kind: 'planTask', id: at.id, text: rest, value: { ...(task ?? newTask()), status: 'todo' } }, caret());
     if (!result.ok) { setMessage(result.reason); return false; }
     queueMicrotask(() => { if (context.editor?.id !== at.id) return; context.editor.sync(rest); context.editor.view.dispatch({ selection: { anchor: next.offset } }); });
     setCaret(next);

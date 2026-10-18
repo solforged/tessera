@@ -23,6 +23,7 @@ import { deskTarget } from '../desk/query';
 import { pageTableTarget } from '../table/query';
 import { deleteFieldOptions, optionImpact } from '../fields/commands';
 import { plural } from '../sync/state';
+import { builtInTagReason } from './PageMerge';
 
 export function createOutlineCommands(context: Pick<OutlineContext,
   | 'doc' | 'editing' | 'commitFieldEntry' | 'props' | 'selected'
@@ -184,14 +185,14 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   };
   const commandsFor = (selected = context.selected): Command[] => [
     { id: 'copy-page-reference', title: 'Copy page reference', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => copy(`[[${props.pageId}]]`) },
-    { id: 'rename', title: 'Rename page', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
+    { id: 'rename', title: 'Rename atom', section: 'Page', disabledReason: () => builtInTagReason(doc.root()?.text ?? '', doc.capabilities(props.pageId), 'name') ?? (doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.'), run: rename },
     { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
     { id: 'add-field-root', title: 'Add field…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pickField(props.pageId, context.heading) },
     { id: 'types-root', title: 'Page types…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pageTypes() },
     { id: 'add-type-root', title: 'Add page type…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: addPageType },
     { id: 'remove-type-root', title: 'Remove page type…', section: 'Page', disabledReason: () => !doc.root()?.manual_types.length ? 'This page has no manual types.' : undefined, run: () => pageTypes(true) },
     { id: 'task-root', title: 'Task', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
-      if (!doc.root()?.task) capabilities.invoke(capabilities.status(props.pageId, 'todo'));
+      if (!doc.root()?.task?.status) capabilities.invoke(capabilities.status(props.pageId, 'todo'));
       capabilities.open(props.pageId, 'task');
     } },
     { id: 'project-root', title: 'Project', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
@@ -248,10 +249,10 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'copy-reference', title: 'Copy block reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
     { id: 'make-image', title: 'Insert image', section: 'Editing', run: () => context.chooseImage(selected() ?? zoom() ?? doc.pageId) },
     { id: 'edit-occlusion', title: 'Edit image masks', section: 'Editing', disabledReason: () => selected() && doc.block(selected()!)?.image ? undefined : 'Add an image before drawing masks.', run: () => selected() && context.editOcclusion(selected()!) },
-    { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
+    { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task?.status ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
     { id: 'remove-task', title: 'Remove task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.invoke(capabilities.status(selected()!, null)) },
     { id: 'toggle-task', title: 'Complete or reopen task', section: 'Outline', keys: ['⌘Enter'], run: () => selected() && capabilities.invoke(capabilities.toggle(selected()!)) },
-    { id: 'task-status', title: 'Set task status…', section: 'Outline', keys: ['⌘⇧Enter', 'Space t'], run: () => selected() && statusMenu(selected()!) },
+    ...(doc.block(selected() ?? '')?.task?.status === null ? [] : [{ id: 'task-status', title: 'Set task status…', section: 'Outline', keys: ['⌘⇧Enter', 'Space t'], run: () => selected() && statusMenu(selected()!) } satisfies Command]),
     { id: 'plan-task', title: 'Plan task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task ? undefined : 'Select a task.', run: () => selected() && capabilities.open(selected()!, 'task') },
     { id: 'schedule-task', title: 'Schedule task', section: 'Outline', keys: ['Space s', '@'], run: () => selected() && openPlanning(selected()!, 'schedule') },
     { id: 'deadline-task', title: 'Set deadline', section: 'Outline', keys: ['Space d', '@due'], run: () => selected() && openPlanning(selected()!, 'deadline') },
@@ -399,8 +400,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ])] : []),
       ...(fieldEntry(id) ? [{ label: 'Field…', action: () => fieldMenu(id, anchor) }] : []),
       ...(entry.task ? [group('Task…', 'Task', () => [
-        item('toggle-task', isFinished(entry.task!) ? 'Reopen' : 'Complete'),
-        group('Status…', 'Task status', () => statusMenuItems(entry.task, status => capabilities.invoke(capabilities.status(id, status)))),
+        ...(entry.task?.status ? [item('toggle-task', isFinished(entry.task) ? 'Reopen' : 'Complete'),
+          group('Status…', 'Task status', () => statusMenuItems(entry.task, status => capabilities.invoke(capabilities.status(id, status))))] : []),
         { label: 'Plan', action: () => capabilities.open(id, 'task', anchor) },
         { label: 'Work sessions', action: () => capabilities.open(id, 'work', anchor) },
         { ...item('remove-task'), divider: true, danger: true },
@@ -467,12 +468,13 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   }
   function statusMenu(id: string) {
     const task = doc.block(id)?.task;
+    if (task?.status === null) return;
     keyboardMenu(id, 'Task status', statusMenuItems(task, status => capabilities.invoke(capabilities.status(id, status))));
   }
   function priorityMenu(id: string) {
     const current = doc.block(id)?.task?.priority ?? null;
     keyboardMenu(id, 'Priority', priorities.map((priority): MenuItem => ({ label: priorityLabel(priority), checked: current === priority, action: () => {
-      const task = doc.block(id)?.task ?? newTask();
+      const task = doc.block(id)?.task ?? newTask('todo');
       capabilities.invoke(capabilities.edit(id, { kind: 'task', id, value: { ...task, priority } }));
     } })));
   }

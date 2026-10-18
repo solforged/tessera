@@ -16,6 +16,7 @@ import { Icon } from '../ui/Icon';
 import { BlockText } from './BlockText';
 import { plainText } from './names';
 import { TypePill } from './references';
+import { isCapabilityTag } from './capabilities';
 import { hasCitationDetail } from './source-reads';
 import { CitationChip } from './SourceHeader';
 import { fieldRole } from '../fields/roles';
@@ -200,7 +201,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       }
       return names;
     });
-    const cardMark = () => !block()?.task && cardCount() > 0;
+    const cardMark = () => !block()?.task?.status && cardCount() > 0;
     let cardControl: { open(anchor: HTMLElement): void } | undefined;
     const [cardTextSettled, setCardTextSettled] = createSignal(false);
     createEffect(on([cardText, () => editing() === id()], ([, active]) => {
@@ -230,7 +231,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       <Show when={rowSources().length}><span class="row-sigla"><For each={rowSources()}>{source => <span class="row-siglum" title={props.notebook.lookup(source)()?.text}>{sigla().get(source)}</span>}</For></span></Show>
       <button type="button" class="row-menu icon-button" aria-label="Block actions" onPointerDown={event => drag.start(event, id())} onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
-      <Show when={!inline() && !emptyEntry()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()), 'row-card-mark': cardMark() }} aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into block'} aria-haspopup={cardMark() ? 'dialog' : undefined} onPointerDown={event => drag.start(event, id())} onMouseDown={event => { if (cardMark()) event.preventDefault(); }} onClick={event => cardMark() ? cardControl?.open(event.currentTarget) : zoomTo(id())}><Icon name={cardMark() ? 'card' : 'bullet'} /></button></Show>
+      <Show when={!inline() && !emptyEntry()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()), 'row-card-mark': cardMark() }} aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into atom'} aria-haspopup={cardMark() ? 'dialog' : undefined} onPointerDown={event => drag.start(event, id())} onMouseDown={event => { if (cardMark()) event.preventDefault(); }} onClick={event => cardMark() ? cardControl?.open(event.currentTarget) : zoomTo(id())}><Icon name={cardMark() ? 'card' : block()?.question ? 'question-open' : block()?.project ? 'flag' : block()?.source ? 'library' : 'bullet'} /></button></Show>
       <Show when={inline()}><Show when={labelled()} fallback={<span class="outline-field-label" aria-hidden="true" />}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={event => context.fieldMenu(id(), event.currentTarget)}><Icon name="field" /><span>{valueField()?.name}</span></button></Show></Show>
       <Show when={emptyEntry()}><button type="button" class="outline-field-label" title={field()?.name} onClick={event => context.fieldMenu(id(), event.currentTarget)}><Icon name="field" /><span>{field()?.name}</span></button></Show>
       <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onRestoreFocus={restoreFocus} onChange={status => capabilities.status(id(), status)} /></Show>
@@ -267,7 +268,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           <Match when={embed()}><Show keyed when={embed()}>{target => <Embed target={target} notebook={props.notebook} onOpen={props.onOpen} fallback={<StaticText />} />}</Show></Match>
           <Match when><StaticText /></Match>
         </Switch></Show>
-        <For each={block()?.manual_types ?? []}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRestoreFocus={restoreFocus} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
+        <For each={(block()?.manual_types ?? []).filter(title => !isCapabilityTag(title))}>{title => <TypePill title={title} notebook={props.notebook} onOpen={props.onOpen} onRestoreFocus={restoreFocus} onRemove={() => { const result = doc.removeType(id(), title); if (!result.ok) setMessage(result.reason); }} />}</For>
         </div>
         <Show when={block()?.position?.problem}>{problem => <button type="button" class="relation-problem position-problem" aria-label={problem()} title={problem()} aria-haspopup="menu" onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); holderMenu(id(), event.currentTarget); }}><Icon name="warning" /></button>}</Show>
         <Show when={block()?.task || block()?.project || block()?.question || block()?.assessment || derivedCards().length || block()?.templateCards || block()?.citations.length}><span class="outline-capability-metadata" onMouseDown={event => { if ((event.target as Element).closest('button')) { event.preventDefault(); event.stopPropagation(); } }}>

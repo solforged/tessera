@@ -11,7 +11,7 @@ import { plainText } from '../outline/names';
 import { isReadingSubject, localPositionCount } from '../outline/read-register';
 import { ReferencePreviews } from '../outline/ReferencePreview';
 import { createPageIcon } from '../outline/source';
-import { PageMergePicker, pageMergeDisabledReason } from '../outline/PageMerge';
+import { builtInTagReason, PageMergePicker, pageMergeDisabledReason } from '../outline/PageMerge';
 import { copyTaskQuery, createTaskQuery } from '../tasks/query';
 import { copyQuery, typeQuery } from '../table/query';
 import { querySources } from '../table/attributes';
@@ -488,6 +488,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   };
   /** Delete pages in one undoable step, and move panes showing them, or reading their sources, to another page. Undo reopens a page deleted from its own menu. */
   const deletePages = async (pages: { id: string; title: string }[], label = pages.length === 1 ? `“${pages[0]!.title}”` : `${pages.length} pages`, reopen = false) => {
+    const capabilities = await Promise.all(pages.map(page => notebook.api.capabilities(page.id)));
+    for (let index = 0; index < pages.length; index++) {
+      const reason = builtInTagReason(pages[index]!.title, capabilities[index], 'delete');
+      if (reason) throw new Error(reason);
+    }
     const ids = new Set(pages.map(page => page.id)), roots = notebook.roots(), done: typeof pages = [];
     try { for (const page of pages) { await notebook.deletePage(page.id); done.push(page); } }
     finally {
@@ -508,6 +513,16 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         setDeletionUndoSequence(notebook.changeSequence());
       }
     }
+  };
+  const [deleteCapabilities] = createResource(() => {
+    const state = popup();
+    const id = state?.kind === 'delete' ? pageIdOf(entry(state.pane)) : undefined;
+    return id ? [id, notebook.changeSequence()] as const : false;
+  }, ([id]) => notebook.api.capabilities(id));
+  const deleteDisabledReason = (pane: PaneId) => {
+    const id = pageIdOf(entry(pane));
+    const title = notebook.lookup(id ?? '')()?.text ?? rootById().get(id ?? '')?.text ?? '';
+    return deleteCapabilities.error ? String(deleteCapabilities.error) : !deleteCapabilities() ? 'Page is still loading.' : builtInTagReason(title, deleteCapabilities(), 'delete');
   };
   const restorePage = async () => {
     const latest = retainedDeletions.error ? undefined : retainedDeletions()?.[0]?.block;
@@ -1162,7 +1177,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           <p>Delete “{notebook.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ?? rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}” and {state.source ? 'its highlights' : 'all its blocks'}?</p>
           <HolderDeletionImpact notebook={notebook} pageId={pageIdOf(entry(state.pane))} />
           <p class="muted">Undo this deletion, or use Restore deleted page in Commands after reloading.</p>
-          <div class="popup-actions"><Button onClick={() => setPopup(null)}>Cancel</Button><Button icon="trash" class="danger bordered" onClick={() => { void deletePage(state.pane); }}>Delete page</Button></div>
+          <div class="popup-actions"><Button onClick={() => setPopup(null)}>Cancel</Button><Button icon="trash" class="danger bordered" disabled={!!deleteDisabledReason(state.pane)} title={deleteDisabledReason(state.pane)} onClick={() => { void deletePage(state.pane); }}>Delete page</Button></div>
         </Popup>
       </Show>
       <Show when={state.kind === 'layout'}>
@@ -1437,8 +1452,8 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   const items = (): MenuItem[] => [
     { label: 'Copy reference', icon: 'link', action: () => { void copyPage(true); } },
     ...(titled() ? [
-      { label: 'Rename', icon: 'edit', divider: true, action: props.onRename },
-      { label: 'Merge into…', icon: 'merge', disabledReason: pageMergeDisabledReason(root()), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } },
+      { label: 'Rename', icon: 'edit', divider: true, disabledReason: builtInTagReason(root()?.text ?? '', doc()?.capabilities(pageId()!), 'name'), action: props.onRename },
+      { label: 'Merge into…', icon: 'merge', disabledReason: pageMergeDisabledReason(root(), doc()?.capabilities(pageId()!)), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } },
     ] satisfies MenuItem[] : []),
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', divider: !titled(), action: props.onPin },
     { label: 'Open beside', icon: 'panes', action: props.onPageBeside },
@@ -1459,7 +1474,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       ...(projection() === 'outline' ? [{ label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }) } satisfies MenuItem] : []),
       { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
     ] }) },
-    { label: 'Delete page…', icon: 'trash', divider: true, danger: true, action: () => props.onDelete(menuButton) },
+    { label: 'Delete page…', icon: 'trash', divider: true, danger: true, disabledReason: builtInTagReason(root()?.text ?? '', doc()?.capabilities(pageId()!), 'delete'), action: () => props.onDelete(menuButton) },
   ];
   // The place or kind the pane shows, in the same glyphs the sidebar uses.
   const kindIcon = (): IconName => {

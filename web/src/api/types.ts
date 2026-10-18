@@ -468,8 +468,7 @@ export type RevisitAction = 'revisited' | 'later' | 'resolve' | 'reopen' | 'keep
 export interface RevisitSnapshot { note: NoteState; question: QuestionState | null }
 export interface RevisitRow { block: BlockInPage; note: NoteState; question_status: QuestionStatus | null; revisit_on: string; last_revisited_on: string | null; proposed_on: string }
 export interface RevisitEvent { id: string; block_id: string; revisited_on: string; next_on: string | null; created_at: number; change_seq: number; actor: Actor }
-export interface BlockCapabilities { block_id: string; task: TaskState | null; project: ProjectState | null; note?: NoteState | null; note_changed?: boolean; position: PositionInfo | null; relation: RelationInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; quote?: QuoteState | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean; template_cards?: number }
-export interface BlockCapabilities { built_in_tag: boolean }
+export interface BlockCapabilities { block_id: string; built_in_tag: boolean; task: TaskState | null; project: ProjectState | null; note?: NoteState | null; note_changed?: boolean; position: PositionInfo | null; relation: RelationInfo | null; question: QuestionInfo | null; assessment: AssessmentInfo | null; quote?: QuoteState | null; history: boolean; merge_protected: boolean; reviewed_cards: boolean; template_cards?: number }
 export interface BlockCapabilities { spread?: boolean }
 export interface ImageRef { sha256: string; media_type: string; width: number; height: number }
 export interface BlockCapabilities { image?: ImageRef | null }

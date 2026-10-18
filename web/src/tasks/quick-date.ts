@@ -1,11 +1,11 @@
-import type { TaskState } from '../api/types';
+import type { TaskState, TaskStatus } from '../api/types';
 import { matchFieldEntry } from '../table/query';
 import { parseTaskDate } from './date-input';
 
 export interface DateToken { from: number; to: number; query: string; field: 'scheduled' | 'deadline' }
 export interface DateSuggestion { label: string; date: string; time: string | null }
 
-export const newTask = (): TaskState => ({ status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null });
+export const newTask = (status: TaskStatus | null = null): TaskState => ({ status, scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null });
 
 /** Typing guards include open code drafts; stored text shields only matched inline code. */
 export function insideProtectedSyntax(text: string, at: number, purpose: 'typing' | 'stored' = 'typing'): boolean {

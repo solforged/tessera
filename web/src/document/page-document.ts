@@ -11,7 +11,7 @@ import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './typ
 import { currentReading, emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
 import { parseCardText } from '../review/card-text';
 import { isStableReference, quoteTarget, textTokens } from './text-tokens';
-import { newTask } from '../tasks/quick-date';
+import { newTask, removeToken } from '../tasks/quick-date';
 import { rebaseText } from './text-patch';
 import { fieldHide } from '../fields/hide';
 import { countsReason, fieldCounts } from '../fields/counts';
@@ -199,7 +199,7 @@ export class Document implements PageDocument {
   }
   capabilities(id: string, base = false): BlockCapabilities {
     const cell = !base && this.cells.get(id)?.state;
-    const value = cell ? { block_id: id, task: cell.task, project: cell.project, position: cell.position, relation: cell.relation, spread: cell.spread ?? false, question: cell.question, quote: cell.quote, image: cell.image, occlusion: cell.occlusion, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards, template_cards: cell.templateCards ?? 0 } : this.baseCapabilities.get(id);
+    const value = cell ? { block_id: id, built_in_tag: this.baseCapabilities.get(id)?.built_in_tag ?? false, task: cell.task, project: cell.project, position: cell.position, relation: cell.relation, spread: cell.spread ?? false, question: cell.question, quote: cell.quote, image: cell.image, occlusion: cell.occlusion, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards, template_cards: cell.templateCards ?? 0 } : this.baseCapabilities.get(id);
     // Most blocks have no capabilities; a fresh empty value needs no defensive copy.
     return value ? JSON.parse(JSON.stringify(value)) as BlockCapabilities : emptyCapabilities(id);
   }
@@ -1131,6 +1131,18 @@ export class Document implements PageDocument {
     const setText = (block: Block, text: string) => {
       if (block.text !== text) actions.push({ kind: 'text', id: block.id, text });
     };
+    const removeCapabilityTag = (id: string, name: string): boolean => {
+      const block = this.snapshot(id);
+      const tokens = textTokens(block.text).filter(token => token.kind === 'tag' && titleKey(token.value) === name);
+      if (!tokens.length) return false;
+      let text = block.text;
+      for (const token of tokens.reverse()) text = removeToken(text, { from: token.start, to: token.end }).text;
+      for (const title of this.block(id)?.manual_types ?? []) {
+        if (titleKey(title) === name) actions.push({ kind: 'removeType', id, title });
+      }
+      setText(block, text);
+      return true;
+    };
     const guardSplit = (block: Block, prefix: string, suffix: string) => {
       if (!parseCardText(block.text).cards.length || !suffix && prefix === block.text) return;
       if (prefix || this.block(block.id)?.reviewedCards) throw new Error('This split would divide or move a card. Keep its source in one block.');
@@ -1176,7 +1188,7 @@ export class Document implements PageDocument {
       actions.push({ kind: 'split', id: block.id, block: insertion.block, left: prefix, right: suffix });
       if (child) actions.push({ kind: 'move', id, parentId: block.id, after: null });
       if (!suffix && block.heading !== null) actions.push({ kind: 'heading', id, heading: null });
-      if (task) actions.push({ kind: 'task', id, value: newTask(), previous: null, baseRevision: 0 });
+      if (task?.status) actions.push({ kind: 'task', id, value: newTask('todo'), previous: null, baseRevision: 0 });
       caret = { id, offset: 0 };
     };
     const paste = (block: Block, prefix: string, suffix: string, rows: PasteRow[], zoomRoot?: string | null) => {
@@ -1185,7 +1197,7 @@ export class Document implements PageDocument {
         if (row.heading !== null && row.heading !== previousHeading) actions.push({ kind: 'heading', id, heading: row.heading });
         if (row.task) {
           const previous = this.block(id)?.task ?? null;
-          const value = previous ?? newTask();
+          const value = previous ?? newTask('todo');
           if (!previous) actions.push({ kind: 'task', id, value, previous: null, baseRevision: revision });
           if (row.task === 'done' && value.status !== 'done') actions.push({ kind: 'completeTask', id, occurrenceId: ulid(), completedOn: this.host.todayDate(), previous: value, baseRevision: revision });
         }
@@ -1334,6 +1346,7 @@ export class Document implements PageDocument {
           created.push(...actions.flatMap(action => action.kind === 'insert' ? [action.block.id] : []));
           break;
         case 'source': {
+          if (edit.value === null && removeCapabilityTag(edit.id, 'source')) break;
           const previous = sourceState(this.capabilities(edit.id).source);
           const value = sourceState(edit.value);
           if (!sameState(previous, value)) actions.push({ kind: 'source', id: edit.id, value, previous, baseRevision: this.snapshot(edit.id).revision });
@@ -1453,6 +1466,7 @@ export class Document implements PageDocument {
           break;
         }
         case 'question': {
+          if (edit.value === null && removeCapabilityTag(edit.id, 'question')) break;
           const previous = questionState(this.capabilities(edit.id).question?.state);
           let value = questionState(edit.value);
           if (previous && value && previous.accepted !== value.accepted && sameState(previous.reading_history, value.reading_history)) {
@@ -1505,21 +1519,20 @@ export class Document implements PageDocument {
           if (this.host.commands(this.pageId).some(command => command.actions.some(action => action.kind === 'completeTask' && action.id === edit.id && action.previous.repeater))) throw new Error('Wait for the recurring completion before changing this task.');
           const baseRevision = block.revision;
           if (edit.kind === 'task' || edit.kind === 'planTask') {
+            if (edit.value === null && removeCapabilityTag(edit.id, 'task')) break;
             const value = edit.value === null ? null : JSON.parse(JSON.stringify(edit.value));
             if (value?.status === 'done' && state.task?.status !== 'done') throw new Error('Complete the task to record its occurrence.');
-            if (!state.task && value && value.status !== 'todo') throw new Error('A new task starts Todo.');
+            if (!state.task && value && value.status !== null && value.status !== 'todo') throw new Error('A new task starts Todo.');
             if (!sameState(state.task, value)) actions.push({ kind: 'task', id: edit.id, value, previous: state.task, baseRevision });
             if (edit.kind === 'planTask') { setText(block, edit.text); caret = { id: edit.id, offset: edit.text.length }; }
           } else if (edit.kind === 'project') {
+            if (edit.value === null && removeCapabilityTag(edit.id, 'project')) break;
             const value = edit.value === null ? null : JSON.parse(JSON.stringify(edit.value));
             if (!sameState(state.project, value)) actions.push({ kind: 'project', id: edit.id, value, previous: state.project, baseRevision });
           } else if (edit.kind === 'completeTask') {
             let task = state.task;
-            if (task?.status === 'done' && !task.repeater) break;
-            if (!task) {
-              task = { status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null };
-              actions.push({ kind: 'task', id: edit.id, value: task, previous: null, baseRevision });
-            }
+            if (!task?.status) throw new Error('Add #task before completing.');
+            if (task.status === 'done' && !task.repeater) break;
             if (edit.stopWork) {
               if (edit.stopWork.block_id !== edit.id || edit.stopWork.ended_at !== null || edit.stopWork.reversed) throw new Error('Refresh the running work session before completing.');
               const known = this.work.get(edit.stopWork.id);
@@ -1751,7 +1764,7 @@ export class Document implements PageDocument {
           // An empty todo that Enter continued leaves the task list with its indent: below a plain line it becomes a plain line.
           const only = ids.length === 1 ? this.snapshot(ids[0]!) : null;
           const task = only && this.block(only.id)?.task;
-          if (only && groups.size && task && !only.text && !this.outline.children(only.id).length && !this.block(parent)?.task && sameState(task, newTask()))
+          if (only && groups.size && task && !only.text && !this.outline.children(only.id).length && !this.block(parent)?.task && sameState(task, newTask('todo')))
             actions.push({ kind: 'task', id: only.id, value: null, previous: this.capabilities(only.id).task, baseRevision: only.revision });
           break;
         }
@@ -1914,6 +1927,10 @@ export class Document implements PageDocument {
   }
   rename(title: string): EditResult {
     if (this.root()?.kind !== 'page') return { ok: false, reason: 'Journal dates cannot be renamed.' };
+    if (this.capabilities(this.pageId).built_in_tag && titleKey(title) !== titleKey(this.root()!.text)) {
+      const text = this.root()!.text;
+      return { ok: false, reason: `${text[0]!.toLocaleUpperCase()}${text.slice(1).toLocaleLowerCase()} is a built-in tag; its name cannot change.` };
+    }
     if (!title.trim()) return { ok: false, reason: 'A page needs a title.' };
     if (!this.host.titleAvailable(title.trim(), this.pageId)) return { ok: false, reason: 'A page with this title already exists.' };
     return this.edit({ kind: 'text', id: this.pageId, text: title.trim() });

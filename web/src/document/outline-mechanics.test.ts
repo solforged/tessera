@@ -97,7 +97,7 @@ test('row replacement undo restores persisted identities before and after paste 
     const { client, doc, first, pageId } = await fixture('Alpha');
     const hidden = insert(doc, first, null, 'Folded child');
     const beta = insert(doc, pageId, first, 'Beta');
-    success(doc.edit({ kind: 'task', id: beta, value: newTask() }));
+    success(doc.edit({ kind: 'task', id: beta, value: newTask('todo') }));
     const gamma = insert(doc, pageId, beta, 'Gamma');
     await client.flush();
     const range = { anchor: { id: first, offset: 0 }, head: { id: beta, offset: 4 } };
@@ -147,7 +147,7 @@ test('structured row replacement keeps copied native metadata and never reparses
   const source = await fixture('# Literal');
   const child = insert(source.doc, source.first, null, '- Literal child');
   success(source.doc.edit({ kind: 'heading', id: source.first, level: 2 }));
-  success(source.doc.edit({ kind: 'task', id: child, value: newTask() }));
+  success(source.doc.edit({ kind: 'task', id: child, value: newTask('todo') }));
   await source.client.flush();
   const content = source.doc.clipboard([source.first]);
   const { client, doc, first, pageId } = await fixture('Alpha');
@@ -310,7 +310,7 @@ test('Enter at the start of a parent keeps its text and children on the original
 
 test('Enter at the start of a zoomed task preserves its plan and inserts a plain first child', async () => {
   const { client, doc, first, pageId } = await fixture('Return the library books');
-  const task = { ...newTask(), scheduled: '2026-10-12', scheduled_time: '17:30', priority: 'high' as const };
+  const task = { ...newTask('todo'), scheduled: '2026-10-12', scheduled_time: '17:30', priority: 'high' as const };
   success(doc.edit({ kind: 'task', id: first, value: task }));
   const child = insert(doc, first, null, 'Existing plan');
   const hidden = insert(doc, pageId, first, 'Outside the zoom');
@@ -385,13 +385,13 @@ test('Enter on child-answer cards makes their first child in one undo step', asy
 test('Enter continues tasks without planning facts and empty tasks leave the list', async () => {
   for (const offset of [3, 5]) {
     const { client, doc, first } = await fixture('Draft');
-    const task = { ...newTask(), scheduled: '2026-10-12', priority: 'high' as const };
+    const task = { ...newTask('todo'), scheduled: '2026-10-12', priority: 'high' as const };
     success(doc.edit({ kind: 'task', id: first, value: task }));
     await client.flush();
     const at = { id: first, offset };
     const result = success(doc.edit({ kind: 'replaceRange', range: { anchor: at, head: at }, between: [], text: '', mode: 'split' }, at));
     const right = result.created[0]!;
-    expect(doc.block(right)?.task).toEqual(newTask());
+    expect(doc.block(right)?.task).toEqual(newTask('todo'));
     expect(doc.block(first)?.task).toEqual(task);
     await client.flush();
     doc.undo();
@@ -400,7 +400,7 @@ test('Enter continues tasks without planning facts and empty tasks leave the lis
     await client.flush();
     doc.redo();
     await client.flush();
-    expect(doc.block(right)?.task).toEqual(newTask());
+    expect(doc.block(right)?.task).toEqual(newTask('todo'));
     if (offset === 5) {
       const empty = { id: right, offset: 0 };
       const exit = success(doc.edit({ kind: 'split', id: right, offset: 0 }, empty));
@@ -409,7 +409,7 @@ test('Enter continues tasks without planning facts and empty tasks leave the lis
       expect(doc.block(right)?.task).toBeNull();
       await client.flush();
       doc.undo();
-      expect(doc.block(right)?.task).toEqual(newTask());
+      expect(doc.block(right)?.task).toEqual(newTask('todo'));
       await client.flush();
     }
   }
@@ -420,7 +420,7 @@ test('Enter on empty tasks only exits childless todos and otherwise preserves th
     for (const withChild of [false, true]) {
       if (status === 'todo' && !withChild) continue;
       const { client, doc, first, pageId } = await fixture('');
-      const planned = { ...newTask(), scheduled: '2026-10-12', priority: 'high' as const };
+      const planned = { ...newTask('todo'), scheduled: '2026-10-12', priority: 'high' as const };
       success(doc.edit({ kind: 'task', id: first, value: planned }));
       if (status === 'done') success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-11' }));
       else if (status !== 'todo') success(doc.edit({ kind: 'task', id: first, value: { ...planned, status } }));
@@ -435,7 +435,7 @@ test('Enter on empty tasks only exits childless todos and otherwise preserves th
       expect(result.created).toHaveLength(1);
       expect(doc.block(first)?.task).toEqual(task);
       expect(doc.block(first)?.text).toBe('');
-      expect(doc.block(fresh)?.task).toEqual(newTask());
+      expect(doc.block(fresh)?.task).toEqual(newTask('todo'));
       expect(doc.block(fresh)?.text).toBe('');
       expect(doc.outline.children(first)).toEqual(child ? [fresh, child] : []);
       expect(doc.outline.children(pageId)).toEqual(child ? [first] : [first, fresh]);
@@ -449,20 +449,20 @@ test('Enter on empty tasks only exits childless todos and otherwise preserves th
       await client.flush();
       expect(doc.redo()).toEqual(result.caret);
       await client.flush();
-      expect(doc.block(fresh)?.task).toEqual(newTask());
+      expect(doc.block(fresh)?.task).toEqual(newTask('todo'));
     }
   }
 });
 
 test('Enter after a finished task starts a fresh todo and does not copy other capabilities', async () => {
   const { client, doc, first } = await fixture('Finished');
-  success(doc.edit({ kind: 'task', id: first, value: newTask() }));
+  success(doc.edit({ kind: 'task', id: first, value: newTask('todo') }));
   await client.flush();
   success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-11' }));
   await client.flush();
   const right = success(doc.edit({ kind: 'split', id: first, offset: 8 })).created[0]!;
   expect(doc.block(first)?.task?.status).toBe('done');
-  expect(doc.block(right)?.task).toEqual(newTask());
+  expect(doc.block(right)?.task).toEqual(newTask('todo'));
   expect(doc.block(right)?.project).toBeNull();
   expect(doc.block(right)?.question).toBeNull();
   await client.flush();

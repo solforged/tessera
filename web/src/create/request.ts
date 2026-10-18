@@ -1,5 +1,4 @@
 import { parseCardText } from '../review/card-text';
-import { captureDateToken, dateSuggestions } from '../tasks/quick-date';
 
 /**
  * What the creation slip starts with. Every entry point (⌘N, ⌘E, Find, index and table buttons, the macOS menu and
@@ -57,9 +56,7 @@ export function inferKind(text: string): CreateKind | null {
   const value = text.trim();
   if (!value) return null;
   if (value.endsWith('?')) return 'question';
-  const date = '2000-01-01';
-  const token = captureDateToken(value, date);
-  if (/^\[ ?\] /.test(text.trimStart()) || token && value[token.from] === '@' && dateSuggestions(token.query, date).length) return 'task';
+  if (/^\[ ?\] /.test(text.trimStart())) return 'task';
   if (parseCardText(value).cards.length) return 'card';
   if (/^https?:\/\/\S+$/i.test(value)) {
     try { if (new URL(value).hostname) return 'source'; } catch { /* Incomplete URL. */ }

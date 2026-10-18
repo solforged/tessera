@@ -19,6 +19,7 @@ export const statusLabels: Record<TaskStatus, string> = { todo: 'Todo', doing: '
 export const statusIcons: Record<TaskStatus, IconName> = { todo: 'select', doing: 'play', waiting: 'waiting', done: 'check', cancelled: 'close' };
 /** Every status with its glyph, the current one checked, then Remove task. */
 export function statusMenuItems(task: TaskState | null | undefined, choose: (status: TaskStatus | null) => void, disabledReason?: string): MenuItem[] {
+  if (task?.status === null) return [];
   return [
     ...statuses.map((status): MenuItem => ({ label: statusLabels[status], icon: statusIcons[status], checked: task?.status === status, disabledReason, action: () => choose(status) })),
     ...(task ? [{ label: 'Remove task', icon: 'close' as const, danger: true, disabledReason, action: () => choose(null) }] : []),
@@ -61,19 +62,19 @@ export function TaskStatusButton(props: { task: TaskState | null; disabled?: boo
     finally { setBusy(false); }
   };
   const finished = () => props.task?.status === 'done' || props.task?.status === 'cancelled';
-  const label = () => props.task ? `${finished() ? 'Reopen' : 'Complete'} task (${statusLabels[props.task.status]})` : 'Make task';
-  return <span ref={control} class="task-status-control" aria-busy={busy()}>
+  const label = () => props.task?.status ? `${finished() ? 'Reopen' : 'Complete'} task (${statusLabels[props.task.status]})` : 'Make task';
+  return <Show when={props.task?.status !== null}><span ref={control} class="task-status-control" aria-busy={busy()}>
     <Button class="task-status-button" data-status={props.task?.status} label={label()} title={`${label()} · right-click for status`} disabled={blocked()} aria-expanded={menu() ? true : undefined}
       onClick={() => { void change(!props.task || finished() ? 'todo' : 'done'); }}
       onContextMenu={event => { event.preventDefault(); if (!blocked()) setMenu({ anchor: event.currentTarget }); }}>
-      <Show when={props.task} fallback="Make task">{task => <Icon name={statusIcons[task().status]} />}</Show>
+      <Show when={props.task?.status} fallback="Make task">{status => <Icon name={statusIcons[status()]} />}</Show>
     </Button>
     <Show keyed when={failure()}>{state => <span class="task-control-error" role="alert">
       <span>{state.status === null ? 'Remove task' : statusLabels[state.status]}: {state.message}</span>
       <Button disabled={blocked()} label={state.status === null ? 'Retry removing task' : `Retry task status: ${statusLabels[state.status]}`} onClick={() => { void change(state.status); }}>Retry</Button>
     </span>}</Show>
     <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label="Task status" onDismiss={() => { setMenu(null); props.onRestoreFocus?.(); }} items={statusMenuItems(props.task, status => { void change(status); }, blocked() ? 'Task is unavailable.' : undefined)} />}</Show>
-  </span>;
+  </span></Show>;
 }
 
 type TaskPopup = { kind: 'scheduled' | 'deadline' | 'warning' | 'priority' | 'repeat'; anchor: HTMLElement };

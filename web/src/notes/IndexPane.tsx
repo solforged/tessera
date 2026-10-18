@@ -7,7 +7,7 @@ import { RequiredGaps } from '../fields/RequiredGaps';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
 import { plainText, readableText, referenceValue } from '../outline/names';
-import { PageMergePicker } from '../outline/PageMerge';
+import { builtInTagReason, PageMergePicker } from '../outline/PageMerge';
 import { documentReady } from '../outline/source-fields';
 import { addFilter, copyQuery, filterLabel, missingQueryFields, noteTableQuery, queriesEqual, removeFilter, removeQueryField, retainFieldNames, typeQuery } from '../table/query';
 import { MissingFields } from '../table/MissingFields';
@@ -251,6 +251,14 @@ function KindIndexPane(props: IndexPaneProps) {
     if (!range || start < 0) selectionAnchor = note.id;
   };
   const selectedNote = createMemo(() => index.latest?.notes.find(note => note.id === selected()) ?? queue().find(group => filter() === 'all' || group.key === filter())?.notes[0]);
+  const [actionCapabilities] = createResource(() => {
+    const ids = [...new Set([selectedNote()?.id, popup()?.note.id].filter((id): id is string => !!id))];
+    return [ids, changes()] as const;
+  }, async ([ids]) => new Map(await Promise.all(ids.map(async id => [id, await props.notebook.api.capabilities(id)] as const))));
+  const actionReason = (note: NoteEntry, action: 'delete' | 'merge') => {
+    const capabilities = actionCapabilities()?.get(note.id);
+    return actionCapabilities.error ? String(actionCapabilities.error) : !capabilities ? 'Atom is still loading.' : builtInTagReason(note.title, capabilities, action);
+  };
   const openNote = (note: NoteEntry, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: note.id }, listOpensBeside(event, !!props.neighbour));
   const showPopup = (kind: NotePopup['kind'], note: NoteEntry, anchor: HTMLElement) => { setSelected(note.id); setError(''); setPopup({ kind, note, anchor }); };
   let scroll!: HTMLDivElement;
@@ -357,7 +365,7 @@ function KindIndexPane(props: IndexPaneProps) {
                 <Show when={preview(note())}><p class="index-inspector-preview">{preview(note())}</p></Show>
                 <Show when={excerpt(note()).length}><div class="index-inspector-excerpt" aria-label="Opening prose"><For each={excerpt(note())}>{text => <p>{text}</p>}</For></div></Show>
                 <div class="index-inspector-actions"><Button class="bordered" onClick={event => showPopup('file', note(), event.currentTarget)}>File under a type…</Button><Button onClick={event => openNote(note(), event)}>Open note</Button>
-                  <Button onClick={event => showPopup('merge', note(), event.currentTarget)}>Merge into…</Button><Button class="danger" onClick={event => showPopup('delete', note(), event.currentTarget)}>Delete…</Button></div>
+                  <Button disabled={!!actionReason(note(), 'merge')} title={actionReason(note(), 'merge')} onClick={event => showPopup('merge', note(), event.currentTarget)}>Merge into…</Button><Button class="danger" disabled={!!actionReason(note(), 'delete')} title={actionReason(note(), 'delete')} onClick={event => showPopup('delete', note(), event.currentTarget)}>Delete…</Button></div>
                 <Show when={summary(note())?.referenced_from.length}><div class="index-incoming"><p class="index-apparatus">Referenced from</p><For each={summary(note())?.referenced_from}>{page => <Button onClick={event => props.onOpen({ kind: 'page', pageId: page.id }, listOpensBeside(event, !!props.neighbour))}>{page.title}</Button>}</For></div></Show>
               </aside>}</Show></div>
             </Show>
@@ -411,9 +419,9 @@ function KindIndexPane(props: IndexPaneProps) {
         { label: 'Open', action: () => props.onOpen({ kind: 'page', pageId: state.note.id }, window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches) },
         { label: 'File under…', action: () => showPopup('file', state.note, state.anchor) },
         { label: 'Rename…', action: () => showPopup('rename', state.note, state.anchor) },
-        { label: 'Delete…', danger: true, action: () => showPopup('delete', state.note, state.anchor) },
+        { label: 'Delete…', danger: true, disabledReason: actionReason(state.note, 'delete'), action: () => showPopup('delete', state.note, state.anchor) },
         { label: 'More…', divider: true, submenu: () => ({ title: 'More', items: [
-          { label: 'Merge into…', icon: 'merge', action: () => showPopup('merge', state.note, state.anchor) },
+          { label: 'Merge into…', icon: 'merge', disabledReason: actionReason(state.note, 'merge'), action: () => showPopup('merge', state.note, state.anchor) },
           { label: 'Copy reference', icon: 'link', action: () => { void navigator.clipboard.writeText(`[[${state.note.id}]]`).catch(reason => setError(`Couldn't copy: ${String(reason)}`)); } },
         ] }) },
       ]} /></Match>
@@ -421,7 +429,7 @@ function KindIndexPane(props: IndexPaneProps) {
       <Match when={state.kind === 'rename'}><RenameNote notebook={props.notebook} note={state.note} anchor={state.anchor} onDismiss={() => setPopup(undefined)} /></Match>
       <Match when={state.kind === 'merge'}><PageMergePicker notebook={props.notebook} from={{ id: state.note.id, text: state.note.title }} anchor={state.anchor} onDismiss={() => setPopup(undefined)} onMerged={() => { setPopup(undefined); setVersion(value => value + 1); }} /></Match>
       <Match when={state.kind === 'delete'}><Popup anchor={state.anchor} placement={cover() ? 'sheet' : 'anchor'} class="index-note-popup" label="Delete page" onDismiss={() => { if (!busy()) setPopup(undefined); }}>
-        <p>Delete “{state.note.title}” and all its blocks?</p><p class="muted">You can undo this deletion.</p><Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button disabled={busy()} onClick={() => setPopup(undefined)}>Cancel</Button><Button class="danger bordered" disabled={busy() || !props.onDeletePages} onClick={() => void deleteNote(state.note)}>Delete page</Button></div>
+        <p>Delete “{state.note.title}” and all its blocks?</p><p class="muted">You can undo this deletion.</p><Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button disabled={busy()} onClick={() => setPopup(undefined)}>Cancel</Button><Button class="danger bordered" disabled={busy() || !props.onDeletePages || !!actionReason(state.note, 'delete')} title={actionReason(state.note, 'delete')} onClick={() => void deleteNote(state.note)}>Delete page</Button></div>
       </Popup></Match>
     </Switch>}</Show>
     <Show when={error() && !popup()}><p class="error" role="alert">{error()}</p></Show>

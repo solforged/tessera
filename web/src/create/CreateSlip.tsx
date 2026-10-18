@@ -2,7 +2,7 @@ import { For, Match, Show, Switch, createMemo, createResource, createSignal, onM
 import type { NotebookClient, CaptureReceipt } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { shortDay } from '../shell/desk-counts';
-import { noteIndex } from '../notes/kinds';
+import { noteIndex, noteKindIcon } from '../notes/kinds';
 import { completeNames } from '../outline/names';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -14,7 +14,7 @@ import { CardComposerBody } from '../review/CardComposer';
 import { AddSourceBody } from '../library/AddSheet';
 import { PageDraft } from './PageDraft';
 import { inferKind, type CreateInto, type CreateKind, type CreateRequest } from './request';
-import { creatableKinds, kindNoun } from './kinds';
+import { kindNoun } from './kinds';
 import './create.css';
 
 export interface CreateNotice {
@@ -33,7 +33,7 @@ export interface CreateSlipProps {
 }
 const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
 const primaryKinds: { kind: CreateKind; label: string }[] = [
-  { kind: 'note', label: 'Note' }, { kind: 'question', label: 'Question' }, { kind: 'task', label: 'Task' }, { kind: 'card', label: 'Card' }, { kind: 'source', label: 'Source' },
+  { kind: 'task', label: '#task' }, { kind: 'question', label: '#question' }, { kind: 'note', label: 'note' }, { kind: 'card', label: 'card' }, { kind: 'source', label: '#source' },
 ];
 const defaultInto = (kind: CreateKind): CreateInto => ({ kind: kind === 'question' || kind === 'project' || kind.startsWith('type:') ? 'page' : 'journal' });
 
@@ -57,7 +57,7 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
   const [added, setAdded] = createSignal(0);
   const index = noteIndex(props.notebook);
   const noteKind = createMemo(() => index()?.kinds.find(value => value.key === (kind().startsWith('type:') ? kind().slice(5) : kind())));
-  const moreKinds = createMemo(() => creatableKinds(index()?.kinds ?? []));
+  const moreKinds = createMemo(() => (index()?.kinds ?? []).filter(value => value.tag && !primaryKinds.some(primary => primary.kind === value.key)));
   const under = () => { const destination = into(); return destination.kind === 'under' ? destination.pageId : undefined; };
   const destinationTitle = () => under() ? props.notebook.lookup(under()!)()?.text ?? props.notebook.roots().find(page => page.id === under())?.text ?? 'Page' : '';
   const pageDraft = () => kind() === 'project' || kind().startsWith('type:') || (kind() === 'note' || kind() === 'question') && into().kind === 'page';
@@ -123,9 +123,9 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
   return <div ref={body} class="create-body" onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); props.onDismiss(); } }}>
     <header class="capture-head"><span class="capture-title">{action()}</span><span class="capture-where">{where()}</span></header>
     <Show when={!props.request.lockKind}>
-      <div class="create-kinds mode-tabs" role="radiogroup" aria-label="Kind" onKeyDown={radios}>
+      <div class="create-kinds mode-tabs" role="radiogroup" aria-label="Create" onKeyDown={radios}>
         <For each={primaryKinds}>{value => <Button role="radio" aria-checked={kind() === value.kind} tabIndex={kind() === value.kind ? 0 : -1} onClick={() => changeKind(value.kind, true)}>{value.label}</Button>}</For>
-        <Button role="radio" aria-checked={moreSelected()} tabIndex={moreSelected() ? 0 : -1} aria-haspopup="menu" onClick={event => setMore(event.currentTarget)}>{moreSelected() ? kind() === 'project' ? 'Project' : noteKind()?.name ?? 'More' : 'More'}<Icon name="down" /></Button>
+        <Button role="radio" aria-checked={moreSelected()} tabIndex={moreSelected() ? 0 : -1} aria-haspopup="menu" onClick={event => setMore(event.currentTarget)}>{moreSelected() ? `#${noteKind()?.name ?? 'project'}` : 'More'}<Icon name="down" /></Button>
       </div>
       <Show when={kind() === 'note' || kind() === 'question' || kind() === 'task' || kind() === 'card'}><div class="create-into" role="group" aria-label="Into"><span>Into</span>
         <Button aria-pressed={into().kind === 'journal'} onClick={() => chooseInto({ kind: 'journal' })}>Today</Button>
@@ -145,7 +145,7 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
         {state => <footer class="create-foot"><span class="create-keys"><Show when={status()} fallback={<Show when={!props.sheet}><kbd>↵</kbd> Add <kbd>⇧↵</kbd> Add another <kbd>esc</kbd> Close</Show>}>{value => <span role="status">{value()}</span>}</Show></span><Show when={!props.sheet}><Button onClick={props.onDismiss}>Cancel</Button></Show><Button class="bordered" disabled={state.busy() || !text().trim()} onClick={() => state.submit(false)}>Add</Button></footer>}
       </CaptureField></Match>
     </Switch>
-    <Show when={more()}>{anchor => <Menu anchor={anchor()} label="More kinds" onDismiss={() => setMore(undefined)} items={[{ label: 'Project', action: () => changeKind('project', true) }, ...moreKinds().map(value => ({ label: value.name, action: () => changeKind(`type:${value.key}`, true) }))]} />}</Show>
+    <Show when={more()}>{anchor => <Menu anchor={anchor()} label="More tags" onDismiss={() => setMore(undefined)} items={moreKinds().map(value => ({ label: `#${value.name}`, icon: noteKindIcon(value), action: () => changeKind(value.key === 'project' ? 'project' : `type:${value.key}`, true) }))} />}</Show>
     <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Page" query={query()} onQuery={setQuery} placeholder="Find a page" items={pages()?.rows ?? []} key={value => value.page.id} onDismiss={() => setPicker(undefined)} onPick={value => { chooseInto({ kind: 'under', pageId: value.page.id }); setPicker(undefined); }} row={value => <><Icon name="page" /><span class="picker-text">{value.page.text}</span></>} empty="No matching pages." error={pages.error ? String(pages.error) : undefined} />}</Show>
   </div>;
 }

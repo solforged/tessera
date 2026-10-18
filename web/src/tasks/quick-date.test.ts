@@ -262,17 +262,18 @@ describe('date completion suggestions', () => {
 });
 
 describe('date completion plans', () => {
-  test('turns a plain block into a scheduled todo task and removes the token with its leading space', () => {
+  test('schedules a plain atom without a checkbox and removes the token with its leading space', () => {
     const text = 'Read @tomorrow';
     const choice = dateSuggestions('tomorrow', context)[0]!;
     expect(planDateToken(text, atEnd(text)!, choice, null)).toEqual({
       text: 'Read',
       caret: 4,
-      value: { status: 'todo', scheduled: '2026-10-04', scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null },
+      value: { status: null, scheduled: '2026-10-04', scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null },
     });
     const first = newTask();
     first.status = 'done';
-    expect(newTask().status).toBe('todo');
+    expect(newTask().status).toBeNull();
+    expect(newTask('todo').status).toBe('todo');
   });
 
   test('preserves every unrelated task property and source character, including text after the caret', () => {
