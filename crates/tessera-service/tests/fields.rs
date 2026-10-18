@@ -378,7 +378,7 @@ async fn manual_membership_batch_round_trips_page_pills_and_type_members() {
     );
     let (status, page) = request(&app, "GET", &format!("/api/pages/{}", id(1)), Value::Null).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(page["rows"][0]["manual_types"], json!(["BOOK"]));
+    assert_eq!(page["rows"][0]["manual_types"], json!(["Book"]));
     assert_eq!(page["targets"][0]["id"], id(2));
     let (status, members) = request(
         &app,

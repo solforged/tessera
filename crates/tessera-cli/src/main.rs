@@ -277,6 +277,25 @@ async fn checked(response: reqwest::Response) -> anyhow::Result<reqwest::Respons
     anyhow::bail!("Service returned {status}: {text}")
 }
 
+async fn tag_titles<'a>(
+    client: &reqwest::Client,
+    base: &str,
+    ids: std::collections::BTreeSet<&'a str>,
+) -> anyhow::Result<std::collections::HashMap<&'a str, String>> {
+    let mut titles = std::collections::HashMap::new();
+    for id in ids {
+        let response = client.get(format!("{base}/api/blocks/{id}")).send().await?;
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            continue;
+        }
+        let block: tessera_core::Block = checked(response).await?.json().await?;
+        if block.kind == tessera_core::BlockKind::Page {
+            titles.insert(id, block.text);
+        }
+    }
+    Ok(titles)
+}
+
 async fn add(notebook: &std::path::Path, inputs: Vec<String>, wait: bool) -> anyhow::Result<()> {
     use tessera_core::library::{IngestJob, IngestJobState, SourceView};
     let (client, base) = service(notebook).await?;
@@ -343,7 +362,21 @@ async fn add(notebook: &std::path::Path, inputs: Vec<String>, wait: bool) -> any
                         .await?
                         .json()
                         .await?;
-                        println!("{}: {}", id, source.page.text);
+                        let titles = tag_titles(
+                            &client,
+                            &base,
+                            tessera_core::tag_tokens(&source.page.text)
+                                .filter_map(|token| token.id)
+                                .collect(),
+                        )
+                        .await?;
+                        println!(
+                            "{}: {}",
+                            id,
+                            tessera_core::render_tags(&source.page.text, |id| titles
+                                .get(id)
+                                .map(String::as_str))
+                        );
                         break;
                     }
                     IngestJobState::Failed => {

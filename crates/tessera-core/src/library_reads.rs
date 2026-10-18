@@ -713,7 +713,8 @@ impl Notebook {
                  JOIN blocks incoming ON incoming.id = l.source_id
                  WHERE l.target_id = b.id AND incoming.deletion_id IS NULL
              ), (SELECT json_group_array(title) FROM (
-                 SELECT title FROM memberships WHERE block_id = b.id AND manual = 0 ORDER BY title_key
+                 SELECT t.text AS title FROM memberships m JOIN blocks t ON t.id = m.type_id
+                 WHERE m.block_id = b.id AND m.manual = 0 AND t.deletion_id IS NULL ORDER BY t.title_key, t.id
              ))
              FROM blocks b
              JOIN blocks p ON p.id = b.page_id
@@ -722,8 +723,8 @@ impl Notebook {
              AND NOT EXISTS(
                  SELECT 1 FROM json_each(?1) wanted
                  WHERE NOT EXISTS(
-                     SELECT 1 FROM memberships m
-                     WHERE m.block_id = b.id AND m.manual = 0 AND m.title_key = wanted.value
+                     SELECT 1 FROM memberships m JOIN blocks t ON t.id = m.type_id
+                     WHERE m.block_id = b.id AND m.manual = 0 AND t.title_key = wanted.value AND t.deletion_id IS NULL
                  )
              )
              AND (?2 IS NULL OR b.id IN (SELECT value FROM json_each(?2)))"

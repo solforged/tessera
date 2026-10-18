@@ -226,6 +226,7 @@ fn removing_capabilities_strips_bare_bracketed_and_manual_tags_with_receipts() {
             }],
         );
         let base_revision = nb.block(&id(value)).unwrap().revision;
+        let text = nb.block(&id(value)).unwrap().text;
         let operation = match key {
             "task" => Operation::SetTask {
                 id: id(value),

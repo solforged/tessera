@@ -161,6 +161,8 @@ A reference to a source-capable page with a nonempty label or locator is a citat
 
 Full-text search includes the current labels of canonical references. This index is derived from authored text and live targets, and refreshes when either changes; an explicit alias keeps its authored wording.
 
+Canonical tags are memberships, not links, and never create reference backlinks. Their authored aliases remain searchable. Text exports and agent outlines print `#Title` from the live tag page, falling back to the alias or ID when that page is gone.
+
 A page's backlinks cover references to its root and to every block on it, grouped by referring page. Sources on the same page are left out of that list but count towards each block's reference count. Unlinked mentions are blocks elsewhere that contain the page's title or an alias as a whole word, outside references, tags, URLs and code, and do not already link to the page.
 
 A page opts into a stream with the manual `Stream` type or a project capability. Its Arrivals list contains the direct children of journal blocks linking that page, newest journal day first, limited to the last 100 calendar days and 200 children. Adding one appends a whole-row reference to the child's ID as one undoable outline edit; the source stays in its journal. Whole-row references anywhere on the stream page exclude those children from Arrivals. The page's ordinary outline order is the added order.
@@ -185,7 +187,11 @@ A quote is frozen; a reference is live. A block whose whole text is `((ID))` is 
 
 ## Types and fields
 
-A type is an ordinary page used as the target of memberships. A block can have many types. Membership records whether it came from the text (`#book`) or was added manually; either keeps it.
+A type is an ordinary page used as the target of memberships. A block can have many types. Membership keys are `(block_id, type_id, manual)`. The `title` column keeps the authored spelling but does not decide identity. Membership records whether it came from text or was added manually; either keeps it.
+
+Canonical tag text is `#[[id|alias]]`. The alias may be empty and cannot contain brackets, pipes or line breaks. Legacy `#Title` and `#[[Title]]` remain valid input. A bracket token with a non-ID before a pipe keeps the whole bracket content as its legacy title. On commit, the engine resolves legacy tags to a live page by title key, creating a provisional page when needed, and reports canonical text in `text_rewrites`. A spelling that cannot fit the alias grammar uses an empty alias. An existing canonical tag keeps its ID and refreshes its alias to the live title when its atom is next edited. Renaming a tag page changes that page alone; members keep their text and revisions.
+
+A canonical tag without a live target stays in the text and creates no membership. Reusing its old title on another page does not rebind it. Migration 051 normalizes live legacy tags without creating pages or recording changes. `tessera check` reports unresolved tokens and text memberships that disagree with tags. Repair normalizes legacy tags and rebuilds memberships, while dangling IDs remain unresolved.
 
 The built-in tags `#task`, `#question`, `#project` and `#source` add behavior to an atom through text or manual membership. Gaining membership activates the matching record with its default state. Losing the last membership deactivates it and keeps its history. An action can still add behavior without writing a tag; unrelated text edits leave that record alone. Removing behavior also removes its text tokens and manual membership, with text rewrites in the change receipt.
 

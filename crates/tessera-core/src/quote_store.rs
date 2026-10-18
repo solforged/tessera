@@ -127,9 +127,10 @@ impl Notebook {
         let ids =
             serde_json::to_string(&memberships.keys().collect::<Vec<_>>()).expect("IDs serialize");
         let mut statement = self.conn.prepare_cached(
-            "SELECT m.block_id, m.title FROM json_each(?1) ids
-             JOIN memberships m ON m.block_id = ids.value WHERE m.manual = 1
-             ORDER BY m.block_id, m.title_key",
+            "SELECT m.block_id, t.text FROM json_each(?1) ids
+             JOIN memberships m ON m.block_id = ids.value
+             JOIN blocks t ON t.id = m.type_id AND t.deletion_id IS NULL WHERE m.manual = 1
+             ORDER BY m.block_id, t.title_key, t.id",
         )?;
         let mut values = statement.query([ids])?;
         while let Some(value) = values.next()? {

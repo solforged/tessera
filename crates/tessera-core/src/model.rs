@@ -538,8 +538,8 @@ pub struct Committed {
     /// in receipts stored before it was recorded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pages: Option<Vec<String>>,
-    /// Incoming-tag sources considered by a rename, including equal-text
-    /// guards needed to preserve exact spelling on undo.
+    /// Text normalized by the engine or changed by tag removal/merge operations.
+    /// The client applies these rewrites to its editor and undo history.
     /// Older persisted receipts predate tag rewriting.
     #[serde(default)]
     pub text_rewrites: Vec<TextRewrite>,

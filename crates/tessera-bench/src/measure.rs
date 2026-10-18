@@ -1,14 +1,14 @@
 use std::path::Path;
 use std::time::Instant;
 
-use anyhow::{Result, ensure};
+use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 use tessera_core::{
     Backlink, Block, BlockInPage, BlockKind, ChangeEvent, Completion, Notebook, Operation,
     PageReferences, PageView, ReferenceCount, Revision,
 };
 
-use crate::corpus::{Corpus, Expected, Model, batch, id, references};
+use crate::corpus::{Corpus, Expected, Model, batch, bench_types, id, references, tag};
 use crate::http::Http;
 
 /// Which statistic a measurement's pass/fail compares against its budget.
@@ -368,7 +368,7 @@ pub async fn queries(corpus: &Corpus, dir: &Path, recorder: &mut Recorder) -> Re
         .blocks
         .values()
         .filter(|block| {
-            model.effectively_visible(&block.id) && block.text.contains("#[[Page 00000]]")
+            model.effectively_visible(&block.id) && block.text.contains("|Page 00000]]")
         })
         .take(100)
         .map(|block| block.id.clone())
@@ -498,6 +498,13 @@ pub async fn commits(
         None
     };
     let mut model = corpus.model.clone();
+    let type_page = model
+        .blocks
+        .values()
+        .find(|block| block.text == "Page 00000")
+        .context("benchmark type page")?
+        .id
+        .clone();
     let mut serial = corpus.model.blocks.len() + 1000;
     for (&rows, page_id) in &corpus.pages {
         if rows != 100 && rows != 10000 {
@@ -554,7 +561,7 @@ pub async fn commits(
                         id: new_id.clone(),
                         parent_id: page_id.clone(),
                         after: Some(target.clone()),
-                        text: "benchmark insertion #[[Page 00000]]".into(),
+                        text: format!("benchmark insertion {}", tag(&type_page, "Page 00000")),
                         heading: None,
                     },
                     "split" => {
@@ -668,6 +675,18 @@ async fn apply(
         None => notebook.apply(&batch)?,
     };
     let ms = elapsed(start);
+    // The engine stores `#bench_type_N` as a canonical tag and reports the rewrite; the model follows it.
+    for rewrite in &committed.text_rewrites {
+        let block = model
+            .blocks
+            .get_mut(&rewrite.id)
+            .context("rewrite of a block the model lacks")?;
+        ensure!(
+            block.text == rewrite.before && block.revision == rewrite.revision,
+            "rewrite receipt disagrees with the model: {rewrite:?} vs {block:?}"
+        );
+        block.text.clone_from(&rewrite.after);
+    }
     if let Some(title) = new_type {
         ensure!(
             committed.revisions.len() == 2 + dropped.len(),
@@ -730,14 +749,6 @@ async fn apply(
     }
     model.check_commit(&committed, &revisions)?;
     Ok((committed, ms))
-}
-
-/// Generated type titles a block's text tags, in order.
-fn bench_types(text: &str) -> impl Iterator<Item = String> + '_ {
-    text.split_whitespace().filter_map(|word| {
-        word.strip_prefix("#bench_type_")
-            .map(|suffix| format!("bench_type_{suffix}"))
-    })
 }
 
 async fn check_current_page(

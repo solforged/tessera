@@ -54,9 +54,32 @@ pub fn restore_pre_images(conn: &Connection) {
 
 /// Before schema 49, image masks had no capability table.
 pub fn restore_pre_occlusions(conn: &Connection) {
+    restore_title_memberships(conn);
     conn.execute_batch("DROP TABLE occlusions;").unwrap();
     let migration = include_str!("../../migrations/049_occlusions.sql");
     let rebuild = &migration[migration.find("CREATE TABLE card_units_occlusion").unwrap()..];
     conn.execute_batch(&rebuild.replace(", 'occlusion'", ""))
         .unwrap();
+}
+
+/// Restore the last title-keyed membership schema for downgrade fixtures.
+pub fn restore_title_memberships(conn: &Connection) {
+    conn.execute_batch(
+        "ALTER TABLE memberships RENAME TO id_memberships;
+         DROP INDEX memberships_type;
+         CREATE TABLE memberships (
+             block_id TEXT NOT NULL REFERENCES blocks(id),
+             title_key TEXT NOT NULL,
+             type_id TEXT REFERENCES blocks(id),
+             manual INTEGER NOT NULL CHECK (manual IN (0, 1)),
+             title TEXT NOT NULL,
+             PRIMARY KEY (block_id, title, manual)
+         ) STRICT;
+         INSERT INTO memberships SELECT m.block_id, p.title_key, m.type_id, m.manual, m.title
+             FROM id_memberships m JOIN blocks p ON p.id = m.type_id;
+         DROP TABLE id_memberships;
+         CREATE INDEX memberships_type ON memberships(type_id, block_id);
+         CREATE INDEX memberships_title ON memberships(title_key, block_id);",
+    )
+    .unwrap();
 }

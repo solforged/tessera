@@ -213,7 +213,11 @@ pub(super) fn execute(
                 .transpose()?
                 .unwrap_or(20)
                 .min(100) as usize;
-            let hits = notebook.search(query, limit)?;
+            let mut hits = notebook.search(query, limit)?;
+            for hit in &mut hits {
+                hit.block.text = notebook.render_tag_text(&hit.block.text)?.into_owned();
+                hit.page.text = notebook.render_tag_text(&hit.page.text)?.into_owned();
+            }
             let text = serde_json::to_string(&hits)?;
             return Ok((
                 text,

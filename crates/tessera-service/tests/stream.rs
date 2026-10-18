@@ -247,6 +247,11 @@ async fn rename_receipt_and_live_event_preserve_tag_identity_through_edit_and_in
         .json()
         .await
         .unwrap();
+    let original = format!("Focus #[[{}|auditfocus]]", tag.id);
+    assert_eq!(seeded.text_rewrites[0].id, BLOCK);
+    assert_eq!(seeded.text_rewrites[0].before, "Focus #auditfocus");
+    assert_eq!(seeded.text_rewrites[0].after, original);
+    assert_eq!(seeded.text_rewrites[0].revision, 1);
     let (mut socket, _) = connect_async(format!(
         "ws://{host}/api/changes/stream?after={}",
         seeded.seq
@@ -263,10 +268,9 @@ async fn rename_receipt_and_live_event_preserve_tag_identity_through_edit_and_in
         }]),
     )
     .await;
-    assert_eq!(renamed.text_rewrites[0].id, BLOCK);
-    assert_eq!(renamed.text_rewrites[0].before, "Focus #auditfocus");
-    assert_eq!(renamed.text_rewrites[0].after, "Focus #[[Audit work]]");
-    assert_eq!(renamed.text_rewrites[0].revision, 2);
+    assert!(renamed.text_rewrites.is_empty());
+    assert_eq!(renamed.revisions.len(), 1);
+    assert_eq!(renamed.revisions[0].id, tag.id);
     let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
         .await
         .unwrap()
@@ -280,24 +284,17 @@ async fn rename_receipt_and_live_event_preserve_tag_identity_through_edit_and_in
             .iter()
             .map(|block| block.id.as_str())
             .collect::<Vec<_>>(),
-        vec![tag.id.as_str(), BLOCK]
+        vec![tag.id.as_str()]
     );
-    assert_eq!(event.blocks[1].text, "Focus #[[Audit work]]");
+    assert_eq!(event.blocks[0].text, "Audit work");
     let restored = commit(
         &client,
         &host,
-        &batch(vec![
-            Operation::EditText {
-                id: tag.id.clone(),
-                base_revision: 2,
-                text: "auditfocus".into(),
-            },
-            Operation::EditText {
-                id: BLOCK.into(),
-                base_revision: renamed.text_rewrites[0].revision,
-                text: renamed.text_rewrites[0].before.clone(),
-            },
-        ]),
+        &batch(vec![Operation::EditText {
+            id: tag.id.clone(),
+            base_revision: 2,
+            text: "auditfocus".into(),
+        }]),
     )
     .await;
     assert_eq!(restored.seq, renamed.seq + 1);
@@ -311,7 +308,8 @@ async fn rename_receipt_and_live_event_preserve_tag_identity_through_edit_and_in
         .json()
         .await
         .unwrap();
-    assert_eq!(source.text, "Focus #auditfocus");
+    assert_eq!(source.text, original);
+    assert_eq!(source.revision, 1);
     let rerename = commit(
         &client,
         &host,
@@ -322,12 +320,15 @@ async fn rename_receipt_and_live_event_preserve_tag_identity_through_edit_and_in
         }]),
     )
     .await;
-    commit(
+    assert!(rerename.text_rewrites.is_empty());
+    let edited = commit(
         &client,
         &host,
-        &edit(rerename.text_rewrites[0].revision, "Focus #[[Audit work]]."),
+        &edit(source.revision, &format!("{original}.")),
     )
     .await;
+    let refreshed = format!("Focus #[[{}|Audit work]].", tag.id);
+    assert_eq!(edited.text_rewrites[0].after, refreshed);
     let members: Vec<BlockInPage> = client
         .get(format!("http://{host}/api/types/{}/members", tag.id))
         .send()
@@ -339,7 +340,7 @@ async fn rename_receipt_and_live_event_preserve_tag_identity_through_edit_and_in
         .await
         .unwrap();
     assert_eq!(members[0].block.id, BLOCK);
-    assert_eq!(members[0].block.text, "Focus #[[Audit work]].");
+    assert_eq!(members[0].block.text, refreshed);
     let old = client
         .get(format!("http://{host}/api/pages/by-title/auditfocus"))
         .send()

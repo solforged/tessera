@@ -196,12 +196,13 @@ fn title_references_link_existing_and_new_pages_like_the_editor() {
         .collect();
     assert_eq!(titles, ["Letters", "Seneca"]);
     let seneca = nb.page_by_title("Seneca").unwrap().unwrap().id;
+    let tag = nb.page_by_title("Big idea").unwrap().unwrap().id;
     let written = nb.block(&receipt.blocks[0].id).unwrap().text;
     assert_eq!(
         written,
         format!(
             "[[{stoic}]] and [[{seneca}|him]], again [[{seneca}]], on [[{day}]] not [[2026-10-02]], \
-             tag #[[Big idea]], ref [[{stoic}]], [[]] and [[open",
+             tag #[[{tag}|Big idea]], ref [[{stoic}]], [[]] and [[open",
             stoic = id(1),
             day = id(2),
         )
@@ -259,7 +260,7 @@ fn unmatched_backticks_keep_later_agent_titles_and_tags_active() {
     let written = nb.block(&receipt.blocks[0].id).unwrap();
     assert_eq!(
         written.text,
-        format!("it`s about #history [[{}]]", polybius.id)
+        format!("it`s about #[[{}|history]] [[{}]]", history.id, polybius.id)
     );
     assert_eq!(nb.members(&history.id, 10).unwrap().len(), 1);
     assert_eq!(nb.backlinks(&polybius.id, 10).unwrap().len(), 1);
@@ -661,7 +662,7 @@ fn undo_handles_provisional_pages_cleaned_in_this_and_later_changes() {
     assert!(nb.block(&prefix.id).is_err());
     undo(&mut nb, edited.seq).unwrap();
     assert!(nb.block(&final_page.id).is_err());
-    assert!(nb.page_by_title("p").unwrap().is_some());
+    assert_eq!(nb.page_by_title("p").unwrap().unwrap().id, prefix.id);
     undo(&mut nb, added.seq).unwrap();
     assert!(nb.page_by_title("p").unwrap().is_none());
     assert!(nb.block(&source).is_err());

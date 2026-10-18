@@ -317,10 +317,9 @@ fn merge_rewrites_mixed_links_aliases_tags_and_manual_memberships_and_replays() 
     assert_eq!(
         nb.block(&id(10)).unwrap().text,
         format!(
-            "[[{}]] [[{}|Draft alias]] #[[Canonical Person]] #[[Canonical Person]] [[{}|Existing alias]] #Other",
-            id(2),
-            id(2),
-            id(2)
+            "[[{target}]] [[{target}|Draft alias]] #[[{target}|Canonical Person]] #[[{target}|Canonical Person]] [[{target}|Existing alias]] #[[{other}|Other]]",
+            target = id(2),
+            other = id(4)
         )
     );
     assert_eq!(nb.block(&id(11)).unwrap().text, "manual only");
@@ -680,7 +679,7 @@ fn person_merge_redirects_incoming_author_fields_on_two_sources_and_unions_backl
 }
 
 #[test]
-fn rename_before_merge_retargets_pending_tag_and_manual_membership_rewrites() {
+fn rename_before_merge_redirects_tag_identity_and_manual_memberships() {
     let (_dir, mut nb) = fixture();
     apply(
         &mut nb,
@@ -710,7 +709,10 @@ fn rename_before_merge_retargets_pending_tag_and_manual_membership_rewrites() {
     );
     assert_eq!(
         nb.block(&id(10)).unwrap().text,
-        format!("#[[Canonical Person]] [[{}|Draft]]", id(2))
+        format!(
+            "#[[{target}|Canonical Person]] [[{target}|Draft]]",
+            target = id(2)
+        )
     );
     let notes = nb.page(&id(3)).unwrap();
     assert_eq!(

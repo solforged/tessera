@@ -50,6 +50,7 @@ mod settings;
 mod spans;
 mod spreads;
 mod storage;
+pub use storage::{TagToken, reference_spans, render_tags, tag_tokens};
 mod streams;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub mod sync;

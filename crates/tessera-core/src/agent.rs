@@ -527,6 +527,7 @@ impl Notebook {
             saved_decks,
             ..
         } = plan;
+        let provisional = self.provisional_undo_targets(&steps)?;
         let committed = self.apply_with(
             &Batch {
                 actor: request.actor.clone(),
@@ -535,11 +536,33 @@ impl Notebook {
                 operations,
             },
             |tx, committed| {
+                let mut operations = inverse(&steps, committed)?;
+                for id in &committed.removed {
+                    if provisional.contains(id) {
+                        let row = crate::storage::stored(tx, id)?.expect("deleted page exists");
+                        operations.push(Operation::Restore {
+                            id: id.clone(),
+                            revision: row.block.revision,
+                            deletion_id: row.deletion_id.expect("cleaned page has a deletion"),
+                        });
+                    }
+                }
+                let mut created_pages = resulting(committed, &created)?;
+                for revision in &committed.revisions {
+                    if revision.revision == 1
+                        && !created.contains(&revision.id)
+                        && crate::storage::stored(tx, &revision.id)?
+                            .is_some_and(|row| row.block.kind == BlockKind::Page
+                                && crate::notes::built_in_tag_name(&crate::storage::title_key(&row.block.text)).is_none())
+                    {
+                        created_pages.push(revision.clone());
+                    }
+                }
                 let undo = Undo {
-                    operations: inverse(&steps, committed)?,
+                    operations,
                     removable: resulting(committed, &removable)?,
                     inserted: inserted.clone(),
-                    created_pages: resulting(committed, &created)?,
+                    created_pages,
                     created_fields: resulting(committed, &created_fields)?,
                 };
                 tx.execute(
@@ -1519,6 +1542,42 @@ impl Notebook {
             )?
             .query_map([id], |row| row.get(0))?
             .collect::<rusqlite::Result<_>>()?)
+    }
+
+    /// Cleanup can delete a tag page needed by the inverse's canonical text.
+    fn provisional_undo_targets(&self, steps: &[Step]) -> Result<HashSet<String>> {
+        let extend_targets = |pending: &mut Vec<String>, text: &str| {
+            pending.extend(
+                crate::storage::tag_tokens(text)
+                    .filter_map(|token| token.id)
+                    .chain(crate::storage::reference_spans(text).map(|(_, id, _)| id))
+                    .map(str::to_owned),
+            );
+        };
+        let mut pending = Vec::new();
+        for step in steps {
+            if let Step::Text { text, .. } = step {
+                extend_targets(&mut pending, text);
+            }
+        }
+        let mut seen = HashSet::new();
+        let mut provisional = HashSet::new();
+        let mut query = self.conn.prepare_cached(
+            "SELECT b.text FROM provisional_pages p JOIN blocks b ON b.id = p.id WHERE p.id = ?1 AND b.deletion_id IS NULL",
+        )?;
+        while let Some(id) = pending.pop() {
+            if !seen.insert(id.clone()) {
+                continue;
+            }
+            if let Some(text) = query
+                .query_row([&id], |row| row.get::<_, String>(0))
+                .optional()?
+            {
+                extend_targets(&mut pending, &text);
+                provisional.insert(id);
+            }
+        }
+        Ok(provisional)
     }
 
     /// Live blocks that reference or are tagged with `id`.

@@ -4,9 +4,8 @@
 //! every derived table again inside a transaction and compares the result with
 //! what was stored, then rolls the transaction back. Repair keeps the
 //! transaction instead, recorded as a change by the `check` client so a hub's
-//! replicas pull the corrected rows like any other change. Authored blocks and
-//! evidence tables are never written: a derivation that would change them
-//! fails the whole check before anything is kept.
+//! replicas pull the corrected rows like any other change. Tag normalization is
+//! the only authored-text repair; other authored rows and evidence are guarded.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -139,8 +138,8 @@ const DERIVED: &[Derived] = &[
     Derived {
         table: "memberships",
         recomputed: "memberships",
-        columns: "block_id, title_key, type_id, manual, title",
-        names: "block_id, title_key, type_id, manual, title",
+        columns: "block_id, type_id, manual, title",
+        names: "block_id, type_id, manual, title",
         rows: "manual = 0",
         sample: "block_id",
         block: "block_id",
@@ -177,18 +176,21 @@ const DERIVED: &[Derived] = &[
 
 macro_rules! missing_capabilities {
     () => {
-        "SELECT DISTINCT b.id AS block_id, m.title_key FROM blocks b
+        "SELECT DISTINCT b.id AS block_id, tag.title_key FROM blocks b
          JOIN memberships m ON m.block_id = b.id
+         JOIN blocks tag ON tag.id = m.type_id AND tag.deletion_id IS NULL
          WHERE b.deletion_id IS NULL AND (
-           (m.title_key = 'task' AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.block_id = b.id AND t.active = 1))
-           OR (m.title_key = 'question' AND NOT EXISTS (SELECT 1 FROM questions q WHERE q.block_id = b.id AND q.active = 1))
-           OR (m.title_key = 'project' AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.block_id = b.id AND p.active = 1))
-           OR (m.title_key = 'source' AND NOT EXISTS (SELECT 1 FROM sources s WHERE s.block_id = b.id AND s.active = 1)))"
+           (tag.title_key = 'task' AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.block_id = b.id AND t.active = 1))
+           OR (tag.title_key = 'question' AND NOT EXISTS (SELECT 1 FROM questions q WHERE q.block_id = b.id AND q.active = 1))
+           OR (tag.title_key = 'project' AND NOT EXISTS (SELECT 1 FROM projects p WHERE p.block_id = b.id AND p.active = 1))
+           OR (tag.title_key = 'source' AND NOT EXISTS (SELECT 1 FROM sources s WHERE s.block_id = b.id AND s.active = 1)))"
     };
 }
 
 /// Rules the schema cannot state, each a query listing the rows that break it.
 const INVARIANTS: &[(&str, &str)] = &[
+    ("tag_tokens_resolve", ""),
+    ("memberships_match_tags", ""),
     (
         "built_in_tag_keeps_capability",
         concat!(
@@ -247,7 +249,7 @@ impl Notebook {
     /// Check the database file, the derived tables and the model's
     /// invariants, and hash every replicated table. With `repair`, replace the
     /// derived tables with freshly derived rows in one change by the `check`
-    /// client; authored blocks and evidence are never written.
+    /// client; only canonical tag normalization may rewrite authored text.
     pub fn check(&mut self, repair: bool) -> Result<CheckReport> {
         let quick_check = quick_check(&self.conn)?;
         let foreign_keys = foreign_key_check(&self.conn)?;
@@ -297,7 +299,6 @@ impl Notebook {
         } else {
             None
         };
-        let guarded = guard_digests(&tx)?;
         for derived in DERIVED {
             tx.execute_batch(&format!(
                 "DROP TABLE IF EXISTS temp.check_{table};
@@ -307,17 +308,58 @@ impl Notebook {
                 rows = derived.rows,
             ))?;
         }
+        let mut rewrites = Vec::new();
+        let mut normalized_blocks = BTreeSet::new();
+        let sources = tx
+            .prepare("SELECT id, text, revision FROM blocks WHERE deletion_id IS NULL ORDER BY id")?
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let change_id = new_ulid().to_string();
+        for (id, before, revision) in sources {
+            let mut created = Vec::new();
+            if let Some(after) = crate::storage::normalize_tags(
+                &tx,
+                &before,
+                Some(crate::storage::TypeCreation {
+                    change_id: Some(&change_id),
+                    now,
+                }),
+                false,
+                &mut created,
+            )? {
+                tx.execute(
+                    "UPDATE blocks SET text = ?1, title_key = CASE WHEN kind = 'page' THEN ?2 ELSE NULL END,
+                     revision = revision + 1, updated_at = ?3 WHERE id = ?4",
+                    params![after, crate::storage::title_key(&after), now, id],
+                )?;
+                normalized_blocks.insert(id.clone());
+                rewrites.push(crate::TextRewrite {
+                    id,
+                    before,
+                    after,
+                    revision: revision + 1,
+                });
+            }
+            normalized_blocks.extend(created.into_iter().map(|revision| revision.id));
+        }
+        let guarded = guard_digests(&tx)?;
         let cards = derive_all(&tx, now)?;
         let missing = tx
             .prepare_cached(concat!(
                 missing_capabilities!(),
-                " ORDER BY b.id, m.title_key"
+                " ORDER BY b.id, tag.title_key"
             ))?
             .query_map([], |row| {
                 Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        let mut blocks = BTreeSet::new();
+        let mut blocks = normalized_blocks;
         for (id, key) in missing {
             if crate::operations::derive_capability(&tx, &id, &key, true, now, 0)? {
                 blocks.insert(id);
@@ -359,7 +401,7 @@ impl Notebook {
                 )?;
             }
         }
-        let (seq, stamp, batch) = record_change(&tx, now, cards, &blocks)?;
+        let (seq, stamp, batch) = record_change(&tx, now, cards, &blocks, rewrites)?;
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         recording.map_or(Ok(()), |recording| {
             crate::sync::finish(
@@ -443,6 +485,9 @@ fn invariants(conn: &Connection) -> Result<Vec<Invariant>> {
     INVARIANTS
         .iter()
         .map(|(name, sql)| {
+            if sql.is_empty() {
+                return tag_invariant(conn, name);
+            }
             let mut statement = conn.prepare(sql)?;
             let mut rows = statement.query([])?;
             let mut violations = 0;
@@ -460,6 +505,61 @@ fn invariants(conn: &Connection) -> Result<Vec<Invariant>> {
             })
         })
         .collect()
+}
+
+fn tag_invariant(conn: &Connection, name: &str) -> Result<Invariant> {
+    let mut result = Invariant {
+        name: name.to_owned(),
+        violations: 0,
+        samples: Vec::new(),
+    };
+    let mut sources =
+        conn.prepare("SELECT id, text FROM blocks WHERE deletion_id IS NULL ORDER BY id")?;
+    let mut memberships = conn.prepare_cached(
+        "SELECT type_id FROM memberships WHERE block_id = ?1 AND manual = 0 ORDER BY type_id",
+    )?;
+    let mut rows = sources.query([])?;
+    while let Some(row) = rows.next()? {
+        let id: String = row.get(0)?;
+        let text: String = row.get(1)?;
+        let mut unresolved = false;
+        let mut targets = BTreeSet::new();
+        for token in crate::storage::tag_tokens(&text) {
+            let target = match token.id {
+                Some(id) => crate::storage::live_tag(conn, id)?.map(|_| id.to_owned()),
+                None => {
+                    unresolved = true;
+                    crate::storage::resolve_type(
+                        conn,
+                        token.title,
+                        &crate::storage::title_key(token.title),
+                        None,
+                        &mut Vec::new(),
+                    )?
+                }
+            };
+            if let Some(target) = target {
+                targets.insert(target);
+            } else {
+                unresolved = true;
+            }
+        }
+        let violates = if name == "tag_tokens_resolve" {
+            unresolved
+        } else {
+            let stored = memberships
+                .query_map([&id], |row| row.get::<_, String>(0))?
+                .collect::<rusqlite::Result<BTreeSet<_>>>()?;
+            stored != targets
+        };
+        if violates {
+            result.violations += 1;
+            if result.samples.len() < SAMPLE_LIMIT {
+                result.samples.push(id);
+            }
+        }
+    }
+    Ok(result)
 }
 
 /// Derive links, memberships, field values and card definitions for every
@@ -548,6 +648,7 @@ fn record_change(
     now: i64,
     cards: Vec<Revision>,
     blocks: &BTreeSet<String>,
+    text_rewrites: Vec<crate::TextRewrite>,
 ) -> Result<(i64, ChangeStamp, Batch)> {
     let batch = Batch {
         actor: Actor::Client {
@@ -584,6 +685,10 @@ fn record_change(
     let capabilities =
         crate::task_store::capabilities_for(tx, &blocks.iter().cloned().collect::<Vec<_>>())?;
     let blocks = serde_json::to_string(blocks).expect("block IDs serialize");
+    let revisions = tx.prepare(
+        "SELECT id, revision FROM blocks WHERE id IN (SELECT value FROM json_each(?1)) ORDER BY id",
+    )?.query_map([&blocks], |row| Ok(Revision { id: row.get(0)?, revision: row.get(1)? }))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
     let pages = tx
         .prepare(
             "SELECT DISTINCT page_id FROM blocks
@@ -593,11 +698,11 @@ fn record_change(
         .collect::<rusqlite::Result<Vec<_>>>()?;
     let committed = Committed {
         seq,
-        revisions: Vec::new(),
+        revisions,
         removed: Vec::new(),
         deletions: Vec::new(),
         pages: Some(pages),
-        text_rewrites: Vec::new(),
+        text_rewrites,
         settings: Vec::new(),
         capabilities,
         cards,

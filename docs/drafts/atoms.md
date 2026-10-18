@@ -13,7 +13,7 @@ The storage model already is the atom model: one block table, behavior as capabi
 - **Kind lists.** `notes.rs` (`TYPE_KINDS`, `TYPE_ICONS`, `CAPABILITY_KINDS`), `built_in.rs` (type schemas and the five-type ensure loop), `notes/kinds.ts`, `create/kinds.ts`, `create/request.ts`, `create/CreateSlip.tsx`, `fields/templates.ts` (`startingTemplates`), `outline/commands.ts` (`cardItems`) and the `'fields'` exclusions in `OutlinePane`, `PageMerge`, `MetadataCreators`, `SpreadPane` and `IndexPane`.
 - **Templates.** A type page edits its template in place. A tag typed for the first time has none, and the template-grows-from-use offer needs a second member before it appears.
 - **Help.** No syntax or shortcut sheet exists. The command registry (`shell/App.tsx`) is the only list of bindings.
-- **Tag identity.** `#Title` resolves by title key; renaming a type rewrites member text (audit R1).
+- **Tag identity. Engine built.** Canonical tags address a page ID; legacy input normalizes on write, and renaming a tag leaves member text alone (audit R1).
 
 ## Proposal
 
@@ -139,4 +139,4 @@ Audit proposal P3, after the surface work and in its own release: a tag canonica
 4. **Built-in tags. Engine built.** `#task`, `#question`, `#project` and `#source` derive their records from membership, with removal receipts and retained history. Built-in tag pages have canonical names and refuse deletion, merging away and renaming. Task status is optional for appointments; Agenda includes them and task views do not. Check reports and repairs missing tagged records. Glyph rendering remains the web part of this step.
 5. **Decks read as tags.** Badge, Review header, Cards tab, docs.
 6. **Fields into Index. Built, reading 1.** The fixed Fields row closes the Notes shelf in the sidebar and directory, with the register's live definition count.
-7. **Tags addressed by ID**, in its own release.
+7. **Tags addressed by ID. Engine built.** Migration 051, normalization receipts, ID-keyed memberships, lazy aliases and check repair are built. Web rendering and completion remain.

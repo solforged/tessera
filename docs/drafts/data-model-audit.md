@@ -45,6 +45,8 @@ Severity is about data loss or silent divergence first, then cost at 50,000 bloc
 
 ### R1. Tags are addressed by title
 
+Engine built in migration 051: tags and memberships address page IDs, rename leaves member text alone, and check reports and repairs tag derivation. Web rendering and completion remain.
+
 `memberships` keys on `title_key`, with `type_id` resolved at derivation time (`storage.rs::resolve_type`). A type rename runs `rewrite_incoming_tags`, which rewrites the text of every member block and reports `text_rewrites` to the client. The Unicode migration (047) had to widen the primary key to `(block_id, title, manual)` to keep "legacy canonical collisions", which is the schema admitting the key is not an identity.
 
 Why it matters:
@@ -115,6 +117,8 @@ Backup and install run the read-only part and refuse to proceed on a failed `qui
 Addresses R8. Use P1's per-table hashes. After a pull, a replica sends the hashes of its Applied tables at the confirmed sequence; the hub compares with its own at that sequence (computed once per prune and cached). A mismatch is reported in `/api/sync/state` and Settings › Devices as "diverged, reclone recommended" rather than waiting for a patch to fail. Cost: small once P1 exists. This is also the first piece the blind-sequencer design needs.
 
 ### P3. Tags addressed by ID
+
+Engine built. `text_rewrites` stays for normalization, removal and merging, not rename. Migration leaves unresolved legacy tags in the text for check to report.
 
 Addresses R1. Make a tag canonical as `#[[id|Title]]`, the same shape references already use, and derive memberships from the ID. The spelling after the bar is display only and is rewritten lazily when the block is next edited, never in bulk.
 

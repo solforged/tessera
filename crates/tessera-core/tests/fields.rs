@@ -863,7 +863,11 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
     let nb = Notebook::open(dir.path()).unwrap();
     let replacement = nb.fields().unwrap().page_id;
     assert_ne!(replacement, fields);
-    assert_eq!(nb.members(&replacement, 10).unwrap()[0].block.id, id(101));
+    assert!(nb.members(&replacement, 10).unwrap().is_empty());
+    assert_eq!(
+        nb.block(&id(101)).unwrap().text,
+        format!("#[[{fields}|fields]]")
+    );
     assert_eq!(
         Notebook::open(dir.path())
             .unwrap()

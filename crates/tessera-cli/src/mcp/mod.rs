@@ -138,7 +138,10 @@ impl Session<'_> {
                     _ => return Some(failure(id, -32602, &format!("Unknown tool: {name}"))),
                 };
                 let (text, error) = match result {
-                    Ok(text) => (text, false),
+                    Ok(text) => match self.render_tags(&text).await {
+                        Ok(text) => (text, false),
+                        Err(error) => (format!("{error:#}"), true),
+                    },
                     Err(error) => (format!("{error:#}"), true),
                 };
                 success(
@@ -154,6 +157,18 @@ impl Session<'_> {
         Actor::Agent {
             name: self.agent.clone(),
         }
+    }
+
+    async fn render_tags(&self, text: &str) -> anyhow::Result<String> {
+        let ids: std::collections::BTreeSet<_> = tessera_core::tag_tokens(text)
+            .filter_map(|token| token.id)
+            .collect();
+        if ids.is_empty() {
+            return Ok(text.to_owned());
+        }
+        let api = self.api().await?;
+        let titles = crate::tag_titles(&api.client, &api.base, ids).await?;
+        Ok(tessera_core::render_tags(text, |id| titles.get(id).map(String::as_str)).into_owned())
     }
 
     async fn api(&self) -> anyhow::Result<Api> {

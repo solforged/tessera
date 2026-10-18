@@ -10,7 +10,7 @@ use tessera_core::{
     PageView, ReferenceCount, Revision, SCHEMA_VERSION,
 };
 
-const GENERATOR_VERSION: u32 = 3;
+const GENERATOR_VERSION: u32 = 4;
 const CHUNK: usize = 256;
 
 #[derive(Clone, Debug, Serialize)]
@@ -62,6 +62,33 @@ pub fn batch(operations: Vec<Operation>) -> Batch {
 
 pub fn id(seed: u64, index: usize) -> String {
     ulid::Ulid::from((u128::from(seed) << 64) | index as u128).to_string()
+}
+
+/// The canonical tag text naming a page, as the engine stores it.
+pub fn tag(page_id: &str, title: &str) -> String {
+    format!("#[[{page_id}|{title}]]")
+}
+
+/// Page IDs named by canonical tags in a block's text, in order.
+pub fn tag_targets(text: &str) -> impl Iterator<Item = String> + '_ {
+    text.split("#[[").skip(1).filter_map(|rest| {
+        let (target, _) = rest.split_once('|')?;
+        (target.len() == 26 && target.parse::<ulid::Ulid>().is_ok()).then(|| target.to_owned())
+    })
+}
+
+/// Generated type titles a block's text tags, by alias, in order.
+pub fn bench_types(text: &str) -> impl Iterator<Item = String> + '_ {
+    text.split_whitespace().filter_map(|word| {
+        let title = word
+            .strip_prefix("#[[")
+            .and_then(|rest| rest.split_once('|'))
+            .and_then(|(_, alias)| alias.strip_suffix("]]"))
+            .unwrap_or(word.strip_prefix('#').unwrap_or(""));
+        title
+            .strip_prefix("bench_type_")
+            .map(|suffix| format!("bench_type_{suffix}"))
+    })
 }
 
 impl Corpus {
@@ -137,7 +164,10 @@ impl Corpus {
                 } else {
                     [2, 8, 24, 80, 240][random as usize % 5]
                 };
-                let mut text = format!("needle{index:06} cobalt #[[Page 00000]] ");
+                let mut text = format!(
+                    "needle{index:06} cobalt {} ",
+                    tag(&id(seed, 0), "Page 00000")
+                );
                 text.push_str(&"outline reading context ".repeat(words));
                 if row + 1 != rows && index % 8 == 0 {
                     let target = id(seed, (random as usize % index).min(index - 1));
@@ -497,37 +527,15 @@ impl Model {
                 }
             }
         }
-        if page
-            .rows
-            .iter()
-            .any(|row| row.block.text.contains("#[[Page 00000]]"))
-        {
-            let type_page = self
-                .blocks
-                .values()
-                .find(|block| {
-                    !block.deleted && block.kind == BlockKind::Page && block.text == "Page 00000"
-                })
-                .context("benchmark type page")?;
-            targets.insert(type_page.id.clone());
-        }
-        for title in page
-            .rows
-            .iter()
-            .flat_map(|row| row.block.text.split_whitespace())
-            .filter_map(|word| {
-                word.strip_prefix("#bench_type_")
-                    .map(|suffix| format!("bench_type_{suffix}"))
-            })
-        {
-            let type_page = self
-                .blocks
-                .values()
-                .find(|block| {
-                    !block.deleted && block.kind == BlockKind::Page && block.text == title
-                })
-                .context("generated benchmark type page")?;
-            targets.insert(type_page.id.clone());
+        for row in &page.rows {
+            for target in tag_targets(&row.block.text) {
+                let page = self.blocks.get(&target).context("tagged type page")?;
+                ensure!(
+                    !page.deleted && page.kind == BlockKind::Page,
+                    "tag names a missing type page"
+                );
+                targets.insert(target);
+            }
         }
         let actual = page
             .targets
@@ -786,11 +794,13 @@ fn tokens(text: &str) -> Vec<String> {
         .collect()
 }
 
+/// Reference targets in a block's text; `#[[id|alias]]` is a tag, not a reference.
 pub fn references(text: &str) -> Vec<String> {
-    text.split("[[")
-        .skip(1)
-        .filter_map(|part| {
-            part.split_once("]]")
+    text.match_indices("[[")
+        .filter(|(start, _)| !text[..*start].ends_with('#'))
+        .filter_map(|(start, _)| {
+            text[start + 2..]
+                .split_once("]]")
                 .map(|(body, _)| body.split('|').next().unwrap().to_string())
         })
         .collect()

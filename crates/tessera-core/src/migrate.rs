@@ -59,6 +59,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/048_images.sql"),
     include_str!("../migrations/049_occlusions.sql"),
     include_str!("../migrations/050_strict_tables.sql"),
+    include_str!("../migrations/051_tag_identity.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -137,6 +138,35 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
         }
     }
     crate::fields::ensure_page(&tx)?;
+    if found < 51 {
+        let sources = tx
+            .prepare("SELECT id, text FROM blocks WHERE deletion_id IS NULL ORDER BY id")?
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        // A rewritten source changes its cards' text, so their units are re-derived in place;
+        // keys survive, as do schedules and review history.
+        let mut rewritten = Vec::new();
+        for (id, text) in sources {
+            let normalized =
+                crate::storage::normalize_tags(&tx, &text, None, false, &mut Vec::new())?;
+            let source = normalized.as_deref().unwrap_or(&text);
+            if normalized.is_some() {
+                tx.execute(
+                    "UPDATE blocks SET text = ?1, title_key = CASE WHEN kind = 'page' THEN ?2 ELSE NULL END WHERE id = ?3",
+                    rusqlite::params![source, crate::storage::title_key(source), id],
+                )?;
+                crate::storage::derive_links(&tx, &id, source)?;
+                rewritten.push(id.clone());
+            }
+            derive_memberships(&tx, &id, source, None)?;
+        }
+        // Older notebooks rebuild every card below; here only the rewritten sources need it.
+        if found >= 34 {
+            crate::card_store::derive_sources(&tx, &rewritten, now_ms())?;
+        }
+    }
     crate::fields::rebuild(&tx)?;
     if found < 20 {
         crate::review_store::backfill_fsrs(&tx)?;
@@ -648,8 +678,25 @@ mod tests {
             .unwrap();
         migrate(&mut conn).unwrap();
         // Only the Unicode upgrade is re-run: undo the migrations after it.
-        conn.execute_batch("DROP TABLE occlusions; DROP TABLE images;")
-            .unwrap();
+        conn.execute_batch(
+            "DROP TABLE occlusions; DROP TABLE images;
+             ALTER TABLE memberships RENAME TO id_memberships;
+             DROP INDEX memberships_type;
+             CREATE TABLE memberships (
+                 block_id TEXT NOT NULL REFERENCES blocks(id),
+                 title_key TEXT NOT NULL,
+                 type_id TEXT REFERENCES blocks(id),
+                 manual INTEGER NOT NULL CHECK (manual IN (0, 1)),
+                 title TEXT NOT NULL,
+                 PRIMARY KEY (block_id, title, manual)
+             ) STRICT;
+             INSERT INTO memberships SELECT m.block_id, p.title_key, m.type_id, m.manual, m.title
+                 FROM id_memberships m JOIN blocks p ON p.id = m.type_id;
+             DROP TABLE id_memberships;
+             CREATE INDEX memberships_type ON memberships(type_id, block_id);
+             CREATE INDEX memberships_title ON memberships(title_key, block_id);",
+        )
+        .unwrap();
         conn.pragma_update(None, "user_version", previous_version as u32)
             .unwrap();
         migrate(&mut conn).unwrap();

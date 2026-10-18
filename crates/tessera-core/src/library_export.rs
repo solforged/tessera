@@ -571,7 +571,7 @@ impl Notebook {
                         .replace('[', "\\[")
                         .replace(']', "\\]")
                 ),
-                None => text,
+                None => self.render_tag_text(&text)?.into_owned(),
             };
             children
                 .entry(row.get(0)?)
@@ -599,7 +599,8 @@ impl Notebook {
             if !output.is_empty() {
                 output.push_str("\n---\n\n");
             }
-            writeln!(output, "# {}", source.page.text).expect("String write");
+            writeln!(output, "# {}", self.render_tag_text(&source.page.text)?)
+                .expect("String write");
             let fields = readings.remove(id).unwrap_or_default();
             if let Some(creators) = fields.get(CREATORS).filter(|names| !names.is_empty()) {
                 write!(output, "{} · ", creators.join(", ")).expect("String write");
@@ -701,7 +702,8 @@ impl Notebook {
                     write!(output, "¶ {}", citation.ordinal + 1).expect("String write");
                 }
                 writeln!(output, " · {}", self.today(row.created_at)?).expect("String write");
-                let authored = row.block.block.text.trim();
+                let authored = self.render_tag_text(&row.block.block.text)?;
+                let authored = authored.trim();
                 let annotation = authored
                     .strip_prefix(citation.quote.trim())
                     .filter(|suffix| suffix.is_empty() || suffix.starts_with(char::is_whitespace))

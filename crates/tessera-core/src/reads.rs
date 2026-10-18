@@ -200,9 +200,10 @@ impl Notebook {
         let mut root = root.ok_or_else(|| not_found(id))?;
         let mut manual_types: HashMap<String, Vec<String>> = HashMap::new();
         let mut memberships = self.conn.prepare_cached(
-            "SELECT m.block_id, m.title FROM memberships m JOIN blocks b ON b.id = m.block_id
+            "SELECT m.block_id, t.text FROM memberships m JOIN blocks b ON b.id = m.block_id
+             JOIN blocks t ON t.id = m.type_id AND t.deletion_id IS NULL
              WHERE b.page_id = ?1 AND b.deletion_id IS NULL AND m.manual = 1
-             ORDER BY m.block_id, m.title_key",
+             ORDER BY m.block_id, t.title_key, t.id",
         )?;
         for row in memberships.query_map([id], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))

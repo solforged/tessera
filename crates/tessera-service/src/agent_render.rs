@@ -80,7 +80,7 @@ pub fn render(
         .get(page.root.id.as_str())
         .and_then(|caps| caps.quote.as_ref());
     let quote_title = root_quote.map(|quote| format!("Quote of {}", quote.target_id));
-    let title = quote_title.as_deref().unwrap_or(&page.root.text);
+    let title = titled(quote_title.as_deref().unwrap_or(&page.root.text), &titles);
     let mut text = format!("# {title} <!-- {} -->\n", header.join(", "));
     if let Some(quote) = root_quote {
         render_quote(&mut text, quote, 0);
@@ -213,7 +213,7 @@ pub fn render(
             )?;
         }
     }
-    Ok(text)
+    Ok(tessera_core::render_tags(&text, |id| titles.get(id).copied()).into_owned())
 }
 
 fn render_quote(text: &mut String, quote: &QuoteState, depth: u32) {
@@ -474,39 +474,34 @@ pub fn one_line(text: &str) -> String {
 pub fn snippet(text: &str) -> String {
     let line = text.lines().next().unwrap_or_default().trim();
     match line.char_indices().nth(60) {
-        Some((end, _)) => format!("{}…", line[..end].trim_end()),
+        Some((end, _)) => {
+            // Keep canonical tokens whole so the output layer can resolve their
+            // live titles instead of displaying a truncated identifier.
+            let end = tessera_core::tag_tokens(line)
+                .find(|token| token.span.start < end && end < token.span.end)
+                .map_or(end, |token| token.span.end);
+            format!("{}…", line[..end].trim_end())
+        }
         None => line.to_owned(),
     }
 }
 
 pub fn titled(text: &str, titles: &HashMap<&str, &str>) -> String {
+    let text = tessera_core::render_tags(text, |id| titles.get(id).copied());
     let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(start) = rest.find("[[") {
-        let Some(end) = rest[start + 2..].find("]]") else {
-            break;
-        };
-        let reference = &rest[start + 2..start + 2 + end];
-        let (target, alias) = match reference.split_once('|') {
-            Some((target, alias)) => (target, Some(alias)),
-            None => (reference, None),
-        };
-        out.push_str(&rest[..start]);
-        match titles.get(target) {
-            Some(title) => {
-                out.push_str("[[");
-                out.push_str(title);
-                if let Some(alias) = alias {
-                    out.push('|');
-                    out.push_str(alias);
-                }
-                out.push_str("]]");
-            }
-            None => out.push_str(&rest[start..start + 2 + end + 2]),
+    let mut cursor = 0;
+    for (span, target, _) in tessera_core::reference_spans(&text) {
+        if !text[span.clone()].starts_with("[[") {
+            continue;
         }
-        rest = &rest[start + 2 + end + 2..];
+        let Some(title) = titles.get(target) else {
+            continue;
+        };
+        out.push_str(&text[cursor..span.start + 2]);
+        out.push_str(title);
+        cursor = span.start + 2 + target.len();
     }
-    out.push_str(rest);
+    out.push_str(&text[cursor..]);
     out
 }
 
@@ -558,6 +553,24 @@ mod tests {
                 &titles
             ),
             "see [[Dune]] and [[Dune|it]] and [[01J0000000000000000000000B]]"
+        );
+    }
+
+    #[test]
+    fn canonical_tags_use_live_titles_and_keep_missing_aliases_and_code() {
+        let id = "00000000000000000000000001";
+        let missing = "00000000000000000000000002";
+        let titles = HashMap::from([(id, "Current title")]);
+        assert_eq!(
+            titled(
+                &format!(
+                    "#[[{id}|Old]] #[[{missing}|Lost]] #[[{missing}|]] `#[[{id}|Code]]` [[{id}|label|3.12]]"
+                ),
+                &titles
+            ),
+            format!(
+                "#Current title #Lost #{missing} `#[[{id}|Code]]` [[Current title|label|3.12]]"
+            )
         );
     }
 

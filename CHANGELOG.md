@@ -8,6 +8,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Addressed tags by page ID, normalized legacy tags with editor receipts, and added migration and check repair without rewriting members on rename.
 - Made card badges name their tag decks or say untagged, moved the deck explanation beside Decks, and added Review to each tag's Cards header.
 - Moved Fields to the end of the Index's Notes shelf and its directory, with a live definition count, and removed the sidebar foot icon without adding Fields to kind pickers.
 - Added built-in task, question, project and source tags, protected tag pages, appointments without checkboxes, and checks that repair missing tag behavior. Kept system tag pages when undoing collection creation.

@@ -276,8 +276,8 @@ pub(crate) fn inline_code_spans(text: &str) -> impl Iterator<Item = std::ops::Ra
     })
 }
 
-/// Share reference recognition between indexing and merge rewriting. Tags
-/// containing brackets are title references, not block ID references.
+/// Share reference recognition between indexing and merge rewriting. Tags are
+/// memberships rather than ordinary block references.
 fn link_tokens(text: &str) -> impl Iterator<Item = LinkToken<'_>> {
     let mut cursor = 0;
     let mut code = inline_code_spans(text).peekable();
@@ -309,7 +309,7 @@ fn link_tokens(text: &str) -> impl Iterator<Item = LinkToken<'_>> {
                 before
                     .chars()
                     .next_back()
-                    .is_none_or(|ch| !ch.is_alphanumeric() && ch != '_')
+                    .is_none_or(|ch| !bare_tag_character(ch))
             });
             let target_start = start + 2;
             let rest = &text[target_start..];
@@ -334,7 +334,7 @@ fn link_tokens(text: &str) -> impl Iterator<Item = LinkToken<'_>> {
 }
 
 /// Each block reference's whole span, target and label, as indexing reads them.
-pub(crate) fn reference_spans(
+pub fn reference_spans(
     text: &str,
 ) -> impl Iterator<Item = (std::ops::Range<usize>, &str, Option<&str>)> {
     link_tokens(text).map(|token| (token.span, token.target, token.alias))
@@ -355,7 +355,8 @@ pub(crate) fn rewrite_links(text: &str, from: &str, into: &str) -> Option<String
     rewritten
 }
 
-pub(crate) struct TagToken<'a> {
+pub struct TagToken<'a> {
+    pub id: Option<&'a str>,
     pub title: &'a str,
     pub span: std::ops::Range<usize>,
 }
@@ -366,8 +367,10 @@ fn bare_tag_character(ch: char) -> bool {
         || matches!(ch, '-' | '_' | '/')
 }
 
-/// The same borrowed token spans drive membership derivation and rename.
-pub(crate) fn tag_tokens(text: &str) -> impl Iterator<Item = TagToken<'_>> {
+/// Borrowed spans shared by normalization, membership derivation and rendering.
+/// A pipe starts a canonical alias only after a valid ULID. Otherwise the
+/// whole bracket content remains a legacy title, including its pipes.
+pub fn tag_tokens(text: &str) -> impl Iterator<Item = TagToken<'_>> {
     let mut cursor = 0;
     let mut code = inline_code_spans(text).peekable();
     std::iter::from_fn(move || {
@@ -381,20 +384,34 @@ pub(crate) fn tag_tokens(text: &str) -> impl Iterator<Item = TagToken<'_>> {
                 }
             }
             cursor = start + 1;
-            if text[..start].chars().next_back().is_some_and(|ch| {
-                ch.is_alphanumeric()
-                    || unicode_normalization::char::is_combining_mark(ch)
-                    || ch == '_'
-            }) {
+            if text[..start]
+                .chars()
+                .next_back()
+                .is_some_and(bare_tag_character)
+            {
                 continue;
             }
             let rest = &text[cursor..];
             if let Some(rest) = rest.strip_prefix("[[") {
                 let Some(end) = rest.find("]]") else { continue };
                 cursor += 2 + end + 2;
-                let title = rest[..end].trim();
+                let value = &rest[..end];
+                if let Some((id, alias)) = value.split_once('|')
+                    && validate_id(id).is_ok()
+                {
+                    if !alias.contains(['[', ']', '|', '\r', '\n']) {
+                        return Some(TagToken {
+                            id: Some(id),
+                            title: alias,
+                            span: start..cursor,
+                        });
+                    }
+                    continue;
+                }
+                let title = value.trim();
                 if !title.is_empty() && !title.contains(['[', ']']) {
                     return Some(TagToken {
+                        id: None,
                         title,
                         span: start..cursor,
                     });
@@ -407,6 +424,7 @@ pub(crate) fn tag_tokens(text: &str) -> impl Iterator<Item = TagToken<'_>> {
             cursor += end;
             if end != 0 {
                 return Some(TagToken {
+                    id: None,
                     title: &rest[..end],
                     span: start..cursor,
                 });
@@ -416,6 +434,7 @@ pub(crate) fn tag_tokens(text: &str) -> impl Iterator<Item = TagToken<'_>> {
     })
 }
 
+#[cfg(test)]
 pub(crate) fn tag_names(text: &str) -> impl Iterator<Item = &str> {
     tag_tokens(text).map(|token| token.title)
 }
@@ -450,23 +469,25 @@ pub(crate) fn validate_tag_title(title: &str) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn tag_spelling(title: &str) -> Result<String> {
-    validate_tag_title(title)?;
-    Ok(if title.chars().all(bare_tag_character) {
-        format!("#{title}")
+fn tag_alias(alias: &str) -> &str {
+    if alias.contains(['[', ']', '|', '\n', '\r']) {
+        ""
     } else {
-        format!("#[[{title}]]")
-    })
+        alias
+    }
+}
+
+pub(crate) fn tag_text(id: &str, alias: &str) -> String {
+    let alias = tag_alias(alias);
+    format!("#[[{id}|{alias}]]")
 }
 
 pub(crate) fn rewrite_tags<'a>(
     text: &str,
-    mut spelling: impl FnMut(&str) -> Option<&'a str>,
+    mut spelling: impl FnMut(&TagToken<'_>) -> Option<&'a str>,
 ) -> Option<String> {
-    // Resolve every original token before emitting any replacement. A renamed
-    // title can itself be another token's old title in the same transaction.
     let replacements: Vec<_> = tag_tokens(text)
-        .filter_map(|token| spelling(token.title).map(|value| (token.span, value)))
+        .filter_map(|token| spelling(&token).map(|value| (token.span, value)))
         .collect();
     if replacements.is_empty()
         || replacements
@@ -495,11 +516,14 @@ pub(crate) fn rewrite_tags<'a>(
 }
 
 /// Remove matching tag tokens and one adjoining space, without changing other prose.
-pub(crate) fn remove_tag(text: &str, key: &str) -> Option<String> {
+pub(crate) fn remove_tag(text: &str, key: &str, type_id: Option<&str>) -> Option<String> {
     let mut rewritten = String::new();
     let mut cursor = 0;
     let mut found = false;
-    for token in tag_tokens(text).filter(|token| tag_title_matches(token.title, key)) {
+    for token in tag_tokens(text).filter(|token| match token.id {
+        Some(id) => Some(id) == type_id,
+        None => tag_title_matches(token.title, key),
+    }) {
         found = true;
         rewritten.push_str(&text[cursor..token.span.start.max(cursor)]);
         cursor = token.span.end;
@@ -534,20 +558,98 @@ pub(crate) fn derive_memberships(
     conn.prepare_cached("DELETE FROM memberships WHERE block_id = ?1 AND manual = 0")?
         .execute([id])?;
     let mut created = Vec::new();
-    let mut titles = Vec::new();
-    for title in tag_names(text) {
-        let title_key = self::title_key(title);
-        if titles.contains(&title_key) {
-            continue;
+    let mut insert = conn.prepare_cached(
+        "INSERT OR IGNORE INTO memberships(block_id, type_id, manual, title) VALUES (?1, ?2, 0, ?3)",
+    )?;
+    for token in tag_tokens(text) {
+        let type_id = match token.id {
+            Some(id) => live_tag(conn, id)?.map(|_| id.to_owned()),
+            None => resolve_type(
+                conn,
+                token.title,
+                &title_key(token.title),
+                create,
+                &mut created,
+            )?,
+        };
+        if let Some(type_id) = type_id {
+            insert.execute(rusqlite::params![id, type_id, token.title])?;
         }
-        let type_id = resolve_type(conn, title, &title_key, create, &mut created)?;
-        conn.prepare_cached(
-            "INSERT INTO memberships(block_id, title_key, type_id, manual, title) VALUES (?1, ?2, ?3, 0, ?4)",
-        )?
-        .execute(rusqlite::params![id, title_key, type_id, title])?;
-        titles.push(title_key);
     }
     Ok(created)
+}
+
+pub(crate) fn live_tag(conn: &Connection, id: &str) -> Result<Option<String>> {
+    Ok(conn
+        .prepare_cached(
+            "SELECT text FROM blocks WHERE id = ?1 AND kind = 'page' AND deletion_id IS NULL",
+        )?
+        .query_row([id], |row| row.get(0))
+        .optional()?)
+}
+
+/// Normalize only a block already being written. Missing ID targets stay literal;
+/// migration passes no creation policy so unresolved legacy text stays literal too.
+pub(crate) fn normalize_tags(
+    conn: &Connection,
+    text: &str,
+    create: Option<TypeCreation<'_>>,
+    refresh_alias: bool,
+    created: &mut Vec<Revision>,
+) -> Result<Option<String>> {
+    let mut rewritten = None;
+    let mut cursor = 0;
+    for token in tag_tokens(text) {
+        let replacement = match token.id {
+            Some(id) if refresh_alias => live_tag(conn, id)?
+                .filter(|title| tag_alias(title) != token.title)
+                .map(|title| tag_text(id, &title)),
+            Some(_) => None,
+            None => resolve_type(conn, token.title, &title_key(token.title), create, created)?
+                .map(|id| tag_text(&id, token.title)),
+        };
+        if let Some(replacement) = replacement {
+            let output = rewritten.get_or_insert_with(|| String::with_capacity(text.len()));
+            output.push_str(&text[cursor..token.span.start]);
+            output.push_str(&replacement);
+            cursor = token.span.end;
+        }
+    }
+    if let Some(output) = &mut rewritten {
+        output.push_str(&text[cursor..]);
+    }
+    Ok(rewritten)
+}
+
+/// Human-readable tags without changing persisted text. The caller supplies live
+/// page titles; a missing page falls back to the authored alias, then the ID.
+pub fn render_tags<'a, 'b>(
+    text: &'a str,
+    mut title: impl FnMut(&str) -> Option<&'b str>,
+) -> std::borrow::Cow<'a, str> {
+    let mut rewritten = None;
+    let mut cursor = 0;
+    for token in tag_tokens(text) {
+        let Some(id) = token.id else { continue };
+        let label = title(id);
+        let label = label.unwrap_or(if token.title.is_empty() {
+            id
+        } else {
+            token.title
+        });
+        let output = rewritten.get_or_insert_with(|| String::with_capacity(text.len()));
+        output.push_str(&text[cursor..token.span.start]);
+        output.push('#');
+        output.push_str(label);
+        cursor = token.span.end;
+    }
+    match rewritten {
+        Some(mut output) => {
+            output.push_str(&text[cursor..]);
+            std::borrow::Cow::Owned(output)
+        }
+        None => std::borrow::Cow::Borrowed(text),
+    }
 }
 
 pub(crate) fn resolve_type(
@@ -588,9 +690,56 @@ pub(crate) fn resolve_type(
     Ok(Some(id))
 }
 
+impl crate::Notebook {
+    /// Render canonical tags for text-only consumers without altering stored text.
+    pub fn render_tag_text<'a>(&self, text: &'a str) -> Result<std::borrow::Cow<'a, str>> {
+        let mut titles = std::collections::HashMap::new();
+        for id in tag_tokens(text).filter_map(|token| token.id) {
+            if let std::collections::hash_map::Entry::Vacant(entry) = titles.entry(id) {
+                entry.insert(live_tag(&self.conn, id)?);
+            }
+        }
+        Ok(render_tags(text, |id| {
+            titles.get(id).and_then(Option::as_deref)
+        }))
+    }
+}
 #[cfg(test)]
 mod reference_tests {
     use super::{inline_code_spans, link_tokens, reference_parts, rewrite_links, tag_names};
+
+    #[test]
+    fn canonical_and_legacy_tags_share_boundaries_and_code_shielding() {
+        let id = "00000000000000000000000001";
+        let text = format!(
+            "#bare #[[Long title]] #[[A|B]] #[[{id}|Alias]] #[[{id}|]] `#[[{id}|Hidden]]` a/#no -#no e\u{301}#no"
+        );
+        let tokens = super::tag_tokens(&text)
+            .map(|token| (token.id, token.title))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            tokens,
+            [
+                (None, "bare"),
+                (None, "Long title"),
+                (None, "A|B"),
+                (Some(id), "Alias"),
+                (Some(id), "")
+            ]
+        );
+        assert_eq!(link_tokens(&text).count(), 0);
+        for invalid in [format!("#[[{id}|a|b]]"), format!("#[[{id}|a\nb]]")] {
+            assert!(super::tag_tokens(&invalid).next().is_none());
+        }
+        assert_eq!(
+            super::render_tags(&format!("#[[{id}|Old]]"), |_| Some("New")),
+            "#New"
+        );
+        assert_eq!(
+            super::render_tags(&format!("#[[{id}|]]"), |_| None),
+            format!("#{id}")
+        );
+    }
 
     #[test]
     fn code_spans_shield_tags_links_and_rewrites_with_exact_backtick_runs() {

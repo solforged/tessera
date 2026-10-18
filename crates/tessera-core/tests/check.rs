@@ -146,7 +146,7 @@ fn a_clean_notebook_reports_no_differences_and_repair_writes_nothing() {
         ]
     );
     assert!(report.invariants.iter().all(|rule| rule.violations == 0));
-    assert_eq!(report.invariants.len(), 6);
+    assert_eq!(report.invariants.len(), 8);
     assert_eq!(
         report
             .hashes
@@ -243,7 +243,14 @@ fn hand_corrupted_derived_rows_are_reported_then_repaired() {
     assert_eq!(sources, [id(3)]);
     let card_after = notebook.source_cards(&id(3)).unwrap().remove(0);
     assert_eq!(card_after.id, card.id);
-    assert_eq!(card_after.back, format!("[[{}]] #geography", id(2)));
+    assert_eq!(
+        card_after.back,
+        format!(
+            "[[{}]] #[[{}|geography]]",
+            id(2),
+            notebook.page_by_title("geography").unwrap().unwrap().id,
+        )
+    );
     assert_eq!(card_after.revision, card.revision + 1);
     assert_eq!(card_after.schedule, card.schedule);
     assert_eq!(

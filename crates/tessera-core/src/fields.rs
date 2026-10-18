@@ -28,10 +28,6 @@ pub(crate) fn ensure_page(conn: &Connection) -> Result<()> {
          VALUES (?1, 'page', ?1, 1024, 'Fields', 'fields', 1, ?2, ?2)",
         params![id, crate::notebook::now_ms()],
     )?;
-    conn.execute(
-        "UPDATE memberships SET type_id = ?1 WHERE title_key = 'fields'",
-        [&id],
-    )?;
     Ok(())
 }
 
@@ -927,7 +923,17 @@ pub(crate) fn target_label(text: &str, resolve: &mut dyn FnMut(&str) -> Option<S
     fn label(text: &str, resolve: &mut dyn FnMut(&str) -> Option<String>, depth: usize) -> String {
         let line = text.trim().lines().next().unwrap_or_default();
         let mut parts: Vec<(std::ops::Range<usize>, String)> = crate::storage::tag_tokens(line)
-            .map(|tag| (tag.span, tag.title.to_owned()))
+            .map(|tag| {
+                let title = tag.id.and_then(&mut *resolve).unwrap_or_else(|| {
+                    if tag.title.is_empty() {
+                        tag.id.unwrap_or_default()
+                    } else {
+                        tag.title
+                    }
+                    .to_owned()
+                });
+                (tag.span, title)
+            })
             .collect();
         let mut end = line.trim_end().len();
         while let Some((span, _)) = parts

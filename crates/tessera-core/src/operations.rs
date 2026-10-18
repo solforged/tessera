@@ -7,9 +7,9 @@ use sha2::{Digest, Sha256};
 use crate::CountsAs;
 use crate::notebook::{derived_id, new_ulid, now_ms};
 use crate::storage::{
-    Stored, TypeCreation, derive_links, derive_memberships, not_found, resolve_type, rewrite_links,
-    rewrite_tags, stored, tag_names, tag_spelling, tag_title_matches, validate_id,
-    validate_tag_title, validate_text, validation,
+    Stored, TypeCreation, derive_links, derive_memberships, normalize_tags, not_found,
+    resolve_type, rewrite_links, rewrite_tags, stored, tag_text, validate_id, validate_tag_title,
+    validate_text, validation,
 };
 use crate::{
     Batch, BlockCapabilities, BlockKind, ChangeStamp, Committed, Error, Notebook, Operation,
@@ -140,12 +140,11 @@ impl Notebook {
             deletions: Vec::new(),
             removed: HashSet::new(),
             restructured_pages: HashSet::new(),
-            changed_titles: HashSet::new(),
-            pending_renames: Vec::new(),
+            changed_pages: HashSet::new(),
+            pending_types: BTreeMap::new(),
             capability_memberships: BTreeMap::new(),
             text_rewrites: Vec::new(),
             rewrite_positions: HashMap::new(),
-            operations: &batch.operations,
             op_index: 0,
         };
         for (index, operation) in batch.operations.iter().enumerate() {
@@ -171,10 +170,9 @@ impl Notebook {
                 .operation(operation, index)
                 .map_err(|error| indexed(error, index))?;
         }
-        engine.rewrite_incoming_tags()?;
         engine.derive_tags()?;
         engine.cleanup_provisional_pages()?;
-        engine.reconcile_titles()?;
+        engine.reconcile_tags()?;
         engine.derive_cards()?;
         for revision in &engine.revisions {
             if engine.positions[&revision.id].fields {
@@ -383,8 +381,10 @@ fn indexed(error: Error, index: usize) -> Error {
 /// Membership, not capability presence, decides whether a text edit added or removed behavior.
 pub(crate) fn capability_memberships(conn: &rusqlite::Connection, id: &str) -> Result<u8> {
     let mut mask = 0;
-    let mut statement =
-        conn.prepare_cached("SELECT DISTINCT title_key FROM memberships WHERE block_id = ?1")?;
+    let mut statement = conn.prepare_cached(
+        "SELECT DISTINCT p.title_key FROM memberships m JOIN blocks p ON p.id = m.type_id
+         WHERE m.block_id = ?1 AND p.kind = 'page' AND p.deletion_id IS NULL",
+    )?;
     for key in statement.query_map([id], |row| row.get::<_, String>(0))? {
         let key = key?;
         if let Some(index) = crate::notes::CAPABILITY_KINDS
@@ -500,12 +500,11 @@ struct Engine<'a, 'conn> {
     deletions: Vec<String>,
     removed: HashSet<String>,
     restructured_pages: HashSet<String>,
-    changed_titles: HashSet<String>,
-    pending_renames: Vec<TagRename>,
+    changed_pages: HashSet<String>,
+    pending_types: BTreeMap<(String, String), String>,
     capability_memberships: BTreeMap<String, u8>,
     text_rewrites: Vec<TextRewrite>,
     rewrite_positions: HashMap<String, usize>,
-    operations: &'a [Operation],
     op_index: usize,
 }
 
@@ -513,21 +512,6 @@ struct Touched {
     position: usize,
     tags: bool,
     fields: bool,
-}
-
-struct TagRename {
-    title_key: String,
-    page_id: String,
-    sources: Vec<String>,
-    op_index: usize,
-}
-
-struct TagReplacement {
-    title_key: String,
-    title: String,
-    spelling: String,
-    case_only: bool,
-    op_index: usize,
 }
 
 struct NewBlock<'a> {
@@ -580,11 +564,18 @@ impl Engine<'_, '_> {
 
     fn remove_capability_tag(&mut self, id: &str, key: &str) -> Result<bool> {
         let current = self.live(id)?;
-        let text = crate::storage::remove_tag(&current.block.text, key);
+        let type_id: Option<String> = self.tx.prepare_cached(
+            "SELECT id FROM blocks WHERE kind = 'page' AND title_key = ?1 AND deletion_id IS NULL",
+        )?.query_row([key], |row| row.get(0)).optional()?;
+        let text = crate::storage::remove_tag(&current.block.text, key, type_id.as_deref());
         let manual: bool = self.tx.prepare_cached(
-            "SELECT EXISTS(SELECT 1 FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1)",
-        )?.query_row(params![id, key], |row| row.get(0))?;
-        if text.is_none() && !manual {
+            "SELECT EXISTS(SELECT 1 FROM memberships WHERE block_id = ?1 AND type_id = ?2 AND manual = 1)",
+        )?.query_row(params![id, type_id], |row| row.get(0))?;
+        let pending = self
+            .pending_types
+            .remove(&(id.to_owned(), key.to_owned()))
+            .is_some();
+        if text.is_none() && !manual && !pending {
             return Ok(false);
         }
         self.record_revision(id, current.block.revision);
@@ -600,9 +591,9 @@ impl Engine<'_, '_> {
             .get_mut(id)
             .expect("captured membership") &= !(1 << index);
         let manual = self.tx.execute(
-            "DELETE FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1",
-            params![id, key],
-        )?;
+            "DELETE FROM memberships WHERE block_id = ?1 AND type_id = ?2 AND manual = 1",
+            params![id, type_id],
+        )? + usize::from(pending);
         if let Some(text) = text {
             self.edit(&current, &text)?;
             self.record_text_rewrite(id, current.block.text, text, current.block.revision + 1);
@@ -677,215 +668,6 @@ impl Engine<'_, '_> {
         crate::task_store::capabilities_for(self.tx, &ids)
     }
 
-    fn prepare_tag_rename(
-        &self,
-        current: &Stored,
-        text: &str,
-        title_key: &str,
-        old_key: &str,
-    ) -> Result<Option<TagRename>> {
-        let collision: bool = self
-            .tx
-            .prepare_cached(
-                "SELECT EXISTS(SELECT 1 FROM blocks WHERE kind = 'page' AND deletion_id IS NULL
-             AND title_key = ?1 AND id != ?2)",
-            )?
-            .query_row(params![title_key, current.block.id], |row| row.get(0))?;
-        if collision {
-            return Err(validation(format!("page title already exists: {text}")));
-        }
-        self.capture_tag_rename(current, text, old_key)
-    }
-
-    fn capture_tag_rename(
-        &self,
-        current: &Stored,
-        text: &str,
-        old_key: &str,
-    ) -> Result<Option<TagRename>> {
-        let mut sources = HashSet::new();
-        let mut incoming = self.tx.prepare_cached(
-            "SELECT b.id, b.text, m.manual FROM memberships m JOIN blocks b ON b.id = m.block_id
-             WHERE m.title_key = ?1 AND b.deletion_id IS NULL ORDER BY m.block_id",
-        )?;
-        for row in incoming.query_map([old_key], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, bool>(2)?,
-            ))
-        })? {
-            let (id, source, manual) = row?;
-            if manual || tag_names(&source).any(|name| tag_title_matches(name, old_key)) {
-                sources.insert(id);
-            }
-        }
-        // Membership derivation is deferred. Include newly inserted or edited
-        // sources that already refer to the old live title at this operation.
-        for revision in &self.revisions {
-            if !self.positions[&revision.id].tags || sources.contains(&revision.id) {
-                continue;
-            }
-            let source: Option<String> = self
-                .tx
-                .prepare_cached("SELECT text FROM blocks WHERE id = ?1 AND deletion_id IS NULL")?
-                .query_row([&revision.id], |row| row.get(0))
-                .optional()?;
-            if source.is_some_and(|source| {
-                tag_names(&source).any(|name| tag_title_matches(name, old_key))
-            }) {
-                sources.insert(revision.id.clone());
-            }
-        }
-        if sources.is_empty() {
-            if self
-                .pending_renames
-                .iter()
-                .any(|rename| rename.page_id == current.block.id)
-            {
-                validate_tag_title(text)?;
-            }
-            return Ok(None);
-        }
-        validate_tag_title(text)?;
-        let mut sources: Vec<_> = sources.into_iter().collect();
-        sources.sort_unstable();
-        Ok(Some(TagRename {
-            page_id: current.block.id.clone(),
-            title_key: old_key.to_owned(),
-            sources,
-            op_index: self.op_index,
-        }))
-    }
-
-    /// Explicit source inverses run before automatic rewriting. For case-only
-    /// renames they remain authoritative, even when the guard edit is a no-op.
-    fn rewrite_incoming_tags(&mut self) -> Result<()> {
-        let operations = self.operations;
-        let mut explicitly_edited: Option<HashSet<&str>> = None;
-        while !self.pending_renames.is_empty() {
-            let mut replacements = Vec::new();
-            let mut source_plans: HashMap<String, Vec<usize>> = HashMap::new();
-            for rename in std::mem::take(&mut self.pending_renames) {
-                let target: Option<(String, bool)> = self
-                    .tx
-                    .prepare_cached(
-                        "SELECT text, title_key = ?2 FROM blocks WHERE id = ?1 AND deletion_id IS NULL",
-                    )?
-                    .query_row(params![rename.page_id, rename.title_key], |row| Ok((row.get(0)?, row.get(1)?)))
-                    .optional()?;
-                let Some((title, case_only)) = target else {
-                    continue;
-                };
-                let spelling =
-                    tag_spelling(&title).map_err(|error| indexed(error, rename.op_index))?;
-                let position = replacements.len();
-                replacements.push(TagReplacement {
-                    title_key: rename.title_key,
-                    title,
-                    spelling,
-                    case_only,
-                    op_index: rename.op_index,
-                });
-                for id in rename.sources {
-                    source_plans.entry(id).or_default().push(position);
-                }
-            }
-            let mut sources: Vec<_> = source_plans.into_iter().collect();
-            sources.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
-            for (id, plans) in sources {
-                let Some(current) =
-                    stored(self.tx, &id)?.filter(|source| source.deletion_id.is_none())
-                else {
-                    continue;
-                };
-                let preserve_spelling = plans.iter().any(|index| replacements[*index].case_only)
-                    && explicitly_edited
-                        .get_or_insert_with(|| {
-                            operations
-                                .iter()
-                                .filter_map(|operation| match operation {
-                                    Operation::EditText { id, .. } => Some(id.as_str()),
-                                    _ => None,
-                                })
-                                .collect()
-                        })
-                        .contains(id.as_str());
-                let manual = self.tx.prepare_cached(
-                    "SELECT title_key, title FROM memberships WHERE block_id = ?1 AND manual = 1",
-                )?.query_map([&id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
-                    .collect::<rusqlite::Result<Vec<_>>>()?;
-                let manual_rewrites: Vec<_> = manual
-                    .iter()
-                    .filter_map(|(key, title)| {
-                        let replacement = plans.iter().find_map(|index| {
-                            let replacement = &replacements[*index];
-                            tag_title_matches(title, &replacement.title_key).then_some(replacement)
-                        })?;
-                        (title != &replacement.title).then_some((key, &replacement.title))
-                    })
-                    .collect();
-                if !manual_rewrites.is_empty() {
-                    self.record_revision(&id, current.block.revision);
-                    self.tags_changed(&id)?;
-                }
-                for (key, _) in &manual_rewrites {
-                    self.tx.execute(
-                        "DELETE FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1",
-                        params![id, key],
-                    )?;
-                }
-                for (_, title) in &manual_rewrites {
-                    self.tx.execute(
-                        "INSERT OR IGNORE INTO memberships(block_id, title_key, type_id, manual, title)
-                         VALUES (?1, ?2, (SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?2), 1, ?3)",
-                        params![id, crate::storage::title_key(title), title],
-                    )?;
-                }
-                if !manual_rewrites.is_empty() {
-                    self.restructured_pages
-                        .insert(current.block.page_id.clone());
-                }
-                let mut matched = false;
-                let text = rewrite_tags(&current.block.text, |title| {
-                    // The first captured association owns an original token,
-                    // even if another page subsequently reuses that old title.
-                    let folded = (!title.is_ascii()).then(|| crate::storage::title_key(title));
-                    let replacement = plans.iter().find_map(|index| {
-                        let replacement = &replacements[*index];
-                        let matches = folded.as_ref().map_or_else(
-                            || title.eq_ignore_ascii_case(&replacement.title_key),
-                            |title_key| title_key == &replacement.title_key,
-                        );
-                        matches.then_some(replacement)
-                    })?;
-                    matched = true;
-                    (!(preserve_spelling && replacement.case_only))
-                        .then_some(replacement.spelling.as_str())
-                });
-                if text.is_none() && !manual_rewrites.is_empty() {
-                    self.bump(&current, true)?;
-                }
-                if !matched {
-                    continue;
-                }
-                self.op_index = replacements[plans[0]].op_index;
-                let (text, revision) = if let Some(text) = text {
-                    self.edit(&current, &text)
-                        .map_err(|error| indexed(error, self.op_index))?;
-                    (text, current.block.revision + 1)
-                } else {
-                    (
-                        current.block.text.clone(),
-                        current.block.revision + i64::from(!manual_rewrites.is_empty()),
-                    )
-                };
-                self.record_text_rewrite(&id, current.block.text, text, revision);
-            }
-        }
-        Ok(())
-    }
-
     fn record_text_rewrite(&mut self, id: &str, before: String, after: String, revision: i64) {
         if let Some(position) = self.rewrite_positions.get(id) {
             self.text_rewrites[*position].after = after;
@@ -905,40 +687,69 @@ impl Engine<'_, '_> {
     /// Resolve against the final live titles, so an explicitly-created page
     /// later in the batch wins over automatic creation.
     fn derive_tags(&mut self) -> Result<()> {
+        for ((id, key), title) in std::mem::take(&mut self.pending_types) {
+            if stored(self.tx, &id)?.is_none_or(|block| block.deletion_id.is_some()) {
+                continue;
+            }
+            let mut created = Vec::new();
+            let type_id = resolve_type(
+                self.tx,
+                &title,
+                &key,
+                Some(TypeCreation {
+                    change_id: Some(self.change_id),
+                    now: self.now,
+                }),
+                &mut created,
+            )?
+            .expect("creation requested");
+            self.tx.execute(
+                "INSERT OR IGNORE INTO memberships(block_id, type_id, manual, title) VALUES (?1, ?2, 1, ?3)",
+                params![id, type_id, title],
+            )?;
+            for revision in created {
+                self.changed_pages.insert(revision.id.clone());
+                self.touch(&revision.id, revision.revision);
+                self.tags_changed(&revision.id)?;
+                self.restructured_pages.insert(revision.id);
+            }
+        }
         let mut position = 0;
         while position < self.revisions.len() {
-            let id = &self.revisions[position].id;
-            if self.positions[id].tags {
+            let id = self.revisions[position].id.clone();
+            if self.positions[&id].tags {
                 let text: Option<String> = self
                     .tx
                     .prepare_cached(
                         "SELECT text FROM blocks WHERE id = ?1 AND deletion_id IS NULL",
                     )?
-                    .query_row([id], |row| row.get(0))
+                    .query_row([&id], |row| row.get(0))
                     .optional()?;
                 if let Some(text) = text {
                     let create = Some(TypeCreation {
                         change_id: Some(self.change_id),
                         now: self.now,
                     });
-                    let mut created = derive_memberships(self.tx, id, &text, create)?;
-                    let manual = self.tx.prepare_cached(
-                        "SELECT title_key, title FROM memberships WHERE block_id = ?1 AND manual = 1 AND type_id IS NULL",
-                    )?.query_map([id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?
-                        .collect::<rusqlite::Result<Vec<_>>>()?;
-                    for (key, title) in manual {
-                        let type_id = resolve_type(self.tx, &title, &key, create, &mut created)?;
+                    let mut created = Vec::new();
+                    let normalized = normalize_tags(self.tx, &text, create, true, &mut created)?;
+                    let source = normalized.as_deref().unwrap_or(&text);
+                    if let Some(after) = &normalized {
                         self.tx.execute(
-                            "UPDATE memberships SET type_id = ?1 WHERE block_id = ?2 AND title_key = ?3 AND manual = 1",
-                            params![type_id, id, key],
+                            "UPDATE blocks SET text = ?1, title_key = CASE WHEN kind = 'page' THEN ?2 ELSE NULL END WHERE id = ?3",
+                            params![after, crate::storage::title_key(after), id],
                         )?;
+                        derive_links(self.tx, &id, after)?;
+                        self.record_text_rewrite(
+                            &id,
+                            text.clone(),
+                            after.clone(),
+                            self.revisions[position].revision,
+                        );
                     }
+                    derive_memberships(self.tx, &id, source, None)?;
+                    self.positions.get_mut(&id).expect("touched block").tags = false;
                     for revision in created {
-                        let title_key = self
-                            .tx
-                            .prepare_cached("SELECT title_key FROM blocks WHERE id = ?1")?
-                            .query_row([&revision.id], |row| row.get(0))?;
-                        self.changed_titles.insert(title_key);
+                        self.changed_pages.insert(revision.id.clone());
                         self.touch(&revision.id, revision.revision);
                         self.tags_changed(&revision.id)?;
                         self.restructured_pages.insert(revision.id);
@@ -947,6 +758,7 @@ impl Engine<'_, '_> {
             }
             position += 1;
         }
+        self.reconcile_tags()?;
         for (id, before) in std::mem::take(&mut self.capability_memberships) {
             let Some(current) = stored(self.tx, &id)?.filter(|row| row.deletion_id.is_none())
             else {
@@ -968,8 +780,7 @@ impl Engine<'_, '_> {
     }
 
     fn cleanup_provisional_pages(&mut self) -> Result<()> {
-        // Title changes can resolve memberships on blocks untouched by this batch.
-        self.reconcile_titles()?;
+        self.reconcile_tags()?;
         // A generated title can itself contain a tag or link. Removing it can
         // leave another provisional page unused, so repeat until nothing goes.
         loop {
@@ -1054,16 +865,31 @@ impl Engine<'_, '_> {
         }
     }
 
-    fn reconcile_titles(&self) -> Result<()> {
-        let mut update = self.tx.prepare_cached(
-            "WITH target AS (
-                 SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?1
-             )
-             UPDATE memberships SET type_id = (SELECT id FROM target)
-             WHERE title_key = ?1 AND type_id IS NOT (SELECT id FROM target)",
-        )?;
-        for title_key in &self.changed_titles {
-            update.execute([title_key])?;
+    fn reconcile_tags(&mut self) -> Result<()> {
+        for target in std::mem::take(&mut self.changed_pages) {
+            // Only creation, deletion and restoration can change resolution.
+            // Renaming a page never visits its members. The ID is one search
+            // token, so the index finds the few live sources naming it without
+            // reading every block's text.
+            let sources = self
+                .tx
+                .prepare_cached(
+                    "SELECT b.id, b.text FROM blocks_fts f
+                     JOIN search_blocks s ON s.rowid = f.rowid
+                     JOIN blocks b ON b.id = s.block_id
+                     WHERE blocks_fts MATCH ?1 AND b.deletion_id IS NULL AND instr(b.text, ?2) > 0",
+                )?
+                .query_map([format!("\"{target}\""), target.clone()], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                })?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            for (id, text) in sources {
+                if !self.capability_memberships.contains_key(&id) {
+                    self.capability_memberships
+                        .insert(id.clone(), capability_memberships(self.tx, &id)?);
+                }
+                derive_memberships(self.tx, &id, &text, None)?;
+            }
         }
         Ok(())
     }
@@ -1136,8 +962,8 @@ impl Engine<'_, '_> {
             "INSERT INTO blocks(id, kind, parent_id, page_id, ordinal, text, title_key, heading, revision, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, ?9, ?9)",
         )?.execute(params![id, kind, parent, page, ordinal, text, title_key, heading, self.now])?;
-        if let Some(title_key) = title_key {
-            self.changed_titles.insert(title_key);
+        if title_key.is_some() {
+            self.changed_pages.insert(id.to_owned());
         }
         derive_links(self.tx, id, text)?;
         self.touch(id, 1);
@@ -1163,23 +989,18 @@ impl Engine<'_, '_> {
                 "{name} is a built-in tag; its name cannot change."
             )));
         }
-        let rename = if let Some(title_key) = title_key.as_deref() {
-            self.prepare_tag_rename(
-                current,
-                text,
-                title_key,
-                old_key.as_deref().expect("page title"),
-            )?
-        } else {
-            None
-        };
+        if title_key.is_some() {
+            let tagged: bool = self
+                .tx
+                .prepare_cached("SELECT EXISTS(SELECT 1 FROM memberships WHERE type_id = ?1)")?
+                .query_row([&current.block.id], |row| row.get(0))?;
+            if tagged {
+                validate_tag_title(text)?;
+            }
+        }
         self.tx.prepare_cached(
             "UPDATE blocks SET text = ?1, title_key = ?2, revision = revision + 1, updated_at = ?3 WHERE id = ?4",
         )?.execute(params![text, title_key, self.now, current.block.id])?;
-        if let Some(title_key) = title_key {
-            self.changed_titles.insert(title_key);
-            self.changed_titles.insert(old_key.expect("page title"));
-        }
         derive_links(self.tx, &current.block.id, text)?;
         self.touch(&current.block.id, current.block.revision + 1);
         // A descriptor child's front names this text. Only text edits query the
@@ -1193,9 +1014,6 @@ impl Engine<'_, '_> {
         self.tags_changed(&current.block.id)?;
         if let Some(position) = self.rewrite_positions.get(&current.block.id) {
             text.clone_into(&mut self.text_rewrites[*position].after);
-        }
-        if let Some(rename) = rename {
-            self.pending_renames.push(rename);
         }
         Ok(())
     }
@@ -1241,8 +1059,7 @@ impl Engine<'_, '_> {
                     "{name} is a built-in tag; its page cannot be deleted."
                 )));
             }
-            self.changed_titles
-                .insert(crate::storage::title_key(&current.block.text));
+            self.changed_pages.insert(current.block.id.clone());
         }
         self.restructured_pages.insert(current.block.page_id);
         let event = self.event(id)?;
@@ -1282,8 +1099,7 @@ impl Engine<'_, '_> {
                     "UPDATE blocks SET deletion_id = NULL, ordinal = ?1, revision = revision + 1, updated_at = ?2 WHERE id = ?3",
                 )?.execute(params![ordinal, self.now, id])?;
                 if row.block.kind == BlockKind::Page {
-                    self.changed_titles
-                        .insert(crate::storage::title_key(&row.block.text));
+                    self.changed_pages.insert(id.clone());
                 }
                 self.touch(&id, revision + 1);
                 self.removed.remove(&id);
@@ -1619,19 +1435,7 @@ impl Engine<'_, '_> {
                 "a page with citations or a field schema cannot be merged away",
             ));
         }
-        let old_key = crate::storage::title_key(&source.block.text);
-        if let Some(mut rename) =
-            self.capture_tag_rename(source, &destination.block.text, &old_key)?
-        {
-            rename.page_id.clone_from(&destination.block.id);
-            self.pending_renames.push(rename);
-        }
-        // A rename earlier in this batch still belongs to the surviving page.
-        for rename in &mut self.pending_renames {
-            if rename.page_id == source.block.id {
-                rename.page_id.clone_from(&destination.block.id);
-            }
-        }
+        self.redirect_tags(source, destination)?;
         self.redirect_links(&source.block.id, &destination.block.id)?;
         let mut fields = HashMap::new();
         let children = self.live_children(&destination.block.id)?;
@@ -1660,8 +1464,8 @@ impl Engine<'_, '_> {
         // A merged identity retains every classification, including tags authored
         // in the old title. They become manual memberships on the surviving page.
         self.tx.execute(
-            "INSERT OR IGNORE INTO memberships(block_id, title_key, type_id, manual, title)
-             SELECT ?1, title_key, type_id, 1, title FROM memberships WHERE block_id = ?2",
+            "INSERT OR IGNORE INTO memberships(block_id, type_id, manual, title)
+             SELECT ?1, type_id, 1, title FROM memberships WHERE block_id = ?2",
             params![destination.block.id, source.block.id],
         )?;
         let mut next_id = 0;
@@ -1685,6 +1489,38 @@ impl Engine<'_, '_> {
         let current = self.live(&destination.block.id)?;
         self.bump(&current, true)?;
         self.delete(&source.block.id)
+    }
+
+    fn redirect_tags(&mut self, source: &Stored, destination: &Stored) -> Result<()> {
+        let incoming = self.tx.prepare_cached(
+            "SELECT DISTINCT b.id FROM blocks b LEFT JOIN memberships m ON m.block_id = b.id
+             WHERE b.deletion_id IS NULL AND (m.type_id = ?1 OR instr(b.text, ?1) > 0) ORDER BY b.id",
+        )?.query_map([&source.block.id], |row| row.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let spelling = tag_text(&destination.block.id, &destination.block.text);
+        for id in incoming {
+            let current = self.live(&id)?;
+            self.record_revision(&id, current.block.revision);
+            self.tags_changed(&id)?;
+            self.tx.execute(
+                "INSERT OR IGNORE INTO memberships(block_id, type_id, manual, title)
+                 SELECT block_id, ?1, 1, title FROM memberships WHERE block_id = ?2 AND type_id = ?3 AND manual = 1",
+                params![destination.block.id, id, source.block.id],
+            )?;
+            let manual = self.tx.execute(
+                "DELETE FROM memberships WHERE block_id = ?1 AND type_id = ?2 AND manual = 1",
+                params![id, source.block.id],
+            )?;
+            if let Some(text) = rewrite_tags(&current.block.text, |token| {
+                (token.id == Some(source.block.id.as_str())).then_some(spelling.as_str())
+            }) {
+                self.edit(&current, &text)?;
+                self.record_text_rewrite(&id, current.block.text, text, current.block.revision + 1);
+            } else if manual > 0 {
+                self.bump(&current, true)?;
+            }
+        }
+        Ok(())
     }
 
     fn bump(&mut self, current: &Stored, derive_fields: bool) -> Result<()> {
@@ -1885,12 +1721,17 @@ impl Engine<'_, '_> {
                 validate_tag_title(title)?;
                 self.record_revision(id, current.block.revision);
                 self.tags_changed(id)?;
-                self.tx.execute(
-                    "INSERT OR IGNORE INTO memberships(block_id, title_key, type_id, manual, title)
-                     SELECT ?1, ?2, (SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?2), 1, ?3
-                     WHERE NOT EXISTS (SELECT 1 FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1)",
-                    params![id, crate::storage::title_key(title), title],
-                )?;
+                let key = crate::storage::title_key(title);
+                if let Some(type_id) = resolve_type(self.tx, title, &key, None, &mut Vec::new())? {
+                    self.tx.execute(
+                        "INSERT OR IGNORE INTO memberships(block_id, type_id, manual, title) VALUES (?1, ?2, 1, ?3)",
+                        params![id, type_id, title],
+                    )?;
+                } else {
+                    self.pending_types
+                        .entry((id.clone(), key))
+                        .or_insert_with(|| title.clone());
+                }
                 self.bump(&current, true)?;
                 self.restructured_pages
                     .insert(current.block.page_id.clone());
@@ -1907,9 +1748,10 @@ impl Engine<'_, '_> {
                 self.record_revision(id, current.block.revision);
                 self.tags_changed(id)?;
                 let removed = self.tx.execute(
-                    "DELETE FROM memberships WHERE block_id = ?1 AND title_key = ?2 AND manual = 1",
+                    "DELETE FROM memberships WHERE block_id = ?1 AND manual = 1 AND type_id IN
+                     (SELECT id FROM blocks WHERE kind = 'page' AND title_key = ?2 AND deletion_id IS NULL)",
                     params![id, crate::storage::title_key(title)],
-                )?;
+                )? + usize::from(self.pending_types.remove(&(id.clone(), crate::storage::title_key(title))).is_some());
                 if removed == 0 {
                     return Err(validation("type has no manual membership"));
                 }
