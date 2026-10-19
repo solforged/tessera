@@ -7,7 +7,7 @@ import { opensBeside } from '../shell/beside';
 import { typeQuery } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
-import { noteIndex, noteKindIcon } from '../notes/kinds';
+import { kindLabel, noteIndex, noteKindIcon } from '../notes/kinds';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { FieldPicker } from './FieldPicker';
 import { displayPattern, patternParts, storedPattern, usedFields } from './card-patterns';
@@ -102,7 +102,7 @@ export function CardTemplatesPane(props: Props) {
     <div class="ct-sheet">
       <header class="ct-heading">
         <div class="ct-apparatus ct-crumb"><Button onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, opensBeside(event))}>{title()}</Button><span> / {props.applyId ? `${applyTemplate()?.name ?? 'Cards'} / Apply` : 'Card templates'}</span></div>
-        <div class="ct-title-row"><h1><Show when={kind()}>{value => <Icon name={noteKindIcon(value())} />}</Show>{kind()?.plural ?? title()}</h1><span class="ct-apparatus">{templates().length} {templates().length === 1 ? 'template' : 'templates'} · {templates().filter(template => template.applied).length} enabled</span><Button disabled={!cardCount()} title={!cardCount() ? 'No cards yet' : undefined} onClick={event => props.onOpen({ kind: 'review', deckId: props.typeId }, opensBeside(event))}>Review</Button></div>
+        <div class="ct-title-row"><h1><Show when={kind()}>{value => <Icon name={noteKindIcon(value())} />}</Show>{kind() ? kindLabel(kind()!) : title()}</h1><span class="ct-apparatus">{templates().length} {templates().length === 1 ? 'template' : 'templates'} · {templates().filter(template => template.applied).length} enabled</span><Button disabled={!cardCount()} title={!cardCount() ? 'No cards yet' : undefined} onClick={event => props.onOpen({ kind: 'review', deckId: props.typeId }, opensBeside(event))}>Review</Button></div>
       </header>
       <TypeModeTabs active="cards" indexCount={kind()?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length} cardsCount={data.latest?.templates.length}
         onIndex={event => props.onOpen({ kind: 'index', key: kind()?.key ?? `type:${props.typeId}` }, opensBeside(event))}

@@ -101,7 +101,7 @@ Under the list sits a count of the members that lack template fields and Fill mi
 
 ## Type fields tab
 
-The type's Fields tab opens its field template as a third in-pane view, with the same Index, Table, Fields and Cards strip. All four tabs title the kind by its glyph and plural, and Index, Fields and Cards share one left edge. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists the template in the [field rows](#field-rows) the type page uses. Usage counts are workshop-wide distinct owners, including empty entries.
+The type's Fields tab opens its field template as a third in-pane view, with the same Index, Table, Fields and Cards strip. All four tabs, the table title and the pane title read the kind as the sidebar does: its glyph and plural, or the spelling you wrote for a tag that only marks blocks (`#essay` titles `essay`, not `essays`), and Index, Fields and Cards share one left edge. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists the template in the [field rows](#field-rows) the type page uses. Usage counts are workshop-wide distinct owners, including empty entries.
 
 Add field and Fill missing fields keep the type page's editing behavior. The underlined type crumb opens the ordinary type page; the global Fields register remains separate.
 

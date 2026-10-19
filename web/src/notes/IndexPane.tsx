@@ -225,7 +225,7 @@ function KindIndexPane(props: IndexPaneProps) {
       props.onOpen({ kind: 'index', key: props.kindKey, viewId: id, query: copyQuery(query()) }, false);
     } catch (reason) { setError(String(reason)); } finally { setBusy(false); }
   };
-  const title = createMemo(() => props.kind?.plural ?? type()?.page.text ?? (props.kindKey === 'unfiled' ? 'Unfiled' : props.kindKey === 'source' ? 'Sources' : 'Index'));
+  const title = createMemo(() => { const kind = props.kind; return kind ? 'tagged_block_count' in kind ? kindLabel(kind) : kind.plural : type()?.page.text ?? (props.kindKey === 'unfiled' ? 'Unfiled' : props.kindKey === 'source' ? 'Sources' : 'Index'); });
   const count = () => display()?.count;
   const summary = (note: NoteEntry) => shown()?.summaries[note.id];
   const lookup = (id: string) => props.notebook.lookup(id);

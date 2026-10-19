@@ -811,7 +811,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const paneTitle = (pane: PaneId) => {
     const target = entry(pane)?.target;
     if (target?.kind === 'field') return `Fields / ${notebook.lookup(target.fieldId)()?.text ?? 'Definition'}`;
-    if (target?.kind === 'index') return views()?.find(view => view.id === target.viewId)?.name ?? indexKind(pane)?.plural;
+    if (target?.kind === 'index') { const kind = indexKind(pane); return views()?.find(view => view.id === target.viewId)?.name ?? (kind && kindLabel(kind)); }
     if (target?.kind === 'fields' && target.typeId) return rootById().get(target.typeId)?.text;
     if (target?.kind === 'cards') return `${rootById().get(target.typeId)?.text ?? 'Tag'} / Cards${target.applyId ? ' / Apply' : ''}`;
     if (target?.kind !== 'table') return undefined;

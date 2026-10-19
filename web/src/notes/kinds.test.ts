@@ -10,6 +10,8 @@ const kind = (over: Partial<IndexKind> = {}): IndexKind => ({
 test('a tag-only kind keeps the spelling you wrote', () => {
   expect(kindLabel(kind())).toBe('arabic');
   expect(kindLabel(kind({ plural: 'Arabic studies' }))).toBe('Arabic studies');
+  expect(kindLabel(kind({ name: 'Italian word', plural: 'Italian words' }))).toBe('Italian word');
+  expect(kindLabel(kind({ name: 'Italian vocabulary', plural: 'Italian vocabularies' }))).toBe('Italian vocabulary');
   expect(kindLabel(kind({ key: 'type:2', name: 'Book', plural: 'Books', count: 2 }))).toBe('Books');
   expect(kindLabel(kind({ key: 'person', name: 'Person', plural: 'People', type_id: 'p' }))).toBe('People');
 });

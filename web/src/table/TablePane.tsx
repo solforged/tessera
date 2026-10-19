@@ -23,7 +23,7 @@ import { hasValueEditor } from '../fields/value-options';
 import { createOptionValue } from '../fields/commands';
 import { missingFilter, requiredIds, requiredReason } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
-import { noteKindIcon } from '../notes/kinds';
+import { kindLabel, noteKindIcon } from '../notes/kinds';
 import { CreateSlip } from '../create/CreateSlip';
 import { kindNoun } from '../create/kinds';
 import { NoteFind } from '../notes/NoteFind';
@@ -291,11 +291,11 @@ function TableContent(props: TablePaneProps) {
     return [...new Set([...selected, ...sorted])].flatMap(id => { const field = fieldById(id); return field ? [field] : []; });
   };
   const changed = () => !!saved() && !queriesEqual(query(), saved()!.query);
-  const title = () => typeKind()?.plural ?? type()?.plural ?? (query().type ? autoPlural(props.notebook.lookup(query().type!)()?.text ?? '') : query().source ? sourceName(query().source) : '');
+  const title = () => { const kind = typeKind(); return kind ? kindLabel(kind) : type()?.plural ?? (query().type ? autoPlural(props.notebook.lookup(query().type!)()?.text ?? '') : query().source ? sourceName(query().source) : ''); };
   const queryParts = createMemo(() => query().filters.length + query().sort.length + (query().group ? 1 : 0) + (query().text ? 1 : 0) + (query().source && query().source !== 'notes' ? 1 : 0) + (query().links?.length ?? 0) + (query().from?.length ?? 0) + (query().cites?.length ?? 0));
   const summary = createMemo(() => {
     const count = result()?.total ?? 0;
-    const plural = title() || 'atoms';
+    const plural = typeKind()?.plural ?? (title() || 'atoms');
     const noun = count === 1 ? typeKind()?.name ?? type()?.page.text ?? (query().type ? props.notebook.lookup(query().type!)()?.text ?? plural : plural.slice(0, -1)) : plural;
     return [
     `${canAppend() ? `${(result()?.rows.length ?? 0).toLocaleString()} of ` : ''}${count.toLocaleString()} ${noun.toLocaleLowerCase()}`,

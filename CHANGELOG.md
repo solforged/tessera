@@ -91,6 +91,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Kept unfinished tag words editable across idle pauses without creating a prefix tag while the caret remained inside.
 - Restored pruned tag pages by their original identity on Redo, together with their canonical member text.
 - Preserved completed task status, completion dates and plans when undoing behavior removal, and applied its engine text receipts.
+- Titled a tag-only kind's table, Index, Fields, Cards and pane by the tag's written spelling rather than an automatic plural, matching the sidebar.
 - Allowed case-only renames of built-in tag pages from their title and Rename action, while the engine still refuses a different name.
 - Included timed and untimed appointments in the narrow Agenda week ledger, on their exact scheduled date without a checkbox.
 - Showed the sharing switch and Pair a phone under Settings › Devices on a Mac with no paired device, instead of `Sync is off` with no way to start.
