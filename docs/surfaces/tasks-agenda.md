@@ -163,11 +163,13 @@ Named task views store the `TaskQuery`, never the line's spelling, and preserve 
 
 ### Rows
 
-Day rows have a fixed left mono time gutter, blank for untimed work, then the status glyph and source text, with muted page provenance at the right. Journal provenance reads Journal rather than repeating the stored ISO date; the full page title remains in its tooltip and accessible name.
+Day rows have a fixed left mono time gutter, blank for untimed work, then the status glyph and source text, with muted page provenance and a separate rescheduling slot at the right. Journal provenance reads Journal rather than repeating the stored ISO date; the full page title remains in its tooltip and accessible name.
 
-Planning facts share the task's line. A lone priority trails the text. Dates and other facts keep the right edge. They omit dates implied by a day group and a project the row already names as its provenance, and show a carried schedule only as `since Tue 6`, not also an ISO date. Task-query and [journal](journal.md#today-tiles) rows retain their compact status, source and trailing planning layout.
+Planning facts share the task's line. A lone priority trails the text. Dates and other facts keep the right edge. They omit dates implied by a day group and a project the row already names as its provenance, and show a carried schedule only as `since Tue 6`, not also an ISO date. Task-query rows retain their compact status, source and trailing planning layout.
 
-On touch, Agenda task rows and their completion/source controls are at least 44 px high; the cover's content insets are equal. The whole row takes the hover fill and long task text clamps at two lines. Planning uses the same facts as outline rows, with carried or missed dates in `--danger`.
+Below a 600 px pane width, Day, Week ledger and [Today ledger](journal.md#agenda-tile) rows use two lines. The first keeps the clock, status and task title, clamped only after two text lines. The second starts at the text column with non-wrapping mono facts, then provenance and the calendar at the right. One-line Today and Day titles fit in a row under 72 px on touch, using the shared 32 px touch targets. Wider touch rows and their completion/source controls remain at least 44 px high. The cover's content insets are equal.
+
+The whole row takes the hover fill and long task text clamps at two lines. Planning uses the same facts as outline rows, with carried or missed dates in `--danger`.
 
 The glyph completes on the displayed agenda date, including from lookahead, or reopens a finished task in Tasks. Right-click or ⌘⇧Enter on a focused row opens the shared status menu. The priority word opens the same priority choices as the Planning slip, including None. High is danger; medium and low stay faint. Tab reaches both controls and P opens priority from a focused row. Completed history shows a static check and never edits the live task.
 
@@ -177,8 +179,8 @@ Completing, reopening or triaging a row uses its source page's undo history. ⌘
 
 Planned rows reschedule without dragging:
 
-- On hover or focus, quiet mono Today and Tomorrow and a calendar button take the provenance's place, each omitted when it would change nothing. In a pane under 560 px only the calendar button fits there, so only it shows.
-- On touch only the calendar button shows, beside the planning facts.
+- Quiet mono Today and Tomorrow and a calendar button occupy their own reserved trailing slot, each omitted when it would change nothing. On fine pointers their ink brightens on hover or focus, without hiding provenance or moving the columns. Tab reaches the actions.
+- On touch or in a pane under 600 px only the calendar button shows. Narrow rows keep it visible at the right of the second line.
 
 | Focused-row key | Action |
 |---|---|

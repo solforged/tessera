@@ -18,8 +18,7 @@
 .week-ledger .agenda-now > span { position: absolute; left: calc(-1 * (var(--space-48) + var(--space-8))); top: calc(-1 * var(--line-apparatus) / 2); color: var(--accent); font: var(--apparatus); }
 .week-ledger .agenda-row:has(> .agenda-now) { margin-top: var(--space-16); }
 .week-ledger li.agenda-now-end { margin-block: var(--space-16); }
-/* A narrow mouse-driven split gets the same visible calendar action as Day on touch. */
-.week-ledger .agenda-row-timetable .agenda-row-actions { display: flex; grid-column: 3 / -1; grid-row: 2; justify-self: end; position: static; }
+/* Week keeps its calendar in the shared row's reserved action slot. */
 .week-ledger .agenda-row-actions > .button:not(.agenda-row-pick) { display: none; }
 .week-ledger .agenda-row-pick.button { min-width: var(--touch-target); min-height: var(--touch-target); }
 

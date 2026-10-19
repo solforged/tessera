@@ -105,7 +105,7 @@
 .agenda-row-cancelled .agenda-source-text { text-decoration: line-through var(--faint); }
 .agenda-row > .agenda-error, .agenda-row > .agenda-message { flex-basis: 100%; margin-left: calc(var(--target-size) + var(--space-8)); }
 /* Day rows keep the clock fixed, the canonical task readable, and provenance quietly at the right. */
-.agenda-row-timetable { display: grid; grid-template-columns: var(--space-48) var(--target-size) minmax(0, 1fr) minmax(0, 20%); column-gap: var(--space-8); align-items: center; min-height: var(--agenda-row-height); padding: var(--space-2) 0; border-radius: 0; }
+.agenda-row-timetable { display: grid; grid-template-columns: var(--space-48) var(--target-size) minmax(0, 1fr) minmax(0, 20%) max-content; column-gap: var(--space-8); align-items: center; min-height: var(--agenda-row-height); padding: var(--space-2) 0; border-radius: 0; }
 .agenda-time-gutter { grid-column: 1; grid-row: 1; align-self: start; display: flex; align-items: center; min-height: var(--agenda-row-height); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .agenda-row-timetable .agenda-status { grid-column: 2; grid-row: 1; align-self: start; }
 .agenda-row-timetable .agenda-status.task-status-button, .agenda-row-timetable .agenda-source { min-height: var(--agenda-row-height); }
@@ -123,32 +123,21 @@
 .agenda-now { position: absolute; inset: calc(-1 * var(--rule-width)) 0 auto; border-top: var(--rule-width) solid var(--accent); pointer-events: none; }
 .agenda-now::before { content: ''; position: absolute; left: 0; top: calc(var(--space-8) / -2 - var(--rule-width) / 2); width: var(--space-8); height: var(--space-8); border-radius: 50%; background: var(--accent); }
 li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(--rule-width)); }
-/* Rescheduling waits at the provenance's place: Today, Tomorrow and a date, in quiet mono, on hover or focus. The
-   two cross-fade in their shared cell, so a pointer passing down the list never snaps one for the other. */
-.agenda-row-actions { grid-column: 4; grid-row: 1; align-self: start; display: none; justify-content: flex-end; align-items: center; gap: var(--space-2); min-height: var(--agenda-row-height); }
-.agenda-row-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+/* Planning has its own trailing slot. Only the ink changes on hover or focus, never the provenance or columns. */
+.agenda-row-actions { grid-column: 5; grid-row: 1; align-self: start; display: flex; flex: 0 0 auto; justify-content: flex-end; align-items: center; gap: var(--space-2); min-height: var(--agenda-row-height); }
+.agenda-row-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.agenda-row:is(:hover, :focus-within, .agenda-row-picking) > .agenda-row-actions .button { color: var(--muted); }
 .agenda-row-actions .button:hover:not(:disabled) { color: var(--text); }
-@media (hover: hover) {
-  .agenda-row-actions { display: flex; opacity: 0; visibility: hidden; transition: opacity var(--motion-ui) var(--motion-ease), visibility 0s var(--motion-ui); }
-  .agenda-row:has(> .agenda-row-actions) > .agenda-provenance { transition: opacity var(--motion-ui) var(--motion-ease), visibility 0s; }
-  .agenda-row:is(:hover, :focus-within, .agenda-row-picking) > .agenda-row-actions { opacity: 1; visibility: visible; transition-delay: 0s; }
-  .agenda-row:is(:hover, :focus-within, .agenda-row-picking):has(> .agenda-row-actions) > .agenda-provenance { opacity: 0; visibility: hidden; transition-delay: 0s, var(--motion-ui); }
-}
-/* Touch keeps only the date button, beside the planning facts. */
-@media (hover: none) {
-  .agenda-row-actions { display: flex; grid-row: 2; min-height: 0; }
+/* Touch keeps the calendar in the same reserved slot, without hover-only controls. */
+@media (hover: none), (pointer: coarse) {
+  .agenda-row-actions .button { color: var(--muted); }
   .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
-  /* The facts stop short of the date button's column rather than running under it. */
-  .agenda-row-timetable:has(> .agenda-row-actions) > .agenda-task-line { grid-column: 3; }
-  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable:has(> .agenda-row-actions) > .agenda-task-line { grid-column: 2; }
 }
 .agenda-section-actions { display: flex; gap: var(--space-2); margin-left: var(--space-8); }
 .agenda-section-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .agenda-section-actions .button:hover:not(:disabled) { color: var(--text); }
 /* A phone or half pane keeps the heading's rule and count on one line and puts the moves beneath, under Overdue. */
 @container agenda-pane (max-width: 560px) {
-  /* The provenance's narrow column holds only the date button, so Today and Tomorrow never cover the task. */
-  .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
   .agenda-section-heading:has(> .agenda-section-actions) { flex-wrap: wrap; row-gap: 0; }
   .agenda-section-actions { flex-basis: 100%; margin: calc(-1 * var(--space-8)) 0 0 calc(-1 * var(--space-4)); }
 }
@@ -232,10 +221,6 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .journal-ledger-day.button, .journal-week-number.button { min-height: 40px; }
   .journal-week-ledger .journal-ledger-day { min-height: 64px; }
 }
-/* Today's ledger in a narrow pane keeps only the date button, as the Agenda does. */
-@container outline-pane (max-width: 560px) {
-  .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
-}
 @container outline-pane (max-width: 640px) {
   .journal-quarter-ledger { grid-template-columns: 1fr; }
   .journal-year-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -267,13 +252,14 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 .today-carried-move.button:hover:not(:disabled) { color: var(--text); }
 .today-ledger-open.button { display: flex; gap: var(--space-4); margin: var(--space-4) 0 0 auto; padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .today-ledger-open.button:hover:not(:disabled) { color: var(--text); }
-/* Today's ledger has no clock column unless a task has a time: the status sits on the section edge and provenance ends on the right rule, under Move to today. */
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable { grid-template-columns: var(--target-size) minmax(0, 1fr) minmax(0, 20%); }
+/* Today's ledger has no clock column unless a task has a time. Planning keeps its own trailing slot. */
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable { grid-template-columns: var(--target-size) minmax(0, 1fr) minmax(0, 20%) max-content; }
 .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > .agenda-time-gutter { display: none; }
 .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-status { grid-column: 1; }
 .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-task-line { grid-column: 2; }
 .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable:not(:has(> .agenda-provenance, > .agenda-row-actions)) .agenda-task-line { grid-column: 2 / -1; }
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > :is(.agenda-provenance, .agenda-row-actions) { grid-column: 3; }
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > .agenda-provenance { grid-column: 3; }
+.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > .agenda-row-actions { grid-column: 4; }
 .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > :is(.agenda-error, .agenda-message) { grid-column: 2 / -1; }
 .today-ledger .agenda-provenance { padding-inline-end: var(--space-4); text-align: right; }
 .today-ledger-open > span { color: var(--accent); }
@@ -312,7 +298,23 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 @media (pointer: coarse) {
   .agenda-pane, .today-ledger { --agenda-row-height: calc(var(--space-32) + var(--space-12)); }
   .agenda-pane .agenda-row { min-height: var(--agenda-row-height); }
-  .agenda-pane .agenda-row .agenda-status.task-status-button, .agenda-pane .agenda-source, .agenda-pane .agenda-date > .button, .agenda-pane .agenda-modes > .button { min-height: var(--agenda-row-height); }
+  .agenda-pane .agenda-row:not(.agenda-row-timetable) .agenda-status.task-status-button, .agenda-pane .agenda-row:not(.agenda-row-timetable) .agenda-source, .agenda-pane .agenda-date > .button, .agenda-pane .agenda-modes > .button { min-height: var(--agenda-row-height); }
+}
+/* Narrow ledgers give the title the full first line, then facts, provenance and the calendar beneath it. */
+@container (max-width: 599px) {
+  .agenda-row-timetable { grid-template-columns: var(--space-48) var(--target-size) minmax(0, max-content) minmax(0, 1fr) max-content; }
+  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable { grid-template-columns: var(--target-size) minmax(0, max-content) minmax(0, 1fr) max-content; }
+  .agenda-row-timetable .agenda-task-line { display: contents; }
+  .agenda-row-timetable .agenda-task-line > .agenda-source { grid-column: 3 / -1; grid-row: 1; min-height: var(--target-size); }
+  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-source { grid-column: 2 / -1; }
+  .agenda-row-timetable .agenda-status.task-status-button, .agenda-row-timetable .agenda-time-gutter { min-height: var(--target-size); }
+  .agenda-row-timetable .agenda-task-line > .agenda-row-meta { grid-column: 3; grid-row: 2; min-width: 0; margin: 0; padding: 0; flex-wrap: nowrap; justify-content: flex-start; align-items: center; align-self: center; white-space: nowrap; overflow: hidden; }
+  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-row-meta { grid-column: 2; }
+  .agenda-row-timetable .agenda-row-meta > * { flex-shrink: 0; }
+  .agenda-row-timetable > .agenda-provenance { grid-row: 2; align-self: center; min-height: var(--target-size); padding: 0; text-align: left; }
+  .agenda-row-timetable > .agenda-row-actions { grid-row: 2; min-height: var(--target-size); }
+  .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
+  .agenda-row-timetable > .agenda-error, .agenda-row-timetable > .agenda-message { grid-row: 3; }
 }
 /* On the cover the capture field stays above navigation, and drops to the keyboard edge when navigation hides. */
 @media (max-width: 599px) and (pointer: coarse) {
