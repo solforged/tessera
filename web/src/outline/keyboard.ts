@@ -3,7 +3,7 @@ import { Direction } from '@codemirror/view';
 import type { EditorView } from '@codemirror/view';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import type { PageDocument } from '../document/contract';
-import { referenceBeside } from '../document/text-tokens';
+import { tokenBeside } from '../document/text-tokens';
 import { boundaryDeletion } from '../document/outline-mechanics';
 import type { OutlineContext } from './context';
 import { applyBracketInput, graphemeBoundary } from './editor';
@@ -92,7 +92,7 @@ export function createOutlineKeyboard(context: Pick<OutlineContext,
     // An empty `[[]]` or `(())` left by the bracket pairing goes in one Backspace, as it arrived.
     const pair = !forward && selection.head >= 2 ? view.state.doc.sliceString(selection.head - 2, selection.head + 2) : '';
     if (pair === '[[]]' || pair === '(())') { replaceSelection('', 'text', { anchor: { id, offset: selection.head - 2 }, head: { id, offset: selection.head + 2 } }); return true; }
-    const token = referenceBeside(view.state.doc.toString(), selection.head, forward ? 'forward' : 'backward');
+    const token = tokenBeside(view.state.doc.toString(), selection.head, forward ? 'forward' : 'backward');
     if (token) {
       const at = { id, offset: selection.head };
       replaceSelection('', 'text', { anchor: { id, offset: token.start }, head: { id, offset: token.end } }, { anchor: at, head: at });

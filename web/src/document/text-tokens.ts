@@ -134,11 +134,12 @@ export function inlineTokens(text: string): InlineToken[] {
 }
 
 /**
- * The single-line reference that ends at `offset` (deleting backward) or starts there (deleting forward): the
- * one a deletion would step into while it shows as a label. A caret inside a reference, as while its query is
- * typed, edits characters instead.
+ * The single-line reference or bracketed tag (`#[[id|alias]]`, `#[[Title]]`) that ends at `offset` (deleting
+ * backward) or starts there (deleting forward): the one a deletion would step into while it shows as a label or
+ * pill. A caret inside one, as while its query is typed, edits characters instead, and so does a bare `#word`
+ * tag, whose pill shrinks with the word being typed.
  */
-export function referenceBeside(text: string, offset: number, direction: 'backward' | 'forward'): Token | undefined {
-  return textTokens(text).find(token => token.kind === 'reference' && !/[\r\n]/.test(token.value)
-    && (direction === 'backward' ? token.end === offset : token.start === offset));
+export function tokenBeside(text: string, offset: number, direction: 'backward' | 'forward'): Token | undefined {
+  return textTokens(text).find(token => (token.kind === 'reference' || token.kind === 'tag' && text.startsWith('#[[', token.start))
+    && !/[\r\n]/.test(token.value) && (direction === 'backward' ? token.end === offset : token.start === offset));
 }

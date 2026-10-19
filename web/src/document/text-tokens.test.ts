@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { inlineTokens, isStableReference, isViewReference, quoteTarget, referenceBeside, textTokens } from './text-tokens';
+import { inlineTokens, isStableReference, isViewReference, quoteTarget, textTokens, tokenBeside } from './text-tokens';
 
 describe('reference locators', () => {
   test('uses the first and last pipes, preserving pipes within labels', () => {
@@ -103,7 +103,7 @@ test('saved view targets keep their name and never become block targets', () => 
   expect(isViewReference(token)).toBe(true);
   expect(isStableReference(token)).toBe(false);
   expect(textTokens(`[[view:8${id.slice(1)}|Invalid]]`)[0]?.targetKind).toBeUndefined();
-  expect(referenceBeside(text, text.length, 'backward')?.value).toBe(text);
+  expect(tokenBeside(text, text.length, 'backward')?.value).toBe(text);
 });
 
 describe('whole-row quote targets', () => {
@@ -156,21 +156,38 @@ describe('URL tokens', () => {
   });
 });
 
-describe('deleting beside a reference', () => {
+describe('deleting beside a reference or tag', () => {
   const text = 'see [[01M4M13Q37BGH391ARSJX45F7Y]] and [[Mar]]';
   test('takes a whole reference only from its outer edge', () => {
-    expect(referenceBeside(text, 34, 'backward')?.value).toBe('[[01M4M13Q37BGH391ARSJX45F7Y]]');
-    expect(referenceBeside(text, 4, 'forward')?.value).toBe('[[01M4M13Q37BGH391ARSJX45F7Y]]');
-    expect(referenceBeside(text, 4, 'backward')).toBeUndefined();
-    expect(referenceBeside(text, 34, 'forward')).toBeUndefined();
+    expect(tokenBeside(text, 34, 'backward')?.value).toBe('[[01M4M13Q37BGH391ARSJX45F7Y]]');
+    expect(tokenBeside(text, 4, 'forward')?.value).toBe('[[01M4M13Q37BGH391ARSJX45F7Y]]');
+    expect(tokenBeside(text, 4, 'backward')).toBeUndefined();
+    expect(tokenBeside(text, 34, 'forward')).toBeUndefined();
   });
 
   test('leaves a query being typed to ordinary character deletion', () => {
-    for (let offset = 40; offset < text.length; offset++) expect(referenceBeside(text, offset, 'backward')).toBeUndefined();
-    expect(referenceBeside(text, text.length, 'backward')?.value).toBe('[[Mar]]');
+    for (let offset = 40; offset < text.length; offset++) expect(tokenBeside(text, offset, 'backward')).toBeUndefined();
+    expect(tokenBeside(text, text.length, 'backward')?.value).toBe('[[Mar]]');
   });
 
   test('ignores a reference that spans lines and so never shows as a label', () => {
-    expect(referenceBeside('[[two\nlines]]', 13, 'backward')).toBeUndefined();
+    expect(tokenBeside('[[two\nlines]]', 13, 'backward')).toBeUndefined();
+  });
+
+  test('takes a bracketed tag pill whole from either edge and not from inside', () => {
+    const tagged = 'TW back #[[01M4M13Q37BGH391ARSJX45F7Y|essay]] #[[Long tag]]';
+    const end = tagged.indexOf(' #[[Long');
+    expect(tokenBeside(tagged, end, 'backward')).toMatchObject({ kind: 'tag', start: 8, end, id: '01M4M13Q37BGH391ARSJX45F7Y', alias: 'essay' });
+    expect(tokenBeside(tagged, 8, 'forward')).toMatchObject({ kind: 'tag', start: 8, end });
+    expect(tokenBeside(tagged, tagged.length, 'backward')).toMatchObject({ kind: 'tag', value: 'Long tag', start: end + 1 });
+    for (let offset = 9; offset < end; offset++) expect(tokenBeside(tagged, offset, 'backward')).toBeUndefined();
+    expect(tokenBeside(tagged, 8, 'backward')).toBeUndefined();
+    expect(tokenBeside(tagged, end, 'forward')).toBeUndefined();
+  });
+
+  test('leaves a bare tag word being typed to ordinary character deletion', () => {
+    expect(tokenBeside('bare #legacy', 12, 'backward')).toBeUndefined();
+    expect(tokenBeside('bare #legacy', 5, 'forward')).toBeUndefined();
+    expect(tokenBeside('#[[two\nlines]]', 14, 'backward')).toBeUndefined();
   });
 });

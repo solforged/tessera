@@ -621,7 +621,7 @@ On a row that merging would strip of a capability or its history, it acts on tha
 
 Rows whose only protection is history, such as reviewed cards, still refuse to merge while they have text.
 
-Headings likewise drop their style first. Backspace straight after a reference, or Delete straight before one, removes the whole token; undo restores the original caret. Inside a `[[query]]` still being typed, both delete one character.
+Headings likewise drop their style first. Backspace straight after a reference or a bracketed tag pill (`#[[id|Title]]`, `#[[Title]]`), or Delete straight before one, removes the whole token; undo restores the original caret. Inside a `[[query]]` still being typed, inside a tag's exposed source, or at the end of a bare `#word` tag, both delete one character.
 
 **Delete, arrows and tree commands**
 
