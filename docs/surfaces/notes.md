@@ -150,7 +150,7 @@ The titled Page actions menu names the page (or journal date), then shows the fu
 
 Rename, Merge into…, Pin or Unpin and Open beside stay at the top. Description… holds Gloss and Add alias; Add field… stays direct. Make… offers only absent Task, Project, Stream and Question features, with Task and Project only on journal days. Existing features have named Task…, Project…, Stream… and Question… managers. Appearance… holds bullets in Outline and archived visibility; Delete page… is last. Description… wears the note glyph and Appearance… the rows glyph, so no two rows share one.
 
-Built-in tag pages are system pages. Their title control, Rename, Merge and Delete actions are disabled with the engine's refusal, for example `Task is a built-in tag; its name cannot change.` The core permits a change of case but never a different name. Removing a task, question, project or source removes its written tag token when present; its glyph is that tag's pill at rest.
+Built-in tag pages are system pages. Their title control and Rename action accept a change of case, such as Task to task. The engine refuses a different name with `Task is a built-in tag; its name cannot change.` Merge and Delete remain disabled with their engine refusals. Removing a task, question, project or source removes its written tag token when present; its glyph is that tag's pill at rest.
 
 Tags… lists Add tag… and a Remove action for each manual membership, on filed and unfiled pages alike. Add uses the shared type picker; removing a type keeps the note's written field values and is undoable. Commands offers Page tags…, Add page tag… and Remove page tag… without requiring a selected body row. The kind names above the title still open their finding aids.
 

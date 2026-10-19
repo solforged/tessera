@@ -9,10 +9,10 @@ import type { PopupAnchor } from '../ui/Popup';
 
 type Page = Pick<Block, 'id' | 'text'>;
 
-export function builtInTagReason(title: string, capabilities: Pick<BlockCapabilities, 'built_in_tag'> | undefined, action: 'name' | 'delete' | 'merge'): string | undefined {
+export function builtInTagReason(title: string, capabilities: Pick<BlockCapabilities, 'built_in_tag'> | undefined, action: 'delete' | 'merge'): string | undefined {
   if (!capabilities?.built_in_tag) return undefined;
   const name = title[0]!.toLocaleUpperCase() + title.slice(1).toLocaleLowerCase();
-  return `${name} is a built-in tag; ${action === 'name' ? 'its name cannot change.' : action === 'delete' ? 'its page cannot be deleted.' : 'its page cannot merge.'}`;
+  return `${name} is a built-in tag; ${action === 'delete' ? 'its page cannot be deleted.' : 'its page cannot merge.'}`;
 }
 
 export function pageMergeDisabledReason(root: BlockState | undefined, capabilities?: Pick<BlockCapabilities, 'built_in_tag'>): string | undefined {

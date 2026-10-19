@@ -23,7 +23,6 @@ import { deskTarget } from '../desk/query';
 import { pageTableTarget } from '../table/query';
 import { deleteFieldOptions, optionImpact } from '../fields/commands';
 import { plural } from '../sync/state';
-import { builtInTagReason } from './PageMerge';
 
 export function createOutlineCommands(context: Pick<OutlineContext,
   | 'doc' | 'editing' | 'commitFieldEntry' | 'props' | 'selected'
@@ -185,7 +184,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   };
   const commandsFor = (selected = context.selected): Command[] => [
     { id: 'copy-page-reference', title: 'Copy page reference', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => copy(`[[${props.pageId}]]`) },
-    { id: 'rename', title: 'Rename atom', section: 'Page', disabledReason: () => builtInTagReason(doc.root()?.text ?? '', doc.capabilities(props.pageId), 'name') ?? (doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.'), run: rename },
+    { id: 'rename', title: 'Rename atom', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
     { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
     { id: 'add-field-root', title: 'Add field…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pickField(props.pageId, context.heading) },
     { id: 'types-root', title: 'Page tags…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pageTypes() },

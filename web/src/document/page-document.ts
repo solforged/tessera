@@ -1963,10 +1963,6 @@ export class Document implements PageDocument {
   }
   rename(title: string): EditResult {
     if (this.root()?.kind !== 'page') return { ok: false, reason: 'Journal dates cannot be renamed.' };
-    if (this.capabilities(this.pageId).built_in_tag && titleKey(title) !== titleKey(this.root()!.text)) {
-      const text = this.root()!.text;
-      return { ok: false, reason: `${text[0]!.toLocaleUpperCase()}${text.slice(1).toLocaleLowerCase()} is a built-in tag; its name cannot change.` };
-    }
     if (!title.trim()) return { ok: false, reason: 'A page needs a title.' };
     if (!this.host.titleAvailable(title.trim(), this.pageId)) return { ok: false, reason: 'A page with this title already exists.' };
     return this.edit({ kind: 'text', id: this.pageId, text: title.trim() });

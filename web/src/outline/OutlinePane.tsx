@@ -67,7 +67,7 @@ import { createRelationActions } from './RelationActions';
 import { createViewEmbedActions } from './ViewPicker';
 import { createMoveToPage } from './MoveToPage';
 import type { MenuState, OutlineContext, RowRange } from './context';
-import { builtInTagReason, PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
+import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { readTagRegistry } from './references';
 import { noteKindIcon } from '../notes/kinds';
 import { foldName, nameMenuItems, resolveName } from './names';
@@ -1162,8 +1162,6 @@ function Pane(props: OutlinePaneProps) {
 
   function rename() {
     if (doc.root()?.kind !== 'page') return;
-    const reason = builtInTagReason(doc.root()!.text, doc.capabilities(props.pageId), 'name');
-    if (reason) { setMessage(reason); return; }
     setTitle(doc.root()!.text); setRenaming(true); queueMicrotask(() => { titleInput?.focus(); titleInput?.select(); });
   }
   function closeTitle() {
@@ -1690,7 +1688,7 @@ function Pane(props: OutlinePaneProps) {
       </div>}</Show>
       <Show when={!positionZoom() && (!zoom() || !doc.root()?.source || renaming())}>
       <div class="outline-title-row">
-      <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page' || !!builtInTagReason(doc.root()?.text ?? '', doc.capabilities(props.pageId), 'name')} title={builtInTagReason(doc.root()?.text ?? '', doc.capabilities(props.pageId), 'name')} onClick={rename}>{rootTitle() || 'Loading…'}</button></h1>}>
+      <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{rootTitle() || 'Loading…'}</button></h1>}>
         <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { event.preventDefault(); closeTitle(); } }} />
         <Show when={titleCollision()} fallback={<Button class="bordered" onClick={commitTitle}>Save title</Button>}>{page =>
           <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} title={pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>

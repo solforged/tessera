@@ -345,7 +345,7 @@ Create groups New page, New question (⌥⌘N), New project, New task, New card,
 
 With no command query, Page lists only applicable actions; searching retains the full catalog, including unavailable actions with their reasons. Copy page reference copies the active page's workshop link. Undo and Redo remain in Commands with ⌘Z and ⌘⇧Z, and Compare perspectives remains searchable alongside the visible Compare projection tab.
 
-Renaming a titled atom to an existing title offers **Merge into “Title”**; the atom menu's **Merge into…** uses the picker. A confirmation explains that the merge is permanent. Built-in tag pages cannot be renamed, deleted or merged away. Disabled actions use the engine's refusal, such as `Task is a built-in tag; its page cannot merge.`
+Renaming a titled atom to an existing title offers **Merge into “Title”**; the atom menu's **Merge into…** uses the picker. A confirmation explains that the merge is permanent. Built-in tag pages allow case-only renames; the engine refuses a different name. Their Delete and Merge actions stay disabled with the engine's refusal, such as `Task is a built-in tag; its page cannot merge.`
 
 The surviving page keeps its title and receives the duplicate's blocks, with matching field entries appending their values. References, aliased references, tags and memberships redirect to the survivor, so its backlinks include both pages' former incoming links. Journal days, the Fields page and library sources cannot be merged; source-details title collisions remain errors.
 

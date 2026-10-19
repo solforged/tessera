@@ -1448,7 +1448,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   const items = (): MenuItem[] => [
     { label: 'Copy reference', icon: 'link', action: () => { void copyPage(true); } },
     ...(titled() ? [
-      { label: 'Rename', icon: 'edit', divider: true, disabledReason: builtInTagReason(root()?.text ?? '', doc()?.capabilities(pageId()!), 'name'), action: props.onRename },
+      { label: 'Rename', icon: 'edit', divider: true, action: props.onRename },
       { label: 'Merge into…', icon: 'merge', disabledReason: pageMergeDisabledReason(root(), doc()?.capabilities(pageId()!)), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } },
     ] satisfies MenuItem[] : []),
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', divider: !titled(), action: props.onPin },
