@@ -32,8 +32,6 @@ type SourceCommandPart = { pageId: string; actions: Action[]; expected?: string;
 const WARM_DOCUMENTS = 3;
 /** Beyond one history page, fresh snapshots cost less than replaying full-block events. */
 const MAX_CATCH_UP = 500;
-/** How long a tag being typed waits for its next keystroke before it saves anyway. */
-const TAG_IDLE = 3000;
 /** One single-flight operation queue for every document in this window. */
 export class Notebook implements NotebookClient, DocumentHost {
   readonly ready: Promise<void>;
@@ -81,8 +79,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   private reconnectDelay = 500;
   private streamWork = Promise.resolve();
   private firstQueuedAt = 0;
-  /** The trailing text save held while its block's caret is inside an unfinished `#tag`, until `until` at the latest. */
-  private draftTag: { commandId: string; blockId: string; until: number } | null = null;
+  /** The trailing text save held while its block's caret is inside an unfinished `#tag`. */
+  private draftTag: { commandId: string; blockId: string } | null = null;
   private order = Date.now() * 1000;
   private sessionId: string;
   private actorName: string;
@@ -382,8 +380,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   /**
    * Holds or releases `blockId`'s trailing text save while its caret is `typing` a tag. A saved `#phil` files the
-   * block under a new type page, so `#p`, `#ph` and `#phi` stay unsaved until a space, Enter, a choice, the caret
-   * leaving, or `TAG_IDLE` without a keystroke finishes the word.
+   * block under a new type page, so `#p`, `#ph` and `#phi` stay unsaved until a space, Enter, a choice, or the caret
+   * leaving finishes the word, however long typing pauses.
    */
   holdTag(pageId: string, blockId: string, typing: boolean) {
     const draft = this.draftTag;
@@ -395,7 +393,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     const last = this.queue.at(-1);
     const action = last?.kind !== 'notebook' ? last?.actions[0] : undefined;
     if (!last || last.kind === 'notebook' || last.frozen || last.pageId !== pageId || last.actions.length !== 1 || action?.kind !== 'text' || action.id !== blockId) return;
-    this.draftTag = { commandId: last.id, blockId, until: Date.now() + TAG_IDLE };
+    this.draftTag = { commandId: last.id, blockId };
   }
   async appendCapture(text: string, task: TaskState | null, picked: readonly [string, string][] = [], options: Pick<CaptureIntent, 'targetPageId' | 'question'> = {}): Promise<CaptureReceipt> {
     await this.ready;
@@ -1326,12 +1324,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       commands:
       while (this.queue.length && !this.closed) {
         const command = this.queue[0]!;
-        const draft = this.draftTag;
-        if (draft?.commandId === command.id) {
-          const wait = draft.until - Date.now();
-          if (this.queue.length === 1 && wait > 0) { this.schedule(wait); break; }
-          this.draftTag = null;
-        }
+        if (this.draftTag?.commandId === command.id) break;
         if (command.kind === 'notebook') { if (await this.sendNotebook(command)) continue; break; }
         const doc = this.docs.get(command.pageId) ?? this.open(command.pageId) as Document;
         if (doc.status() === 'loading') { await doc.reload(false); }

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { Compartment, EditorState } from '@codemirror/state';
 import { PendingEditorRange, emphasisChange, fieldDraftDecorations, fieldEntryExtension, graphemeBoundary, graphemeSelection, pairInput, pairSelection, referenceDecorations, vimUndoKey } from './editor';
 import type { NameMatch } from '../api/types';
+import { typeChoiceSpelling } from './type-completion';
 
 test('emphasis wraps and unwraps selected source, including combined bold and italic', () => {
   expect(emphasisChange('a word z', 2, 6, '**')).toEqual({ from: 2, to: 6, insert: '**word**', anchor: 4, head: 8 });
@@ -27,6 +28,30 @@ test('a pending accepted reference excludes burst continuation and Backspace cor
   const replacement = state.update({ changes: { ...pending.range!, insert: '[[stable-id]]' } }).state;
   expect(replacement.doc.toString()).toBe('See [[stable-id]] suffi');
   expect(replacement.selection.main.head).toBe(replacement.doc.length);
+});
+
+test('an Enter-accepted tag keeps zero-delay continuation outside delayed matches', async () => {
+  for (const target of [undefined, '01ARZ3NDEKTSV4RRFFQ69G5FAV']) {
+    const query = 'fastzerotag';
+    const token = typeChoiceSpelling(query, query);
+    const from = 4;
+    let state = EditorState.create({ doc: `See ${token} `, selection: { anchor: from + token.length + 1 } });
+    const pending = new PendingEditorRange({ from, to: from + token.length });
+    const matches = Promise.withResolvers<{ title: string; id?: string }>();
+    // Enter has already reserved the token and its space before the request can resolve.
+    const accepted = matches.promise.then(choice => {
+      state = state.update({ changes: { ...pending.range!, insert: typeChoiceSpelling(query, choice.title, choice.id) } }).state;
+    });
+    for (const insert of 'AFTER ') {
+      const update = state.update(state.replaceSelection(insert));
+      pending.map(update.changes);
+      state = update.state;
+    }
+    matches.resolve({ title: target ? 'Fast tag' : query, id: target });
+    await accepted;
+    expect(state.doc.toString()).toBe(`See ${typeChoiceSpelling(query, target ? 'Fast tag' : query, target)} AFTER `);
+    expect(state.selection.main.head).toBe(state.doc.length);
+  }
 });
 
 test('pending reference ranges follow outside edits but reject edits to the accepted token', () => {

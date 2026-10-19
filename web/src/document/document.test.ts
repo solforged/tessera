@@ -691,7 +691,7 @@ describe('real notebook operations and recovery', () => {
     }
   });
 
-  test('a tag being typed stays unsaved until the word is finished', async () => {
+  test('a tag stays editable across an idle pause until the word is finished', async () => {
     const instance = await client();
     const { doc, first } = await page(instance);
     const saved = (await api.block(first)).text;
@@ -700,16 +700,19 @@ describe('real notebook operations and recovery', () => {
       success(doc.edit({ kind: 'text', id: first, text: `#${tag.slice(0, end - 1)}` }));
       doc.holdTag(first, true);
     }
-    await new Promise(resolve => setTimeout(resolve, 600));
+    // This real-service/outbox integration crosses the former 3 s idle deadline on the platform clock.
+    await Bun.sleep(3500);
     expect((await api.block(first)).text).toBe(saved);
     await expect(api.pageByTitle(tag)).rejects.toMatchObject({ status: 404 });
     expect(doc.saveState()).not.toBe('saved');
-    success(doc.edit({ kind: 'text', id: first, text: `#${tag} ` }));
+    const completed = `${tag}continuation`;
+    success(doc.edit({ kind: 'text', id: first, text: `#${completed} ` }));
     doc.holdTag(first, false);
     await eventually(() => doc.saveState() === 'saved', 'the finished tag did not save');
-    const target = await api.pageByTitle(tag);
-    expect((await api.block(first)).text).toBe(`#[[${target.id}|${tag}]] `);
-    expect(doc.block(first)?.text).toBe(`#[[${target.id}|${tag}]] `);
+    const target = await api.pageByTitle(completed);
+    await expect(api.pageByTitle(tag)).rejects.toMatchObject({ status: 404 });
+    expect((await api.block(first)).text).toBe(`#[[${target.id}|${completed}]] `);
+    expect(doc.block(first)?.text).toBe(`#[[${target.id}|${completed}]] `);
     doc.release();
   });
 

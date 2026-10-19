@@ -6,14 +6,18 @@ import type { Block } from '../api/types';
 const atEnd = (text: string) => typeTokenAt(text, text.length);
 
 describe('type completion tokens', () => {
-  test('requires a query at block start or after whitespace', () => {
+  test('opens on a bare hash at block start or after whitespace', () => {
+    expect(atEnd('#')).toEqual({ from: 0, to: 1, query: '' });
+    expect(atEnd('Read #')).toEqual({ from: 5, to: 6, query: '' });
     expect(atEnd('#bo')).toEqual({ from: 0, to: 3, query: 'bo' });
     expect(atEnd('Read #Book')).toEqual({ from: 5, to: 10, query: 'Book' });
     expect(atEnd('Read\t#書籍_2/notes')).toEqual({ from: 5, to: 16, query: '書籍_2/notes' });
     expect(atEnd('#C++')?.query).toBe('C++');
-    for (const text of ['#', '# ', '##', '##heading', 'a#b', 'https://site.test/#fragment', '#Book ', '#Book\n']) {
+    for (const text of ['# ', '##', '##heading', 'a#b', 'https://site.test/#fragment', '#Book ', '#Book\n', '#123', 'Read #１２３', '`#', '`#`']) {
       expect(atEnd(text)).toBeNull();
     }
+    expect(typeTokenAt('Read # next', 6)).toBeNull();
+    expect(typeTokenAt('Read `#`', 7)).toBeNull();
   });
 
   test('uses the caret boundary and does not fall back to earlier tokens', () => {
@@ -84,6 +88,32 @@ test('type completion excludes note bodies, matches registered type aliases and 
   expect(person.canCreate).toBe(true);
   expect((await completeTypes(absent, 'Person')).canCreate).toBe(false);
   expect((await completeTypes(absent, 'quest')).rows).toEqual([]);
+});
+
+test('a bare hash puts the four behavior tags first, retaining existing IDs and registry glyphs', async () => {
+  const essay = { id: 'essay', kind: 'page', text: 'essay', archived: false } as Block;
+  const task = { id: 'task-page', kind: 'page', text: 'Task', archived: false } as Block;
+  const kinds = [
+    { key: 'person', name: 'Person', icon: 'person', type_id: null, tag: true },
+    { key: 'source', name: 'Source', icon: 'library', type_id: null, tag: true },
+    { key: 'task', name: 'Task', icon: 'task', type_id: task.id, tag: true },
+    { key: 'project', name: 'Project', icon: 'flag', type_id: null, tag: true },
+    { key: 'question', name: 'Question', icon: 'question-open', type_id: null, tag: true },
+  ];
+  const notebook = { api: {
+    types: async () => [{ page: essay }, { page: task }],
+    noteIndex: async () => ({ kinds }),
+  } } as unknown as NotebookClient;
+  const result = await completeTypes(notebook, '');
+  expect(result.rows.map(row => [row.text, row.icon, row.id])).toEqual([
+    ['Task', 'task', task.id],
+    ['Question', 'question-open', ''],
+    ['Project', 'flag', ''],
+    ['Source', 'library', ''],
+    ['essay', null, essay.id],
+    ['Person', 'person', ''],
+  ]);
+  expect(result.canCreate).toBe(false);
 });
 
 describe('type spelling', () => {

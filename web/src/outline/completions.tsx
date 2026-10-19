@@ -316,6 +316,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   }
   let engaged: CompletionToken | null = null;
   const pendingReferences = new Map<string, number>();
+  /** Accepted tags stay unsent until their captured search chooses an identity, even if typing or blur follows. */
+  const pendingTypes = new Map<string, number>();
   /** `typed` is false when only the caret moved or the text was synced, so the picker is offered but not engaged. */
   function updateCompletion(text: string, at: Caret, typed: boolean) {
     if (completion()?.manual || completion()?.relationTarget) return;
@@ -457,15 +459,16 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
    * Freeze the accepted boundary before awaiting search or creation. This editor already owns native
    * input, unlike a pending caret handoff: move it into prose rather than buffering/replaying keys.
    */
-  function acceptReference(state: Completion) {
+  function acceptCompletion(state: Completion) {
     const editor = context.editor, source = editing();
     if (!editor || !source) return null;
     const text = editor.view.state.doc.toString();
     const range = completionRange(state, text);
-    const token = completedReference(text, range.from, range.to, state.query);
+    const token = state.types ? typeChoiceSpelling(state.query, state.query) : completedReference(text, range.from, range.to, state.query);
     const next = text[range.to];
-    const space = !next || /[\p{L}\p{N}]/u.test(next) ? ' ' : '';
+    const space = state.types || !next || /[\p{L}\p{N}]/u.test(next) ? ' ' : '';
     pendingReferences.set(source, (pendingReferences.get(source) ?? 0) + 1);
+    if (state.types) pendingTypes.set(source, (pendingTypes.get(source) ?? 0) + 1);
     setCompletion(null);
     editor.view.dispatch({ changes: { from: range.from, to: range.to, insert: token + space }, selection: { anchor: range.from + token.length + space.length }, userEvent: 'input.complete' });
     referenceSpace = space ? { id: source, offset: range.from + token.length + 1 } : null;
@@ -473,11 +476,11 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const held = props.notebook.open(doc.pageId);
     return {
       source,
-      apply(target: string) {
+      apply(target: string, title?: string) {
         const current = doc.block(source)?.text;
         const at = tracked.tracker.range;
-        if (current === undefined || !at || current.slice(at.from, at.to) !== token) throw new Error('The accepted reference was edited before its target arrived. Its text was kept.');
-        const inserted = completedReference(token, 0, token.length, target);
+        if (current === undefined || !at || current.slice(at.from, at.to) !== token) throw new Error(`The accepted ${state.types ? 'tag' : 'reference'} was edited before its target arrived. Its text was kept.`);
+        const inserted = state.types ? typeChoiceSpelling(state.query, title ?? state.query, target || undefined) : completedReference(token, 0, token.length, target);
         tracked.release();
         const live = !context.disposed && editing() === source && context.editor?.id === source ? context.editor.view : null;
         if (live && live.state.doc.toString() === current) {
@@ -488,13 +491,20 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
           if (!result.ok) throw new Error(result.reason);
         }
         if (referenceSpace?.id === source) referenceSpace = { id: source, offset: referenceSpace.offset + inserted.length - token.length };
-        void doc.flush().catch(reason => { if (!context.disposed) capabilities.failure(source, reason); });
+        if (!state.types) void doc.flush().catch(reason => { if (!context.disposed) capabilities.failure(source, reason); });
       },
       release() {
         tracked.release();
         const remaining = (pendingReferences.get(source) ?? 1) - 1;
         if (remaining) pendingReferences.set(source, remaining);
         else pendingReferences.delete(source);
+        if (state.types) {
+          const remainingTypes = (pendingTypes.get(source) ?? 1) - 1;
+          if (remainingTypes) pendingTypes.set(source, remainingTypes);
+          else pendingTypes.delete(source);
+          const active = !context.disposed && editing() === source && context.editor?.id === source ? context.editor : null;
+          doc.holdTag(source, !!remainingTypes || !!active && !!typeTokenAt(active.view.state.doc.toString(), active.view.state.selection.main.head));
+        }
         if (!context.disposed && editing() !== source) context.commitFieldEntry(source, false);
         held.release();
       },
@@ -524,23 +534,19 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     const request = completionRequest?.key === completionKey() ? completionRequest.promise : null;
     if (!request || matches.error) return;
     if (state.types) {
-      if (matches.loading) {
-        void request.then(() => { if (completion()?.types && completion()?.query === state.query) void chooseCompletion(index); }, reason => setMessage(String(reason)));
-        return;
-      }
-      const source = editing();
-      const title = row?.kind === 'block' ? row.block.text : canCreate() ? state.query.trim() : null;
-      if (!source || !context.editor || !title || matches.error) return;
-      const inserted = `${typeChoiceSpelling(state.query, title, row?.kind === 'block' ? row.block.id : undefined)} `;
-      const selectionBefore = activeRange() ?? undefined;
-      const range = completionRange(state, context.editor.view.state.doc.toString());
-      setCompletion(null);
-      // Text tags and Add type share the notebook's type-page derivation, including new page creation.
-      replaceSelection(inserted, 'text', { anchor: { id: source, offset: range.from }, head: { id: source, offset: range.to } }, selectionBefore);
-      referenceSpace = { id: source, offset: range.from + inserted.length };
+      const accepted = acceptCompletion(state);
+      if (!accepted) return;
+      try {
+        const found = await request;
+        const picked = rowsFor(state, found, accepted.source)[index];
+        const title = picked?.kind === 'block' ? picked.block.text : found.canCreate ? state.query.trim() : null;
+        if (title) accepted.apply(picked?.kind === 'block' ? picked.block.id : '', title);
+      } catch (reason) {
+        if (!context.disposed) setMessage(reason instanceof Error ? reason.message : String(reason));
+      } finally { accepted.release(); }
       return;
     }
-    const accepted = !state.quote && !state.relationTarget ? acceptReference(state) : null;
+    const accepted = !state.quote && !state.relationTarget ? acceptCompletion(state) : null;
     if (!accepted) setCompletion(null);
     try {
       const found = await request;
@@ -704,5 +710,5 @@ function CompletionPopups(){ return <>
       </div>
     </Popup></Show>
 </>; }
-  return { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor: () => setValueEditor(null), valueEditorId: () => valueEditor()?.id, pendingReference: (id: string) => pendingReferences.has(id), updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
+  return { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor: () => setValueEditor(null), valueEditorId: () => valueEditor()?.id, pendingReference: (id: string) => pendingReferences.has(id), pendingType: (id: string) => pendingTypes.has(id), updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
 }

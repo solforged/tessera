@@ -58,6 +58,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Included every active task, project and source atom in its built-in kind's counts, finding aid, table and saved filters, without requiring a written tag, and added New task to the empty Tasks finding aid.
 - Said atom and tag instead of block and type throughout the interface.
 - Said atom instead of page and note, tag instead of index kind, and format for field values throughout the interface.
+- Opened the tag picker on a bare `#` and after `/Tag`, with Task, Question, Project and Source first and their registry glyphs.
 - Rendered built-in behavior tags as glyphs, kept scheduled atoms checkbox-free until tagged as tasks, protected built-in tag pages, and read creation choices from the tag registry.
 - Named a tag-only kind by the tag you wrote, so `#arabic` stays `arabic` in the sidebar instead of `arabics`. Drew the card mark at the bullet's size.
 - A lone journal fact trails its line, and Journal's writing head is the name alone. Task priority is the word, on the task's line. An empty review says No cards yet and hides the deck menu and the zero queues.
@@ -84,6 +85,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Preserved appointment dates without adding checkboxes on copy and paste, and exported live tag titles in plain-text clipboard data while keeping canonical tokens in Tessera's private format.
 - Kept tagged creation lines in their chosen kind and destination, and showed readable tag names and pills in capture drafts without exposing canonical IDs.
 - Rebased queued splits, merges, restores and their undo carets through tag normalization receipts, preserving rapid row entry and outbox replay.
+- Preserved tag choices accepted before completion matches loaded, keeping immediate following prose outside the tag.
+- Kept unfinished tag words editable across idle pauses without creating a prefix tag while the caret remained inside.
 - Allowed case-only renames of built-in tag pages from their title and Rename action, while the engine still refuses a different name.
 - Included timed and untimed appointments in the narrow Agenda week ledger, on their exact scheduled date without a checkbox.
 - Showed the sharing switch and Pair a phone under Settings › Devices on a Mac with no paired device, instead of `Sync is off` with no way to start.

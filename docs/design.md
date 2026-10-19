@@ -672,11 +672,11 @@ A hand-typed reference spanning lines or containing a nested `[[opener]]` stays 
 
 #### Types
 
-`#` at block start or after whitespace opens a tag picker under the hash once a non-space name character follows. It searches the same pages as Add tag and offers Create tag for a new name. Enter or Tab inserts `#[[id|Title]]` for an existing page, followed by a space. A new tag or a built-in without a page uses `#Title`, or `#[[Title]]` for a name with spaces or punctuation, until the save normalizes it. Escape keeps the text. Pills read the live title by ID, falling back to the alias and then the ID in faint ink when the target is gone. A rename changes the pill without changing the member's text.
+`#` at block start or after whitespace opens a tag picker under the hash. A bare hash offers Task, Question, Project and Source first with their glyphs, then existing tags; typing searches the same pages as Add tag and offers Create tag for a new name. Enter or Tab inserts `#[[id|Title]]` for an existing page, followed by a space, even if the matches are still loading; prose typed immediately afterward stays outside the accepted tag. A new tag or a built-in without a page uses `#Title`, or `#[[Title]]` for a name with spaces or punctuation, until the save normalizes it. Escape keeps the text. Pills read the live title by ID, falling back to the alias and then the ID in faint ink when the target is gone. A rename changes the pill without changing the member's text.
 
-A bare `#`, `# `, repeated hashes, URL fragments, references, code, card/cloze syntax and field shorthand do not open the type picker; `# ` at block start still makes a heading.
+`# `, digit-only hash words, repeated hashes, URL fragments, references, code, card/cloze syntax and field shorthand do not open the tag picker; `# ` at block start still makes a heading. `/Tag` inserts a bare hash and opens the same picker.
 
-A tag being typed is not saved until the word is finished: a space or Enter, a choice from the picker, the caret leaving it, or 3 seconds without a keystroke. Until then no type page or sidebar row appears, so typing `#phil` slowly never shows `p`, `ph` or `phi`; the text is already kept for recovery.
+A tag being typed is not saved until the word is finished: a space or Enter, a choice from the picker, blur, or the caret leaving it. An idle pause never canonicalizes a tag token while the caret is still inside it. Until then no type page or sidebar row appears, so typing `#phil` slowly never shows `p`, `ph` or `phi`; the text is already kept for recovery.
 
 A page made for a tag or by Add tag goes away again once no tag, manual type or link uses it, unless it was edited, gained content or is named by a saved query.
 

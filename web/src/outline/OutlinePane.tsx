@@ -1352,7 +1352,7 @@ function Pane(props: OutlinePaneProps) {
   });
   const { openViewEmbed, ViewEmbedPopups } = createViewEmbedActions(context);
   const { openMoveToPage, MoveToPagePopup } = createMoveToPage(context);
-  const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, pendingReference, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); }, (id, backward) => fieldSheet.advance(id, backward));
+  const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, pendingReference, pendingType, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); }, (id, backward) => fieldSheet.advance(id, backward));
   const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context, (event, id) => fieldSheet.key(event, id));
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
@@ -1457,7 +1457,7 @@ function Pane(props: OutlinePaneProps) {
         const id = editor?.id;
         if (!id) return;
         setEditorFocused(false);
-        doc.holdTag(id, false);
+        doc.holdTag(id, pendingType(id));
         if (editing() === id) commitFieldEntry(id, false);
         queueMicrotask(() => {
           if (disposed || composition() || valueEditorId() === id) return;
@@ -1481,7 +1481,7 @@ function Pane(props: OutlinePaneProps) {
         else if (task) { text = task.text; at = task.caret; }
         else { const result = doc.edit({ kind: 'text', id: at.id, text, caret: at.offset, group }, caret()); if (!result.ok) setMessage(result.reason); }
         // Text left after an input rule still offers its completions, so a date typed with the prefix plans the task.
-        doc.holdTag(at.id, !!typeTokenAt(text, at.offset));
+        doc.holdTag(at.id, pendingType(at.id) || !!typeTokenAt(text, at.offset));
         updateCompletion(text, at, true);
         updateTriggers(text, at);
       }),
@@ -1492,7 +1492,7 @@ function Pane(props: OutlinePaneProps) {
         setTextRange(previous => previous && previous.head.id === at.id ? { anchor: previous.anchor, head: at } : previous);
         scrollReveal = { id: at.id, epoch: focusEpoch, caret: true };
         scheduleScroll();
-        if (editor) { const text = editor.view.state.doc.toString(); doc.holdTag(at.id, !!typeTokenAt(text, at.offset)); updateCompletion(text, at, false); updateTriggers(text, at); }
+        if (editor) { const text = editor.view.state.doc.toString(); doc.holdTag(at.id, pendingType(at.id) || !!typeTokenAt(text, at.offset)); updateCompletion(text, at, false); updateTriggers(text, at); }
         scheduleReport();
       },
       composition: composing,
@@ -1623,7 +1623,7 @@ function Pane(props: OutlinePaneProps) {
   onCleanup(() => {
     finishFoldMotion();
     reducedMotion.removeEventListener('change', finishFoldMotion);
-    if (editing()) { doc.holdTag(editing()!, false); commitFieldEntry(editing()!, false); }
+    if (editing()) { doc.holdTag(editing()!, pendingType(editing()!)); commitFieldEntry(editing()!, false); }
     disposed = true;
     setLinkedCitation(null);
     unregister();
