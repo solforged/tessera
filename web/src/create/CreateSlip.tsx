@@ -33,7 +33,7 @@ export interface CreateSlipProps {
 }
 const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
 const primaryKinds: { kind: CreateKind; label: string }[] = [
-  { kind: 'task', label: '#task' }, { kind: 'question', label: '#question' }, { kind: 'note', label: 'note' }, { kind: 'card', label: 'card' }, { kind: 'source', label: '#source' },
+  { kind: 'task', label: '#task' }, { kind: 'question', label: '#question' }, { kind: 'note', label: 'atom' }, { kind: 'card', label: 'card' }, { kind: 'source', label: '#source' },
 ];
 const defaultInto = (kind: CreateKind): CreateInto => ({ kind: kind === 'question' || kind === 'project' || kind.startsWith('type:') ? 'page' : 'journal' });
 
@@ -59,10 +59,10 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
   const noteKind = createMemo(() => index()?.kinds.find(value => value.key === (kind().startsWith('type:') ? kind().slice(5) : kind())));
   const moreKinds = createMemo(() => (index()?.kinds ?? []).filter(value => value.tag && !primaryKinds.some(primary => primary.kind === value.key)));
   const under = () => { const destination = into(); return destination.kind === 'under' ? destination.pageId : undefined; };
-  const destinationTitle = () => under() ? props.notebook.lookup(under()!)()?.text ?? props.notebook.roots().find(page => page.id === under())?.text ?? 'Page' : '';
+  const destinationTitle = () => under() ? props.notebook.lookup(under()!)()?.text ?? props.notebook.roots().find(page => page.id === under())?.text ?? 'Atom' : '';
   const pageDraft = () => kind() === 'project' || kind().startsWith('type:') || (kind() === 'note' || kind() === 'question') && into().kind === 'page';
   const moreSelected = () => !primaryKinds.some(value => value.kind === kind());
-  const action = () => kind() === 'source' ? 'Add to library' : kind() === 'task' ? 'New task' : kind() === 'card' ? 'New card' : kind() === 'project' ? 'New project' : kind().startsWith('type:') ? `New ${noteKind() ? kindNoun(noteKind()!) : 'note'}` : pageDraft() ? kind() === 'question' ? 'New question' : 'New page' : 'Add to today';
+  const action = () => kind() === 'source' ? 'Add to library' : kind() === 'task' ? 'New task' : kind() === 'card' ? 'New card' : kind() === 'project' ? 'New project' : kind().startsWith('type:') ? `New ${noteKind() ? kindNoun(noteKind()!) : 'atom'}` : pageDraft() ? kind() === 'question' ? 'New question' : 'New atom' : 'Add to today';
   const where = () => kind() === 'source' ? 'Library inbox' : pageDraft() ? '' : under() ? `End of ${destinationTitle()}` : `${shortDay(props.notebook.todayDate())} · end of journal`;
   const status = () => added() ? `${added()} added` : '';
   const [pages] = createResource(() => picker() ? [query(), props.notebook.roots()] as const : false, ([value, roots]) => completeNames(props.notebook, value, roots));
@@ -129,8 +129,8 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
       </div>
       <Show when={kind() === 'note' || kind() === 'question' || kind() === 'task' || kind() === 'card'}><div class="create-into" role="group" aria-label="Into"><span>Into</span>
         <Button aria-pressed={into().kind === 'journal'} onClick={() => chooseInto({ kind: 'journal' })}>Today</Button>
-        <Show when={kind() === 'note' || kind() === 'question'}><Button aria-pressed={into().kind === 'page'} onClick={() => chooseInto({ kind: 'page' })}>New page</Button></Show>
-        <Button aria-pressed={into().kind === 'under'} aria-haspopup="listbox" onClick={event => { setQuery(''); setPicker(event.currentTarget); }}>{under() ? destinationTitle() : 'Page…'}</Button>
+        <Show when={kind() === 'note' || kind() === 'question'}><Button aria-pressed={into().kind === 'page'} onClick={() => chooseInto({ kind: 'page' })}>New atom</Button></Show>
+        <Button aria-pressed={into().kind === 'under'} aria-haspopup="listbox" onClick={event => { setQuery(''); setPicker(event.currentTarget); }}>{under() ? destinationTitle() : 'Atom…'}</Button>
         <Show when={under()}><Button label="Remove destination" onClick={() => chooseInto(defaultInto(kind()))}>×</Button></Show>
       </div></Show>
     </Show>
@@ -146,6 +146,6 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
       </CaptureField></Match>
     </Switch>
     <Show when={more()}>{anchor => <Menu anchor={anchor()} label="More tags" onDismiss={() => setMore(undefined)} items={moreKinds().map(value => ({ label: `#${value.name}`, icon: noteKindIcon(value), action: () => changeKind(value.key === 'project' ? 'project' : `type:${value.key}`, true) }))} />}</Show>
-    <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Page" query={query()} onQuery={setQuery} placeholder="Find a page" items={pages()?.rows ?? []} key={value => value.page.id} onDismiss={() => setPicker(undefined)} onPick={value => { chooseInto({ kind: 'under', pageId: value.page.id }); setPicker(undefined); }} row={value => <><Icon name="page" /><span class="picker-text">{value.page.text}</span></>} empty="No matching pages." error={pages.error ? String(pages.error) : undefined} />}</Show>
+    <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Atom" query={query()} onQuery={setQuery} placeholder="Find an atom" items={pages()?.rows ?? []} key={value => value.page.id} onDismiss={() => setPicker(undefined)} onPick={value => { chooseInto({ kind: 'under', pageId: value.page.id }); setPicker(undefined); }} row={value => <><Icon name="page" /><span class="picker-text">{value.page.text}</span></>} empty="No matching atoms." error={pages.error ? String(pages.error) : undefined} />}</Show>
   </div>;
 }

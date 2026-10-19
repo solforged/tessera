@@ -81,7 +81,7 @@ export function SpreadPane(props: SpreadPaneProps) {
     if (!name || busy() || ids().length < 2) return;
     setBusy(true); setError('');
     try {
-      if (await props.notebook.pageByTitle(name, false)) throw new Error('A page with this title already exists.');
+      if (await props.notebook.pageByTitle(name, false)) throw new Error('An atom with this title already exists.');
       const id = ulid();
       const operations: Operation[] = [{ op: 'create_page', id, title: name }, { op: 'set_spread', id, base_revision: 1, spread: true }];
       let after: string | null = null;
@@ -111,13 +111,13 @@ export function SpreadPane(props: SpreadPaneProps) {
     }
   }}>
     <header class="spread-toolbar"><span class="spread-rubric">SPREAD</span><span class="section-rule" />
-      <Button class="bordered" disabled={busy() || result.loading || ids().length >= 5 || !!result.error} onClick={event => { setQuery(''); setError(''); setPicker(event.currentTarget); }}>Add note…</Button>
+      <Button class="bordered" disabled={busy() || result.loading || ids().length >= 5 || !!result.error} onClick={event => { setQuery(''); setError(''); setPicker(event.currentTarget); }}>Add atom…</Button>
       <Show when={!props.doc}><Button class="bordered" disabled={busy() || ids().length < 2 || !!result.error || result.loading} onClick={event => { setTitle(result.latest?.columns.map(column => column.title).join(' / ') ?? ''); setError(''); setSave(event.currentTarget); }}>Save spread</Button></Show>
     </header>
     <Show when={error() || result.error}><p class="error" role="alert">{error() || String(result.error)}</p></Show>
-    <Show when={ids().length < 2}><p class="empty-state">Select two to five notes to compare them.</p></Show>
+    <Show when={ids().length < 2}><p class="empty-state">Select two to five atoms to compare them.</p></Show>
     <Show when={result.latest?.columns.length}>{count => <><div class="spread-scroll"><table class="spread-table" style={{ '--spread-count': count() }}>
-      <thead><tr><th scope="col"><span class="visually-hidden">Notes</span></th><For each={result.latest!.columns}>{(column, index) => <th scope="col" data-note-id={column.id}>
+      <thead><tr><th scope="col"><span class="visually-hidden">Atoms</span></th><For each={result.latest!.columns}>{(column, index) => <th scope="col" data-note-id={column.id}>
         <div class="spread-kind">{column.kinds.map(kind => kind.name).join(' / ')}</div>
         <h2><Button class="spread-title" onClick={event => props.onOpen({ kind: 'page', pageId: column.id }, opensBeside(event))}>{column.title}</Button></h2>
         <div class="spread-gloss">{values(column.gloss)}</div>
@@ -132,7 +132,7 @@ export function SpreadPane(props: SpreadPaneProps) {
         <For each={['sources', 'links', 'opening'] as const}>{key => <tr data-spread-row={key}><th scope="row">{key === 'sources' ? 'Sources' : key === 'links' ? 'Links' : 'Opening'}</th><For each={result.latest!.columns}>{column => <td>{values(column[key])}</td>}</For></tr>}</For>
       </tbody>
     </table></div><p class="spread-legend">= Shared value · ↔ Links to another column</p></>}</Show>
-    <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Add note" query={query()} onQuery={setQuery} placeholder="Find a note…" items={choices()} key={row => row.id} row={row => <span>{row.text}</span>} onPick={row => add(row.id)} onDismiss={() => setPicker(undefined)} busy={matches.loading} error={matches.error ? String(matches.error) : undefined} empty="No matching notes." />}</Show>
+    <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Add atom" query={query()} onQuery={setQuery} placeholder="Find an atom…" items={choices()} key={row => row.id} row={row => <span>{row.text}</span>} onPick={row => add(row.id)} onDismiss={() => setPicker(undefined)} busy={matches.loading} error={matches.error ? String(matches.error) : undefined} empty="No matching atoms." />}</Show>
     <Show when={save()}>{anchor => <Popup anchor={anchor()} label="Save spread" onDismiss={() => { if (!busy()) setSave(undefined); }}>
       <form class="spread-save" onSubmit={event => { event.preventDefault(); void saveSpread(false); }}>
         <label>Title<input autofocus value={title()} disabled={busy()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); void saveSpread(opensBeside(event)); } }} /></label>

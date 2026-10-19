@@ -70,7 +70,7 @@ export function Apparatus(props: {
   const kinds = () => kindOrder.filter(kind => props.relations.some(relation => relation.kind === kind));
   return <aside class="outline-apparatus" aria-label="Apparatus">
     <h6>Constellation</h6>
-    <svg class="constellation" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label="Perspectives and linked pages">
+    <svg class="constellation" viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="group" aria-label="Perspectives and linked atoms">
       <circle class="constellation-orbit" cx={CX} cy={CY} r={INNER} />
       <Show when={props.linked.length}><circle class="constellation-orbit" cx={CX} cy={CY} r={OUTER} /></Show>
       <defs>

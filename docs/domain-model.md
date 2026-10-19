@@ -655,7 +655,7 @@ A note is working or resolved. Working is the default and is not stored. Resolve
 
 A note comes back only when it has a revisit date. On a page that is also a question, the revisit date is the question's review date; there is one date, not two. A question block within a page that has a review date comes back as itself.
 
-From its revisit date onward a note waits in Review's Questions and notes queue, earliest date first. Inline questions join the same queue. Parked questions keep their date but stay out of Review, Today and the due count. Resume brings them back if their date has arrived. Each opens in the ordinary outline, with its sources and backlinks at hand.
+From its revisit date onward a note waits in Review's Revisits queue, earliest date first. Inline questions join the same queue. Parked questions keep their date but stay out of Review, Today and the due count. Resume brings them back if their date has arrived. Each opens in the ordinary outline, with its sources and backlinks at hand.
 
 | Action | Effect |
 |---|---|

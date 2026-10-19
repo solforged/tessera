@@ -35,9 +35,9 @@ export function ChoiceConversion(props: { detail: FieldDetail; mappings: Interpr
           const mapping = () => props.mappings[row.text] ?? { mode: 'keep' as const };
           return <tr><td>{row.text}</td><td class="field-apparatus">{row.values.length}</td><td>
             <Show when={props.detail.kind === 'choice'} fallback={<Show when={props.detail.kind === 'instance'} fallback={<span classList={{ 'field-rubric': !row.reading.ok }}>{row.reading.ok ? readingLabel(row.reading) : `${readingLabel(row.reading)}; left as written`}</span>}>
-              <span>{(() => { const value = mapping(); return value.mode === 'page' ? props.notebook.lookup(value.value)()?.text ?? value.value : value.mode === 'create' ? `Create page: ${value.value}` : row.reading.ok ? readingLabel(row.reading) : 'No unique page; left as written'; })()}</span>
-              <Button disabled={props.disabled} onClick={event => { setQuery(''); setPicker({ anchor: event.currentTarget, text: row.text }); }}>Choose page…</Button>
-              <Button disabled={props.disabled} onClick={() => change(row.text, { mode: 'create', value: row.text.trim() })}>Create page</Button>
+              <span>{(() => { const value = mapping(); return value.mode === 'page' ? props.notebook.lookup(value.value)()?.text ?? value.value : value.mode === 'create' ? `Create atom: ${value.value}` : row.reading.ok ? readingLabel(row.reading) : 'No unique atom; left as written'; })()}</span>
+              <Button disabled={props.disabled} onClick={event => { setQuery(''); setPicker({ anchor: event.currentTarget, text: row.text }); }}>Choose atom…</Button>
+              <Button disabled={props.disabled} onClick={() => change(row.text, { mode: 'create', value: row.text.trim() })}>Create atom</Button>
               <Show when={mapping().mode !== 'keep'}><Button onClick={() => change(row.text, { mode: 'keep' })}>Leave as written</Button></Show>
             </Show>}>
               <label><input type="checkbox" checked={mapping().mode === 'option'} disabled={props.disabled} aria-label={`Map ${row.text}`} onChange={event => change(row.text, event.currentTarget.checked ? { mode: 'option', value: row.text.trim() } : { mode: 'keep' })} />Map to option</label>
@@ -49,6 +49,6 @@ export function ChoiceConversion(props: { detail: FieldDetail; mappings: Interpr
     }}</For>
     <datalist id={`options-${props.detail.field.id}`}><For each={[...new Set([...props.detail.field.options.map(option => option.text), ...Object.values(props.mappings).flatMap(mapping => mapping.mode === 'option' ? [mapping.value] : [])])]}>{text => <option value={text} />}</For></datalist>
     <p class="field-note">{kindLabels[props.detail.kind]} readings change together, in one undo.</p>
-    <Show when={picker()}>{state => <Picker anchor={state().anchor} label="Interpret as page" placeholder="Page name" query={query()} onQuery={setQuery} items={matches()?.rows ?? []} key={match => match.page.id} row={match => <>{match.page.text}<Show when={match.alias}><span class="reference-via">via {match.alias}</span></Show></>} onPick={match => { change(state().text, { mode: 'page', value: match.page.id }); setPicker(undefined); }} onDismiss={() => setPicker(undefined)} empty={pages.error || matches.error ? 'Could not load pages.' : pages.loading || matches.loading ? 'Loading…' : 'No matching pages.'} />}</Show>
+    <Show when={picker()}>{state => <Picker anchor={state().anchor} label="Interpret as atom" placeholder="Atom name" query={query()} onQuery={setQuery} items={matches()?.rows ?? []} key={match => match.page.id} row={match => <>{match.page.text}<Show when={match.alias}><span class="reference-via">via {match.alias}</span></Show></>} onPick={match => { change(state().text, { mode: 'page', value: match.page.id }); setPicker(undefined); }} onDismiss={() => setPicker(undefined)} empty={pages.error || matches.error ? 'Could not load atoms.' : pages.loading || matches.loading ? 'Loading…' : 'No matching atoms.'} />}</Show>
   </section>;
 }

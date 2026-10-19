@@ -51,11 +51,11 @@ export function RelationPicker(props: {
     finally { setBusy(false); }
   }
   const blocks = () => !props.field.targets.length || !!members()?.blocks.length;
-  return <Picker<RelationRow> anchor={props.anchor} label={props.field.name} query={query()} onQuery={setQuery} placeholder={blocks() ? 'Find a page or atom' : 'Page name'}
+  return <Picker<RelationRow> anchor={props.anchor} label={props.field.name} query={query()} onQuery={setQuery} placeholder={blocks() ? 'Find an atom' : 'Atom name'}
     items={busy() ? [] : rows()} key={row => row.kind === 'target' ? row.target.block.id : `create:${row.source ? SOURCE_TARGET : row.type?.id ?? ''}`}
     initial={Math.max(0, rows().findIndex(row => row.kind === 'target' && row.target.block.id === props.current))}
     isCurrent={row => row.kind === 'target' && row.target.block.id === props.current}
-    section={row => row.kind !== 'target' ? undefined : row.target.here ? 'On this page' : !row.target.page ? (blocks() ? 'Pages' : undefined) : 'Atoms'}
+    section={row => row.kind !== 'target' ? undefined : row.target.here ? 'On this atom' : !row.target.page ? (blocks() ? 'Atoms' : undefined) : 'Atoms'}
     onPick={row => void pick(row)} onDismiss={() => { if (!busy()) props.onDismiss(); }}
     onPendingPick={event => {
       if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) void pick();
@@ -66,5 +66,5 @@ export function RelationPicker(props: {
         {row.target.page && !row.target.here && <span class="picker-meta">{row.target.page.text}</span>}</>
       : <><Icon name="plus" /><span class="picker-text">Create {row.source ? 'source' : row.type?.text.toLowerCase() ?? 'page'} “{row.title}”</span></>}
     empty={busy() ? 'Choosing…' : members.error || types.error || matches.error ? 'Could not load targets.' : members.loading || matches.loading ? 'Loading…'
-      : !props.field.targets.length && query().trim().length < 3 && query().trim() ? 'No matching pages. Keep typing to search atoms.' : 'No matches.'} />;
+      : !props.field.targets.length && query().trim().length < 3 && query().trim() ? 'No matching atoms. Keep typing to search atoms.' : 'No matches.'} />;
 }

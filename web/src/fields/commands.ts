@@ -89,7 +89,7 @@ export async function changeFieldKind(notebook: NotebookClient, detail: FieldDet
       if (!options.has(key)) { after = target; options.set(key, target); }
     } else if (mapping.mode === 'create') {
       const title = mapping.value.trim();
-      if (!title) throw new Error('A page needs a title.');
+      if (!title) throw new Error('A title is required.');
       target = created.get(title) ?? ulid();
       if (!created.has(title)) {
         steps.push({ forward: { op: 'create_page', id: target, title }, backward: { op: 'delete', id: target, base_revision: 0 } });
@@ -100,7 +100,7 @@ export async function changeFieldKind(notebook: NotebookClient, detail: FieldDet
     } else target = mapping.value;
     for (const value of row.values) { pages.add(value.page_id); replace(steps, value, `[[${target}]]`); }
   }
-  return commit(notebook, steps, [...pages], 'Change field kind');
+  return commit(notebook, steps, [...pages], 'Change field format');
 }
 function addCandidates(steps: Step[], pages: Set<string>, field: FieldDefinition, candidates: FieldChoiceCandidate[]) {
   let after = field.options.at(-1)?.id ?? null;
@@ -126,7 +126,7 @@ export async function setFreshFieldKind(notebook: NotebookClient, fieldId: strin
   return commit(notebook, [{
     forward: { op: 'set_field_kind', id: fieldId, base_revision: definition.revision, kind },
     backward: { op: 'set_field_kind', id: fieldId, base_revision: 0, kind: 'text' },
-  }], [definition.page_id], 'Set field kind');
+  }], [definition.page_id], 'Set field format');
 }
 
 /** A field renamed in place; the caller has already refused names another field holds. */

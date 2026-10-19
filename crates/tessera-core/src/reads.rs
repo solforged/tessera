@@ -341,7 +341,7 @@ impl Notebook {
         let page = rows.next()?.map(|row| block_at(row, 0)).transpose()?;
         if rows.next()?.is_some() {
             return Err(crate::storage::validation(format!(
-                "ambiguous page title: {title}"
+                "ambiguous title: {title}"
             )));
         }
         Ok(page)

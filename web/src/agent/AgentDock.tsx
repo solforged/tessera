@@ -124,7 +124,7 @@ export function AgentDock(props: {
       { label: 'Agent settings…', icon: 'settings' as const, divider: true, action: props.onSettings },
     ]} />}</Show>
     <div class="agent-context">
-      <p class="agent-context-label">{included().length ? `Reads ${included().length} ${included().length === 1 ? 'page' : 'pages'}` : 'Reads nothing in view'} · drag links here to add</p>
+      <p class="agent-context-label">{included().length ? `Reads ${included().length} ${included().length === 1 ? 'atom' : 'atoms'}` : 'Reads nothing in view'} · drag links here to add</p>
       <For each={props.chips}>{chip => <span class="agent-chip" classList={{ excluded: props.excluded.has(chip.key) }} title={chip.title}>
         <span class="agent-chip-title">{chip.title}</span>
         <Show when={chip.extra} fallback={<Button icon={props.excluded.has(chip.key) ? 'plus' : 'close'} label={`${props.excluded.has(chip.key) ? 'Include' : 'Leave out'} ${chip.title}`} onClick={() => props.onToggleChip(chip.key)} />}>
@@ -139,14 +139,14 @@ export function AgentDock(props: {
           <p>The agent uses a model you choose: a hosted one with your own key, or one running on this machine. Keys stay on this machine.</p>
           <Button class="bordered" icon="settings" onClick={props.onSettings}>Agent settings</Button>
         </div>}>
-          <div class="agent-empty"><p>Ask about the pages in view, or ask for a change. Edits land in the panes, marked, and each one can be undone.</p></div>
+          <div class="agent-empty"><p>Ask about the atoms in view, or ask for a change. Edits land in the panes, marked, and each one can be undone.</p></div>
         </Show>
       </Show>}>
         <For each={props.session.messages()}>{message => <Message {...message} />}</For>
       </Show>
     </div>
     <form class="agent-composer" onSubmit={event => { event.preventDefault(); send(); }}>
-      <textarea ref={composer} class="input" rows={3} aria-label="Message the agent" placeholder="Ask about these notes, or ask for a change…" value={draft()} disabled={!provider()}
+      <textarea ref={composer} class="input" rows={3} aria-label="Message the agent" placeholder="Ask about these atoms, or ask for a change…" value={draft()} disabled={!provider()}
         onInput={event => setDraft(event.currentTarget.value)}
         onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); send(); } }} />
       <div class="agent-composer-foot">

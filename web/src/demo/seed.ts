@@ -55,12 +55,12 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
   insert(welcome, 'Your workshop stays in this browser on this device, and clearing site data removes it. Keep one Tessera tab open at a time. Settings › Backups downloads a copy, restores one or starts over.');
   const outline = insert(welcome, 'Make room for a thought', 2);
   insert(outline, 'Click an atom to edit it. Enter makes another atom; Tab nests it and Shift+Tab brings it back out.');
-  insert(outline, `Try undo and redo, fold a branch, or open a linked page beside this one: ${besideHint}.`);
+  insert(outline, `Try undo and redo, fold a branch, or open a linked atom beside this one: ${besideHint}.`);
   insert(welcome, `Follow ${link(ideas, 'Small ideas')} for an outline with typed fields and a saved table, or ${link(learning, 'Learning by doing')} for a few flashcards.`);
-  insert(welcome, 'Today opens your daily journal. Agenda collects tasks and their dates. Review lets you study cards. Find or create searches your pages; the command palette lists the rest.');
+  insert(welcome, 'Today opens your daily journal. Agenda collects tasks and their dates. Review lets you study cards. Find or create searches your atoms; the command palette lists the rest.');
   insert(welcome, book
-    ? `Open ${link(book.id, 'Meditations')} by Marcus Aurelius and choose Read. A few passages are already highlighted; select another to highlight it, then turn it into a note or a card. Library lists your sources and highlights; add an EPUB of your own there.`
-    : 'Library lists your sources and opens them in the reader; add an EPUB there to highlight passages and turn them into notes or cards.');
+    ? `Open ${link(book.id, 'Meditations')} by Marcus Aurelius and choose Read. A few passages are already highlighted; select another to highlight it, then turn it into an atom or a card. Library lists your sources and highlights; add an EPUB of your own there.`
+    : 'Library lists your sources and opens them in the reader; add an EPUB there to highlight passages and turn them into atoms or cards.');
   insert(welcome, 'The installed app also saves web articles and syncs between a Mac and a phone. This browser version does neither.');
   if (book) {
     // The reader's highlight: the quote as a block at the end of the source page, citing its passage range.

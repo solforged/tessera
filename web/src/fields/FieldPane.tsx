@@ -24,7 +24,7 @@ export function FieldPane(props: {
     }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => { controller.abort(); document?.release(); });
   });
-  return <div ref={scroll} class="field-page-pane" role="region" tabIndex={0} aria-label="Field page" onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })} onKeyDown={event => {
+  return <div ref={scroll} class="field-page-pane" role="region" tabIndex={0} aria-label="Field definition" onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })} onKeyDown={event => {
     if (!(event.target instanceof HTMLInputElement) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z') {
       event.preventDefault(); event.stopPropagation();
       if (event.shiftKey) doc()?.redo(); else doc()?.undo();

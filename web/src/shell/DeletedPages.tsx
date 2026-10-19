@@ -14,9 +14,9 @@ export function DeletedPages(props: { anchor: HTMLElement; notebook: NotebookCli
     const words = query().trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
     return (pages() ?? []).filter(page => words.every(word => page.block.text.toLocaleLowerCase().includes(word)));
   });
-  return <Picker anchor={props.anchor} label="Restore deleted page" query={query()} onQuery={setQuery} placeholder="Find a deleted page…"
+  return <Picker anchor={props.anchor} label="Restore deleted atom" query={query()} onQuery={setQuery} placeholder="Find a deleted atom…"
     items={matches()} key={page => page.block.id} busy={pages.loading || busy()} error={error() || (pages.error ? String(pages.error) : '')}
-    empty="No deleted pages" onDismiss={props.onDismiss} disabledReason={() => busy() ? 'Restoring page…' : undefined}
+    empty="No deleted atoms" onDismiss={props.onDismiss} disabledReason={() => busy() ? 'Restoring atom…' : undefined}
     row={page => <><Icon name={page.block.kind === 'journal' ? 'today' : 'page'} /><span class="picker-row-title">{page.block.text}</span><span class="muted">Deleted {new Date(page.deleted_at).toLocaleDateString()}</span></>}
     onPick={page => {
       if (busy()) return;

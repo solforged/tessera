@@ -341,7 +341,7 @@ impl Notebook {
         if let Some(id) = type_id {
             validate_id(id)?;
         } else if !is_named_kind(key) {
-            return Err(validation(format!("not a note kind: {key}")));
+            return Err(validation(format!("not a tag: {key}")));
         }
         let filing = self.filing()?;
         let Some(index) = filing.kinds.iter().position(|kind| kind.key == key) else {

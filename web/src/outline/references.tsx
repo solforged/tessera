@@ -47,8 +47,8 @@ export function TypePill(props: {
         onClick={event => { event.stopPropagation(); setAnchor(event.currentTarget); }}>{label()}</button>
     </Show>
     <Show when={anchor()}>{element => <Menu anchor={element()} label={`#${title()}`} onDismiss={() => { setAnchor(null); props.onRestoreFocus?.(); }} items={[
-      { label: 'Open table', disabledReason: unresolved() ? 'This tag page is unavailable.' : undefined, action: () => void open('table') },
-      { label: 'Open tag', disabledReason: unresolved() ? 'This tag page is unavailable.' : undefined, action: () => void open('page') },
+      { label: 'Open table', disabledReason: unresolved() ? 'This tag is unavailable.' : undefined, action: () => void open('table') },
+      { label: 'Open tag', disabledReason: unresolved() ? 'This tag is unavailable.' : undefined, action: () => void open('page') },
       { label: 'Remove tag', disabledReason: props.onRemove ? undefined : 'From the text. Edit the #tag there to remove it.', action: () => props.onRemove?.() },
     ]} />}</Show>
   </>;

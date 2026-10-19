@@ -462,7 +462,7 @@ pub(crate) fn derive_capability(
         Operation::SetQuestion { id, .. } => {
             if present && stored(conn, id)?.is_some_and(|row| row.block.kind == BlockKind::Journal)
             {
-                return Err(validation("Make an ordinary atom or page a question."));
+                return Err(validation("Make a non-journal atom a question."));
             }
             let before = crate::revisit_store::snapshot(conn, id)?;
             let today = crate::settings::today_in_connection(conn, now)?;
@@ -1056,7 +1056,7 @@ impl Engine<'_, '_> {
                 crate::notes::built_in_tag_name(&crate::storage::title_key(&current.block.text))
             {
                 return Err(validation(format!(
-                    "{name} is a built-in tag; its page cannot be deleted."
+                    "{name} is a built-in tag and cannot be deleted."
                 )));
             }
             self.changed_pages.insert(current.block.id.clone());
@@ -1330,17 +1330,17 @@ impl Engine<'_, '_> {
 
     fn page_merge_endpoint(&self, page: &Stored) -> Result<()> {
         if page.block.kind != BlockKind::Page {
-            return Err(validation("only titled pages can be merged"));
+            return Err(validation("only titled atoms can be merged"));
         }
         if page.block.text.to_lowercase() == "fields" {
-            return Err(validation("the Fields page cannot be merged"));
+            return Err(validation("the Fields register cannot be merged"));
         }
         let source: bool = self
             .tx
             .prepare_cached("SELECT EXISTS(SELECT 1 FROM sources WHERE block_id = ?1)")?
             .query_row([&page.block.id], |row| row.get(0))?;
         if source {
-            return Err(validation("source pages cannot be merged"));
+            return Err(validation("sources cannot be merged"));
         }
         Ok(())
     }
@@ -1406,14 +1406,14 @@ impl Engine<'_, '_> {
 
     fn merge_page(&mut self, source: &Stored, destination: &Stored) -> Result<()> {
         if source.block.id == destination.block.id {
-            return Err(validation("a page cannot be merged into itself"));
+            return Err(validation("an atom cannot be merged into itself"));
         }
         if source.block.kind == BlockKind::Page
             && let Some(name) =
                 crate::notes::built_in_tag_name(&crate::storage::title_key(&source.block.text))
         {
             return Err(validation(format!(
-                "{name} is a built-in tag; its page cannot merge."
+                "{name} is a built-in tag and cannot be merged."
             )));
         }
         self.page_merge_endpoint(source)?;
@@ -1430,7 +1430,7 @@ impl Engine<'_, '_> {
             .query_row([&source.block.id], |row| row.get(0))?;
         if metadata {
             return Err(validation(
-                "a page with citations or a field schema cannot be merged away",
+                "an atom with citations or a field schema cannot be merged away",
             ));
         }
         self.redirect_tags(source, destination)?;
@@ -1938,7 +1938,7 @@ impl Engine<'_, '_> {
                 {
                     let block = self.live(target)?;
                     if block.block.kind != BlockKind::Page || block.block.archived {
-                        return Err(validation("target tag must be a live page"));
+                        return Err(validation("target tag must be a live titled atom"));
                     }
                 }
                 crate::fields::file_targets(self.tx, id, targets)?;
@@ -1951,7 +1951,7 @@ impl Engine<'_, '_> {
             } => {
                 let current = self.checked(type_id, *base_revision, index, false)?;
                 if current.block.kind != BlockKind::Page {
-                    return Err(validation("tag must be a page"));
+                    return Err(validation("tag must be a titled atom"));
                 }
                 let mut unique = HashSet::new();
                 for field in fields {
@@ -1987,7 +1987,7 @@ impl Engine<'_, '_> {
             } => {
                 let current = self.checked(type_id, *base_revision, index, false)?;
                 if current.block.kind != BlockKind::Page {
-                    return Err(validation("tag must be a page"));
+                    return Err(validation("tag must be a titled atom"));
                 }
                 let plural = plural.as_deref().map(str::trim);
                 if plural.is_some_and(str::is_empty) {
@@ -2205,7 +2205,7 @@ impl Engine<'_, '_> {
             } => {
                 let current = self.checked(id, *base_revision, index, false)?;
                 if current.block.kind != BlockKind::Page {
-                    return Err(validation("Only a page can be a spread."));
+                    return Err(validation("Only a titled atom can be a spread."));
                 }
                 if crate::spreads::set(self.tx, id, *spread)? {
                     self.bump(&current, false)?;
@@ -2285,7 +2285,7 @@ impl Engine<'_, '_> {
                     }
                 ) && current.block.kind == BlockKind::Journal
                 {
-                    return Err(validation("Make an ordinary atom or page a question."));
+                    return Err(validation("Make a non-journal atom a question."));
                 }
                 if matches!(
                     operation,

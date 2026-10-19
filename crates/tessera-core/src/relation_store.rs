@@ -196,7 +196,7 @@ impl Notebook {
             && query.subject.is_none()
         {
             return Err(validation(
-                "Choose a relation kind, source, target, holder or subject.",
+                "Choose a relation, source, target, holder or subject.",
             ));
         }
         for id in [

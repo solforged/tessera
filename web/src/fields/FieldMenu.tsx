@@ -104,9 +104,9 @@ export function createFieldMenu(context: Pick<OutlineContext,
     const document = definitionDocument();
     const unavailable = document?.status() !== 'ready' ? 'Field definitions are loading.' : document.saveState() !== 'saved' ? 'Wait for field changes to save.' : undefined;
     setMenu({ anchor, label: field.name, title: field.name, context: (block && plainText(block.text, target => props.notebook.lookup(target))) || field.name, items: [
-      { label: 'Open field page', action: event => open(opensBeside(event)) },
+      { label: 'Open field definition', action: event => open(opensBeside(event)) },
       { label: 'Definition…', submenu: () => ({ title: 'Definition', items: [
-        { label: 'Kind…', submenu: () => ({ title: 'Kind', items: fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === field.kind, action: () => { if (kind !== field.kind) open(false, { previewKind: kind }); } })) }) },
+        { label: 'Format…', submenu: () => ({ title: 'Format', items: fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === field.kind, action: () => { if (kind !== field.kind) open(false, { previewKind: kind }); } })) }) },
         ...(field.kind === 'choice' ? [{ label: 'Options…', action: (event?: MouseEvent | KeyboardEvent) => open(opensBeside(event), { section: 'options' }) }] : []),
         ...(field.kind === 'instance' ? [{ label: 'Links to…', action: (event?: MouseEvent | KeyboardEvent) => open(opensBeside(event), { section: 'targets' }) }] : []),
         { label: 'Hide…', submenu: () => ({ title: 'Hide', items: fieldHides.map(value => ({ label: hideLabels[value], checked: value === fieldHide(field), disabledReason: unavailable, action: () => { void changeHide(field, value); } })) }) },
@@ -121,7 +121,7 @@ export function createFieldMenu(context: Pick<OutlineContext,
         ...(types.loading ? [{ label: 'Loading templates…', disabledReason: 'Tags are loading.' }] : []),
         ...(types.error ? [{ label: 'Templates unavailable', disabledReason: 'Could not load tags.' }] : []),
       ] }) }] : []),
-      { label: 'Remove from this note', divider: true, danger: true, action: () => apply({ kind: 'delete', ids: [entry.id] }, false) },
+      { label: 'Remove from this atom', divider: true, danger: true, action: () => apply({ kind: 'delete', ids: [entry.id] }, false) },
     ] });
   }
   return { fieldEntry, fieldMenu };

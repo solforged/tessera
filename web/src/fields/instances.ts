@@ -79,7 +79,7 @@ export async function resolveRelationPick(notebook: NotebookClient, intent: Rela
       create = { typeTitle: type?.text };
     }
   }
-  if (!intent.createId) throw new Error('The accepted relation has no page identity. Its text was kept.');
+  if (!intent.createId) throw new Error('The accepted relation has no atom identity. Its text was kept.');
   const id = intent.createId;
   const operations: Operation[] = [
     { op: 'create_page', id, title: intent.query.trim() },
@@ -96,6 +96,6 @@ export async function createInstance(notebook: NotebookClient, title: string, ty
     { op: 'create_page', id, title: title.trim() },
     ...(typeTitle ? [{ op: 'add_type' as const, id, base_revision: 1, title: typeTitle }] : []),
     ...(source ? [sourceOperation(id, 1)] : []),
-  ], 'Create linked page');
+  ], 'Create linked atom');
   return notebook.api.block(id);
 }

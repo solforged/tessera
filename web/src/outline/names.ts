@@ -175,6 +175,6 @@ export function nameMenuItems(notebook: NotebookClient, blockId: string, token: 
   const choose = (id?: string) => { void chooseName(notebook, blockId, token, id).catch(error => onError(error instanceof Error ? error.message : String(error))); };
   return [
     ...matches.map(match => ({ label: match.page.text, action: () => choose(match.page.id) })),
-    { label: `Create page “${token.id!.trim()}”`, action: () => choose() },
+    { label: `Create atom “${token.id!.trim()}”`, action: () => choose() },
   ];
 }

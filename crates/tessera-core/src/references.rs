@@ -114,7 +114,7 @@ fn check_page(row: Option<&Row<'_>>, id: &str) -> Result<()> {
     let kind: String = row.get(0)?;
     let parent: Option<String> = row.get(1)?;
     if kind == "block" || parent.is_some() {
-        return Err(validation("not a page"));
+        return Err(validation("not a titled atom"));
     }
     Ok(())
 }
@@ -192,7 +192,7 @@ impl Notebook {
     pub fn unlinked_mentions(&self, page_id: &str, limit: usize) -> Result<UnlinkedMentions> {
         let page = self.block(page_id)?;
         if page.parent_id.is_some() {
-            return Err(validation("not a page"));
+            return Err(validation("not a titled atom"));
         }
         let mut result = UnlinkedMentions {
             total: 0,

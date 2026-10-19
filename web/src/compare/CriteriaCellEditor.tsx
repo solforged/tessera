@@ -118,7 +118,7 @@ export function CriteriaCellEditor(props: {
     <Show when={completion()}><Popup anchor={() => {
       const position = editor?.view.coordsAtPos(completion()?.from ?? 0);
       return position ? new DOMRect(position.left, position.top, 1, position.bottom - position.top) : host.getBoundingClientRect();
-    }} width={480} class="picker" label={quoteCompletion() ? 'Quote block' : completion()?.blocks ? 'Atom reference' : 'Reference completion'} role="listbox" autofocus={false} onDismiss={() => setCompletion(null)}>
+    }} width={480} class="picker" label={quoteCompletion() ? 'Quote' : completion()?.blocks ? 'Atom reference' : 'Reference completion'} role="listbox" autofocus={false} onDismiss={() => setCompletion(null)}>
       <div class="picker-list" onMouseDown={event => event.preventDefault()}>
         <Show when={matches.loading}><p class="empty-state" role="status">Searching…</p></Show>
         <Show when={matches.error}><p class="error" role="alert">Couldn’t load completion.</p></Show>

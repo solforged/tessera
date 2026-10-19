@@ -52,7 +52,7 @@ Opening an EPUB from Finder imports it into the workshop and shows the Library. 
 - Library → Add opens Android's file picker for EPUBs.
 - In an EPUB's **Open with** chooser, choose **Tessera**, then **Always** to make it the default. **Share → Tessera** also imports EPUBs.
 - Android reads the sender's content URI while permission is active, copies it into a private inbox and clears the copy after submitting the import. The Library shows upload errors and ingestion progress.
-- Long-pressing the app icon offers New note and New task. Both open Add to today over the current page with the keyboard up.
+- Long-pressing the app icon offers New atom and New task. Both open Add to today over the current page with the keyboard up.
 - Sharing text or a link to Tessera opens Add to today with that text.
 
 ### Build and install

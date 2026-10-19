@@ -119,13 +119,13 @@ fn references(conn: &Connection, page_id: &str) -> Result<Vec<SpreadReference>> 
 
 fn check_ids(ids: &[String]) -> Result<()> {
     if ids.len() > 5 {
-        return Err(validation("A spread has at most five notes."));
+        return Err(validation("A spread has at most five titled atoms."));
     }
     let mut seen = HashSet::new();
     for id in ids {
         validate_id(id)?;
         if !seen.insert(id) {
-            return Err(validation("A spread lists each note once."));
+            return Err(validation("A spread lists each atom once."));
         }
     }
     Ok(())
@@ -243,7 +243,7 @@ impl Notebook {
         for (column_index, id) in ids.iter().enumerate() {
             let page = self.page(id)?;
             if page.root.kind != BlockKind::Page {
-                return Err(validation("A spread compares titled notes."));
+                return Err(validation("A spread compares titled atoms."));
             }
             let mut column = SpreadColumn {
                 id: id.clone(),

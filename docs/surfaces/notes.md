@@ -54,7 +54,7 @@ Only populated jump letters appear, and only with Letter grouping. The strip sta
 
 Below the mode tabs, `Find in Concepts…` (using the kind's plural) matches plain words against title or Gloss. `links:`, `from:` and `cites:` resolve titles and aliases; `cites:` also resolves source sigla and citation keys. Quote a multiword value, for example `links:"Three generations of a dynasty"`. Names complete after the colon. Enter, a closing quote or leaving the input resolves each term to a removable table-style chip; unresolved names show `No note named “X”`. All terms and field filters intersect. `cites:` includes passage citations of any of the source's snapshots and any reference to its source page.
 
-Group offers Letter, Source cited, Note linked, Created month, then the kind's populated fields. A note appears under every applicable heading. Source, link and field-value headings sort by descending distinct-note count, then name; None is last. Source headings show siglum then title, and link headings open their note. Created month is newest first. Both layout tabs count the current query, including a saved view's members, rather than all members of the kind.
+Group offers Letter, Source cited, Atom linked, Created month, then the kind's populated fields. A note appears under every applicable heading. Source, link and field-value headings sort by descending distinct-note count, then name; None is last. Source headings show siglum then title, and link headings open their note. Created month is newest first. Both layout tabs count the current query, including a saved view's members, rather than all members of the kind.
 
 Save as view… keeps the query, layout and grouping in the existing view store. Saved views sit under their kind, including capability kinds, and reopening restores chips and grouping. Older table views remain Table with Letter grouping when opened as an index. Index and Table retain the same query on switching.
 
@@ -86,7 +86,7 @@ An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, 
 - Questions and Projects use Make… → Question or Project in the page menu.
 - Sources arrive through the [Library](library.md).
 
-A tag-only type's index has no notes but does have members. It says `No notes filed as Italian word.`, counts the blocks it tags, and offers Open table.
+A tag-only type's index has no notes but does have members. It says `No atoms filed as Italian word.`, counts the blocks it tags, and offers Open table.
 
 Every built-in kind except Sources, and every user type with an index, offers New person…, New question… and so on, in the empty state or beside the finding aid's tally. The shared creation slip locks that kind. Creation files the page and inserts its first body block as one acknowledged batch, creating the kind's type page too when missing, then opens its unzoomed Outline with the body caret live. Shift+Enter opens beside; Shift+⌘Enter creates another without leaving the slip. On coarse layouts with two visible panes, creation from an index or ledger opens beside by default. An existing title files that page instead, or opens it when already of the kind, without forcing an editing caret. The type's own title is refused.
 
@@ -104,7 +104,7 @@ Unfiled is a filing queue grouped into With text and Blank, with All, With text 
 
 Opening a blank note does not add stored blocks. Add a block starts writing only when chosen.
 
-Each row has File and a titled Note actions menu containing Open, File under…, Rename…, Delete… and More…. More holds Merge into… and Copy reference, which copies `[[id]]`. The existing title and apparatus header stays above the root rows; Back returns from More, and Close, Escape or clicking outside dismisses the menu. Desktop and unfolded layouts pair the list with a selected-note inspector, a short excerpt from its first three visible prose blocks (separate from the gloss), and links to its referring pages. The excerpt is bounded to eight display lines. The touch cover uses a filing sheet above navigation.
+Each row has File and a titled Atom actions menu containing Open, File under…, Rename…, Delete… and More…. More holds Merge into… and Copy reference, which copies `[[id]]`. The existing title and apparatus header stays above the root rows; Back returns from More, and Close, Escape or clicking outside dismisses the menu. Desktop and unfolded layouts pair the list with a selected-note inspector, a short excerpt from its first three visible prose blocks (separate from the gloss), and links to its referring pages. The excerpt is bounded to eight display lines. The touch cover uses a filing sheet above navigation.
 
 The shared one-step type picker serves row File, the inspector and bulk filing. Clicking a type or pressing Enter files immediately; Create tag “X” and file creates and files in the same acknowledged batch. Escape or clicking away cancels. The list reserves at least three full rows (or all choices when fewer), scrolls internally and flips above the trigger when there is more room there. After filing, focus moves to the next remaining row's File button, or the previous row when the queue ends.
 
@@ -122,7 +122,7 @@ A whole-row link to a block, other than a field entry or value, shows that block
 
 ### Embedded views
 
-`/Embed view` and Embed view in Commands offer saved views by name. Choosing one fills an empty block or inserts a sibling after the selected block, then selects it. A view's Embed on page… menu action appends the reference to the chosen page and opens its block.
+`/Embed view` and Embed view in Commands offer saved views by name. Choosing one fills an empty block or inserts a sibling after the selected block, then selects it. A view's Embed on atom… menu action appends the reference to the chosen page and opens its block.
 
 The embed names the view, with its purpose beneath, then shows up to twelve live rows using the saved layout and recipe. Its name and Show all N open the saved view. ⌘-click opens beside (Ctrl-click off Mac). Edits use the same field cells and page history as the view. Committed workshop changes refresh its query without a manual refresh, and reload keeps the reference. Read shows the same quiet result under its heading.
 
@@ -132,7 +132,7 @@ A missing view keeps the remembered name with Relink… and Remove embed. Undoin
 
 ## Sources
 
-Sources is a bibliography, not a second reading shelf. It shows siglum, source title and author byline; stable person references open that page, while unlinked or bracketed names read as plain names without wiki syntax. One mono apparatus line combines format, publisher, publication year when stored, citation key and nonzero highlight/page-backlink counts. Entries use 12 px vertical padding. Open source notes is the default; actions sit inline with the apparatus, revealed on hover or focus and always visible on touch. Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
+Sources is a bibliography, not a second reading shelf. It shows siglum, source title and author byline; stable person references open that page, while unlinked or bracketed names read as plain names without wiki syntax. One mono apparatus line combines format, publisher, publication year when stored, citation key and nonzero highlight/page-backlink counts. Entries use 12 px vertical padding. Open source atoms is the default; actions sit inline with the apparatus, revealed on hover or focus and always visible on touch. Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
 
 ## Note header
 
@@ -146,13 +146,13 @@ A note with aliases shows them under the title: `ALSO` in faint mono, then the a
 
 Unfiled notes show no kinds. Sources keep their own header; journal days and the Fields page have none.
 
-The titled Page actions menu names the page (or journal date), then shows the full ID in mono, its Created date and Copy ID. Copy ID leaves the menu open and confirms with Copied; Copy reference is the first action and copies `[[id]]`, as the block menu does. Clipboard failures are reported without claiming success.
+The titled Atom actions menu names the page (or journal date), then shows the full ID in mono, its Created date and Copy ID. Copy ID leaves the menu open and confirms with Copied; Copy reference is the first action and copies `[[id]]`, as the block menu does. Clipboard failures are reported without claiming success.
 
-Rename, Merge into…, Pin or Unpin and Open beside stay at the top. Description… holds Gloss and Add alias; Add field… stays direct. Make… offers only absent Task, Project, Stream and Question features, with Task and Project only on journal days. Existing features have named Task…, Project…, Stream… and Question… managers. Appearance… holds bullets in Outline and archived visibility; Delete page… is last. Description… wears the note glyph and Appearance… the rows glyph, so no two rows share one.
+Rename, Merge into…, Pin or Unpin and Open beside stay at the top. Description… holds Gloss and Add alias; Add field… stays direct. Make… offers only absent Task, Project, Stream and Question features, with Task and Project only on journal days. Existing features have named Task…, Project…, Stream… and Question… managers. Appearance… holds bullets in Outline and archived visibility; Delete atom… is last. Description… wears the note glyph and Appearance… the rows glyph, so no two rows share one.
 
 Built-in tag pages are system pages. Their title control and Rename action accept a change of case, such as Task to task. The engine refuses a different name with `Task is a built-in tag; its name cannot change.` Merge and Delete remain disabled with their engine refusals. Removing a task, question, project or source removes its written tag token when present; its glyph is that tag's pill at rest.
 
-Tags… lists Add tag… and a Remove action for each manual membership, on filed and unfiled pages alike. Add uses the shared type picker; removing a type keeps the note's written field values and is undoable. Commands offers Page tags…, Add page tag… and Remove page tag… without requiring a selected body row. The kind names above the title still open their finding aids.
+Tags… lists Add tag… and a Remove action for each manual membership, on filed and unfiled pages alike. Add uses the shared type picker; removing a type keeps the note's written field values and is undoable. Commands offers Tags on this atom…, Add tag to this atom… and Remove tag from this atom… without requiring a selected body row. The kind names above the title still open their finding aids.
 
 Compare remains a projection tab and palette command, and Undo and Redo remain palette commands and shortcuts rather than menu rows. On coarse phones the menu becomes a bottom sheet with Close, 44 px rows and Back for drill-ins; it scrolls on shorter screens.
 
@@ -162,7 +162,7 @@ The Backlinks section appears and its count refreshes when incoming links change
 
 ## Deleted pages
 
-Deleting a page retains its identity, blocks and deletion event. The toast and Undo page deletion in Commands restore the latest deletion; Commands → Restore deleted page… lists retained deletions by title, newest first, including after reload and deletions from another window. Restoration checks the event and current revision and leaves newer changes alone. A reused title must be renamed before the deleted page can return. Permanent merge tombstones are not listed.
+Deleting a page retains its identity, blocks and deletion event. The toast and Undo atom deletion in Commands restore the latest deletion; Commands → Restore deleted atom… lists retained deletions by title, newest first, including after reload and deletions from another window. Restoration checks the event and current revision and leaves newer changes alone. A reused title must be renamed before the deleted page can return. Permanent merge tombstones are not listed.
 
 ⌘Z (Ctrl+Z off Mac) restores a page deletion while it is the latest action in that window, even after navigation to the replacement page. A newer edit returns the shortcut to that edit's history; the deletion remains recoverable through its toast or Commands.
 
@@ -176,11 +176,11 @@ Pinning with ⌘ or Pin expands the slip to its perspectives and permits scrolli
 
 Add alias, under Description… in the page menu and in the palette, adds the Aliases field after the gloss and starts a new value with keyboard focus, ready for the first typed character. `[[` completion and Find name the alias a result was found through as `via Tully`, in faint mono at the row's end.
 
-An inline link can display different wording without changing its target: `[[Target|alias]]`. While `[[` completion is open, type `|` to accept the highlighted target and begin the alias inside the paired `]]`; if no match or Create page is highlighted, the typed target stays as written without creating a page. Alias text never filters or reopens completion. To add an alias to an existing link, place the caret just before `]]` and type `|alias`. Enter and Tab still accept a completion and continue after the link; Escape still dismisses it without accepting a target.
+An inline link can display different wording without changing its target: `[[Target|alias]]`. While `[[` completion is open, type `|` to accept the highlighted target and begin the alias inside the paired `]]`; if no match or Create atom is highlighted, the typed target stays as written without creating a page. Alias text never filters or reopens completion. To add an alias to an existing link, place the caret just before `]]` and type `|alias`. Enter and Tab still accept a completion and continue after the link; Escape still dismisses it without accepting a target.
 
 At a note's top level, populated Aliases entries stay out of the outline while the header's ALSO line presents them. Clicking or tapping that line, or activating it with the keyboard, reveals the field and edits its first value. Add alias also reveals it before starting the new value. Zoomed outlines and sources keep ordinary field presentation.
 
-A hand-typed `[[Name]]` that two or more pages answer to stays unlinked and reads in `--warning` with a dotted underline and a small `?`. Clicking it lists the pages and Create page; the choice links it with the typed wording kept. Imported creators with a shared name read the same way.
+A hand-typed `[[Name]]` that two or more pages answer to stays unlinked and reads in `--warning` with a dotted underline and a small `?`. Clicking it lists the pages and Create atom; the choice links it with the typed wording kept. Imported creators with a shared name read the same way.
 
 Merging leaves the merged page's title as an alias and retains both pages' types, without duplicates. The alias, memberships, moved blocks and redirected references commit together; the confirmation states that the title stays as an alias.
 
@@ -198,7 +198,7 @@ The sidebar, Index directory, note eyebrow and table title read the same kind pr
 
 ## Spreads
 
-New spread opens an unsaved sheet; a view's selected notes can open the same sheet. Add note… uses the note picker, up to five columns. The `SPREAD` rubric heads aligned rows: kind, title and gloss; the union of fields in first-column-then-next outline order, with absent cells blank; Sources, Links and Opening. Sources include passage citations and references to a source page. Opening is the first visible non-field prose block.
+New spread opens an unsaved sheet; a view's selected notes can open the same sheet. Add atom… uses the note picker, up to five columns. The `SPREAD` rubric heads aligned rows: kind, title and gloss; the union of fields in first-column-then-next outline order, with absent cells blank; Sources, Links and Opening. Sources include passage citations and references to a source page. Opening is the first visible non-field prose block.
 
 An exact value shared by at least two columns carries `=` with title Shared. Text is compared after trimming; a whole reference is compared by its target, regardless of its label. A link to a selected column carries `↔`. Differences carry no mark.
 
@@ -208,4 +208,4 @@ Each column offers Move left, Move right and Remove column. Save spread asks for
 
 On a saved page, the sheet sits above the ordinary outline. Children of a reference are commentary on that column; other top-level blocks are notes on the whole spread. Column controls insert, move or delete these reference subtrees through the page document, preserving attributed history and Undo/Redo. They retain keyboard focus in the spread so Undo works immediately after a column disappears. Undo restores the removed column's captured position and commentary even after other columns have moved. ⌘-click opens notes, saved spreads and the newly saved page beside (Ctrl-click off Mac).
 
-With fewer than two notes the sheet says `Select two to five notes to compare them.` The selected column remains available to remove or accompany with another note.
+With fewer than two notes the sheet says `Select two to five atoms to compare them.` The selected column remains available to remove or accompany with another note.

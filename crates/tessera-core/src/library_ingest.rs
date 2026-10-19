@@ -196,7 +196,7 @@ pub(crate) struct Planner<'a> {
 impl<'a> Planner<'a> {
     pub(crate) fn new(notebook: &'a Notebook) -> Result<Self> {
         let fields_page = crate::fields::page_id(&notebook.conn)?
-            .ok_or_else(|| validation("The Fields page is missing."))?;
+            .ok_or_else(|| validation("The Fields register is missing."))?;
         let fields = crate::fields::definitions(&notebook.conn)?
             .into_iter()
             .map(|f| (f.name.to_lowercase(), f))
@@ -702,16 +702,16 @@ impl Notebook {
             SourceFormat::Article => metadata.url.as_deref(),
             SourceFormat::Record => None,
         };
-        let existing =
-            if let Some(target) = target {
-                Some(source(&self.conn, target)?.ok_or_else(|| {
-                    validation("The ingestion target is not an active source page.")
-                })?)
-            } else {
-                let id: Option<String> = self
-                    .conn
-                    .query_row(
-                        "SELECT s.block_id
+        let existing = if let Some(target) = target {
+            Some(
+                source(&self.conn, target)?
+                    .ok_or_else(|| validation("The ingestion target is not an active source."))?,
+            )
+        } else {
+            let id: Option<String> = self
+                .conn
+                .query_row(
+                    "SELECT s.block_id
                      FROM sources s
                      JOIN blocks b ON b.id = s.block_id
                      WHERE s.active = 1 AND b.deletion_id IS NULL
@@ -721,12 +721,12 @@ impl Notebook {
                      ))
                      ORDER BY CASE WHEN s.match_key = ?1 THEN 0 ELSE 1 END, s.added_at, s.block_id
                      LIMIT 1",
-                        params![match_key, snapshot],
-                        |r| r.get(0),
-                    )
-                    .optional()?;
-                id.map(|id| source(&self.conn, &id)).transpose()?.flatten()
-            };
+                    params![match_key, snapshot],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            id.map(|id| source(&self.conn, &id)).transpose()?.flatten()
+        };
         if let Some(source) = &existing
             && self.conn.query_row(
                 "SELECT EXISTS(

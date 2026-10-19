@@ -38,9 +38,9 @@ export function createMoveToPage(context: Pick<OutlineContext, 'props' | 'doc' |
         } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
         finally { setBusy(false); }
       };
-      return <Picker anchor={current.anchor} label="Move to page" query={query()} onQuery={setQuery} placeholder="Find a destination page" items={names()?.rows ?? []} key={match => match.page.id}
+      return <Picker anchor={current.anchor} label="Move to atom" query={query()} onQuery={setQuery} placeholder="Find a destination atom" items={names()?.rows ?? []} key={match => match.page.id}
         onDismiss={dismiss} onPick={match => { void pick(match.page.id, match.page.text); }} busy={names.loading || busy()} error={error() || (names.error ? String(names.error) : undefined)}
-        empty="No matching pages. Try another name." row={match => <><Icon name="note" /><span class="picker-text">{match.page.text}</span><Show when={match.alias}><span class="reference-via">via {match.alias}</span></Show></>} />;
+        empty="No matching atoms. Try another name." row={match => <><Icon name="note" /><span class="picker-text">{match.page.text}</span><Show when={match.alias}><span class="reference-via">via {match.alias}</span></Show></>} />;
     }}</Show>;
   }
   return { openMoveToPage, MoveToPagePopup };

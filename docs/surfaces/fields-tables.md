@@ -18,10 +18,10 @@ Fields opens a searchable register with Name, Kind, Used by and Templates column
 | Enter or double-click | Always opens the field page. |
 | Arrow keys | Move the selection. |
 
-The inspector shows the name, Open page, the kind, Hide, a Reading line for dates, the first owners with their values and problems in rubric, and the templates that use the field.
+The inspector shows the name, Open atom, the kind, Hide, a Reading line for dates, the first owners with their values and problems in rubric, and the templates that use the field.
 
 - Template pills open their type table.
-- Kind reads as muted text and shows its menu chevron on row hover or focus.
+- Format reads as muted text and shows its menu chevron on row hover or focus.
 - Used by opens the distinct owning blocks, including entries with no values. A field no block uses says Unused in `--faint`.
 - ⌘-click opens any of these beside the index (Ctrl-click off Mac).
 - Narrow panes scroll the table horizontally with Name held in place.
@@ -32,13 +32,13 @@ Filtering the index does not change definitions; an empty result offers Clear fi
 
 ## Field pages
 
-A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Rename… and Delete definition… sit at the name's right, and a mono summary (`Choice · 7 owners · 9 values`) under it. A built-in field's Rename… is disabled. Kind, Links to for relation fields, Hide, Role and Counts as follow as rows between single hairlines, each note inside its row. Hide offers Never, When empty and Always, with one muted line saying what the current choice does. Role offers Standfirst, Attribute, Prose and Citation, with a sentence explaining its presentation. Each change is one undoable edit on the definition. The [field menu](../design.md#field-entries) in any note opens this page, at the kind preview, Options or Links to; its Role menu offers the same choices.
+A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Rename… and Delete definition… sit at the name's right, and a mono summary (`Choice · 7 owners · 9 values`) under it. A built-in field's Rename… is disabled. Format, Links to for relation fields, Hide, Role and Counts as follow as rows between single hairlines, each note inside its row. Hide offers Never, When empty and Always, with one muted line saying what the current choice does. Role offers Standfirst, Attribute, Prose and Citation, with a sentence explaining its presentation. Each change is one undoable edit on the definition. The [field menu](../design.md#field-entries) in any note opens this page, at the kind preview, Options or Links to; its Role menu offers the same choices.
 
 Counts as offers Nothing, Creator, Contributor and Originator, as the [domain model](../domain-model.md#counts-as) describes. It is disabled with its reason on a built-in field and on fields that are neither text nor relations.
 
-A note's field entry menu is titled with the field name and names its owning note as mono context. Open field page leads, Definition… groups Kind…, Options… for choices or Links to… for relations, Hide…, Role… and Counts as…, and Remove from this note stays last as a danger action. Templates… contains Add to or Remove from each owning type's template and is absent without an owning type. This gives four root rows, or three without Templates.
+A note's field entry menu is titled with the field name and names its owning note as mono context. Open field definition leads, Definition… groups Format…, Options… for choices or Links to… for relations, Hide…, Role… and Counts as…, and Remove from this atom stays last as a danger action. Templates… contains Add to or Remove from each owning type's template and is absent without an owning type. This gives four root rows, or three without Templates.
 
-Kind, Hide, Role and Counts as are nested drill-ins with nine kinds, three hide modes, four roles and four meanings. Each replaces the rows in the same menu under a header Back. Kind still opens the interpretation preview before any change is applied; Hide, Role and Counts as retain their saving/loading reasons and Undo notices. On a phone below 600 px with a coarse pointer, the same menu is a bottom sheet with 44 px targets and an explicit root Close.
+Format, Hide, Role and Counts as are nested drill-ins with nine kinds, three hide modes, four roles and four meanings. Each replaces the rows in the same menu under a header Back. Format still opens the interpretation preview before any change is applied; Hide, Role and Counts as retain their saving/loading reasons and Undo notices. On a phone below 600 px with a coarse pointer, the same menu is a bottom sheet with 44 px targets and an explicit root Close.
 
 Rename uses New field's case-insensitive duplicate rule. A built-in field's Rename is disabled and names the reason, since the app finds it by name. An existing name opens Merge into with affected owners, pages, templates, saved views and conflicting values. Apply keeps conflicts as separate entries under the surviving definition and redirects every saved recipe to that definition. Column widths and collapsed groups are preserved. Undo restores the original fields and exact saved recipes.
 
@@ -65,9 +65,9 @@ Creating a definition always uses a new block ID. Blank outline rows under Field
 
 Changing kind opens an interpretation map on the field page before applying. Register rows, the inspector and a note's field menu open the same map. It lists every distinct written value and its use count under Mapped values, Readable as written, or Ambiguous or unreadable.
 
-Choice rows have an editable option name and a mapping checkbox. Existing options are reused; different written values can share one name. Unchecking a row leaves it as written. Relation rows propose a page only when its title or alias matches exactly and uniquely. Choose page adjusts the target; Create page explicitly requests creation during Apply and files the page under the field's only Links to type, or makes it a source when that is Source. Blocks are chosen by hand after the change. Other kinds show their readings, including inclusive year bounds for Span.
+Choice rows have an editable option name and a mapping checkbox. Existing options are reused; different written values can share one name. Unchecking a row leaves it as written. Relation rows propose a page only when its title or alias matches exactly and uniquely. Choose atom adjusts the target; Create atom explicitly requests creation during Apply and files the page under the field's only Links to type, or makes it a source when that is Source. Blocks are chosen by hand after the change. Other kinds show their readings, including inclusive year bounds for Span.
 
-Apply changes the kind and all reviewed mappings in one undoable edit. Unmapped values stay as written and show a problem when unreadable. Owners and child notes stay in place. Cancel writes nothing.
+Apply changes the kind and all reviewed mappings in one undoable edit. Unmapped values stay as written and show a problem when unreadable. Owners and child atoms stay in place. Cancel writes nothing.
 
 ## Links to
 
@@ -75,7 +75,7 @@ Relation definitions show **Links to** below Kind, both on their page and in the
 
 Library Author, Editor and Translator start with Person and Group targets. Import and the one-time workshop backfill file untyped creator pages as Person without changing pages already filed elsewhere.
 
-Metadata suggestions, field-slot pickers and value pickers for such a field show members of the target types. Page titles and aliases match with the workshop's name folding; an exact alias match does not offer duplicate creation. Blocks match by label and show their page beside it. Blocks on the owner's page lead under **On this page**, and the owner is never offered. A query that names no page exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together. A field that links to Source offers **Create source “Title”**, a manual record in the Inbox. A type with block members offers no creation.
+Metadata suggestions, field-slot pickers and value pickers for such a field show members of the target types. Page titles and aliases match with the workshop's name folding; an exact alias match does not offer duplicate creation. Blocks match by label and show their page beside it. Blocks on the owner's page lead under **On this atom**, and the owner is never offered. A query that names no page exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together. A field that links to Source offers **Create source “Title”**, a manual record in the Inbox. A type with block members offers no creation.
 
 Enter commits the relation query as it is written at that moment, including before its candidates arrive. A pending query never permits accepting an older query's highlighted target. The accepted query and target constraints enter the value's durable outbox immediately; reloading during lookup resumes the selection and stores its canonical reference without reopening the picker.
 
@@ -89,7 +89,7 @@ Open, it shows the same field rows as the type's Fields tab, described below. Ad
 
 ### Field rows
 
-The type page and the Fields tab list a template with one row design: Name, Kind and Used by in template order. A name opens its field page. Kind reads as Relation → Person, Group for a relation, any atom when it has no Links to types, and as Choice · 3 options for a choice field. Kind opens a menu of the nine kinds, then Links to… for a relation, Options… for a choice and Open field page.
+The type page and the Fields tab list a template with one row design: Name, Format and Used by in template order. A name opens its field page. Format reads as Relation → Person, Group for a relation, any atom when it has no Links to types, and as Choice · 3 options for a choice field. Format opens a menu of the nine kinds, then Links to… for a relation, Options… for a choice and Open field definition.
 
 - A kind every value already reads as applies in place, as a field with no values always does. Otherwise the field page opens its kind review for that kind.
 - Links to… opens the same Links to chooser as the field page.
@@ -115,7 +115,7 @@ Every field commit returns keyboard ownership to its value editor, its selected 
 
 Creating a text field opens its first value editor and keeps immediate typing and Backspace corrections through the pending handoff. Its accepted text enters the local outbox behind creation, so Escape ends editing without discarding it and reloading before the response still restores the value. Saving or canceling a definition or option rename returns focus to the field page, so its history shortcuts remain available.
 
-Commands → Add field targets the selected block, or the page when no block is selected, and names that context in the palette. Page menu → Add field always targets the page, even while a block or field value is selected.
+Commands → Add field targets the selected block, or the page when no block is selected, and names that context in the palette. Atom menu → Add field always targets the page, even while a block or field value is selected.
 
 In Read, filling a field value that its holder-scoped register does not display switches to Outline and edits that same value; it never transfers typing to another row.
 
@@ -145,7 +145,7 @@ After deleting a table view, its confirmation closes and the table keeps the que
 
 ### Embedded views
 
-A saved view's menu offers Embed on page…. Its page picker inserts an ordinary reference block and opens it on that page. `/Embed view` and Commands offer the same saved views while writing.
+A saved view's menu offers Embed on atom…. Its page picker inserts an ordinary reference block and opens it on that page. `/Embed view` and Commands offer the same saved views while writing.
 
 An embed follows the saved query, columns, sorts, groups and layout, with twelve visible rows and Show all N to open the full view. Editing an ordinary field uses its canonical value block and one undo; derived attributes remain read-only. Committed workshop changes update the result. Phone cards use the saved card fields.
 
@@ -220,7 +220,7 @@ Changing the column selection returns the grid to its left edge. Entering an inl
 
 Type tables offer New type… (using the type's name) in their header; an untyped Questions register offers New question…. Both open the shared creation slip with its kind locked. It creates and files a typed page or question in one change, or files an existing page. Creating a page joins the table's undo history as one step: ⌘Z removes the page, its children and its memberships; redo restores the same page and child IDs.
 
-Creation stays in the table, reveals the row and focuses the first empty editable field after Title, opening its inline editor or kind picker. Checkboxes receive focus without toggling. Read-only attributes are skipped; phone cards and rows without an empty editable field keep title focus. Shift+Enter opens beside with the new page's body caret; on coarse layouts with two visible panes this is the default. A new page excluded by the current query gets an Open note notice instead of changing the filters.
+Creation stays in the table, reveals the row and focuses the first empty editable field after Title, opening its inline editor or kind picker. Checkboxes receive focus without toggling. Read-only attributes are skipped; phone cards and rows without an empty editable field keep title focus. Shift+Enter opens beside with the new page's body caret; on coarse layouts with two visible panes this is the default. A new page excluded by the current query gets an Open atom notice instead of changing the filters.
 
 Each row's titled actions menu offers Open, Open beside, Rename… and Delete… last. It names the row and becomes a bottom sheet on coarse phones. Rename edits the title in its cell; F2 on a focused title does the same. Enter or leaving the input saves, Escape cancels, and the change joins the table's undo history. Ordinary title click and Enter still open the row. Delete confirms the page and all its blocks, or the tagged block and its children, and offers Undo using the page-deletion toast or the table's block history.
 

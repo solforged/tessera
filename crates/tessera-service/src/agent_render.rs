@@ -91,7 +91,7 @@ pub fn render(
                 .rows
                 .iter()
                 .position(|row| row.block.id == id)
-                .with_context(|| format!("atom {id} is not on this page"))?;
+                .with_context(|| format!("atom {id} is not in this outline"))?;
             let depth = page.rows[start].depth;
             let length = 1 + page.rows[start + 1..]
                 .iter()

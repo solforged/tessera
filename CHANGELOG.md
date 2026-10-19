@@ -56,6 +56,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 ### Changed
 
 - Said atom and tag instead of block and type throughout the interface.
+- Said atom instead of page and note, tag instead of index kind, and format for field values throughout the interface.
 - Rendered built-in behavior tags as glyphs, kept scheduled atoms checkbox-free until tagged as tasks, protected built-in tag pages, and read creation choices from the tag registry.
 - Named a tag-only kind by the tag you wrote, so `#arabic` stays `arabic` in the sidebar instead of `arabics`. Drew the card mark at the bullet's size.
 - A lone journal fact trails its line, and Journal's writing head is the name alone. Task priority is the word, on the task's line. An empty review says No cards yet and hides the deck menu and the zero queues.

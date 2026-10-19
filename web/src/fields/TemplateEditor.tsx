@@ -150,12 +150,12 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
       <Show when={template().length} fallback={<p class="template-note">Fields added here become this tag’s table columns and wait as empty slots on its atoms.</p>}>
         <table class="template-field-table">
           <colgroup><col class="template-name-column" /><col class="template-kind-column" /><col class="template-usage-column" /><col class="template-actions-column" /></colgroup>
-          <thead><tr><th scope="col">Name</th><th scope="col">Kind</th><th scope="col">Used by</th><th scope="col"><span class="visually-hidden">Field actions</span></th></tr></thead>
+          <thead><tr><th scope="col">Name</th><th scope="col">Format</th><th scope="col">Used by</th><th scope="col"><span class="visually-hidden">Field actions</span></th></tr></thead>
           <tbody><For each={template()}>{(id, index) => <Show when={byId().get(id)}>{field => <tr>
             <td><Show when={renaming()?.id === id} fallback={<><Button class="template-definition" title={`Open ${field().name} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'field', fieldId: id }, opensBeside(event))}>{field().name}</Button><Show when={required().has(id)}> <span class="template-required" title={requiredReason(props.type, field().name)}>required</span></Show></>}>
               <form class="template-rename" onSubmit={event => { event.preventDefault(); void rename(); }}><input class="input" aria-label={`New name for ${field().name}`} value={renaming()!.text} onInput={event => setRenaming({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setRenaming(null); } }} onBlur={() => { if (renaming()?.id === id) void rename(); }} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} /></form>
             </Show></td>
-            <td class="template-field-kind"><Button class="template-kind" aria-haspopup="menu" aria-expanded={kindMenu()?.id === id} aria-label={`Kind for ${field().name}: ${kindSummary(field())}`} disabled={busy()} onClick={event => setKindMenu({ id, anchor: event.currentTarget })}>{kindSummary(field())} <Icon name="down" /></Button></td>
+            <td class="template-field-kind"><Button class="template-kind" aria-haspopup="menu" aria-expanded={kindMenu()?.id === id} aria-label={`Format for ${field().name}: ${kindSummary(field())}`} disabled={busy()} onClick={event => setKindMenu({ id, anchor: event.currentTarget })}>{kindSummary(field())} <Icon name="down" /></Button></td>
             <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span title="No atom uses this field yet">Unused</span>}><Button title={`Atoms using ${field().name}: ${summaries().get(id)!.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{summaries().get(id)!.owners}</Button></Show></td>
             <td>{fieldActions(id, index())}</td>
           </tr>}</Show>}</For></tbody>
@@ -179,11 +179,11 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
     <Show when={kindMenu()}>{menu => <Show when={byId().get(menu().id)}>{field => {
       // The menu closes before an item runs, so items keep their own copy of the row they belong to.
       const { anchor } = menu(); const current = field();
-      return <Menu anchor={anchor} label={`Kind for ${current.name}`} onDismiss={() => setKindMenu(null)} items={[
+      return <Menu anchor={anchor} label={`Format for ${current.name}`} onDismiss={() => setKindMenu(null)} items={[
         ...fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === current.kind, action: () => { if (kind !== current.kind) void changeKind(current, kind, false); } })),
         ...(current.kind === 'instance' ? [{ label: 'Links to…', divider: true, action: () => setLinksMenu({ id: current.id, anchor }) }] : []),
         ...(current.kind === 'choice' ? [{ label: 'Options…', divider: true, action: () => props.onOpen({ kind: 'field', fieldId: current.id, section: 'options' }, false) }] : []),
-        { label: 'Open field page', divider: current.kind !== 'instance' && current.kind !== 'choice', action: () => props.onOpen({ kind: 'field', fieldId: current.id }, false) },
+        { label: 'Open field definition', divider: current.kind !== 'instance' && current.kind !== 'choice', action: () => props.onOpen({ kind: 'field', fieldId: current.id }, false) },
       ]} />;
     }}</Show>}</Show>
     <Show when={linksMenu()}>{menu => <Show when={byId().get(menu().id)}>{field => <LinksToPopup anchor={menu().anchor} notebook={props.notebook} targets={field().targets} disabled={busy()} onDismiss={() => setLinksMenu(null)}

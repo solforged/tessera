@@ -53,5 +53,5 @@ export async function changeRevisit(notebook: NotebookClient, id: string, action
 }
 
 export function revisitKind(row: RevisitRow): string {
-  return row.question_status === 'unsettled' ? 'Recurrent question' : row.question_status ? `${row.question_status.charAt(0).toUpperCase()}${row.question_status.slice(1)} question` : row.note.resolved_at ? 'Resolved note' : 'Note';
+  return row.question_status === 'unsettled' ? 'Recurrent question' : row.question_status ? `${row.question_status.charAt(0).toUpperCase()}${row.question_status.slice(1)} question` : row.note.resolved_at ? 'Resolved atom' : 'Atom';
 }

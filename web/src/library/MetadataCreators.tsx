@@ -63,7 +63,7 @@ export function MetadataCreators(props: {
   });
   const mergedMark = createMemo(() => derivedSourceSiglum([{ id: mergeTarget()?.id ?? null, name: mergeTarget()?.text ?? '', role: 'author' }], '', '').mark);
   const scope = createMemo(() => props.docs.length > 1 ? `Changes the creator links on all ${props.docs.length} sources.` : `Changes only “${props.docs[0]?.root()?.text ?? 'this source'}”.`);
-  const countText = createMemo(() => counts.error ? 'Book and note counts unavailable.' : counts.loading || !counts() ? 'Counting books and linked notes…' : `${counts()!.books} ${counts()!.books === 1 ? 'book' : 'books'} · ${counts()!.notes}${counts()!.capped ? '+' : ''} linked ${counts()!.notes === 1 && !counts()!.capped ? 'note' : 'notes'}`);
+  const countText = createMemo(() => counts.error ? 'Book and atom counts unavailable.' : counts.loading || !counts() ? 'Counting books and linked atoms…' : `${counts()!.books} ${counts()!.books === 1 ? 'book' : 'books'} · ${counts()!.notes}${counts()!.capped ? '+' : ''} linked ${counts()!.notes === 1 && !counts()!.capped ? 'atom' : 'atoms'}`);
   const fail = (reason: unknown) => { const message = reason instanceof Error ? reason.message : String(reason); setError(message); props.onError(message); };
   async function save(value: SourceCreator[]) {
     if (busy() || props.disabled) return;

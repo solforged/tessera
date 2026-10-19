@@ -156,7 +156,7 @@ fn validate_source_type(conn: &Connection, query: &Query) -> Result<()> {
             ))?
             .query_row([id], |row| row.get::<_, bool>(0))?;
         if !live {
-            return Err(validation(format!("not a live tag page: {id}")));
+            return Err(validation(format!("not a live tag: {id}")));
         }
     }
     Ok(())

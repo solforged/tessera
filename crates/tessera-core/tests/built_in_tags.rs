@@ -326,7 +326,7 @@ fn built_in_pages_refuse_delete_merge_and_rename_but_allow_case_changes() {
             base_revision: task.revision,
         }]))
         .unwrap_err(),
-        "Task is a built-in tag; its page cannot be deleted.",
+        "Task is a built-in tag and cannot be deleted.",
     );
     validation(
         nb.apply(&batch(vec![Operation::EditText {
@@ -345,7 +345,7 @@ fn built_in_pages_refuse_delete_merge_and_rename_but_allow_case_changes() {
             destination_revision: nb.block(&id(1)).unwrap().revision,
         }]))
         .unwrap_err(),
-        "Task is a built-in tag; its page cannot merge.",
+        "Task is a built-in tag and cannot be merged.",
     );
     apply(
         &mut nb,

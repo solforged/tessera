@@ -1,14 +1,14 @@
 <resources>
     <string name="app_name">"Tessera"</string>
     <string name="main_activity_title">"Tessera"</string>
-    <string name="shortcut_new_note">"New note"</string>
-    <string name="shortcut_new_note_long">"New note in today’s journal"</string>
+    <string name="shortcut_new_note">"New atom"</string>
+    <string name="shortcut_new_note_long">"New atom in today’s journal"</string>
     <string name="shortcut_new_task">"New task"</string>
     <string name="shortcut_new_question">"New question"</string>
     <string name="shortcut_add_source">"Add to library"</string>
     <string name="capture_widget_description">"Capture to Tessera"</string>
-    <string name="capture_widget_note">"Note"</string>
+    <string name="capture_widget_note">"Atom"</string>
     <string name="capture_widget_task">"Task"</string>
     <string name="capture_widget_question">"Question"</string>
-    <string name="capture_tile_label">"Tessera note"</string>
+    <string name="capture_tile_label">"Tessera atom"</string>
 </resources>

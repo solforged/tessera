@@ -179,7 +179,7 @@ Every node and source opens its page. ⌘-click opens it beside (Ctrl-click off 
 
 ## Argument relations
 
-Supports…, Disputes…, Qualifies… and Answers…, under Make… → Argument… in the block menu and in Commands and slash completion, mark the selected block as an argument. On an empty block, the action opens link completion for the target. Existing edges offer Change kind and Remove argument under the block menu's Argument…; removal keeps the text and children.
+Supports…, Disputes…, Qualifies… and Answers…, under Make… → Argument… in the block menu and in Commands and slash completion, mark the selected block as an argument. On an empty block, the action opens link completion for the target. Existing edges offer Change relation and Remove argument under the block menu's Argument…; removal keeps the text and children.
 
 Add argument… on a perspective, assessment or question asks for the kind and target, then adds a last child edge as one undoable change. A question, perspective or assessment cannot itself become an edge, so its Make… leaves Argument… out; Commands and slash completion explain why.
 

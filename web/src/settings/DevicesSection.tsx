@@ -219,12 +219,12 @@ function NeedsReview(props: { notebook: NotebookClient; onOpenPage(pageId: strin
       <Show when={undo()}>{last => <div class="devices-undo" role="status"><span>{last().label}</span><Button class="bordered" disabled={busy()} onClick={() => { void undoLast(); }}>Undo</Button></div>}</Show>
       <For each={syncConflicts.state()?.kept}>{copy => <article class="devices-review-item">
         <p class="settings-mono">{copy.mine ? 'This device' : copy.origin_name ?? 'Another device'} · version kept beside</p><h4>{copy.page_title}</h4><blockquote>{copy.text}</blockquote>
-        <div class="devices-actions"><Button class="bordered" onClick={() => props.onOpenPage(copy.page_id)}>Open the page</Button></div>
+        <div class="devices-actions"><Button class="bordered" onClick={() => props.onOpenPage(copy.page_id)}>Open the atom</Button></div>
       </article>}</For>
       <For each={syncConflicts.state()?.rejected}>{change => <article class="devices-review-item">
-        <p class="settings-mono">{change.mine ? 'This device' : change.origin_name ?? 'Another device'} · rejected {ago(change.created_at, sync.now())}</p><h4>{change.page_title ?? 'Page no longer available'}</h4>
+        <p class="settings-mono">{change.mine ? 'This device' : change.origin_name ?? 'Another device'} · rejected {ago(change.created_at, sync.now())}</p><h4>{change.page_title ?? 'Atom no longer available'}</h4>
         <For each={change.texts}>{text => <blockquote>{text}</blockquote>}</For><p class="devices-rejection-reason">{change.error}</p>
-        <div class="devices-actions"><Show when={change.page_id}><Button class="bordered" onClick={() => props.onOpenPage(change.page_id!)}>Open the page</Button></Show>
+        <div class="devices-actions"><Show when={change.page_id}><Button class="bordered" onClick={() => props.onOpenPage(change.page_id!)}>Open the atom</Button></Show>
           <Show when={change.texts.length > 0}><Button class="bordered" disabled={busy()} onClick={() => { void settle(change, true); }}>Copy the text back</Button></Show>
           <Button class="bordered" disabled={busy()} onClick={() => { void settle(change, false); }}>Dismiss</Button>
         </div>

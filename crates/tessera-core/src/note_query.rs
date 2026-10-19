@@ -149,7 +149,7 @@ impl Notebook {
         }
         let field = grouping.strip_prefix("field:");
         if !matches!(grouping, "source" | "link" | "created") && field.is_none() {
-            return Err(validation("unknown note grouping"));
+            return Err(validation("unknown grouping"));
         }
         let ids: Vec<_> = rows.iter().map(|row| &row.block.block.id).collect();
         let selected = serde_json::to_string(&ids).expect("note ids serialize");

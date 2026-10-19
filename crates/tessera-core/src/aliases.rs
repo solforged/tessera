@@ -69,7 +69,7 @@ pub(crate) fn plan_alias(
         field.id.clone()
     } else {
         let parent = crate::fields::page_id(conn)?
-            .ok_or_else(|| validation("The Fields page is missing."))?;
+            .ok_or_else(|| validation("The Fields register is missing."))?;
         let after = conn
             .query_row(
                 "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
@@ -309,7 +309,7 @@ impl Notebook {
     fn alias_page(&self, id: &str) -> Result<Block> {
         let page = self.block(id)?;
         if page.kind != BlockKind::Page || page.parent_id.is_some() {
-            return Err(validation("not a page"));
+            return Err(validation("not a titled atom"));
         }
         Ok(page)
     }

@@ -129,7 +129,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       })().catch(fail);
     };
     const items: MenuItem[] = [
-      { label: hasNote ? 'Open note' : 'Add note', action: () => fire('note') },
+      { label: hasNote ? 'Open atom' : 'Add atom', action: () => fire('note') },
       { label: 'Make card', action: () => fire('card') },
     ];
     if (copyText !== undefined) items.push({ label: 'Copy with citation', action: () => { void navigator.clipboard.writeText(copyText).catch(reason => onError(reason instanceof Error ? reason.message : String(reason))); } });

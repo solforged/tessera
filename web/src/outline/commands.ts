@@ -101,7 +101,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   function relationMenu(id: string, add = false, text?: string) {
     const anchor = rowAnchor(id) ?? context.heading;
     if (!anchor) return;
-    const title = add ? 'Add argument' : 'Argument kind';
+    const title = add ? 'Add argument' : 'Argument relation';
     setMenu({ anchor, label: title, title, items: relationItems(id, add, text, anchor) });
   }
   function investigationItems(id: string, manager = false): MenuItem[] {
@@ -125,7 +125,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         { label: 'Set parent question…', secondary: questionDescriptions['Set parent question…'], action: () => capabilities.open(id, 'question-parent') },
         ...(question.parent ? [{ label: 'Remove parent', secondary: questionDescriptions['Remove parent'], action: () => { const { parent: _, ...value } = question; edit({ kind: 'question', id, value }); } }] : []),
         { label: 'Remove question', secondary: questionDescriptions['Remove question'], danger: true, action: () => edit({ kind: 'question', id, value: null }) },
-      ] : [{ label: 'Make question', secondary: questionDescriptions['Make question'], disabledReason: block.relation ? 'Remove the relation first.' : assessment ? 'Remove the assessment first.' : block.kind === 'journal' ? 'Make an ordinary atom or page a question.' : undefined,
+      ] : [{ label: 'Make question', secondary: questionDescriptions['Make question'], disabledReason: block.relation ? 'Remove the relation first.' : assessment ? 'Remove the assessment first.' : block.kind === 'journal' ? 'Make a non-journal atom a question.' : undefined,
         action: () => edit({ kind: 'question', id, value: { unsettled: false, parked: false, accepted: null, review_on: null } }) }]),
       ...(assessment ? [
         { label: 'Accept current answer', secondary: questionVerbs['Accept current answer'], disabledReason: !owner ? 'Put the assessment under a question first.' : owner.state.parked ? 'Resume the question before accepting an answer.' : assessment.accepted ? 'This is already the current answer.' : undefined,
@@ -169,7 +169,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   function pageTypes(removeOnly = false) {
     if (!context.heading) return;
     const types = doc.root()?.manual_types ?? [];
-    setMenu({ anchor: context.heading, label: removeOnly ? 'Remove page tag' : 'Page tags', title: removeOnly ? 'Remove page tag' : 'Page tags', context: doc.root()?.text, items: [
+    setMenu({ anchor: context.heading, label: removeOnly ? 'Remove tag from this atom' : 'Tags on this atom', title: removeOnly ? 'Remove tag from this atom' : 'Tags on this atom', context: doc.root()?.text, items: [
       ...(!removeOnly ? [{ label: 'Add tag…', icon: 'plus' as const, action: addPageType }] : []),
       ...types.map((title, index): MenuItem => ({ label: `Remove ${title}`, icon: 'tag', divider: !removeOnly && index === 0, action: () => {
         const result = doc.removeType(props.pageId, title);
@@ -183,37 +183,37 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     return ids.some(id => doc.outline.parentOf(id) !== parent) ? 'Select atoms with the same parent to move them up or down.' : undefined;
   };
   const commandsFor = (selected = context.selected): Command[] => [
-    { id: 'copy-page-reference', title: 'Copy page reference', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => copy(`[[${props.pageId}]]`) },
+    { id: 'copy-page-reference', title: 'Copy atom reference', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined, run: () => copy(`[[${props.pageId}]]`) },
     { id: 'rename', title: 'Rename atom', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.', run: rename },
     { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
-    { id: 'add-field-root', title: 'Add field…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pickField(props.pageId, context.heading) },
-    { id: 'types-root', title: 'Page tags…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pageTypes() },
-    { id: 'add-type-root', title: 'Add page tag…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: addPageType },
-    { id: 'remove-type-root', title: 'Remove page tag…', section: 'Page', disabledReason: () => !doc.root()?.manual_types.length ? 'This page has no manual tags.' : undefined, run: () => pageTypes(true) },
-    { id: 'task-root', title: 'Task', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
+    { id: 'add-field-root', title: 'Add field…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined, run: () => pickField(props.pageId, context.heading) },
+    { id: 'types-root', title: 'Tags on this atom…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined, run: () => pageTypes() },
+    { id: 'add-type-root', title: 'Add tag to this atom…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined, run: addPageType },
+    { id: 'remove-type-root', title: 'Remove tag from this atom…', section: 'Page', disabledReason: () => !doc.root()?.manual_types.length ? 'This atom has no manual tags.' : undefined, run: () => pageTypes(true) },
+    { id: 'task-root', title: 'Task', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Atom is unavailable.' : undefined, run: () => {
       if (!doc.root()?.task?.status) capabilities.invoke(capabilities.status(props.pageId, 'todo'));
       capabilities.open(props.pageId, 'task');
     } },
-    { id: 'project-root', title: 'Project', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
+    { id: 'project-root', title: 'Project', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Atom is unavailable.' : undefined, run: () => {
       if (!doc.root()?.project) capabilities.invoke(capabilities.edit(props.pageId, { kind: 'project', id: props.pageId, value: { status: 'active', outcome: '', deadline: null } }));
       capabilities.open(props.pageId, 'project');
     } },
     // A stream page collects notes written under journal lines that link it; the Stream type marks it and lists it in the Index.
-    { id: 'stream-root', title: 'Make or remove stream', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days cannot be streams.' : undefined, run: () => {
+    { id: 'stream-root', title: 'Make or remove stream', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days cannot be streams.' : undefined, run: () => {
       const current = doc.root()?.manual_types.find(title => title.toLocaleLowerCase() === 'stream');
       const result = current ? doc.removeType(props.pageId, current) : doc.addType(props.pageId, 'Stream');
       if (!result.ok) setMessage(result.reason);
     } },
-    { id: 'gloss', title: 'Add or edit gloss', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no gloss.' : undefined, run: addGloss },
-    { id: 'alias', title: 'Add alias', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no aliases.' : undefined, run: addAlias },
-    { id: 'read', title: 'Read', section: 'Page', disabledReason: () => props.projectionReason ? props.projectionReason('read') : doc.root()?.kind === 'page' ? undefined : 'Only titled pages have projections.', run: () => props.onProjection?.('read') },
-    { id: 'outline', title: 'Outline', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Only titled pages have projections.', run: () => props.onProjection?.('outline') },
-    { id: 'compare', title: 'Compare perspectives', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : localPositions() < 2 ? 'Compare needs two perspectives on this page.' : undefined, run: () => props.onProjection?.('compare') },
-    { id: 'add-reading', title: 'Add perspective', section: 'Page', disabledReason: () => doc.root()?.source ? 'Add perspectives on the concept or question they are about.' : doc.root()?.kind === 'page' ? undefined : 'Add perspectives on a titled page.', run: () => context.openRelation(props.pageId, 'reading', context.heading) },
+    { id: 'gloss', title: 'Add or edit gloss', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no gloss.' : undefined, run: addGloss },
+    { id: 'alias', title: 'Add alias', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : doc.root()?.kind !== 'page' ? 'Journal days have no aliases.' : undefined, run: addAlias },
+    { id: 'read', title: 'Read', section: 'Page', disabledReason: () => props.projectionReason ? props.projectionReason('read') : doc.root()?.kind === 'page' ? undefined : 'Only titled atoms have projections.', run: () => props.onProjection?.('read') },
+    { id: 'outline', title: 'Outline', section: 'Page', disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Only titled atoms have projections.', run: () => props.onProjection?.('outline') },
+    { id: 'compare', title: 'Compare perspectives', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Atom is unavailable.' : localPositions() < 2 ? 'Compare needs two perspectives on this atom.' : undefined, run: () => props.onProjection?.('compare') },
+    { id: 'add-reading', title: 'Add perspective', section: 'Page', disabledReason: () => doc.root()?.source ? 'Add perspectives on the concept or question they are about.' : doc.root()?.kind === 'page' ? undefined : 'Add perspectives on a titled atom.', run: () => context.openRelation(props.pageId, 'reading', context.heading) },
     ...depthStops.map((stop): Command => ({ id: `depth-${stop}`, title: depthTitles[stop], section: 'Page', disabledReason: depthReason, run: () => setStop(stop) })),
-    { id: 'depth-less', title: 'Show less of the page', section: 'Page', keys: ['['], disabledReason: () => depthReason() ?? (depth() === 'gloss' ? 'Only the gloss is showing.' : undefined), run: () => stepDepth(-1) },
-    { id: 'depth-more', title: 'Show more of the page', section: 'Page', keys: [']'], disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole page is showing.' : undefined), run: () => stepDepth(1) },
-    { id: 'question-root', title: 'Question', section: 'Page', disabledReason: () => !doc.root()?.question ? 'Make the page a question first.' : capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
+    { id: 'depth-less', title: 'Show less of the atom', section: 'Page', keys: ['['], disabledReason: () => depthReason() ?? (depth() === 'gloss' ? 'Only the gloss is showing.' : undefined), run: () => stepDepth(-1) },
+    { id: 'depth-more', title: 'Show more of the atom', section: 'Page', keys: [']'], disabledReason: () => depthReason() ?? (depth() === 'full' ? 'The whole atom is showing.' : undefined), run: () => stepDepth(1) },
+    { id: 'question-root', title: 'Question', section: 'Page', disabledReason: () => !doc.root()?.question ? 'Make the atom a question first.' : capabilities.busy(props.pageId) ? 'Atom is unavailable.' : undefined, run: () => {
       if (context.heading) setMenu({ anchor: context.heading, label: 'Question', title: 'Question', context: doc.root()?.text, items: investigationItems(props.pageId, true) });
     } },
     { id: 'add-relation-root', title: 'Add argument…', section: 'Page', disabledReason: () => addRelationReason(doc.root()), run: () => relationMenu(props.pageId, true) },
@@ -238,12 +238,12 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'outdent', title: 'Outdent atoms', section: 'Outline', keys: ['⇧Tab', '<<'], run: () => apply({ kind: 'outdent', ids: roots() }) },
     { id: 'move-up', title: 'Move atoms up', section: 'Outline', keys: ['⌥↑'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'up' }) },
     { id: 'move-down', title: 'Move atoms down', section: 'Outline', keys: ['⌥↓'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'down' }) },
-    { id: 'move-to-page', title: 'Move to page…', section: 'Outline', run: () => context.openMoveToPage() },
+    { id: 'move-to-page', title: 'Move to atom…', section: 'Outline', run: () => context.openMoveToPage() },
     { id: 'select', title: 'Select atoms', section: 'Outline', keys: ['V', '⇧↑/↓'], run: () => selected() && rowFocus(selected()!, true) },
     { id: 'select-all', title: 'Select all visible atoms', section: 'Outline', run: () => { const first = ids()[0]; const last = ids().at(-1); if (first && last) { rowFocus(last); setRowRange({ anchor: first, head: last }); } } },
     { id: 'fold', title: 'Fold / unfold children', section: 'View', keys: ['←/→', 'h/l'], run: () => fold(selected() ?? undefined) },
     { id: 'zoom', title: 'Zoom into atom', section: 'Navigation', keys: ['⌘.', 'Space z'], run: () => selected() && zoomTo(selected()) },
-    { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧.'], disabledReason: () => zoom() ? undefined : 'Already at the page root.', run: zoomOut },
+    { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧.'], disabledReason: () => zoom() ? undefined : 'Already at the top of this outline.', run: zoomOut },
     { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openSelected(true, selected()) },
     { id: 'copy-reference', title: 'Copy atom reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
     { id: 'make-image', title: 'Insert image', section: 'Editing', run: () => context.chooseImage(selected() ?? zoom() ?? doc.pageId) },
@@ -274,7 +274,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       disabledReason: () => relationReason(doc.block(selected() ?? '')),
       run: () => { const id = selected(); if (id) markRelation(id, kind); },
     })),
-    { id: 'relation-kind', title: 'Change kind', section: 'Atom', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) relationMenu(id); } },
+    { id: 'relation-kind', title: 'Change relation', section: 'Atom', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) relationMenu(id); } },
     { id: 'remove-relation', title: 'Remove argument', section: 'Atom', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) markRelation(id, null); } },
     { id: 'add-relation', title: 'Add argument…', section: 'Atom', disabledReason: () => addRelationReason(doc.block(selected() ?? '')), run: () => { const id = selected(); if (id) relationMenu(id, true); } },
     ...['Make question', 'Make assessment', ...Object.keys(questionVerbs), 'Record aporia', 'Clear aporia', 'Set revisit date…', 'Remove parent', 'Remove question', 'Remove assessment'].map((title): Command => ({
@@ -417,7 +417,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ...(entry.question ? [group('Question…', 'Question', () => investigationItems(id, true))] : []),
       ...(entry.assessment ? [group('Assessment…', 'Assessment', () => investigationItems(id, true))] : []),
       ...(entry.relation ? [group('Argument…', 'Argument', () => [
-        group('Change kind…', 'Argument kind', () => relationItems(id)),
+        group('Change relation…', 'Argument relation', () => relationItems(id)),
         { ...item('remove-relation'), divider: true, danger: true },
       ])] : []),
       ...(hasCards ? [group('Cards…', 'Cards', () => [
@@ -452,7 +452,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       item('open-beside', 'Open beside'),
       ...managers.map((item, index) => ({ ...item, divider: index === 0 })),
       { label: 'Add field…', divider: !managers.length, action: () => pickField(id, anchor) },
-      { label: 'Make…', submenu: () => ({ title: 'Make', items: makeItems, note: 'Each adds to this note and keeps its text.' }) },
+      { label: 'Make…', submenu: () => ({ title: 'Make', items: makeItems, note: 'Each adds to this atom and keeps its text.' }) },
       { ...item('archive', entry.archived ? 'Unarchive' : 'Archive'), divider: true },
       { ...item('delete', 'Delete…'), danger: true },
     ] });
@@ -498,7 +498,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     rowFocus(id);
     await capabilities.run(id, async () => {
       const { change } = await props.notebook.promoteToProject(id, title);
-      context.showNotice(`Made project page ${title}.`, change.undo);
+      context.showNotice(`Made project ${title}.`, change.undo);
     }).catch(() => {});
   }
   function addCard(id: string, kind: InsertCardKind = 'forward') {

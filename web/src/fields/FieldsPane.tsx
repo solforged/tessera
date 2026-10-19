@@ -138,7 +138,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
       <Show when={data()}>
         <Show when={fields().length} fallback={<p class="empty-state">No fields yet. Use New field, or type <code>name::</code> in an atom.</p>}>
           <Show when={visibleFields().length} fallback={<p class="empty-state">No matching fields. <Button onClick={() => setSearch('')}>Clear filter</Button></p>}>
-            <table class="fields-index"><thead><tr><th scope="col">Name</th><th scope="col" class="fields-kind">Kind</th><th scope="col" class="fields-count">Used by</th><th scope="col">Templates</th></tr></thead><tbody>
+            <table class="fields-index"><thead><tr><th scope="col">Name</th><th scope="col" class="fields-kind">Format</th><th scope="col" class="fields-count">Used by</th><th scope="col">Templates</th></tr></thead><tbody>
               <For each={pageFields()}>{field => <tr tabIndex={0} aria-selected={selected() === field.id} onClick={event => { if (!(event.target as HTMLElement).closest('button')) selectDefinition(field, opensBeside(event)); }} onDblClick={event => openDefinition(field, opensBeside(event))} onKeyDown={event => {
                 if (event.target !== event.currentTarget) return;
                 if (event.key === 'Enter') { event.preventDefault(); openDefinition(field, opensBeside(event)); }
@@ -149,7 +149,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
                 }
               }}>
                 <td data-label="Name"><Button class="field-name" title={`Open ${field.name} · ${besideHint}`} onClick={event => selectDefinition(field, opensBeside(event), event.detail === 0)}>{field.name}</Button></td>
-                <td data-label="Kind"><Button class="fields-kind-button" aria-label={`Kind for ${field.name}: ${kindLabels[field.kind]}`} aria-haspopup="menu" aria-expanded={kindMenu()?.field.id === field.id} disabled={!ready()} onClick={event => setKindMenu({ field, anchor: event.currentTarget })}>{kindLabels[field.kind]} <Icon name="down" /></Button></td>
+                <td data-label="Format"><Button class="fields-kind-button" aria-label={`Format for ${field.name}: ${kindLabels[field.kind]}`} aria-haspopup="menu" aria-expanded={kindMenu()?.field.id === field.id} disabled={!ready()} onClick={event => setKindMenu({ field, anchor: event.currentTarget })}>{kindLabels[field.kind]} <Icon name="down" /></Button></td>
                 <td data-label="Used by" class="fields-count"><Show when={field.owners} fallback={<span class="fields-unused" title="No atom uses this field yet">Unused</span>}><Button label={`Show atoms with ${field.name}`} title={`Atoms using ${field.name}: ${field.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: field.id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{field.owners}</Button></Show></td>
                 <td data-label="Templates"><div class="fields-types"><For each={field.types} fallback={<span class="fields-unused">None</span>}>{type => <button type="button" class="outline-tag" title={`Open ${type.name} table · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: type.id, viewId: null, query: typeQuery(type.id) }, opensBeside(event))}>#{type.name}</button>}</For></div></td>
               </tr>}</For>
@@ -159,19 +159,19 @@ function DefinitionsPane(props: FieldsPaneProps) {
       </Show>
       </div><Show when={wide() && selected()}>{id => <FieldDetails fieldId={id()} previewKind={previewKind()} inspector notebook={props.notebook} document={doc()} onPreview={setPreviewKind} onOpen={props.onOpen} />}</Show></div>
     </div>
-    <footer class="fields-footer"><span role="status">{visibleFields().length} of {fields().length} fields</span><Show when={visibleFields().length > 100}><div><Button disabled={!page()} onClick={() => setPage(value => value - 1)}>Previous</Button><span>Page {page() + 1}</span><Button disabled={(page() + 1) * 100 >= visibleFields().length} onClick={() => setPage(value => value + 1)}>Next</Button></div></Show><span class="fields-hint">Changing kind leaves value text unchanged.</span></footer>
-    <Show keyed when={kindMenu()}>{state => <Menu anchor={state.anchor} label={`Kind for ${state.field.name}`} onDismiss={() => setKindMenu(null)} items={(Object.keys(kindLabels) as FieldKind[]).map(kind => ({ label: kindLabels[kind], icon: kind === state.field.kind ? 'check' : undefined, action: () => changeKind(state.field, kind) }))} />}</Show>
+    <footer class="fields-footer"><span role="status">{visibleFields().length} of {fields().length} fields</span><Show when={visibleFields().length > 100}><div><Button disabled={!page()} onClick={() => setPage(value => value - 1)}>Previous</Button><span>Page {page() + 1}</span><Button disabled={(page() + 1) * 100 >= visibleFields().length} onClick={() => setPage(value => value + 1)}>Next</Button></div></Show><span class="fields-hint">Changing format leaves value text unchanged.</span></footer>
+    <Show keyed when={kindMenu()}>{state => <Menu anchor={state.anchor} label={`Format for ${state.field.name}`} onDismiss={() => setKindMenu(null)} items={(Object.keys(kindLabels) as FieldKind[]).map(kind => ({ label: kindLabels[kind], icon: kind === state.field.kind ? 'check' : undefined, action: () => changeKind(state.field, kind) }))} />}</Show>
     <Show when={creating()}>{anchor => <Popup anchor={anchor()} label="New field" class="fields-new" fitContent onDismiss={closeCreation}>
       <h2 class="popup-title">New field</h2>
       <form onSubmit={event => { event.preventDefault(); addField(); }}>
         <div class="field-create-fields">
           <label>Name<input class="input" value={newName()} maxLength={60} ref={input => queueMicrotask(() => input.focus())} onInput={event => { setNewName(event.currentTarget.value); setCreateError(''); }} /></label>
-          <label>Kind<Button aria-label={`Kind: ${kindLabels[newKind()]}`} aria-haspopup="menu" aria-expanded={!!newKindMenu()} onClick={event => setNewKindMenu(event.currentTarget)}>{kindLabels[newKind()]} <Icon name="down" /></Button></label>
+          <label>Format<Button aria-label={`Format: ${kindLabels[newKind()]}`} aria-haspopup="menu" aria-expanded={!!newKindMenu()} onClick={event => setNewKindMenu(event.currentTarget)}>{kindLabels[newKind()]} <Icon name="down" /></Button></label>
         </div>
         <Show when={createError()}><p class="error" role="alert">{createError()}</p></Show>
         <div class="popup-actions"><Button onClick={closeCreation}>Cancel</Button><Button type="submit" class="bordered" disabled={!ready() || !newName().trim()}>Add field</Button></div>
       </form>
-      <Show when={newKindMenu()}>{kindAnchor => <Menu anchor={kindAnchor()} label="Kind" onDismiss={() => setNewKindMenu(null)} items={(Object.keys(kindLabels) as FieldKind[]).map(kind => ({ label: kindLabels[kind], icon: kind === newKind() ? 'check' : undefined, action: () => setNewKind(kind) }))} />}</Show>
+      <Show when={newKindMenu()}>{kindAnchor => <Menu anchor={kindAnchor()} label="Format" onDismiss={() => setNewKindMenu(null)} items={(Object.keys(kindLabels) as FieldKind[]).map(kind => ({ label: kindLabels[kind], icon: kind === newKind() ? 'check' : undefined, action: () => setNewKind(kind) }))} />}</Show>
     </Popup>}</Show>
   </div>;
 }

@@ -650,7 +650,7 @@ describe('real notebook operations and recovery', () => {
           await (doc as Document).reload();
           expect(doc.block(first)).toBeUndefined();
           const queued = instance.queuedChanges();
-          expect(doc.edit({ kind: 'keptCopy', id: copy.id, choice: 'use' })).toEqual({ ok: false, reason: 'The original is not on this page. Both versions are unchanged.' });
+          expect(doc.edit({ kind: 'keptCopy', id: copy.id, choice: 'use' })).toEqual({ ok: false, reason: 'The original is not on this atom. Both versions are unchanged.' });
           expect(instance.queuedChanges()).toBe(queued);
           expect((await api.block(first)).text).toBe('Notebook wording');
           expect((await api.block(copy.id)).text).toBe('Phone wording');

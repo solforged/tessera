@@ -509,7 +509,7 @@ function TableContent(props: TablePaneProps) {
       ...(props.target.viewId ? [
         ...(changed() ? [{ label: 'Save changes', disabledReason: savingView() ? 'Saving…' : undefined, action: () => { void saveChanges().catch(message); } }, { label: 'Revert changes', action: () => { const value = saved(); if (value) switchView(value); } }] : []),
         { label: 'Rename view…', disabledReason: !saved() ? 'Loading…' : undefined, action: () => setPopup({ kind: 'name', anchor, action: 'rename' }) },
-        { label: 'Embed on page…', disabledReason: !saved() ? 'Loading…' : undefined, action: () => { const view = saved(); if (view) setPopup({ kind: 'embed-page', anchor, view }); } },
+        { label: 'Embed on atom…', disabledReason: !saved() ? 'Loading…' : undefined, action: () => { const view = saved(); if (view) setPopup({ kind: 'embed-page', anchor, view }); } },
         { label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view', icon: 'trash' as const, danger: true, disabledReason: !saved() ? 'Loading…' : undefined, action: () => { const view = saved(); if (view) { setError(''); if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, view }); else void deleteView(view); } } },
       ] : []),
     ],
@@ -580,7 +580,7 @@ function TableContent(props: TablePaneProps) {
     if (!text) { setError('A title cannot be empty.'); return; }
     const id = current.row.block.block.id;
     const duplicate = current.row.block.block.kind !== 'block' && props.notebook.roots().some(root => root.id !== id && root.text.toLocaleLowerCase() === text.toLocaleLowerCase());
-    if (duplicate) { setError('A page already has that title.'); return; }
+    if (duplicate) { setError('An atom already has that title.'); return; }
     setRenaming(null);
     if (returnFocus) focusCell(id, null);
     const pending = withDocument(current.row.block.page.id, async doc => {
@@ -601,7 +601,7 @@ function TableContent(props: TablePaneProps) {
     const block = row.block.block;
     try {
       if (block.kind !== 'block') {
-        if (!props.onDeletePages) throw new Error('Page deletion is unavailable.');
+        if (!props.onDeletePages) throw new Error('Atom deletion is unavailable.');
         await props.onDeletePages([{ id: block.id, title: block.text }]);
       } else await withDocument(row.block.page.id, async doc => {
         const removed = doc.edit({ kind: 'delete', ids: [block.id] });
@@ -620,7 +620,7 @@ function TableContent(props: TablePaneProps) {
       { label: 'Open', action: () => openRow(row, false) },
       { label: 'Open beside', action: () => openRow(row, true) },
       { label: 'Rename…', action: () => startRename(row) },
-      { label: 'Delete…', icon: 'trash', danger: true, disabledReason: row.block.block.kind !== 'block' && !props.onDeletePages ? 'Page deletion is unavailable.' : undefined, action: () => { setError(''); setPopup({ kind: 'delete-row', anchor, row }); } },
+      { label: 'Delete…', icon: 'trash', danger: true, disabledReason: row.block.block.kind !== 'block' && !props.onDeletePages ? 'Atom deletion is unavailable.' : undefined, action: () => { setError(''); setPopup({ kind: 'delete-row', anchor, row }); } },
     ] });
   };
   const revealNewRow = async (target: Extract<OpenTarget, { kind: 'page' }>, beside: boolean) => {
@@ -630,7 +630,7 @@ function TableContent(props: TablePaneProps) {
     const id = target.pageId;
     await refreshCells();
     const row = result()?.rows.find(row => row.block.block.id === id);
-    setRowNotice({ id, title: props.notebook.lookup(id)()?.text ?? row?.block.block.text ?? 'Note' });
+    setRowNotice({ id, title: props.notebook.lookup(id)()?.text ?? row?.block.block.text ?? 'Atom' });
     if (row) {
       // Read-only attributes and phone cards have no inline field editor to receive focus.
       const field = target.caretId && !narrow() ? visibleColumns().map(fieldById).find(field => field && !field.id.startsWith('@') && !(row.values[field.id] ?? []).some(value => value.text.trim())) : undefined;
@@ -864,7 +864,7 @@ function TableContent(props: TablePaneProps) {
         onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}`, viewId: props.target.viewId, query: { ...copyQuery(query()), note_kind: typeKind()?.key ?? `type:${typeId()}`, note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, opensBeside(event))}
         onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, opensBeside(event))}
         onFields={event => props.onOpen({ kind: 'fields', typeId: typeId() }, opensBeside(event))} />}</Show>
-      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, opensBeside(event))}>Index <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button></div></Show>
+      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Atom view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, opensBeside(event))}>Index <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button></div></Show>
       <Show when={!narrow()}>{queryToolbar()}</Show>
       <Show when={narrow()}><div class="table-query-bar" style={{ left: `${dockBounds().left}px`, width: `${dockBounds().width}px` }}>
         <label class="table-query-find"><Icon name="search" /><input class="input" aria-label={`Find in ${title() || 'atoms'}`} placeholder={`Find in ${title() || 'atoms'}…`} value={query().text ?? ''} onInput={event => { setSearch(event.currentTarget.value); updateQuery({ ...query(), text: event.currentTarget.value.trim() || null, offset: 0 }); }} /></label>
@@ -884,7 +884,7 @@ function TableContent(props: TablePaneProps) {
         <span>{loading() ? 'Loading…' : error() || (missingFields().length ? 'Results paused; remove the missing field or undo its deletion.' : `${(result()?.rows.length ?? 0).toLocaleString()} of ${membersLabel(result()?.total ?? 0)}`)}</span>
         <Show when={!loading() && canAppend()}><span aria-hidden="true">·</span><Button class="table-show-more" disabled={appending()} aria-busy={appending()} onClick={() => { void appendRows(); }}>Show {pageSize().toLocaleString()} more</Button></Show>
         <Show when={rowUndo()}><span>Row deleted ·</span><Button disabled={replaying()} onClick={() => { setRowUndo(false); void replayCell(false).catch(message); }}>Undo</Button></Show>
-        <Show when={rowNotice()}>{note => <><span>· {note().title}{result()?.rows.some(row => row.block.block.id === note().id) ? ' is in this table.' : ' was filed under this tag but does not match the current view.'}</span><Button onClick={event => props.onOpen({ kind: 'page', pageId: note().id }, opensBeside(event))}>Open note</Button><Button label="Dismiss row notice" onClick={() => setRowNotice(undefined)}>×</Button></>}</Show>
+        <Show when={rowNotice()}>{note => <><span>· {note().title}{result()?.rows.some(row => row.block.block.id === note().id) ? ' is in this table.' : ' was filed under this tag but does not match the current view.'}</span><Button onClick={event => props.onOpen({ kind: 'page', pageId: note().id }, opensBeside(event))}>Open atom</Button><Button label="Dismiss row notice" onClick={() => setRowNotice(undefined)}>×</Button></>}</Show>
         <Show when={viewUndo()}><span>View saved ·</span><Button disabled={replaying()} onClick={() => { void replayCell(false).catch(message); }}>Undo</Button></Show>
       </>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>
     </div>
@@ -898,10 +898,10 @@ function TableContent(props: TablePaneProps) {
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
       {state.kind === 'new-row' && rowKind() && <CreateSlip request={{ kind: rowKind()!.key === 'question' ? 'question' : `type:${rowKind()!.key}`, text: '', lockKind: true }} anchor={state.anchor} notebook={props.notebook} onDismiss={() => setPopup(null)} defaultBeside={window.matchMedia('(pointer: coarse)').matches && !!props.neighbour} onCreated={pageId => { history.push({ kind: 'created-row', pageId }); undone.length = 0; setViewUndo(false); setRowUndo(false); }} onOpen={(target, beside) => { if (target.kind === 'page') void revealNewRow(target, beside).catch(message); }} />}
-      {state.kind === 'delete-row' && <Popup anchor={state.anchor} placement={narrow() ? 'sheet' : 'anchor'} label={state.row.block.block.kind === 'block' ? 'Delete atom' : 'Delete page'} onDismiss={() => { if (!deleting()) setPopup(null); }}>
+      {state.kind === 'delete-row' && <Popup anchor={state.anchor} placement={narrow() ? 'sheet' : 'anchor'} label={state.row.block.block.kind === 'block' ? 'Delete atom' : 'Delete atom'} onDismiss={() => { if (!deleting()) setPopup(null); }}>
         <p>Delete “{plainText(state.row.block.block.text, id => props.notebook.lookup(id))}” and all its {state.row.block.block.kind === 'block' ? 'children' : 'atoms'}?</p><p class="muted">You can undo this deletion.</p>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
-        <div class="popup-actions"><Button disabled={deleting()} onClick={() => setPopup(null)}>Cancel</Button><Button class="bordered danger" disabled={deleting()} onClick={() => { void deleteRow(state.row); }}>Delete {state.row.block.block.kind === 'block' ? 'atom' : 'page'}</Button></div>
+        <div class="popup-actions"><Button disabled={deleting()} onClick={() => setPopup(null)}>Cancel</Button><Button class="bordered danger" disabled={deleting()} onClick={() => { void deleteRow(state.row); }}>Delete {state.row.block.block.kind === 'block' ? 'atom' : 'atom'}</Button></div>
       </Popup>}
       {state.kind === 'purpose' && <Popup anchor={state.anchor} label="View purpose" onDismiss={() => setPopup(null)}><form onSubmit={event => { event.preventDefault(); setPopup(null); }}><input class="input" aria-label="View purpose" value={query().purpose ?? ''} maxlength={240} onInput={event => updateQuery({ ...query(), purpose: event.currentTarget.value })} /><div class="popup-actions"><Button type="submit" class="bordered">Done</Button></div></form></Popup>}
       {state.kind === 'value' && <ValueEditor anchor={state.anchor} field={fieldById(state.field.id) ?? state.field} owner={{ id: state.row.block.block.id, page: state.row.block.page.id }} text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()}

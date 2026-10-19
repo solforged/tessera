@@ -597,7 +597,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
         id: `relation-${kind}`, title: `${relationLabels[kind]}…`, aliases: [kind, 'argument', 'relation'], section: 'Argument', icon: 'link',
         disabledReason: id => relationReason(doc.block(id)), relationKind: kind,
       })),
-      { id: 'relation-kind', title: 'Change kind', aliases: ['argument kind', 'relation kind'], section: 'Argument', icon: 'link', when: block => !!block?.relation, relationAction: 'change' },
+      { id: 'relation-kind', title: 'Change relation', aliases: ['argument relation', 'argument kind', 'relation kind'], section: 'Argument', icon: 'link', when: block => !!block?.relation, relationAction: 'change' },
       { id: 'remove-relation', title: 'Remove argument', section: 'Argument', icon: 'close', when: block => !!block?.relation, relationAction: 'remove' },
       { id: 'add-relation', title: 'Add argument…', section: 'Argument', icon: 'plus', when: block => !addRelationReason(block), relationAction: 'add' },
       ...(['question', 'assessment'] as const).map((kind): SlashItem => ({
@@ -621,7 +621,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'heading-normal', title: 'Normal text', aliases: ['paragraph'], section: 'Text', icon: 'edit', when: block => !!block?.heading, run: id => apply({ kind: 'heading', id, level: null }) },
       { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[]]', caret: 2 }) },
       { id: 'embed-view', title: 'Embed view', aliases: ['saved view', 'live table'], section: 'Text', icon: 'table', run: id => context.openViewEmbed(id) },
-      { id: 'quote', title: 'Quote block', aliases: ['quote', 'frozen'], section: 'Text', icon: 'link', keys: '((', when: block => { const state = slashCompletion(); return !!state && !removeToken(block?.text ?? '', state).text.trim(); }, insert: () => ({ text: '(())', caret: 2 }) },
+      { id: 'quote', title: 'Quote', aliases: ['quote', 'frozen'], section: 'Text', icon: 'link', keys: '((', when: block => { const state = slashCompletion(); return !!state && !removeToken(block?.text ?? '', state).text.trim(); }, insert: () => ({ text: '(())', caret: 2 }) },
       { id: 'tag', title: 'Tag', aliases: ['type', 'supertag', 'label'], section: 'Text', icon: 'tag', keys: '#', secondary: 'What this atom is; a new name makes a new tag', insert: () => ({ text: '#', caret: 1 }) },
       { id: 'field', title: 'Field…', aliases: ['property', 'attribute', 'value'], section: 'Text', icon: 'field', keys: '::', secondary: 'A named value on this atom', run: id => context.pickField(id, context.rowAnchor(id) ?? document.body) },
       { id: 'card', title: 'Card', aliases: ['flashcard'], section: 'Cards', icon: 'right', keys: '>>', cardKind: 'forward' },
@@ -652,10 +652,10 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     return { text: rest, caret: next };
   }
 function CompletionPopups(){ return <>
-    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.relationTarget ? 'Relation target' : completion()?.manual ? 'Add tag…' : completion()?.types ? 'Tag' : completion()?.fields ? 'Field' : completion()?.quote ? 'Quote block' : completion()?.blocks ? 'Atom reference' : 'Reference completion'} role={completion()?.manual || completion()?.relationTarget ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!(completion()?.manual || completion()?.relationTarget)}>
+    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.relationTarget ? 'Relation target' : completion()?.manual ? 'Add tag…' : completion()?.types ? 'Tag' : completion()?.fields ? 'Field' : completion()?.quote ? 'Quote' : completion()?.blocks ? 'Atom reference' : 'Reference completion'} role={completion()?.manual || completion()?.relationTarget ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!(completion()?.manual || completion()?.relationTarget)}>
       <Show when={completion()?.manual || completion()?.relationTarget}><div class="picker-query"><Icon name={completion()?.relationTarget ? 'link' : 'tag'} class="picker-prefix" /><input class="picker-input" aria-label={completion()?.relationTarget ? 'Relation target' : 'Tag title'} placeholder={completion()?.relationTarget ? 'Find a target' : 'Tag title'} value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
       <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
-        <Show when={completion()?.blocks}><div class="picker-section">{completion()?.quote ? 'Quote block' : 'Atom reference'}</div></Show>
+        <Show when={completion()?.blocks}><div class="picker-section">{completion()?.quote ? 'Quote' : 'Atom reference'}</div></Show>
         <Show when={quoteBusy()}><p class="empty-state" role="status">Capturing quote…</p></Show>
         <Show when={completionKey() && matches.loading && !completionRows().length && !canCreate()}><p class="empty-state">Searching…</p></Show>
         <Show when={completionKey() && matches.error}><p class="error" role="alert">Couldn't load completion.</p></Show>
@@ -666,7 +666,7 @@ function CompletionPopups(){ return <>
           }}</Show>
           <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">{completion()?.fields ? kindLabels[field().kind] : 'Field'}</span></>}</Show>
         </div>}</For>
-        <Show when={canCreate()}><div role="option" aria-selected={pickable(completionRows().length)} class="picker-row" classList={{ selected: pickable(completionRows().length) }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">{completion()?.fields ? 'Create field' : completion()?.types ? 'Create tag' : 'Create page'} “{completion()?.query.trim()}”</span></div></Show>
+        <Show when={canCreate()}><div role="option" aria-selected={pickable(completionRows().length)} class="picker-row" classList={{ selected: pickable(completionRows().length) }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">{completion()?.fields ? 'Create field' : completion()?.types ? 'Create tag' : 'Create atom'} “{completion()?.query.trim()}”</span></div></Show>
         <Show when={!(completionKey() && (matches.loading || matches.error)) && !canCreate() && !completionRows().length}><p class="empty-state">{
           completion()?.fields ? 'Type a field name.' : completion()?.blocks && !completion()?.query.trim() ? 'Type to search atoms.' : 'No matching atoms.'
         }</p></Show>

@@ -427,7 +427,7 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
             id, snapshot_id, ..
         } => {
             if source(conn, id)?.is_none() {
-                return Err(validation("The page is not an active source."));
+                return Err(validation("This atom is not an active source."));
             }
             if !conn.query_row(
                 "SELECT EXISTS(

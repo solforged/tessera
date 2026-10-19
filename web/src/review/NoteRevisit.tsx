@@ -51,7 +51,7 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
     <Show when={changed()}><span>Changed after resolution</span></Show>
     <Show when={history()}><Button disabled={busy()} onClick={() => { void travel(); }}>{undone() ? 'Redo revisit' : 'Undo revisit'}</Button></Show>
     <Show when={error()}><span class="error" role="alert">{error()}</span></Show>
-    <Show keyed when={menu()}>{anchor => <Menu anchor={anchor} label="Note revisit" onDismiss={() => setMenu(undefined)} items={[
+    <Show keyed when={menu()}>{anchor => <Menu anchor={anchor} label="Revisit" onDismiss={() => setMenu(undefined)} items={[
       { label: 'Set revisit date…', action: () => setPicker(anchor) },
       { label: note().resolved_at ? 'Reopen' : 'Resolve', action: () => { void change(note().resolved_at ? 'reopen' : 'resolve', null).catch(() => {}); } },
     ]} />}</Show>

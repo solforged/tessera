@@ -175,7 +175,7 @@ export function ComparePane(props: ComparePaneProps) {
           </div>
         </Show>
         <Show when={tab() === 'readings'}>
-        <Show when={perspectives().length >= 2} fallback={<p class="empty-state">Compare needs two or more perspectives filed under this page. Make an atom a perspective from its menu and write its Gist beneath it.</p>}>
+        <Show when={perspectives().length >= 2} fallback={<p class="empty-state">Compare needs two or more perspectives filed under this atom. Make an atom a perspective from its menu and write its Gist beneath it.</p>}>
           <div class="compare-readings" style={{ '--reading-count': selected().length }}><For each={selected()}>{perspective => {
             const page = perspective.row.block.page.id;
             const id = perspective.row.block.block.id;
@@ -195,8 +195,8 @@ export function ComparePane(props: ComparePaneProps) {
             </article>;
           }}</For></div>
         </Show></Show>
-          <Show when={questions().length}><section class="compare-questions" aria-label="Questions on this page">
-            <h3>Questions on this page</h3><For each={questions()}>{question => <div class="compare-question"><Button onClick={() => focusQuestion(question.block.block.id)}><BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} /></Button><Button onClick={event => open(question.block.page.id, question.block.block.id, opensBeside(event))}>Open original</Button></div>}</For>
+          <Show when={questions().length}><section class="compare-questions" aria-label="Questions on this atom">
+            <h3>Questions on this atom</h3><For each={questions()}>{question => <div class="compare-question"><Button onClick={() => focusQuestion(question.block.block.id)}><BlockText text={question.block.block.text} notebook={props.notebook} interactive={false} /></Button><Button onClick={event => open(question.block.page.id, question.block.block.id, opensBeside(event))}>Open original</Button></div>}</For>
           </section></Show>
       </Show>
     </div>

@@ -118,7 +118,7 @@ const SELECTING = '.index-selectable, .index-queue-row, .index-source-row, .libr
 const mac = /Mac|iPhone|iPad/.test(navigator.platform);
 const SAVE_NOTICE_DELAY = 1000;
 /** The Index's finding-aid heads, in order; spreads follow under their own head. */
-const shelves: readonly (readonly [Shelf, string])[] = [['notes', 'Notes'], ['sources', 'Sources'], ['work', 'Work'], ['tags', 'Tags'], ['loose', 'Loose']];
+const shelves: readonly (readonly [Shelf, string])[] = [['notes', 'Atoms'], ['sources', 'Sources'], ['work', 'Work'], ['tags', 'Tags'], ['loose', 'Loose']];
 
 /** Views are snapshots: fold arrays and caret/scroll objects never alias history. */
 function copyView(view: ViewState): ViewState {
@@ -483,11 +483,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   };
   const deletePage = async (pane: PaneId) => {
     const pageId = pageIdOf(entry(pane)); if (!pageId) return;
-    const title = notebook.lookup(pageId)()?.text ?? notebook.roots().find(block => block.id === pageId)?.text ?? 'Page';
+    const title = notebook.lookup(pageId)()?.text ?? notebook.roots().find(block => block.id === pageId)?.text ?? 'Atom';
     try { await deletePages([{ id: pageId, title }], undefined, true); setPopup(null); } catch (reason) { reportError(reason); }
   };
   /** Delete pages in one undoable step, and move panes showing them, or reading their sources, to another page. Undo reopens a page deleted from its own menu. */
-  const deletePages = async (pages: { id: string; title: string }[], label = pages.length === 1 ? `“${pages[0]!.title}”` : `${pages.length} pages`, reopen = false) => {
+  const deletePages = async (pages: { id: string; title: string }[], label = pages.length === 1 ? `“${pages[0]!.title}”` : `${pages.length} atoms`, reopen = false) => {
     const capabilities = await Promise.all(pages.map(page => notebook.api.capabilities(page.id)));
     for (let index = 0; index < pages.length; index++) {
       const reason = builtInTagReason(pages[index]!.title, capabilities[index], 'delete');
@@ -497,8 +497,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     try { for (const page of pages) { await notebook.deletePage(page.id); done.push(page); } }
     finally {
       if (done.length) {
-        const message = `${done.length === pages.length ? label : `${done.length} pages`} deleted`;
-        setDeleted({ pages: done, label: done.length === pages.length ? label : `${done.length} pages`, reopen });
+        const message = `${done.length === pages.length ? label : `${done.length} atoms`} deleted`;
+        setDeleted({ pages: done, label: done.length === pages.length ? label : `${done.length} atoms`, reopen });
         showNotice({ message, actions: [{ label: 'Undo', run: restorePage }] });
         const remaining = notebook.roots().find(block => !ids.has(block.id));
         const previousDay = new Date(`${todayDate()}T12:00:00`);
@@ -522,7 +522,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const deleteDisabledReason = (pane: PaneId) => {
     const id = pageIdOf(entry(pane));
     const title = notebook.lookup(id ?? '')()?.text ?? rootById().get(id ?? '')?.text ?? '';
-    return deleteCapabilities.error ? String(deleteCapabilities.error) : !deleteCapabilities() ? 'Page is still loading.' : builtInTagReason(title, deleteCapabilities(), 'delete');
+    return deleteCapabilities.error ? String(deleteCapabilities.error) : !deleteCapabilities() ? 'Atom is still loading.' : builtInTagReason(title, deleteCapabilities(), 'delete');
   };
   const restorePage = async () => {
     const latest = retainedDeletions.error ? undefined : retainedDeletions()?.[0]?.block;
@@ -695,7 +695,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.shortcuts', title: 'Keys and syntax', section: 'Navigation', keys: ['⌘/'], keywords: ['shortcuts', 'keyboard', 'help', 'cheat sheet'], run: () => setPopup({ kind: 'shortcuts', anchor: document.body, pane: active() }) },
     { id: 'shell.settings', title: 'Open settings', section: 'Navigation', run: () => open({ kind: 'settings' }) },
     { id: 'shell.today', title: 'Open today’s journal', section: 'Navigation', keys: ['⌃⇧J'], run: () => { void today(); } },
-    { id: 'shell.capture', title: 'Add to today', section: 'Create', keys: ['⌘E'], keywords: ['capture', 'quick note', 'inbox', 'journal'], run: () => openCreate(blankCapture()) },
+    { id: 'shell.capture', title: 'Add to today', section: 'Create', keys: ['⌘E'], keywords: ['capture', 'quick atom', 'quick note', 'inbox', 'journal'], run: () => openCreate(blankCapture()) },
     { id: 'shell.fields', title: 'Open fields', section: 'Navigation', run: () => open({ kind: 'fields' }) },
     { id: 'shell.agenda', title: 'Open agenda', section: 'Navigation', run: () => open({ kind: 'agenda', date: journalDate(active()) }) },
     { id: 'shell.review', title: 'Open review', section: 'Navigation', run: () => open({ kind: 'review' }) },
@@ -705,13 +705,13 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.previous-day', title: 'Previous journal day', section: 'Navigation', run: () => shiftDate(-1) },
     { id: 'shell.next-day', title: 'Next journal day', section: 'Navigation', run: () => shiftDate(1) },
     { id: 'shell.calendar', title: 'Choose journal date', section: 'Navigation', run: () => chooseDate() },
-    { id: 'shell.back', title: 'Back', section: 'Navigation', keys: ['⌃⇧H'], disabledReason: () => (sessions()[active()]?.index ?? 0) <= 0 ? 'No earlier page in this pane' : undefined, run: () => travel(active(), -1) },
-    { id: 'shell.forward', title: 'Forward', section: 'Navigation', keys: ['⌃⇧L'], disabledReason: () => { const session = sessions()[active()]; return !session || session.index >= session.entries.length - 1 ? 'No later page in this pane' : undefined; }, run: () => travel(active(), 1) },
+    { id: 'shell.back', title: 'Back', section: 'Navigation', keys: ['⌃⇧H'], disabledReason: () => (sessions()[active()]?.index ?? 0) <= 0 ? 'No earlier atom in this pane' : undefined, run: () => travel(active(), -1) },
+    { id: 'shell.forward', title: 'Forward', section: 'Navigation', keys: ['⌃⇧L'], disabledReason: () => { const session = sessions()[active()]; return !session || session.index >= session.entries.length - 1 ? 'No later atom in this pane' : undefined; }, run: () => travel(active(), 1) },
     { id: 'shell.page-beside', title: 'Open active view beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openPageBeside() },
     { id: 'shell.switch', title: 'Next pane', section: 'View', keys: ['⌃⇧]'], disabledReason: () => !split() ? 'Open a second pane first' : undefined, run: switchPane },
     { id: 'shell.agent', title: 'Show or hide the agent', section: 'View', keys: ['⌃⇧A'], disabledReason: () => DEMO ? 'The agent needs the Tessera app' : undefined, run: () => toggleDock() },
     { id: 'shell.close', title: 'Close active pane', section: 'View', keys: ['⌃⇧X'], disabledReason: () => !split() ? 'Only one pane is open' : undefined, run: () => closePane(active()) },
-    { id: 'shell.new', title: 'New page', section: 'Create', keys: document.documentElement.dataset.windowControls ? ['⌘N'] : undefined, keywords: ['page', 'note', 'create'], run: () => openCreate({ kind: 'note', text: '', into: { kind: 'page' } }) },
+    { id: 'shell.new', title: 'New atom', section: 'Create', keys: document.documentElement.dataset.windowControls ? ['⌘N'] : undefined, keywords: ['page', 'note', 'create'], run: () => openCreate({ kind: 'note', text: '', into: { kind: 'page' } }) },
     { id: 'create.question', title: 'New question', section: 'Create', keys: ['⌥⌘N'], keywords: ['ask', 'inquiry'], run: () => openCreate({ kind: 'question', text: '' }) },
     { id: 'create.project', title: 'New project', section: 'Create', run: () => openCreate({ kind: 'project', text: '' }) },
     { id: 'create.task', title: 'New task', section: 'Create', keywords: ['todo'], run: () => openCreate({ kind: 'task', text: '', into: { kind: 'journal' } }) },
@@ -719,10 +719,10 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'create.source', title: 'Add source', section: 'Create', keywords: ['book', 'article', 'paper', 'library', 'import', 'isbn'], run: () => openCreate({ kind: 'source', text: '' }) },
     { id: 'shell.new-spread', title: 'New spread', section: 'Page', run: (beside = false) => open({ kind: 'spread', noteIds: [] }, beside) },
     { id: 'shell.new-view', title: 'New view…', section: 'View', run: () => setPopup({ kind: 'new-view', anchor: searchButton, pane: active() }) },
-    { id: 'shell.pin', title: 'Pin / unpin page', section: 'Page', run: () => { const root = activeRoot(); if (root) pin(root.id); } },
-    { id: 'shell.delete', title: 'Delete page', section: 'Page', run: () => { const anchor = document.querySelector<HTMLButtonElement>(`[data-pane="${active()}"] .page-menu-button`); if (anchor) setPopup({ kind: 'delete', anchor, pane: active() }); } },
-    { id: 'shell.restore-page', title: 'Undo page deletion', section: 'Page', disabledReason: () => deleted() ? undefined : retainedDeletions.error ? 'Could not read deleted pages' : retainedDeletions.loading ? 'Loading deleted pages…' : retainedDeletions()?.length ? undefined : 'No deleted page to restore', run: () => { void restorePage(); } },
-    { id: 'shell.deleted-pages', title: 'Restore deleted page…', section: 'Page', run: () => setPopup({ kind: 'restore-pages', anchor: searchButton, pane: active() }) },
+    { id: 'shell.pin', title: 'Pin / unpin atom', section: 'Page', run: () => { const root = activeRoot(); if (root) pin(root.id); } },
+    { id: 'shell.delete', title: 'Delete atom', section: 'Page', run: () => { const anchor = document.querySelector<HTMLButtonElement>(`[data-pane="${active()}"] .page-menu-button`); if (anchor) setPopup({ kind: 'delete', anchor, pane: active() }); } },
+    { id: 'shell.restore-page', title: 'Undo atom deletion', section: 'Page', disabledReason: () => deleted() ? undefined : retainedDeletions.error ? 'Could not read deleted atoms' : retainedDeletions.loading ? 'Loading deleted atoms…' : retainedDeletions()?.length ? undefined : 'No deleted atom to restore', run: () => { void restorePage(); } },
+    { id: 'shell.deleted-pages', title: 'Restore deleted atom…', section: 'Page', run: () => setPopup({ kind: 'restore-pages', anchor: searchButton, pane: active() }) },
     { id: 'shell.review-conflict', title: 'Review workshop conflict', section: 'Editing', disabledReason: () => notebook.conflictedPages().length ? undefined : 'No conflicting atoms', run: reviewConflict },
     { id: 'shell.retry', title: 'Retry saving', section: 'Editing', disabledReason: () => notebook.saveState() === 'saved' && notebook.connection() === 'live' ? 'All changes are saved' : undefined, run: () => notebook.retry() },
     { id: 'shell.copy-unsaved', title: 'Copy unsaved text', section: 'Editing', disabledReason: () => notebook.localPersistence() === 'failed' || notebook.rejectedText() ? undefined : 'Local recovery storage is working', run: () => { void navigator.clipboard.writeText(notebook.rejectedText() || notebook.unsavedText()).catch(reportError); } },
@@ -1037,7 +1037,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <header class="sidebar-masthead">
         <span class="wordmark" title={info()?.path}>Tessera</span>
         <Button class="icon-only" icon="sidebar" label="Close sidebar" onClick={toggleSidebar} />
-        <Show when={index()}>{value => <span class="sidebar-masthead-count">{`${value().notes.toLocaleString()} ${value().notes === 1 ? 'note' : 'notes'}`}</span>}</Show>
+        <Show when={index()}>{value => <span class="sidebar-masthead-count">{`${value().notes.toLocaleString()} ${value().notes === 1 ? 'atom' : 'atoms'}`}</span>}</Show>
       </header>
       <nav class="primary-navigation" aria-label="Workshop">
         <Button icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), opensBeside(event)); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>
@@ -1051,7 +1051,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <ViewLinks views={pinnedViewList()} pinned activeId={activeViewId()} onOpen={openView} onPin={pinView} />
       </section></Show>
       <Show when={index()?.kinds.length}><section class="page-list index-list" aria-label="Index">
-        <h2><span class="section-number">{sectionNumber('index')}</span><button type="button" class="index-directory-link" aria-current={activeKindKey() === 'all' ? 'page' : undefined} title="Open Index" onClick={event => open({ kind: 'index', key: 'all' }, opensBeside(event))}>Index</button><span class="section-rule" /><Show when={index()!.notes}>{notes => <span class="section-count" title={`${notes().toLocaleString()} ${notes() === 1 ? 'note' : 'notes'} filed`}>{notes().toLocaleString()}</span>}</Show></h2>
+        <h2><span class="section-number">{sectionNumber('index')}</span><button type="button" class="index-directory-link" aria-current={activeKindKey() === 'all' ? 'page' : undefined} title="Open Index" onClick={event => open({ kind: 'index', key: 'all' }, opensBeside(event))}>Index</button><span class="section-rule" /><Show when={index()!.notes}>{notes => <span class="section-count" title={`${notes().toLocaleString()} ${notes() === 1 ? 'atom' : 'atoms'} filed`}>{notes().toLocaleString()}</span>}</Show></h2>
         {/* Kinds sit on shelves, as a finding aid's heads; kinds re-arrive as fresh objects after each change, so Index keeps rows mounted by position. */}
         <For each={shelves}>{([shelf, label]) => <Show when={shelf === 'notes' || shelfKinds()[shelf]?.length}>
           <h3 class="index-shelf">{label}</h3>
@@ -1076,7 +1076,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       </section>
       <details class="page-list" open>
         <summary><span class="section-number">{sectionNumber('recent')}</span>Recent<span class="section-rule" /><Icon name="down" /></summary>
-        <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Pages you open appear here</p>}><PageLinks roots={recentRoots()} sourceIcons notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
+        <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Atoms you open appear here</p>}><PageLinks roots={recentRoots()} sourceIcons notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
       </details>
       <div class="sidebar-foot">
         <NotebookSwitcher notebook={notebook} onOpen={target => open(target)} onError={reportError} />
@@ -1169,11 +1169,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <DeletedPages anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onRestored={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />
       </Show>
       <Show when={state.kind === 'delete'}>
-        <Popup anchor={state.anchor} label="Delete page" onDismiss={() => setPopup(null)} width={300} fitContent>
+        <Popup anchor={state.anchor} label="Delete atom" onDismiss={() => setPopup(null)} width={300} fitContent>
           <p>Delete “{notebook.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ?? rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}” and {state.source ? 'its highlights' : 'all its atoms'}?</p>
           <HolderDeletionImpact notebook={notebook} pageId={pageIdOf(entry(state.pane))} />
-          <p class="muted">Undo this deletion, or use Restore deleted page in Commands after reloading.</p>
-          <div class="popup-actions"><Button onClick={() => setPopup(null)}>Cancel</Button><Button icon="trash" class="danger bordered" disabled={!!deleteDisabledReason(state.pane)} title={deleteDisabledReason(state.pane)} onClick={() => { void deletePage(state.pane); }}>Delete page</Button></div>
+          <p class="muted">Undo this deletion, or use Restore deleted atom in Commands after reloading.</p>
+          <div class="popup-actions"><Button onClick={() => setPopup(null)}>Cancel</Button><Button icon="trash" class="danger bordered" disabled={!!deleteDisabledReason(state.pane)} title={deleteDisabledReason(state.pane)} onClick={() => { void deletePage(state.pane); }}>Delete atom</Button></div>
         </Popup>
       </Show>
       <Show when={state.kind === 'layout'}>
@@ -1346,18 +1346,18 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   };
   const projectionReason = (value: PageProjection) => {
     if (value !== 'read' || readerTarget()) return undefined;
-    if (doc()?.status() !== 'ready') return doc()?.status() === 'missing' || doc()?.status() === 'error' ? 'The page is unavailable.' : 'Read is unavailable while the page is loading.';
+    if (doc()?.status() !== 'ready') return doc()?.status() === 'missing' || doc()?.status() === 'error' ? 'The atom is unavailable.' : 'Read is unavailable while the atom is loading.';
     const zoom = outlineView().zoom;
-    if (!zoom) return root()?.kind === 'page' ? undefined : 'Only titled pages have projections.';
+    if (!zoom) return root()?.kind === 'page' ? undefined : 'Only titled atoms have projections.';
     const block = doc()?.block(zoom);
-    if (!block?.position) return 'This zoom is not a perspective. Open its page to use Read.';
+    if (!block?.position) return 'This zoom is not a perspective. Open its containing outline to use Read.';
     if (doc()?.isArchived(zoom)) return 'This perspective is archived. Restore it to use Read.';
     const subject = readSubject();
     if (subject === undefined) return 'The perspective’s subject is loading.';
     if (!subject || subject.archived) return 'The perspective’s subject is unavailable.';
     const page = subject.id === subject.page_id ? subject : props.notebook.lookup(subject.page_id)();
-    if (page === undefined) return 'The perspective’s subject page is loading.';
-    if (!page || page.archived) return 'The perspective’s subject page is unavailable.';
+    if (page === undefined) return 'The perspective’s subject atom is loading.';
+    if (!page || page.archived) return 'The perspective’s subject atom is unavailable.';
     if (page.kind !== 'page') return 'Read needs a titled subject. File this perspective under a concept or question.';
     return undefined;
   };
@@ -1400,11 +1400,11 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   const compareReason = () => {
     const page = doc();
     if (!readerTarget()) return outlineCommand('compare')?.disabledReason?.()?.replace(/\.$/, '');
-    return page?.status() !== 'ready' ? 'Page is unavailable' : localPositionCount(page) < 2 ? 'Compare needs two perspectives on this page' : undefined;
+    return page?.status() !== 'ready' ? 'Atom is unavailable' : localPositionCount(page) < 2 ? 'Compare needs two perspectives on this atom' : undefined;
   };
   // Journals and other untitled roots have no projections, so their zooms carry neither the tabs nor Read's reason.
   const projectionTabsShown = () => root()?.kind === 'page' || !!outlineView().zoom && !!doc()?.block(outlineView().zoom!)?.position;
-  const ProjectionTabs = () => <div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Page projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} aria-describedby={value === 'read' && projectionReason(value) ? `read-reason-${props.pane}` : undefined} onClick={event => setProjection(value, opensBeside(event))}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div>;
+  const ProjectionTabs = () => <div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Atom projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} aria-describedby={value === 'read' && projectionReason(value) ? `read-reason-${props.pane}` : undefined} onClick={event => setProjection(value, opensBeside(event))}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div>;
   const breadcrumbs = createMemo(() => {
     const page = doc(); const zoom = 'zoom' in current().view ? outlineView().zoom : null; if (!page || !zoom) return [];
     const result = []; let block = page.block(zoom);
@@ -1440,7 +1440,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     ...(!root()?.task ? [{ label: 'Task', icon: 'select', disabledReason: outlineCommand('task-root')?.disabledReason?.(), action: () => rootCapability('task') } satisfies MenuItem] : []),
     ...(!root()?.project ? [{ label: 'Project', icon: 'flag', disabledReason: outlineCommand('project-root')?.disabledReason?.(), action: () => rootCapability('project') } satisfies MenuItem] : []),
     ...(titled() && !stream() ? [{ label: 'Stream', icon: 'link', disabledReason: outlineCommand('stream-root')?.disabledReason?.(), action: () => outlineCommand('stream-root')?.run() } satisfies MenuItem] : []),
-    ...(titled() && !root()?.question ? [{ label: 'Question', icon: 'question-open', disabledReason: root() ? undefined : 'Page is still loading', action: () => {
+    ...(titled() && !root()?.question ? [{ label: 'Question', icon: 'question-open', disabledReason: root() ? undefined : 'Atom is still loading', action: () => {
       const result = doc()?.edit({ kind: 'question', id: pageId()!, value: { unsettled: false, parked: false, accepted: null, review_on: null } });
       if (result && !result.ok) setCopyMessage(result.reason);
     } } satisfies MenuItem] : []),
@@ -1459,7 +1459,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     ] }) } satisfies MenuItem] : []),
     { label: 'Add field…', icon: 'field', divider: !titled(), disabledReason: outlineCommand('add-field-root')?.disabledReason?.(), action: () => outlineCommand('add-field-root')?.run() },
     { label: 'Tags…', icon: 'tag', disabledReason: outlineCommand('types-root')?.disabledReason?.(), action: () => outlineCommand('types-root')?.run() },
-    ...(makeItems().length ? [{ label: 'Make…', icon: 'plus', submenu: () => ({ title: 'Make', items: makeItems(), note: 'Each adds to this note and keeps its text.' }) } satisfies MenuItem] : []),
+    ...(makeItems().length ? [{ label: 'Make…', icon: 'plus', submenu: () => ({ title: 'Make', items: makeItems(), note: 'Each adds to this atom and keeps its text.' }) } satisfies MenuItem] : []),
     ...(root()?.task ? [{ label: 'Task…', icon: 'select', disabledReason: outlineCommand('task-root')?.disabledReason?.(), action: () => rootCapability('task') } satisfies MenuItem] : []),
     ...(root()?.project ? [{ label: 'Project…', icon: 'flag', disabledReason: outlineCommand('project-root')?.disabledReason?.(), action: () => rootCapability('project') } satisfies MenuItem] : []),
     ...(root()?.question ? [{ label: 'Question…', icon: 'question-open', disabledReason: outlineCommand('question-root')?.disabledReason?.(), action: () => outlineCommand('question-root')?.run() } satisfies MenuItem] : []),
@@ -1467,10 +1467,10 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       { label: 'Remove stream', icon: 'trash', danger: true, disabledReason: outlineCommand('stream-root')?.disabledReason?.(), action: () => outlineCommand('stream-root')?.run() },
     ] }) } satisfies MenuItem] : []),
     { label: 'Appearance…', icon: 'rows', divider: true, submenu: () => ({ title: 'Appearance', items: [
-      ...(projection() === 'outline' ? [{ label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Page is still loading', action: () => props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }) } satisfies MenuItem] : []),
+      ...(projection() === 'outline' ? [{ label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Atom is still loading', action: () => props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }) } satisfies MenuItem] : []),
       { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
     ] }) },
-    { label: 'Delete page…', icon: 'trash', divider: true, danger: true, disabledReason: builtInTagReason(root()?.text ?? '', doc()?.capabilities(pageId()!), 'delete'), action: () => props.onDelete(menuButton) },
+    { label: 'Delete atom…', icon: 'trash', divider: true, danger: true, disabledReason: builtInTagReason(root()?.text ?? '', doc()?.capabilities(pageId()!), 'delete'), action: () => props.onDelete(menuButton) },
   ];
   // The place or kind the pane shows, in the same glyphs the sidebar uses.
   const kindIcon = (): IconName => {
@@ -1499,7 +1499,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Icon class="pane-kind" name={kindIcon()} />
       <Show when={props.split}><span class="pane-number" aria-hidden="true">{props.number}</span></Show>
       <Show when={pageId()}>
-        <nav class="pane-breadcrumbs" aria-label="Page breadcrumbs" style={{ visibility: root() ? undefined : 'hidden' }}><Show when={root()?.source && !breadcrumbs().length}><Button class="breadcrumb-library" onClick={event => props.onOpen({ kind: 'library' }, opensBeside(event))}>Library</Button><span class="breadcrumb-separator">/</span></Show><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{plainText(block.text, id => props.notebook.lookup(id), undefined, block.position?.deleted_holder) || 'Empty atom'}</Button></>}</For></nav>
+        <nav class="pane-breadcrumbs" aria-label="Atom breadcrumbs" style={{ visibility: root() ? undefined : 'hidden' }}><Show when={root()?.source && !breadcrumbs().length}><Button class="breadcrumb-library" onClick={event => props.onOpen({ kind: 'library' }, opensBeside(event))}>Library</Button><span class="breadcrumb-separator">/</span></Show><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{plainText(block.text, id => props.notebook.lookup(id), undefined, block.position?.deleted_holder) || 'Empty atom'}</Button></>}</For></nav>
         <Show when={root()?.kind === 'journal'}><nav class="journal-navigation" aria-label="Journal navigation">
           <Button icon="left" label="Previous journal day" onClick={() => props.onShiftDate(-1)} />
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
@@ -1528,7 +1528,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
         <nav class="pane-breadcrumbs" aria-label="Field breadcrumbs"><Button onClick={event => props.onOpen({ kind: 'fields' }, opensBeside(event))}>Fields</Button><span class="breadcrumb-separator">/</span><Button onClick={event => props.onOpen({ kind: 'field', fieldId: target().fieldId }, opensBeside(event))}>{props.notebook.lookup(target().fieldId)()?.text ?? 'Definition'}</Button></nav>
         <Button disabled={!props.notebook.lookup(target().fieldId)()} onClick={event => { const field = props.notebook.lookup(target().fieldId)(); if (field) props.onOpen({ kind: 'page', pageId: field.page_id, blockId: field.id }, opensBeside(event)); }}>Atoms</Button>
       </>}</Show>
-      <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Page menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
+      <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Atom menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
     <Show when={pageId() && outlineView().zoom && projectionTabsShown() && projectionReason('read')}>{reason => <p class="page-projection-reason read-reason" id={`read-reason-${props.pane}`} role="status">{reason()}</p>}</Show>
@@ -1556,7 +1556,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} immersive={props.immersive} onImmersive={props.onImmersive} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }}
         onBack={() => { if (props.session().index > 0) props.onTravel(-1); else props.onOpen({ kind: 'page', pageId: (current().target as Extract<OpenTarget, { kind: 'reader' }>).sourceId }, false); }} /></Match>
     </Switch>}</Show></div>
-    <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Page actions" title="Page actions" context={root()?.text} items={items()} onDismiss={() => setMenu(null)} header={
+    <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Atom actions" title="Atom actions" context={root()?.text} items={items()} onDismiss={() => setMenu(null)} header={
       <Show when={props.notebook.roots().find(page => page.id === pageId())}>{page => <div class="page-menu-info">
         <b>{page().id}</b>
         <Button class="bordered" onClick={() => { void copyPage(false); }}>{copyMessage() === 'Copied ID' ? 'Copied' : 'Copy ID'}</Button>

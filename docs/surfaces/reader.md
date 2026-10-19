@@ -15,7 +15,7 @@ One toolbar line sits at the reading measure and spans the spread in [Pages](#pa
 3. Find in source.
 4. `Aa`, for reader settings.
 5. Full screen.
-6. An actions menu: Open source page, then reader shortcuts with their keys, including the five highlight colors and page-turn keys in Pages. Commands that need a selection say so.
+6. An actions menu: Open source, then reader shortcuts with their keys, including the five highlight colors and page-turn keys in Pages. Commands that need a selection say so.
 
 Progress sits at the foot, under the text. The [book map](#book-map) sits above one mono line: the chapter's numeral and italic title, its time left, and `N% · time left in the book` at the right. The last item opens the [progress card](#progress-card). The chapter name is absent in front matter and in a foot narrower than 460 px, where the toolbar names it. In Pages, the foot spans the spread as the toolbar does.
 
@@ -214,10 +214,10 @@ Reader popups and sheets suspend the standalone selection toolbar without cleari
 | Action | Key | Result |
 | --- | --- | --- |
 | Highlight | `H` | Appends a block quoting the selection to the source page |
-| Highlight and note | `N` | Appends the quoting block, starts an empty child and opens the highlight beside the reader with the caret there |
+| Highlight and annotate | `N` | Appends the quoting block, starts an empty child and opens the highlight beside the reader with the caret there |
 | Five colors | `1`–`5` | The five color choices |
 
-An empty note does not mark the highlight processed. On touch, Highlight and note opens the [note sheet](#highlight-and-note-sheet) instead.
+An empty note does not mark the highlight processed. On touch, Highlight and annotate opens the [note sheet](#highlight-and-annotate-sheet) instead.
 
 `S` selects the sentence at the reading cursor. On a continuation page without a cursor, it selects the sentence at the first visible character rather than returning to the paragraph's beginning. A leading paragraph number, such as `XXIV.`, goes with the opening prose sentence; the number is not a sentence of its own.
 
@@ -227,7 +227,7 @@ Highlights are ink, not boxes. A band of their color sits under the lower half o
 
 Hovering a highlight deepens the band of every range it covers to lightness 0.60 by night and 0.84 by day, or to 40% without a color. One with notes ends in a small note icon in `--faint` that opens them. Clicking a highlight opens its menu. ⌘-click opens its block beside the reader (Ctrl-click off Mac).
 
-Add note and Open note activate the child editor from the local document immediately. Saving and catalog metadata do not delay typing.
+Add atom and Open atom activate the child editor from the local document immediately. Saving and catalog metadata do not delay typing.
 
 Removing a highlight offers Undo in a notice for eight seconds, held while hovered or focused. Undo last edit remains in Reader actions after the notice leaves.
 On the touch cover, the existing-highlight menu opens as a bottom sheet with 44 px color buttons and action rows.
@@ -236,7 +236,7 @@ On the touch cover, the existing-highlight menu opens as a bottom sheet with 44 
 
 Highlighting a selection that overlaps existing highlights extends the earliest one on the source page to cover the union instead of stacking a new mark.
 
-An explicit color choice colors the resulting union. Highlight and Highlight and note keep the surviving mark's color.
+An explicit color choice colors the resulting union. Highlight and Highlight and annotate keep the surviving mark's color.
 
 Merge overlapping highlights, in the reader's actions menu, does the same for every overlapping group and reports `Merged N highlights` or `No overlapping highlights`. Highlights cited from other pages are kept and still count toward the union, with `; N cited elsewhere kept` added to the report.
 
@@ -254,9 +254,9 @@ Entering the cover reader changes the workspace gutters at once, before restorin
 
 The selection toolbar docks across the foot of the page in thumb reach, clear of the system's own text menu beside the selection. It is no wider than the rendered reading measure, with 44 px buttons sharing the width and no key hints. It moves to the head only when the selection runs down there. Scrolling keeps the toolbar while text remains selected and updates its placement.
 
-### Highlight and note sheet
+### Highlight and annotate sheet
 
-On a touch screen, Highlight and note keeps the passage in view instead of opening the source page. A sheet covers the shell, showing in order:
+On a touch screen, Highlight and annotate keeps the passage in view instead of opening the source page. A sheet covers the shell, showing in order:
 
 1. The book's title and byline.
 2. The reading rule.
@@ -269,7 +269,7 @@ The quotation and its surrounding sentences describe the resulting highlight, in
 
 Below, on `--surface`, sit "A thought on this passage" with one way back beside it, the note field and the save state in `--muted`.
 
-The note is the highlight's child block and saves as it is typed. The button reads Back to reading while the note is empty and becomes a gilt Keep note once there is text; Escape, Android Back after the keyboard closes, and browser Back do the same. Back closes the sheet before leaving reader full screen. Leaving with nothing typed removes the empty note; the highlight stays. Returning waits only until the change is saved or queued locally, not for a service acknowledgment, so offline notes stay kept without blocking reading.
+The note is the highlight's child block and saves as it is typed. The button reads Back to reading while the note is empty and becomes a gilt Keep annotation once there is text; Escape, Android Back after the keyboard closes, and browser Back do the same. Back closes the sheet before leaving reader full screen. Leaving with nothing typed removes the empty note; the highlight stays. Returning waits only until the change is saved or queued locally, not for a service acknowledgment, so offline notes stay kept without blocking reading.
 
 The sheet contains keyboard focus and makes the reader behind it inert. Tab and Shift+Tab cycle between the note field and its button. Closing restores focus to the initiating control, or the reader if that control has gone.
 

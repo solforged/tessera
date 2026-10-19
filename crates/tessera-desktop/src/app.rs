@@ -261,7 +261,7 @@ fn menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
                             &MenuItem::with_id(
                                 app,
                                 "shell.new",
-                                "Page",
+                                "Atom",
                                 true,
                                 Some("CmdOrCtrl+N"),
                             )?,

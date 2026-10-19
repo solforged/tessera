@@ -16,11 +16,11 @@ Descriptor card is under `/` and under Space c as `d`. Its review source line le
 
 ## Review pane
 
-### Questions and notes
+### Revisits
 
-The queue tabs switch between Cards and Questions and notes. Both sit on the cards landing's measure, and Questions and notes repeats its Review eyebrow and page title position, so switching keeps one column edge. Questions and notes shows its due count and lists notes and non-parked page or inline questions whose revisit date is today or earlier, earliest first. The sidebar badge combines cards and revisits; its accessible name and tooltip give each count separately.
+The queue tabs switch between Cards and Revisits. Both sit on the cards landing's measure, and Revisits repeats its Review eyebrow and page title position, so switching keeps one column edge. Revisits shows its due count and lists notes and non-parked page or inline questions whose revisit date is today or earlier, earliest first. The sidebar badge combines cards and revisits; its accessible name and tooltip give each count separately.
 
-An empty Questions and notes queue explains that Set Revisit on a note or question brings it here when its revisit date arrives.
+An empty Revisits queue explains that Set Revisit on a note or question brings it here when its revisit date arrives.
 
 Each item opens its ordinary outline inside Review; inline questions open zoomed. Sources, links and backlinks remain available. Revisited shows the proposed next date before confirmation, with the shared revisit picker to change or clear it. Later moves the date without an event. Resolve clears the date and resolves a note, or allows a question to resolve without accepting an assessment. Keep recurrent marks a question recurrent and records a revisit.
 
@@ -156,7 +156,7 @@ The current card stays until a grade is acknowledged. Pending commands survive o
 
 Exhausting a confirmed queue shows Finishing review… until the finish is acknowledged, then Done and normal deck actions. Finishing early, abandoning or switching an open review is explicit; committed grades and their shown-text evidence remain. Pane history and reload preserve the deck, queue selection and session.
 
-A workshop with no cards hides the deck title and the Due, New and All tabs. It says `No cards yet.` and offers Create a card, a hairline button that opens the card composer under the button. The Questions and notes tab omits a zero count. A non-empty Review landing keeps New card beside New deck and opens the shared creation slip with Card selected. An empty deck or held-only inventory keeps its distinct explanation.
+A workshop with no cards hides the deck title and the Due, New and All tabs. It says `No cards yet.` and offers Create a card, a hairline button that opens the card composer under the button. The Revisits tab omits a zero count. A non-empty Review landing keeps New card beside New deck and opens the shared creation slip with Card selected. An empty deck or held-only inventory keeps its distinct explanation.
 
 ## Card composer
 

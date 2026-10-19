@@ -129,7 +129,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const commands = createMemo(() => {
     const search = text().toLocaleLowerCase();
     return orderedCommands.filter(command => (search || command.section !== 'Page' || !command.disabledReason?.())
-      && [command.title, command.section, ...command.keywords ?? []].some(value => value.toLocaleLowerCase().includes(search)));
+      && [command.title, command.section === 'Page' ? 'This atom' : command.section, ...command.keywords ?? []].some(value => value.toLocaleLowerCase().includes(search)));
   });
   const entries = createMemo((): Entry[] => {
     if (mode() === 'commands') return commands().map(command => ({ kind: 'command', command }));
@@ -252,7 +252,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   });
   const pageGroupLabel = createMemo(() => {
     const pageResults = entries().filter(entry => entry.kind === 'hit' || entry.kind === 'more');
-    return pageResults.length && pageResults.every(entry => entry.kind === 'hit' && entry.hit.block.id === entry.hit.page.id && books().has(entry.hit.page.id)) ? 'Books' : 'Pages and notes';
+    return pageResults.length && pageResults.every(entry => entry.kind === 'hit' && entry.hit.block.id === entry.hit.page.id && books().has(entry.hit.page.id)) ? 'Books' : 'Atoms';
   });
   const group = (entry: Entry) => entry.kind === 'highlight' ? 'Highlights' : entry.kind === 'passage' ? 'In your books' : entry.kind === 'create' ? undefined : pageGroupLabel();
   const groupCounts = createMemo(() => {
@@ -264,22 +264,22 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     return counts;
   });
   const sectionsWithCounts = (entry: Entry) => {
-    if (entry.kind === 'command') return entry.command.section;
+    if (entry.kind === 'command') return entry.command.section === 'Page' ? 'This atom' : entry.command.section;
     const label = group(entry);
     return label ? `${label} · ${groupCounts()[label]}${entry.kind === 'passage' ? ' passages' : ''}` : undefined;
   };
   return <Picker<Entry> anchor={props.anchor} placement="top" width={mode() === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${mode() === 'search' ? 'palette-search' : ''}`} onDismiss={props.onDismiss}
     style={{ '--visual-viewport-height': `${viewportSize().height}px`, '--visual-viewport-top': `${viewportSize().top}px` }}
-    query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find or create a page' : 'Find a command'}
+    query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find or create an atom' : 'Find a command'}
     inputRef={input => { queryInput = input; }}
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
     queryActions={<Button class="find-cancel" onClick={props.onDismiss}>Cancel</Button>}
     preview={<Show when={mode() === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
     onSelect={setSelectedEntry}
-    status={<><Show when={mode() === 'search'}><div class="find-scopes" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); queryInput?.focus({ preventScroll: true }); }}>{value}</Button>}</For></div></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
+    status={<><Show when={mode() === 'search'}><div class="find-scopes" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); queryInput?.focus({ preventScroll: true }); }}>{value === 'Pages' ? 'Atoms' : value}</Button>}</For></div></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
     items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'more' ? `more:${entry.page.id}` : entry.kind === 'command' ? entry.command.id : entry.kind === 'highlight' ? entry.row.citation.id : entry.kind === 'passage' ? entry.hit.passage.id : `create:${entry.action}`}
     section={sectionsWithCounts}
-    disabledReason={entry => creating() ? 'Creating page…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}
+    disabledReason={entry => creating() ? 'Creating atom…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}
     onPick={(entry, event) => pick(entry, opensBeside(event) || entry.kind === 'create' && event.shiftKey)}
     onPendingPick={event => { if (mode() === 'search' && busy()) setPendingPick({ query: query(), scope: scope(), filter: findScope(), beside: opensBeside(event), shift: event.shiftKey }); }}
     onKey={(event, entry) => {
@@ -419,8 +419,8 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
           }}</For>;
         }}</Show>
       </div>
-      <footer class="find-preview-keys"><kbd>↵ {value().passages ? 'Open in the book' : 'Open page'}</kbd><kbd>{besideKey}↵ Beside</kbd></footer>
+      <footer class="find-preview-keys"><kbd>↵ {value().passages ? 'Open in the book' : 'Open atom'}</kbd><kbd>{besideKey}↵ Beside</kbd></footer>
     </>}</Show>
-    <Show when={!content() && !loading() && !error()}><p class="empty-state">{props.entry?.kind === 'create' ? props.entry.action === 'choose' ? `Choose a kind for “${props.entry.title}”` : createLabel(props.entry) : 'Select a result to preview it.'}</p></Show>
+    <Show when={!content() && !loading() && !error()}><p class="empty-state">{props.entry?.kind === 'create' ? props.entry.action === 'choose' ? `Choose a tag for “${props.entry.title}”` : createLabel(props.entry) : 'Select a result to preview it.'}</p></Show>
   </aside>;
 }

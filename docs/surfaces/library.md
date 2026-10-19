@@ -244,7 +244,7 @@ On touch, the dock's icon-only secondary actions keep a nonshrinking 44 px targe
 | Action | Hint |
 | --- | --- |
 | Mark processed | E |
-| Add note or Open note | N |
+| Add atom or Open atom | N |
 | Make card | C |
 | Tag | T |
 | Color | 1–5 |
@@ -255,9 +255,9 @@ The pager labels show ↑ K and J ↓. The active Highlights pane owns these unm
 
 Mark processed advances to the next unprocessed passage in the scoped queue, wrapping when necessary. In All, processed passages offer Mark unprocessed. Undo uses the retained source document's existing history, from the dock or ⌘Z, not a separate triage history or toast.
 
-A non-empty child note, an active card or an incoming reference processes a highlight unless its explicit triage overrides that state. Tags and color only organize it. Note counts exclude card children. Add note opens the first written prose child or reuses a blank note, never a card. Explicit note editing reveals and activates its destination pane.
+A non-empty child note, an active card or an incoming reference processes a highlight unless its explicit triage overrides that state. Tags and color only organize it. Note counts exclude card children. Add atom opens the first written prose child or reuses a blank note, never a card. Explicit note editing reveals and activates its destination pane.
 
-Add note and Open note deliver the live caret without waiting for saving, catalog metadata or a pane-turn snapshot. Plain typing during opening reaches that caret once. Composition and modifier shortcuts retain their native handling.
+Add atom and Open atom deliver the live caret without waiting for saving, catalog metadata or a pane-turn snapshot. Plain typing during opening reaches that caret once. Composition and modifier shortcuts retain their native handling.
 
 The shared highlight menu keeps the quotation, color choices, note and card actions, Copy with citation, triage, tags and removal. Removing a highlight with written descendants or incoming references asks for confirmation and names both counts. Removal still deletes the subtree and keeps Undo. Library adds Open in reader. Hovering a highlight still links it to the reader and source outline in the other pane without scrolling or taking focus.
 
@@ -384,7 +384,7 @@ The first collection adds a Collections Instance field that links to the Collect
 
 ### Collection actions
 
-A collection opens the same sorted rows or shelf as All, filtered by its page ID on the service. Its heading offers Open page, Rename and Delete.
+A collection opens the same sorted rows or shelf as All, filtered by its page ID on the service. Its heading offers Open atom, Rename and Delete.
 
 Multi-selection and source actions offer Add to collection, with a new-collection row in the picker. The metadata form lists the source's collections with add and remove controls. Inside a collection, selected sources can be removed without deleting them. Touch selection stays visible and reveals the bulk controls.
 

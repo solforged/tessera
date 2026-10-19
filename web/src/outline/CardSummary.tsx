@@ -78,7 +78,7 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks
     try {
       const source = props.notebook.lookup(props.blockId)() ?? await props.notebook.api.block(props.blockId);
       doc = props.notebook.open(source.page_id);
-      if (doc.status() !== 'ready') throw new Error('The page is not ready.');
+      if (doc.status() !== 'ready') throw new Error('The atom is not ready.');
       const result = doc.edit({ kind: 'cardHeld', cards, held });
       if (!result.ok) throw new Error(result.reason);
       await doc.flush();

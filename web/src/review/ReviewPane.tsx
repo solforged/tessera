@@ -66,9 +66,9 @@ function deckRows(saved: readonly Deck[], tags: readonly TagDeck[]): DeckChoice[
 export function ReviewPane(props: ReviewPaneProps) {
   const queue = createRevisits(props.notebook);
   return <div class="review-queues">
-    <div class="review-head"><div class="review-kind-tabs review-queue-controls mode-tabs tab-strip" role="group" aria-label="Review kind">
+    <div class="review-head"><div class="review-kind-tabs review-queue-controls mode-tabs tab-strip" role="group" aria-label="Review mode">
       <Button aria-pressed={props.view.queue !== 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'cards' })}>Cards</Button>
-      <Button aria-pressed={props.view.queue === 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'notes' })}>Questions and notes<Show when={queue.rows().length}><span class="review-count">{queue.rows().length}</span></Show></Button>
+      <Button aria-pressed={props.view.queue === 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'notes' })}>Revisits<Show when={queue.rows().length}><span class="review-count">{queue.rows().length}</span></Show></Button>
     </div></div>
     <Show when={props.view.queue === 'notes'} fallback={<CardReviewPane {...props} />}><NotesReview {...props} rows={queue.rows()} error={queue.error()} /></Show>
   </div>;
@@ -620,7 +620,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       <Show when={total() > loadedCount() && !done()}><p class="review-pending">Showing {loadedCount()} of {total()} matching cards. Narrow the deck’s source filters to review the rest.</p></Show>
       <Show when={emptyWorkshop()}><section class="review-empty" aria-label="No cards yet">
         <h2>No cards yet.</h2>
-        <p>Write a question and answer in a note, or turn a source highlight into a card.</p>
+        <p>Write a question and answer in an atom, or turn a source highlight into a card.</p>
         <Button class="bordered" icon="plus" disabled={locked() || loading()} onClick={event => setComposer(event.currentTarget)}>Create a card</Button>
       </section></Show>
       <Show when={!session() && ready() && inventory() !== 0 && stats()}>{value => <div class="review-landing">
@@ -634,7 +634,7 @@ function CardReviewPane(props: ReviewPaneProps) {
               !(counts().due ?? 0) && nextDue() ? `next ${new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(nextDue()!).replace(`${props.notebook.todayDate()}, `, 'at ')}` : '',
             ].filter(Boolean).join(' · ')}</p>
             <Button ref={startButton} class="review-start" disabled={locked() || loading() || !!readError() || !rows().length} onClick={() => void start()}>Review {rows().length} {rows().length === 1 ? 'card' : 'cards'} <kbd>Space</kbd></Button>
-            <Show when={!rows().length}><p>{value().held_cards ? `${value().held_cards} ${value().held_cards === 1 ? 'card is' : 'cards are'} paused or marked Not yet. Start or resume them from their source notes.` : 'Nothing in this queue.'}</p></Show>
+            <Show when={!rows().length}><p>{value().held_cards ? `${value().held_cards} ${value().held_cards === 1 ? 'card is' : 'cards are'} paused or marked Not yet. Start or resume them from their source atoms.` : 'Nothing in this queue.'}</p></Show>
           </section>
           <ReviewForecast stats={value()} />
         </div>

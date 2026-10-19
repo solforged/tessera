@@ -435,10 +435,10 @@ function ReferenceCard(props: {
         <Show when={props.pinned && isPage() && positionRows().length} fallback={
           <Show when={!isPage() || props.pinned || !summary()}>
             <Show when={props.pinned && positions.loading}><p class="reference-preview-message" role="status">Loading perspectives…</p></Show>
-            <Show when={props.pinned && positions.error}><p class="reference-preview-message" role="alert">Couldn’t load perspectives. The page preview is still available.</p></Show>
+            <Show when={props.pinned && positions.error}><p class="reference-preview-message" role="alert">Couldn’t load perspectives. The atom preview is still available.</p></Show>
             <Show when={fieldList.error}><p class="reference-preview-message" role="alert">Couldn’t load field definitions.</p></Show>
             <Show when={!isPage() || !fieldList.loading} fallback={<p class="reference-preview-message" role="status">Loading preview…</p>}>
-              <Show when={rows().length} fallback={<p class="reference-preview-message">{isPage() ? summary() ? 'No further text on this page.' : 'Empty page.' : 'Atom not found on its page.'}</p>}>
+              <Show when={rows().length} fallback={<p class="reference-preview-message">{isPage() ? summary() ? 'No further text on this atom.' : 'Empty atom.' : 'Atom not found in its outline.'}</p>}>
                 <div ref={element => { body = element; observer.observe(element); }} class={`reference-preview-body${isPage() || state()?.position ? ' prose' : ''}${props.pinned ? ' scrollable' : clipped() ? ' clipped' : ''}`}>
                   <BlockTree rows={rows()} block={id => doc()?.block(id)} notebook={props.notebook} onOpen={props.onNested} prose={isPage() || !!state()?.position} rowRef={element => observer.observe(element)} />
                 </div>

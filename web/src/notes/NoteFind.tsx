@@ -53,7 +53,7 @@ export function NoteFind(props: { query: Query; plural: string; notebook: Notebo
         for (const id of ids) if (!source.summaries[id]?.source) ids.delete(id);
       }
       if (token !== generation) return;
-      if (ids.size !== 1) { missing = `No note named “${term.value}”`; continue; }
+      if (ids.size !== 1) { missing = `No atom named “${term.value}”`; continue; }
       const id = [...ids][0]!;
       next = { ...next, [term.key]: [...new Set([...(next[term.key] ?? []), id])] };
       remaining = remaining.replace(term.raw, '').trim();
@@ -81,7 +81,7 @@ export function NoteFind(props: { query: Query; plural: string; notebook: Notebo
         if (event.key === 'Enter') { event.preventDefault(); void commit(draft()).catch(reason => setProblem(String(reason))); }
         if (event.key === 'Escape') setFocused(false);
       }} />
-      <Show when={focused() && pending() && options().length}><div class="note-find-completion" role="listbox" aria-label="Note names"><For each={options()}>{item => <Button role="option" onMouseDown={event => event.preventDefault()} onClick={() => choose(item.id)}>{item.title}<Show when={item.alias}><span class="faint"> · {item.alias}</span></Show></Button>}</For></div></Show>
+      <Show when={focused() && pending() && options().length}><div class="note-find-completion" role="listbox" aria-label="Atom names"><For each={options()}>{item => <Button role="option" onMouseDown={event => event.preventDefault()} onClick={() => choose(item.id)}>{item.title}<Show when={item.alias}><span class="faint"> · {item.alias}</span></Show></Button>}</For></div></Show>
     </div>{props.children}</div>
     <Show when={problem()}><p class="note-find-problem" role="status">{problem()}</p></Show>
     <Show when={notePredicates.some(key => props.query[key]?.length)}><div class="table-query-chips"><For each={notePredicates}>{key => <For each={props.query[key] ?? []}>{id => <span class="table-chip">{key}: {props.notebook.lookup(id)()?.text ?? id}<Button label={`Remove ${key}: ${props.notebook.lookup(id)()?.text ?? id}`} onClick={() => props.onChange({ ...props.query, [key]: props.query[key]?.filter(value => value !== id), offset: 0 })}>×</Button></span>}</For>}</For></div></Show>

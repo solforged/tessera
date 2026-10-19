@@ -140,7 +140,7 @@ function TokenText(props: Props) {
         </span>}>
           <span class="outline-reference" classList={{ 'outline-reference-ambiguous': !!token.matches, 'outline-citation': !!citationSources()?.has(token.id!) && !!(token.alias || token.locator) }} role="button" tabIndex={0} data-source-start={token.start} data-source-end={token.end} data-reference={isStableReference(token) ? token.id : undefined}
             data-citation={!!citationSources()?.has(token.id!) && !!(token.alias || token.locator) ? '' : undefined} data-locator={token.locator}
-            aria-label={token.matches ? `“${token.id}” names ${token.matches.length} pages` : undefined} aria-haspopup={token.matches ? 'menu' : undefined}
+            aria-label={token.matches ? `“${token.id}” names ${token.matches.length} atoms` : undefined} aria-haspopup={token.matches ? 'menu' : undefined}
             onMouseDown={event => event.stopPropagation()}
             onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); if (!event.repeat) activateReference(token, event.currentTarget, event); } }}
             onClick={event => { event.stopPropagation(); activateReference(token, event.currentTarget, event); }}
@@ -165,7 +165,7 @@ function TokenText(props: Props) {
     if (mark?.kind === 'operator') return <span class="card-operator" aria-label={cardOperators[mark.op].label} data-source-start={mark.start} data-source-end={mark.end}>{text(group.tokens[0]!)}</span>;
     if (mark?.kind === 'cloze') return <span class="card-cloze" title={`Cloze ${mark.id}${mark.hintStart === null ? '' : ` · ${props.text.slice(mark.hintStart, mark.hintEnd!)}`}`}>{renderTokens(group.tokens)}</span>;
     return renderTokens(group.tokens);
-  }}</For><Show when={menu()}>{state => <Menu anchor={state().anchor} label="Choose a page" header={<div class="menu-section">“{state().token.id}” names {state().token.matches!.length} pages</div>}
+  }}</For><Show when={menu()}>{state => <Menu anchor={state().anchor} label="Choose an atom" header={<div class="menu-section">“{state().token.id}” names {state().token.matches!.length} atoms</div>}
     items={nameMenuItems(props.notebook, props.blockId!, state().token, state().token.matches!, message => props.onError ? props.onError(message) : setError(message))} onDismiss={() => setMenu(undefined)} />}</Show>
     <Show when={error()}><span class="error" role="alert">{error()}</span></Show></>;
 }
@@ -173,7 +173,7 @@ function TokenText(props: Props) {
 /** The source location of a block. A descriptor card already names its parent, so it can omit it. */
 export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient; omitParent?: boolean }) {
   const path = createMemo(() => {
-    if (props.block.kind !== 'block') return plainText(props.block.text, id => props.notebook.lookup(id)) || (props.block.kind === 'journal' ? 'Journal' : 'Untitled page');
+    if (props.block.kind !== 'block') return plainText(props.block.text, id => props.notebook.lookup(id)) || (props.block.kind === 'journal' ? 'Journal' : 'Untitled atom');
     const ancestors: string[] = [];
     const seen = new Set<string>();
     let parent = props.block.parent_id;
@@ -185,7 +185,7 @@ export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient;
       parent = block.parent_id;
     }
     const page = props.notebook.lookup(props.block.page_id)();
-    const segments = [page ? plainText(page.text, id => props.notebook.lookup(id)) || 'Untitled page' : 'Loading page…', ...ancestors];
+    const segments = [page ? plainText(page.text, id => props.notebook.lookup(id)) || 'Untitled atom' : 'Loading atom…', ...ancestors];
     // Keep the page title when it is the parent: the source button needs a label.
     if (props.omitParent && segments.length > 1) segments.pop();
     return segments.join(' › ');

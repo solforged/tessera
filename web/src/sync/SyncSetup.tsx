@@ -88,7 +88,7 @@ export function SyncSetup(props: { again?: { url: string }; onDone(): void }) {
           <div class="sync-actions"><Button class="bordered" onClick={finish}>Start a workshop</Button></div>
         </section>
       </Show>
-      <p class="sync-hint sync-setup-foot">Your books and notes stay on your devices.</p>
+      <p class="sync-hint sync-setup-foot">Your workshop stays on your devices.</p>
     </Show>
   </Popup>;
 }

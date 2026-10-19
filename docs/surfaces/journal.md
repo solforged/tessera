@@ -6,11 +6,11 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ## Add to today
 
-Add to today (⌘E) opens the shared creation slip centered near the top, 560 px wide. On the cover it rises from the bottom edge above the keyboard; New in the center of the bottom nav opens the same Note-into-Today sheet. Commands finds Add to today through capture, quick note, inbox or journal. A mono rubric names the action in gilt and its destination in `--faint`.
+Add to today (⌘E) opens the shared creation slip centered near the top, 560 px wide. On the cover it rises from the bottom edge above the keyboard; New in the center of the bottom nav opens the same Atom-into-Today sheet. Commands finds Add to today through capture, quick atom, inbox or journal. A mono rubric names the action in gilt and its destination in `--faint`.
 
-The Kind row offers Note, Question, Task, Card and Source; More offers Project and the workshop's page kinds. Arrow keys select a kind. Until a kind is chosen explicitly, a trailing `?` infers Question, `[] ` or a planning `@date` infers Task, complete card syntax infers Card, and a whole URL, ISBN, DOI or arXiv identifier infers Source. The draft carries across kind switches.
+The Kind row offers Atom, Question, Task, Card and Source; More offers Project and the workshop's page kinds. Arrow keys select a kind. Until a kind is chosen explicitly, a trailing `?` infers Question, `[] ` or a planning `@date` infers Task, complete card syntax infers Card, and a whole URL, ISBN, DOI or arXiv identifier infers Source. The draft carries across kind switches.
 
-Into offers Today, New page (notes and questions), and Page…. Notes, tasks and cards default to Today; questions default to New page. An explicit destination stays selected while the kind changes. ⌘N starts Note into New page. Index, ledger and table buttons lock their kind and hide both controls.
+Into offers Today, New atom (notes and questions), and Atom…. Notes, tasks and cards default to Today; questions default to New atom. An explicit destination stays selected while the kind changes. ⌘N starts Atom into New atom. Index, ledger and table buttons lock their kind and hide both controls.
 
 Page drafts show kind-specific field rows beneath the gist: Parent question, Revisit, Recurrent and First perspective for questions; Deadline for projects; and up to four template fields for typed pages. A project's gist sets its outcome rather than repeating it in its body. Fields use the page's label/value voice and the table's editors, stay full-width on the cover, and save in the creation batch. Filing an existing title keeps already-filled fields read-only.
 
@@ -18,7 +18,7 @@ Page drafts show kind-specific field rows beneath the gist: Parent question, Rev
 
 - A note, question or task line appends at the end of Today or the chosen page, reusing a trailing empty block. A question adds its question state in the same batch.
 - `[] ` and `[ ] ` task prefixes disappear on save. The Kind row replaces the old ⌘Enter note/task toggle.
-- `[[` completes pages (with Create page) and `#` pages used as types (with Create tag), matching titles and aliases in a picker under the line. Type results never include matching note bodies. A hand-typed `[[Title]]` links as it would on leaving a block.
+- `[[` completes pages (with Create atom) and `#` pages used as types (with Create tag), matching titles and aliases in a picker under the line. Type results never include matching note bodies. A hand-typed `[[Title]]` links as it would on leaving a block.
 - An `@date` plans a task, with the [same preview as Add a task](tasks-agenda.md#add-a-task). A plain-word date suffix plans only a task.
 
 ### Adding and saving
@@ -44,11 +44,11 @@ The panel stays 600 px wide, fits its contents before showing, and grows downwar
 
 ### Android capture
 
-The launcher's New note, New task, New question and Add to library shortcuts open the slip over the current page with the corresponding creation kind. Text shared to Tessera opens a note request with the shared text as its line; the slip can infer a source or question from that text.
+The launcher's New atom, New task, New question and Add to library shortcuts open the slip over the current page with the corresponding creation kind. Text shared to Tessera opens a note request with the shared text as its line; the slip can infer a source or question from that text.
 
-The resizable Tessera home-screen widget starts at 4×1 and offers Note, Task and Question. Its preview description is Capture to Tessera. The Tessera note Quick Settings tile closes the shade and opens a note request. Each tap opens the slip again, including while the app is already running.
+The resizable Tessera home-screen widget starts at 4×1 and offers Atom, Task and Question. Its preview description is Capture to Tessera. The Tessera atom Quick Settings tile closes the shade and opens a note request. Each tap opens the slip again, including while the app is already running.
 
-Each request opens the creation slip on its kind: Note and Task into Today, Question as a new page, Add to library as Source. File sharing and Open with accept EPUB, not PDF: the library import inbox only supports EPUB.
+Each request opens the creation slip on its kind: Atom and Task into Today, Question as a new page, Add to library as Source. File sharing and Open with accept EPUB, not PDF: the library import inbox only supports EPUB.
 
 ## Journal dates
 
@@ -136,4 +136,4 @@ Below the outline, From your highlights shows one resurfaced highlight at a time
 
 ## Research to revisit
 
-Today lists due notes and questions beside From your highlights, earliest first, with their title, kind or question state and revisit date. Open in Review selects that item in the Questions and notes queue. The section stays hidden when nothing is due.
+Today lists due notes and questions beside From your highlights, earliest first, with their title, kind or question state and revisit date. Open in Review selects that item in the Revisits queue. The section stays hidden when nothing is due.

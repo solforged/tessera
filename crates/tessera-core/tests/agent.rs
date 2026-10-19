@@ -512,7 +512,7 @@ fn moves_place_blocks_and_undo_puts_them_back() {
             after: None,
             first: false,
         })),
-        "page cannot be moved",
+        "titled atom cannot be moved",
     );
 
     undo(&mut nb, after.seq).unwrap();

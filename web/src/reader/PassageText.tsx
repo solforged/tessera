@@ -50,6 +50,6 @@ export function PassageText(props: {
     <For each={segment.citations.flatMap(citation => {
       const row = props.notes.get(citation.id);
       return row && citation.end.passage_id === props.passage.id && citation.end.offset === segment.end ? [row] : [];
-    })}>{row => <Button class="reader-highlight-note" icon="note" label="Open note" title="Open note" onPointerDown={event => event.preventDefault()} onClick={event => { event.stopPropagation(); props.onHighlightNote(row); }} />}</For>
+    })}>{row => <Button class="reader-highlight-note" icon="note" label="Open atom" title="Open atom" onPointerDown={event => event.preventDefault()} onClick={event => { event.stopPropagation(); props.onHighlightNote(row); }} />}</For>
   </> : marked(segment.text, segment.marks)}</For>;
 }

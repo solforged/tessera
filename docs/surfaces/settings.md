@@ -76,7 +76,7 @@ The phone shows the Mac it copies as the same disclosure: this device's and the 
 
 ## Needs review
 
-Both sides list what sync kept for the person, under a Needs review disclosure with mono counts (`1 kept · 2 rejected`). Each item reads its device and age in mono, the page title in Piazzolla and its words as a quotation. A kept copy offers Open the page. A rejected change also gives the hub's reason, with Open the page while the page exists, Copy the text back and Dismiss. A page that is gone reads `Page no longer available`, and Copy the text back then adds the words to today's journal.
+Both sides list what sync kept for the person, under a Needs review disclosure with mono counts (`1 kept · 2 rejected`). Each item reads its device and age in mono, the page title in Piazzolla and its words as a quotation. A kept copy offers Open the atom. A rejected change also gives the hub's reason, with Open the atom while the page exists, Copy the text back and Dismiss. A page that is gone reads `Atom no longer available`, and Copy the text back then adds the words to today's journal.
 
 ## Agent changes
 

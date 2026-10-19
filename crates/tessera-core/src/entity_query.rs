@@ -17,7 +17,7 @@ pub(crate) fn attributes(source: QuerySource) -> Vec<QueryAttribute> {
     use FieldKind::{Checkbox, Choice, Date, Instance, Number, Text};
     let specific: &[(&str, &str, FieldKind)] = match source {
         QuerySource::Notes => &[
-            ("@kind", "Kind", Choice),
+            ("@kind", "Tag", Choice),
             ("@resolved", "Resolved", Checkbox),
             ("@revisit", "Revisit", Date),
         ],
@@ -56,7 +56,7 @@ pub(crate) fn attributes(source: QuerySource) -> Vec<QueryAttribute> {
     };
     [
         ("@title", "Title", Text),
-        ("@page", "Page", Instance),
+        ("@page", "Origin", Instance),
         ("@created", "Created", Date),
         ("@updated", "Updated", Date),
     ]

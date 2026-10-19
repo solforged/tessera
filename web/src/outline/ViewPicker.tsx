@@ -43,9 +43,9 @@ export function EmbedOnPagePicker(props: { anchor: PopupAnchor; view: View; note
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { doc.release(); setBusy(false); }
   };
-  return <Picker anchor={props.anchor} label="Embed on page" query={query()} onQuery={setQuery} placeholder="Find a page" items={names()?.rows ?? []} key={match => match.page.id}
+  return <Picker anchor={props.anchor} label="Embed on atom" query={query()} onQuery={setQuery} placeholder="Find an atom" items={names()?.rows ?? []} key={match => match.page.id}
     onDismiss={() => { if (!busy()) props.onDismiss(); }} onPick={match => { void insert(match.page.id); }} busy={names.loading || busy()} error={error() || (names.error ? String(names.error) : undefined)}
-    empty="No matching pages. Try another name." row={match => <><Icon name="note" /><span class="picker-text">{match.page.text}</span><Show when={match.alias}><span class="reference-via">via {match.alias}</span></Show></>} />;
+    empty="No matching atoms. Try another name." row={match => <><Icon name="note" /><span class="picker-text">{match.page.text}</span><Show when={match.alias}><span class="reference-via">via {match.alias}</span></Show></>} />;
 }
 
 export function createViewEmbedActions(context: Pick<OutlineContext, 'props' | 'doc' | 'rowAnchor' | 'heading' | 'selected' | 'apply' | 'rowFocus' | 'editing' | 'editor' | 'restoreFocus'>) {
@@ -55,7 +55,7 @@ export function createViewEmbedActions(context: Pick<OutlineContext, 'props' | '
   }
   const unregister = context.props.commands.register([{
     id: `outline.${context.props.pane}.embed-view`, title: 'Embed view', section: 'Page',
-    disabledReason: () => !context.props.active ? 'This pane is not active.' : context.doc.status() !== 'ready' ? 'Page is unavailable.' : undefined,
+    disabledReason: () => !context.props.active ? 'This pane is not active.' : context.doc.status() !== 'ready' ? 'Atom is unavailable.' : undefined,
     run: () => openViewEmbed(),
   }]);
   onCleanup(unregister);

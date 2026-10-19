@@ -29,7 +29,7 @@ export function PageDraft(props: {
   const id = createUniqueId();
   let title!: HTMLTextAreaElement;
   const mode = () => props.kind.startsWith('type:') ? 'type' : props.kind;
-  const noun = () => props.noteKind ? kindNoun(props.noteKind) : props.kind === 'note' ? 'page' : props.kind;
+  const noun = () => props.noteKind ? kindNoun(props.noteKind) : props.kind === 'note' ? 'atom' : props.kind;
   const query = () => props.text.trim();
   const [existing] = createResource(() => query() || false, async text => ({ title: text, id: await props.notebook.pageByTitle(text, false) }));
   // Find's Pages scope combines completion (aliases) and text search (infix titles); titles named inside a longer draft,
@@ -87,14 +87,14 @@ export function PageDraft(props: {
     <Show when={!typePage() && found()} fallback={<Show when={!typePage()}>
       <label class="visually-hidden" for={`${id}-gist`}>Gist</label>
       <input id={`${id}-gist`} class="new-kind-gist" value={props.gist} disabled={busy()} autocomplete="off" placeholder={gistPrompt[mode()]?.(noun())} onInput={event => props.onGistChange(event.currentTarget.value)} />
-    </Show>}><p class="new-kind-note">“{query()}” {member() ? `is already a ${noun()}.` : `already exists; it will be ${mode() === 'type' ? `filed under ${props.noteKind!.name}` : `made a ${noun()}`}.`}</p></Show>
+    </Show>}><p class="new-kind-note">“{query()}” {member() ? `is already ${noun() === 'atom' ? 'an' : 'a'} ${noun()}.` : `already exists; it will be ${mode() === 'type' ? `filed under ${props.noteKind!.name}` : `made ${noun() === 'atom' ? 'an' : 'a'} ${noun()}`}.`}</p></Show>
     <Show when={typePage()}><p class="new-kind-note">“{props.noteKind!.name}” names the tag itself.</p></Show>
     <Show when={!typePage()}><DraftFields notebook={props.notebook} kind={props.kind} fieldIds={type()?.fields ?? []} existingId={found()} disabled={busy()} value={fields()} onChange={setFields} /></Show>
     <Show when={error() || existing.error || similar.error}><p class="error" role="alert">{error() || String(existing.error ?? similar.error)}</p></Show>
     <footer class="create-foot"><span class="create-keys"><Show when={props.status} fallback={<Show when={!props.sheet}><kbd>↵</kbd> Create <kbd>⇧↵</kbd> Beside <kbd>⇧⌘↵</kbd> Another <kbd>esc</kbd> Close</Show>}>{text => <span role="status">{text()}</span>}</Show></span>
       <Button type="submit" class="bordered" disabled={!query() || busy() || typePage() || mode() === 'type' && !props.noteKind}>{busy() ? 'Saving…' : member() ? `Open ${noun()}` : found() ? `File as ${noun()}` : `Create ${noun()}`}</Button><Show when={!props.sheet}><Button class="create-cancel" disabled={busy()} onClick={props.onDismiss}>Cancel</Button></Show>
     </footer>
-    <Show when={matches().length}><div class="create-matches" role="group" aria-label="Similar pages"><p class="new-kind-matches-label">Similar pages</p>
+    <Show when={matches().length}><div class="create-matches" role="group" aria-label="Similar atoms"><p class="new-kind-matches-label">Similar atoms</p>
       <For each={matches()}>{row => <div class="create-match"><span>{row.text}<Show when={row.alias}>{alias => <span class="reference-via"> via {alias()}</span>}</Show></span><Button onClick={() => props.onGistChange(`${props.gist} [[${row.text}]]`)}>Link</Button><Button onClick={() => props.onOpen({ kind: 'page', pageId: row.id }, false)}>Open</Button></div>}</For>
     </div></Show>
   </form>;

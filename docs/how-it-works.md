@@ -475,7 +475,7 @@ BibTeX/CSL JSON export requires an assigned citation key and reads current autho
 Reader selections snap partial words outwards across Unicode letters, digits and apostrophes, then trim whitespace, commas, semicolons and colons at both edges. Quotations and UTF-16 endpoints use that range; punctuation-only selections show no toolbar.
 
 - Overlapping tints retain every citation and open a choice menu.
-- Clicking a single tint or pressing Enter offers Open note/Add note, Make card, Copy with citation, explicit triage and Remove highlight.
+- Clicking a single tint or pressing Enter offers Open atom/Add atom, Make card, Copy with citation, explicit triage and Remove highlight.
 - ⌘-click opens the highlight beside the reader (Ctrl-click off Mac).
 - Note, card, triage and removal edits use document undo.
 

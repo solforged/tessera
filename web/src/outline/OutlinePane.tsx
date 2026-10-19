@@ -1103,9 +1103,9 @@ function Pane(props: OutlinePaneProps) {
     report();
     scheduleReport();
   }
-  const depthReason = () => doc.root()?.kind !== 'page' ? 'Only titled pages have depth.' : props.projection && props.projection !== 'outline' ? 'Choose Outline to change depth.' : zoom() ? 'Zoom out to change depth.' : undefined;
+  const depthReason = () => doc.root()?.kind !== 'page' ? 'Only titled atoms have depth.' : props.projection && props.projection !== 'outline' ? 'Choose Outline to change depth.' : zoom() ? 'Zoom out to change depth.' : undefined;
   const stepDepth = (delta: 1 | -1) => { const next = depthStops[depthStops.indexOf(depth()) + delta]; if (next) setStop(next); };
-  const depthTitles: Record<Depth, string> = { gloss: 'Show the gloss only', opening: 'Show the opening', perspectives: 'Show perspectives', full: 'Show the full page' };
+  const depthTitles: Record<Depth, string> = { gloss: 'Show the gloss only', opening: 'Show the opening', perspectives: 'Show perspectives', full: 'Show the full atom' };
   /** Edits the gloss, adding the entry as the page's first block when there is none. */
   function addGloss() {
     const existing = glossId();
@@ -1432,7 +1432,7 @@ function Pane(props: OutlinePaneProps) {
       nameMatches: name => editingNames.error ? undefined : editingNames()?.get(foldName(name)),
       referenceMenu: (token, anchor) => {
         const matches = editingNames.error ? undefined : editingNames()?.get(foldName(token.id!));
-        if (editor?.id && matches && matches.length > 1) setMenu({ anchor, label: 'Choose a page', header: <div class="menu-section">“{token.id}” names {matches.length} pages</div>, items: nameMenuItems(props.notebook, editor.id, token, matches, setMessage) });
+        if (editor?.id && matches && matches.length > 1) setMenu({ anchor, label: 'Choose an atom', header: <div class="menu-section">“{token.id}” names {matches.length} atoms</div>, items: nameMenuItems(props.notebook, editor.id, token, matches, setMessage) });
       },
       openReference: (token, beside) => {
         void (async () => {
@@ -1582,7 +1582,7 @@ function Pane(props: OutlinePaneProps) {
         if (initial.reveal === anchor.id) highlightReading(anchor.id);
       } else {
         if (caret()?.id === anchor.id && !doc.block(anchor.id)) setCaret(null);
-        if (initial.reveal === anchor.id) setMessage('This perspective is no longer available on its subject page.');
+        if (initial.reveal === anchor.id) setMessage('This perspective is no longer available on its subject atom.');
       }
       setPendingReadAnchor(null);
       scheduleReport();
@@ -1653,7 +1653,7 @@ function Pane(props: OutlinePaneProps) {
     return groups;
   });
   return <>
-    <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging(), 'projection-compare': props.projection === 'compare' }} style={{ visibility: pageReady() ? undefined : 'hidden' }} aria-busy={!pageReady()} data-pane-pending={pageReady() ? undefined : ''} data-pane={props.pane} data-projection={reading() ? 'read' : 'outline'} tabIndex={0} role="tree" aria-label={reading() ? 'Page reading register' : 'Page outline'} aria-owns={ids().map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={event => { props.onActivate(); if ((event.target as Element).closest('.cm-editor')) setEditorFocused(true); }} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
+    <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging(), 'projection-compare': props.projection === 'compare' }} style={{ visibility: pageReady() ? undefined : 'hidden' }} aria-busy={!pageReady()} data-pane-pending={pageReady() ? undefined : ''} data-pane={props.pane} data-projection={reading() ? 'read' : 'outline'} tabIndex={0} role="tree" aria-label={reading() ? 'Atom reading register' : 'Atom outline'} aria-owns={ids().map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={event => { props.onActivate(); if ((event.target as Element).closest('.cm-editor')) setEditorFocused(true); }} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
       <Show when={doc.root()?.kind === 'page' && !zoom() && props.projection !== 'compare'}><div ref={navigator} class="section-navigator" classList={{ 'section-navigator-shown': longPage() && scrolledAway() }} onKeyDown={event => event.stopPropagation()}><Button aria-haspopup="menu" onClick={event => {
         const sections = Array.from({ length: doc.outline.size() }, (_, at) => doc.outline.idAt(at)).filter(id => !doc.isArchived(id) && (doc.block(id)?.position || doc.block(id)?.heading && doc.outline.parentOf(id) === props.pageId));
         setMenu({ anchor: event.currentTarget, label: 'Sections and perspectives', items: [{ label: 'Opening', action: () => { cancelScroll(); scroll.scrollTop = 0; scrolled(); } }, ...sections.map(id => ({ label: doc.block(id)?.position ? `Perspectives · ${doc.block(id)?.position?.holder_id ? props.notebook.lookup(doc.block(id)!.position!.holder_id!)()?.text ?? 'Loading holder…' : 'Unattributed'}` : plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)), action: () => {
@@ -1689,7 +1689,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={!positionZoom() && (!zoom() || !doc.root()?.source || renaming())}>
       <div class="outline-title-row">
       <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{rootTitle() || 'Loading…'}</button></h1>}>
-        <input ref={titleInput} class="title-input" aria-label="Page title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { event.preventDefault(); closeTitle(); } }} />
+        <input ref={titleInput} class="title-input" aria-label="Atom title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { event.preventDefault(); closeTitle(); } }} />
         <Show when={titleCollision()} fallback={<Button class="bordered" onClick={commitTitle}>Save title</Button>}>{page =>
           <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} title={pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>
         }</Show><Button onClick={closeTitle}>Cancel</Button>
@@ -1732,7 +1732,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={message()}><p class="outline-message" role="alert">{message()} <button class="text-button" type="button" onClick={() => setMessage('')}>Dismiss</button></p></Show>
       <Show when={doc.status() === 'error' || doc.status() === 'missing'}><p role="alert">{doc.statusMessage()}</p></Show>
       <Show when={doc.status() === 'ready' && depth() === 'gloss' && !zoom() && !glossId()}>
-        <p class="empty-state">No gloss yet. Choose Gloss in the page menu to write a one-line summary.</p>
+        <p class="empty-state">No gloss yet. Choose Gloss in the atom menu to write a one-line summary.</p>
       </Show>
       <Show when={!zoom() && doc.root()?.kind === 'journal'}>
         <JournalHeader date={doc.root()!.text} journalPeriod={journalPeriod} notebook={props.notebook} onOpen={props.onOpen} />

@@ -47,8 +47,8 @@ describe('query edits', () => {
     expect(filterLabel({ ...filter, op: 'contains', value: 'Aristotle' }, fields, notebook)).toBe('Author contains Aristotle');
   });
   test('attribute choices show names while preserving their query identities', () => {
-    const fields: FieldDefinition[] = [{ id: '@kind', name: 'Kind', kind: 'choice', revision: 0, options: [{ id: 'type:books', text: 'Book' }], targets: [] }];
-    expect(filterLabel({ field: '@kind', op: 'is', value: 'type:books' }, fields, {} as NotebookClient)).toBe('Kind is Book');
+    const fields: FieldDefinition[] = [{ id: '@kind', name: 'Tag', kind: 'choice', revision: 0, options: [{ id: 'type:books', text: 'Book' }], targets: [] }];
+    expect(filterLabel({ field: '@kind', op: 'is', value: 'type:books' }, fields, {} as NotebookClient)).toBe('Tag is Book');
     expect(attributeDefinitions('tasks').find(field => field.id === '@status')?.options.map(option => option.id)).toEqual(['todo', 'doing', 'waiting', 'done', 'cancelled']);
   });
   test('note predicates use semantic attributes and civil-date comparisons', () => {

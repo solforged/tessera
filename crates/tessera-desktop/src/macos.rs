@@ -99,7 +99,7 @@ pub fn register(app: &AppHandle) {
             dock.setAutoenablesItems(false);
             for (title, selector) in [
                 ("Add to Today", sel!(addToToday:)),
-                ("New Page", sel!(newPage:)),
+                ("New Atom", sel!(newPage:)),
                 ("New Question", sel!(newQuestion:)),
             ] {
                 // SAFETY: Each selector is a void(id) action defined above on

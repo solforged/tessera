@@ -58,7 +58,7 @@ export async function draftFieldOperations(notebook: NotebookClient, pageId: str
 export async function createPageDraft(notebook: NotebookClient, request: { kind: CreateKind; noteKind?: NoteKind; text: string; gist?: string; fields?: DraftFieldsState }): Promise<{ pageId: string; caretId?: string; caretOffset: number; created: boolean }> {
   const text = request.text.trim(), typed = request.kind.startsWith('type:');
   if (!text) throw new Error('A title cannot be empty.');
-  if (typed && !request.noteKind) throw new Error('Choose a page kind.');
+  if (typed && !request.noteKind) throw new Error('Choose a tag.');
   const existingId = await notebook.pageByTitle(text, false);
   const pageId = existingId ?? ulid(), caretId = existingId ? undefined : ulid();
   const fields = request.fields ?? blankDraftFields();
@@ -103,7 +103,7 @@ export async function createPageDraft(notebook: NotebookClient, request: { kind:
         { op: 'insert', id: ulid(), parent_id: entry, after: null, text: '', heading: null },
       );
     }
-    if (operations.length) await notebook.commit(operations, `New ${request.noteKind?.name.toLocaleLowerCase() ?? (request.kind === 'note' ? 'page' : request.kind)}`);
+    if (operations.length) await notebook.commit(operations, `New ${request.noteKind?.name.toLocaleLowerCase() ?? (request.kind === 'note' ? 'atom' : request.kind)}`);
     return { pageId, caretId, caretOffset: line.length, created: !existingId };
   } finally { doc?.release(); }
 }

@@ -172,7 +172,7 @@ function FirstRun() {
     <p>This workshop lives in this browser's private storage, on this device only. Download backups from Settings › Backups.</p>
     <div class="demo-choices">
       <div><Button class="bordered" onClick={() => { void start('empty'); }}>Start empty</Button><p>A blank workshop.</p></div>
-      <div><Button class="bordered" onClick={() => { void start('tour'); }}>Take the tour</Button><p>Sample pages, cards and Marcus Aurelius' Meditations to try things on.</p></div>
+      <div><Button class="bordered" onClick={() => { void start('tour'); }}>Take the tour</Button><p>Sample atoms, cards and Marcus Aurelius' Meditations to try things on.</p></div>
       <div><Button class="bordered" onClick={() => picker.click()}>Restore a backup…</Button><p>A workshop file downloaded from Tessera in a browser.</p></div>
     </div>
     <input ref={picker} type="file" hidden onChange={event => {

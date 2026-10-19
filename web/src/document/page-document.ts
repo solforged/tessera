@@ -141,7 +141,7 @@ export class Document implements PageDocument {
     }
   }
   close() { this.closed = true; }
-  markMissing(message = 'This page has been deleted.') {
+  markMissing(message = 'This atom has been deleted.') {
     this.syncGeneration++;
     batch(() => {
       const ids = [...this.cells.keys()];
@@ -998,7 +998,7 @@ export class Document implements PageDocument {
   }
   /** Shared by page-local history and acknowledged, cross-page source commands. */
   sourceDetailsActions(edit: SourceDetailsEdit): Action[] {
-    if (this.status() !== 'ready') throw new Error('This page is not ready.');
+    if (this.status() !== 'ready') throw new Error('This atom is not ready.');
     const actions: Action[] = [];
     const text = (id: string, value: string) => {
       if (this.snapshot(id).text !== value) actions.push({ kind: 'text', id, text: value });
@@ -1011,7 +1011,7 @@ export class Document implements PageDocument {
     if (edit.title !== undefined) {
       const title = edit.title.trim();
       if (!title) throw new Error('A title is required.');
-      if (!this.host.titleAvailable(title, this.pageId)) throw new Error('A page with this title already exists.');
+      if (!this.host.titleAvailable(title, this.pageId)) throw new Error('An atom with this title already exists.');
       text(this.pageId, title);
     }
     let after = this.outline.children(this.pageId).at(-1) ?? null;
@@ -1124,7 +1124,7 @@ export class Document implements PageDocument {
     };
   }
   edit(edit: Edit, caretBefore: HistoryCaret | null = null): EditResult {
-    if (this.status() !== 'ready') return { ok: false, reason: 'This page is not ready.' };
+    if (this.status() !== 'ready') return { ok: false, reason: 'This atom is not ready.' };
     const actions: Action[] = [];
     let caret: Caret | null = caretBefore ? { id: caretBefore.id, offset: caretBefore.offset } : null;
     const created: string[] = [];
@@ -1347,13 +1347,13 @@ export class Document implements PageDocument {
       switch (edit.kind) {
         case 'cardHeld': {
           for (const card of edit.cards) {
-            if (!card.active || !this.block(card.source_block_id)) throw new Error('The card is no longer active on this page.');
+            if (!card.active || !this.block(card.source_block_id)) throw new Error('The card is no longer active on this atom.');
             if (card.held !== edit.held) actions.push({ kind: 'cardHeld', id: card.id, value: edit.held, previous: card.held, baseRevision: card.revision });
           }
           break;
         }
         case 'cardTemplate': {
-          if ((edit.value?.type_id ?? edit.previous?.type_id) !== this.pageId) throw new Error('Card templates belong to their tag page.');
+          if ((edit.value?.type_id ?? edit.previous?.type_id) !== this.pageId) throw new Error('Card templates belong to their tag.');
           const { previous, value } = edit;
           if (previous && value && previous.name === value.name && previous.front === value.front && previous.back === value.back
             && previous.applied === value.applied && previous.new_per_day === value.new_per_day) break;
@@ -1370,7 +1370,7 @@ export class Document implements PageDocument {
           } else {
             this.guardHide(edit.id);
             if (edit.choice === 'use') {
-              if (!this.block(copy.of)) throw new Error('The original is not on this page. Both versions are unchanged.');
+              if (!this.block(copy.of)) throw new Error('The original is not on this atom. Both versions are unchanged.');
               actions.push({ kind: 'text', id: copy.of, text: block.text });
             }
             actions.push({ kind: 'delete', id: edit.id });
@@ -1485,7 +1485,7 @@ export class Document implements PageDocument {
         }
         case 'spread': {
           const block = this.snapshot(edit.id);
-          if (block.kind !== 'page') throw new Error('Only a page can be a spread.');
+          if (block.kind !== 'page') throw new Error('Only a titled atom can be a spread.');
           const previous = !!this.capabilities(edit.id).spread;
           if (previous !== edit.value) actions.push({ ...edit, previous, baseRevision: block.revision });
           break;
@@ -1605,7 +1605,7 @@ export class Document implements PageDocument {
           break;
         case 'addField': {
           const root = this.root();
-          if (root?.kind !== 'page' || root.text.toLowerCase() !== 'fields') throw new Error('Field definitions belong on the Fields page.');
+          if (root?.kind !== 'page' || root.text.toLowerCase() !== 'fields') throw new Error('Field definitions belong on the Fields register.');
           if (!edit.name.trim()) throw new Error('A field needs a name.');
           const id = insert(this.pageId, this.outline.children(this.pageId).at(-1) ?? null, edit.name);
           if (edit.value !== 'text') actions.push({ kind: 'fieldKind', id, value: edit.value, previous: 'text' });
@@ -1662,7 +1662,7 @@ export class Document implements PageDocument {
         }
         case 'fieldKind': {
           const definition = edit.definition;
-          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its kind.');
+          if (this.snapshot(definition.id).revision !== definition.revision || this.block(definition.id)?.pending) throw new Error('The field changed. Refresh before changing its format.');
           if (definition.kind !== edit.value) actions.push({ kind: 'fieldKind', id: definition.id, value: edit.value, previous: definition.kind, baseRevision: definition.revision });
           break;
         }
@@ -1758,7 +1758,7 @@ export class Document implements PageDocument {
         case 'merge': {
           const source = this.snapshot(edit.sourceId);
           const destination = this.snapshot(edit.destinationId);
-          if (source.kind !== 'block') throw new Error('A page cannot merge into an atom.');
+          if (source.kind !== 'block') throw new Error('A titled atom cannot merge into an outline atom.');
           let parent = destination.id;
           while (parent !== this.pageId) { if (parent === source.id) throw new Error('Cannot merge into a descendant.'); parent = this.outline.parentOf(parent); }
           for (let ancestor: string | null = destination.id; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(source.id); break; }
@@ -1963,8 +1963,8 @@ export class Document implements PageDocument {
   }
   rename(title: string): EditResult {
     if (this.root()?.kind !== 'page') return { ok: false, reason: 'Journal dates cannot be renamed.' };
-    if (!title.trim()) return { ok: false, reason: 'A page needs a title.' };
-    if (!this.host.titleAvailable(title.trim(), this.pageId)) return { ok: false, reason: 'A page with this title already exists.' };
+    if (!title.trim()) return { ok: false, reason: 'A title is required.' };
+    if (!this.host.titleAvailable(title.trim(), this.pageId)) return { ok: false, reason: 'An atom with this title already exists.' };
     return this.edit({ kind: 'text', id: this.pageId, text: title.trim() });
   }
   addType(blockId: string, title: string): EditResult {

@@ -81,7 +81,7 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
     {props.heading}
     <div class="settings-row">
       <div class="settings-label"><span class="settings-name">Workshop file</span>
-        <p>One file with every page, card and book. Keep it somewhere outside this browser.</p>
+        <p>One file with every atom, card and book. Keep it somewhere outside this browser.</p>
         <p class="settings-mono" role="status">{lastBackup() ? `Last downloaded ${props.when(lastBackup()!)}` : 'Not downloaded yet.'}</p>
       </div>
       <Button class="bordered" disabled={busy()} onClick={() => { void download(false); }}>{working() === 'notebook' ? 'Preparing…' : 'Download'}</Button>

@@ -110,7 +110,7 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
   }
 
   const status = () => error() || (ready() ? doc.saveMessage() : 'Loading…');
-  return <Portal><dialog ref={root} class="reader-compose" style={readerStyle()} aria-label="Note on this passage"
+  return <Portal><dialog ref={root} class="reader-compose" style={readerStyle()} aria-label="Annotation on this passage"
     onCancel={event => { event.preventDefault(); void close(); }}
     onKeyDown={event => {
       if (event.isComposing) return;
@@ -137,7 +137,7 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
       {/* One way back: Keep note once there is text, Back to reading while it is empty (and the empty note goes). */}
       <div class="reader-compose-heading">
         <label for="reader-compose-note">A thought on this passage</label>
-        <Button class="reader-compose-close" classList={{ 'reader-compose-keep': !!text().trim() }} icon={text().trim() ? 'check' : undefined} disabled={closing()} onClick={() => { void close(); }}>{text().trim() ? 'Keep note' : 'Back to reading'}</Button>
+        <Button class="reader-compose-close" classList={{ 'reader-compose-keep': !!text().trim() }} icon={text().trim() ? 'check' : undefined} disabled={closing()} onClick={() => { void close(); }}>{text().trim() ? 'Keep annotation' : 'Back to reading'}</Button>
       </div>
       <textarea ref={input} id="reader-compose-note" placeholder="What do you want to remember?" disabled={!ready() || closing()}
         value={text()} onInput={event => write(event.currentTarget.value)} />

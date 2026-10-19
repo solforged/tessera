@@ -820,7 +820,7 @@ impl Notebook {
         blocks: &[NoteBlock],
     ) -> Result<(String, String)> {
         if blocks.is_empty() {
-            return Err(validation("a note must contain an atom"));
+            return Err(validation("a capture must contain an atom"));
         }
         let (page_id, parent_id, after, title) = match target {
             NoteTarget::Page { title } => {
@@ -1265,15 +1265,15 @@ impl Notebook {
     ) -> Result<(String, String)> {
         let block = self.block(id)?;
         let Some(old_parent) = block.parent_id.clone() else {
-            return Err(validation("a page cannot be moved"));
+            return Err(validation("a titled atom cannot be moved"));
         };
         let (parent, after) = match (parent_id, after, first) {
             (_, Some(_), true) => return Err(validation("give after or first, not both")),
             (parent, Some(after), false) => {
                 let sibling = self.block(after)?;
-                let sibling_parent = sibling
-                    .parent_id
-                    .ok_or_else(|| validation("an atom cannot be placed after a page"))?;
+                let sibling_parent = sibling.parent_id.ok_or_else(|| {
+                    validation("an atom cannot be placed beside the outline's root")
+                })?;
                 if parent.is_some_and(|parent| parent != sibling_parent) {
                     return Err(validation("after must be a child of parent_id"));
                 }

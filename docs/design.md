@@ -293,13 +293,13 @@ Below 600 px:
 - Field labels stack above values, so long values keep the measure.
 - The [library search](surfaces/library.md) takes its own line above sort, export and add.
 
-The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a six-column bottom nav replaces it: Today, Agenda, New, Find, Review and Library. New opens the shared creation sheet with Note into Today selected; every target is at least `--target-size`. Today selects only today's journal, Agenda and Review select their own panes, New selects while the slip is open, and Find selects while its picker is open. Library selects only the Library pane or a reader; source pages, type indexes, tables, Fields and Settings select no primary place.
+The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a six-column bottom nav replaces it: Today, Agenda, New, Find, Review and Library. New opens the shared creation sheet with Atom into Today selected; every target is at least `--target-size`. Today selects only today's journal, Agenda and Review select their own panes, New selects while the slip is open, and Find selects while its picker is open. Library selects only the Library pane or a reader; source pages, type indexes, tables, Fields and Settings select no primary place.
 
 The rail's sync status moves to a row above the nav, shown only while sync is not Synced. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
 
 ### Mac menus
 
-Settings opens from the Tessera menu. File › New offers Page (⌘N), Question (⌥⌘N), Task, Card, Project and Source…. File also offers Open Today (⌘T), Import Book… and Add to Today (⌘E), using the same commands as the web shell and bringing the main window forward. The Dock menu offers Add to Today, New Page and New Question through those same commands. About shows the release version with the build hash in parentheses when available.
+Settings opens from the Tessera menu. File › New offers Atom (⌘N), Question (⌥⌘N), Task, Card, Project and Source…. File also offers Open Today (⌘T), Import Book… and Add to Today (⌘E), using the same commands as the web shell and bringing the main window forward. The Dock menu offers Add to Today, New Atom and New Question through those same commands. About shows the release version with the build hash in parentheses when available.
 
 ### Measure
 
@@ -312,14 +312,14 @@ The first four visual depths have equal indentation steps; subsequent steps get 
 One picker searches pages, blocks, highlight quotations and authored text or tags, and the passages inside books; a leading `>` switches to commands. Everything, Highlights, Books and Pages chips filter grouped results under mono headings and live counts, in this order:
 
 1. Highlights.
-2. Pages and notes, or Books when every result is a book page.
-3. Creation rows, when a non-empty Everything or Pages query has no exact title match.
+2. Atoms, or Books when every result is a book page.
+3. Creation rows, when a non-empty Everything or Atoms query has no exact title match.
 4. In your books.
 
 A block already shown as a highlight is not repeated among the note results. Other note matches occupy one column, with their text clamped to two lines and the containing page title as mono apparatus beneath.
 Queries with no full-text word tokens, including emoji and punctuation, match authored display text literally and never turn empty name folding into a wildcard.
 
-Creation rows offer Add “{q}” to library for a whole source identifier, or Create question “{q}” for an inferred question, then Create page “{q}” and Create “{q}” as…. A question or page creates directly and opens its Outline body caret; both show ⇧↵ beside. Add opens the Source slip with the query. Create as opens the inferred kind (otherwise Note) into New page, anchored to the search field with the Kind row focused. The preview names the selected action, using Choose a kind for “{q}” for Create as.
+Creation rows offer Add “{q}” to library for a whole source identifier, or Create question “{q}” for an inferred question, then Create atom “{q}” and Create “{q}” as…. A question or page creates directly and opens its Outline body caret; both show ⇧↵ beside. Add opens the Source slip with the query. Create as opens the inferred kind (otherwise Atom) into New atom, anchored to the search field with the Kind row focused. The preview names the selected action, using Choose a tag for “{q}” for Create as.
 
 
 | Result | Search and metadata |
@@ -336,16 +336,16 @@ On the touch cover Find and Commands occupy the keyboard-resized visual viewport
 - Enter opens or creates in the invoking pane; passages and highlights open at their place in the [reader](surfaces/reader.md), and ⌘Enter opens beside. Enter during a pending search waits for that query's results; editing the query, changing scope or closing cancels that intent.
 - Arrows select and Escape closes. Only plain Home and End select the first and last result; modified chords retain native query editing. Scope chips return focus to the query. Creation errors keep the entered title intact.
 - Tab drills into page-result children and Shift-Tab returns; a drilled search never offers root-page creation.
-- New page opens the shared creation slip with Note and New page selected, top-centered without a trigger and anchored when invoked from a button. Its ⌘N hint appears only in the desktop app. The cover uses a bottom sheet with Close, no second Cancel and no keyboard hints. Existing titles offer Open page; typed drafts offer File as their kind when needed.
-- Creating from Find or the slip commits a first block with the page and opens its unzoomed Outline with the body caret live. A gist becomes that block's text, except for projects, where it sets the outcome shown in the header and leaves the body empty. Kind-specific field rows sit between gist and Similar pages, with mono labels, value columns and hairlines; question metadata, the first perspective, project deadlines and up to four template fields save with creation. Longer templates show More fields after creating. Filled fields on existing pages are read-only. Tab moves through title, gist and rows to Create. Typing immediately after submit continues into the body, including while the page loads. Shift+Enter in the slip opens beside; Shift+⌘Enter creates another without navigating. Opening an existing page does not force an editing caret.
+- New atom opens the shared creation slip with Atom and New atom selected, top-centered without a trigger and anchored when invoked from a button. Its ⌘N hint appears only in the desktop app. The cover uses a bottom sheet with Close, no second Cancel and no keyboard hints. Existing titles offer Open atom; typed drafts offer File as their kind when needed.
+- Creating from Find or the slip commits a first block with the page and opens its unzoomed Outline with the body caret live. A gist becomes that block's text, except for projects, where it sets the outcome shown in the header and leaves the body empty. Kind-specific field rows sit between gist and Similar atoms, with mono labels, value columns and hairlines; question metadata, the first perspective, project deadlines and up to four template fields save with creation. Longer templates show More fields after creating. Filled fields on existing pages are read-only. Tab moves through title, gist and rows to Create. Typing immediately after submit continues into the body, including while the page loads. Shift+Enter in the slip opens beside; Shift+⌘Enter creates another without navigating. Opening an existing page does not force an editing caret.
 
-Command mode starts with Go to: [Highlights, Unfiled, Sources](surfaces/library.md), [Agenda week, Agenda tasks](surfaces/tasks-agenda.md), [This week, This month, This quarter and This year](surfaces/journal.md), followed by each workshop type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. ⌘ opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, Page, View and Editing retain their existing commands and shortcut hints below.
+Command mode starts with Go to: [Highlights, Unfiled, Sources](surfaces/library.md), [Agenda week, Agenda tasks](surfaces/tasks-agenda.md), [This week, This month, This quarter and This year](surfaces/journal.md), followed by each workshop type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. ⌘ opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, This atom, View and Editing retain their existing commands and shortcut hints below.
 
-Create groups New page, New question (⌥⌘N), New project, New task, New card, Add source and Add to today (⌘E), plus New {kind} for every page kind in the slip's More menu. Typed commands lock their kind; tasks and cards start in Today. Command queries match titles, sections and keywords: `>capture` finds Add to today, `>todo` finds New task, and source keywords include book, article, paper, library, import and isbn. ⌥⌘N also works in the browser; the macOS app lets its menu dispatch the shortcut once.
+Create groups New atom, New question (⌥⌘N), New project, New task, New card, Add source and Add to today (⌘E), plus New {kind} for every page kind in the slip's More menu. Typed commands lock their kind; tasks and cards start in Today. Command queries match titles, sections and keywords: `>capture` finds Add to today, `>todo` finds New task, and source keywords include book, article, paper, library, import and isbn. ⌥⌘N also works in the browser; the macOS app lets its menu dispatch the shortcut once.
 
-With no command query, Page lists only applicable actions; searching retains the full catalog, including unavailable actions with their reasons. Copy page reference copies the active page's workshop link. Undo and Redo remain in Commands with ⌘Z and ⌘⇧Z, and Compare perspectives remains searchable alongside the visible Compare projection tab.
+With no command query, This atom lists only applicable actions; searching retains the full catalog, including unavailable actions with their reasons. Copy atom reference copies the active page's workshop link. Undo and Redo remain in Commands with ⌘Z and ⌘⇧Z, and Compare perspectives remains searchable alongside the visible Compare projection tab.
 
-Renaming a titled atom to an existing title offers **Merge into “Title”**; the atom menu's **Merge into…** uses the picker. A confirmation explains that the merge is permanent. Built-in tag pages allow case-only renames; the engine refuses a different name. Their Delete and Merge actions stay disabled with the engine's refusal, such as `Task is a built-in tag; its page cannot merge.`
+Renaming a titled atom to an existing title offers **Merge into “Title”**; the atom menu's **Merge into…** uses the picker. A confirmation explains that the merge is permanent. Built-in tag pages allow case-only renames; the engine refuses a different name. Their Delete and Merge actions stay disabled with the engine's refusal, such as `Task is a built-in tag and cannot be merged.`
 
 The surviving page keeps its title and receives the duplicate's blocks, with matching field entries appending their values. References, aliased references, tags and memberships redirect to the survivor, so its backlinks include both pages' former incoming links. Journal days, the Fields page and library sources cannot be merged; source-details title collisions remain errors.
 
@@ -378,9 +378,9 @@ Handle and fold live in the gutter and show on hover, focus and selection. The h
 
 Dragging starts after a small movement and shows an indented horizontal drop line: the upper or lower half of a row chooses before or after its subtree, moving right of its text edge makes it the first child, and moving left chooses an ancestor depth. A selected row moves the whole selection with its subtrees in one undo step; the pane scrolls at its edges, Escape cancels, and drops cannot cross the zoom boundary or enter a moved subtree.
 
-The titled Atom actions menu names its block in at most two mono lines. Edit, Insert below, Move…, Copy reference and Open beside come first. Move contains Indent, Outdent, Move up, Move down, Move to page… and, on journal days, Integrate. Move to page opens the shared page picker and places the selected roots with their subtrees at the end of the chosen page, preserving identities and capabilities in one undo step. The source page stays open and offers Undo.
+The titled Atom actions menu names its block in at most two mono lines. Edit, Insert below, Move…, Copy reference and Open beside come first. Move contains Indent, Outdent, Move up, Move down, Move to atom… and, on journal days, Integrate. Move to atom opens the shared page picker and places the selected roots with their subtrees at the end of the chosen page, preserving identities and capabilities in one undo step. The source page stays open and offers Undo.
 
-Choosing a Move to page destination reserves its undo step before saving. Undo requested while the move is pending waits for its acknowledgment, then reverses the move without undoing earlier text.
+Choosing a Move to atom destination reserves its undo step before saving. Undo requested while the move is pending waits for its acknowledgment, then reverses the move without undoing earlier text.
 
 Named Image, Field, Task, Project, Perspective, Question, Assessment, Relation, Cards and Citation managers appear only when present, retaining each when features coexist. Add field… and Make… follow; Make adds only absent features and keeps the note's text. Archive or Unarchive and Delete… remain last and preserve selection and subtree scope. Zoom and Select stay in Commands, with their bullet, gestures and keys intact. Drill-ins replace the rows in place under a title and Back control. Closing or completing an action returns keyboard ownership to the editor or outline.
 
@@ -438,7 +438,7 @@ A field whose values are all leaves reads through its definition's role. Standfi
 
 A page's own fields read as a specimen block under the imprint, as the site sets title, standfirst, imprint, then text. Names are mono apparatus in `--faint` without the field icon, starting on the title edge. Attribute values are `--text-control` in `--muted`, and a dotted hairline separates rows. On phones each name sits over its value, both on the title edge. Nested fields sit inside prose and keep the bed above; journal days and the reading register set fields their own way.
 
-- Clicking a name opens a menu titled with the field name and its owning note as context: Open field page, Definition…, Templates… and Remove from this note last. Definition groups Kind…, Options… or Links to…, Hide…, Role… and Counts as…; Kind opens the change preview on the field page. Templates holds Add to or Remove from each owning type's template and is omitted without an owning type. Nested choices replace the rows in place with a header Back. The block menu's Field manager and the leader key `f` open the same menu.
+- Clicking a name opens a menu titled with the field name and its owning note as context: Open field definition, Definition…, Templates… and Remove from this atom last. Definition groups Format…, Options… or Links to…, Hide…, Role… and Counts as…; Format opens the change preview on the field page. Templates holds Add to or Remove from each owning type's template and is omitted without an owning type. Nested choices replace the rows in place with a header Back. The block menu's Field manager and the leader key `f` open the same menu.
 - An entry with no value shows its name and a blank value; clicking the blank adds a value and edits it. Blank values show no text.
 - Backspace at the start of the first inline value does nothing; at the start of a later one it joins the value above.
 - A page that opens on a field selects its value row instead of editing.
@@ -576,7 +576,7 @@ A paste without supported text, HTML or Tessera block data leaves the selection 
 
 Opening a page selects nothing, so no row lights up that you did not choose; journals still open editing their last empty block. ↓ or `j` then selects the first visible row and ↑ or `k` the last; other keys wait for a selection. Back and forward restore the row you had selected.
 
-An open that names a block selects it, and one that names a caret (Add note, Make card, Highlight and note) starts editing there.
+An open that names a block selects it, and one that names a caret (Add atom, Make card, Highlight and annotate) starts editing there.
 
 Clicking blank canvas below the last row of a page or journal edits its trailing empty block, or appends an empty sibling at the visible root when one is needed.
 
@@ -644,7 +644,7 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 | Trigger | Means |
 |---|---|
 | `[[` | Reference to a page, field or block |
-| `((` | On an otherwise empty row: Quote block, a frozen [quote](domain-model.md#quotes) of an atom and its subtree. Inside other text: Atom reference, searching atoms only |
+| `((` | On an otherwise empty row: Quote, a frozen [quote](domain-model.md#quotes) of an atom and its subtree. Inside other text: Atom reference, searching atoms only |
 | `#name` | Tag: picks a registered tag or creates one; built-in tags add their behavior |
 | `@` | Schedule or deadline on this atom, without a checkbox: `@fri` schedules, `@by fri` or `@due fri` sets a deadline; Tab flips the field, Enter picks. `#task`, `/Todo` or ⌘Enter adds a checkbox |
 | `/` | Every atom verb: tags, fields, statuses, schedule, deadline, priority, repeat, clock, project, headings, references, cards |
@@ -662,7 +662,7 @@ Accepting a reference freezes that query and moves the caret into the following 
 
 Enter accepts a selected Quote before its snapshot lookup finishes. An immediate Escape leaves editing without canceling that choice; a later edit to the same row instead keeps the authored text and reports why the quote could not be saved.
 
-The caret lands after the reference, with a space when a word or the end of the block follows; punctuation or a space typed next takes that space's place, on phone keyboards too. Backspace in an empty `[[]]` removes both pairs. A query that names no page or field exactly offers Create page after the matches, except an ISO date, which only offers its existing journal.
+The caret lands after the reference, with a space when a word or the end of the block follows; punctuation or a space typed next takes that space's place, on phone keyboards too. Backspace in an empty `[[]]` removes both pairs. A query that names no page or field exactly offers Create atom after the matches, except an ISO date, which only offers its existing journal.
 
 `[[Title]]` typed by hand, or kept as text with Escape, links the one page whose title or alias is that name once the block is left, keeping the typed wording. A name two or more pages share stays unlinked and is marked; see [Aliases](surfaces/notes.md#aliases). A name no page has creates the page; a date only links a journal that already exists.
 
@@ -782,12 +782,12 @@ Bottom sheets share a grab area and an accessible Close button. Dragging downwar
 | Leader, status and priority menus | Menu; leader letters at the right and pressed directly | Below the row |
 | Add filter | Picker in three steps: field, condition, value; Backspace on an empty query steps back | Below its trigger |
 | Block menu | Routine actions, Move drill-in, present-feature managers, Add field and Make chooser | Below the handle; bottom sheet on coarse phones |
-| Page actions | Titled Menu with page context, full ID, Copy ID and Created; Description, Make and Appearance drill in with Back | Below its trigger; bottom sheet with Close and 44 px rows on coarse phones |
-| Note actions | Titled Menu with the existing note header; Open, File under, Rename and Delete, then More for Merge and Copy reference | Below its trigger; bottom sheet on coarse phones |
+| Atom actions | Titled Menu with page context, full ID, Copy ID and Created; Description, Make and Appearance drill in with Back | Below its trigger; bottom sheet with Close and 44 px rows on coarse phones |
+| Atom actions | Titled Menu with the existing note header; Open, File under, Rename and Delete, then More for Merge and Copy reference | Below its trigger; bottom sheet on coarse phones |
 | Source actions | Edit details, Copy citation key, Collections…, Export…, Source settings… and Delete source last; drill-ins replace rows with a header Back | Below the trigger; a bottom sheet below 600 px with a coarse pointer |
-| Field entry | Open field page, Definition…, Templates… when an owning type exists, Remove from this note last; Kind, Hide, Role and Counts as drill into Definition | Below the field name; a bottom sheet below 600 px with a coarse pointer |
+| Field entry | Open field definition, Definition…, Templates… when an owning type exists, Remove from this atom last; Format, Hide, Role and Counts as drill into Definition | Below the field name; a bottom sheet below 600 px with a coarse pointer |
 | Workshop, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
-| Delete page | Confirm | Below its trigger |
+| Delete atom | Confirm | Below its trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
 | Atom backlinks | Each referring block with its page breadcrumb, parent and children, and an Open beside glyph on hover; `--measure` wide | Below the row's reference count |
 | Notice / Undo toast | One shell notice at a time, with up to two actions such as Open and Undo; eight seconds, paused under pointer or focus. Page deletions use the same surface. An outline's local notice still owns that pane's ⌘Z until a newer edit returns Undo to its document | Bottom center |

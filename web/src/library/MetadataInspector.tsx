@@ -110,7 +110,7 @@ export function MetadataInspector(props: {
     setRequested(undefined); setLoading(true); setLoadError('');
     void Promise.all(selected.docs.map(documentReady)).then(() => {
       if (cancelled) return;
-      if (selected.docs.some(doc => !doc.root()?.source)) throw new Error('One of the selected pages is no longer a source.');
+      if (selected.docs.some(doc => !doc.root()?.source)) throw new Error('One of the selected atoms is no longer a source.');
       solidBatch(() => { setRequested(selected); setLoading(false); });
     }).catch(reason => { if (!cancelled) { setLoadError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); } });
     onCleanup(() => {
@@ -297,7 +297,7 @@ export function MetadataInspector(props: {
       <Show when={props.backLabel}><Button class="metadata-back" icon="left" onClick={() => (props.onBack ?? props.onClose)()}>{props.backLabel}</Button></Show>
       <div class="metadata-inspector-heading">
         <span>{batch() ? `${docs().length} sources selected` : `${docs()[0]?.root()?.source?.siglum ?? ''} Catalogue card`}</span>
-        <div><Show when={docs().length === 1}><Button class="metadata-open" onClick={event => props.onOpen({ kind: 'page', pageId: docs()[0]!.pageId }, opensBeside(event))}>Open page<Icon name="right" /></Button></Show><Button icon="close" label="Close source details" onClick={props.onClose} /></div>
+        <div><Show when={docs().length === 1}><Button class="metadata-open" onClick={event => props.onOpen({ kind: 'page', pageId: docs()[0]!.pageId }, opensBeside(event))}>Open atom<Icon name="right" /></Button></Show><Button icon="close" label="Close source details" onClick={props.onClose} /></div>
       </div>
       <Show when={batch()}><p class="metadata-hint">An entered value replaces the field on all {docs().length} sources, unless a source is named.</p></Show>
       <Button aria-haspopup="dialog" aria-expanded={!!visibilityMenu()} onClick={event => setVisibilityMenu(event.currentTarget)}>Visible fields…</Button>
@@ -337,7 +337,7 @@ export function MetadataInspector(props: {
       <Show when={actionError()}><p class="metadata-error" role="alert">{actionError()}</p></Show>
     </div>
     <Show when={visibilityMenu()}>{anchor => <Popup anchor={anchor()} label="Catalogue fields" onDismiss={() => setVisibilityMenu(undefined)}>
-      <h2 class="popup-title">Catalogue fields</h2><p class="metadata-hint">Visibility is kept for each selected page on this device.</p>
+      <h2 class="popup-title">Catalogue fields</h2><p class="metadata-hint">Visibility is kept for each selected atom on this device.</p>
       <For each={(Object.keys(labels) as SourceField[]).filter(field => field !== 'cover' && field !== 'siglum')}>{field => <label class="menu-item"><input type="checkbox" checked={!hiddenFields().includes(field)} onChange={event => setFieldVisible(field, event.currentTarget.checked)} />{labels[field]}</label>}</For>
     </Popup>}</Show>
     <Show when={toast()}>{notice => <div class="metadata-toast" role="status"><span>{notice().label} on {notice().count} {notice().count === 1 ? 'source' : 'sources'}.</span><Show when={notice().action}><Button disabled={!!pending()} onClick={() => { void travel(notice().action === 'redo'); }}>{notice().action === 'redo' ? 'Redo' : 'Undo'}</Button></Show><Button icon="close" label="Dismiss change notice" onClick={() => setToast(undefined)} /></div>}</Show>

@@ -313,7 +313,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   private receiveRemoval(id: string) {
     this.publish(null, id);
     this.updateRoot(null, id);
-    this.docs.get(id)?.markMissing('This page was removed because nothing uses it any more.');
+    this.docs.get(id)?.markMissing('This atom was removed because nothing uses it any more.');
   }
   updateRoot(block: Block | null, id = block?.id) {
     if (!id) return;
@@ -404,7 +404,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     const command: NotebookCommand = {
       kind: 'notebook', id: ulid(), order: ++this.order, pageId: null,
       capture: structuredClone({ date: this.todayDate(), text, task, picked: [...picked], ...options }),
-      operations: [], reason: options.targetPageId ? 'Add to page' : 'Add to today', actions: [], inverse: [], before: null, after: null,
+      operations: [], reason: options.targetPageId ? 'Add to atom' : 'Add to today', actions: [], inverse: [], before: null, after: null,
     };
     const waiter = Promise.withResolvers<Committed | null>();
     this.captureWaiters.set(command.id, waiter);
@@ -610,7 +610,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     return this.serializeSourceChange(async () => {
       if (!ids.length) throw new Error('Select atoms to move.');
       const first = await this.api.block(ids[0]!);
-      if (first.page_id === destinationId) throw new Error('Choose another page.');
+      if (first.page_id === destinationId) throw new Error('Choose another atom.');
       const pages = [first.page_id, destinationId];
       const opened = pages.map(pageId => this.open(pageId) as Document);
       try {
@@ -618,7 +618,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         await Promise.all(opened.map(async doc => { if (doc.status() === 'loading') await doc.reload(false); await this.flushPage(doc.pageId); }));
         const source = await this.api.page(first.page_id);
         const destination = await this.api.block(destinationId);
-        if (destination.kind !== 'page') throw new Error('Choose a titled page.');
+        if (destination.kind !== 'page') throw new Error('Choose a titled atom.');
         const selected = new Set(ids);
         const blocks = new Map(source.rows.map(row => [row.block.id, row.block]));
         const predecessors = new Map<string, string | null>();
@@ -650,7 +650,7 @@ export class Notebook implements NotebookClient, DocumentHost {
               after = root.id;
               return operation;
             });
-            await this.commitOperations(operations, forward ? 'Move atoms to page' : 'Undo move to page', pages, false);
+            await this.commitOperations(operations, forward ? 'Move atoms' : 'Undo atom move', pages, false);
             applied = forward;
           } finally { for (const doc of docs) doc.release(); }
         };
@@ -709,18 +709,18 @@ export class Notebook implements NotebookClient, DocumentHost {
             let after: string | null = null;
             for (const child of children) {
               const block = await this.api.block(child);
-              if (block.parent_id !== pageId) throw new Error('The project page changed since this change. Its current outline was kept.');
+              if (block.parent_id !== pageId) throw new Error('The project changed since this change. Its current outline was kept.');
               operations.push({ op: 'move', id: child, base_revision: block.revision, parent_id: id, after });
               after = child;
             }
             if (originalText !== linkText) operations.push({ op: 'edit_text', id, base_revision: current.revision, text: originalText });
             const page = await this.api.page(pageId);
             if (created) {
-              if (page.rows.some(row => !children.includes(row.block.id) && row.depth === 0)) throw new Error('The project page has new writing. It was kept.');
+              if (page.rows.some(row => !children.includes(row.block.id) && row.depth === 0)) throw new Error('The project has new writing. It was kept.');
               operations.push({ op: 'delete', id: pageId, base_revision: page.root.revision });
             } else if (!wasProject) operations.push({ op: 'set_project', id: pageId, base_revision: page.root.revision, project: null });
           }
-          const receipt = await this.commitOperations(operations, forward ? 'Make project page' : 'Undo project page', pages, false);
+          const receipt = await this.commitOperations(operations, forward ? 'Make project' : 'Undo project creation', pages, false);
           pageRevision = receipt.revisions.find(value => value.id === pageId)?.revision ?? pageRevision;
           if (!forward && created) deletionId = receipt.deletions[0];
           applied = forward;
@@ -742,7 +742,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       await Promise.all(docs.map(async doc => {
         if (doc.status() === 'loading') await doc.reload(false);
         await doc.flush();
-        if (doc.status() !== 'ready') throw new Error(doc.statusMessage() || 'This page is not ready.');
+        if (doc.status() !== 'ready') throw new Error(doc.statusMessage() || 'This atom is not ready.');
       }));
       const operations: Operation[] = [];
       const inverse: SourceCommandPart[] = parts.map((part, index) => {
@@ -1242,7 +1242,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         for (const id of removed) {
           this.publish(null, id);
           this.updateRoot(null, id);
-          this.docs.get(id)?.markMissing('This page was merged into another page.');
+          this.docs.get(id)?.markMissing('This atom was merged into another atom.');
         }
         // Own change-stream events are skipped. Reload here, including after an
         // outbox replay, so moved rows and rewritten manual memberships arrive.
@@ -1660,7 +1660,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       // Refresh it before resuming, including structural changes and sync rebases.
       for (const id of this.recoveryPages.keys()) await this.docs.get(id)?.reload(true);
     }
-    if (this.recoveryPages.size) throw new Error('Cached pages still need a server snapshot.');
+    if (this.recoveryPages.size) throw new Error('Cached atoms still need a server snapshot.');
     this.reloadRequired = false;
   }
   private async connect() {
@@ -1875,8 +1875,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   async createPage(title: string) {
     await this.ready;
-    if (!title.trim()) throw new Error('A page needs a title.');
-    if (!this.titleAvailable(title.trim(), '')) throw new Error('That page title is already taken.');
+    if (!title.trim()) throw new Error('A title is required.');
+    if (!this.titleAvailable(title.trim(), '')) throw new Error('That atom title is already taken.');
     return this.createRoot('page', title.trim());
   }
   async pageByTitle(title: string, create: boolean) {
@@ -1940,7 +1940,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     const action = this.deletedPages.get(pageId);
     if (!action) {
       const page = (await this.api.deletedPages()).find(page => page.block.id === pageId);
-      if (!page) throw new Error('This page deletion is no longer available to restore.');
+      if (!page) throw new Error('This atom deletion is no longer available to restore.');
       await this.commit([{ op: 'restore', id: pageId, deletion_id: page.deletion_id, revision: page.block.revision }]);
       return;
     }

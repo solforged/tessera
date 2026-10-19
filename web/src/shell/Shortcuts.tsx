@@ -38,10 +38,10 @@ export function Shortcuts(props: { commands: CommandRegistry; onDismiss(): void 
       <section class="shortcuts-keys" aria-label="Keys">
         <h3 class="shortcuts-section">Press</h3>
         <For each={groups()}>{group => <>
-          <h4 class="shortcuts-group">{group.section}</h4>
+          <h4 class="shortcuts-group">{group.section === 'Page' ? 'This atom' : group.section}</h4>
           <dl><For each={group.commands}>{command => <><dt><kbd>{command.keys!.join(' / ')}</kbd></dt><dd>{command.title}</dd></>}</For></dl>
         </>}</For>
-        <Show when={!groups().some(group => group.section === 'Outline')}><p class="muted shortcuts-note">Open a page to see its outline keys.</p></Show>
+        <Show when={!groups().some(group => group.section === 'Outline')}><p class="muted shortcuts-note">Open an atom to see its outline keys.</p></Show>
       </section>
     </div>
   </Popup>;

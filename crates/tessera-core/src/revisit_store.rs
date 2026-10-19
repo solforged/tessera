@@ -137,7 +137,7 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                 |r| r.get(0),
             )?;
             if !page && state.question.is_none() {
-                return Err(validation("Choose a titled note or a question."));
+                return Err(validation("Choose a titled atom or a question."));
             }
             if *action == RevisitAction::KeepRecurrent && state.question.is_none() {
                 return Err(validation("Only a question can be recurrent."));
@@ -211,7 +211,7 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                 |r| r.get(0),
             )?;
             if !page && state.question.is_none() {
-                return Err(validation("Choose a titled note or a question."));
+                return Err(validation("Choose a titled atom or a question."));
             }
             if state.question.is_some() && state.note.revisit_on.is_some() {
                 return Err(validation("A question has one revisit date."));
@@ -233,7 +233,7 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, now: i64, seq: i64
                 let changed = conn.execute("UPDATE revisit_events SET undone = 1 WHERE id = ?1 AND block_id = ?2 AND undone = 0", params![event_id, id])?;
                 if changed == 0 {
                     return Err(validation(
-                        "The revisit was already undone or belongs to another note.",
+                        "The revisit was already undone or belongs to another atom.",
                     ));
                 }
             }

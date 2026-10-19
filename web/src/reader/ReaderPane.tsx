@@ -1195,7 +1195,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const readerActions = createMemo<MenuItem[]>(() => {
     const needsSelection = selection() ? undefined : 'Select text first';
     return [
-      { label: 'Open source page', icon: 'page', shortcut: `${besideKey} beside`, action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, besidePressed) },
+      { label: 'Open source', icon: 'page', shortcut: `${besideKey} beside`, action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, besidePressed) },
       { label: 'Merge overlapping highlights', icon: 'highlight', disabledReason: editing() ? 'Saving…' : undefined, action: () => { void mergeOverlapping(); } },
       { label: 'Undo last edit', icon: 'undo', disabledReason: actions.canUndo() || readerDocument.canUndo() ? undefined : 'Nothing to undo', action: () => { void undoHighlight(); } },
       { label: 'Next passage', section: 'Keyboard', shortcut: 'J', action: () => { void moveCursor(1); } },
@@ -1206,7 +1206,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       { label: 'Extend by passage', shortcut: '}', disabledReason: needsSelection, action: () => { void resizeSelection(true, 'passage'); } },
       { label: 'Shrink by passage', shortcut: '{', disabledReason: needsSelection, action: () => { void resizeSelection(false, 'passage'); } },
       { label: 'Highlight', shortcut: 'H', disabledReason: needsSelection, action: () => { void highlight(false); } },
-      { label: 'Highlight and note', shortcut: 'N', disabledReason: needsSelection, action: () => { void highlight(true); } },
+      { label: 'Highlight and annotate', shortcut: 'N', disabledReason: needsSelection, action: () => { void highlight(true); } },
       { label: 'Highlight color', shortcut: '1–5', submenu: () => ({ title: 'Highlight color', items: highlightColors.map((color, index): MenuItem => ({ label: color[0]!.toUpperCase() + color.slice(1), shortcut: String(index + 1), disabledReason: needsSelection, action: () => { void highlight(false, color); } })) }) },
       { label: 'Clear selection', shortcut: 'Esc', disabledReason: needsSelection, action: () => { keyboardVersion++; setSelection(null); window.getSelection()?.removeAllRanges(); } },
       ...(paged() ? [
@@ -1478,7 +1478,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     return <Portal><div ref={element} class="reader-selection-toolbar" classList={{ 'reader-selection-docked': placement().docked }} role="toolbar" aria-label="Highlight selection"
       style={{ left: `${placement().left}px`, top: `${placement().top}px`, 'max-width': placement().width ? `${placement().width}px` : undefined, width: placement().docked ? `${placement().width}px` : undefined, visibility: placement().visible ? 'visible' : 'hidden' }}
       onPointerDown={event => event.preventDefault()}>
-      <div class="reader-selection-actions"><Button icon="highlight" disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(true); }}>Highlight and note <kbd>N</kbd></Button></div>
+      <div class="reader-selection-actions"><Button icon="highlight" disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(true); }}>Highlight and annotate <kbd>N</kbd></Button></div>
       <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
       <Show when={selection()?.blockedReason}>{reason => <p role="status">{reason()}</p>}</Show>
       <Show when={editError()}><p class="error" role="alert">{editError()}</p></Show>

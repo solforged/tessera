@@ -213,7 +213,7 @@ async function prepareSourceField(doc: PageDocument, notebook: NotebookClient, c
   else if (field === 'tags') edit.tags = value as string[];
   else if (field === 'state' || field === 'citationKey') {
     const source = sourceState(doc.root()?.source);
-    if (!source) throw new Error('This page is no longer a source.');
+    if (!source) throw new Error('This atom is no longer a source.');
     edit.source = { ...source, ...(field === 'state' ? { state: value as ReadingState } : { citation_key: (value as string) || null }) };
   } else {
     const entries = sourceEntries(doc, context.definitions);

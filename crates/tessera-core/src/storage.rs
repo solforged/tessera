@@ -135,9 +135,7 @@ pub(crate) fn validate_date(date: &str) -> Result<()> {
 
 pub(crate) fn validate_text(kind: BlockKind, text: &str) -> Result<()> {
     match kind {
-        BlockKind::Page if text.trim().is_empty() => {
-            Err(validation("page title must not be empty"))
-        }
+        BlockKind::Page if text.trim().is_empty() => Err(validation("title must not be empty")),
         BlockKind::Journal => validate_date(text),
         _ => Ok(()),
     }
@@ -458,12 +456,12 @@ pub(crate) fn tag_title_matches(title: &str, title_key: &str) -> bool {
 pub(crate) fn validate_tag_title(title: &str) -> Result<()> {
     if title.contains(['[', ']', '\n', '\r']) {
         return Err(validation(
-            "a page referenced by tags cannot have a title containing brackets or line breaks",
+            "an atom referenced by tags cannot have a title containing brackets or line breaks",
         ));
     }
     if title.trim() != title {
         return Err(validation(
-            "a page referenced by tags cannot have a title starting or ending with whitespace",
+            "an atom referenced by tags cannot have a title starting or ending with whitespace",
         ));
     }
     Ok(())

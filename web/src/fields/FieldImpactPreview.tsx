@@ -10,8 +10,8 @@ export function FieldImpactPreview(props: { impact: FieldImpact; fields: readonl
   const [confirmed, setConfirmed] = createSignal(false);
   return <section class="field-section" aria-label="Field impact">
     <h2 class="field-section-head">{props.impact.target ? `Merge into ${props.impact.target.field.name}` : `Delete ${props.impact.detail.field.name}`}</h2>
-    <p class="field-note">{plural(props.impact.detail.owners_total, 'owner')} on {plural(new Set(props.impact.entries.map(entry => entry.page_id)).size, 'page')}; {plural(props.impact.templates.length, 'template')}; {plural(props.impact.views.length, 'view')}.</p>
-    <details><summary>Affected pages</summary><ul class="field-note"><For each={props.impact.pages.filter(page => page.root.id !== props.impact.definition.page_id)}>{page => <li>{page.root.text}</li>}</For></ul></details>
+    <p class="field-note">{plural(props.impact.detail.owners_total, 'owner')} on {plural(new Set(props.impact.entries.map(entry => entry.page_id)).size, 'atom')}; {plural(props.impact.templates.length, 'template')}; {plural(props.impact.views.length, 'view')}.</p>
+    <details><summary>Affected atoms</summary><ul class="field-note"><For each={props.impact.pages.filter(page => page.root.id !== props.impact.definition.page_id)}>{page => <li>{page.root.text}</li>}</For></ul></details>
     <details><summary>Affected templates</summary><ul class="field-note"><For each={props.impact.templates} fallback={<li>No templates.</li>}>{type => <li>{type.page.text}</li>}</For></ul></details>
     <details open><summary>Affected views</summary><ul class="field-note"><For each={props.impact.views} fallback={<li>No views.</li>}>{view => <li>{view.name}</li>}</For></ul></details>
     <Show when={props.impact.target} fallback={<>
@@ -19,7 +19,7 @@ export function FieldImpactPreview(props: { impact: FieldImpact; fields: readonl
       <Button disabled={props.busy || props.impact.definition.archived} onClick={() => props.onApply('archive')}>Archive</Button>
       <Show when={props.impact.definition.archived}><p class="field-note">This definition is already archived.</p></Show>
       <Button disabled={props.busy} onClick={() => props.onApply('detach')}>Detach</Button>
-      <label class="menu-item"><input type="checkbox" checked={confirmed()} onChange={event => setConfirmed(event.currentTarget.checked)} />Delete every value and its child notes</label>
+      <label class="menu-item"><input type="checkbox" checked={confirmed()} onChange={event => setConfirmed(event.currentTarget.checked)} />Delete every value and its child atoms</label>
       <Button disabled={props.busy || !confirmed()} onClick={() => props.onApply('delete')}>Delete values</Button>
       <Show when={!confirmed()}><p class="field-note">Confirm above to delete values.</p></Show>
     </>}>

@@ -40,12 +40,12 @@ export function NotesReview(props: ReviewPaneProps & { rows: RevisitRow[]; error
   const openConfirmation = (anchor: HTMLElement, row: RevisitRow, action: 'revisited' | 'keep_recurrent') => { setNext(row.proposed_on); setConfirm({ anchor, row, action }); };
   return <div class="notes-review">
     <header class="notes-review-heading">
-      <div class="review-heading"><div class="review-register">Review</div><h1>Questions and notes<span>{props.rows.length} due</span></h1></div>
+      <div class="review-heading"><div class="review-register">Review</div><h1>Revisits<span>{props.rows.length} due</span></h1></div>
       <Show when={history()}><Button disabled={busy()} onClick={() => { void travel(); }}>{undone() ? 'Redo revisit' : 'Undo revisit'}</Button></Show>
     </header>
     <Show when={props.error || error()}><p class="pane-error" role="alert">{props.error || error()}</p></Show>
-    <Show when={props.rows.length} fallback={<p class="empty-state">No questions or notes to revisit. Set Revisit on a note or question to bring it here on its revisit date.</p>}>
-      <nav class="revisit-queue" aria-label="Due questions and notes"><For each={props.rows}>{row => <Button aria-pressed={current()?.block.block.id === row.block.block.id} disabled={busy()} onClick={() => props.onViewChange({ ...props.view, revisitId: row.block.block.id })}>
+    <Show when={props.rows.length} fallback={<p class="empty-state">Nothing to revisit. Set Revisit on an atom or question to bring it here on its revisit date.</p>}>
+      <nav class="revisit-queue" aria-label="Due revisits"><For each={props.rows}>{row => <Button aria-pressed={current()?.block.block.id === row.block.block.id} disabled={busy()} onClick={() => props.onViewChange({ ...props.view, revisitId: row.block.block.id })}>
         <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /><span class="revisit-meta">{revisitKind(row)} · {row.revisit_on}</span>
       </Button>}</For></nav>
       <Show when={current()}>{row => <div class="revisit-action-bar">
