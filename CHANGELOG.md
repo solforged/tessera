@@ -79,6 +79,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 ### Fixed
 
 - Allowed case-only renames of built-in tag pages from their title and Rename action, while the engine still refuses a different name.
+- Included timed and untimed appointments in the narrow Agenda week ledger, on their exact scheduled date without a checkbox.
 - Showed the sharing switch and Pair a phone under Settings › Devices on a Mac with no paired device, instead of `Sync is off` with no way to start.
 - Centered an empty Library on wide panes instead of leaving the Browse rail's offset beside nothing, and kept Highlights at the page measure until the workshop has a highlight to process.
 - Aligned the Inbox `Author` head with its column, wrote `1 import failed` in the singular, and disabled Export while a tab lists nothing.

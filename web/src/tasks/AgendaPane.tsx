@@ -190,6 +190,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     const lookaheadThrough = mode() === 'agenda' ? shiftCalendarDate(date(), 7) ?? date() : null;
     const from = lookaheadThrough && date() < stripFrom ? date() : stripFrom;
     const through = lookaheadThrough && (!stripThrough || lookaheadThrough > stripThrough) ? lookaheadThrough : stripThrough;
+    const appointments = mode() === 'week' && narrowWeek();
     props.notebook.changeSequence(); refresh();
     const controller = new AbortController();
     setWeekError('');
@@ -198,9 +199,12 @@ export function AgendaPane(props: AgendaPaneProps) {
     void Promise.all([
       fetchWeekTaskRange(value => props.notebook.api.taskQuery(value, controller.signal), 'scheduled', from, through),
       fetchWeekTaskRange(value => props.notebook.api.taskQuery(value, controller.signal), 'deadline', from, through),
-    ]).then(([scheduled, deadlines]) => {
+      appointments ? Promise.all(stripDates().filter((date): date is string => !!date).map(date => props.notebook.api.agenda(date, controller.signal))) : [],
+    ]).then(([scheduled, deadlines, agendas]) => {
       if (controller.signal.aborted) return;
-      setWeekRows(mergeWeekTaskRows(scheduled.rows, deadlines.rows));
+      const appointments: TaskRow[] = agendas.flatMap(agenda => agenda.items.filter(item => item.task.status === null)
+        .map(item => ({ source: item.source, task: item.task, project_id: item.project_id, section_id: null, section_text: null })));
+      setWeekRows(mergeWeekTaskRows(scheduled.rows, deadlines.rows, appointments));
       setWeekLoading(false);
       if (scheduled.incomplete.length || deadlines.incomplete.length) setWeekError('Some days exceed the task query limit. The strip and Next 7 days show the available tasks.');
     }).catch(reason => {

@@ -31,3 +31,14 @@ test('deadline day uses its own clock rather than carrying another scheduled day
   expect(agendaTaskTime(task, '2026-10-13')).toBe('09:00');
   expect(agendaTaskTime({ ...task, task: { ...task.task, deadline_time: null } }, '2026-10-13', false)).toBeNull();
 });
+
+test('appointments stay on their exact day with no task status', () => {
+  const timed = row('call', { status: null, scheduled_time: '09:00' });
+  const untimed = row('visit', { status: null });
+  const tomorrow = row('tomorrow', { status: null, scheduled: '2026-10-14' });
+  const days = weekLedgerDays([timed, untimed, tomorrow], '2026-10-13', '2026-10-13', '11:20');
+  expect(days[1]!.rows.map(row => row.source.block.id)).toEqual(['call', 'visit']);
+  expect(days[1]!.rows.every(row => row.task.status === null)).toBe(true);
+  expect(days[2]!.rows.map(row => row.source.block.id)).toEqual(['tomorrow']);
+  expect(days[0]!.rows).toEqual([]);
+});

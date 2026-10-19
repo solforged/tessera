@@ -219,6 +219,8 @@ The all-day strip holds untimed scheduled tasks and deadlines labeled Due. Each 
 
 At an Agenda container width below 600 px, Week becomes a seven-day ledger on one scroll axis, including narrow desktop splits. Mono weekdays, serif numerals, hairlines and faint open counts head Day's canonical task rows. Today's numeral and now rule are gilt. Timed rows stay chronological regardless of status, with every elapsed clock above the rule and untimed work below it. Empty days take one line. Days before today fold to a done count and any open count, and expand on tap.
 
+Appointments, scheduled atoms without `#task`, appear on their exact date in both the grid and the narrow ledger, with or without a time and without a status glyph.
+
 The ledger replaces the drag hint with a mono week range, open-task count and due count. A task with both dates on the same day appears once. It has no drag: each open row offers Day's calendar button and keyboard planning behavior, and completion uses that row's day.
 
 At 600 px and wider the grid remains. Intermediate-width panes, including the unfolded Fold, fit all seven columns and subdivide overlapping lanes inside each day without sideways scrolling. Wider desktop grids retain their existing column measure.
