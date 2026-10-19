@@ -1388,6 +1388,13 @@ export class Notebook implements NotebookClient, DocumentHost {
           this.generations.delete(command.id);
           doc.acknowledged(command, revisions, ack.text_rewrites, ack);
           const historyChanges = new Set(doc.recordRewrites(command, ack.text_rewrites));
+          // Retiring replay can wake flush waiters during receipt persistence. Advance
+          // local history guards before yielding, so an immediate redo uses this receipt.
+          const localBlocks = [...revisions.keys()].flatMap(id => {
+            const block = doc.baseBlocks.get(id);
+            return block ? [block] : [];
+          });
+          for (const document of this.docs.values()) for (const changed of document.refreshGuardVersions(localBlocks, revisions)) historyChanges.add(changed);
           this.receiveReceipt(ack);
           await this.outbox?.capabilities(ack.capabilities ?? [], ack.seq).catch(() => undefined);
           for (const pending of this.commands(doc.pageId)) if (!pending.frozen) await this.persist(pending);

@@ -3141,6 +3141,39 @@ describe('durable Action and Learning document commands', () => {
     } finally { globalThis.fetch = actualFetch; doc.release(); }
   });
 
+  test('redo after a flush during undo receipt persistence keeps its text guard current', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'Flush lamp #task ');
+    success(doc.addType(first, 'Task'));
+    success(doc.edit({ kind: 'task', id: first, value: todo }));
+    await instance.flush();
+    success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-18' }));
+    await instance.flush();
+    success(doc.edit({ kind: 'task', id: first, value: null }));
+    await instance.flush();
+    const document = doc as Document;
+    const applied = Promise.withResolvers<void>();
+    const acknowledged = document.acknowledged;
+    document.acknowledged = function (...args) {
+      acknowledged.apply(this, args);
+      applied.resolve();
+    };
+    try {
+      doc.undo();
+      const saving = doc.flush();
+      await applied.promise;
+      // A second flush touches waiters after optimistic replay retires the undo,
+      // while IndexedDB is still storing its receipt. Redo must already use its revision.
+      await doc.flush();
+      await saving;
+      doc.redo();
+      await doc.flush();
+      expect(doc.saveState()).toBe('saved');
+      expect((await api.block(first)).text).toBe('Flush lamp ');
+      expect((await api.capabilities(first)).task).toBeNull();
+    } finally { document.acknowledged = acknowledged; doc.release(); }
+  });
+
   test('planning is one text/state undo step and reopening undo restores done without new evidence', async () => {
     const instance = await client();
     const { doc, first } = await page(instance, 'Read @tomorrow');
