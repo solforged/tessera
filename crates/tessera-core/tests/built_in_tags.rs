@@ -465,6 +465,37 @@ fn check_reports_and_repairs_inactive_and_missing_tagged_capabilities() {
 }
 
 #[test]
+fn repair_and_membership_gain_restore_retained_capability_state() {
+    let (dir, mut nb) = fixture();
+    apply(
+        &mut nb,
+        vec![insert(10, "#task #question #project #source")],
+    );
+    let db = rusqlite::Connection::open(dir.path().join(DATABASE_FILE)).unwrap();
+    db.execute_batch(
+        "UPDATE tasks SET state = json_set(state, '$.status', 'done');
+         UPDATE questions SET state = json_set(state, '$.parked', json('true'));
+         UPDATE projects SET state = json_set(state, '$.outcome', 'Preserved outcome');
+         UPDATE sources SET citation_key = 'coreapi2026source';",
+    )
+    .unwrap();
+    let before = nb.capabilities(&id(10)).unwrap();
+    for table in ["tasks", "questions", "projects", "sources"] {
+        db.execute(&format!("UPDATE {table} SET active = 0"), [])
+            .unwrap();
+    }
+    assert!(!nb.check(false).unwrap().ok);
+    assert!(nb.check(true).unwrap().repaired.is_some());
+    assert!(nb.check(false).unwrap().ok);
+    assert_eq!(nb.capabilities(&id(10)).unwrap(), before);
+    let remove = edit(&nb, 10, "Retained");
+    apply(&mut nb, vec![remove]);
+    let restore = edit(&nb, 10, "#task #question #project #source");
+    apply(&mut nb, vec![restore]);
+    assert_eq!(nb.capabilities(&id(10)).unwrap(), before);
+}
+
+#[test]
 fn stamped_membership_changes_and_none_removal_replay_identically() {
     let (_left_dir, mut left) = fixture();
     let (_right_dir, mut right) = fixture();

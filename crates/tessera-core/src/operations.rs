@@ -422,6 +422,22 @@ pub(crate) fn derive_capability(
     {
         return Ok(false);
     }
+    // Membership reactivation restores retained state, rather than replacing it
+    // with the defaults used for a capability's first activation.
+    if present && !active {
+        let restored = conn
+            .prepare_cached(&format!(
+                "UPDATE {table} SET active = 1 WHERE block_id = ?1 AND active = 0"
+            ))?
+            .execute([id])?
+            != 0;
+        if restored
+            && (key != "task"
+                || crate::task_store::task(conn, id)?.is_some_and(|task| task.status.is_some()))
+        {
+            return Ok(true);
+        }
+    }
     let id = id.to_owned();
     let operation = match key {
         "task" => Operation::SetTask {
