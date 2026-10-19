@@ -8,7 +8,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 Add to today (⌘E) opens the shared creation slip centered near the top, 560 px wide. On the cover it rises from the bottom edge above the keyboard; New in the center of the bottom nav opens the same Atom-into-Today sheet. Commands finds Add to today through capture, quick atom, inbox or journal. A mono rubric names the action in gilt and its destination in `--faint`.
 
-The Kind row offers Atom, Question, Task, Card and Source; More offers Project and the workshop's page kinds. Arrow keys select a kind. Until a kind is chosen explicitly, a trailing `?` infers Question, `[] ` or a planning `@date` infers Task, complete card syntax infers Card, and a whole URL, ISBN, DOI or arXiv identifier infers Source. The draft carries across kind switches.
+The Kind row offers Atom, Question, Task, Card and Source; More offers Project and the workshop's page kinds. Arrow keys select a kind. Until a kind is chosen explicitly, a trailing `?` infers Question, `[] ` infers Task, complete card syntax infers Card, and a whole URL, ISBN, DOI or arXiv identifier infers Source. Typing or choosing a tag never changes the kind or destination; typed pages are chosen in More. The draft carries across kind switches.
 
 Into offers Today, New atom (notes and questions), and Atom…. Notes, tasks and cards default to Today; questions default to New atom. An explicit destination stays selected while the kind changes. ⌘N starts Atom into New atom. Index, ledger and table buttons lock their kind and hide both controls.
 
@@ -18,7 +18,7 @@ Page drafts show kind-specific field rows beneath the gist: Parent question, Rev
 
 - A note, question or task line appends at the end of Today or the chosen page, reusing a trailing empty block. A question adds its question state in the same batch.
 - `[] ` and `[ ] ` task prefixes disappear on save. The Kind row replaces the old ⌘Enter note/task toggle.
-- `[[` completes pages (with Create atom) and `#` pages used as types (with Create tag), matching titles and aliases in a picker under the line. Type results never include matching note bodies. A hand-typed `[[Title]]` links as it would on leaving a block.
+- `[[` completes pages (with Create atom) and `#` pages used as types (with Create tag), matching titles and aliases in a picker under the line. Type results never include matching note bodies. Chosen tags show readable names in the input and glyph-and-name pills below it, retaining canonical identities in the draft until their names are edited. A hand-typed `[[Title]]` links as it would on leaving a block.
 - An `@date` plans a task, with the [same preview as Add a task](tasks-agenda.md#add-a-task). A plain-word date suffix plans only a task.
 
 ### Adding and saving

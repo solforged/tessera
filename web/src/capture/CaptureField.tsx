@@ -2,6 +2,8 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, on, 
 import type { JSX } from 'solid-js';
 import type { TaskState } from '../api/types';
 import type { CaptureIntent, CaptureReceipt, NotebookClient } from '../document/contract';
+import { textTokens } from '../document/text-tokens';
+import { capturePresentation, editCaptureDraft } from './draft';
 import { openReferenceRange } from '../outline/completion';
 import { completeNames, foldName } from '../outline/names';
 import type { TitleTargets } from '../outline/link-titles';
@@ -58,7 +60,9 @@ export function CaptureField(props: CaptureFieldProps) {
   let input!: HTMLInputElement;
   let line!: HTMLDivElement;
   const [draft, setDraft] = createSignal(props.initialText ?? '');
-  const [caret, setCaret] = createSignal(draft().length);
+  const presentation = createMemo(() => capturePresentation(draft()));
+  const tags = createMemo(() => textTokens(draft()).filter(token => token.kind === 'tag'));
+  const [caret, setCaret] = createSignal(presentation().text.length);
   const [task, setTask] = createSignal(!!props.initialTask);
   const [pending, setPending] = createSignal(0);
   const busy = () => pending() > 0;
@@ -74,7 +78,7 @@ export function CaptureField(props: CaptureFieldProps) {
   createEffect(on(task, value => props.onTaskChange?.(value), { defer: true }));
 
   const token = createMemo<Token | null>(() => {
-    const text = draft(), at = caret();
+    const text = presentation().text, at = caret();
     if (dismissed() === text) return null;
     const type = typeTokenAt(text, at);
     return pageTokenAt(text, at) ?? (type && { kind: 'type', ...type });
@@ -112,13 +116,13 @@ export function CaptureField(props: CaptureFieldProps) {
   });
 
   const replace = (from: number, to: number, insert: string) => {
-    const text = draft();
-    const next = text.slice(0, from) + insert + text.slice(to);
+    const text = presentation().text;
+    const next = editCaptureDraft(draft(), text.slice(0, from) + insert + text.slice(to));
     setDraft(next);
     props.onTextChange?.(next);
-    const at = from + insert.length;
+    const at = from + capturePresentation(insert).text.length;
     setCaret(at);
-    queueMicrotask(() => { input.value = next; input.setSelectionRange(at, at); input.focus(); });
+    queueMicrotask(() => { input.value = capturePresentation(next).text; input.setSelectionRange(at, at); input.focus(); });
   };
   const choose = async (choice: Choice | undefined) => {
     const current = token();
@@ -151,7 +155,9 @@ export function CaptureField(props: CaptureFieldProps) {
       const next = draft() === submittedDraft ? '' : draft().startsWith(submittedDraft) ? draft().slice(submittedDraft.length) : draft();
       if (next !== draft()) {
         picked.clear();
-        setDraft(next); setCaret(next.length); input.value = next; input.setSelectionRange(next.length, next.length);
+        setDraft(next);
+        const visible = capturePresentation(next).text;
+        setCaret(visible.length); input.value = visible; input.setSelectionRange(visible.length, visible.length);
       }
       if (!props.taskOnly && !again && !next) setTask(false);
       props.onSaved?.(again, receipt);
@@ -183,7 +189,7 @@ export function CaptureField(props: CaptureFieldProps) {
       setTask(false);
     } else if (event.key === 'Escape') {
       event.preventDefault(); event.stopPropagation();
-      if (token()) setDismissed(draft());
+      if (token()) setDismissed(presentation().text);
       else props.onCancel?.();
     }
   };
@@ -198,8 +204,9 @@ export function CaptureField(props: CaptureFieldProps) {
       input.value = text.slice(prefix.length);
       input.setSelectionRange(start, end);
     }
-    setDraft(input.value); track(); setError('');
-    props.onTextChange?.(input.value);
+    const next = editCaptureDraft(draft(), input.value);
+    setDraft(next); track(); setError('');
+    props.onTextChange?.(next);
   };
   onMount(() => { acceptInput(); props.inputRef?.(input); });
 
@@ -210,12 +217,13 @@ export function CaptureField(props: CaptureFieldProps) {
           <Icon name={isTask() || plan()?.explicit && plan()?.choice ? 'select' : hasCards() ? 'card' : 'bullet'} />
         </button>
       </Show>
-      <input ref={input} class="capture-input" aria-label={props.label} placeholder={props.placeholder} value={draft()} aria-busy={busy()} autocomplete="off" spellcheck
+      <input ref={input} class="capture-input" aria-label={props.label} placeholder={props.placeholder} value={presentation().text} aria-busy={busy()} autocomplete="off" spellcheck
         role="combobox" aria-expanded={open()} aria-autocomplete="list"
-        onInput={event => { if (event.isComposing) { setDraft(event.currentTarget.value); track(); } else acceptInput(); }} onCompositionEnd={acceptInput} onKeyDown={keydown} onKeyUp={track} onClick={track} onSelect={track} />
+        onInput={event => { if (event.isComposing) { setDraft(editCaptureDraft(draft(), event.currentTarget.value)); track(); } else acceptInput(); }} onCompositionEnd={acceptInput} onKeyDown={keydown} onKeyUp={track} onClick={track} onSelect={track} />
     </div>
+    <Show when={tags().length}><div class="capture-tags" aria-label="Tags in draft"><For each={tags()}>{tag => <span class="capture-tag"><Icon name="tag" />{tag.value}</span>}</For></div></Show>
     <Show when={open()}>
-      <Popup anchor={line} role="listbox" label={token()?.kind === 'type' ? 'Tags' : 'Atoms'} class="picker capture-choices" width={line.offsetWidth} autofocus={false} onDismiss={() => setDismissed(draft())}>
+      <Popup anchor={line} role="listbox" label={token()?.kind === 'type' ? 'Tags' : 'Atoms'} class="picker capture-choices" width={line.offsetWidth} autofocus={false} onDismiss={() => setDismissed(presentation().text)}>
         <div class="picker-list" onMouseDown={event => event.preventDefault()}>
           <For each={choices()}>{(choice, row) =>
             <div role="option" aria-selected={index() === row()} class="picker-row" classList={{ selected: index() === row() }} onMouseEnter={() => setIndex(row())} onClick={() => { void choose(choice); }}>

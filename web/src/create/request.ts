@@ -1,7 +1,4 @@
 import { parseCardText } from '../review/card-text';
-import type { NoteKind } from '../api/types';
-import { textTokens } from '../document/text-tokens';
-import { titleKey } from '../document/title-key';
 
 /**
  * What the creation slip starts with. Every entry point (⌘N, ⌘E, Find, index and table buttons, the macOS menu and
@@ -54,18 +51,13 @@ export function parseCreateRequest(raw: unknown): CreateRequest | null {
   return request;
 }
 
-/** Infer only complete syntax, never an identifier buried in ordinary prose. */
-export function inferKind(text: string, kinds: readonly NoteKind[] = []): CreateKind | null {
+/** Infer complete creation syntax; tags annotate the draft and never choose its kind. */
+export function inferKind(text: string): CreateKind | null {
   const value = text.trim();
   if (!value) return null;
   if (value.endsWith('?')) return 'question';
   if (/^\[ ?\] /.test(text.trimStart())) return 'task';
   if (parseCardText(value).cards.length) return 'card';
-  for (const token of textTokens(value)) {
-    if (token.kind !== 'tag') continue;
-    const kind = kinds.find(kind => token.id ? kind.type_id === token.id : titleKey(kind.name) === titleKey(token.value));
-    if (kind) return Object.hasOwn(builtIn, kind.key) ? kind.key as CreateKind : `type:${kind.key}`;
-  }
   if (/^https?:\/\/\S+$/i.test(value)) {
     try { if (new URL(value).hostname) return 'source'; } catch { /* Incomplete URL. */ }
   }

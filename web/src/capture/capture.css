@@ -18,6 +18,9 @@
 .capture-preview { color: var(--calendar-scheduled); }
 .capture-preview.warning { color: var(--warning); }
 .capture-error { color: var(--danger); }
+.capture-tags { display: flex; flex-wrap: wrap; gap: var(--space-4); padding-left: calc(var(--target-size) + var(--space-8)); }
+.capture-tag { display: inline-flex; align-items: center; gap: var(--space-4); padding: 1px var(--space-4); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); color: var(--accent); font: var(--apparatus); }
+.capture-tag .icon { width: 1em; height: 1em; }
 .popup.capture-choices { padding: 0; }
 
 /* The desktop's capture panel fits the sheet's content, not its viewport. */
