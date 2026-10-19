@@ -81,6 +81,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Mapped date, reference, field and slash completion ranges through saved-text rewrites, preserving tag identities when a date was accepted during normalization.
 - Preserved retained task, question, project and source state when repair or tag membership reactivated an inactive capability.
 - Preserved appointment dates without adding checkboxes on copy and paste, and exported live tag titles in plain-text clipboard data while keeping canonical tokens in Tessera's private format.
 - Kept tagged creation lines in their chosen kind and destination, and showed readable tag names and pills in capture drafts without exposing canonical IDs.

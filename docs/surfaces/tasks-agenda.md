@@ -54,7 +54,7 @@ Typed dates count from the workshop's today, also on another day's journal page 
 
 The picker's first, non-selectable row reads Scheduled or Deadline, with a mono Tab hint. Tab flips the field by inserting `by ` or removing `by `/`due ` while retaining the query. Other pickers keep Tab to pick.
 
-Enter picks a date: a plain atom becomes an appointment with no status or checkbox, an existing task keeps its status, and the token and its leading space leave the text. `#task`, `/Todo` or ⌘Enter adds a checkbox. Pick a date… opens the full picker with the typed query, without changing the atom until a date is chosen. Canceling either picker keeps the token and the existing schedule unchanged.
+Enter picks a date: a plain atom becomes an appointment with no status or checkbox, an existing task keeps its status, and only the date token and its leading space leave the text. A tag normalized while the picker is open keeps its full identity; the date choice, Tab field flip and full date picker follow the rewritten token boundaries. `#task`, `/Todo` or ⌘Enter adds a checkbox. Pick a date… opens the full picker with the typed query, without changing the atom until a date is chosen. Canceling either picker keeps the token and the existing schedule unchanged.
 
 A multi-word query that matches no date is prose (`@sam about the report`). The picker closes so Enter splits the block as usual, and reopens if the words become a date again. A recognized but impossible date such as `feb 30` instead keeps the picker open with an error and preserves the token.
 

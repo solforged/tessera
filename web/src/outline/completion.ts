@@ -2,6 +2,7 @@ import type { Block, QuoteState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { insideProtectedSyntax } from '../tasks/quick-date';
 import { titleKey } from '../document/title-key';
+import { mapTextOffset } from '../document/text-patch';
 
 export interface CapturedQuoteCompletion { text: string; quote: QuoteState }
 
@@ -52,6 +53,12 @@ export function engagedToken(previous: CompletionToken | null, next: CompletionT
 /** An offered completion leaves every key but Escape to the editor, so Enter still splits and Tab still indents. */
 export function completionTakesKey(event: Pick<KeyboardEvent, 'key'>, engaged: boolean): boolean {
   return engaged || event.key === 'Escape';
+}
+
+/** Completion-owned boundaries follow saved-text rewrites without changing the query or chosen row. */
+export function mapCompletionRange<T extends { from: number; to?: number }>(before: string, after: string, token: T): T {
+  return { ...token, from: mapTextOffset(before, after, token.from),
+    ...token.to === undefined ? {} : { to: mapTextOffset(before, after, token.to) } };
 }
 
 /** ISO date references name existing journals, never newly created ordinary pages. */

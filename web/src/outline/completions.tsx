@@ -18,7 +18,7 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { captureQuoteCompletion, completedReference, completionPickKey, completionTakesKey, engagedToken, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt, taskPrefixInput } from './completion';
+import { captureQuoteCompletion, completedReference, completionPickKey, completionTakesKey, engagedToken, isJournalReference, isQuoteCompletion, mapCompletionRange, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt, taskPrefixInput } from './completion';
 import type { CompletionToken } from './completion';
 import { rankSlash, slashTokenAt } from './slash';
 import { insertCard } from './card-insert';
@@ -328,6 +328,19 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     dismissedCompletion = null;
     if (completion()?.query !== next.query) setCompletionIndex(0);
     setCompletion(engaged ? next : { ...next, offered: true });
+  }
+  /** Receipt sync is not authored input: retain engagement, dismissal and the selected row while moving every boundary. */
+  function syncCompletions(id: string, before: string, after: string) {
+    const map = <T extends { from: number; to?: number }>(value: T) => mapCompletionRange(before, after, value);
+    if (editing() === id) setCompletion(state => state && !state.manual && !state.relationTarget ? map(state) : state);
+    setDateCompletion(state => state?.id === id ? map(state) : state);
+    setSlashCompletion(state => state?.id === id ? map(state) : state);
+    setTokenDate(state => state?.id === id && state.text === before ? { ...map(state), text: after } : state);
+    if (engaged?.id === id) engaged = map(engaged);
+    if (dismissedCompletion?.id === id) dismissedCompletion = map(dismissedCompletion);
+    if (dismissedDate?.id === id) dismissedDate = map(dismissedDate);
+    if (dismissedSlash?.id === id) dismissedSlash = map(dismissedSlash);
+    if (referenceSpace?.id === id) referenceSpace = { id, offset: map({ from: referenceSpace.offset }).from };
   }
   // A primitive key: every keystroke sets a fresh completion object, and the same query must not fetch twice.
   const completionKey = createMemo(() => {
@@ -710,5 +723,5 @@ function CompletionPopups(){ return <>
       </div>
     </Popup></Show>
 </>; }
-  return { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor: () => setValueEditor(null), valueEditorId: () => valueEditor()?.id, pendingReference: (id: string) => pendingReferences.has(id), pendingType: (id: string) => pendingTypes.has(id), updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
+  return { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor: () => setValueEditor(null), valueEditorId: () => valueEditor()?.id, pendingReference: (id: string) => pendingReferences.has(id), pendingType: (id: string) => pendingTypes.has(id), syncCompletions, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
 }

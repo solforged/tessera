@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { cachedExactPage, completedReference, completionPickKey, completionTakesKey, engagedToken, headingPrefix, isJournalReference, isQuoteCompletion, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt, taskPrefixInput } from './completion';
+import { cachedExactPage, completedReference, completionPickKey, completionTakesKey, engagedToken, headingPrefix, isJournalReference, isQuoteCompletion, mapCompletionRange, openReferenceRange, referenceAliasInput, referenceCompletionAt, referenceNewlineAt, taskPrefixInput } from './completion';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { foldName } from './names';
 import { typeTokenAt } from './type-completion';
+import { dateTokenAt, flipDateToken, newTask, planDateToken, removeToken } from '../tasks/quick-date';
+import { slashTokenAt } from './slash';
 
 test('resolution and completion retain citation labels and locators', () => {
   const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
@@ -15,6 +17,42 @@ test('resolution and completion retain citation labels and locators', () => {
     expect(completedReference(text, range.from, range.to, id)).toBe(`[[${id}${suffix}]]`);
     expect(withLinkedTitles(text, new Map([[foldName('Source'), id]]))).toBe(`[[${id}${suffix}]]`);
   }
+});
+
+test('date choices and field flips follow canonical tag rewrites without cutting the tag ID', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  for (const [raw, canonical, marker] of [
+    ['E #task @friday', `E #[[${id}|task]] @friday`, '@friday'],
+    ['E @friday #task', `E @friday #[[${id}|task]]`, '@friday'],
+    ['😀 #newtag @tomorrow', `😀 #[[${id}|newtag]] @tomorrow`, '@tomorrow'],
+  ] as const) {
+    const token = dateTokenAt(raw, raw.indexOf(marker) + marker.length)!;
+    const mapped = mapCompletionRange(raw, canonical, token);
+    expect(canonical.slice(mapped.from, mapped.to)).toBe(marker);
+    expect(mapped.query).toBe(token.query);
+    const plan = planDateToken(canonical, mapped, { label: 'Chosen date', date: '2026-10-23', time: null }, newTask('todo'));
+    expect(plan.text).toBe(canonical.replace(` ${marker}`, ''));
+    expect(plan.text).toContain(`#[[${id}|`);
+    expect(plan.value.status).toBe('todo');
+    expect(plan.value.scheduled).toBe('2026-10-23');
+    expect(flipDateToken(canonical, mapped).text).toBe(canonical.replace(marker, `@by ${token.query}`));
+  }
+});
+
+test('reference, slash, field and dismissed-token boundaries follow the same rewrite mapping', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  const raw = '#task [[Essay]] /Tag', canonical = `#[[${id}|task]] [[Essay]] /Tag`;
+  const reference = referenceCompletionAt(raw, raw.indexOf(']]'))!;
+  const mappedReference = mapCompletionRange(raw, canonical, reference);
+  const referenceRange = openReferenceRange(canonical, mappedReference.from, mappedReference.to, false);
+  expect(canonical.slice(referenceRange.from, referenceRange.to)).toBe('[[Essay]]');
+  expect(completedReference(canonical, referenceRange.from, referenceRange.to, 'essay-id')).toBe('[[essay-id]]');
+  const slash = slashTokenAt(raw, raw.length)!;
+  const mappedSlash = mapCompletionRange(raw, canonical, slash);
+  expect(removeToken(canonical, mappedSlash).text).toBe(`#[[${id}|task]] [[Essay]]`);
+  expect(mapCompletionRange(raw, canonical, { from: slash.from, query: slash.query })).toEqual({ from: canonical.indexOf('/Tag'), query: 'Tag' });
+  expect(mapCompletionRange('::Author #task', `::Author #[[${id}|task]]`, { from: 0, to: 8, query: 'Author', fields: true }))
+    .toEqual({ from: 0, to: 8, query: 'Author', fields: true });
 });
 
 describe('an open reference completion', () => {

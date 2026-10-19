@@ -295,6 +295,8 @@ const draftReference = StateField.define<DecorationSet>({
 
 export interface EditorHooks {
   text(text: string, caret: Caret, group?: number): void;
+  /** Saved-text rewrites move completion-owned boundaries without reporting new authored input. */
+  rewrite?(id: string, before: string, after: string): void;
   /** Typed or composed text before the editor inserts it; true when the hook applied it itself. */
   input(view: EditorView, from: number, to: number, text: string): boolean;
   label(id: string): string | undefined;
@@ -513,6 +515,7 @@ export class PaneEditor {
     while (beforeEnd > from && afterEnd > from && previous[beforeEnd - 1] === text[afterEnd - 1]) { beforeEnd--; afterEnd--; }
     this.view.dispatch({ changes: { from, to: beforeEnd, insert: text.slice(from, afterEnd) } });
     this.replacing = false;
+    this.hooks.rewrite?.(this.id, previous, text);
   }
 
   trackRange(from: number, to: number) {

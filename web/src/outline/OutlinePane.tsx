@@ -1352,7 +1352,7 @@ function Pane(props: OutlinePaneProps) {
   });
   const { openViewEmbed, ViewEmbedPopups } = createViewEmbedActions(context);
   const { openMoveToPage, MoveToPagePopup } = createMoveToPage(context);
-  const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, pendingReference, pendingType, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); }, (id, backward) => fieldSheet.advance(id, backward));
+  const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, pendingReference, pendingType, syncCompletions, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); }, (id, backward) => fieldSheet.advance(id, backward));
   const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context, (event, id) => fieldSheet.key(event, id));
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
@@ -1419,6 +1419,7 @@ function Pane(props: OutlinePaneProps) {
     scroll.addEventListener('beforeinput', beforeInput, true);
     onCleanup(() => { scroll.removeEventListener('copy', copy, true); scroll.removeEventListener('cut', cut, true); scroll.removeEventListener('paste', paste, true); scroll.removeEventListener('beforeinput', beforeInput, true); cancelAnimationFrame(compositionFrame); });
     editor = new PaneEditor({
+      rewrite: syncCompletions,
       key: editorKey,
       input: referenceInput,
       label: id => { const target = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(id) ? props.notebook.lookup(id)() : undefined; return target ? plainText(target.text, reference => props.notebook.lookup(reference)) : undefined; },
