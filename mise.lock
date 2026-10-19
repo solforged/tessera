@@ -93,57 +93,57 @@ url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/ma
 url = "https://storage.googleapis.com/chrome-for-testing-public/151.0.7922.34/mac-x64/chromedriver-mac-x64.zip"
 
 [[tools."github:WebAssembly/binaryen"]]
-version = "129"
+version = "133"
 backend = "github:WebAssembly/binaryen"
-specifiers = ["129"]
+specifiers = ["133"]
 
 [tools."github:WebAssembly/binaryen".options]
 version_prefix = "version_"
 
 [tools."github:WebAssembly/binaryen"."platforms.linux-arm64"]
-checksum = "sha256:81d46b86b10876ab615eec67e09fcc5615115a7b189cfe3d466725ee36c46ac2"
-url = "https://github.com/WebAssembly/binaryen/releases/download/version_129/binaryen-version_129-aarch64-linux.tar.gz"
-url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/386341715"
+checksum = "sha256:89c07ea56faf38d0fbecf36ca8ec0721756716185f265b568e133d427f299bf8"
+url = "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-aarch64-linux.tar.gz"
+url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/580038503"
 
 [tools."github:WebAssembly/binaryen"."platforms.linux-arm64-musl"]
-checksum = "sha256:81d46b86b10876ab615eec67e09fcc5615115a7b189cfe3d466725ee36c46ac2"
-url = "https://github.com/WebAssembly/binaryen/releases/download/version_129/binaryen-version_129-aarch64-linux.tar.gz"
-url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/386341715"
+checksum = "sha256:89c07ea56faf38d0fbecf36ca8ec0721756716185f265b568e133d427f299bf8"
+url = "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-aarch64-linux.tar.gz"
+url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/580038503"
 
 [tools."github:WebAssembly/binaryen"."platforms.linux-x64"]
-checksum = "sha256:50b9fa62b9abea752da92ec57e0c555fee578760cd237c40107957715d2976ba"
-url = "https://github.com/WebAssembly/binaryen/releases/download/version_129/binaryen-version_129-x86_64-linux.tar.gz"
-url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/386339206"
+checksum = "sha256:2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489"
+url = "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz"
+url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/580050094"
 
 [tools."github:WebAssembly/binaryen"."platforms.linux-x64-baseline"]
-checksum = "sha256:50b9fa62b9abea752da92ec57e0c555fee578760cd237c40107957715d2976ba"
-url = "https://github.com/WebAssembly/binaryen/releases/download/version_129/binaryen-version_129-x86_64-linux.tar.gz"
-url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/386339206"
+checksum = "sha256:2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489"
+url = "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz"
+url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/580050094"
 
 [tools."github:WebAssembly/binaryen"."platforms.linux-x64-musl"]
-checksum = "sha256:50b9fa62b9abea752da92ec57e0c555fee578760cd237c40107957715d2976ba"
-url = "https://github.com/WebAssembly/binaryen/releases/download/version_129/binaryen-version_129-x86_64-linux.tar.gz"
-url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/386339206"
+checksum = "sha256:2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489"
+url = "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz"
+url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/580050094"
 
 [tools."github:WebAssembly/binaryen"."platforms.linux-x64-musl-baseline"]
-checksum = "sha256:50b9fa62b9abea752da92ec57e0c555fee578760cd237c40107957715d2976ba"
-url = "https://github.com/WebAssembly/binaryen/releases/download/version_129/binaryen-version_129-x86_64-linux.tar.gz"
-url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/386339206"
+checksum = "sha256:2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489"
+url = "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz"
+url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/580050094"
 
 [tools."github:WebAssembly/binaryen"."platforms.macos-arm64"]
-checksum = "sha256:d1bb014775ca3002506712b81b4406d126ff6845e8b2f343bc2696a1a88b7117"
-url = "https://github.com/WebAssembly/binaryen/releases/download/version_129/binaryen-version_129-arm64-macos.tar.gz"
-url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/386337538"
+checksum = "sha256:ad66da82ac13f163e424b1643f16c6dfcccc98b5966296b43e52d3cab04f84a8"
+url = "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-arm64-macos.tar.gz"
+url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/580039733"
 
 [tools."github:WebAssembly/binaryen"."platforms.macos-x64"]
-checksum = "sha256:cc38897d3d93c968f24819fae210e04afd0146d0e2467e307207ea7e798a59b9"
-url = "https://github.com/WebAssembly/binaryen/releases/download/version_129/binaryen-version_129-x86_64-macos.tar.gz"
-url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/386337535"
+checksum = "sha256:13a9b90be775c6389ce3d1f879cb8627bea56708ba8c122983941d53a8199b95"
+url = "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-macos.tar.gz"
+url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/580039734"
 
 [tools."github:WebAssembly/binaryen"."platforms.macos-x64-baseline"]
-checksum = "sha256:cc38897d3d93c968f24819fae210e04afd0146d0e2467e307207ea7e798a59b9"
-url = "https://github.com/WebAssembly/binaryen/releases/download/version_129/binaryen-version_129-x86_64-macos.tar.gz"
-url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/386337535"
+checksum = "sha256:13a9b90be775c6389ce3d1f879cb8627bea56708ba8c122983941d53a8199b95"
+url = "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-macos.tar.gz"
+url_api = "https://api.github.com/repos/WebAssembly/binaryen/releases/assets/580039734"
 
 [[tools."github:wasm-bindgen/wasm-bindgen"]]
 version = "0.2.129"

@@ -8,7 +8,7 @@ rust = { version = "stable", components = "rustfmt,clippy,llvm-tools", targets =
 bun = "1.4"
 # Must match the wasm-bindgen crate in Cargo.lock.
 "github:wasm-bindgen/wasm-bindgen" = "0.2.129"
-"github:WebAssembly/binaryen" = { version = "129", version_prefix = "version_" }
+"github:WebAssembly/binaryen" = { version = "133", version_prefix = "version_" }
 # Checks the prose in README.md and docs/ against .vale.ini.
 vale = "3.24"
 
