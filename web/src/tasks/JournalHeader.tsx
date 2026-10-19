@@ -126,7 +126,7 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
             <span class="journal-tile-meta"><Show when={summary().next} fallback={summary().planned ? 'Nothing else planned today' : 'Nothing planned today'}>{next => <>Next: <BlockText text={next().source.block.text || 'Empty task'} notebook={props.notebook} interactive={false} />{next().time ? ` · ${next().time}` : ''}</>}</Show></span>
           </>}</Show>
         </Button>
-        <Button class="journal-tile" aria-busy={!desk() && !deskError()} onClick={() => props.onOpen({ kind: 'review' }, false)}>
+        <Button class="journal-tile" aria-busy={!desk() && !deskError()} onClick={() => props.onOpen({ kind: 'review', start: true }, false)}>
           <span class="journal-tile-heading"><span>Review</span><span class="journal-tile-action" aria-hidden="true">›</span></span>
           <Show when={desk()} fallback={deskError() ? <span class="journal-tile-meta journal-tile-unavailable">Review unavailable</span> : <Placeholder />}>{counts => <span class="journal-tile-count">{counts().due}<small>due</small></span>}</Show>
         </Button>

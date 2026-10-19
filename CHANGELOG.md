@@ -8,6 +8,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Removed the permanent Read-unavailable banner from zoomed atoms; unavailable Read controls keep their contextual reasons.
+- Moved Revisits beside Agenda with its own dated groups, sidebar count, saved pane state and Open revisits command; kept Review for cards.
+
 - Added tag recipes using atom text, optional hints and answer details, catalogue-style review, live creation previews, and undoable syntax conversion that preserves card identities and progress across sync.
 - Unified task planning and user fields in one focused field bed, seeded the editable Task template with protected built-ins, added editable task table fields and kept cover editing in one sheet.
 - Addressed tags by page ID, normalized legacy tags with caret-preserving editor receipts, and added migration and check repair without rewriting members on rename. Pills read live titles, existing tag choices insert IDs, and tag tables and decks retain membership across renames.
@@ -57,6 +60,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Made review sessions take over the pane with a static deck title, larger card text and click-to-reveal, quiet End review controls, caught-up empty queues, and one-tap starts from Today.
 - Included every active task, project and source atom in its built-in kind's counts, finding aid, table and saved filters, without requiring a written tag, and added New task to the empty Tasks finding aid.
 - Said atom and tag instead of block and type throughout the interface.
 - Said atom instead of page and note, tag instead of index kind, and format for field values throughout the interface.
@@ -84,6 +88,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Kept agenda provenance visible beside stable rescheduling actions and stacked narrow Today and Day rows with full-width titles above their facts and calendar.
 - Rebased remembered outline carets through saved-text rewrites so Enter and `i` resumed after a normalized tag instead of typing into its ID and creating junk tags.
 - Removed a whole `#[[id|Title]]` or `#[[Title]]` tag pill with one Backspace after it or Delete before it, instead of leaving a malformed bracket token that dropped the membership.
 - Displayed a tagged root title without its tag tokens in the page header, breadcrumbs, pane name, sidebar, Index, Library, Find and reference previews, with behavior tags as glyphs and other tags as pills beside it, and exported the same title to BibTeX, CSL, Markdown and the agent outline.

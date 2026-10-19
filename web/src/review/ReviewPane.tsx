@@ -24,9 +24,6 @@ import { copyCardQuery, formatInterval, gradeLabels, gradeOperation, loadReviewC
 import { ReviewSourcePassage, reviewSource } from './ReviewSource';
 import type { ReviewSource } from './ReviewSource';
 import './review.css';
-import { NotesReview } from './NotesReview';
-import { createRevisits } from './revisits';
-import './revisits.css';
 
 export interface ReviewPaneProps {
   pane: PaneId;
@@ -64,14 +61,7 @@ function deckRows(saved: readonly Deck[], tags: readonly TagDeck[]): DeckChoice[
 }
 
 export function ReviewPane(props: ReviewPaneProps) {
-  const queue = createRevisits(props.notebook);
-  return <div class="review-queues">
-    <div class="review-head"><div class="review-kind-tabs review-queue-controls mode-tabs tab-strip" role="group" aria-label="Review mode">
-      <Button aria-pressed={props.view.queue !== 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'cards' })}>Cards</Button>
-      <Button aria-pressed={props.view.queue === 'notes'} onClick={() => props.onViewChange({ ...props.view, queue: 'notes' })}>Revisits<Show when={queue.rows().length}><span class="review-count">{queue.rows().length}</span></Show></Button>
-    </div></div>
-    <Show when={props.view.queue === 'notes'} fallback={<CardReviewPane {...props} />}><NotesReview {...props} rows={queue.rows()} error={queue.error()} /></Show>
-  </div>;
+  return <CardReviewPane {...props} />;
 }
 
 function CardReviewPane(props: ReviewPaneProps) {
@@ -112,7 +102,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   const [editor, setEditor] = createSignal<{ anchor: HTMLElement; deck: Deck | null } | null>(null);
   const [deletion, setDeletion] = createSignal<{ anchor: HTMLElement; deck: Deck } | null>(null);
   const [switching, setSwitching] = createSignal<{ anchor: HTMLElement; target: Destination } | null>(null);
-  const [closing, setClosing] = createSignal<{ anchor: HTMLElement; state: 'finished' | 'abandoned' } | null>(null);
+  const [closing, setClosing] = createSignal<HTMLElement | null>(null);
   const [events, setEvents] = createSignal<ReviewEvent[]>([]);
   const [stats, setStats] = createSignal<ReviewStats | null>(null);
   const [nextDue, setNextDue] = createSignal<number | null>(null);
@@ -121,6 +111,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   const [answerRevealed, setAnswerRevealed] = createSignal(false);
   const [restoredCardId, setRestoredCardId] = createSignal<string | null>(null);
   const [blockRequest, setBlockRequest] = createSignal(props.view.blockId ?? null);
+  const [startRequest, setStartRequest] = createSignal(props.view.start);
   /** The block a session reviews, named by its subject; null for a deck session. */
   const [scope, setScope] = createSignal<string | null>(null);
   const latestGrade = createMemo(() => session()?.state !== 'abandoned' ? events().filter(event => event.kind === 'grade').at(-1) ?? null : null);
@@ -149,7 +140,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     return otherSessions().filter(value => sessionLabel(value).toLocaleLowerCase().includes(needle));
   });
   let scroll!: HTMLDivElement;
-  let deckTrigger!: HTMLButtonElement;
+  let heading!: HTMLDivElement;
   let startButton: HTMLButtonElement | undefined;
   let generation = 0;
   let disposed = false;
@@ -169,7 +160,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   }
 
   function publish() {
-    if (!disposed) untrack(() => props.onViewChange({ ...props.view, blockId: blockRequest() ?? undefined, deckId: deckId(), sessionId: sessionId(), selection: selection(), scroll: scroll?.scrollTop ?? props.view.scroll }));
+    if (!disposed) untrack(() => props.onViewChange({ ...props.view, blockId: blockRequest() ?? undefined, start: startRequest(), deckId: deckId(), sessionId: sessionId(), selection: selection(), scroll: scroll?.scrollTop ?? props.view.scroll }));
   }
 
   function moveTo(target: Destination) {
@@ -194,11 +185,22 @@ function CardReviewPane(props: ReviewPaneProps) {
     }
     // A same-kind shell navigation must not bypass the open-session choice.
     publish();
-    requestMove({ deckId: nextDeck, sessionId: nextSession, selection: nextSelection }, deckTrigger);
+    requestMove({ deckId: nextDeck, sessionId: nextSession, selection: nextSelection }, heading);
   }, { defer: true }));
 
   createEffect(on(() => [deckId(), sessionId(), selection(), props.notebook.changeSequence(), props.notebook.todayDate(), commandState(), retry()] as const, () => { void refresh(); }));
   createEffect(on(() => props.view.blockId, id => { if (id) setBlockRequest(id); }, { defer: true }));
+  createEffect(on(() => props.view.start, requested => { if (requested) setStartRequest(true); }, { defer: true }));
+  createEffect(on(() => [startRequest(), ready(), loading(), locked(), readError()] as const, ([requested, isReady, isLoading, isLocked, error]) => {
+    if (!requested || !isReady || isLoading || isLocked || error) return;
+    if (!openSession() && (deckId() || session() || query().selection !== 'due')) {
+      moveTo({ deckId: null, sessionId: null, selection: 'due' });
+      return;
+    }
+    setStartRequest(undefined);
+    publish();
+    if (!openSession()) void start();
+  }));
   // Consume this navigation request before publishing: retaining blockId would enqueue it again on every view update.
   // Track only readiness here; reading and publishing shell state must not subscribe this effect to its own output.
   createEffect(on(() => [blockRequest(), ready(), loading(), locked()] as const, ([id, isReady, isLoading, isLocked]) => {
@@ -288,7 +290,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         }
         const page = await props.notebook.api.block(requestedDeck).catch((reason: unknown) => { if (reason instanceof ApiError && reason.status === 404) return null; throw reason; });
         if (disposed || version !== generation) return;
-        if (!page || page.kind !== 'page' || page.archived) throw new Error('This deck was deleted. Finish or abandon any open review, then choose another deck.');
+        if (!page || page.kind !== 'page' || page.archived) throw new Error('This deck was deleted. End the open review, then choose another deck.');
         nextSessionTagDeck = {
           id: page.id, name: page.text,
           query: { source: { type: page.id, text: null, filters: [], sort: [], limit: null }, selection: 'due', limit: null },
@@ -543,7 +545,7 @@ function CardReviewPane(props: ReviewPaneProps) {
 
   function reviewBlock(blockId: string) {
     if (openSession()) {
-      if (localStorage.getItem(`tessera.review-block.${openSession()!.id}`) !== blockId) setSwitching({ anchor: deckTrigger, target: { deckId: null, sessionId: null, blockId } });
+      if (localStorage.getItem(`tessera.review-block.${openSession()!.id}`) !== blockId) setSwitching({ anchor: heading, target: { deckId: null, sessionId: null, blockId } });
       return;
     }
     void startBlockReview(blockId);
@@ -591,12 +593,14 @@ function CardReviewPane(props: ReviewPaneProps) {
   return <div class="review-pane" classList={{ 'review-session-active': sessionActive(), 'review-session-done': done() }} data-pane={props.pane} role="region" aria-label="Review" tabIndex={0} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
     <Show when={!emptyWorkshop()}><div class="review-head">
       <header class="review-header">
-        <div class="review-heading">
-          <div class="review-register">Review<Show when={sessionActive()}><span> · in progress</span></Show></div>
-          <h1><Button ref={deckTrigger} class="review-deck-title" disabled={locked() || loading()} aria-haspopup="dialog" title="Choose a deck" onClick={event => { setSearch(''); setPicker({ kind: 'decks', anchor: event.currentTarget }); }}><span>{deckName()}</span><Icon name="down" /></Button></h1>
+        <div ref={heading} class="review-heading">
+          <div class="review-register">Review</div>
+          <h1><Show when={!sessionActive()} fallback={<span>{deckName()}</span>}><Button class="review-deck-title" disabled={locked() || loading()} aria-haspopup="dialog" title="Choose a deck" onClick={event => { setSearch(''); setPicker({ kind: 'decks', anchor: event.currentTarget }); }}><span>{deckName()}</span><Icon name="down" /></Button></Show></h1>
         </div>
-        <Show when={otherSessions().length}><Button class="review-open-sessions" disabled={locked() || loading()} aria-haspopup="dialog" onClick={event => { setSearch(''); setPicker({ kind: 'sessions', anchor: event.currentTarget }); }}>Open reviews<span class="review-count">{otherSessions().length}</span></Button></Show>
-        <Button class="review-deck-actions" icon="more" label="Deck actions" aria-haspopup="menu" disabled={locked() || loading()} onClick={event => setActions(event.currentTarget)} />
+        <Show when={!sessionActive()}>
+          <Show when={otherSessions().length}><Button class="review-open-sessions" disabled={locked() || loading()} aria-haspopup="dialog" onClick={event => { setSearch(''); setPicker({ kind: 'sessions', anchor: event.currentTarget }); }}>Open reviews<span class="review-count">{otherSessions().length}</span></Button></Show>
+          <Button class="review-deck-actions" icon="more" label="Deck actions" aria-haspopup="menu" disabled={locked() || loading()} onClick={event => setActions(event.currentTarget)} />
+        </Show>
       </header>
       <div class="review-toolbar">
         <Show when={!session()}><div role="group" aria-label="Review queue" class="review-queue-controls mode-tabs tab-strip" data-mode-panel=".review-scroll"><For each={selections}>{value => <Button aria-pressed={query().selection === value} disabled={locked() || loading()} onClick={() => {
@@ -626,15 +630,19 @@ function CardReviewPane(props: ReviewPaneProps) {
       <Show when={!session() && ready() && inventory() !== 0 && stats()}>{value => <div class="review-landing">
         <div class="review-overview">
           <section class="review-today-load" aria-label="Selected review queue">
-            <h2>{selectionLabels[query().selection]}</h2><div class="review-stat-value">{total()}<small>{query().selection === 'due' ? 'due now' : 'cards in this queue'}</small></div>
-            {/* The figure already says how many are due now on Due; the line adds what follows today and when the next card comes. */}
-            <p>{[
-              query().selection === 'due' ? '' : `${counts().due ?? 0} due now`,
-              `${Math.max(0, value().due_review + value().due_new - (counts().due ?? 0))} later today`,
-              !(counts().due ?? 0) && nextDue() ? `next ${new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(nextDue()!).replace(`${props.notebook.todayDate()}, `, 'at ')}` : '',
-            ].filter(Boolean).join(' · ')}</p>
-            <Button ref={startButton} class="review-start" disabled={locked() || loading() || !!readError() || !rows().length} onClick={() => void start()}>Review {rows().length} {rows().length === 1 ? 'card' : 'cards'} <kbd>Space</kbd></Button>
-            <Show when={!rows().length}><p>{value().held_cards ? `${value().held_cards} ${value().held_cards === 1 ? 'card is' : 'cards are'} paused or marked Not yet. Start or resume them from their source atoms.` : 'Nothing in this queue.'}</p></Show>
+            <h2>{selectionLabels[query().selection]}</h2>
+            <Show when={rows().length} fallback={<>
+              <div class="review-caught-up">{query().selection === 'new' ? 'Nothing new yet' : 'All caught up'}</div>
+              <Show when={nextDue()}>{due => <p>Next card {nextCardTime(due(), props.notebook.todayDate(), props.notebook.settings()?.time_zone)}</p>}</Show>
+            </>}>
+              <div class="review-stat-value">{total()}<small>{query().selection === 'due' ? 'due now' : 'cards in this queue'}</small></div>
+              <p>{[
+                query().selection === 'due' ? '' : `${counts().due ?? 0} due now`,
+                `${Math.max(0, value().due_review + value().due_new - (counts().due ?? 0))} later today`,
+              ].filter(Boolean).join(' · ')}</p>
+              <Button ref={startButton} class="review-start" disabled={locked() || loading() || !!readError()} onClick={() => void start()}>Review {rows().length} {rows().length === 1 ? 'card' : 'cards'} <kbd>Space</kbd></Button>
+            </Show>
+            <Show when={!rows().length && value().held_cards}><p class="review-held">{value().held_cards} {value().held_cards === 1 ? 'card is' : 'cards are'} paused or marked Not yet. Start or resume them from their source atoms.</p></Show>
           </section>
           <ReviewForecast stats={value()} />
         </div>
@@ -689,8 +697,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     <Show when={openSession() || done() && latestGrade()}><footer class="review-session-actions">
       <Show when={openSession() || latestGrade()}><Button disabled={undoDisabled()} aria-keyshortcuts="Meta+Z Control+Z" onClick={() => void undoGrade()}>Undo last grade</Button></Show>
       <Show when={openSession()}>
-        <Button class="bordered" disabled={locked() || loading() || !!readError()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'finished' }); }}>Finish review</Button>
-        <Button disabled={locked() || loading() || !!readError()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing({ anchor: event.currentTarget, state: 'abandoned' }); }}>Abandon review</Button>
+        <Button class="review-end" disabled={locked() || loading() || !!readError()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing(event.currentTarget); }}>End review</Button>
       </Show>
     </footer></Show>
     <Show keyed when={composer()}>{anchor => <CardComposer anchor={anchor} where={`${shortDay(props.notebook.todayDate())} · end of journal`} onSave={createCard} onDismiss={() => setComposer(null)} />}</Show>
@@ -698,27 +705,35 @@ function CardReviewPane(props: ReviewPaneProps) {
       ? <Picker<DeckChoice> anchor={state.anchor} label="Deck" query={search()} onQuery={setSearch} placeholder="Find a deck" items={deckChoices()} key={value => value.id ?? 'all'} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); if (value.id !== deckId()) requestMove({ deckId: value.id, sessionId: null }, state.anchor); }} row={value => <><Icon name={value.id === deckId() ? 'check' : value.tag ? 'tag' : 'table'} /><span class="picker-text">{value.name}</span></>} empty="No matching decks." />
       : <Picker<ReviewSession> anchor={state.anchor} label="Open reviews" query={search()} onQuery={setSearch} placeholder="Find a review" items={sessionChoices()} key={value => value.id} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); requestMove({ deckId: value.deck_id, sessionId: value.id }, state.anchor); }} row={value => <><Icon name={value.id === sessionId() ? 'check' : 'page'} /><span class="picker-text">{sessionLabel(value)}</span></>} empty="No open reviews." />}</Show>
     <Show keyed when={actions()}>{anchor => <Menu anchor={anchor} label="Deck actions" onDismiss={() => setActions(null)} items={[
-      { label: 'New deck', disabledReason: openSession() ? 'Finish or abandon the open review first.' : undefined, action: () => setEditor({ anchor, deck: null }) },
-      { label: 'Edit deck', disabledReason: selectedTagDeck() ? `This deck is the #${selectedTagDeck()!.name} tag. Remove the tag from its cards, or save a deck if you need other filters.` : openSession() ? 'Finish or abandon the open review first.' : !selectedDeck() ? 'Choose a saved deck first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setEditor({ anchor, deck }); } },
-      { label: 'Delete deck', danger: true, disabledReason: selectedTagDeck() ? `This deck is the #${selectedTagDeck()!.name} tag. Remove the tag from its cards.` : openSession() ? 'Finish or abandon the open review first.' : !selectedDeck() ? 'Choose a saved deck first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setDeletion({ anchor, deck }); } },
+      { label: 'New deck', disabledReason: openSession() ? 'End the open review first.' : undefined, action: () => setEditor({ anchor, deck: null }) },
+      { label: 'Edit deck', disabledReason: selectedTagDeck() ? `This deck is the #${selectedTagDeck()!.name} tag. Remove the tag from its cards, or save a deck if you need other filters.` : openSession() ? 'End the open review first.' : !selectedDeck() ? 'Choose a saved deck first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setEditor({ anchor, deck }); } },
+      { label: 'Delete deck', danger: true, disabledReason: selectedTagDeck() ? `This deck is the #${selectedTagDeck()!.name} tag. Remove the tag from its cards.` : openSession() ? 'End the open review first.' : !selectedDeck() ? 'Choose a saved deck first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setDeletion({ anchor, deck }); } },
     ]} />}</Show>
     <Show keyed when={editor()}>{state => <DeckEditor anchor={state.anchor} notebook={props.notebook} deck={state.deck} query={query()} onDismiss={() => setEditor(null)} onSaved={id => { setEditor(null); moveTo({ deckId: id, sessionId: null }); }} />}</Show>
-    <Show keyed when={closing()}>{state => <Popup anchor={state.anchor} label={state.state === 'finished' ? 'Finish review?' : 'Abandon review?'} class="review-confirm" onDismiss={() => { if (!pending()) setClosing(null); }}>
-      <p>{state.state === 'finished' ? 'Finish this review? Graded cards keep their grades.' : 'Abandon this review? Graded cards keep their grades.'}</p>
+    <Show keyed when={closing()}>{anchor => <Popup anchor={anchor} label="End review" class="review-confirm" onDismiss={() => { if (!pending()) setClosing(null); }}>
+      <p>End this review? Graded cards keep their grades.</p>
       <Show when={commandError()}><p class="error" role="alert">{commandError()}</p></Show>
-      <div class="popup-actions"><Button disabled={locked()} onClick={() => setClosing(null)}>Cancel</Button><Button class={state.state === 'finished' ? 'bordered' : 'bordered danger'} disabled={locked()} onClick={() => void closeSession(state.state)}>{state.state === 'finished' ? 'Finish review' : 'Abandon review'}</Button></div>
+      <div class="popup-actions"><Button disabled={locked()} onClick={() => setClosing(null)}>Keep going</Button><Button class="bordered" disabled={locked()} onClick={() => void closeSession('finished')}>End review</Button></div>
     </Popup>}</Show>
     <Show keyed when={deletion()}>{state => <Popup anchor={state.anchor} label="Delete deck" class="review-confirm" onDismiss={() => { if (!pending()) setDeletion(null); }}>
       <p>Delete “{state.deck.name}”? Source cards, schedules and review history stay.</p>
       <Show when={commandError()}><p class="error" role="alert">{commandError()}</p></Show>
       <div class="popup-actions"><Button disabled={locked()} onClick={() => setDeletion(null)}>Cancel</Button><Button class="bordered danger" disabled={locked()} onClick={() => void deleteDeck(state.deck)}>Delete deck</Button></div>
     </Popup>}</Show>
-    <Show keyed when={switching()}>{state => <Popup anchor={state.anchor} label="Close open review" class="review-confirm" onDismiss={() => { if (!pending()) setSwitching(null); }}>
-      <p>Finish or abandon this review before switching. Committed grades stay.</p>
+    <Show keyed when={switching()}>{state => <Popup anchor={state.anchor} label="End review" class="review-confirm" onDismiss={() => { if (!pending()) setSwitching(null); }}>
+      <p>End this review? Graded cards keep their grades.</p>
       <Show when={commandError()}><p class="error" role="alert">{commandError()}</p></Show>
-      <div class="popup-actions"><Button disabled={locked()} onClick={() => setSwitching(null)}>Cancel</Button><Button disabled={locked()} onClick={() => void closeSession('abandoned', state.target)}>Abandon review</Button><Button class="bordered" disabled={locked()} onClick={() => void closeSession('finished', state.target)}>Finish review</Button></div>
+      <div class="popup-actions"><Button disabled={locked()} onClick={() => setSwitching(null)}>Keep going</Button><Button class="bordered" disabled={locked()} onClick={() => void closeSession('finished', state.target)}>End review</Button></div>
     </Popup>}</Show>
   </div>;
+}
+
+function nextCardTime(due: number, today: string, timeZone?: string): string {
+  const date = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(due);
+  const days = (Date.parse(date) - Date.parse(today)) / 86_400_000;
+  const day = days >= 0 && days < 7 ? new Intl.DateTimeFormat('en', { timeZone, weekday: 'short' }).format(due) : date;
+  const time = new Intl.DateTimeFormat('en', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(due);
+  return `${day} ${time}`;
 }
 
 function reviewDuration(milliseconds: number): string {

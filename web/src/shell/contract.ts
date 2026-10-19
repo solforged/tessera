@@ -83,8 +83,9 @@ export type OpenTarget =
   | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number; readAt?: string; editOcclusion?: boolean; journalPeriod?: 'week' | 'month' | 'quarter' | 'year' }
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
   | { kind: 'agenda'; date?: string; mode?: AgendaViewState['mode']; viewId?: string; query?: TaskQuery }
-  /** `blockId` starts a review of that block's cards. */
-  | { kind: 'review'; deckId?: string; blockId?: string; queue?: 'cards' | 'notes'; revisitId?: string }
+  /** `blockId` starts a review of that block's cards; `start` starts the due queue once. */
+  | { kind: 'review'; deckId?: string; blockId?: string; start?: true }
+  | { kind: 'revisits'; revisitId?: string }
   | { kind: 'fields'; typeId?: string }
   | { kind: 'field'; fieldId: string; previewKind?: FieldKind; section?: 'options' | 'targets' }
   | { kind: 'cards'; typeId: string; applyId?: string }
@@ -112,8 +113,9 @@ export interface SettingsViewState { scroll: number }
 export interface CompareViewState { scroll: number; comparison?: 'readings' | 'criteria'; chosen?: string[] | null; focusedQuestion?: string | null }
 export interface IndexViewState { scroll: number; noteQuery?: Query; viewId?: string | null }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }
-/** `blockId` is a one-shot request to review that block's cards; the pane drops it once handled. */
-export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number; blockId?: string; queue?: 'cards' | 'notes'; revisitId?: string }
+/** `blockId` and `start` are one-shot review requests; the pane drops them once handled. */
+export interface ReviewViewState { deckId: string | null; sessionId: string | null; selection: CardSelection | null; scroll: number; blockId?: string; start?: true }
+export interface RevisitsViewState { scroll: number; revisitId?: string }
 export type LibraryGroup = 'none' | 'author' | 'year' | 'decade' | 'publisher' | 'language';
 export interface LibraryViewState { view: string | null; collection?: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; filters: LibraryFilters; group: LibraryGroup; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }
 /** `ordinal` is the top passage; `offset` its pixel offset from the pane's top. */

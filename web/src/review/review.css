@@ -1,23 +1,18 @@
 .review-pane { display: flex; flex-direction: column; min-height: 0; height: 100%; min-width: 0; outline: none; }
 /* Header, toolbar, status, card and footer share the outline measure, like Library and Agenda.
    The deck is the page title, set like a table's view name, with the queue tabs beneath. */
-.review-header { display: flex; align-items: flex-end; gap: var(--space-8); width: 100%; max-width: calc(var(--measure) + 2 * var(--space-16)); margin-inline: auto; padding: var(--space-24) var(--space-16) var(--space-8); }
-.review-heading { flex: 1; min-width: 0; }
+.review-header { display: flex; align-items: flex-end; gap: var(--space-8); width: 100%; max-width: calc(var(--measure) + 2 * var(--pane-inset)); margin-inline: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-title-gap); }
+.review-heading { flex: 1; min-width: 0; font: var(--page-title-font); min-height: calc(var(--line-apparatus) + var(--page-eyebrow-gap) + max(1lh, var(--target-size))); }
 .review-register { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.review-heading h1 { margin: var(--space-2) 0 0; font-size: var(--text-h1); line-height: var(--line-h1); }
-.review-deck-title.button { justify-content: flex-start; max-width: 100%; min-width: 0; padding: 0; font-family: var(--font-display); font-size: inherit; line-height: inherit; font-weight: var(--weight-title); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.review-heading h1 { margin: var(--page-eyebrow-gap) 0 0; font: inherit; font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.review-deck-title.button { justify-content: flex-start; max-width: 100%; min-width: 0; padding: 0; border: 0; font-family: var(--font-display); font-size: inherit; line-height: inherit; font-weight: var(--weight-title); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 .review-deck-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .review-deck-title > .icon { color: var(--faint); }
-.review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-16); width: 100%; max-width: calc(var(--measure) + 2 * var(--space-16)); margin-inline: auto; padding: 0 var(--space-16) var(--space-12); }
+.review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-16); width: 100%; max-width: calc(var(--measure) + 2 * var(--pane-inset)); margin-inline: auto; padding: 0 var(--pane-inset) var(--page-head-gap); }
 .review-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
-/* Landing spacing follows the shared page contract; live sessions retain their compact chrome. */
-.review-pane:not(.review-session-active) .review-header { max-width: calc(var(--measure) + 2 * var(--pane-inset)); padding: var(--page-top-space) var(--pane-inset) var(--page-title-gap); }
-.review-pane:not(.review-session-active) .review-heading h1 { margin-top: var(--page-eyebrow-gap); font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
-.review-pane:not(.review-session-active) .review-toolbar { max-width: calc(var(--measure) + 2 * var(--pane-inset)); padding: 0 var(--pane-inset) var(--page-head-gap); }
-.review-pane:not(.review-session-active) .review-scroll { padding: 0 var(--pane-inset) var(--page-bottom-space); }
 .review-queue-controls { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-right: auto; }
 /* Each committed grade keeps its place in the progress strip, including after reload. */
-.review-session-progress { display: flex; flex-direction: column; gap: var(--space-12); width: 100%; padding-block: var(--space-8) var(--space-16); }
+.review-session-progress { display: flex; flex-direction: column; justify-content: space-between; width: 100%; min-height: max(var(--target-size), calc(var(--line-apparatus) + var(--space-8) + var(--rule-width))); }
 .review-session-progress > .review-progress-label { align-self: flex-end; }
 .review-grade-strip { display: flex; gap: var(--space-4); min-width: 0; width: 100%; }
 .review-grade-segment { flex: 1; min-width: 0; height: var(--space-4); border-radius: var(--radius-control); background: var(--line); }
@@ -32,7 +27,7 @@
 .review-open-sessions.button { font-weight: var(--weight-body); }
 /* Chrome above the scroller reserves the scroller's gutter, so headings and cards share one column edge with every other pane. */
 .review-head { flex: none; overflow: hidden; scrollbar-gutter: stable; }
-.review-scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; padding: 0 var(--space-16) var(--space-24); }
+.review-scroll { flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; padding: 0 var(--pane-inset) var(--page-bottom-space); }
 .review-scroll > * + * { margin-top: var(--space-12); }
 .review-pending { color: var(--faint); }
 .review-notice { padding: var(--space-8) var(--space-24); color: var(--muted); background: var(--surface); font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
@@ -44,6 +39,7 @@
 .review-stale-versions h2 { color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); margin: 0 0 var(--space-8); }
 .review-stale-versions section > div, .review-history-text { white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: var(--space-8); }
 .review-session-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); padding: var(--space-12) max(var(--space-16), calc((100% - var(--measure)) / 2)); border-top: 1px solid var(--line); }
+.review-session-actions .review-end { margin-left: auto; }
 .review-history { color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .review-history summary { cursor: pointer; padding-block: var(--space-4); }
 .review-history summary:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
@@ -69,6 +65,8 @@
 .review-stat-value { font: var(--weight-body) var(--text-figure)/var(--line-figure) var(--font-display); font-variation-settings: var(--optical-heading); font-variant-numeric: lining-nums tabular-nums; }
 .review-stat-value small { margin-left: var(--space-8); color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .review-today-load p { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.review-caught-up { font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.review-today-load .review-held { font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); letter-spacing: normal; }
 /* Starting review is a gilt hairline action like every other; Space is the primary path. */
 .review-start.button { min-height: calc(var(--space-32) + var(--space-8)); padding-inline: var(--space-16); border: var(--rule-width) solid color-mix(in srgb, var(--accent) 55%, transparent); background: none; color: var(--accent); }
 .review-start.button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
@@ -112,7 +110,7 @@
 .review-missed p, .review-missed-answer { margin-block: var(--space-16); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 /* The unfolded touch screen reads the cited passage beside the card, without opening a second pane. */
 .review-source-passage { display: none; }
-.review-session-layout { min-width: 0; }
+.review-session-layout { min-width: 0; padding-top: var(--section-gap); }
 .review-source-passage header { display: flex; justify-content: space-between; gap: var(--space-16); color: var(--faint); font: var(--apparatus); }
 .review-source-passage p { white-space: pre-wrap; font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); font-variation-settings: var(--optical-reader); }
 .review-source-passage .review-source-heading { font-weight: var(--weight-title); font-variation-settings: var(--optical-heading); }
@@ -134,13 +132,9 @@
 /* On the cover, a live session owns the navigation's space; reveal and grades stay under the thumb. */
 @media (max-width: 599px) and (pointer: coarse) {
   .app:has(.pane.active .review-session-active) .bottom-nav { display: none; }
-  .review-session-active .review-header { padding-top: var(--space-8); }
-  .review-session-active .review-register { display: none; }
-  .review-session-active .review-heading h1 { font-size: var(--text-control); line-height: var(--line-control); }
-  .review-session-active .review-deck-title { font-family: var(--font-body); }
   .review-session-active .review-scroll { display: flex; flex-direction: column; padding-bottom: var(--space-8); }
   .review-session-active .review-session-layout { display: flex; flex: 1; }
-  .review-session-active .review-card { flex: 1; padding-top: var(--space-24); }
+  .review-session-active .review-card { flex: 1; }
   .review-session-active :is(.review-card-actions, .review-card-comparison, .review-card-grades:not(.review-card-comparison + *)) { margin-top: auto; }
   .review-session-active .review-history { display: none; }
   .review-session-actions { padding: var(--space-4) var(--space-16) max(var(--space-8), var(--bottom-inset)); }

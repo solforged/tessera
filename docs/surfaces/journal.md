@@ -109,11 +109,13 @@ Agenda counts the items in the [Agenda pane's Today section](tasks-agenda.md#gro
 
 That ledger uses the [Day rows](tasks-agenda.md#rows), with their time gutter, completion, [rescheduling keys and now rule](tasks-agenda.md#rescheduling), and ends in `Open agenda ›`. Tasks written in this journal are left out, since the outline below already shows them with their plan: a muted `N more in the journal below` follows the rows, or `N planned in the journal below` replaces Nothing planned today. Carried work collapses to one `N carried over` line in `--danger` that expands in place, with Move to today at its end and the [same Undo line](tasks-agenda.md#groups).
 
+The ledger keeps provenance visible beside a reserved rescheduling slot, including on hover and keyboard focus. Below a 600 px pane width, titles have the full first line after the status and optional clock gutter, with up to two text lines before truncation. Mono facts, provenance and the right-aligned calendar share the second line, indented to the task text. One-line titles keep rows under 72 px on touch. The ledger omits its clock gutter when none of its rows has a time.
+
 When no tasks are planned, the Agenda tile says Nothing planned today once; the open ledger keeps only Open agenda, without a duplicate empty message or reserved empty-row height.
 
 ### Review tile
 
-Review uses the sidebar's same due-card query and opens the [review landing](cards-review.md#landing-and-decks).
+Review uses the sidebar's same due-card query and starts the due queue in one tap. If no cards are due, it opens the [caught-up landing](cards-review.md#landing-and-decks). Sidebar and palette Open review still open the landing.
 
 ### Reading tile
 

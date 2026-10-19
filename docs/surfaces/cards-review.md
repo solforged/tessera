@@ -18,7 +18,7 @@ Descriptor card is under `/` and under Space c as `d`. Its review source line le
 
 ### Revisits
 
-The queue tabs switch between Cards and Revisits. Both sit on the cards landing's measure, and Revisits repeats its Review eyebrow and page title position, so switching keeps one column edge. Revisits shows its due count and lists notes and non-parked page or inline questions whose revisit date is today or earlier, earliest first. The sidebar badge combines cards and revisits; its accessible name and tooltip give each count separately.
+Revisits is its own pane, directly below Agenda in the sidebar and available through Open revisits in Commands. It keeps its selected atom and scroll position through back, forward and reload. Its heading shows the due count without a Review eyebrow. Notes and non-parked page or inline questions whose revisit date is today or earlier appear in dated groups, earliest first. Each group has an ISO date in mono, a section rule and a faint count at the right. The sidebar counts cards under Review and due revisits under Revisits separately. Today and Agenda's research section opens the selected atom in Revisits.
 
 An empty Revisits queue explains that Set Revisit on a note or question brings it here when its revisit date arrives.
 
@@ -32,7 +32,7 @@ Review is a pane on the outline measure, like [Library](library.md). Its mono re
 
 The landing's Due, New and All tabs share the tab-strip baseline, with a 2 px gilt rule under the whole selected tab. The landing is a ruled register rather than a dashboard: one hairline opens the overview, with no boxes. The selected queue leads with its total as a Piazzolla figure at `--text-figure`; Due says due now, while New and All say cards in this queue.
 
-One apparatus line follows: how many come due later today (after due now, on New and All), and, when nothing is due now, the next card's time in the workshop's time zone (`next at 10:59`, or its date and time when it is not today). Review N cards (Space) starts the bounded batch and is a gilt hairline button, as are Review's other start actions. The fourteen-day forecast stays secondary at the right, square bars on a baseline rule; All includes deferred introductions.
+One apparatus line follows: how many come due later today, after due now on New and All. Review N cards (Space) starts the bounded batch and is a gilt hairline button, as are Review's other start actions. An empty queue instead says All caught up, or Nothing new yet for New, in the display voice. When another card is scheduled, one mono line gives Next card, its weekday within seven days or ISO date beyond, and time in the workshop's time zone. There is no disabled start button or repeated empty sentence; paused cards keep their explanation. The fourteen-day forecast stays secondary at the right, square bars on a baseline rule; All includes deferred introductions.
 
 The forecast's first bar is gilt. Every forecast bar has a two-letter weekday label; today's accessible name is “today”. Retention over thirty local days, this week's review count, the streak and total cards follow as one mono ledger line between rules, then a deck ledger with Due, New and Cards. The session summary uses the same stats line.
 
@@ -42,11 +42,11 @@ Counts come from active visible cards and committed review events, never sample 
 
 Decks save source predicates, not copied collections. A tag on a card's own block appears in the same ledger without saving a deck. The row uses the tag's title, not its plural, and reviewing it studies the cards on blocks with that tag. The ledger says to tag a card to make a deck, and to save a deck for other filters. Removing the tag from those cards removes the row. A saved deck that filters only on that type replaces the tag row. New deck remains for a queue a tag cannot express, such as a field filter or more than one condition.
 
-Start takes focus on a mouse-and-keyboard device, but touch leaves it alone and the pane has no focus ring.
+Start takes focus on a mouse-and-keyboard device, but touch leaves it alone and the pane has no focus ring. Today's Review tile starts the due queue directly, or lands on the caught-up state when empty. That request is consumed once; sidebar and palette navigation keep the landing.
 
 ### Session progress
 
-A session replaces the queue preview with one segment per card. Its grades survive reload.
+A session replaces the queue preview with one segment per card. Its grades survive reload. The deck title stays at its landing size but becomes static text; the picker, deck actions and Open reviews leave the session. Progress shares the queue tabs' height, so the content column does not jump.
 
 | Card state or grade | Segment appearance |
 | --- | --- |
@@ -62,13 +62,13 @@ A completed or explicitly closed session with at least one review keeps its coun
 
 ### Appearance and source
 
-The card reads as a quiet sheet on the page rather than a boxed panel. On a fine-pointer device it is headed by the same rubric mark as popups. Its top rule turns gilt only on fine-pointer keyboard focus; touch shows neither this rule nor the rubric, leaving the progress strip alone.
+The card reads as a quiet sheet on the page rather than a boxed panel. Its column is capped at the page measure with 48 px of breathing room above it, placing its prompt in the upper third. On a fine-pointer device it is headed by the same rubric mark as popups. Its top rule turns gilt only on fine-pointer keyboard focus; touch shows neither this rule nor the rubric, leaving the progress strip alone.
 
 One mono line heads every card: the source at the left, then the kind in faint capitals (`FORWARD`, `REVERSE`, `CLOZE`, `MULTI-LINE`, `LIST`, `DESCRIPTOR`, `OCCLUSION`) and Card actions at the right. A cloze or occlusion card is numbered (`CLOZE 2`, `OCCLUSION 2`) only when its block makes more than one. A cited card's source shows siglum, title, chapter and paragraph and opens that citation. ⌘-click opens it beside (Ctrl-click off Mac). An uncited card's source path opens its block. Card actions holds the same open action, Edit card, which opens the canonical block, and Reset progress, which requires a revealed answer and confirmation. On an occlusion card, Edit card also opens the mask editor.
 
 Cards beneath a highlight inherit the nearest ancestor citation when they have none of their own. Their source line identifies the book and location, not the ancestor quotation. The cited passage and following sentence wait for reveal.
 
-Both sides of a card share one size. When both are 40 characters or fewer on one line, and the answer is not an outline, they are set at 24 px with a 30 px line; otherwise both read at 24 px with a 38 px line. A rule separates ordinary sides. Multi-line answers keep their child outline with faint bullets, and list answers number their items in rubric; both markers sit on the text's baseline. An image block in the answer shows its figure above its caption, at most 40% of the viewport's height. Lists reveal one item at a time, with an `N of M` mono count, and grading waits for the last. Clozes reveal in place with a gilt underline, so the sentence appears once; until then a gap reads `[…]`, or `[hint]`, in muted italic.
+Both sides of a card share `--text-title`, 32 px. When both are 40 characters or fewer on one line, and the answer is not an outline, they use the 38 px title line; otherwise both add 8 px of leading. Clicking non-control space on the front reveals on pointer and touch, alongside the button and Space shortcut. A rule separates ordinary sides. Multi-line answers keep their child outline with faint bullets, and list answers number their items in rubric; both markers sit on the text's baseline. An image block in the answer shows its figure above its caption, at most 40% of the viewport's height. Lists reveal one item at a time, with an `N of M` mono count, and grading waits for the last. Clozes reveal in place with a gilt underline, so the sentence appears once; until then a gap reads `[…]`, or `[hint]`, in muted italic.
 
 An occlusion card shows its image, cropped to the group's area when it has one, at most 70% of the viewport's height so the grades stay on screen on a phone. The tested masks are filled gilt with the hint centered in them. In Hide all, the other groups' masks are filled with the canvas and outlined with a hairline. Revealing removes the tested masks and rings each uncovered shape with a 2 px gilt stroke, the way a cloze reveals in place, and the answer follows below.
 
@@ -103,9 +103,9 @@ Scheduling is FSRS-6 at 90% retention in whole days. Buttons show the next inter
 
 A source or schedule change invalidates the shown snapshot and requires Review current card before grading. Changed wording retains identity and progress. The card shows the last reviewed text beside its current text and offers Keep progress or Start over. An occlusion card changes when its masks, area, hint, answer, mode or image change, and in Hide all also when another group's masks do; its comparison shows the last reviewed and current images side by side. Reset progress requires confirmation and keeps review history.
 
-### Finish, abandon and undo
+### End and undo
 
-Finish review and Abandon review open anchored confirmations. Cancel keeps the review open; either confirmed action keeps committed grades.
+The session footer offers plain Undo last grade at the left and End review at the right. End review asks `End this review? Graded cards keep their grades.` with Keep going and End review. Switching away from an open review uses the same choice; ending records a finished session and keeps committed grades.
 
 Undo last grade stays visible during a session and on Done, with ⌘Z or Ctrl+Z outside editable controls. It restores the card and its schedule; undoing the final grade reopens the finished session.
 
@@ -129,7 +129,7 @@ The outline badge reads `1 card · #arabic`, or `1 card · untagged` when the at
 
 An atom’s card count opens its cards. Each row puts the direction in the same faint capitals in a fixed column, so every card’s text starts at one edge, then the front, the answer in `--muted` and the due state. Clozes show their gaps and gilt answers as Review does. Multi-line and list answers show as their outline, at most five items, then `N more`. An occlusion card shows a thumbnail of its tested area and its answer, or `Mask A` when it has none. A recipe card reads `RECIPE` with its `#Vocab · Recognition` provenance under the text.
 
-The popup's Review, Shift-click on the count and the block menu's Review cards start a review of that block's active cards, due or not, titled by the block's subject. ⌘-click on Review opens it beside (Ctrl-click off Mac). An open review shows the same Finish or abandon prompt as switching decks before the block review starts; asking again for the block already under review returns to it. Review is disabled when every card is paused.
+The popup's Review, Shift-click on the count and the block menu's Review cards start a review of that block's active cards, due or not, titled by the block's subject. ⌘-click on Review opens it beside (Ctrl-click off Mac). An open review shows the same End review prompt as switching decks before the block review starts; asking again for the block already under review returns to it. Review is disabled when every card is paused.
 
 The block request is consumed once; later session snapshots and reloads resume that session without starting or re-requesting its source review.
 
@@ -143,7 +143,7 @@ Deck forms retain the popup's viewport gutters on the cover, so fields and actio
 
 The current card stays until a grade is acknowledged. Pending commands survive offline reload with their original request bytes. Rejection preserves the command for copying and requires a fresh card snapshot. Unrelated local page edits do not invalidate the shown card.
 
-Exhausting a confirmed queue shows Finishing review… until the finish is acknowledged, then Done and normal deck actions. Finishing early, abandoning or switching an open review is explicit; committed grades and their shown-text evidence remain. Pane history and reload preserve the deck, queue selection and session.
+Exhausting a confirmed queue shows Finishing review… until the finish is acknowledged, then Done and normal deck actions. Ending early or switching an open review is explicit; committed grades and their shown-text evidence remain. Pane history and reload preserve the deck, queue selection and session.
 
 A workshop with no cards hides the deck title and the Due, New and All tabs. It says `No cards yet.` and offers Create a card, a hairline button that opens the card composer under the button. The Revisits tab omits a zero count. A non-empty Review landing keeps New card beside New deck and opens the shared creation slip with Card selected. An empty deck or held-only inventory keeps its distinct explanation.
 

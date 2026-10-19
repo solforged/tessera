@@ -141,7 +141,7 @@ export function ReviewCard(props: ReviewCardProps) {
   });
 
   return <div ref={region} class="review-card" classList={{ 'review-recipe': !!props.item.card.template }} role="region" aria-label="Review card" aria-busy={locked()} tabIndex={0} onClick={event => {
-    if (!window.matchMedia('(pointer: coarse)').matches || (event.target as Element).closest('button, a, summary, input, textarea, [role="button"]') || !window.getSelection()?.isCollapsed) return;
+    if ((event.target as Element).closest('button, a, summary, input, textarea, [role="button"]') || !window.getSelection()?.isCollapsed) return;
     reveal();
   }}>
     <div class="review-card-meta">

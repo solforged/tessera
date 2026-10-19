@@ -32,7 +32,7 @@ import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
 import { deskCounts, shortDay } from './desk-counts';
 import { depthLabels, depthStops } from './contract';
-import type { AgendaViewState, Command, CommandRegistry, CompareViewState, Depth, FieldsViewState, FieldViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, SettingsViewState, TableViewState, ViewState } from './contract';
+import type { AgendaViewState, Command, CommandRegistry, CompareViewState, Depth, FieldsViewState, FieldViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, RevisitsViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import type { PagePresentation, PageProjection } from './contract';
 import { Palette } from './Palette';
 import { DeletedPages } from './DeletedPages';
@@ -77,6 +77,7 @@ const paneModules = {
   settings: () => import('../settings/SettingsPane'),
   agenda: () => import('../tasks/AgendaPane'),
   review: () => import('../review/ReviewPane'),
+  revisits: () => import('../review/NotesReview'),
   library: () => import('../library/LibraryPane'),
   reader: () => import('../reader/ReaderPane'),
   compare: () => import('../compare/ComparePane'),
@@ -90,13 +91,14 @@ const CardTemplatesPane = lazy(() => paneModules.cards().then(module => ({ defau
 const SettingsPane = lazy(() => paneModules.settings().then(module => ({ default: module.SettingsPane })));
 const AgendaPane = lazy(() => paneModules.agenda().then(module => ({ default: module.AgendaPane })));
 const ReviewPane = lazy(() => paneModules.review().then(module => ({ default: module.ReviewPane })));
+const NotesReview = lazy(() => paneModules.revisits().then(module => ({ default: module.NotesReview })));
 const LibraryPane = lazy(() => paneModules.library().then(module => ({ default: module.LibraryPane })));
 const ReaderPane = lazy(() => paneModules.reader().then(module => ({ default: module.ReaderPane })));
 const ComparePane = lazy(() => paneModules.compare().then(module => ({ default: module.ComparePane })));
 const IndexPane = lazy(() => paneModules.index().then(module => ({ default: module.IndexPane })));
 const SpreadPane = lazy(() => paneModules.spread().then(module => ({ default: module.SpreadPane })));
 
-type PaneView = ViewState | TableViewState | FieldsViewState | FieldViewState | SettingsViewState | AgendaViewState | ReviewViewState | LibraryViewState | ReaderViewState | CompareViewState | IndexViewState;
+type PaneView = ViewState | TableViewState | FieldsViewState | FieldViewState | SettingsViewState | AgendaViewState | ReviewViewState | RevisitsViewState | LibraryViewState | ReaderViewState | CompareViewState | IndexViewState;
 type HistoryEntry = { target: OpenTarget; view: PaneView };
 type PaneSession = { entries: HistoryEntry[]; index: number; generation: number };
 type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; pagePresentations?: Record<string, PagePresentation>; pageStyles?: Record<string, 'bullets' | 'prose'>; recent?: string[]; vim?: boolean; panes?: Record<PaneId, HistoryEntry>; order?: PaneId[]; widths?: Record<PaneId, number>; active?: PaneId };
@@ -133,6 +135,7 @@ function paneLabel(target: OpenTarget | undefined): string {
   if (target?.kind === 'field') return 'Fields / Definition';
   if (target?.kind === 'cards') return 'Cards';
   if (target?.kind === 'spread') return 'Spread';
+  if (target?.kind === 'revisits') return 'Revisits';
   if (target?.kind === 'table' && target.query.layout === 'desk') return 'Research desk';
   return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : target?.kind === 'library' ? 'Library' : target?.kind === 'reader' ? 'Reader' : target?.kind === 'compare' ? 'Compare' : target?.kind === 'index' ? 'Index' : 'Loading…';
 }
@@ -143,6 +146,7 @@ function snapshotView(view: PaneView): PaneView {
   // Library views saved before Browse lack filters and grouping.
   if ('tab' in view) return { ...view, view: view.view ?? null, colors: [...view.colors ?? []], tags: [...view.tags ?? []], group: view.group ?? 'year', filters: { people: [...view.filters?.people ?? []], decades: [...view.filters?.decades ?? []], years: [...view.filters?.years ?? []], publishers: [...view.filters?.publishers ?? []], languages: [...view.filters?.languages ?? []] } };
   if ('ordinal' in view) return { ...view };
+  if ('revisitId' in view) return { ...view };
   if ('noteQuery' in view) return { ...view, noteQuery: view.noteQuery ? copyQuery(view.noteQuery) : undefined };
   return 'query' in view ? { ...view, query: copyQuery(view.query), hiddenFields: view.hiddenFields ? [...view.hiddenFields] : undefined } : 'zoom' in view ? copyView(view) : { scroll: view.scroll };
 }
@@ -151,7 +155,8 @@ function targetFromView(entry: HistoryEntry): OpenTarget {
   if (target.kind === 'index' && 'noteQuery' in view) return { ...target, query: view.noteQuery ? copyQuery(view.noteQuery) : undefined, viewId: view.viewId };
   if (target.kind === 'table' && 'query' in view && !('mode' in view)) return { ...target, query: copyQuery(view.query), typeId: view.query.type };
   if (target.kind === 'agenda' && 'mode' in view) return { kind: 'agenda', date: view.date, mode: view.mode, viewId: view.viewId ?? undefined, query: copyTaskQuery(view.query) };
-  if (target.kind === 'review' && 'deckId' in view) return { kind: 'review', deckId: view.deckId ?? undefined, queue: view.queue, revisitId: view.revisitId };
+  if (target.kind === 'review' && 'deckId' in view) return { kind: 'review', deckId: view.deckId ?? undefined };
+  if (target.kind === 'revisits') return { kind: 'revisits', revisitId: (view as RevisitsViewState).revisitId };
   if (target.kind === 'library' && 'tab' in view) return { kind: 'library', tab: view.tab };
   // A jump not yet performed (no position reported) survives a reload.
   if (target.kind === 'reader' && 'ordinal' in view) return view.ordinal < 0 ? { ...target, snapshotId: view.snapshotId ?? target.snapshotId } : { kind: 'reader', sourceId: target.sourceId, snapshotId: view.snapshotId ?? undefined };
@@ -299,9 +304,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     }
     const current = entry(pane);
     if (target.kind === 'review' && current?.target.kind === 'review' && 'deckId' in current.view) {
-      // A block request keeps the open review in place so the pane can ask before leaving it.
-      const next = restore && 'deckId' in restore ? { ...restore } : target.blockId ? { ...current.view, queue: 'cards' as const, blockId: target.blockId } : { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0, queue: target.queue ?? 'cards', revisitId: target.revisitId };
-      if (restore || target.blockId || target.queue || next.deckId !== current.view.deckId) changeView(pane, next);
+      // One-shot requests keep the open review in place so the pane can handle or confirm them.
+      const next = restore && 'deckId' in restore ? { ...restore } : target.blockId || target.start ? { ...current.view, blockId: target.blockId, start: target.start } : { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0 };
+      if (restore || target.blockId || target.start || next.deckId !== current.view.deckId) changeView(pane, next);
       if (keepFocus) { setActive(owner); reveal(pane, owner); focusPane(owner); } else { setActive(pane); setSidebar(false); focusPane(pane); }
       return;
     }
@@ -312,7 +317,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       const view: PaneView = restore ? snapshotView(restore) : target.kind === 'table'
         ? { query: copyQuery(target.query), scroll: 0 }
         : target.kind === 'agenda' ? { date, mode: target.mode ?? (target.query || target.viewId ? 'tasks' : 'agenda'), query: { ...(target.query ? copyTaskQuery(target.query) : createTaskQuery(date)), context_date: date }, viewId: target.viewId ?? null, scroll: 0 }
-          : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0, queue: target.queue ?? 'cards', revisitId: target.revisitId, ...(target.blockId ? { blockId: target.blockId } : {}) }
+          : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0, ...(target.blockId ? { blockId: target.blockId } : {}), ...(target.start ? { start: target.start } : {}) }
+            : target.kind === 'revisits' ? { scroll: 0, revisitId: target.revisitId }
             : target.kind === 'index' ? { scroll: 0, noteQuery: target.query ? copyQuery(target.query) : undefined, viewId: target.viewId }
               : target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'spread' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.tab ?? 'inbox', text: '', sort: 'added', filters: { people: [], decades: [], years: [], publishers: [], languages: [] }, group: 'year', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
@@ -644,6 +650,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if (saved.target.kind === 'review' && 'deckId' in saved.view) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
+        } else if (saved.target.kind === 'revisits' && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
+          current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if ((saved.target.kind === 'fields' || saved.target.kind === 'field' || saved.target.kind === 'cards' || saved.target.kind === 'settings' || saved.target.kind === 'compare' || saved.target.kind === 'index' || saved.target.kind === 'spread') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
           current = { target: targetFromView(saved), view: saved.target.kind === 'compare' || saved.target.kind === 'index' ? snapshotView(saved.view) : { scroll: saved.view.scroll } };
         } else if ((saved.target.kind === 'library' && 'tab' in saved.view) || (saved.target.kind === 'reader' && 'ordinal' in saved.view)) {
@@ -698,6 +706,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.capture', title: 'Add to today', section: 'Create', keys: ['⌘E'], keywords: ['capture', 'quick atom', 'quick note', 'inbox', 'journal'], run: () => openCreate(blankCapture()) },
     { id: 'shell.fields', title: 'Open fields', section: 'Navigation', run: () => open({ kind: 'fields' }) },
     { id: 'shell.agenda', title: 'Open agenda', section: 'Navigation', run: () => open({ kind: 'agenda', date: journalDate(active()) }) },
+    { id: 'shell.revisits', title: 'Open revisits', section: 'Navigation', run: () => open({ kind: 'revisits' }) },
     { id: 'shell.review', title: 'Open review', section: 'Navigation', run: () => open({ kind: 'review' }) },
     { id: 'shell.library', title: 'Open library', section: 'Navigation', run: () => open({ kind: 'library' }) },
     { id: 'shell.research-desk', title: 'Open research desk', section: 'Navigation', run: (beside = false) => open(deskTarget(), beside) },
@@ -1042,7 +1051,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <nav class="primary-navigation" aria-label="Workshop">
         <Button icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), opensBeside(event)); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>
         <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={event => open({ kind: 'agenda', date: journalDate(active()) }, opensBeside(event))}><span>Agenda</span><Show when={counts()?.planned}>{planned => <span class={`desk-count ${counts()!.overdue ? 'late' : ''}`} title={counts()!.overdue ? `${planned()} to do today · ${counts()!.overdue} overdue` : `${planned()} to do today`}>{planned()}</span>}</Show></Button>
-        <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} aria-label={`Review · ${counts()?.cards ?? 0} cards · ${counts()?.revisits ?? 0} to revisit`} onClick={event => open({ kind: 'review' }, opensBeside(event))}><span>Review</span><Show when={(counts()?.cards ?? 0) + (counts()?.revisits ?? 0)}>{due => <span class="desk-count" title={`${counts()?.cards ?? 0} cards · ${counts()?.revisits ?? 0} to revisit`}>{due()}</span>}</Show></Button>
+        <Button icon="history" class={entry(active())?.target.kind === 'revisits' ? 'selected' : ''} aria-label={`Revisits · ${counts()?.revisits ?? 0} to revisit`} onClick={event => open({ kind: 'revisits' }, opensBeside(event))}><span>Revisits</span><Show when={counts()?.revisits}>{due => <span class="desk-count" title={`${due()} to revisit`}>{due()}</span>}</Show></Button>
+        <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} aria-label={`Review · ${counts()?.cards ?? 0} cards`} onClick={event => open({ kind: 'review' }, opensBeside(event))}><span>Review</span><Show when={counts()?.cards}>{due => <span class="desk-count" title={`${due()} cards`}>{due()}</span>}</Show></Button>
         <Button icon="library" class={entry(active())?.target.kind === 'library' ? 'selected' : ''} onClick={event => open({ kind: 'library' }, opensBeside(event))}><span>Library</span><Show when={counts()?.highlights}>{highlights => <span class="desk-count" title={`${highlights()} unprocessed ${highlights() === 1 ? 'highlight' : 'highlights'}`}>{highlights()}</span>}</Show></Button>
       </nav>
       <Show when={pinnedRoots().length || pinnedViewList().length}><section class="page-list" aria-label="Pinned">
@@ -1350,7 +1360,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     const zoom = outlineView().zoom;
     if (!zoom) return root()?.kind === 'page' ? undefined : 'Only titled atoms have projections.';
     const block = doc()?.block(zoom);
-    if (!block?.position) return 'This zoom is not a perspective. Open its containing outline to use Read.';
+    if (!block?.position) return 'Read is unavailable for this atom.';
     if (doc()?.isArchived(zoom)) return 'This perspective is archived. Restore it to use Read.';
     const subject = readSubject();
     if (subject === undefined) return 'The perspective’s subject is loading.';
@@ -1404,7 +1414,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   };
   // Journals and other untitled roots have no projections, so their zooms carry neither the tabs nor Read's reason.
   const projectionTabsShown = () => root()?.kind === 'page' || !!outlineView().zoom && !!doc()?.block(outlineView().zoom!)?.position;
-  const ProjectionTabs = () => <div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Atom projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} aria-describedby={value === 'read' && projectionReason(value) ? `read-reason-${props.pane}` : undefined} onClick={event => setProjection(value, opensBeside(event))}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div>;
+  const ProjectionTabs = () => <div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Atom projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} title={value === 'read' ? projectionReason(value) : undefined} onClick={event => setProjection(value, opensBeside(event))}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div>;
   const breadcrumbs = createMemo(() => {
     const page = doc(); const zoom = 'zoom' in current().view ? outlineView().zoom : null; if (!page || !zoom) return [];
     const result = []; let block = page.block(zoom);
@@ -1487,6 +1497,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     const target = current().target;
     if (target.kind === 'index') return noteKindIcon(props.noteKind ?? target.key);
     if (target.kind === 'spread') return 'panes';
+    if (target.kind === 'revisits') return 'history';
     if ((target.kind === 'fields' || target.kind === 'cards') && target.typeId) return noteKindIcon(props.noteKind ?? `type:${target.typeId}`);
     const kind = target.kind;
     return kind === 'agenda' ? 'agenda' : kind === 'review' ? 'review' : kind === 'library' || kind === 'reader' ? 'library' : kind === 'table' ? 'table' : kind === 'fields' || kind === 'field' ? 'field' : kind === 'settings' ? 'settings' : kind === 'compare' ? 'compare' : 'page';
@@ -1531,7 +1542,6 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Atom menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
-    <Show when={pageId() && outlineView().zoom && projectionTabsShown() && projectionReason('read')}>{reason => <p class="page-projection-reason read-reason" id={`read-reason-${props.pane}`} role="status">{reason()}</p>}</Show>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
     <Show when={copyMessage() && !menu()}><p class="page-projection-reason" role="status">{copyMessage()}</p></Show>
     <div ref={content} class="pane-content"><Show keyed when={props.session().generation}>{generation => <Switch fallback={<OutlinePane pane={props.pane} pageId={pageId()!} projection={projection()} onProjection={setProjection} projectionReason={projectionReason} journalPeriod={current().target.kind === 'page' ? (current().target as Extract<OpenTarget, { kind: 'page' }>).journalPeriod : undefined} view={copyView(outlineView())} onDelete={anchor => props.onDelete(anchor, true)} onNoteKinds={kinds => { if (generation === props.session().generation) setPageKinds(kinds); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} active={props.active} onActivate={() => { if (generation === props.session().generation && document.activeElement?.closest('.pane')?.getAttribute('data-pane') === props.pane) props.onActivate(); }} vim={props.vim} onVimMode={props.onVimMode} commands={props.commands} notebook={props.notebook} />}>
@@ -1545,6 +1555,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Match when={current().target.kind === 'index' ? current().target as Extract<OpenTarget, { kind: 'index' }> : undefined}>{target => <IndexPane kindKey={target().key} neighbour={props.neighbour} kind={props.noteKind} view={snapshotView(current().view) as IndexViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeletePages={props.onDeleteSources} onSpread={(noteIds, beside) => { if (generation === props.session().generation) props.onOpen({ kind: 'spread', noteIds }, beside); }} />}</Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} commands={props.commands} active={props.active} onActivate={props.onActivate} onCreate={props.onCreate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
+      <Match when={current().target.kind === 'revisits'}><NotesReview pane={props.pane} view={snapshotView(current().view) as RevisitsViewState} notebook={props.notebook} commands={props.commands} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'library'}><LibraryPane pane={props.pane} view={snapshotView(current().view) as LibraryViewState} notebook={props.notebook} active={props.active} neighbour={props.neighbour}
         add={(current().target as Extract<OpenTarget, { kind: 'library' }>).add}
         details={(current().target as Extract<OpenTarget, { kind: 'library' }>).details}
