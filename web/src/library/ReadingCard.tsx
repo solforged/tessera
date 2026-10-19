@@ -9,6 +9,7 @@ import { bookChapters, chapterAt } from '../ui/book-map';
 import { Button } from '../ui/Button';
 import { SourceCover } from './SourceCover';
 import { formatProgress, sourceByline } from './query';
+import { displayTitle } from '../outline/names';
 
 // Cards remount whenever Reading now leaves and returns with the tab. The last source each one read lets it come back
 // as it was, rather than rebuilding its chapter line and map from the list row, while the request refreshes it.
@@ -37,7 +38,7 @@ export function ReadingCard(props: { row: LibraryRow; notebook: NotebookClient; 
     <span class="library-reading-head">
       <Show when={props.row.cover || (snapshot()?.format ?? props.row.snapshot_format ?? props.row.source.format) !== 'article'}><SourceCover row={props.row} siglum={props.row.source.siglum} /></Show>
       <span class="library-reading-text">
-        <span class="library-reading-title" title={props.row.page.text}>{props.row.page.text}</span>
+        <span class="library-reading-title" title={displayTitle(props.row.page.text, id => props.notebook.lookup(id))}>{displayTitle(props.row.page.text, id => props.notebook.lookup(id))}</span>
         <span class="library-reading-author" title={sourceByline(props.row)}>{sourceByline(props.row)}</span>
         <span class="library-reading-chapter">{current()?.chapter.title ? sectionLabel(current()!.chapter.title) : !source() && props.row.section && !isFrontMatter(props.row.section) ? sectionLabel(props.row.section) : progress() ? 'Reading position' : 'Not started'}</span>
       </span>

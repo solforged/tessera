@@ -6,6 +6,7 @@ import { opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { formatProgress } from './query';
 import { SourceCover } from './SourceCover';
+import { displayTitle } from '../outline/names';
 
 const roleLabels: Record<LibraryPerson['role'], string | null> = { author: null, editor: 'Editor', translator: 'Translator' };
 const stateLabels: Record<ReadingState, string | null> = { inbox: null, reading: 'Reading', finished: 'Finished', abandoned: 'Abandoned' };
@@ -35,7 +36,7 @@ export function PersonWorks(props: { pageId: string; rows: LibraryRow[]; onOpen(
       const apparatus = () => [row.published?.slice(0, 4), role(), row.progress > 0 && row.source.state === 'reading' ? formatProgress(row.progress) : stateLabels[row.source.state]].filter(Boolean).join(' · ');
       return <div role="listitem"><Button class="person-work" onClick={event => props.onOpen({ kind: 'page', pageId: row.page.id }, opensBeside(event))}>
         <SourceCover row={row} siglum={row.source.siglum} />
-        <span class="person-work-title">{row.page.text}</span>
+        <span class="person-work-title">{displayTitle(row.page.text)}</span>
         <Show when={apparatus()}><span class="person-work-apparatus">{apparatus()}</span></Show>
       </Button></div>;
     }}</For></div>

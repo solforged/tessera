@@ -73,6 +73,23 @@ pub fn render(
             .push(card);
     }
     let mut header = vec![format!("{} r{}", page.root.id, page.root.revision)];
+    // The title's tags leave the display title and ride in the comment, as rows' manual tags do.
+    let tags: Vec<&str> = tessera_core::tag_tokens(&page.root.text)
+        .map(|token| match token.id {
+            Some(id) => titles
+                .get(id)
+                .copied()
+                .unwrap_or(if token.title.is_empty() {
+                    id
+                } else {
+                    token.title
+                }),
+            None => token.title,
+        })
+        .collect();
+    if !tags.is_empty() {
+        header.push(format!("tags {}", tags.join(", ")));
+    }
     if let Some(caps) = capabilities.get(page.root.id.as_str()) {
         header.extend(capability_details(caps));
     }
@@ -80,7 +97,8 @@ pub fn render(
         .get(page.root.id.as_str())
         .and_then(|caps| caps.quote.as_ref());
     let quote_title = root_quote.map(|quote| format!("Quote of {}", quote.target_id));
-    let title = titled(quote_title.as_deref().unwrap_or(&page.root.text), &titles);
+    let root_title = tessera_core::display_title(&page.root.text, |id| titles.get(id).copied());
+    let title = titled(quote_title.as_deref().unwrap_or(&root_title), &titles);
     let mut text = format!("# {title} <!-- {} -->\n", header.join(", "));
     if let Some(quote) = root_quote {
         render_quote(&mut text, quote, 0);
@@ -648,6 +666,45 @@ mod tests {
         assert!(output.contains("  > - Frozen root\n    > - ## Frozen child\n"));
         assert!(!output.contains(&marker));
         assert!(!output.contains("Live replacement"));
+    }
+
+    #[test]
+    fn page_render_titles_a_tagged_root_by_its_display_title_and_lists_the_tags() {
+        use tessera_core::{Actor, Batch, Notebook, Operation};
+        let dir = tempfile::tempdir().unwrap();
+        let mut nb = Notebook::open(dir.path()).unwrap();
+        let id = |n| format!("{n:026}");
+        nb.apply(&Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: vec![Operation::CreatePage {
+                id: id(1),
+                title: "Built in tag lab #project #stoic".into(),
+            }],
+        })
+        .unwrap();
+        let fields = HashMap::new();
+        let clock = Clock {
+            zone: jiff::tz::TimeZone::UTC,
+            today: "2026-10-18".into(),
+        };
+        let context = PageContext {
+            fields: &fields,
+            cards: &[],
+            clock: &clock,
+        };
+        let output = render(&nb.page(&id(1)).unwrap(), &context, None).unwrap();
+        let header = output.lines().next().unwrap();
+        assert!(
+            header.starts_with(&format!("# Built in tag lab <!-- {} r", id(1))),
+            "{header}"
+        );
+        assert!(
+            header.contains(", tags Project, stoic, project "),
+            "{header}"
+        );
+        assert!(!output.contains("#["), "{output}");
     }
 
     #[test]

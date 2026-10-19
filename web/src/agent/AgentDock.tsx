@@ -2,7 +2,7 @@ import { For, Match, Show, Switch, createEffect, createResource, createSignal, o
 import type { ContextRef, ProviderView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
-import { resolveName } from '../outline/names';
+import { displayTitle, resolveName } from '../outline/names';
 import type { OpenTarget } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -79,7 +79,7 @@ export function AgentDock(props: {
     const refusal = await props.session.undo(seq);
     setRefusals(values => { const { [seq]: _, ...rest } = values; return refusal ? { ...rest, [seq]: refusal } : rest; });
   };
-  const pageTitle = (id: string | null) => (id && props.notebook.lookup(id)()?.text) || 'Workshop';
+  const pageTitle = (id: string | null) => { const text = id && props.notebook.lookup(id)()?.text; return text ? displayTitle(text, target => props.notebook.lookup(target)) : 'Workshop'; };
 
   const Part = (part: AssistantPart) => <Switch>
     <Match when={part.kind === 'text' && part}>{text => <For each={text().text.split(/\n{2,}/).filter(paragraph => paragraph.trim())}>{paragraph =>

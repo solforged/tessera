@@ -74,7 +74,7 @@ Every screen composes its page spacing from shared tokens, so moving between scr
 | Inside and between boxed cards | 16 px |
 | After the last item | 48 px, plus the height of any bar fixed over the content |
 
-Page titles are Piazzolla at 32/38 px, 24/30 px below 600 px. The [reader](surfaces/reader.md), a [live review session](surfaces/cards-review.md) and Find keep their own spacing.
+Page titles are Piazzolla at 32/38 px, 24/30 px below 600 px. A title written with tags shows the text without its tag tokens: built-in behavior tags lead it as their glyph, as on an index heading, and other tags follow it as pills at meta size; renaming edits the authored text. The [reader](surfaces/reader.md), a [live review session](surfaces/cards-review.md) and Find keep their own spacing.
 
 ### Color
 

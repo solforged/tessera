@@ -32,10 +32,11 @@ import { Menu } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { BlockText } from './BlockText';
-import { plainText } from './names';
+import { displayTitle, plainText, tagLabel } from './names';
 import { isStableReference, isViewReference, textTokens } from '../document/text-tokens';
+import type { Token } from '../document/text-tokens';
 import { PaneEditor } from './editor';
-import { createOutlineCapabilities } from './capabilities';
+import { createOutlineCapabilities, isCapabilityTag } from './capabilities';
 import { editingDepth, hiddenFieldEntries, inlineFieldValues, selectionIds, selectionRoots, survivingZoomPath, visibleIds } from './visibility';
 import type { DepthFilter, HiddenFieldEntry } from './visibility';
 import { CitationChip, SourceHeader } from './SourceHeader';
@@ -68,7 +69,7 @@ import { createViewEmbedActions } from './ViewPicker';
 import { createMoveToPage } from './MoveToPage';
 import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
-import { readTagRegistry } from './references';
+import { readTagRegistry, TypePill } from './references';
 import { noteKindIcon } from '../notes/kinds';
 import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
@@ -130,8 +131,10 @@ function Pane(props: OutlinePaneProps) {
     return path;
   });
   const zoom = createMemo(() => breadcrumbs().at(-1) ?? null);
-  // A journal day is titled as its header speaks it, including inside a zoom where the header steps aside.
-  const rootTitle = () => { const root = doc.root(); return root?.kind === 'journal' ? spokenJournalDate(root.text) : root?.text; };
+  // A journal day is titled as its header speaks it, including inside a zoom where the header steps aside; a page's title drops its tag tokens.
+  const rootTitle = () => { const root = doc.root(); return root?.kind === 'journal' ? spokenJournalDate(root.text) : root?.kind === 'page' ? displayTitle(root.text, id => props.notebook.lookup(id)) : root?.text; };
+  const titleTags = createMemo(() => { const root = doc.root(); return root?.kind === 'page' ? textTokens(root.text).filter(token => token.kind === 'tag') : []; });
+  const titleTagKind = (token: Token) => tagRegistry.error ? undefined : tagRegistry()?.kinds.find(kind => kind.tag && (token.id ? kind.type_id === token.id : foldName(kind.name) === foldName(token.value)));
   createEffect(() => { if (doc.status() === 'ready' && zoomTarget() !== zoom()) setZoom(zoom()); });
   const [folds, setFolds] = createSignal(new Set(initial.folds ?? storedFolds.get(`${props.pane}:${props.pageId}`) ?? []));
   const [foldMotion, setFoldMotion] = createSignal<{ id: string; opening: boolean; afterIds: string[]; beforeSize: number }>();
@@ -1689,7 +1692,11 @@ function Pane(props: OutlinePaneProps) {
       </div>}</Show>
       <Show when={!positionZoom() && (!zoom() || !doc.root()?.source || renaming())}>
       <div class="outline-title-row">
-      <Show when={renaming()} fallback={<h1><button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{rootTitle() || 'Loading…'}</button></h1>}>
+      <Show when={renaming()} fallback={<h1 classList={{ 'outline-title-tagged': titleTags().length > 0 }}>
+        <For each={titleTags().filter(token => isCapabilityTag(tagLabel(token, id => props.notebook.lookup(id))))}>{token => <Show when={titleTagKind(token)}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>}</For>
+        <button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{rootTitle() || 'Loading…'}</button>
+        <For each={titleTags().filter(token => !isCapabilityTag(tagLabel(token, id => props.notebook.lookup(id))))}>{token => <TypePill id={token.id} title={token.alias || token.value} notebook={props.notebook} onOpen={props.onOpen} onRestoreFocus={restoreFocus} />}</For>
+      </h1>}>
         <input ref={titleInput} class="title-input" aria-label="Atom title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { event.preventDefault(); closeTitle(); } }} />
         <Show when={titleCollision()} fallback={<Button class="bordered" onClick={commitTitle}>Save title</Button>}>{page =>
           <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} title={pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>

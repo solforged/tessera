@@ -125,6 +125,14 @@ export function targetLabel(text: string, lookup: NotebookClient['lookup'], seen
   return tokens.map(token => token.kind === 'tag' ? tagLabel(token, lookup) : plainToken(token, lookup, seen)).join('').trim();
 }
 
+/** A root's title as surfaces display it: the authored text with its tag tokens removed and the whitespace around them collapsed. A title that is nothing but tags keeps them as `#Title`, or as their aliases without a lookup. Title keys and lookups keep the authored text. */
+export function displayTitle(text: string, lookup: NotebookClient['lookup'] = () => () => undefined): string {
+  const tokens = textTokens(text);
+  if (!tokens.some(token => token.kind === 'tag')) return text;
+  const title = tokens.filter(token => token.kind !== 'tag').map(token => text.slice(token.start, token.end)).join(' ').replace(/\s+/g, ' ').trim();
+  return title || plainText(text, lookup);
+}
+
 function plainToken(token: Token, lookup: NotebookClient['lookup'], seen: ReadonlySet<string>, deletedHolder?: { id: string; text: string } | null): string {
   return isViewReference(token) ? token.alias || 'Saved view' : isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup, seen, deletedHolder && deletedHolder.id === token.id ? deletedHolderLabel(deletedHolder) : undefined) + (token.locator ? `\u2009${token.locator}` : '') : token.kind === 'tag' ? `#${tagLabel(token, lookup)}` : token.kind === 'url' ? token.alias ?? token.value : token.value;
 }

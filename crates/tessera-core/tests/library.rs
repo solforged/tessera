@@ -1283,6 +1283,43 @@ fn export_omits_absent_optional_library_metadata() {
     assert!(markdown.contains("_No highlights._"));
 }
 #[test]
+fn export_titles_drop_the_root_title_tag_tokens() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut n = Notebook::open(dir.path()).unwrap();
+    let page = id();
+    apply(
+        &mut n,
+        vec![Operation::CreatePage {
+            id: page.clone(),
+            title: "Plain source note #source".into(),
+        }],
+    );
+    // The title tag normalizes to its canonical token and activates the source record.
+    let stored = n.block(&page).unwrap().text;
+    assert!(stored.starts_with("Plain source note #[["), "{stored}");
+    let mut state = n.source(&page).unwrap().source.source_state();
+    state.citation_key = Some("plain2026source".into());
+    let base_revision = n.block(&page).unwrap().revision;
+    apply(
+        &mut n,
+        vec![Operation::SetSource {
+            id: page.clone(),
+            base_revision,
+            source: Some(state),
+        }],
+    );
+    let ids = std::slice::from_ref(&page);
+    let bib = n.export(ids, ExportFormat::Bibtex).unwrap();
+    assert!(bib.contains("title = {Plain source note}"), "{bib}");
+    assert!(!bib.contains("#["), "{bib}");
+    let csl: serde_json::Value =
+        serde_json::from_str(&n.export(ids, ExportFormat::CslJson).unwrap()).unwrap();
+    assert_eq!(csl[0]["title"], "Plain source note");
+    let markdown = n.export(ids, ExportFormat::Markdown).unwrap();
+    assert!(markdown.starts_with("# Plain source note\n"), "{markdown}");
+    assert_eq!(n.display_title(&stored).unwrap(), "Plain source note");
+}
+#[test]
 fn collision_titles_and_keys_and_origin_fallback() {
     let dir = tempfile::tempdir().unwrap();
     let mut n = Notebook::open(dir.path()).unwrap();

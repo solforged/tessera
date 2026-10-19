@@ -7,7 +7,7 @@ import { createNotebookClient, type Notebook } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { titleKey } from '../document/title-key';
 import { OutlinePane } from '../outline/OutlinePane';
-import { plainText } from '../outline/names';
+import { displayTitle, plainText } from '../outline/names';
 import { isReadingSubject, localPositionCount } from '../outline/read-register';
 import { ReferencePreviews } from '../outline/ReferencePreview';
 import { createPageIcon } from '../outline/source';
@@ -822,7 +822,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const shown = [...pinnedRoots().length || pinnedViewList().length ? ['pinned'] : [], ...index()?.kinds.length ? ['index'] : [], 'views', 'recent'];
     return String(shown.indexOf(section) + 1).padStart(2, '0');
   };
-  const paneName = (pane: PaneId) => rootById().get(pageIdOf(entry(pane)) ?? '')?.text ?? paneTitle(pane) ?? paneLabel(entry(pane)?.target);
+  const paneName = (pane: PaneId) => { const page = rootById().get(pageIdOf(entry(pane)) ?? ''); return page ? page.kind === 'page' ? displayTitle(page.text, id => notebook.lookup(id)) : page.text : paneTitle(pane) ?? paneLabel(entry(pane)?.target); };
   // Where a click or a drop will open shows before it happens: a gilt frame over the pane it replaces, or a hatched
   // ghost where a new pane will stand. Holding the beside modifier over something openable shows it for a click.
   let paneRow!: HTMLDivElement;
@@ -1199,7 +1199,7 @@ function PageLinks(props: { roots: Block[]; sourceIcons?: boolean; notebook: Not
   const ids = createMemo(() => props.roots.map(root => root.id), undefined, { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
   return <For each={ids()}>{id => {
     const root = () => byId().get(id)!;
-    const title = () => props.notebook.lookup(id)()?.text ?? root().text;
+    const title = () => { const page = props.notebook.lookup(id)() ?? root(); return page.kind === 'page' ? displayTitle(page.text, target => props.notebook.lookup(target)) : page.text; };
     const icon = createPageIcon(props.notebook, root, () => !!props.sourceIcons, 'today');
     return <Button class={id === props.activeId ? 'selected' : ''} icon={icon()} title={title()} data-open-page={id} data-open-label={title()} onClick={event => props.onOpen({ kind: 'page', pageId: id }, opensBeside(event))}><span>{title()}</span></Button>;
   }}</For>;
@@ -1499,7 +1499,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Icon class="pane-kind" name={kindIcon()} />
       <Show when={props.split}><span class="pane-number" aria-hidden="true">{props.number}</span></Show>
       <Show when={pageId()}>
-        <nav class="pane-breadcrumbs" aria-label="Atom breadcrumbs" style={{ visibility: root() ? undefined : 'hidden' }}><Show when={root()?.source && !breadcrumbs().length}><Button class="breadcrumb-library" onClick={event => props.onOpen({ kind: 'library' }, opensBeside(event))}>Library</Button><span class="breadcrumb-separator">/</span></Show><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{plainText(block.text, id => props.notebook.lookup(id), undefined, block.position?.deleted_holder) || 'Empty atom'}</Button></>}</For></nav>
+        <nav class="pane-breadcrumbs" aria-label="Atom breadcrumbs" style={{ visibility: root() ? undefined : 'hidden' }}><Show when={root()?.source && !breadcrumbs().length}><Button class="breadcrumb-library" onClick={event => props.onOpen({ kind: 'library' }, opensBeside(event))}>Library</Button><span class="breadcrumb-separator">/</span></Show><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.kind === 'page' ? displayTitle(root()!.text, id => props.notebook.lookup(id)) : root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{plainText(block.text, id => props.notebook.lookup(id), undefined, block.position?.deleted_holder) || 'Empty atom'}</Button></>}</For></nav>
         <Show when={root()?.kind === 'journal'}><nav class="journal-navigation" aria-label="Journal navigation">
           <Button icon="left" label="Previous journal day" onClick={() => props.onShiftDate(-1)} />
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
@@ -1556,7 +1556,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} immersive={props.immersive} onImmersive={props.onImmersive} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }}
         onBack={() => { if (props.session().index > 0) props.onTravel(-1); else props.onOpen({ kind: 'page', pageId: (current().target as Extract<OpenTarget, { kind: 'reader' }>).sourceId }, false); }} /></Match>
     </Switch>}</Show></div>
-    <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Atom actions" title="Atom actions" context={root()?.text} items={items()} onDismiss={() => setMenu(null)} header={
+    <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Atom actions" title="Atom actions" context={root()?.kind === 'page' ? displayTitle(root()!.text, id => props.notebook.lookup(id)) : root()?.text} items={items()} onDismiss={() => setMenu(null)} header={
       <Show when={props.notebook.roots().find(page => page.id === pageId())}>{page => <div class="page-menu-info">
         <b>{page().id}</b>
         <Button class="bordered" onClick={() => { void copyPage(false); }}>{copyMessage() === 'Copied ID' ? 'Copied' : 'Copy ID'}</Button>

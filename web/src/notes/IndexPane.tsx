@@ -6,7 +6,7 @@ import { missingFilter } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
-import { plainText, readableText, referenceValue } from '../outline/names';
+import { displayTitle, plainText, readableText, referenceValue } from '../outline/names';
 import { builtInTagReason, PageMergePicker } from '../outline/PageMerge';
 import { documentReady } from '../outline/source-fields';
 import { addFilter, copyQuery, filterLabel, missingQueryFields, noteTableQuery, queriesEqual, removeFilter, removeQueryField, retainFieldNames, typeQuery } from '../table/query';
@@ -230,6 +230,8 @@ function KindIndexPane(props: IndexPaneProps) {
   const summary = (note: NoteEntry) => shown()?.summaries[note.id];
   const lookup = (id: string) => props.notebook.lookup(id);
   const preview = (note: NoteEntry) => readableText(summary(note)?.preview ?? '', lookup);
+  // A page entry is titled as its page is; a tagged block entry keeps its tags as words.
+  const entryTitle = (note: NoteEntry) => note.id === note.page_id ? displayTitle(note.title, lookup) : readableText(note.title, lookup);
   // The inspector's opening prose continues from the preview rather than repeating it.
   const excerpt = (note: NoteEntry) => (summary(note)?.prose_excerpt ?? []).map(text => readableText(text, lookup)).filter(text => text.trim() && text.trim() !== preview(note).trim());
   const queue = createMemo(() => filingGroups(index.latest?.notes ?? [], index.latest?.summaries ?? {}));
@@ -374,7 +376,7 @@ function KindIndexPane(props: IndexPaneProps) {
             <div class="index-source-tabs mode-tabs tab-strip" role="group" aria-label="Sources view"><Button aria-pressed="true">Bibliography <span class="faint">{index.latest!.notes.length}</span></Button><Button onClick={event => props.onOpen({ kind: 'library', tab: 'all' }, opensBeside(event))}>Open Library <Icon name="right" /></Button></div>
             <Show when={shown()?.notes.length} fallback={<div class="index-empty"><p class="index-empty-title">No sources found.</p><p class="index-empty-hint">Books and articles you add in the Library are listed here with their sigla and citation keys.</p></div>}><For each={shown()?.notes}>{note => <article class="index-source-row index-selectable" classList={{ selected: picked().includes(note.id) }}>
               <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${note.title}`} checked={picked().includes(note.id)} onClick={event => toggleSelection(note.id, event.shiftKey)} /></label>
-              <span class="index-source-siglum">{summary(note)?.source?.siglum}</span><div class="index-source-main"><button type="button" class="index-source-title" onClick={event => selectOrOpen(note, event)}>{note.title}</button>
+              <span class="index-source-siglum">{summary(note)?.source?.siglum}</span><div class="index-source-main"><button type="button" class="index-source-title" onClick={event => selectOrOpen(note, event)}>{entryTitle(note)}</button>
                 <Show when={summary(note)?.source}>{source => <><Show when={source().authors.length}><p class="index-source-byline"><For each={source().authors}>{(text, at) => {
                   const author = referenceValue(text);
                   return <>{at() ? ' · ' : ''}<Show when={author.id} fallback={author.name}>{id => <Button onClick={event => props.onOpen({ kind: 'page', pageId: id() }, listOpensBeside(event, !!props.neighbour))}>{plainText(text, lookup)}</Button>}</Show></>;
@@ -392,7 +394,7 @@ function KindIndexPane(props: IndexPaneProps) {
                 <For each={group.entries}>{entry => entry.kind === 'note' ? <div class="index-selectable" classList={{ selected: picked().includes(entry.note.id) }}>
                   <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${entry.note.title}`} checked={picked().includes(entry.note.id)} onClick={event => toggleSelection(entry.note.id, event.shiftKey)} /></label>
                   <button type="button" class="index-entry" data-open-page={entry.note.page_id} data-open-block={entry.note.id !== entry.note.page_id ? entry.note.id : undefined} data-open-label={entry.note.title} onClick={event => selectOrOpen(entry.note, event)}>
-                    <span class="index-entry-title">{readableText(entry.note.title, lookup)}</span><Show when={needs(entry.note.id)}>{names => <span class="index-needs">needs {names()}</span>}</Show><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
+                    <span class="index-entry-title">{entryTitle(entry.note)}</span><Show when={needs(entry.note.id)}>{names => <span class="index-needs">needs {names()}</span>}</Show><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
                     <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <Show when={value().field || value().block_count || value().backlinks}><span class="index-apparatus">{[value().field ? plainText(value().field!.value, lookup) : '', value().block_count ? tally(value().block_count, 'prose atom') : value().backlinks ? tally(value().backlinks, 'backlink') : ''].filter(Boolean).join(' · ')}</span></Show>}</Show>}>
                       <Show when={collectionCounts.latest?.get(entry.note.id) != null}><span class="index-apparatus">{tally(collectionCounts.latest!.get(entry.note.id)!, 'source')}</span></Show>
                     </Show>

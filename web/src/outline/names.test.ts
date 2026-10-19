@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { Block, NameMatch } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
-import { chooseName, completeNames, foldedHighlights, foldName, plainText, referenceLabel, referenceValue, resolveName, resolvedReferenceText } from './names';
+import { chooseName, completeNames, displayTitle, foldedHighlights, foldName, plainText, referenceLabel, referenceValue, resolveName, resolvedReferenceText } from './names';
 import { typedTitles, withLinkedTitles } from './link-titles';
 
 const page = (id: string, text: string): Block => ({ id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 });
@@ -30,6 +30,15 @@ test('tag labels follow the live title, falling back to an alias or missing iden
   target = null;
   expect(plainText(text, lookup)).toBe('read #Arabic');
   expect(plainText(`#[[${id}|]]`, lookup)).toBe(`#${id}`);
+});
+
+test('display titles drop a root title’s tag tokens and keep a tag-only title readable', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  const lookup = () => () => page(id, 'Project');
+  expect(displayTitle(`Built in tag lab #[[${id}|project]]`, lookup)).toBe('Built in tag lab');
+  expect(displayTitle(`  Lab  #[[${id}|project]] notes #stoic `, lookup)).toBe('Lab notes');
+  expect(displayTitle('Plain  title', lookup)).toBe('Plain  title');
+  expect(displayTitle(`#[[${id}|old]]`, lookup)).toBe('#Project');
 });
 const match: NameMatch = { page: page('target', 'Cicero'), alias: 'Tully' };
 

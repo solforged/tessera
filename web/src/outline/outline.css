@@ -61,6 +61,10 @@
 .table-member-count { min-width: 18px; padding: 0 var(--space-4); border-radius: var(--radius-pill); background: var(--raised); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-align: center; }
 .outline-heading h1 { margin: 0; font: var(--page-title-font); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
 .outline-title { display: block; max-width: 100%; overflow-wrap: anywhere; white-space: normal; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); text-align: left; border: 0; padding: 0; background: transparent; color: var(--text); cursor: text; }
+/* A title with tags: behavior glyphs lead it as on an index, and the other tags follow it as pills at meta size. */
+.outline-title-tagged { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-12); }
+.outline-title-tagged > .icon { flex: none; align-self: center; color: var(--faint); }
+.outline-title-tagged > .outline-tag { margin: 0; font-family: var(--font-body); letter-spacing: normal; font-variation-settings: normal; }
 .outline-title:disabled { color: var(--text); opacity: 1; cursor: default; }
 .title-input { width: 100%; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 /* The pane header carries a zoom's trail; only once its ancestors step aside does the page repeat them. */

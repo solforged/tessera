@@ -21,6 +21,7 @@ import { crossfade, glide } from '../ui/pane-motion';
 import { formatProgress, groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightMeta, highlightProse, importJobName, jobLabel, keepRows, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceAuthor, sourceByline, sourceStateOperation, visibleJobs } from './query';
 import type { SourceGroup } from './query';
 import { formatSourceValue } from '../outline/source';
+import { displayTitle } from '../outline/names';
 import { createHighlightActions, highlightColors, setLinkedCitation } from './highlights';
 import type { HighlightMenu } from './highlights';
 import { ResourceImage } from './ResourceImage';
@@ -448,6 +449,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     return state?.kind === 'menu' ? state.source?.page.id : undefined;
   });
   const doneJobs = new Set<string>();
+  const lookup = (id: string) => props.notebook.lookup(id);
   const sourceTitles = createMemo(() => new Map(props.notebook.roots().map(root => [root.id, root.text])));
   // Failed jobs belong to the Inbox backlog; active jobs still show during ingestion.
   const shownJobs = createMemo(() => tab() === 'highlights' || tab() === 'collections' || error() ? [] : visibleJobs(jobs().filter(job => job.state !== 'failed'), new Set([...displayedSources().map(row => row.page.id), ...sourceTitles().keys()])));
@@ -1017,8 +1019,8 @@ export function LibraryPane(props: LibraryPaneProps) {
           </Button>
         </div>
         <Button class="library-row-open" data-library-row={row.page.id} data-open-page={row.page.id} data-open-label={row.page.text} onClick={event => openSource(target, opensBeside(event))} onKeyDown={event => rowKey(event, target)}>
-          <Show when={inboxLedger()} fallback={<><span class="library-siglum" aria-hidden="true">{row.source.siglum}</span><span class="library-title">{row.page.text}</span><span class="library-byline">{sourceByline(row)}</span></>}>
-            <span class="library-title">{row.page.text}</span><span class="library-author">{sourceAuthor(row)}</span>
+          <Show when={inboxLedger()} fallback={<><span class="library-siglum" aria-hidden="true">{row.source.siglum}</span><span class="library-title">{displayTitle(row.page.text, lookup)}</span><span class="library-byline">{sourceByline(row)}</span></>}>
+            <span class="library-title">{displayTitle(row.page.text, lookup)}</span><span class="library-author">{sourceAuthor(row)}</span>
           </Show>
           <Show when={mixedStates()}><span class="library-count library-state">{stateLabels[row.source.state]}</span></Show>
           <Show when={group() !== 'year'}><span class="library-count library-year" aria-label="Published year">{row.published?.slice(0, 4)}</span></Show>
@@ -1041,7 +1043,7 @@ export function LibraryPane(props: LibraryPaneProps) {
           <Button class="library-book-open" data-library-row={row.page.id} data-open-page={row.page.id} data-open-label={row.page.text} onClick={event => openSource(target, opensBeside(event))} onKeyDown={event => rowKey(event, target)}>
             <SourceCover row={row} siglum={row.source.siglum} />
             <span class="library-reading-rule" classList={{ 'library-reading-started': row.progress > 0 }} style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" />
-            <span class="library-book-title">{row.page.text}</span>
+            <span class="library-book-title">{displayTitle(row.page.text, lookup)}</span>
             <span class="library-book-byline">{sourceByline(row)}</span>
             <span class="library-book-apparatus">
               <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span>
@@ -1238,7 +1240,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <div class="library-collections" role="list"><For each={collectionCards()}>{card => <div role="listitem">
           <Button class="library-collection-card" data-collection={card.page.id} onClick={() => update({ view: null, tab: 'collections', collection: card.page.id, text: '', filters: clearedFilters(), scroll: 0 })}>
             <span class="library-collection-covers" aria-hidden="true"><For each={card.covers}>{row => <SourceCover row={row} siglum={row.source.siglum} />}</For><Show when={!card.covers.length}><Icon name="shelf" /></Show></span>
-            <span class="library-collection-title">{card.page.text}</span><span class="library-count">{card.count}</span>
+            <span class="library-collection-title">{displayTitle(card.page.text, lookup)}</span><span class="library-count">{card.count}</span>
           </Button>
         </div>}</For></div>
       </Show>
@@ -1257,7 +1259,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={coverLayout() && tab() === 'reading' && upNext().length}><section class="library-up-next" aria-label="Up next">
           <h2 class="library-reading-heading">Up next · Inbox</h2>
           <For each={upNext()}>{row => <Button class="library-up-next-book" onClick={event => openSource({ kind: 'page', pageId: row.page.id }, opensBeside(event))} {...sourceLongPress(row, () => false)}>
-            <span class="library-siglum">{row.source.siglum}</span><span><span class="library-title">{row.page.text}</span><span class="library-book-byline">{sourceByline(row)}</span></span>
+            <span class="library-siglum">{row.source.siglum}</span><span><span class="library-title">{displayTitle(row.page.text, lookup)}</span><span class="library-book-byline">{sourceByline(row)}</span></span>
           </Button>}</For>
         </section></Show>
       </Show>
@@ -1352,7 +1354,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         const sheet = coverLayout() && !!state.source;
         const source = state.source;
         return <Menu anchor={state.anchor} label={state.label} items={state.items} placement={sheet ? 'sheet' : 'anchor'} class={sheet ? 'library-source-sheet' : undefined} header={sheet && source ? <header class="library-source-sheet-head">
-          <div><h2>{source.page.text}</h2><p>{sourceByline(source)}</p><p class="library-highlight-meta">{[source.source.siglum, { epub: 'Book', article: 'Article', record: 'Record' }[source.snapshot_format ?? source.source.format], source.publisher, source.progress > 0 ? `${formatProgress(source.progress)} read` : null].filter(Boolean).join(' · ')}</p></div>
+          <div><h2>{displayTitle(source.page.text, lookup)}</h2><p>{sourceByline(source)}</p><p class="library-highlight-meta">{[source.source.siglum, { epub: 'Book', article: 'Article', record: 'Record' }[source.snapshot_format ?? source.source.format], source.publisher, source.progress > 0 ? `${formatProgress(source.progress)} read` : null].filter(Boolean).join(' · ')}</p></div>
         </header> : state.Header && <state.Header onDismiss={dismiss} />} onDismiss={dismiss} />;
       }
       if (state.kind === 'highlight-sources') return <Picker anchor={state.anchor} placement={coverLayout() ? 'sheet' : 'anchor'} label="Choose highlight source" placeholder="Find a source" query={browseQuery()} onQuery={setBrowseQuery}

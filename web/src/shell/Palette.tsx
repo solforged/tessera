@@ -23,6 +23,7 @@ import { createPageDraft } from '../create/draft';
 import type { PopupAnchor } from '../ui/Popup';
 import { typeSpelling } from '../outline/type-completion';
 import { textTokens } from '../document/text-tokens';
+import { displayTitle } from '../outline/names';
 
 type CreateEntry = { kind: 'create'; action: 'source' | 'question' | 'page' | 'choose' | 'tag'; title: string; text?: string };
 type Entry = SearchEntry | { kind: 'command'; command: Command } | CreateEntry
@@ -292,7 +293,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     busy={busy()} error={error()} empty={mode() === 'search' ? 'No results.' : 'No matching commands.'}
     row={(entry, selected) => entry.kind === 'hit'
       ? <HitRow hit={entry.hit} query={text()} notebook={props.notebook} selected={selected} book={books().get(entry.hit.page.id)} />
-      : entry.kind === 'more' ? <><Icon name="page" /><span class="picker-text">+{entry.count} more in {entry.page.text}</span></>
+      : entry.kind === 'more' ? <><Icon name="page" /><span class="picker-text">+{entry.count} more in {displayTitle(entry.page.text, id => props.notebook.lookup(id))}</span></>
       : entry.kind === 'highlight' ? <><span class={`find-color highlight-color-${entry.row.color ?? 'none'}`} style={{ background: entry.row.color ? `var(--highlight-${entry.row.color})` : 'transparent', 'box-shadow': entry.row.color ? undefined : 'inset 0 0 0 1px var(--faint)' }} /><span class="find-result"><span class="find-quote"><MatchText text={entry.row.citation.quote} query={text()} /></span><small>Highlight · {location(entry.row.citation.source_id, entry.row.citation.ordinal, entry.row.citation.chapter_title)}</small></span></>
       : entry.kind === 'passage' ? <><span class="find-paragraph" aria-hidden="true">¶</span><span class="find-result"><span class="find-quote"><For each={entry.hit.snippet_parts}>{part => <Show when={part.match} fallback={part.text}><mark>{part.text}</mark></Show>}</For></span><small>{location(entry.hit.source_id, entry.hit.passage.ordinal)}</small></span></>
       : entry.kind === 'command' ? <CommandRow command={entry.command} selected={selected} />
@@ -304,7 +305,7 @@ function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient
   const icon = createPageIcon(props.notebook, () => props.hit.block);
   return <>
     <Icon name={icon()} />
-    <span class="picker-text find-result"><span classList={{ 'find-snippet': !isPage() }}><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text}</small></Show><Show when={isPage() && props.book}>{book => <small>Book · {Math.round(book().progress * 100)}% · {book().highlights} highlights</small>}</Show></span>
+    <span class="picker-text find-result"><span classList={{ 'find-snippet': !isPage() }}><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{displayTitle(props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text, id => props.notebook.lookup(id))}</small></Show><Show when={isPage() && props.book}>{book => <small>Book · {Math.round(book().progress * 100)}% · {book().highlights} highlights</small>}</Show></span>
     <Show when={isPage() && props.hit.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>
     <Show when={props.selected}><kbd class="picker-hint">{besideKey}↵ beside</kbd></Show>
   </>;
@@ -373,7 +374,7 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
         const page = await props.notebook.api.page(entry.kind === 'hit' ? entry.hit.page.id : entry.page.id, controller.signal);
         const targetId = entry.kind === 'hit' && entry.hit.block.id !== page.root.id ? entry.hit.block.id : undefined;
         return {
-          title: page.root.text, cover: props.book?.cover ? { snapshotId: props.book.source.current_snapshot_id ?? '', href: props.book.cover } : undefined,
+          title: displayTitle(page.root.text, id => props.notebook.lookup(id)), cover: props.book?.cover ? { snapshotId: props.book.source.current_snapshot_id ?? '', href: props.book.cover } : undefined,
           ...(targetId ? { page, targetId } : { lines: page.rows.slice(0, 8).map(row => row.block.text) }),
         };
       }
@@ -388,7 +389,7 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
       ]);
       const chapter = source.toc.filter(entry => entry.ordinal !== null && entry.ordinal <= ordinal).at(-1)?.title;
       return {
-        title: source.page.text, location: [source.source.siglum, chapter, `¶${ordinal + 1}`].filter(Boolean).join(' · '),
+        title: displayTitle(source.page.text, id => props.notebook.lookup(id)), location: [source.source.siglum, chapter, `¶${ordinal + 1}`].filter(Boolean).join(' · '),
         cover: (href => href ? { snapshotId, href } : undefined)(source.snapshots.find(snapshot => snapshot.id === snapshotId)?.metadata.cover),
         passages, citation,
       };

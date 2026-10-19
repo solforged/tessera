@@ -358,10 +358,11 @@ impl Notebook {
                     .and_then(|v| v.first())
                     .map(String::as_str)
             };
-            let mut fields: Vec<(&str, String)> = vec![("title", source.page.text.clone())];
+            let title = self.display_title(&source.page.text)?;
+            let mut fields: Vec<(&str, String)> = vec![("title", title.to_string())];
             let mut item = serde_json::Map::new();
             item.insert("id".into(), json!(key));
-            item.insert("title".into(), json!(source.page.text));
+            item.insert("title".into(), json!(title));
             item.insert("citation-label".into(), json!(source.source.siglum));
             let book = source.source.format == SourceFormat::Epub
                 || source.source.format == SourceFormat::Record
@@ -599,8 +600,7 @@ impl Notebook {
             if !output.is_empty() {
                 output.push_str("\n---\n\n");
             }
-            writeln!(output, "# {}", self.render_tag_text(&source.page.text)?)
-                .expect("String write");
+            writeln!(output, "# {}", self.display_title(&source.page.text)?).expect("String write");
             let fields = readings.remove(id).unwrap_or_default();
             if let Some(creators) = fields.get(CREATORS).filter(|names| !names.is_empty()) {
                 write!(output, "{} · ", creators.join(", ")).expect("String write");

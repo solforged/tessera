@@ -6,6 +6,7 @@ import { ShapeGlyph } from '../compare/ShapeGlyph';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { OpenTarget, PaneId } from '../shell/contract';
 import { isStableReference, textTokens } from '../document/text-tokens';
+import { displayTitle } from './names';
 import { citedSigla } from '../library/sigla';
 import { createCitedSources } from './source-reads';
 import { loadWorks } from '../library/PersonWorks';
@@ -416,7 +417,7 @@ function ReferenceCard(props: {
           </Button>
         </div>
         <div class="reference-preview-title">
-          <Show when={state()?.position} fallback={<Show when={isPage()} fallback={<span class="reference-preview-kind">Atom</span>}><h2>{block().text || 'Untitled'}</h2></Show>}>
+          <Show when={state()?.position} fallback={<Show when={isPage()} fallback={<span class="reference-preview-kind">Atom</span>}><h2>{displayTitle(block().text, id => props.notebook.lookup(id)) || 'Untitled'}</h2></Show>}>
             <h2><BlockText text={block().text} notebook={props.notebook} interactive={false} /></h2>
           </Show>
         </div>

@@ -143,7 +143,7 @@ A note at its top level shows its kinds above the title in rubric mono capitals,
 
 The note waits for its kinds and alias fields before appearing. Its title, aliases and opening rows appear together; background refreshes keep the current note visible. Offline, cached notes remain visible and editable without that metadata. Reconnecting refreshes the note's apparatus and the sidebar Index. New notes remain visible and editable while creation is pending; their service-only apparatus and Find and reference previews wait for the root's acknowledgment, showing empty or loading states rather than missing-block errors.
 
-The title wraps within its available header width, including unbroken names and URLs, without overlapping the header actions.
+The title wraps within its available header width, including unbroken names and URLs, without overlapping the header actions. Tag tokens in the title do not display: a behavior tag is its glyph before the title and any other tag a pill after it, and the pane breadcrumb, sidebar, Index, Library and Find read the same tagless title.
 
 A note with aliases shows them under the title: `ALSO` in faint mono, then the aliases in italic Piazzolla at the quote size, separated by faint dots. Then one mono line reads `Created 2026-10-06` in the workshop's time zone, without the note's ID at any width, then Revisit. Revisit is muted, reads `Revisit 2026-11-12` once a date is set and turns gilt when that date is due; a resolved note reads Resolved. The gloss follows as the first row.
 

@@ -650,6 +650,40 @@ pub fn render_tags<'a, 'b>(
     }
 }
 
+/// A root's title as surfaces display it: the authored text with its tag
+/// tokens removed and the whitespace around them collapsed. A title that is
+/// nothing but tags keeps them, rendered as `render_tags` does. Title keys
+/// and lookups keep the authored text.
+pub fn display_title<'a, 'b>(
+    text: &'a str,
+    title: impl FnMut(&str) -> Option<&'b str>,
+) -> std::borrow::Cow<'a, str> {
+    let mut tags = tag_tokens(text).peekable();
+    if tags.peek().is_none() {
+        return std::borrow::Cow::Borrowed(text);
+    }
+    let mut output = String::with_capacity(text.len());
+    let mut cursor = 0;
+    for token in tags {
+        push_words(&mut output, &text[cursor..token.span.start]);
+        cursor = token.span.end;
+    }
+    push_words(&mut output, &text[cursor..]);
+    if output.is_empty() {
+        return render_tags(text, title);
+    }
+    std::borrow::Cow::Owned(output)
+}
+
+fn push_words(output: &mut String, text: &str) {
+    for word in text.split_whitespace() {
+        if !output.is_empty() {
+            output.push(' ');
+        }
+        output.push_str(word);
+    }
+}
+
 pub(crate) fn resolve_type(
     conn: &Connection,
     title: &str,
@@ -691,15 +725,31 @@ pub(crate) fn resolve_type(
 impl crate::Notebook {
     /// Render canonical tags for text-only consumers without altering stored text.
     pub fn render_tag_text<'a>(&self, text: &'a str) -> Result<std::borrow::Cow<'a, str>> {
+        let titles = self.live_tag_titles(text)?;
+        Ok(render_tags(text, |id| {
+            titles.get(id).and_then(Option::as_deref)
+        }))
+    }
+
+    /// A root's display title for text-only consumers: exports and labels.
+    pub fn display_title<'a>(&self, text: &'a str) -> Result<std::borrow::Cow<'a, str>> {
+        let titles = self.live_tag_titles(text)?;
+        Ok(display_title(text, |id| {
+            titles.get(id).and_then(Option::as_deref)
+        }))
+    }
+
+    fn live_tag_titles<'a>(
+        &self,
+        text: &'a str,
+    ) -> Result<std::collections::HashMap<&'a str, Option<String>>> {
         let mut titles = std::collections::HashMap::new();
         for id in tag_tokens(text).filter_map(|token| token.id) {
             if let std::collections::hash_map::Entry::Vacant(entry) = titles.entry(id) {
                 entry.insert(live_tag(&self.conn, id)?);
             }
         }
-        Ok(render_tags(text, |id| {
-            titles.get(id).and_then(Option::as_deref)
-        }))
+        Ok(titles)
     }
 }
 #[cfg(test)]
@@ -736,6 +786,18 @@ mod reference_tests {
         assert_eq!(
             super::render_tags(&format!("#[[{id}|]]"), |_| None),
             format!("#{id}")
+        );
+        assert_eq!(
+            super::display_title(&format!("  Lab  #[[{id}|project]] notes #plain "), |_| None),
+            "Lab notes"
+        );
+        assert_eq!(
+            super::display_title("Plain  title", |_| None),
+            "Plain  title"
+        );
+        assert_eq!(
+            super::display_title(&format!("#[[{id}|old]]"), |_| Some("Project")),
+            "#Project"
         );
     }
 
