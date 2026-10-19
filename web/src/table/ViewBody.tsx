@@ -18,6 +18,7 @@ import { cardFields, defaultEntityColumns, registerMembers, sourceDefinition } f
 import { fieldEntryId } from './query';
 import { TableGrid } from './TableGrid';
 import { ViewValue } from './ViewValue';
+import { taskFieldName } from '../tasks/task-fields';
 import '../compare/compare.css';
 import './view-body.css';
 
@@ -146,7 +147,7 @@ export function ViewBody(props: ViewBodyProps) {
   const allFields = createMemo(() => [...attributeDefinitions(props.query.source), ...definitions()]);
   const tableField = (id: string) => allFields().find(field => field.id === id);
   const sourceField = createMemo(() => sourceDefinition(props.result.columns, definitions()));
-  const tableValue = (row: QueryRow, id: string) => <Show when={!id.startsWith('@')} fallback={<For each={row.attributes?.[id] ?? []}>{value => <BlockText text={value.text} notebook={props.notebook} onOpen={props.onOpen} />}</For>}><Show when={definition(id)}>{field => <ViewValue row={row} field={field()} doc={docs().get(row.block.page.id)} notebook={props.notebook} onEdited={edited} onError={setError} />}</Show></Show>;
+  const tableValue = (row: QueryRow, id: string) => <Show when={!id.startsWith('@') || tableField(id) && taskFieldName(tableField(id)!)} fallback={<For each={row.attributes?.[id] ?? []}>{value => <BlockText text={value.text} notebook={props.notebook} onOpen={props.onOpen} />}</For>}><Show when={tableField(id)}>{field => <ViewValue row={row} field={field()} doc={docs().get(row.block.page.id)} notebook={props.notebook} onEdited={edited} onError={setError} />}</Show></Show>;
   const phoneFields = (row: QueryRow) => {
     const selected = props.query.card ?? cardFields(row, columns(), allFields(), sourceField()).map(field => field.id);
     const sorted = props.query.sort.map(key => key.by === 'field' ? key.field! : `@${key.by}`).filter(id => id !== '@title');

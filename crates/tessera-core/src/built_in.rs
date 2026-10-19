@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use rusqlite::{Connection, OptionalExtension};
 
-use crate::FieldKind::{self, Date, Identifier, Instance, Number, Span, Text, Url};
+use crate::FieldKind::{self, Choice, Date, Identifier, Instance, Number, Span, Text, Url};
 use crate::fields::SOURCE_TARGET;
 use crate::library_ingest::Planner;
 use crate::{Actor, Batch, CountsAs, Notebook, Operation, Result};
@@ -101,7 +101,15 @@ pub(crate) const FIELDS: &[BuiltInField] = &[
         ..field("work", Instance)
     },
     field("account", Text),
-    field("project", Instance),
+    field("status", Choice),
+    field("scheduled", Date),
+    field("deadline", Date),
+    field("priority", Choice),
+    field("repeat", Text),
+    BuiltInField {
+        targets: &["project"],
+        ..field("project", Instance)
+    },
 ];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -116,6 +124,14 @@ pub(crate) enum Level {
 pub(crate) fn schema(type_key: &str) -> &'static [(&'static str, Level)] {
     use Level::{Expected, Required};
     match type_key {
+        "task" => &[
+            ("status", Required),
+            ("scheduled", Expected),
+            ("deadline", Expected),
+            ("priority", Expected),
+            ("repeat", Expected),
+            ("project", Expected),
+        ],
         "person" => &[
             ("aliases", Expected),
             ("lived", Expected),
@@ -152,6 +168,19 @@ pub(crate) fn field_named(name: &str) -> Option<&'static BuiltInField> {
     FIELDS
         .iter()
         .find(|field| field.name.eq_ignore_ascii_case(name))
+}
+
+/// Task-backed definitions have fixed formats; Project retains its existing relation entries.
+pub(crate) fn task_field(name: &str) -> Option<&'static BuiltInField> {
+    field_named(name).filter(|field| schema("task").iter().any(|(name, _)| *name == field.name))
+}
+
+pub(crate) fn task_options(name: &str) -> &'static [&'static str] {
+    match field_named(name).map(|field| field.name) {
+        Some("status") => &["todo", "doing", "waiting", "done", "cancelled"],
+        Some("priority") => &["high", "medium", "low"],
+        _ => &[],
+    }
 }
 
 /// The Links to a built-in relation files: Sources, and those of its types whose pages exist.
@@ -270,6 +299,35 @@ impl Notebook {
     /// where those type pages exist, and required fields in their types' templates. It never changes a
     /// field's kind, which stays a reviewed interpretation, and does nothing once everything is in place.
     pub(crate) fn ensure_built_in_fields(&mut self) -> Result<()> {
+        let operations = self.built_in_field_operations()?;
+        if operations.is_empty() {
+            return Ok(());
+        }
+        self.apply(&Batch {
+            actor: Actor::Client {
+                name: "Built-in fields".into(),
+            },
+            reason: None,
+            idempotency_key: None,
+            operations,
+        })?;
+        Ok(())
+    }
+
+    pub(crate) fn task_fields_need_ensure(&self) -> Result<bool> {
+        Ok(self.conn.query_row(
+            "SELECT NOT EXISTS(SELECT 1 FROM settings WHERE key = 'task_field_template' AND value = 'true')
+             OR (SELECT COUNT(*) FROM blocks d JOIN blocks p ON p.id = d.parent_id
+                 WHERE p.title_key = 'fields' AND p.deletion_id IS NULL AND d.deletion_id IS NULL
+                 AND lower(d.text) IN ('status','scheduled','deadline','priority','repeat','project')) < 6
+             OR NOT EXISTS(SELECT 1 FROM type_fields tf JOIN blocks t ON t.id = tf.type_id
+                 JOIN blocks d ON d.id = tf.field_id WHERE t.title_key = 'task'
+                 AND t.deletion_id IS NULL AND lower(d.text) = 'status' AND d.deletion_id IS NULL)",
+            [], |row| row.get(0),
+        )?)
+    }
+
+    fn built_in_field_operations(&self) -> Result<Vec<Operation>> {
         // A stripped sync clone has history but no local editor cursor yet; it runs this after adoption.
         let awaiting_adoption: bool = self.conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM changes) AND NOT EXISTS(SELECT 1 FROM editor_events)",
@@ -277,7 +335,7 @@ impl Notebook {
             |row| row.get(0),
         )?;
         if awaiting_adoption || crate::fields::page_id(&self.conn)?.is_none() {
-            return Ok(());
+            return Ok(Vec::new());
         }
         let definitions = crate::fields::definitions(&self.conn)?;
         let mut revisions: HashMap<String, i64> = HashMap::new();
@@ -311,24 +369,79 @@ impl Notebook {
         }
         let mut planner = Planner::new(self)?;
         let mut added_creators = false;
-        for key in ["book", "article", "person", "group", "concept"] {
+        let task_needed = self.page_by_title("Task")?.is_some()
+            || self.conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM tasks WHERE active = 1)",
+                [],
+                |row| row.get::<_, bool>(0),
+            )?;
+        let task_page = if task_needed {
+            Some(planner.page("Task")?)
+        } else {
+            None
+        };
+        let project_page = if task_needed {
+            Some(planner.page("Project")?)
+        } else {
+            None
+        };
+        let task_seeded: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM settings WHERE key = 'task_field_template' AND value = 'true')",
+            [], |row| row.get(0),
+        )?;
+        // Definitions exist even in a workshop with only appointments.
+        for (name, _) in schema("task").iter().filter(|_| task_needed) {
+            let field = field_named(name).expect("task schema names built-in fields");
+            planner.field(field.name, field.kind);
+        }
+        if let Some(project) = definitions
+            .iter()
+            .find(|field| field.name.eq_ignore_ascii_case("project"))
+            && project.kind == Instance
+            && project.targets.is_empty()
+            && self.page_by_title("Project")?.is_none()
+            && let Some(project_page) = project_page
+        {
+            planner.operations.push(Operation::SetFieldTargets {
+                id: project.id.clone(),
+                base_revision: *revisions.get(&project.id).unwrap_or(&project.revision),
+                targets: vec![project_page.0],
+            });
+        }
+        for key in ["book", "article", "person", "group", "concept", "task"] {
             let required: Vec<_> = schema(key)
                 .iter()
-                .filter(|(_, level)| *level == Level::Required)
+                .filter(|(_, level)| *level == Level::Required || key == "task" && !task_seeded)
                 .collect();
-            let Some(page) = (if required.is_empty() {
+            let page = if key == "task" {
+                let Some(page) = task_page.clone() else {
+                    continue;
+                };
+                page
+            } else if let Some(page) = if required.is_empty() {
                 None
             } else {
                 self.page_by_title(key)?
-            }) else {
+            } {
+                (page.id, page.revision)
+            } else {
                 continue;
             };
             let template: Vec<String> = self
                 .conn
                 .prepare("SELECT field_id FROM type_fields WHERE type_id = ?1 ORDER BY position")?
-                .query_map([&page.id], |row| row.get(0))?
+                .query_map([&page.0], |row| row.get(0))?
                 .collect::<rusqlite::Result<_>>()?;
-            let mut fields = template.clone();
+            let mut fields: Vec<_> = template
+                .iter()
+                .filter(|id| {
+                    key != "task"
+                        || definitions
+                            .iter()
+                            .any(|field| field.id == **id && !field.archived)
+                })
+                .cloned()
+                .collect();
             for (name, _) in required {
                 let field = field_named(name).expect("schemas name built-in fields");
                 let id = planner.field(field.name, field.kind);
@@ -338,12 +451,19 @@ impl Notebook {
             }
             if fields != template {
                 planner.operations.push(Operation::SetTypeFields {
-                    type_id: page.id,
-                    base_revision: page.revision,
+                    type_id: page.0,
+                    base_revision: page.1,
                     fields,
                 });
                 added_creators |= matches!(key, "book" | "article");
             }
+        }
+        if task_needed && !task_seeded {
+            planner.operations.push(Operation::SetSetting {
+                key: "task_field_template".into(),
+                value: "true".into(),
+                base_revision: None,
+            });
         }
         // The creator filing backfill has already run and found no creator fields; the ones added here
         // have no values to file, so it is done, and need not record that as a change of its own next time.
@@ -360,18 +480,7 @@ impl Notebook {
             });
         }
         operations.extend(planner.operations);
-        if operations.is_empty() {
-            return Ok(());
-        }
-        self.apply(&Batch {
-            actor: Actor::Client {
-                name: "Built-in fields".into(),
-            },
-            reason: None,
-            idempotency_key: None,
-            operations,
-        })?;
-        Ok(())
+        Ok(operations)
     }
 }
 

@@ -207,6 +207,8 @@ A field definition is a block under the live page titled `Fields`, the system pa
 - Its kind is text, number, date, span, checkbox, choice, relation, URL or identifier; the default is text. Relation is stored as `instance`.
 - Choice options are child blocks of the definition.
 
+The task tag has six built-in field definitions: status, scheduled, deadline, priority, repeat and project. The first five project the task record, never child entries. Status and priority have fixed choices; dates include optional times, and repeat presents the existing repeater as Repeat. Project reuses the existing relation definition and its ordinary explicit entry; without one the task reads its nearest project ancestor. Built-in names, formats and global deletion are protected.
+
 A field entry is a block whose whole text is one reference to a definition, rendering as its name. The entry's parent owns the field; its children are the values. Typing `author::` in the editor produces an entry. A name no field has creates one spelled as typed, and an existing name matches regardless of case. The new field's kind comes from its first value. A whole reference makes it a relation, or a date when it names a journal day. A calendar date, a number or an `http(s)` address makes it a date, number or URL, and anything else leaves it text. A value typed before conversion sets the kind at creation. Otherwise leaving the first nonblank value sets it, with an Undo that returns the field to text.
 
 Each definition has a `hide` setting for outlines. `never` is the default and shows entries and faint missing template slots, on a page at rest and on a nested owner while it is focused. `when_empty` hides entries with no values or only blank values and omits missing slots; `always` hides entries and slots regardless of values. Editing or selecting an entry or its values keeps it visible, as does revealing the owner's hidden fields in that pane. Tables, queries, field pages, the Fields register and exports ignore this setting.
@@ -254,6 +256,8 @@ A field's detail read may count readable and problem values using a proposed kin
 
 A type may carry a template: an ordered list of fields shown first in its table and offered as empty slots in its members' field areas. Members' other fields follow the template. Fill missing fields on the type page writes empty entries for members only when asked.
 
+Opening a workshop seeds the Task tag's six-field template once, in one synced built-in-fields change recorded by `task_field_template`. Later opens restore only required Status. Other slots can be reordered or removed and user fields added. Removing a slot changes suggestions, not task state, field entries or Agenda membership.
+
 A template can grow from use. When a member's field gets a value and another member of that type already has one, the outline offers to add the field to the template, such as “strength is on another #proposition too”, with Add and Not now buttons. A field used once is never offered, since it may be a one-off. Each type and field is offered once per window, whatever the answer, and Add has an Undo.
 
 ## Queries and views
@@ -280,7 +284,7 @@ Attributes use a leading `@` wherever a field key is accepted, including filters
 | Questions | `@state`, `@parent`, `@program`, `@readings`, `@current`, `@last_assessed`, `@revisit`, `@inline` |
 | Positions | `@holder`, `@subject`, `@question`, `@relation`, `@target_holder`, `@cites` |
 | Sources | `@creator`, `@contributor`, `@cited_by`, `@cited_in`, `@highlights` |
-| Tasks | `@status`, `@due`, `@scheduled`, `@project` |
+| Tasks | `@status`, `@scheduled`, `@deadline`, `@priority`, `@repeat`, `@project`, and legacy `@due` |
 | Highlights | `@source`, `@color` |
 
 The shared attributes are `@title` (text), `@page` (instance), `@created` and `@updated` (dates in the workshop's time zone). Questions use active, recurrent, parked and answered states. `@last_assessed` is the latest live assessment date, accepted or not. `@readings` counts positions about the question. Sources count distinct citing positions and highlighted blocks. Instance attributes compare stable IDs, not labels. `@creator` and `@contributor` read the fields that [count as](#counts-as) creator or contributor. Links and citations on a block source refer to its subtree.
@@ -293,13 +297,15 @@ Grouping uses `group: {key, collapsed?}` and returns distinct row IDs and counts
 
 A view is a saved query with a name and a revision. Views are not blocks; saving and deleting them are operations like any other, so they are attributed and undoable. A type table is the unsaved query for that type's members.
 
-The query also carries its view recipe: `layout`, ordered columns with widths, sort keys in priority order, grouping with collapsed heading keys, phone card fields and a one-line purpose. Layout is `table` by default; positions also offer `register` and `matrix`. Register shows attributed perspective slips with editable field beds. Matrix groups positions by subject and places holders against that subject's criteria. Both edit the original value blocks through their page documents, with one undo per committed value. Saving, reopening and undoing a saved view keep the recipe with the query. Attributes remain read-only.
+The query also carries its view recipe: `layout`, ordered columns with widths, sort keys in priority order, grouping with collapsed heading keys, phone card fields and a one-line purpose. Layout is `table` by default; positions also offer `register` and `matrix`. Register shows attributed perspective slips with editable field beds. Matrix groups positions by subject and places holders against that subject's criteria. Both edit the original value blocks through their page documents, with one undo per committed value. Saving, reopening and undoing a saved view keep the recipe with the query. Task attributes edit their canonical task or project state; other attributes remain read-only. `@due` remains an alias of Deadline for saved views, MCP and query text.
 
 An unsaved entity view starts with its key attributes, applicable standfirst fields and fields filled on at least a quarter of its first result's rows. The register uses at most six starting columns, including Title and derived Refs. It records that choice in pane history, so later searches keep it. Existing saved recipes remain unchanged.
 
 ## Tasks
 
 A task record adds optional status (todo, doing, waiting, done, canceled), scheduled and deadline dates with optional times, warning lead, repeater and priority. No status means an appointment: a scheduled atom with no checkbox. `@` planning creates an appointment; `#task` and task commands set todo. Adding `#task` to an appointment keeps its dates and adds todo status. Dates are local civil dates; times are `HH:MM` labels, not timestamps. Scheduling after a deadline is valid. Removing the task deactivates it without erasing its history.
+
+The focused atom shows one field bed in Task template order, with task-backed fields beside user field entries. Existing values remain visible even without a template slot. Status Done uses completion rather than setting a copied field value, preserving repeat advancement, work-session guards, undo and sync. An appointment shows Scheduled plus fields the person adds; Make task adds todo status and the Task template without moving the atom or changing its date.
 
 Completion records the exact planning snapshot and explicit completion date. A nonrecurring task becomes done; a recurring task stays on its original block and advances its dates. Fixed repeats advance one interval, catch-up repeats skip to the first interval after completion, and after-completion repeats count from the completion date. The scheduled date is the anchor when present, otherwise the deadline. Month/year repeats clamp to the last valid day; the signed separation between scheduled and deadline dates stays intact. Completion never archives. Undo reverses the exact latest occurrence only while its resulting task state still matches.
 

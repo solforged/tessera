@@ -50,7 +50,7 @@ export function registerMembers(rows: readonly QueryRow[]): { rows: QueryRow[]; 
 
 const sourceColumns: Record<QuerySource, readonly string[]> = {
   notes: ['@kind'], questions: ['@state', '@readings', '@last_assessed', '@revisit'],
-  positions: ['@holder', '@subject'], sources: ['@creator'], tasks: ['@status', '@due', '@scheduled', '@project'], highlights: ['@source'],
+  positions: ['@holder', '@subject'], sources: ['@creator'], tasks: ['@status', '@scheduled', '@deadline', '@priority', '@project'], highlights: ['@source'],
 };
 /** New views start with at most six columns, including Title and a derived Refs column. */
 export function defaultEntityColumns(source: QuerySource, result: QueryResult): string[] {

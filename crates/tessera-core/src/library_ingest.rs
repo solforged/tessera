@@ -223,7 +223,7 @@ impl<'a> Planner<'a> {
             filed_creators: HashSet::new(),
         })
     }
-    fn page(&mut self, title: &str) -> Result<(String, i64)> {
+    pub(crate) fn page(&mut self, title: &str) -> Result<(String, i64)> {
         let key = crate::storage::title_key(title);
         if let Some(page) = self.pages.get(&key) {
             return Ok(page.clone());
@@ -246,7 +246,11 @@ impl<'a> Planner<'a> {
         if let Some(field) = self.fields.get(&key) {
             return field.id.clone();
         }
-        let id = crate::notebook::new_ulid().to_string();
+        let id = if crate::built_in::task_field(label).is_some() {
+            crate::notebook::derived_id(&["task-field", &self.fields_page, &key])
+        } else {
+            crate::notebook::new_ulid().to_string()
+        };
         self.operations.push(Operation::Insert {
             id: id.clone(),
             parent_id: self.fields_page.clone(),

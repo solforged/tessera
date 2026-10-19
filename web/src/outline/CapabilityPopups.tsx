@@ -3,9 +3,7 @@ import { Show, createEffect, createResource, createSignal } from 'solid-js';
 import type { Block, WorkSession } from '../api/types';
 import { ProjectControls } from '../projects/ProjectControls';
 import { DatePicker } from '../tasks/DatePicker';
-import { RepeatPopup, TaskControls } from '../tasks/TaskControls';
-import { planTask } from '../tasks/task-labels';
-import { WorkSessions, clockTime } from '../tasks/WorkSessions';
+import { WorkSessions } from '../tasks/WorkSessions';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import { BlockText } from './BlockText';
@@ -66,26 +64,10 @@ export function createCapabilityPopups(context: Pick<OutlineContext, 'doc' | 'pr
   }
 function CapabilityPopups(){ return <>
     <Show keyed when={capabilities.popup()}>{state => <>
-      {state.kind === 'task' && <Popup anchor={state.anchor} label="Task" class="outline-capability-popup task-planning-slip" fitContent onDismiss={() => capabilities.dismiss(state)}>
-        <header class="task-planning-header">
-          <p class="task-planning-kicker">{doc.block(state.id)?.task?.status === 'done' ? `Planning · done ${doc.block(state.id)?.task?.completed_on ?? ''}` : 'Planning'}</p>
-          <h2 class="popup-title task-planning-title"><BlockText text={doc.block(state.id)?.text ?? ''} notebook={props.notebook} interactive={false} /></h2>
-        </header>
-        <Show when={doc.block(state.id)?.task} fallback={<p class="outline-capability-notice">Task removed.</p>}>{task => <TaskControls notebook={props.notebook} doc={doc} id={state.id} task={task()} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value })}
-          work={{ get since() { const work = props.notebook.runningWork(); return work?.block_id === state.id ? clockTime(work.started_at) : null; }, open: () => capabilities.open(state.id, 'work', state.anchor) }} />}</Show>
-        <Show when={capabilities.busy(state.id)}><p class="outline-capability-notice" role="status">Saving…</p></Show>
-        <Show when={capabilities.error(state.id)}><p class="error" role="alert">{capabilities.error(state.id)}</p></Show>
-      </Popup>}
       {state.kind === 'review-date' && <Show when={doc.block(state.id)?.question}>{question => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Set revisit date" presets="revisit" value={question().state.review_on} contextDate={props.notebook.todayDate()} onDismiss={() => capabilities.dismiss(state)}
         onSelect={value => capabilities.edit(state.id, { kind: 'question', id: state.id, value: { ...question().state, review_on: value.date } })} />}</Show>}
       {state.kind === 'question-parent' && <QuestionParentPicker id={state.id} notebook={props.notebook} anchor={state.anchor} onDismiss={() => capabilities.dismiss(state)}
         onPick={parent => { const question = doc.block(state.id)?.question; if (!question) return Promise.reject(new Error('The question is no longer available.')); return capabilities.edit(state.id, { kind: 'question', id: state.id, value: { ...question.state, parent } }); }} />}
-      {state.kind === 'schedule' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Schedule task" value={task().scheduled} time={task().scheduled_time} contextDate={props.notebook.todayDate()} marks={task().deadline ? { [task().deadline!]: 'Deadline' } : undefined} onDismiss={() => capabilities.dismiss(state)}
-        onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: planTask(task(), { scheduled: value.date, scheduled_time: value.date ? value.time : null }, contextDate()) })} />}</Show>}
-      {state.kind === 'deadline' && <Show when={doc.block(state.id)?.task}>{task => <DatePicker notebook={props.notebook} anchor={state.anchor} label="Deadline" value={task().deadline} time={task().deadline_time} contextDate={props.notebook.todayDate()} marks={task().scheduled ? { [task().scheduled!]: 'Scheduled' } : undefined} onDismiss={() => capabilities.dismiss(state)}
-        onSelect={value => capabilities.edit(state.id, { kind: 'task', id: state.id, value: planTask(task(), { deadline: value.date, deadline_time: value.date ? value.time : null, warning_days: value.date ? task().warning_days : null }, contextDate()) })} />}</Show>}
-      {state.kind === 'repeat' && <Show when={doc.block(state.id)?.task}>{task => <RepeatPopup anchor={state.anchor} value={task().repeater} firstDate={task().scheduled || task().deadline ? undefined : contextDate()} disabled={capabilities.busy(state.id)} onDismiss={() => capabilities.dismiss(state)}
-        onSave={repeater => capabilities.edit(state.id, { kind: 'task', id: state.id, value: planTask(task(), { repeater }, contextDate()) })} />}</Show>}
       {state.kind === 'project' && <Popup anchor={state.anchor} label="Project" class="outline-capability-popup" onDismiss={() => capabilities.dismiss(state)}>
         <ProjectControls notebook={props.notebook} project={doc.block(state.id)?.project ?? null} contextDate={contextDate()} disabled={capabilities.busy(state.id)} onChange={value => capabilities.edit(state.id, { kind: 'project', id: state.id, value })} />
         <Show when={doc.block(state.id)?.project}><Button onClick={event => capabilities.showActions(state.id, opensBeside(event))}>Show actions</Button></Show>

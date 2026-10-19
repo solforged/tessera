@@ -1456,6 +1456,8 @@ fn provisional_pages_with_authored_claims_and_explicit_pages_survive() {
     let typed = target("typed");
     let template = target("template");
     let task = target("task");
+    // The built-in Task page has already received its six-field template.
+    let task_revision = nb.block(&task).unwrap().revision;
     let fields = nb.fields().unwrap().page_id;
     apply(
         &mut nb,
@@ -1496,7 +1498,7 @@ fn provisional_pages_with_authored_claims_and_explicit_pages_survive() {
             },
             Operation::SetTask {
                 id: task.clone(),
-                base_revision: 1,
+                base_revision: task_revision,
                 task: Some(TaskState::default()),
             },
         ],

@@ -448,10 +448,18 @@ fn definitions_for(conn: &Connection, id: Option<&str>) -> Result<Vec<FieldDefin
                 })?,
                 archived: row.get(8)?,
                 revision: row.get(3)?,
-                options: Vec::new(),
+                options: crate::built_in::task_options(name)
+                    .iter()
+                    .map(|name| FieldOption {
+                        id: (*name).into(),
+                        text: (*name).into(),
+                    })
+                    .collect(),
             });
         }
-        if let Some(id) = row.get(4)? {
+        if let Some(id) = row.get(4)?
+            && crate::built_in::task_options(name).is_empty()
+        {
             result
                 .last_mut()
                 .expect("definition exists")
@@ -500,6 +508,38 @@ impl Notebook {
                 && owners.insert((index, row.get::<_, String>(2)?))
             {
                 fields[index].owners += 1;
+            }
+        }
+        // Task-backed fields count their canonical readings, not synthetic child entries.
+        let task_counts = self.conn.query_row(
+            concat!(
+                hidden_blocks!(),
+                "SELECT COUNT(json_extract(t.state, '$.status')),
+                    COUNT(json_extract(t.state, '$.scheduled')),
+                    COUNT(json_extract(t.state, '$.deadline')),
+                    COUNT(json_extract(t.state, '$.priority')),
+                    COUNT(json_extract(t.state, '$.repeater'))
+             FROM tasks t JOIN blocks b ON b.id = t.block_id
+             WHERE t.active = 1 AND b.deletion_id IS NULL
+             AND b.rowid NOT IN (SELECT rowid FROM hidden)"
+            ),
+            [],
+            |row| {
+                Ok([
+                    row.get::<_, i64>(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ])
+            },
+        )?;
+        for field in &mut fields {
+            if let Some(index) = ["status", "scheduled", "deadline", "priority", "repeat"]
+                .iter()
+                .position(|name| *name == field.definition.name)
+            {
+                field.owners = task_counts[index] as usize;
             }
         }
         let mut templates = self.conn.prepare_cached(concat!(
@@ -596,6 +636,15 @@ impl Notebook {
         let definition = definitions_for(&self.conn, Some(id))?
             .pop()
             .ok_or_else(|| not_found(id))?;
+        let task_path = match crate::built_in::task_field(&definition.name).map(|field| field.name)
+        {
+            Some("status") => Some("$.status"),
+            Some("scheduled") => Some("$.scheduled"),
+            Some("deadline") => Some("$.deadline"),
+            Some("priority") => Some("$.priority"),
+            Some("repeat") => Some("$.repeater"),
+            _ => None,
+        };
         let kind = kind.unwrap_or(definition.kind);
         let mut definition = definition;
         // A built-in field previewed as a relation reads against the Links to that changing its kind files.
@@ -657,12 +706,12 @@ impl Notebook {
               LEFT JOIN blocks v ON v.parent_id = e.id AND v.deletion_id IS NULL AND v.archived = 0
               LEFT JOIN links vl ON vl.source_id = v.id AND vl.occurrence = 0
               LEFT JOIN blocks t ON t.id = vl.target_id AND t.deletion_id IS NULL
-              WHERE l.target_id = ?1 AND l.occurrence = 0
+              WHERE l.target_id = ?1 AND l.occurrence = 0 AND ?2 IS NULL
               AND e.deletion_id IS NULL AND o.deletion_id IS NULL AND p.deletion_id IS NULL
               AND e.rowid NOT IN (SELECT rowid FROM hidden)
               ORDER BY o.text COLLATE NOCASE, o.id, e.ordinal, e.id, v.ordinal, v.id"
         ))?;
-        let mut cursor = statement.query([id])?;
+        let mut cursor = statement.query(params![id, task_path])?;
         let limit = limit.unwrap_or(12).min(500);
         let mut owner_id = String::new();
         let mut entry_id = String::new();
@@ -811,6 +860,20 @@ impl Notebook {
             }
         }
         detail.empty_total += usize::from(entry_empty);
+        if let Some(path) = task_path {
+            detail.owners_total = self.conn.query_row(
+                concat!(
+                    hidden_blocks!(),
+                    "SELECT COUNT(json_extract(t.state, ?1))
+                     FROM tasks t JOIN blocks b ON b.id = t.block_id
+                     WHERE t.active = 1 AND b.deletion_id IS NULL
+                     AND b.rowid NOT IN (SELECT rowid FROM hidden)"
+                ),
+                [path],
+                |row| row.get::<_, i64>(0),
+            )? as usize;
+            detail.values_total = detail.owners_total;
+        }
         detail.field.owners = detail.owners_total;
         let mut statement = self.conn.prepare_cached(concat!(
             hidden_blocks!(),

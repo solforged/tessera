@@ -396,6 +396,31 @@ async fn capability_catch_up_and_live_review_protection_do_not_require_text_revi
     assert_eq!(caught_up.capabilities, enabled.capabilities);
     assert!(caught_up.capabilities[0].task.is_some());
 
+    // The first task seeds its built-in fields in a separate synced change.
+    let message = tokio::time::timeout(Duration::from_secs(5), socket.next())
+        .await
+        .unwrap()
+        .unwrap()
+        .unwrap();
+    let template: ChangeEvent = serde_json::from_str(message.to_text().unwrap()).unwrap();
+    assert_eq!(template.seq, enabled.seq + 1);
+    assert_eq!(
+        template.actor,
+        Actor::Client {
+            name: "Built-in fields".into()
+        }
+    );
+    for name in [
+        "status",
+        "scheduled",
+        "deadline",
+        "priority",
+        "repeat",
+        "project",
+    ] {
+        assert!(template.blocks.iter().any(|block| block.text == name));
+    }
+
     let reviewed = commit(
         &client,
         &host,

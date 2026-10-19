@@ -299,3 +299,57 @@ fn clone_recovery_keeps_only_the_latest_copy_of_each_kind() {
     }
     assert!(phone_dir.join(DATABASE_FILE).exists());
 }
+
+#[test]
+fn independently_seeded_task_fields_merge_without_rejected_changes() {
+    let hub_dir = tempfile::tempdir().unwrap();
+    let phone_dir = tempfile::tempdir().unwrap();
+    let mut hub = Notebook::open(hub_dir.path()).unwrap();
+    let mut phone = Notebook::open(phone_dir.path()).unwrap();
+    for (notebook, root, title) in [(&mut hub, 1, "Mac tasks"), (&mut phone, 10, "Phone tasks")] {
+        page(notebook, root, title, "A task");
+        apply(
+            notebook,
+            vec![Operation::SetTask {
+                id: id(root + 1),
+                base_revision: 1,
+                task: Some(tessera_core::TaskState {
+                    status: Some(tessera_core::TaskStatus::Todo),
+                    ..Default::default()
+                }),
+            }],
+        );
+    }
+    let ticket = hub
+        .sync_clone(&hub_dir.path().join("task-import.db"))
+        .unwrap()
+        .finish()
+        .unwrap();
+    let report = sync_import(&mut phone, &mut hub, &ticket.device_id).unwrap();
+    assert!(
+        report
+            .pushed
+            .iter()
+            .all(|change| matches!(change.outcome, PushOutcome::Accepted { .. })),
+        "{:?}",
+        report.pushed
+    );
+    let fields = hub.fields().unwrap();
+    for name in [
+        "status",
+        "scheduled",
+        "deadline",
+        "priority",
+        "repeat",
+        "project",
+    ] {
+        assert_eq!(
+            fields
+                .fields
+                .iter()
+                .filter(|field| field.definition.name == name)
+                .count(),
+            1
+        );
+    }
+}

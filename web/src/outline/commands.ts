@@ -7,7 +7,7 @@ import { depthStops } from '../shell/contract';
 import type { Command } from '../shell/contract';
 import { parseCardText } from '../review/card-text';
 import { newTask } from '../tasks/quick-date';
-import { priorities, priorityLabel, statusMenuItems } from '../tasks/TaskControls';
+import { statusMenuItems } from '../tasks/TaskControls';
 import { isFinished } from '../tasks/task-labels';
 import type { MenuItem } from '../ui/Menu';
 import { textTokens } from '../document/text-tokens';
@@ -468,14 +468,12 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   function statusMenu(id: string) {
     const task = doc.block(id)?.task;
     if (task?.status === null) return;
-    keyboardMenu(id, 'Task status', statusMenuItems(task, status => capabilities.invoke(capabilities.status(id, status))));
+    capabilities.ensureTask(id);
+    capabilities.open(id, 'status');
   }
   function priorityMenu(id: string) {
-    const current = doc.block(id)?.task?.priority ?? null;
-    keyboardMenu(id, 'Priority', priorities.map((priority): MenuItem => ({ label: priorityLabel(priority), checked: current === priority, action: () => {
-      const task = doc.block(id)?.task ?? newTask('todo');
-      capabilities.invoke(capabilities.edit(id, { kind: 'task', id, value: { ...task, priority } }));
-    } })));
+    capabilities.ensureTask(id);
+    capabilities.open(id, 'priority');
   }
   function openPlanning(id: string, kind: 'schedule' | 'deadline' | 'repeat') {
     capabilities.ensureTask(id);

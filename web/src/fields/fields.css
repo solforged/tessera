@@ -102,6 +102,7 @@
 .template-field-table .template-definition { color: var(--text); }
 .template-field-table .template-definition:hover { text-decoration: underline; text-underline-offset: var(--space-4); }
 .template-required { color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.template-built-in { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .template-field-table .template-kind { gap: var(--space-4); max-width: 100%; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: left; }
 .template-field-table .template-kind:hover { color: var(--text); }
 .template-field-table .template-kind .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); }

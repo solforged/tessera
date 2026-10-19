@@ -6,12 +6,13 @@ import type { OpenTarget } from '../shell/contract';
 import type { PopupAnchor } from '../ui/Popup';
 import { newTask } from '../tasks/quick-date';
 import { isFinished } from '../tasks/task-labels';
+import type { TaskFieldName } from '../tasks/task-fields';
 
 /** These tags are already represented by the atom's behavior glyph. */
 export const isCapabilityTag = (title: string) => ['task', 'question', 'project', 'source'].includes(title.trim().toLocaleLowerCase());
 
 
-export type CapabilityKind = 'task' | 'schedule' | 'deadline' | 'repeat' | 'project' | 'work' | 'review-date' | 'question-parent';
+export type CapabilityKind = 'task' | 'status' | 'priority' | 'schedule' | 'deadline' | 'repeat' | 'project' | 'work' | 'review-date' | 'question-parent';
 export type CapabilityPopup = { id: string; anchor: PopupAnchor } & (
   | { kind: CapabilityKind }
   | { kind: 'complete'; session: WorkSession; completedOn: string }
@@ -24,6 +25,7 @@ export function createOutlineCapabilities(options: {
   caret(): Caret | null;
   anchor(id: string): PopupAnchor | null;
   onOpen(target: OpenTarget, beside: boolean): void;
+  onTaskFields?(id: string, field?: TaskFieldName): void;
 }) {
   const { doc, notebook } = options;
   const [popup, setPopup] = createSignal<CapabilityPopup | null>(null);
@@ -51,6 +53,10 @@ export function createOutlineCapabilities(options: {
   const invoke = (operation: Promise<void>) => { void operation.catch(() => {}); };
   function open(id: string, kind: CapabilityKind, anchor = options.anchor(id)) {
     if (!anchor || !doc.block(id)) return;
+    if (options.onTaskFields && ['task', 'status', 'priority', 'schedule', 'deadline', 'repeat'].includes(kind)) {
+      options.onTaskFields(id, kind === 'task' ? undefined : kind === 'schedule' ? 'scheduled' : kind as TaskFieldName);
+      return;
+    }
     setPopup({ id, kind, anchor });
   }
   function dismiss(state: CapabilityPopup) { if (popup() === state) setPopup(null); }

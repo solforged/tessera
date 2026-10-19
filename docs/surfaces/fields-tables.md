@@ -96,6 +96,7 @@ The type page and the Fields tab list a template with one row design: Name, Form
 - Rename, Move up, Move down and Remove appear on hover or focus and remain visible on coarse pointers. Rename edits the name in the row; Enter or leaving the input saves it and Escape cancels. A built-in field's Rename is disabled, and a name another field holds is refused, since merging belongs on the field page.
 - A required field reads `required` after its name, and its Remove is disabled with the reason, such as Books require author. The field menu's Templates… and the table's column menu disable their Remove from template the same way.
 - Each rename, kind change and Links to change reports itself beside Add field, such as rank links to Person, with an Undo while it is the latest change.
+- Task's built-in fields have a quiet mono `built-in` mark here only. Status also reads `required`; it alone cannot be removed from the Task template. Built-in task names, formats and global deletion are protected. Repeat reads Repeat, while Scheduled and Deadline read Date + time.
 
 Under the list sits a count of the members that lack template fields and Fill missing fields. This gives each of them an empty entry for every template field it lacks, placed in template order, in one workshop command. Undo beside the result removes the entries it added that are still empty; an entry that gained a value or a note stays. Changing the template never rewrites members.
 
@@ -108,6 +109,8 @@ Add field and Fill missing fields keep the type page's editing behavior. The und
 ## Field bed
 
 An owner's populated fields stay visible at rest. Standfirst sentences lead, without labels. Attributes and citation fields share a compact label and value column; citation references show siglum · locator. Prose fields follow at full width. A page's empty template slots stay visible under its heading; a nested owner's empty template and recipe slots stay quiet until it or one of its fields is focused. On phones, labels stack above values and long text wraps within the measure.
+
+Tasks are the exception at rest: only their checkbox and compact facts show. Focusing the atom reveals a single bed for task-backed and user fields, in Task template order. Filled fields remain after removing their slot. Status, Scheduled, Deadline, Priority and Repeat write the task record, and Project writes its existing relation entry, with an ancestor fallback marked inherited. An appointment shows Scheduled plus fields the person adds and Make task. On the touch cover the same bed is one sheet with inline date editing, never a second stacked popup.
 
 A value click, or Enter on a selected field, begins filling that owner. Tab and Shift-Tab move through its fields and missing slots in template or recipe order; reaching a missing slot creates its entry and value. Shift-Enter adds a newline. Enter on an empty value leaves for the owner's next ordinary row. While its value picker has a query or an arrow-key highlight, Enter picks instead. Escape leaves without moving. Outside filling mode, Tab and Shift-Tab retain outline indent and outdent. Each value keeps its ordinary undo history.
 
@@ -206,7 +209,9 @@ Columns past the right edge fade under the rows. `+N ›` at the header's end co
 
 ### Editing
 
-Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, relation or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Editing a missing field creates its entry on that owner, including a position, question or highlight block. Choosing an option writes a reference to that option, as in `Field:: [[option]]`. This works for non-template columns too. Pills follow the outline: a choice pill opens its options and a relation pill opens its target. ⌘-click opens either beside (Ctrl-click off Mac). Cells with more than one value open the field's source outline beside the table. Attribute cells are read-only.
+Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, relation or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Editing a missing field creates its entry on that owner, including a position, question or highlight block. Choosing an option writes a reference to that option, as in `Field:: [[option]]`. This works for non-template columns too. Pills follow the outline: a choice pill opens its options and a relation pill opens its target. ⌘-click opens either beside (Ctrl-click off Mac). Cells with more than one value open the field's source outline beside the table. Task attribute cells use the same task editors as the bed; other attribute cells are read-only.
+
+Tasks offer user fields in Columns, Filters and Sort beside Status, Scheduled, Deadline, Priority, Repeat and Project. Editing a user field changes the same entry shown under the atom. The legacy `@due` column still reads and edits Deadline; saved recipes need no migration.
 
 Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value and returns focus to its cell before saving finishes. An immediate undo follows that save. Leaving with Tab or a click commits without taking focus back from the new target.
 

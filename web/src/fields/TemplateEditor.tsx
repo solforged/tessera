@@ -17,6 +17,7 @@ import { requiredIds, requiredReason } from './required';
 import { entryAnchor } from './templates';
 import { linksToSummary } from './targets';
 import './fields.css';
+import { taskFieldName, taskFieldFormat } from '../tasks/task-fields';
 
 interface Gap { owner: string; page: string; fields: string[] }
 interface Filled { entries: { id: string; page: string; field: string }[]; owners: number }
@@ -24,11 +25,13 @@ interface Filled { entries: { id: string; page: string; field: string }[]; owner
 /** Members lacking a template field: owners without a live entry for it, empty entries included as present. */
 async function templateGaps(notebook: NotebookClient, type: Type): Promise<Gap[]> {
   if (!type.fields.length || !type.members) return [];
+  const definitions = (await notebook.api.fields()).fields;
+  const slots = type.fields.filter(id => !definitions.some(field => field.id === id && taskFieldName(field) && taskFieldName(field) !== 'project'));
   const query = (filters: { field: string; op: 'present'; value: null }[]) => notebook.api.query({ type: type.page.id, text: null, filters, sort: [], limit: null });
-  const [members, ...present] = await Promise.all([query([]), ...type.fields.map(field => query([{ field, op: 'present', value: null }]))]);
+  const [members, ...present] = await Promise.all([query([]), ...slots.map(field => query([{ field, op: 'present', value: null }]))]);
   const owners = present.map(result => new Set(result.rows.map(row => row.block.block.id)));
   return members.rows.flatMap(row => {
-    const fields = type.fields.filter((_, index) => !owners[index]!.has(row.block.block.id));
+    const fields = slots.filter((_, index) => !owners[index]!.has(row.block.block.id));
     return fields.length ? [{ owner: row.block.block.id, page: row.block.page.id, fields }] : [];
   });
 }
@@ -77,9 +80,9 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
     if (detail.problems_total) { props.onOpen({ kind: 'field', fieldId: field.id, previewKind: kind }, beside); return; }
     remember(`${field.name} is now a ${kindNoun(kind)} field.`)(await changeFieldKind(props.notebook, detail, {}));
   });
-  const kindSummary = (field: FieldDefinition) => field.kind === 'instance'
+  const kindSummary = (field: FieldDefinition) => taskFieldFormat(field) ?? (field.kind === 'instance'
     ? `${kindLabels.instance} → ${linksToSummary(props.notebook, field.targets, 'any atom')}`
-    : field.kind === 'choice' ? `${kindLabels.choice} · ${field.options.length} ${field.options.length === 1 ? 'option' : 'options'}` : kindLabels[field.kind];
+    : field.kind === 'choice' ? `${kindLabels.choice} · ${field.options.length} ${field.options.length === 1 ? 'option' : 'options'}` : kindLabels[field.kind]);
   const setFields = (fields: string[]) => run(() => props.notebook.commit([{ op: 'set_type_fields', type_id: props.type.page.id, base_revision: props.type.page.revision, fields }], 'Change tag template'));
   function move(index: number, by: -1 | 1) {
     const fields = [...props.type.fields];
@@ -152,10 +155,10 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
           <colgroup><col class="template-name-column" /><col class="template-kind-column" /><col class="template-usage-column" /><col class="template-actions-column" /></colgroup>
           <thead><tr><th scope="col">Name</th><th scope="col">Format</th><th scope="col">Used by</th><th scope="col"><span class="visually-hidden">Field actions</span></th></tr></thead>
           <tbody><For each={template()}>{(id, index) => <Show when={byId().get(id)}>{field => <tr>
-            <td><Show when={renaming()?.id === id} fallback={<><Button class="template-definition" title={`Open ${field().name} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'field', fieldId: id }, opensBeside(event))}>{field().name}</Button><Show when={required().has(id)}> <span class="template-required" title={requiredReason(props.type, field().name)}>required</span></Show></>}>
+            <td><Show when={renaming()?.id === id} fallback={<><Button class="template-definition" title={`Open ${field().name} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'field', fieldId: id }, opensBeside(event))}>{field().name}</Button><Show when={field().built_in}> <span class="template-built-in">built-in</span></Show><Show when={required().has(id)}> <span class="template-required" title={requiredReason(props.type, field().name)}>required</span></Show></>}>
               <form class="template-rename" onSubmit={event => { event.preventDefault(); void rename(); }}><input class="input" aria-label={`New name for ${field().name}`} value={renaming()!.text} onInput={event => setRenaming({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setRenaming(null); } }} onBlur={() => { if (renaming()?.id === id) void rename(); }} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} /></form>
             </Show></td>
-            <td class="template-field-kind"><Button class="template-kind" aria-haspopup="menu" aria-expanded={kindMenu()?.id === id} aria-label={`Format for ${field().name}: ${kindSummary(field())}`} disabled={busy()} onClick={event => setKindMenu({ id, anchor: event.currentTarget })}>{kindSummary(field())} <Icon name="down" /></Button></td>
+            <td class="template-field-kind"><Button class="template-kind" aria-haspopup="menu" aria-expanded={kindMenu()?.id === id} aria-label={`Format for ${field().name}: ${kindSummary(field())}`} disabled={busy() || !!taskFieldName(field())} onClick={event => setKindMenu({ id, anchor: event.currentTarget })}>{kindSummary(field())} <Show when={!taskFieldName(field())}><Icon name="down" /></Show></Button></td>
             <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span title="No atom uses this field yet">Unused</span>}><Button title={`Atoms using ${field().name}: ${summaries().get(id)!.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{summaries().get(id)!.owners}</Button></Show></td>
             <td>{fieldActions(id, index())}</td>
           </tr>}</Show>}</For></tbody>

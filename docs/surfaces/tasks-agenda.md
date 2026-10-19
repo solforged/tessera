@@ -23,13 +23,17 @@ The block menu's Task section reads, in order:
 
 Statuses are Todo, Doing, Waiting (an hourglass), Done and Canceled. Task state, dates, optional times, deadline warning, priority and repeat are anchored controls, not text prefixes.
 
-### Planning slip
+### Task field bed
 
-Plan task opens a compact slip headed by Planning and the task's authored text, or `Planning · done 2026-10-10` once done. Scheduled, Deadline, Priority, Project, Repeat and Work are labeled rows with their current values in mono or a faint None. Warning appears only with a deadline. Priority shows its bars beside its name.
+A task keeps its checkbox and compact planning facts at rest. Focus reveals one field bed, in Task template order, with Status, Scheduled, Deadline, Priority, Repeat and Project beside user fields and `+ Field`. Plan task opens this bed; status, planning shortcuts and clicks on facts open the corresponding field editor. Tab moves through the fields and Escape returns to the compact row. There is no separate planning slip.
+
+Status opens its menu; choosing Done uses completion, so repeats advance and Undo restores the occurrence. Scheduled and Deadline use the date picker with optional time, and the deadline editor owns the warning lead. Priority uses its choice menu and Repeat uses the existing repeat editor. Removing an optional template slot leaves any existing value visible and does not change Agenda.
 
 Project opens a searchable, title-ordered picker; choosing a project replaces the task's explicit Project field in one undo step, and None removes it. A name that matches no project exactly adds `New project “Name”`, which makes a project page of that title (or makes an existing page of that title a project) and assigns the task to it.
 
-Work reads `Running since 12:58` in `--status-doing` or a faint `Not running`, and opens Work sessions in the slip's place.
+An appointment shows Scheduled plus fields the person adds. Make task adds todo and the task template around the same atom without changing its date or parent. Work sessions stay in their own control.
+
+On a narrow touch screen, the field bed is one bottom sheet headed Task fields and the atom's title. Labels stack over values with fingertip-sized targets. Dates edit inline; a richer picker replaces the contents and Back to fields returns to the same field. The footer offers Add field and reads Each change saves to this atom.
 
 ## Dates and times
 
@@ -87,7 +91,7 @@ A running work session requires an explicit stop, with Stop and complete offered
 
 ### Work sessions
 
-Work sessions open from the row's running clock, the block menu, the palette and the planning slip's Work row; `Space w` and `/clock` start or stop the clock without opening them. The popup is headed `Work` and the task's text. Its clock leads: a large mono `h:mm:ss` (the running session's elapsed time in `--status-doing`, otherwise the task's total), what it counts (`Since 12:58 · 0:21:14 in total`, `3 sessions in total`, `No work logged yet`), then one bordered action: Start, Start again or Stop.
+Work sessions open from the row's running clock, the atom menu and the palette; `Space w` and `/clock` start or stop the clock without opening them. The popup is headed `Work` and the task's text. Its clock leads: a large mono `h:mm:ss` (the running session's elapsed time in `--status-doing`, otherwise the task's total), what it counts (`Since 12:58 · 0:21:14 in total`, `3 sessions in total`, `No work logged yet`), then one bordered action: Start, Start again or Stop.
 
 A running session's note is a one-line field under the clock; past sessions follow newest first on hairlines, each `today 12:58–13:19`, its duration and its note. Notes belong to the session record, not the outline, and save on Enter, when focus leaves them, and with Stop. Stop keeps focus in the note, so the note travels with it. The popup keeps its place when its trigger disappears, as when Stop removes the row's clock.
 

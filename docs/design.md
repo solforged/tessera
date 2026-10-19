@@ -460,6 +460,8 @@ Choice and relation values never show their reference text. Their pills sit cent
 
 Every block or page with field entries or template fields has a field bed at rest. Populated fields stay visible. A page's missing template slots stay visible under its heading, since the page itself is never selected or edited; a nested owner's missing template and recipe slots appear only while it or one of its fields is focused. Slots never add content until used.
 
+Tasks keep only their checkbox and compact planning facts at rest. Focus opens one bed for task-backed and user fields, in template order, with muted labels, dotted row rules and a thin left rule. Built-in marks belong only to template editing, not this bed. Tab moves among its controls and Escape closes it. On narrow touch screens the bed is one bottom sheet: title, stacked labels and values, 44 px targets, inline dates, Add field, and Each change saves to this atom. Richer pickers replace its contents rather than stack. An appointment starts with Scheduled and any added user fields; Make task retains the atom and date.
+
 - On a page, an Add field line in mono apparatus closes the area, followed by a small gap before the notes.
 - On a nested block, `+ Field` appears at the end of its last field row while the block or one of its fields is hovered, selected or edited, without changing any row's height.
 - A page or block without fields adds one from Add field… in its page or block menu, or with `name::`.

@@ -1599,7 +1599,7 @@ fn editor_receipt(
     committed.seq = notebook.editor_change_cursor(committed.seq)?;
     if !committed.replayed {
         // Publish while the writer lock is still held, in arrival order.
-        let _ = changes.send(committed.seq);
+        let _ = changes.send(notebook.editor_cursor()?);
     }
     Ok(())
 }

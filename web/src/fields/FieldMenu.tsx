@@ -1,3 +1,4 @@
+import { taskFieldName } from '../tasks/task-fields';
 import { createEffect, createResource, createSignal, onCleanup } from 'solid-js';
 import type { FieldDefinition, Type } from '../api/types';
 import type { PageDocument } from '../document/contract';
@@ -106,7 +107,7 @@ export function createFieldMenu(context: Pick<OutlineContext,
     setMenu({ anchor, label: field.name, title: field.name, context: (block && plainText(block.text, target => props.notebook.lookup(target))) || field.name, items: [
       { label: 'Open field definition', action: event => open(opensBeside(event)) },
       { label: 'Definition…', submenu: () => ({ title: 'Definition', items: [
-        { label: 'Format…', submenu: () => ({ title: 'Format', items: fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === field.kind, action: () => { if (kind !== field.kind) open(false, { previewKind: kind }); } })) }) },
+        { label: 'Format…', disabledReason: taskFieldName(field) ? 'Built-in task field formats cannot change.' : undefined, submenu: () => ({ title: 'Format', items: fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === field.kind, action: () => { if (kind !== field.kind) open(false, { previewKind: kind }); } })) }) },
         ...(field.kind === 'choice' ? [{ label: 'Options…', action: (event?: MouseEvent | KeyboardEvent) => open(opensBeside(event), { section: 'options' }) }] : []),
         ...(field.kind === 'instance' ? [{ label: 'Links to…', action: (event?: MouseEvent | KeyboardEvent) => open(opensBeside(event), { section: 'targets' }) }] : []),
         { label: 'Hide…', submenu: () => ({ title: 'Hide', items: fieldHides.map(value => ({ label: hideLabels[value], checked: value === fieldHide(field), disabledReason: unavailable, action: () => { void changeHide(field, value); } })) }) },

@@ -287,7 +287,7 @@ function Pane(props: OutlinePaneProps) {
   const contextDate = () => doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate();
   const rowAnchor = (id: string) => id === props.pageId ? heading ?? null : hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null;
   const readingAnchor = (id: string) => scroll?.querySelector<HTMLElement>(`[data-reading-id="${CSS.escape(id)}"]`) ?? rowAnchor(id);
-  const capabilities = createOutlineCapabilities({ doc, notebook: props.notebook, contextDate, caret, anchor: rowAnchor, onOpen: props.onOpen });
+  const capabilities = createOutlineCapabilities({ doc, notebook: props.notebook, contextDate, caret, anchor: rowAnchor, onOpen: props.onOpen, onTaskFields: (id, field) => fieldSheet.openTask(id, field) });
 
   const fieldConversion = createFieldEntryConversion({
     doc, notebook: props.notebook, disposed: () => disposed, composing: composition, caret, focusEpoch: () => focusEpoch,
@@ -454,8 +454,10 @@ function Pane(props: OutlinePaneProps) {
   }, undefined, { equals: (a, b) => a.size === b.size && [...a].every(id => b.has(id)) });
   const unfoldedIds = createMemo(() => {
     const hidden = hiddenEntries(), visible = sourceVisibleIds();
-    if (!hidden.size) return visible;
     const omitted = new Set(hidden);
+    for (const id of visible) {
+      if (id !== zoom() && doc.block(doc.outline.parentOf(id))?.task && definitionsById().has(fieldEntryId(doc.block(id)?.text ?? '') ?? '')) omitted.add(id);
+    }
     return visible.filter(id => {
       if (omitted.has(doc.outline.parentOf(id))) omitted.add(id);
       return !omitted.has(id);

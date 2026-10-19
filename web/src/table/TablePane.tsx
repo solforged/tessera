@@ -40,6 +40,8 @@ import { TableGrid } from './TableGrid';
 import { ViewBody } from './ViewBody';
 import { DeskPane } from '../desk/DeskPane';
 import './table.css';
+import { TaskFieldEditor } from '../tasks/TaskFieldEditor';
+import { taskFieldName } from '../tasks/task-fields';
 
 type TableTarget = Extract<OpenTarget, { kind: 'table' }>;
 export interface TablePaneProps {
@@ -59,6 +61,7 @@ type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label:
   | { kind: 'delete-row'; anchor: HTMLElement; row: QueryRow }
   | { kind: 'embed-page'; anchor: HTMLElement; view: View }
   | { kind: 'value'; anchor: HTMLElement; row: QueryRow; field: FieldDefinition; value?: FieldValue }
+  | { kind: 'task-field'; anchor: HTMLElement; row: QueryRow; field: FieldDefinition; doc: PageDocument }
   | null;
 const titleWidthLimits = { min: 170, max: 340, default: 240 };
 const clampTitleWidth = (width: number | undefined) => Number.isFinite(width) ? Math.max(titleWidthLimits.min, Math.min(titleWidthLimits.max, width!)) : titleWidthLimits.default;
@@ -192,21 +195,21 @@ function TableContent(props: TablePaneProps) {
     return [...combined.values()];
   });
   const attributes = createMemo(() => attributeDefinitions(query().source).map(field => field.id === '@kind' ? { ...field, options: (noteIndex()?.kinds ?? []).map(kind => ({ id: kind.key, text: kind.name })) } : field));
-  const pickerFields = createMemo(() => [...attributes(), ...fields()]);
+  const pickerFields = createMemo(() => [...attributes().filter(field => field.id !== '@due'), ...fields().filter(field => query().source !== 'tasks' || !taskFieldName(field))]);
   /** Sort, Group and Filters offer the type's own fields first, then built-in attributes, then the rest of the notebook's fields. */
   const fieldGroups = createMemo(() => {
     const template = new Set(query().type ? type()?.fields ?? [] : []);
-    const own = fields().filter(field => template.has(field.id)).sort((a, b) => [...template].indexOf(a.id) - [...template].indexOf(b.id));
+    const own = fields().filter(field => template.has(field.id) && (query().source !== 'tasks' || !taskFieldName(field))).sort((a, b) => [...template].indexOf(a.id) - [...template].indexOf(b.id));
     return [
       { section: 'Tag template', fields: own },
-      { section: 'Built in', fields: attributes() },
-      { section: own.length ? 'Other fields' : 'Fields', fields: fields().filter(field => !template.has(field.id)) },
+      { section: 'Built in', fields: attributes().filter(field => field.id !== '@due') },
+      { section: own.length ? 'Other fields' : 'Fields', fields: fields().filter(field => !template.has(field.id) && (query().source !== 'tasks' || !taskFieldName(field))) },
     ].filter(group => group.fields.length);
   });
   const fieldItems = (item: (field: FieldDefinition) => Omit<MenuItem, 'label' | 'section'>, omit?: string) =>
     fieldGroups().flatMap(group => group.fields.filter(field => field.id !== omit).map((field): MenuItem => ({ label: field.name, section: group.section, ...item(field) })));
-  const columnChoices = createMemo(() => pickerFields().filter(field => field.id !== '@title' && field.name.toLocaleLowerCase().includes(columnSearch().toLocaleLowerCase())));
-  const fieldById = (id: string) => pickerFields().find(field => field.id === id);
+  const columnChoices = createMemo(() => pickerFields().filter(field => field.id !== '@title' && (field.id !== '@due' || query().columns?.some(column => column.key === '@due')) && field.name.toLocaleLowerCase().includes(columnSearch().toLocaleLowerCase())));
+  const fieldById = (id: string) => pickerFields().find(field => field.id === id) ?? attributes().find(field => field.id === id) ?? fields().find(field => field.id === id);
   const fieldName = (id: string) => fieldById(id)?.name ?? query().field_names?.[id] ?? 'Missing field';
   const missingFields = createMemo(() => definitions() ? missingQueryFields(query(), definitions()!.fields) : []);
   const labelSort = (key: SortKey) => sortLabel(key, pickerFields(), query().field_names);
@@ -672,6 +675,13 @@ function TableContent(props: TablePaneProps) {
     finally { pendingWrites.delete(pending); }
   };
   const startEdit = (row: QueryRow, field: FieldDefinition, anchor: HTMLElement) => {
+    if (taskFieldName(field)) {
+      void withDocument(row.block.page.id, doc => {
+        if (taskFieldName(field) === 'project' && !doc.block(row.block.block.id)?.task) setPopup({ kind: 'value', row, field, anchor });
+        else setPopup({ kind: 'task-field', row, field, anchor, doc });
+      }).catch(message);
+      return;
+    }
     if (field.id.startsWith('@')) return;
     const values = row.values[field.id] ?? [];
     if (values.length > 1) { openField(row, field); return; }
@@ -771,7 +781,7 @@ function TableContent(props: TablePaneProps) {
   };
   // Keep value components mounted when definitions refresh: remounting their
   // measured More controls briefly shrinks the grid and clamps its scroll.
-  const renderValue = (row: QueryRow, id: string, hideCount = false) => <Show when={id.startsWith('@')} fallback={<TableFieldValue field={fieldById(id)} values={row.values[id] ?? []} notebook={props.notebook} hideCount={hideCount || id === sourceField()?.id} onPill={(value, anchor, beside) => { const field = fieldById(id); if (field) void openPill(row, field, value, anchor, beside).catch(message); }} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: fieldById(id)?.name ?? 'Sources', sources })} />}><TableAttributeValue values={row.attributes?.[id] ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>;
+  const renderValue = (row: QueryRow, id: string, hideCount = false) => <Show when={id.startsWith('@') || Object.hasOwn(row.attributes ?? {}, id)} fallback={<TableFieldValue field={fieldById(id)} values={row.values[id] ?? []} notebook={props.notebook} hideCount={hideCount || id === sourceField()?.id} onPill={(value, anchor, beside) => { const field = fieldById(id); if (field) void openPill(row, field, value, anchor, beside).catch(message); }} onSources={(anchor, sources) => setPopup({ kind: 'sources', anchor, label: fieldById(id)?.name ?? 'Sources', sources })} />}><TableAttributeValue values={row.attributes?.[id] ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>;
   const required = createMemo(() => requiredIds(type()));
   // Counted within this view's scope, which may be narrower than the type, such as its notes.
   const [gaps] = createResource(() => !loading() && type()?.required?.some(field => field.missing > 0) ? [query(), type()!] as const : false, ([value, current]) => Promise.all(current.required.filter(field => field.missing > 0).map(async field => {
@@ -792,13 +802,13 @@ function TableContent(props: TablePaneProps) {
   </Show>;
   const renderCell = (row: QueryRow, id: string) => {
     const field = () => fieldById(id); const current = () => editing();
-    return <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<Show when={required().has(id) && !row.values[id]?.length} fallback={renderValue(row, id)}><span class="table-needed">needed</span></Show>}>
+    return <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<Show when={required().has(id) && !row.values[id]?.length && !row.attributes?.[id]?.length} fallback={renderValue(row, id)}><span class="table-needed">needed</span></Show>}>
       <PlainValueInput class="table-cell-input" field={field()} text={current()?.text ?? ''}
         onInput={text => setEditing(value => value ? { ...value, text } : null)}
         onCommit={returnFocus => { void commitEdit(returnFocus); }} onCancel={() => { setEditing(null); region.focus(); }} />
     </Show>;
   };
-  const renderCardCell = (row: QueryRow, field: FieldDefinition) => <div class={`table-card-field table-kind-${field.kind}`} classList={{ 'table-card-source': field.id === sourceField()?.id, 'table-card-gloss': field.name.trim().toLocaleLowerCase() === 'gloss', 'table-card-grouped-field': !!query().group && field.id === query().group?.key }} role="button" tabIndex={0} aria-label={`Open ${field.name} field`} onClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('button') && !field.id.startsWith('@')) openField(row, field); }} onKeyDown={event => { if ((event.key === 'Enter' || event.key === ' ') && !field.id.startsWith('@')) { event.preventDefault(); event.stopPropagation(); openField(row, field); } }}><span class="table-card-field-name">{field.name}</span>{renderValue(row, field.id, true)}</div>;
+  const renderCardCell = (row: QueryRow, field: FieldDefinition) => <div class={`table-card-field table-kind-${field.kind}`} classList={{ 'table-card-source': field.id === sourceField()?.id, 'table-card-gloss': field.name.trim().toLocaleLowerCase() === 'gloss', 'table-card-grouped-field': !!query().group && field.id === query().group?.key }} role="button" tabIndex={0} aria-label={`Open ${field.name} field`} onClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('button')) { if (taskFieldName(field)) startEdit(row, field, event.currentTarget); else if (!field.id.startsWith('@')) openField(row, field); } }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); if (taskFieldName(field)) startEdit(row, field, event.currentTarget); else if (!field.id.startsWith('@')) openField(row, field); } }}><span class="table-card-field-name">{field.name}</span>{renderValue(row, field.id, true)}</div>;
   const renderRefs = (row: QueryRow, phone: boolean) => <Show when={(sourcesByRow().get(row.block.block.id) ?? []).length}>{count => <Button class={`table-source-count${phone ? ' table-card-refs' : ''}`} label={`${count()} ${count() === 1 ? 'reference' : 'references'}`} aria-haspopup="dialog" onClick={event => { event.stopPropagation(); setPopup({ kind: 'sources', anchor: event.currentTarget, label: sourceField()?.name ?? 'Source', sources: sourcesByRow().get(row.block.block.id) ?? [] }); }}>{count()} {phone ? count() === 1 ? 'ref' : 'refs' : ''}</Button>}</Show>;
   const queryToolbar = () => <>
       <Show when={query().note_kind}><NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery} /></Show>
@@ -897,6 +907,9 @@ function TableContent(props: TablePaneProps) {
     </Popup>}</Show>
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
+      {state.kind === 'task-field' && <TaskFieldEditor notebook={props.notebook} doc={state.doc} id={state.row.block.block.id} field={taskFieldName(state.field)!} anchor={state.anchor} contextDate={props.notebook.todayDate()}
+        onSaved={async () => { history.push({ kind: 'cell', doc: state.doc, rowId: state.row.block.block.id, fieldId: state.field.id }); undone.length = 0; setViewUndo(false); setRowUndo(false); await refreshCells(); }}
+        onDismiss={() => { setPopup(null); requestAnimationFrame(() => focusCell(state.row.block.block.id, state.field.id)); }} />}
       {state.kind === 'new-row' && rowKind() && <CreateSlip request={{ kind: rowKind()!.key === 'question' ? 'question' : `type:${rowKind()!.key}`, text: '', lockKind: true }} anchor={state.anchor} notebook={props.notebook} onDismiss={() => setPopup(null)} defaultBeside={window.matchMedia('(pointer: coarse)').matches && !!props.neighbour} onCreated={pageId => { history.push({ kind: 'created-row', pageId }); undone.length = 0; setViewUndo(false); setRowUndo(false); }} onOpen={(target, beside) => { if (target.kind === 'page') void revealNewRow(target, beside).catch(message); }} />}
       {state.kind === 'delete-row' && <Popup anchor={state.anchor} placement={narrow() ? 'sheet' : 'anchor'} label={state.row.block.block.kind === 'block' ? 'Delete atom' : 'Delete atom'} onDismiss={() => { if (!deleting()) setPopup(null); }}>
         <p>Delete “{plainText(state.row.block.block.text, id => props.notebook.lookup(id))}” and all its {state.row.block.block.kind === 'block' ? 'children' : 'atoms'}?</p><p class="muted">You can undo this deletion.</p>

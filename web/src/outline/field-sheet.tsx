@@ -13,6 +13,9 @@ import { Icon } from '../ui/Icon';
 import type { OutlineContext } from './context';
 import { createFieldEntry } from '../fields/commands';
 import { pendingCaretInput } from '../shell/pending-caret';
+import { TaskFieldBed } from '../tasks/TaskFieldBed';
+import { taskFieldName, type TaskFieldName } from '../tasks/task-fields';
+import { newTask } from '../tasks/quick-date';
 
 interface SheetState {
   owner: string;
@@ -30,6 +33,7 @@ export interface FieldSheet {
   Popups(): JSX.Element;
   /** Open the shared picker, including for an owner that does not yet have a field area. */
   pick(owner: string, anchor: HTMLElement): void;
+  openTask(owner: string, field?: TaskFieldName): void;
   hover(id: string | null): void;
   fill(entry: string): void;
   start(id: string): boolean;
@@ -71,6 +75,17 @@ export function createFieldSheet(context: Pick<OutlineContext,
   reveal(owner: string): void;
 }): FieldSheet {
   const { doc, props, definitionsById, definitions, indices, selected, editing, zoom, folds, apply, setMessage, templateFor, baseDepth } = context;
+  const [taskRequest, setTaskRequest] = createSignal<{ owner: string; field?: TaskFieldName }>();
+  const [dismissedTask, setDismissedTask] = createSignal<string>();
+  createEffect(on(selected, owner => {
+    setDismissedTask(undefined);
+    if (taskRequest()?.owner !== owner) setTaskRequest(undefined);
+  }));
+  function openTask(owner: string, field?: TaskFieldName) {
+    context.setSelected(owner);
+    setDismissedTask(undefined);
+    setTaskRequest({ owner, field });
+  }
   const fieldOf = (id: string) => definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '');
   const memberships = new Map<string, readonly string[]>();
   const [membershipVersion, setMembershipVersion] = createSignal(0);
@@ -95,7 +110,7 @@ export function createFieldSheet(context: Pick<OutlineContext,
       if (!block || doc.isArchived(id)) return;
       const text = untrack(() => block.text), keys = typeKeys(text, []);
       memberships.set(id, keys);
-      if (block.position || block.manual_types.length || keys.length) owners.add(id);
+      if (block.task || block.position || block.manual_types.length || keys.length) owners.add(id);
       if (known.has(fieldEntryId(text) ?? '')) owners.add(doc.outline.parentOf(id));
     };
     consider(props.pageId);
@@ -109,11 +124,13 @@ export function createFieldSheet(context: Pick<OutlineContext,
       return field && known.has(field) ? [{ id, field }] : [];
     }));
     const present = new Set(entries.map(entry => entry.field));
+    const keys = [...typeKeys(untrack(() => block?.text ?? ''), block?.manual_types ?? []), ...(block?.task?.status ? ['task'] : [])];
     const apparatus = block?.position ? definitions().filter(field => ['gist', 'work'].includes(field.name.trim().toLowerCase())).sort((a, b) => Number(a.name.trim().toLowerCase() === 'work') - Number(b.name.trim().toLowerCase() === 'work')).map(field => field.id) : [];
-    const template = [...new Set([...apparatus, ...subjects, ...templateFor(typeKeys(untrack(() => block?.text ?? ''), block?.manual_types ?? []))])]
+    const template = [...new Set([...apparatus, ...subjects, ...templateFor(keys),
+      ...(block?.task && !block.task.status ? definitions().filter(field => field.built_in && field.name === 'scheduled').map(field => field.id) : [])])]
       .filter(id => known.has(id) && !(block?.source && isCatalogueField(known.get(id)!.name)));
     const missing = template.filter(id => !present.has(id));
-    const required = context.requiredFor(typeKeys(untrack(() => block?.text ?? ''), block?.manual_types ?? []));
+    const required = context.requiredFor(keys);
     return { owner, entries, template, present, missing, required: new Set(missing.filter(id => required.has(id))) };
   }
   const subjects = createMemo(() => {
@@ -249,6 +266,17 @@ export function createFieldSheet(context: Pick<OutlineContext,
   document.addEventListener('keydown', controlledKey, true);
   onCleanup(() => document.removeEventListener('keydown', controlledKey, true));
   function add(owner: string, field: FieldDefinition, valueText?: string, relationPick?: RelationPickIntent) {
+    const name = taskFieldName(field);
+    if (name && name !== 'project') {
+      if (!doc.block(owner)?.task) {
+        const value = newTask();
+        if (name === 'status') value.status = 'todo';
+        const result = doc.edit({ kind: 'task', id: owner, value });
+        if (!result.ok) { setMessage(result.reason); return; }
+      }
+      openTask(owner, name);
+      return;
+    }
     setFilling(owner);
     const state = states().get(owner) ?? stateFor(owner);
     const after = entryAnchor(doc.outline.children(owner), state.entries, state.template, field.id);
@@ -324,6 +352,16 @@ export function createFieldSheet(context: Pick<OutlineContext,
     if (!result.ok) setMessage(result.reason);
   }
   function Area(area: { state: PlacedSheet }) {
+    if (doc.block(area.state.owner)?.task) {
+      const focused = () => dismissedTask() !== area.state.owner && (taskRequest()?.owner === area.state.owner || area.state.owner === props.pageId || selected() === area.state.owner || editing() === area.state.owner);
+      return <Show when={focused()}><div class="field-slots task-field-slots" style={{ '--slot-depth': area.state.depth }} data-field-owner={area.state.owner}>
+        <TaskFieldBed notebook={props.notebook} doc={doc} id={area.state.owner} fields={definitions()} template={area.state.template}
+          contextDate={doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate()} sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches}
+          initialField={taskRequest()?.owner === area.state.owner ? taskRequest()?.field : undefined}
+          onFieldOpened={() => setTaskRequest(request => request?.owner === area.state.owner ? { owner: request.owner } : request)}
+          onDismiss={() => { setTaskRequest(undefined); context.rowFocus(area.state.owner); setDismissedTask(area.state.owner); }} />
+      </div></Show>;
+    }
     const root = () => area.state.owner === props.pageId;
     // A page owner is never selected or edited itself, so its slots stay at rest; nested owners show them only while focused.
     const focused = () => root() || filling() === area.state.owner || belongs(selected(), area.state.owner) || belongs(editing(), area.state.owner);
@@ -354,5 +392,5 @@ export function createFieldSheet(context: Pick<OutlineContext,
       <Show when={instance()}>{value => <RelationPicker anchor={value().anchor} field={value().field} notebook={props.notebook} owner={{ id: value().owner, page: doc.block(value().owner)?.pageId ?? '' }} onDismiss={() => setInstance(null)} onError={setMessage} onPick={intent => { add(value().owner, value().field, `[[${intent.targetId ?? intent.query.trim()}]]`, intent); setInstance(null); }} />}</Show>
     </>;
   }
-  return { FieldSlots, Popups, pick, hover: setHovered, fill, toggle, start, key, advance };
+  return { FieldSlots, Popups, pick, openTask, hover: setHovered, fill, toggle, start, key, advance };
 }

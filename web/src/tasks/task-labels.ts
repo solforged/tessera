@@ -31,6 +31,7 @@ export interface TaskFact {
   text: string;
   /** Full wording for tooltips and assistive technology. */
   label: string;
+  field: 'status' | 'schedule' | 'deadline' | 'priority' | 'repeat';
   late?: boolean;
   /** Set when the fact is a priority word. High is danger; medium and low stay faint. */
   priority?: NonNullable<TaskState['priority']>;
@@ -53,24 +54,24 @@ export const isFinished = (task: TaskState) => task.status === 'done' || task.st
 /** Planning facts in reading order. Finished tasks report only when they were done; status itself is the glyph's job. */
 export function taskFacts(task: TaskState, context: FactContext): TaskFact[] {
   if (task.status === 'cancelled') return [];
-  if (task.status === 'done') return task.completed_on ? [{ text: `done ${relativeDate(task.completed_on, context.today)}`, label: `Done ${task.completed_on}` }] : [];
+  if (task.status === 'done') return task.completed_on ? [{ field: 'status', text: `done ${relativeDate(task.completed_on, context.today)}`, label: `Done ${task.completed_on}` }] : [];
   const facts: TaskFact[] = [];
   if (task.scheduled && !(context.listed && task.scheduled === context.date)) {
     const late = task.scheduled < context.date;
     const time = context.timeShown ? '' : clock(task.scheduled_time);
-    facts.push({ text: late ? `since ${relativeDate(task.scheduled, context.today)}` : `${relativeDate(task.scheduled, context.today)}${time}`, label: `Scheduled ${task.scheduled}${clock(task.scheduled_time)}`, late });
+    facts.push({ field: 'schedule', text: late ? `since ${relativeDate(task.scheduled, context.today)}` : `${relativeDate(task.scheduled, context.today)}${time}`, label: `Scheduled ${task.scheduled}${clock(task.scheduled_time)}`, late });
   }
   if (task.deadline) {
     const late = task.deadline < context.date;
     const listedDay = context.listed && task.deadline === context.date;
     const time = listedDay && context.timeShown ? '' : clock(task.deadline_time);
-    facts.push({ text: listedDay ? `due${time}` : `${late ? 'was due' : 'due'} ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${task.deadline}${clock(task.deadline_time)}`, late });
+    facts.push({ field: 'deadline', text: listedDay ? `due${time}` : `${late ? 'was due' : 'due'} ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${task.deadline}${clock(task.deadline_time)}`, late });
   }
-  if (task.priority) facts.push({ text: priorityNames[task.priority], label: `${priorityNames[task.priority]} priority`, priority: task.priority });
+  if (task.priority) facts.push({ field: 'priority', text: priorityNames[task.priority], label: `${priorityNames[task.priority]} priority`, priority: task.priority });
   if (task.repeater) {
     const { every, unit, mode } = task.repeater;
     const span = every === 1 ? unit : `${every} ${unit}s`;
-    facts.push({ text: `every ${span}`, label: `Repeats every ${span}, ${repeatModes[mode]}` });
+    facts.push({ field: 'repeat', text: `every ${span}`, label: `Repeats every ${span}, ${repeatModes[mode]}` });
   }
   return facts;
 }

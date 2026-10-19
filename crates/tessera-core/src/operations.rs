@@ -267,6 +267,15 @@ impl Notebook {
             crate::sync::finish(&tx, recording, seq, &stamp, batch, extras)?;
         }
         tx.commit()?;
+        if local
+            && committed
+                .capabilities
+                .iter()
+                .any(|caps| caps.task.is_some())
+            && self.task_fields_need_ensure()?
+        {
+            self.ensure_built_in_fields()?;
+        }
         Ok(committed)
     }
 }
@@ -1079,6 +1088,11 @@ impl Engine<'_, '_> {
     fn delete(&mut self, id: &str) -> Result<()> {
         let current = self.live(id)?;
         crate::work_store::guard_hide_subtree(self.tx, id)?;
+        if crate::fields::is_definition(self.tx, id)?
+            && crate::built_in::task_field(&current.block.text).is_some()
+        {
+            return Err(validation("Built-in task fields cannot be deleted."));
+        }
         if current.block.kind == BlockKind::Page {
             if let Some(name) =
                 crate::notes::built_in_tag_name(&crate::storage::title_key(&current.block.text))
@@ -1871,6 +1885,11 @@ impl Engine<'_, '_> {
             } => {
                 crate::fields::require_definition(self.tx, id)?;
                 let current = self.checked(id, *base_revision, index, false)?;
+                if let Some(field) = crate::built_in::task_field(&current.block.text)
+                    && field.kind != *kind
+                {
+                    return Err(validation("Built-in task field formats cannot change."));
+                }
                 self.tx.execute("INSERT INTO fields(block_id, kind) VALUES (?1, ?2) ON CONFLICT(block_id) DO UPDATE SET kind = excluded.kind",
                     params![id, kind.as_str()])?;
                 // A built-in field that becomes a relation links to its built-in types at once, as opening would.

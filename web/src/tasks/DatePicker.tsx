@@ -22,11 +22,13 @@ export interface DatePickerProps {
   presets?: 'revisit';
   /** Omit for date-only values; null enables an optional time. */
   time?: string | null;
+  /** Only the Deadline editor supplies a warning lead. */
+  warningDays?: number | null;
   contextDate: string;
   /** Related dates shown on the calendar, such as the deadline while scheduling. */
   marks?: Record<string, string>;
   onDismiss(): void;
-  onSelect(value: { date: string | null; time: string | null }): void | Promise<void>;
+  onSelect(value: { date: string | null; time: string | null; warning_days?: number | null }): void | Promise<void>;
   /** Field filling commits a valid draft before moving to the next or previous slot. */
   onAdvance?(backward: boolean): void;
 }
@@ -35,6 +37,7 @@ export function DatePicker(props: DatePickerProps) {
   const id = createUniqueId();
   const [date, setDate] = createSignal(props.initialQuery ?? props.value ?? '');
   const [time, setTime] = createSignal(props.time ?? '');
+  const [warning, setWarning] = createSignal(props.warningDays == null ? '' : String(props.warningDays));
   const [error, setError] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   let active = true;
@@ -48,12 +51,14 @@ export function DatePicker(props: DatePickerProps) {
 
   const select = async (value: { date: string | null; time: string | null }, backward?: boolean) => {
     if (busy()) return;
+    const lead = warning().trim() ? Number(warning()) : null;
+    if (props.warningDays !== undefined && lead !== null && (!/^\d+$/.test(warning()) || !Number.isSafeInteger(lead) || lead > 4_294_967_295)) { setError('Enter a nonnegative whole number of days.'); return; }
     setBusy(true);
     setError('');
     const draftDate = date();
     const draftTime = time();
     try {
-      await props.onSelect(value);
+      await props.onSelect({ ...value, ...(props.warningDays !== undefined ? { warning_days: value.date ? lead : null } : {}) });
       if (active) {
         props.onDismiss();
         if (backward !== undefined) props.onAdvance?.(backward);
@@ -151,6 +156,7 @@ export function DatePicker(props: DatePickerProps) {
             }} />
           </div>
         </Show>
+        <Show when={props.warningDays !== undefined}><label class="date-picker-field">Warning lead (days)<input class="input" inputmode="numeric" value={warning()} placeholder="None" disabled={busy()} onInput={event => setWarning(event.currentTarget.value)} /></label></Show>
         <Show when={error()}><p id={`${id}-error`} class="error date-picker-error" role="alert">{error()}</p></Show>
         <div class="date-picker-actions">
           <Button disabled={busy()} onClick={() => { void select({ date: null, time: null }); }}>{props.presets === 'revisit' ? 'No revisit date' : 'Clear'}</Button>

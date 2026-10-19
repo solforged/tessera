@@ -55,7 +55,7 @@ test('project assignment creates an instance field and adds, replaces, removes, 
     await ready(fieldsDoc);
     const field = await ensureField(notebook, 'Project', 'instance');
     expect(field.kind).toBe('instance');
-    expect((await api.fields()).fields.filter(value => value.name === 'Project')).toHaveLength(1);
+    expect((await api.fields()).fields.filter(value => value.name.toLowerCase() === 'project')).toHaveLength(1);
     expect((await ensureField(notebook, 'Project', 'instance')).id).toBe(field.id);
     fieldsDoc.release();
     const doc = notebook.open(journal);

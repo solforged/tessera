@@ -60,7 +60,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   const quoteStatus = createQuoteStatus(doc, props.notebook);
   const taskProjects = createTaskProjects(doc, props.notebook);
   /**
-   * A task's trailing facts: subtask progress, a running clock, then planning in mono, which opens the planning slip.
+   * A task's trailing facts: subtask progress, a running clock, then planning in mono, which opens its field bed.
    * An open task with no plan offers Plan only while its row is hovered or selected; a finished one says when it was done.
    */
   function TaskSummary(propsTask: { id: string }) {
@@ -93,7 +93,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       <Show when={!isFinished(value())} fallback={<For each={facts()}>{fact => <span class="outline-task-facts" title={fact.label}>{fact.text}</span>}</For>}>
         <Button class={`outline-planning outline-task-facts${facts().length ? '' : ' outline-plan-empty'}${advanced() ? ' outline-task-advanced' : ''}`} label={facts().length ? `Plan task: ${facts().map(fact => fact.label).join(', ')}` : 'Plan task'} disabled={capabilities.busy(propsTask.id)} aria-haspopup="dialog" onClick={event => capabilities.open(propsTask.id, 'task', event.currentTarget)}>
           <Show when={facts().length} fallback={<><Icon name="calendar" />Plan</>}>
-            <For each={facts()}>{fact => <Show when={fact.priority} fallback={<span classList={{ 'outline-task-late': !!fact.late }} title={fact.label}>{fact.text}</span>}>{priority => <span class="outline-task-priority" data-priority={priority()} title={fact.label}>{fact.text}</span>}</Show>}</For>
+            <For each={facts()}>{fact => <span onClick={event => { event.stopPropagation(); capabilities.open(propsTask.id, fact.field, event.currentTarget); }}><Show when={fact.priority} fallback={<span classList={{ 'outline-task-late': !!fact.late }} title={fact.label}>{fact.text}</span>}>{priority => <span class="outline-task-priority" data-priority={priority()} title={fact.label}>{fact.text}</span>}</Show></span>}</For>
           </Show>
         </Button>
       </Show>

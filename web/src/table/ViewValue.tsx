@@ -9,6 +9,8 @@ import { createOptionValue } from '../fields/commands';
 import { BlockText } from '../outline/BlockText';
 import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
 import { fieldEntryId } from './query';
+import { TaskFieldEditor } from '../tasks/TaskFieldEditor';
+import { taskFieldName } from '../tasks/task-fields';
 
 /** Shared value blocks, kind pickers and one commit boundary for live view cells. */
 export function ViewValue(props: {
@@ -22,7 +24,12 @@ export function ViewValue(props: {
   const [valueId, setValueId] = createSignal<string>();
   const [picker, setPicker] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
-  const values = createMemo(() => {
+  const taskField = () => {
+    const name = taskFieldName(props.field);
+    return name === 'project' && !props.field.id.startsWith('@') && !props.doc?.block(props.row.block.block.id)?.task ? undefined : name;
+  };
+  const values = createMemo<{ id?: string; text: string }[]>(() => {
+    if (taskField()) return props.row.attributes?.[props.field.id] ?? props.row.values[props.field.id] ?? [];
     const doc = props.doc;
     doc?.outline.version(); doc?.archivedVersion();
     if (doc?.status() !== 'ready') return props.row.values[props.field.id] ?? [];
@@ -64,6 +71,10 @@ export function ViewValue(props: {
   }
   function start(id?: string, filling = false) {
     if (busy()) return;
+    if (taskField()) {
+      if (props.doc?.status() !== 'ready') { props.onError('The atom is still loading.'); return; }
+      setPicker(true); return;
+    }
     const value = id ? values().find(value => value.id === id) : values()[0];
     setValueId(value?.id);
     const text = value?.text ?? '';
@@ -92,6 +103,6 @@ export function ViewValue(props: {
     <Show when={editing() !== null} fallback={<Show when={values().some(value => value.text.trim())} fallback={<span class="view-value-empty">Add {props.field.name}</span>}><For each={values()}>{value => <button type="button" class="criteria-value" onClick={event => { event.stopPropagation(); start(value.id); }}><BlockText text={value.text} blockId={value.id} notebook={props.notebook} interactive={false} /></button>}</For></Show>}>
       <CriteriaCellEditor id={valueId() ?? props.row.block.block.id} text={editing() ?? ''} label={`Edit ${props.field.name} value`} notebook={props.notebook} onCommit={(text, focus, quote) => void write(text, focus, quote)} onCancel={() => finish()} onTab={props.onFill ? (text, direction, quote) => void write(text, false, quote, direction) : undefined} />
     </Show>
-    <Show when={picker()}><ValueEditor anchor={host} field={props.field} owner={{ id: props.row.block.block.id, page: props.row.block.page.id }} text={values().find(value => value.id === valueId())?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={(text, relationPick) => write(text, true, undefined, undefined, undefined, relationPick)} onCreateOption={text => write('', true, undefined, undefined, text)} onError={props.onError} onDismiss={() => finish()} /></Show>
+    <Show when={picker()}><Show when={taskField()} fallback={<ValueEditor anchor={host} field={props.field} owner={{ id: props.row.block.block.id, page: props.row.block.page.id }} text={values().find(value => value.id === valueId())?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={(text, relationPick) => write(text, true, undefined, undefined, undefined, relationPick)} onCreateOption={text => write('', true, undefined, undefined, text)} onError={props.onError} onDismiss={() => finish()} />}>{field => <TaskFieldEditor doc={props.doc!} notebook={props.notebook} id={props.row.block.block.id} field={field()} anchor={host} contextDate={props.notebook.todayDate()} onSaved={() => props.onEdited(props.doc!)} onDismiss={() => finish()} />}</Show></Show>
   </div>;
 }

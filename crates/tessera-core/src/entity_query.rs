@@ -3,6 +3,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use rusqlite::Connection;
 
+use crate::calendar::{RepeatMode, RepeatUnit};
 use crate::reads::hidden_blocks;
 use crate::storage::validation;
 use crate::{
@@ -48,9 +49,12 @@ pub(crate) fn attributes(source: QuerySource) -> Vec<QueryAttribute> {
         ],
         QuerySource::Tasks => &[
             ("@status", "Status", Choice),
-            ("@due", "Due", Date),
             ("@scheduled", "Scheduled", Date),
+            ("@deadline", "Deadline", Date),
+            ("@priority", "Priority", Choice),
+            ("@repeat", "Repeat", Text),
             ("@project", "Project", Instance),
+            ("@due", "Deadline", Date),
         ],
         QuerySource::Highlights => &[("@source", "Source", Instance), ("@color", "Color", Choice)],
     };
@@ -79,7 +83,14 @@ pub(crate) fn default_columns(
         QuerySource::Questions => &["@state", "@parent", "@readings", "@current", "@revisit"],
         QuerySource::Positions => &["@holder", "@subject", "gist", "work"],
         QuerySource::Sources => &["@creator", "published", "@cited_by"],
-        QuerySource::Tasks => &["@status", "@due", "@scheduled", "@project"],
+        QuerySource::Tasks => &[
+            "@status",
+            "@scheduled",
+            "@deadline",
+            "@priority",
+            "@repeat",
+            "@project",
+        ],
         QuerySource::Highlights => &["@source", "@color"],
     };
     keys.iter()
@@ -137,6 +148,62 @@ fn instance(attrs: &mut Attributes, key: &str, id: &str, titles: &HashMap<String
     }
 }
 
+/// Canonical task readings shared by entity attributes and built-in field definitions.
+fn task_attributes(attrs: &mut Attributes, task: &crate::TaskState) {
+    if let Some(status) = task.status {
+        text(
+            attrs,
+            "@status",
+            match status {
+                crate::TaskStatus::Todo => "todo",
+                crate::TaskStatus::Doing => "doing",
+                crate::TaskStatus::Waiting => "waiting",
+                crate::TaskStatus::Done => "done",
+                crate::TaskStatus::Cancelled => "cancelled",
+            },
+        );
+    }
+    if let Some(priority) = task.priority {
+        text(
+            attrs,
+            "@priority",
+            match priority {
+                crate::TaskPriority::High => "high",
+                crate::TaskPriority::Medium => "medium",
+                crate::TaskPriority::Low => "low",
+            },
+        );
+    }
+    if let Some(date) = &task.deadline {
+        text(attrs, "@due", date);
+        text(attrs, "@deadline", date);
+    }
+    if let Some(date) = &task.scheduled {
+        text(attrs, "@scheduled", date);
+    }
+    if let Some(repeat) = &task.repeater {
+        let mode = match repeat.mode {
+            RepeatMode::Fixed => "Fixed",
+            RepeatMode::CatchUp => "Catch up",
+            RepeatMode::AfterCompletion => "After completion",
+        };
+        let unit = match repeat.unit {
+            RepeatUnit::Day => "day",
+            RepeatUnit::Week => "week",
+            RepeatUnit::Month => "month",
+            RepeatUnit::Year => "year",
+        };
+        text(
+            attrs,
+            "@repeat",
+            format!(
+                "{mode} · {} {unit}{}",
+                repeat.every,
+                if repeat.every == 1 { "" } else { "s" }
+            ),
+        );
+    }
+}
 /// References are scoped to the selected block's subtree, not its containing page.
 /// Distinct sets keep multiple citations of one source from inflating counts.
 fn references(
@@ -330,21 +397,7 @@ impl Notebook {
                     }
                     let enclosing = outer.remove(&row.source.block.id).unwrap_or_default();
                     let attrs = entities.entry(row.source.block.id).or_default();
-                    if let Some(status) = row.task.status {
-                        text(
-                            attrs,
-                            "@status",
-                            match status {
-                                crate::TaskStatus::Todo => "todo",
-                                crate::TaskStatus::Doing => "doing",
-                                crate::TaskStatus::Waiting => "waiting",
-                                crate::TaskStatus::Done => "done",
-                                crate::TaskStatus::Cancelled => "cancelled",
-                            },
-                        );
-                    }
-                    optional(attrs, "@due", row.task.deadline);
-                    optional(attrs, "@scheduled", row.task.scheduled);
+                    task_attributes(attrs, &row.task);
                     // The task's own project leads; enclosing projects follow, as a project's task query includes them.
                     if let Some(id) = row.project_id {
                         instance(attrs, "@project", &id, &titles);
@@ -504,18 +557,35 @@ impl Notebook {
             HashMap::new()
         };
         let ids: Vec<_> = rows.iter().map(|row| row.block.block.id.clone()).collect();
-        let notes: HashMap<_, _> = if source == QuerySource::Notes {
-            crate::task_store::capabilities_for(&self.conn, &ids)?
-                .into_iter()
-                .map(|caps| (caps.block_id.clone(), caps))
-                .collect()
-        } else {
-            HashMap::new()
-        };
+        let notes: HashMap<_, _> = crate::task_store::capabilities_for(&self.conn, &ids)?
+            .into_iter()
+            .map(|caps| (caps.block_id.clone(), caps))
+            .collect();
+        let task_fields: Vec<_> = crate::fields::definitions(&self.conn)?
+            .into_iter()
+            .filter(|field| {
+                field.name != "project" && crate::built_in::task_field(&field.name).is_some()
+            })
+            .map(|field| {
+                let key = format!("@{}", field.name);
+                (field.id, key)
+            })
+            .collect();
         for row in rows {
             let attrs = &mut row.attributes;
             for attribute in &metadata {
                 attrs.entry(attribute.key.clone()).or_default();
+            }
+            if let Some(task) = notes
+                .get(&row.block.block.id)
+                .and_then(|caps| caps.task.as_ref())
+                && source != QuerySource::Tasks
+            {
+                task_attributes(attrs, task);
+            }
+            for (id, key) in &task_fields {
+                let values = attrs.get(key).cloned().unwrap_or_default();
+                attrs.insert(id.clone(), values);
             }
             text(attrs, "@title", &row.block.block.text);
             push(
@@ -618,7 +688,7 @@ pub(crate) fn groups(query: &Query, rows: &[QueryRow]) -> Vec<QueryGroup> {
     };
     let mut groups = HashMap::<String, QueryGroup>::new();
     for row in rows {
-        let values: Vec<_> = if grouping.key.starts_with('@') {
+        let values: Vec<_> = if row.attributes.contains_key(&grouping.key) {
             row.attributes
                 .get(&grouping.key)
                 .into_iter()

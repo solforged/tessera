@@ -1,3 +1,4 @@
+import { taskFieldName, taskFieldFormat } from '../tasks/task-fields';
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { api } from '../api/client';
 import type { FieldKind, FieldSummary, Fields } from '../api/types';
@@ -149,7 +150,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
                 }
               }}>
                 <td data-label="Name"><Button class="field-name" title={`Open ${field.name} · ${besideHint}`} onClick={event => selectDefinition(field, opensBeside(event), event.detail === 0)}>{field.name}</Button></td>
-                <td data-label="Format"><Button class="fields-kind-button" aria-label={`Format for ${field.name}: ${kindLabels[field.kind]}`} aria-haspopup="menu" aria-expanded={kindMenu()?.field.id === field.id} disabled={!ready()} onClick={event => setKindMenu({ field, anchor: event.currentTarget })}>{kindLabels[field.kind]} <Icon name="down" /></Button></td>
+                <td data-label="Format"><Button class="fields-kind-button" aria-label={`Format for ${field.name}: ${taskFieldFormat(field) ?? kindLabels[field.kind]}`} aria-haspopup="menu" aria-expanded={kindMenu()?.field.id === field.id} disabled={!ready() || !!taskFieldName(field)} onClick={event => setKindMenu({ field, anchor: event.currentTarget })}>{taskFieldFormat(field) ?? kindLabels[field.kind]} <Show when={!taskFieldName(field)}><Icon name="down" /></Show></Button></td>
                 <td data-label="Used by" class="fields-count"><Show when={field.owners} fallback={<span class="fields-unused" title="No atom uses this field yet">Unused</span>}><Button label={`Show atoms with ${field.name}`} title={`Atoms using ${field.name}: ${field.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: field.id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{field.owners}</Button></Show></td>
                 <td data-label="Templates"><div class="fields-types"><For each={field.types} fallback={<span class="fields-unused">None</span>}>{type => <button type="button" class="outline-tag" title={`Open ${type.name} table · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: type.id, viewId: null, query: typeQuery(type.id) }, opensBeside(event))}>#{type.name}</button>}</For></div></td>
               </tr>}</For>

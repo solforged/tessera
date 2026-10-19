@@ -1,7 +1,5 @@
 import { Show, createEffect, createMemo, createSignal, on } from 'solid-js';
 import type { TaskState, TaskStatus } from '../api/types';
-import type { NotebookClient, PageDocument } from '../document/contract';
-import { TaskProjectControl } from '../projects/TaskProjectControl';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
@@ -9,9 +7,6 @@ import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
-import { DatePicker } from './DatePicker';
-
-import { planTask } from './task-labels';
 import './task-controls.css';
 
 export const statuses: TaskStatus[] = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
@@ -29,7 +24,7 @@ type Priority = TaskState['priority'];
 type Repeater = NonNullable<TaskState['repeater']>;
 export const priorities: Priority[] = [null, 'high', 'medium', 'low'];
 export const priorityLabel = (value: Priority) => value === null ? 'None' : value === 'high' ? 'High' : value === 'medium' ? 'Medium' : 'Low';
-/** The same checked priority choices in the Planning slip and task lists. */
+/** The same checked priority choices in field beds and task lists. */
 export function priorityMenuItems(value: Priority, choose: (priority: Priority) => void, disabledReason?: string): MenuItem[] {
   return priorities.map(priority => ({ label: priorityLabel(priority), checked: value === priority, disabledReason, action: () => choose(priority) }));
 }
@@ -39,7 +34,6 @@ const repeatUnits: Repeater['unit'][] = ['day', 'week', 'month', 'year'];
 const unitLabels: Record<Repeater['unit'], string> = { day: 'Day', week: 'Week', month: 'Month', year: 'Year' };
 const maxCount = 4_294_967_295;
 const errorMessage = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
-const dateLabel = (date: string | null, time: string | null) => date ? `${date}${time ? ` ${time}` : ''}` : 'None';
 
 /** The task glyph. A click completes or reopens; the context menu or ⌘⇧Enter chooses any status. */
 export function TaskStatusButton(props: { task: TaskState | null; disabled?: boolean; onRestoreFocus?(): void; onChange(status: TaskStatus | null): void | Promise<void> }) {
@@ -77,95 +71,6 @@ export function TaskStatusButton(props: { task: TaskState | null; disabled?: boo
   </span></Show>;
 }
 
-type TaskPopup = { kind: 'scheduled' | 'deadline' | 'warning' | 'priority' | 'repeat'; anchor: HTMLElement };
-
-/** `work` adds a Work row that opens the task's work sessions, saying whether its clock is running. */
-export function TaskControls(props: { notebook: NotebookClient; doc: PageDocument; id: string; task: TaskState; contextDate: string; disabled?: boolean; work?: { since: string | null; open(anchor: HTMLElement): void }; onChange(value: TaskState): void | Promise<void> }) {
-  const [popup, setPopup] = createSignal<TaskPopup | null>(null);
-  const [busy, setBusy] = createSignal(false);
-  const [failure, setFailure] = createSignal<{ priority: Priority; message: string } | null>(null);
-  const blocked = () => !!props.disabled || busy();
-  const warningLabel = createMemo(() => props.task.warning_days === null ? 'None' : `${props.task.warning_days} days`);
-  const repeatDescription = createMemo(() => {
-    const value = props.task.repeater;
-    return value ? `${repeatLabels[value.mode]} · ${value.every} ${value.unit}${value.every === 1 ? '' : 's'}` : 'None';
-  });
-  const dismiss = (state: TaskPopup) => { if (!busy() && popup() === state) setPopup(null); };
-  const open = (kind: TaskPopup['kind'], anchor: HTMLElement) => { if (!blocked()) setPopup({ kind, anchor }); };
-  const change = async (patch: Partial<TaskState>) => {
-    if (blocked()) throw new Error('Task is unavailable.');
-    setBusy(true);
-    try { await props.onChange(planTask(props.task, patch, props.contextDate)); }
-    finally { setBusy(false); }
-  };
-  const changePriority = async (priority: Priority) => {
-    if (blocked()) return;
-    setFailure(null);
-    try { await change({ priority }); }
-    catch (reason) { setFailure({ priority, message: errorMessage(reason) }); }
-  };
-  return <div class="task-controls" role="group" aria-label="Task planning" aria-busy={busy()}>
-    <Button class="task-metadata task-planning-row" label={`Scheduled: ${dateLabel(props.task.scheduled, props.task.scheduled_time)}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'scheduled'} onClick={event => open('scheduled', event.currentTarget)}>
-      <span class="task-planning-label">Scheduled</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': !props.task.scheduled }}>{dateLabel(props.task.scheduled, props.task.scheduled_time)}</span>
-    </Button>
-    <Button class="task-metadata task-planning-row" label={`Deadline: ${dateLabel(props.task.deadline, props.task.deadline_time)}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'deadline'} onClick={event => open('deadline', event.currentTarget)}>
-      <span class="task-planning-label">Deadline</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': !props.task.deadline }}>{dateLabel(props.task.deadline, props.task.deadline_time)}</span>
-    </Button>
-    <Button class="task-metadata task-planning-row" label={`Priority: ${priorityLabel(props.task.priority)}`} disabled={blocked()} aria-haspopup="menu" aria-expanded={popup()?.kind === 'priority'} onClick={event => open('priority', event.currentTarget)}>
-      <span class="task-planning-label">Priority</span><span class="task-metadata-value task-planning-value task-planning-priority" classList={{ 'task-planning-empty': !props.task.priority }}>{priorityLabel(props.task.priority)}</span>
-    </Button>
-    <TaskProjectControl notebook={props.notebook} doc={props.doc} id={props.id} disabled={blocked()} />
-    <Button class="task-metadata task-planning-row" label={`Repeat: ${repeatDescription()}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'repeat'} onClick={event => open('repeat', event.currentTarget)}>
-      <span class="task-planning-label">Repeat</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': !props.task.repeater }}>{repeatDescription()}</span>
-    </Button>
-    <Show when={props.task.deadline}>
-      <Button class="task-metadata task-planning-row" label={`Deadline warning: ${warningLabel()}`} disabled={blocked()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'warning'} onClick={event => open('warning', event.currentTarget)}>
-        <span class="task-planning-label">Warning</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': props.task.warning_days === null }}>{warningLabel()}</span>
-      </Button>
-    </Show>
-    <Show when={props.work}>{work => <Button class="task-metadata task-planning-row" label={work().since ? `Work: running since ${work().since}` : 'Work: not running'} aria-haspopup="dialog" onClick={event => work().open(event.currentTarget)}>
-      <span class="task-planning-label">Work</span><span class="task-metadata-value task-planning-value" classList={{ 'task-planning-empty': !work().since, 'task-planning-running': !!work().since }}>{work().since ? `Running since ${work().since}` : 'Not running'}</span>
-    </Button>}</Show>
-    <Show keyed when={failure()}>{state => <span class="task-control-error" role="alert">
-      <span>Priority: {priorityLabel(state.priority)} · {state.message}</span>
-      <Button disabled={blocked()} label={`Retry priority: ${priorityLabel(state.priority)}`} onClick={() => { void changePriority(state.priority); }}>Retry</Button>
-    </span>}</Show>
-    <Show keyed when={popup()}>{state => <>
-      {(state.kind === 'scheduled' || state.kind === 'deadline') && <DatePicker notebook={props.notebook} anchor={state.anchor} label={state.kind === 'scheduled' ? 'Scheduled' : 'Deadline'} value={props.task[state.kind]} time={state.kind === 'scheduled' ? props.task.scheduled_time : props.task.deadline_time} contextDate={props.notebook.todayDate()}
-        marks={state.kind === 'scheduled' ? props.task.deadline ? { [props.task.deadline]: 'Deadline' } : undefined : props.task.scheduled ? { [props.task.scheduled]: 'Scheduled' } : undefined} onDismiss={() => dismiss(state)} onSelect={async value => {
-        if (state.kind === 'scheduled') await change({ scheduled: value.date, scheduled_time: value.date ? value.time : null });
-        else await change({ deadline: value.date, deadline_time: value.date ? value.time : null, warning_days: value.date ? props.task.warning_days : null });
-      }} />}
-      {state.kind === 'priority' && <Menu anchor={state.anchor} label="Priority" onDismiss={() => dismiss(state)} items={priorityMenuItems(props.task.priority, priority => { void changePriority(priority); }, blocked() ? 'Task is unavailable.' : undefined)} />}
-      {state.kind === 'warning' && <WarningPopup anchor={state.anchor} value={props.task.warning_days} disabled={blocked() || !props.task.deadline} onDismiss={() => dismiss(state)} onSave={warning_days => change({ warning_days })} />}
-      {state.kind === 'repeat' && <RepeatPopup anchor={state.anchor} value={props.task.repeater} firstDate={props.task.scheduled || props.task.deadline ? undefined : props.contextDate} disabled={blocked()} onDismiss={() => dismiss(state)} onSave={repeater => change({ repeater })} />}
-    </>}</Show>
-  </div>;
-}
-
-function WarningPopup(props: { anchor: PopupAnchor; value: number | null; disabled: boolean; onDismiss(): void; onSave(value: number | null): Promise<void> }) {
-  const [days, setDays] = createSignal(props.value === null ? '' : String(props.value));
-  const [busy, setBusy] = createSignal(false);
-  const [error, setError] = createSignal('');
-  const blocked = () => props.disabled || busy();
-  const submit = async () => {
-    if (blocked()) return;
-    const text = days().trim();
-    const value = text ? Number(text) : null;
-    if (value !== null && (!/^\d+$/.test(text) || !Number.isSafeInteger(value) || value > maxCount)) { setError('Enter a nonnegative whole number of days, or leave blank for None.'); return; }
-    setBusy(true); setError('');
-    try { await props.onSave(value); setBusy(false); props.onDismiss(); }
-    catch (reason) { setError(errorMessage(reason)); }
-    finally { setBusy(false); }
-  };
-  return <Popup anchor={props.anchor} label="Deadline warning" class="task-control-popup" fitContent onDismiss={() => { if (!busy()) props.onDismiss(); }}>
-    <form class="task-control-form" aria-busy={busy()} onSubmit={event => { event.preventDefault(); void submit(); }}>
-      <label class="task-control-field">Warning lead (days)<input class="input" inputmode="numeric" value={days()} disabled={blocked()} placeholder="None" onInput={event => setDays(event.currentTarget.value)} /></label>
-      <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
-      <div class="popup-actions"><Button disabled={blocked()} onClick={() => { setDays(''); void submit(); }}>Clear</Button><Button disabled={busy()} onClick={props.onDismiss}>Cancel</Button><Button type="submit" class="bordered" disabled={blocked()}>Apply</Button></div>
-    </form>
-  </Popup>;
-}
 
 const repeatHints: Record<Repeater['mode'], string> = {
   fixed: 'Moves one interval from the planned date, even if that is still past.',

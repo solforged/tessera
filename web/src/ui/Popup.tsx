@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onMount, Show } from 'solid-js';
+import { createContext, useContext, createEffect, createSignal, onCleanup, onMount, Show } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { visualViewportBounds } from './visual-viewport';
@@ -29,6 +29,11 @@ export interface PopupProps {
   fixedSize?: boolean;
   /** Defaults to the first input or enabled button. false retains editor focus. */
   autofocus?: boolean;
+}
+/** A sheet owns one popup surface; its editors render in that surface rather than opening another. */
+const InlinePopupContext = createContext(false);
+export function InlinePopups(props: { children: JSX.Element }) {
+  return <InlinePopupContext.Provider value={true}>{props.children}</InlinePopupContext.Provider>;
 }
 const stack: symbol[] = [];
 let mountVersion = 0;
@@ -96,6 +101,7 @@ function retirePanel(panel: HTMLDivElement) {
 
 /** Mount conditionally. Only the topmost popup owns Escape and outside clicks. */
 export function Popup(props: PopupProps) {
+  if (useContext(InlinePopupContext)) return <div class={`popup-inline ${props.class ?? ''}`} role={props.role ?? 'group'} aria-label={props.label}>{props.children}</div>;
   const token = Symbol('popup');
   let panel!: HTMLDivElement;
   const [position, setPosition] = createSignal<{ left: number; top: number; height: number; visible: boolean; clipped?: boolean }>({ left: 8, top: 8, height: 0, visible: false });

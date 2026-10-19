@@ -425,9 +425,12 @@ impl Notebook {
                  AND trim(v.text, ' ' || char(9) || char(10) || char(13)) <> '')"))?;
         crate::built_in::required_fields(&self.conn, &page.text, template)?
             .into_iter()
-            .map(|(field_id, _)| {
-                let count =
-                    missing.query_row(params![page.id, field_id], |row| row.get::<_, i64>(0))?;
+            .map(|(field_id, name)| {
+                let count = if page.text.eq_ignore_ascii_case("task") && name == "status" {
+                    0
+                } else {
+                    missing.query_row(params![page.id, field_id], |row| row.get::<_, i64>(0))?
+                };
                 Ok(RequiredField {
                     field_id,
                     missing: count as usize,
@@ -536,7 +539,15 @@ impl Notebook {
                         || defs[filter.field.as_str()].kind,
                         |attribute| attribute.kind,
                     );
-                PreparedFilter::new(&self.conn, filter, kind)
+                PreparedFilter::new(
+                    &self.conn,
+                    filter,
+                    kind,
+                    defs.get(filter.field.as_str()).is_some_and(|field| {
+                        field.name != "project"
+                            && crate::built_in::task_field(&field.name).is_some()
+                    }),
+                )
             })
             .collect::<Result<Vec<_>>>()?;
         let present_owners = filters.iter().find_map(|filter| filter.owners.as_ref());
@@ -545,7 +556,11 @@ impl Notebook {
             && query.text.is_none()
             && !query.selects_notes()
             && entities.is_none()
-        {
+            && !query.filters.iter().any(|filter| {
+                defs.get(filter.field.as_str()).is_some_and(|field| {
+                    field.name != "project" && crate::built_in::task_field(&field.name).is_some()
+                })
+            }) {
             let mut owners = HashSet::new();
             let mut entries = self.conn.prepare_cached(concat!(
                 hidden_blocks!(),
@@ -806,50 +821,58 @@ struct PreparedFilter<'a> {
     number: Option<f64>,
     span: Option<crate::YearSpan>,
     instance: bool,
+    projected: bool,
     owners: Option<HashSet<String>>,
 }
 impl<'a> PreparedFilter<'a> {
-    fn new(conn: &Connection, filter: &'a Filter, kind: FieldKind) -> Result<Self> {
-        let owners = if filter.op == FilterOp::Present && !filter.field.starts_with('@') {
-            let mut owners = HashSet::new();
-            let mut statement = conn.prepare_cached(concat!(
-                hidden_blocks!(),
-                "SELECT e.text, e.parent_id FROM links l
+    fn new(
+        conn: &Connection,
+        filter: &'a Filter,
+        kind: FieldKind,
+        projected: bool,
+    ) -> Result<Self> {
+        let owners =
+            if filter.op == FilterOp::Present && !filter.field.starts_with('@') && !projected {
+                let mut owners = HashSet::new();
+                let mut statement = conn.prepare_cached(concat!(
+                    hidden_blocks!(),
+                    "SELECT e.text, e.parent_id FROM links l
                  JOIN blocks e ON e.id = l.source_id
                  JOIN blocks o ON o.id = e.parent_id
                  WHERE l.target_id = ?1 AND e.deletion_id IS NULL AND o.deletion_id IS NULL
                  AND e.rowid NOT IN (SELECT rowid FROM hidden)"
-            ))?;
-            let mut cursor = statement.query([&filter.field])?;
-            while let Some(row) = cursor.next()? {
-                let text = row.get_ref(0)?.as_str().map_err(|error| {
-                    rusqlite::Error::FromSqlConversionFailure(
-                        0,
-                        rusqlite::types::Type::Text,
-                        Box::new(error),
-                    )
-                })?;
-                if crate::fields::reference(text) != Some(filter.field.as_str()) {
-                    continue;
+                ))?;
+                let mut cursor = statement.query([&filter.field])?;
+                while let Some(row) = cursor.next()? {
+                    let text = row.get_ref(0)?.as_str().map_err(|error| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            0,
+                            rusqlite::types::Type::Text,
+                            Box::new(error),
+                        )
+                    })?;
+                    if crate::fields::reference(text) != Some(filter.field.as_str()) {
+                        continue;
+                    }
+                    let owner = row.get_ref(1)?.as_str().map_err(|error| {
+                        rusqlite::Error::FromSqlConversionFailure(
+                            1,
+                            rusqlite::types::Type::Text,
+                            Box::new(error),
+                        )
+                    })?;
+                    if !owners.contains(owner) {
+                        owners.insert(owner.to_owned());
+                    }
                 }
-                let owner = row.get_ref(1)?.as_str().map_err(|error| {
-                    rusqlite::Error::FromSqlConversionFailure(
-                        1,
-                        rusqlite::types::Type::Text,
-                        Box::new(error),
-                    )
-                })?;
-                if !owners.contains(owner) {
-                    owners.insert(owner.to_owned());
-                }
-            }
-            Some(owners)
-        } else {
-            None
-        };
+                Some(owners)
+            } else {
+                None
+            };
         Ok(Self {
             filter,
             owners,
+            projected,
             instance: kind == FieldKind::Instance,
             value: if kind == FieldKind::Date {
                 crate::entity_query::relative_date(
@@ -874,7 +897,7 @@ impl<'a> PreparedFilter<'a> {
         })
     }
     fn matches(&self, row: &QueryRow) -> bool {
-        let (empty, matched) = if self.filter.field.starts_with('@') {
+        let (empty, matched) = if self.filter.field.starts_with('@') || self.projected {
             let values = row
                 .attributes
                 .get(&self.filter.field)
@@ -917,7 +940,7 @@ impl<'a> PreparedFilter<'a> {
             return true;
         }
         match self.filter.op {
-            FilterOp::Present if self.filter.field.starts_with('@') => !empty,
+            FilterOp::Present if self.filter.field.starts_with('@') || self.projected => !empty,
             FilterOp::Present => self
                 .owners
                 .as_ref()
@@ -1019,12 +1042,14 @@ fn sort_value(
         SortBy::Field => {
             let field = key.field.as_deref()?;
             let definition = definitions.get(field);
-            let value = if field.starts_with('@') {
+            let value = if row.attributes.contains_key(field) {
                 &row.attributes.get(field)?.first()?.reading
             } else {
                 &row.values.get(field)?.first()?.reading
             };
-            if definition.is_some_and(|definition| definition.kind == FieldKind::Choice) {
+            if !row.attributes.contains_key(field)
+                && definition.is_some_and(|definition| definition.kind == FieldKind::Choice)
+            {
                 return Some(match value {
                     Reading::Value {
                         target: Some(target),

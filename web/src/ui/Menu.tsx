@@ -41,6 +41,8 @@ export function Menu(props: {
   /** A short mono line under the title naming what the menu acts on. */
   context?: JSX.Element;
   header?: JSX.Element; placement?: PopupPlacement; class?: string; onDismiss(): void;
+  /** Editors retain the menu until their revision-checked write succeeds. */
+  closeOnSelect?: boolean;
 }) {
   const reasonId = createUniqueId();
   const [pages, setPages] = createSignal<{ page: MenuPage; from: number }[]>([]);
@@ -65,7 +67,8 @@ export function Menu(props: {
   const run = (item: MenuItem, index: number, event?: MouseEvent | KeyboardEvent) => {
     if (item.disabledReason) return;
     if (item.submenu) { open(item, index, !(event instanceof MouseEvent) || event.detail === 0); return; }
-    props.onDismiss(); item.action?.(event);
+    if (props.closeOnSelect !== false) props.onDismiss();
+    item.action?.(event);
   };
   // A titled menu's head may carry controls (Copy ID); keyboard focus still starts on the first row. Touch screens start
   // with none, so the sheet doesn't open with a row already lit.
