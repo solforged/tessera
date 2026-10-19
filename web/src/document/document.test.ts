@@ -733,6 +733,144 @@ describe('real notebook operations and recovery', () => {
     doc.release();
   });
 
+  test('queued splits rebase both halves, continuations and history bounds through tag receipts', async () => {
+    const instance = await client();
+    const { id, doc, first } = await page(instance, 'base');
+    const a = `SplitLeft${++serial}`, b = `SplitRight${++serial}`;
+    const text = `QA #${a} middle #${b} tail`, offset = text.indexOf(' middle');
+    const before = { id: first, offset, range: { anchor: { id: first, offset: 0 }, head: { id: first, offset: text.length } } };
+    const received = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const submit = instance.api.submitFrozen;
+    const requests: Batch[] = [];
+    instance.api.submitFrozen = async frozen => {
+      requests.push(JSON.parse(frozen));
+      const ack = await submit(frozen);
+      if (requests.length === 1) { received.resolve(); await release.promise; }
+      return ack;
+    };
+    try {
+      success(doc.edit({ kind: 'text', id: first, text }));
+      const saving = instance.flush();
+      await received.promise;
+      const right = success(doc.edit({ kind: 'split', id: first, offset }, before)).created[0]!;
+      release.resolve();
+      await saving;
+      const leftText = `QA #[[${(await api.pageByTitle(a)).id}|${a}]]`;
+      const rightText = ` middle #[[${(await api.pageByTitle(b)).id}|${b}]] tail`;
+      const split = requests.flatMap(batch => batch.operations).find(operation => operation.op === 'split');
+      expect(split).toMatchObject({ id: first, new_id: right, left: leftText, right: rightText });
+      expect((await api.page(id)).rows.map(row => row.block.text)).toEqual([leftText, rightText]);
+      expect(doc.block(right)?.text).toBe(rightText);
+      expect(doc.undo()).toEqual({ id: first, offset: leftText.length, range: { anchor: { id: first, offset: 0 }, head: { id: first, offset: leftText.length + rightText.length } } });
+      await instance.flush();
+      expect((await api.block(first)).text).toBe(leftText + rightText);
+      doc.redo();
+      await instance.flush();
+      expect((await api.page(id)).rows.map(row => row.block.text)).toEqual([leftText, rightText]);
+      expect(instance.queuedChanges()).toBe(0);
+    } finally { release.resolve(); instance.api.submitFrozen = submit; doc.release(); }
+  });
+
+  test('queued merges retain both normalized texts and their separate undo snapshots', async () => {
+    const instance = await client();
+    const { id, doc, first } = await page(instance, 'destination');
+    const source = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'source' })).created[0]!;
+    await instance.flush();
+    const a = `MergeLeft${++serial}`, b = `MergeRight${++serial}`;
+    const received = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const submit = instance.api.submitFrozen;
+    let held = false;
+    instance.api.submitFrozen = async frozen => {
+      const ack = await submit(frozen);
+      if (!held) { held = true; received.resolve(); await release.promise; }
+      return ack;
+    };
+    try {
+      success(doc.edit({ kind: 'text', id: first, text: `Left #${a}` }));
+      const saving = instance.flush();
+      await received.promise;
+      success(doc.edit({ kind: 'text', id: source, text: ` Right #${b}` }));
+      success(doc.edit({ kind: 'merge', sourceId: source, destinationId: first }, { id: source, offset: 0 }));
+      release.resolve();
+      await saving;
+      const leftText = `Left #[[${(await api.pageByTitle(a)).id}|${a}]]`;
+      const rightText = ` Right #[[${(await api.pageByTitle(b)).id}|${b}]]`;
+      expect(doc.block(first)?.text).toBe(leftText + rightText);
+      expect((await api.block(first)).text).toBe(leftText + rightText);
+      doc.undo();
+      await instance.flush();
+      expect((await api.page(id)).rows.map(row => row.block.text)).toEqual([leftText, rightText]);
+      expect(instance.queuedChanges()).toBe(0);
+    } finally { release.resolve(); instance.api.submitFrozen = submit; doc.release(); }
+  });
+
+  test('a queued restore rebases its deleted snapshot through the preceding tag receipt', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'base');
+    const title = `RestoreTag${++serial}`, text = `Kept #${title}`;
+    await instance.createPage(title); // Exercise snapshots independently of provisional-tag page undo.
+    const received = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const submit = instance.api.submitFrozen;
+    let held = false;
+    instance.api.submitFrozen = async frozen => {
+      const ack = await submit(frozen);
+      if (!held) { held = true; received.resolve(); await release.promise; }
+      return ack;
+    };
+    try {
+      success(doc.edit({ kind: 'text', id: first, text }));
+      const saving = instance.flush();
+      await received.promise;
+      success(doc.edit({ kind: 'delete', ids: [first] }));
+      doc.undo();
+      release.resolve();
+      await saving;
+      const canonical = `Kept #[[${(await api.pageByTitle(title)).id}|${title}]]`;
+      expect(doc.block(first)?.text).toBe(canonical);
+      expect((await api.block(first)).text).toBe(canonical);
+      expect(instance.queuedChanges()).toBe(0);
+    } finally { release.resolve(); instance.api.submitFrozen = submit; doc.release(); }
+  });
+
+  test('outbox replay rebases pending splits after replaying a lost tag rewrite receipt', async () => {
+    const session = `rewrite-replay-${++serial}`, instance = await client(session);
+    const { id, doc, first } = await page(instance, 'base');
+    const title = `ReplayTag${++serial}`, text = `QA #${title} `;
+    const received = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const requests: string[] = [];
+    let lose = true;
+    globalThis.fetch = Object.assign(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await actualFetch(input, init);
+      if (String(input) === `${baseUrl}/api/batches` && init?.method === 'POST') {
+        requests.push(String(init.body));
+        if (lose) { lose = false; received.resolve(); await release.promise; throw new TypeError('Lost tag receipt'); }
+      }
+      return response;
+    }, { preconnect: actualFetch.preconnect });
+    try {
+      success(doc.edit({ kind: 'text', id: first, text }));
+      const saving = instance.flush();
+      await received.promise;
+      const right = success(doc.edit({ kind: 'split', id: first, offset: text.length })).created[0]!;
+      success(doc.edit({ kind: 'text', id: right, text: 'next row' }));
+      const third = success(doc.edit({ kind: 'split', id: right, offset: 8 })).created[0]!;
+      success(doc.edit({ kind: 'text', id: third, text: 'third row' }));
+      release.resolve();
+      await saving;
+      await instance.dispose();
+      const recovered = await client(session), reopened = recovered.open(id);
+      await eventually(() => reopened.status() === 'ready', 'tag rewrite outbox did not reopen');
+      await recovered.flush();
+      const canonical = `QA #[[${(await api.pageByTitle(title)).id}|${title}]] `;
+      expect(requests[1]).toBe(requests[0]);
+      expect((JSON.parse(requests[2]!) as Batch).operations).toContainEqual(expect.objectContaining({ op: 'split', id: first, left: canonical, right: '' }));
+      expect((await api.page(id)).rows.map(row => row.block.text)).toEqual([canonical, 'next row', 'third row']);
+      expect(ids(reopened)).toEqual([first, right, third]);
+      expect(recovered.queuedChanges()).toBe(0);
+      reopened.release();
+    } finally { release.resolve(); globalThis.fetch = actualFetch; }
+  });
+
   test('a new field keeps its chosen kind through one undo and redo', async () => {
     const instance = await client();
     const fields = await api.fields();

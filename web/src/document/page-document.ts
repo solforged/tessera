@@ -12,7 +12,7 @@ import { currentReading, emptyCapabilities, isCapabilityAction, questionState, q
 import { parseCardText } from '../review/card-text';
 import { isStableReference, quoteTarget, textTokens } from './text-tokens';
 import { newTask, removeToken } from '../tasks/quick-date';
-import { rebaseText } from './text-patch';
+import { mapTextOffset, rebaseText } from './text-patch';
 import { fieldHide } from '../fields/hide';
 import { countsReason, fieldCounts } from '../fields/counts';
 import { fieldRole } from '../fields/roles';
@@ -780,6 +780,88 @@ export class Document implements PageDocument {
     this.host.publish(this.snapshot(block.id));
     this.conflictVersion[1](value => value + 1);
   }
+  private rebasePendingRewrites(rewrites: readonly TextRewrite[]) {
+    if (!rewrites.length) return;
+    type TextPair = { before: string; after: string };
+    const texts = new Map<string, TextPair>();
+    for (const block of this.baseBlocks.values()) texts.set(block.id, { before: block.text, after: block.text });
+    for (const rewrite of rewrites) texts.set(rewrite.id, { before: rewrite.before, after: rewrite.after });
+    const rewriteText = (text: string, pair?: TextPair) => pair ? rebaseText(pair.before, pair.after, text) ?? text : text;
+    const caret = (value: HistoryCaret | null, state: ReadonlyMap<string, TextPair>): HistoryCaret | null => {
+      if (!value) return null;
+      const pair = state.get(value.id);
+      return { ...value, offset: pair ? mapTextOffset(pair.before, pair.after, value.offset) : value.offset,
+        ...value.range ? { range: { anchor: caret(value.range.anchor, state)!, head: caret(value.range.head, state)! } } : {} };
+    };
+    // Walk authored actions in order: a split transfers the right-hand rewrite to
+    // its new ID, and a merge transfers both rewrites to the surviving ID.
+    const actions = (values: Action[], state: Map<string, TextPair>, expected?: ReadonlyMap<string, TextPair>) => {
+      for (const action of values) {
+        if (action.kind === 'text') {
+          const before = action.text, pair = state.get(action.id);
+          action.text = rewriteText(before, pair);
+          if (action.expectedText !== undefined) action.expectedText = rewriteText(action.expectedText, expected?.get(action.id) ?? pair);
+          state.set(action.id, { before, after: action.text });
+        } else if (action.kind === 'split') {
+          const before = action.left + action.right, after = rewriteText(before, state.get(action.id));
+          const at = mapTextOffset(before, after, action.left.length);
+          const left = action.left, right = action.right;
+          action.left = after.slice(0, at);
+          action.right = after.slice(at);
+          action.block = { ...action.block, text: action.right };
+          state.set(action.id, { before: left, after: action.left });
+          state.set(action.block.id, { before: right, after: action.right });
+        } else if (action.kind === 'merge') {
+          const destination = state.get(action.destinationId), source = state.get(action.id);
+          const pair = destination && source ? { before: destination.before + source.before, after: destination.after + source.after } : undefined;
+          const before = action.text;
+          action.text = rewriteText(before, pair);
+          state.set(action.destinationId, { before, after: action.text });
+        } else if (action.kind === 'insert') {
+          const before = action.block.text, after = rewriteText(before, state.get(action.block.id));
+          action.block = { ...action.block, text: after };
+          state.set(action.block.id, { before, after });
+        } else if (action.kind === 'restore') {
+          action.snapshots = action.snapshots.map(snapshot => {
+            const before = snapshot.block.text, after = rewriteText(before, state.get(snapshot.block.id));
+            state.set(snapshot.block.id, { before, after });
+            return { ...snapshot, block: { ...snapshot.block, text: after } };
+          });
+        }
+        // Keep deleted text available for a later restore and its history.
+      }
+    };
+    const histories = new Map<HistoryEntry, { before: Map<string, TextPair>; after: Map<string, TextPair> }>();
+    for (const pending of this.host.commands(this.pageId)) {
+      if (pending.frozen) continue; // Uncertain requests must remain byte-identical.
+      const before = new Map(texts);
+      pending.before = caret(pending.before, before);
+      actions(pending.actions, texts);
+      pending.after = caret(pending.after, texts);
+      actions(pending.inverse, new Map(before), texts);
+      const entry = this.historyCommands.get(pending.id)?.entry;
+      if (entry) {
+        const history = histories.get(entry);
+        if (history) history.after = new Map(texts);
+        else histories.set(entry, { before, after: new Map(texts) });
+      }
+    }
+    for (const [entry, state] of histories) {
+      const before = entry.applied ? state.before : state.after, after = entry.applied ? state.after : state.before;
+      entry.before = caret(entry.before, before);
+      entry.after = caret(entry.after, after);
+      actions(entry.forward, new Map(before));
+      actions(entry.inverse, new Map(before), after);
+    }
+    for (const [id, pair] of texts) {
+      if (pair.before === pair.after) continue;
+      const cell = this.cells.get(id);
+      if (cell?.state.text === pair.before) {
+        cell.set('text', pair.after);
+        this.host.publish(this.snapshot(id));
+      }
+    }
+  }
   acknowledged(command: Command, revisions: Map<string, number>, rewrites: readonly TextRewrite[], receipt?: Committed) {
     const previousRevisions = new Map([...revisions.keys()].map(id => [id, this.baseBlocks.get(id)?.revision ?? 0]));
     const sentRevisions = new Map<string, number>();
@@ -813,6 +895,7 @@ export class Document implements PageDocument {
         const block = this.baseBlocks.get(rewrite.id);
         if (block && block.revision <= rewrite.revision) this.baseBlocks.set(rewrite.id, { ...block, text: rewrite.after, revision: rewrite.revision });
       }
+      this.rebasePendingRewrites(rewrites);
       for (const [id, revision] of revisions) {
         const block = this.baseBlocks.get(id);
         if (block && block.revision <= revision) block.revision = revision;
@@ -903,13 +986,13 @@ export class Document implements PageDocument {
         for (const action of undo ? entry.forward : entry.inverse) {
           if (action.kind === 'text' && action.id === rewrite.id && action.expectedText === rewrite.before) action.expectedText = rewrite.after;
         }
-        const caret = undo ? entry.before : entry.after;
-        if (caret?.id === rewrite.id) {
-          let prefix = 0, beforeEnd = rewrite.before.length, afterEnd = rewrite.after.length;
-          while (prefix < beforeEnd && prefix < afterEnd && rewrite.before[prefix] === rewrite.after[prefix]) prefix++;
-          while (beforeEnd > prefix && afterEnd > prefix && rewrite.before[beforeEnd - 1] === rewrite.after[afterEnd - 1]) { beforeEnd--; afterEnd--; }
-          if (caret.offset >= beforeEnd) caret.offset += afterEnd - beforeEnd;
-          else if (caret.offset > prefix) caret.offset = afterEnd;
+        // A coalesced history still queued behind this receipt was already mapped
+        // with its full pending actions, not just this acknowledged prefix.
+        if (!this.host.commands(this.pageId).some(pending => !pending.frozen && this.historyCommands.get(pending.id)?.entry === entry)) {
+          const caret = undo ? entry.before : entry.after;
+          for (const bound of [caret, caret?.range?.anchor, caret?.range?.head]) if (bound?.id === rewrite.id) {
+            bound.offset = mapTextOffset(rewrite.before, rewrite.after, bound.offset);
+          }
         }
         continue;
       }

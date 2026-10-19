@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { rebaseText } from './text-patch';
+import { mapTextOffset, rebaseText } from './text-patch';
 
 test('undo and redo preserve another window’s appended text', () => {
   const undone = rebaseText('Original local', 'Original', 'Original local remote');
@@ -30,4 +30,15 @@ test('equal or already-applied text leaves the newer text unchanged', () => {
   expect(rebaseText('base', 'base', 'remote')).toBe('remote');
   expect(rebaseText('base', 'desired', 'desired')).toBe('desired');
   expect(rebaseText('base', 'desired', 'base')).toBe('desired');
+});
+
+test('rewrite boundaries follow separate canonical tags in UTF-16 coordinates', () => {
+  const before = '🌿 #left middle #right tail';
+  const left = '🌿 #[[01M58Z38VNRQPS92TH6BYFQ3VA|left]]';
+  const after = `${left} middle #[[01M58Z38VNRQPS92TH6BYFQ3VB|right]] tail`;
+  expect(mapTextOffset(before, after, 2)).toBe(2);
+  expect(mapTextOffset(before, after, before.indexOf(' middle'))).toBe(left.length);
+  expect(mapTextOffset(before, after, before.indexOf(' tail'))).toBe(after.indexOf(' tail'));
+  expect(mapTextOffset(before, after, before.length)).toBe(after.length);
+  expect(mapTextOffset('abc', 'aXYZc', 2)).toBe(4);
 });

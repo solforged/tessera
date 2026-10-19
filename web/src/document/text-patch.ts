@@ -27,6 +27,22 @@ export function rebaseText(expected: string, desired: string, current: string): 
   return result.join('');
 }
 
+/** Map a UTF-16 boundary through the same text changes, keeping it after insertions. */
+export function mapTextOffset(before: string, after: string, offset: number): number {
+  if (before === after) return offset;
+  const base = Array.from(before), next = Array.from(after);
+  let shift = 0;
+  for (const patch of patches(base, next)) {
+    const from = base.slice(0, patch.from).join('').length;
+    const to = from + base.slice(patch.from, patch.to).join('').length;
+    const length = patch.insert.join('').length;
+    if (offset < from) break;
+    if (offset < to) return from + shift + (offset > from ? length : 0);
+    shift += length - (to - from);
+  }
+  return offset + shift;
+}
+
 function patches(before: string[], after: string[]): TextPatch[] {
   const result: TextPatch[] = [];
   const walk = (from: number, to: number, nextFrom: number, nextTo: number) => {
