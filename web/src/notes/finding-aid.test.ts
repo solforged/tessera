@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { KindIndex, NoteEntry, NoteSummary, Query, QueryResult, QueryRow } from '../api/types';
 import { filingGroups, filingOperations, groupKindIndex, parseNoteFind, settleFindingAid, wholeKindIndex } from './finding-aid';
 
-const note = (id: string, title: string, sort_as: string | null = null): NoteEntry => ({ id, title, sort_as, created_at: 0 });
+const note = (id: string, title: string, sort_as: string | null = null): NoteEntry => ({ id, page_id: id, title, sort_as, created_at: 0 });
 
 describe('finding aid loading', () => {
   const index: KindIndex = {

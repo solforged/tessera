@@ -1,6 +1,6 @@
-//! Notes are titled pages. The index files them by kind: the built-in kinds Person, Group, Concept and Thesis
-//! come from type pages with those titles, Question, Source and Project from capabilities on the page, and
-//! every other type with titled-page or tagged-block members is a kind of its own. Nothing here is stored.
+//! The index files titled pages by kind and lists every visible capability-bearing atom under its
+//! built-in kind. Other tags with titled-page or tagged-block members form kinds of their own.
+//! Nothing here is stored.
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
@@ -70,8 +70,8 @@ pub(crate) fn auto_plural(title: &str) -> String {
     }
     plural
 }
-/// Built-in kinds read from capabilities on the page, in index order after the type kinds: key,
-/// singular, plural, table, icon.
+/// Built-in kinds read from capabilities on any visible atom, in index order after the type kinds:
+/// key, singular, plural, table, icon.
 pub(crate) const CAPABILITY_KINDS: [(&str, &str, &str, &str, &str); 4] = [
     ("task", "Task", "Tasks", "tasks", "task"),
     (
@@ -127,7 +127,7 @@ pub enum Shelf {
 pub struct IndexKind {
     #[serde(flatten)]
     pub kind: NoteKind,
-    /// Distinct titled notes, independent of tagged non-page blocks.
+    /// Distinct titled notes, or every visible active atom for a capability kind.
     pub count: usize,
     pub tagged_block_count: usize,
     /// Live cards on members, which is the kind's tag deck.
@@ -153,6 +153,7 @@ pub struct NoteIndex {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NoteEntry {
     pub id: String,
+    pub page_id: String,
     pub title: String,
     pub sort_as: Option<String>,
     pub created_at: i64,
@@ -180,6 +181,8 @@ pub struct KindIndex {
 
 struct Note {
     entry: NoteEntry,
+    /// Only titled pages contribute to the distinct note total.
+    titled: bool,
     /// Indices into `Filing::kinds`.
     kinds: Vec<usize>,
 }
@@ -187,13 +190,33 @@ struct Note {
 struct Filing {
     /// Built-in kinds first, then types you made by title, then Unfiled.
     kinds: Vec<NoteKind>,
-    /// Live titled pages by title, excluding the Fields page.
+    /// Live titled pages and visible capability-bearing atoms, excluding the Fields page.
     notes: Vec<Note>,
     /// Distinct visible non-page members, aligned with `kinds`.
     tagged_block_counts: Vec<usize>,
 }
 
 impl Notebook {
+    pub(crate) fn query_kind_titles(&self) -> Result<HashMap<String, String>> {
+        Ok(self
+            .filing()?
+            .notes
+            .into_iter()
+            .map(|note| (note.entry.id, note.entry.title))
+            .collect())
+    }
+
+    pub(crate) fn capability_kind_for_type(&self, id: &str) -> Result<Option<&'static str>> {
+        let title_key: Option<String> = self
+            .conn
+            .prepare_cached("SELECT title_key FROM blocks WHERE id = ?1 AND kind = 'page' AND deletion_id IS NULL AND archived = 0")?
+            .query_row([id], |row| row.get(0))
+            .optional()?;
+        Ok(CAPABILITY_KINDS
+            .iter()
+            .find_map(|(key, ..)| (Some(*key) == title_key.as_deref()).then_some(*key)))
+    }
+
     pub(crate) fn query_note_kinds(&self) -> Result<HashMap<String, Vec<String>>> {
         let filing = self.filing()?;
         Ok(filing
@@ -233,18 +256,8 @@ impl Notebook {
                 sources[kind] += usize::from(is_source);
                 projects[kind] += usize::from(is_project);
             }
-            listed += usize::from(!note.kinds.is_empty());
+            listed += usize::from(note.titled && !note.kinds.is_empty());
         }
-        counts[question] = self
-            .conn
-            .prepare_cached(concat!(
-                hidden_blocks!(),
-                "SELECT COUNT(*) FROM questions q JOIN blocks b ON b.id = q.block_id
-             JOIN blocks p ON p.id = b.page_id WHERE q.active = 1
-             AND b.deletion_id IS NULL AND p.deletion_id IS NULL
-             AND b.rowid NOT IN (SELECT rowid FROM hidden)"
-            ))?
-            .query_row([], |row| row.get::<_, i64>(0))? as usize;
         let unfiled = filing.kinds.len() - 1;
         // Library types (books, articles, collections) shelve with sources even before their notes carry a source record.
         let shelf = |index: usize, kind: &NoteKind, count: usize| match index {
@@ -335,7 +348,7 @@ impl Notebook {
         })
     }
 
-    /// One kind's notes and alias cross-references, for its finding aid.
+    /// One kind's members and alias cross-references, for its finding aid.
     pub fn kind_notes(&self, key: &str) -> Result<KindIndex> {
         let type_id = key.strip_prefix("type:");
         if let Some(id) = type_id {
@@ -465,15 +478,17 @@ impl Notebook {
                 Ok(Note {
                     entry: NoteEntry {
                         id: row.get(0)?,
+                        page_id: row.get(0)?,
                         title: row.get(1)?,
                         created_at: row.get(2)?,
                         sort_as: None,
                     },
                     kinds: Vec::new(),
+                    titled: true,
                 })
             })?
             .collect::<rusqlite::Result<Vec<_>>>()?;
-        let position: HashMap<String, usize> = notes
+        let mut position: HashMap<String, usize> = notes
             .iter()
             .enumerate()
             .map(|(index, note)| (note.entry.id.clone(), index))
@@ -640,22 +655,42 @@ impl Notebook {
         }
         for (offset, (_, _, _, table, _)) in CAPABILITY_KINDS.iter().enumerate() {
             let sql = format!(
-                "SELECT block_id FROM {table} WHERE active = 1{}",
+                "{} SELECT b.id, b.page_id, b.text, b.created_at
+                 FROM {table} c JOIN blocks b ON b.id = c.block_id
+                 JOIN blocks p ON p.id = b.page_id WHERE c.active = 1
+                   AND b.deletion_id IS NULL AND p.deletion_id IS NULL
+                   AND b.rowid NOT IN (SELECT rowid FROM hidden){}",
+                hidden_blocks!(),
                 if *table == "tasks" {
-                    " AND json_extract(state, '$.status') IS NOT NULL"
+                    " AND json_extract(c.state, '$.status') IS NOT NULL"
                 } else {
                     ""
                 }
             );
-            let ids = self
-                .conn
-                .prepare_cached(&sql)?
-                .query_map([], |row| row.get::<_, String>(0))?
-                .collect::<rusqlite::Result<Vec<_>>>()?;
-            for id in ids {
-                if let Some(&note) = position.get(&id) {
-                    notes[note].kinds.push(TYPE_KINDS.len() + offset);
-                }
+            let mut statement = self.conn.prepare_cached(&sql)?;
+            let mut rows = statement.query([])?;
+            while let Some(row) = rows.next()? {
+                let id: String = row.get(0)?;
+                let note = match position.get(&id) {
+                    Some(&note) => note,
+                    None => {
+                        let note = notes.len();
+                        position.insert(id.clone(), note);
+                        notes.push(Note {
+                            entry: NoteEntry {
+                                id,
+                                page_id: row.get(1)?,
+                                title: row.get(2)?,
+                                created_at: row.get(3)?,
+                                sort_as: None,
+                            },
+                            titled: false,
+                            kinds: Vec::new(),
+                        });
+                        note
+                    }
+                };
+                notes[note].kinds.push(TYPE_KINDS.len() + offset);
             }
         }
 

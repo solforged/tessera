@@ -914,7 +914,7 @@ pub struct Query {
     /// Rows skipped after sorting; total and column metadata cover all matches.
     #[serde(default)]
     pub offset: usize,
-    /// Restrict to titled notes of this finding-aid kind, including capability kinds.
+    /// Restrict to this finding-aid kind's members, including inline capability atoms.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note_kind: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

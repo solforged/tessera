@@ -324,6 +324,10 @@ impl Notebook {
                 for row in
                     crate::task_query::visible_tasks(&self.conn, None, crate::TaskProjectVia::Both)?
                 {
+                    // Appointments carry planning state but do not belong to the Tasks kind.
+                    if row.task.status.is_none() {
+                        continue;
+                    }
                     let enclosing = outer.remove(&row.source.block.id).unwrap_or_default();
                     let attrs = entities.entry(row.source.block.id).or_default();
                     if let Some(status) = row.task.status {

@@ -57,26 +57,31 @@ impl Notebook {
         Ok(ids)
     }
 
-    pub(crate) fn note_candidates(&self, query: &Query) -> Result<Option<HashSet<String>>> {
-        if !query.selects_notes() {
+    pub(crate) fn note_candidates(
+        &self,
+        query: &Query,
+        capability_type: Option<&str>,
+    ) -> Result<Option<HashSet<String>>> {
+        if !query.selects_notes() && capability_type.is_none() {
             return Ok(None);
         }
         let mut pages: HashMap<String, String> =
-            self.conn
-                .prepare_cached(concat!(hidden_blocks!(),
+            if let Some(kind) = query.note_kind.as_deref().or(capability_type) {
+                self.kind_notes(kind)?
+                    .notes
+                    .into_iter()
+                    .map(|note| (note.id, note.title))
+                    .collect()
+            } else if query.filters.iter().any(|filter| filter.field == "@kind") {
+                self.query_kind_titles()?
+            } else {
+                self.conn
+                    .prepare_cached(concat!(hidden_blocks!(),
             "SELECT b.id, b.text FROM blocks b WHERE b.kind = 'page' AND b.deletion_id IS NULL
              AND b.title_key IS NOT 'fields' AND b.rowid NOT IN (SELECT rowid FROM hidden)"))?
-                .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
-                .collect::<rusqlite::Result<_>>()?;
-        if let Some(kind) = &query.note_kind {
-            let members: HashSet<_> = self
-                .kind_notes(kind)?
-                .notes
-                .into_iter()
-                .map(|note| note.id)
-                .collect();
-            pages.retain(|id, _| members.contains(id));
-        }
+                    .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+                    .collect::<rusqlite::Result<_>>()?
+            };
         if let Some(text) = &query.text {
             let glosses = self.named_page_values("gloss", None)?;
             let words: Vec<_> = text.split_whitespace().map(fold).collect();

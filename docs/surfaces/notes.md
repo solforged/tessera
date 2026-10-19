@@ -10,9 +10,9 @@ Index is a sidebar section after Pinned. Its count is the distinct notes filed, 
 
 | Shelf | Kinds |
 | --- | --- |
-| Notes | People, Groups, Concepts and Theses (types with those titles), then Questions (a capability on the page), then the fixed Fields register row. |
+| Notes | People, Groups, Concepts and Theses (types with those titles), then Questions (a capability), then the fixed Fields register row. |
 | Sources | Sources (a capability), Book, Article and Collection, and any other type most of whose notes are sources. |
-| Work | Projects (a capability), and any other type most of whose notes are projects. |
+| Work | Tasks and Projects (capabilities), and any other type most of whose notes are projects. |
 | Tags | Every other type you made, including types that only tag blocks. |
 | Loose | Unfiled. |
 
@@ -23,12 +23,12 @@ Rows stay on one line: the kind's glyph in `--faint`, the name at control size, 
 | Kind | Count and appearance |
 | --- | --- |
 | Note kind | Titled notes. |
-| Questions | Visible question blocks, including inline questions. |
+| Tasks, Questions, Projects and Sources | Every visible atom with the active capability, including inline atoms and behavior added without a written tag. Tasks excludes checkbox-free appointments. Their finding aids, tables and kind filters list the same set. |
 | Tag-only type | Tagged atoms. The row uses the tag's spelling, not an automatic plural. |
 | Fields | Live named definitions, including archived definitions, as in the Fields register. Always shown, including at zero. |
-| Empty built-in kind | The same row, named in `--faint` without a count, on its shelf. Each name opens its finding aid. |
+| Empty built-in kind | The same row, named in `--faint` without a count, on its shelf, only when it has no visible members. Each name opens its finding aid. |
 
-An empty built-in kind that has a saved view keeps that row, still without a count. The Questions menu stays off until that kind has notes, tagged blocks or a saved view. Each other type and Unfiled are listed only while they have titled notes or tagged non-page blocks. Note counts and the distinct-note total never include tagged blocks.
+An empty built-in kind that has a saved view keeps that row, still without a count. The Questions menu stays off until that kind has visible members or a saved view. Each other type and Unfiled are listed only while they have titled notes or tagged non-page blocks. The distinct-note total never includes inline atoms.
 
 The Index heading opens a bounded directory in the same order, with explicit note, source or `N tagged` counts. Tag-only rows open their [member table](fields-tables.md#tables-and-views) directly; other kinds open their finding aid. A saved view sits under the kind whose type it lists, on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
 
@@ -83,12 +83,15 @@ The sidebar's Questions menu opens the [research desk](desk.md), which links que
 An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, lowercasing a built-in kind but keeping a type's own capitals (`No Italian words yet.`), then one sentence on how pages arrive:
 
 - Type kinds are filed from Unfiled.
+- Tasks can be written inline with `#task` or started in the shared task creation slip.
 - Questions and Projects use Make… → Question or Project in the page menu.
 - Sources arrive through the [Library](library.md).
 
 A tag-only type's index has no notes but does have members. It says `No atoms filed as Italian word.`, counts the blocks it tags, and offers Open table.
 
 Every built-in kind except Sources, and every user type with an index, offers New person…, New question… and so on, in the empty state or beside the finding aid's tally. The shared creation slip locks that kind. Creation files the page and inserts its first body block as one acknowledged batch, creating the kind's type page too when missing, then opens its unzoomed Outline with the body caret live. Shift+Enter opens beside; Shift+⌘Enter creates another without leaving the slip. On coarse layouts with two visible panes, creation from an index or ledger opens beside by default. An existing title files that page instead, or opens it when already of the kind, without forcing an editing caret. The type's own title is refused.
+
+New task uses that same slip to append a task atom to Today or the chosen page rather than creating a titled task page; its active capability is enough to include it in Tasks.
 
 The slip names New person in its mono rubric. An autosizing page-title textarea wraps without inserting newlines on Enter; the optional gist becomes the first block, with the caret at its end. With no gist, the first block is empty and ready for typing. A project's gist instead sets its outcome, shown in the project header, without duplicating it in the body. Up to four similar pages match anywhere in titles and aliases, excluding the exact title: Link appends a bracketed title to the gist without closing; Open opens the existing page and closes the slip.
 

@@ -80,7 +80,7 @@ export function IndexDirectory(props: IndexPaneProps) {
             <div class="index-directory-row">
               <Icon name={noteKindIcon(kind)} />
               <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>{kindLabel(kind)}</Button>
-              <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, kind.key === 'source' ? 'source' : kind.key === 'question' ? 'question' : 'atom')}</span>
+              <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, ['task', 'question', 'source', 'project'].includes(kind.key) ? kind.key : 'atom')}</span>
               <Button class="index-directory-open" label={`Open ${kindLabel(kind)} ${tagOnly(kind) ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>Open {tagOnly(kind) ? 'table' : 'index'}<Icon name="right" /></Button>
             </div>
           }</For><Show when={shelf === 'notes'}>
@@ -259,7 +259,7 @@ function KindIndexPane(props: IndexPaneProps) {
     const capabilities = actionCapabilities()?.get(note.id);
     return actionCapabilities.error ? String(actionCapabilities.error) : !capabilities ? 'Atom is still loading.' : builtInTagReason(note.title, capabilities, action);
   };
-  const openNote = (note: NoteEntry, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: note.id }, listOpensBeside(event, !!props.neighbour));
+  const openNote = (note: NoteEntry, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: note.page_id, blockId: note.id !== note.page_id ? note.id : undefined }, listOpensBeside(event, !!props.neighbour));
   const showPopup = (kind: NotePopup['kind'], note: NoteEntry, anchor: HTMLElement) => { setSelected(note.id); setError(''); setPopup({ kind, note, anchor }); };
   let scroll!: HTMLDivElement;
   createEffect(() => {
@@ -306,7 +306,7 @@ function KindIndexPane(props: IndexPaneProps) {
     <div class="index-sheet">
       <p class="index-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : props.kindKey === 'source' ? 'Index · Bibliography' : 'Index'}</p>
       <div class="index-head"><h1><Icon name={noteKindIcon(props.kind ?? props.kindKey)} />{saved()?.name ?? title()}</h1>
-        <Show when={count() != null && !missingFields().length}><span class="index-tally">{tally(count()!, props.kindKey === 'source' ? 'source' : 'atom')}</span></Show>
+        <Show when={count() != null && !missingFields().length}><span class="index-tally">{tally(count()!, ['task', 'question', 'source', 'project'].includes(props.kindKey) ? props.kindKey : 'atom')}</span></Show>
         <Show when={noteMode() && !missingFields().length}><RequiredGaps gaps={incomplete.latest?.map(field => ({ field_id: field.field_id, missing: field.owners.size }))} name={fieldName} onShow={showMissing} /></Show>
         <Show when={groups().length}><NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} members={index.latest?.notes} /></Show>
       </div>
@@ -391,8 +391,8 @@ function KindIndexPane(props: IndexPaneProps) {
                 <h2><Show when={group.siglum}><span>{group.siglum}</span></Show><Show when={group.target} fallback={<span>{group.letter}</span>}>{target => <Button onClick={event => props.onOpen({ kind: 'page', pageId: target() }, listOpensBeside(event, !!props.neighbour))}>{group.letter}</Button>}</Show><span class="section-rule" /><span class="index-group-count">{group.noteCount || ''}</span></h2>
                 <For each={group.entries}>{entry => entry.kind === 'note' ? <div class="index-selectable" classList={{ selected: picked().includes(entry.note.id) }}>
                   <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${entry.note.title}`} checked={picked().includes(entry.note.id)} onClick={event => toggleSelection(entry.note.id, event.shiftKey)} /></label>
-                  <button type="button" class="index-entry" data-open-page={entry.note.id} data-open-label={entry.note.title} onClick={event => selectOrOpen(entry.note, event)}>
-                    <span class="index-entry-title">{entry.note.title}</span><Show when={needs(entry.note.id)}>{names => <span class="index-needs">needs {names()}</span>}</Show><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
+                  <button type="button" class="index-entry" data-open-page={entry.note.page_id} data-open-block={entry.note.id !== entry.note.page_id ? entry.note.id : undefined} data-open-label={entry.note.title} onClick={event => selectOrOpen(entry.note, event)}>
+                    <span class="index-entry-title">{readableText(entry.note.title, lookup)}</span><Show when={needs(entry.note.id)}>{names => <span class="index-needs">needs {names()}</span>}</Show><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
                     <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <Show when={value().field || value().block_count || value().backlinks}><span class="index-apparatus">{[value().field ? plainText(value().field!.value, lookup) : '', value().block_count ? tally(value().block_count, 'prose atom') : value().backlinks ? tally(value().backlinks, 'backlink') : ''].filter(Boolean).join(' · ')}</span></Show>}</Show>}>
                       <Show when={collectionCounts.latest?.get(entry.note.id) != null}><span class="index-apparatus">{tally(collectionCounts.latest!.get(entry.note.id)!, 'source')}</span></Show>
                     </Show>
@@ -436,8 +436,8 @@ function KindIndexPane(props: IndexPaneProps) {
   </div>;
 }
 
-/** Built-in kinds a page can start under from their finding aid. Sources come from the Library instead. */
-const startable: Record<string, 'type' | 'question' | 'project'> = { person: 'type', group: 'type', concept: 'type', thesis: 'type', question: 'question', project: 'project' };
+/** Built-in kinds that can start from their finding aid. Sources come from the Library instead. */
+const startable: Record<string, 'type' | 'task' | 'question' | 'project'> = { person: 'type', group: 'type', concept: 'type', thesis: 'type', task: 'task', question: 'question', project: 'project' };
 
 /** An empty kind says how pages arrive in it and, for built-in kinds, starts one. */
 function EmptyKind(props: { kindKey: string; kind: NoteKind | IndexKind | undefined; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
@@ -450,6 +450,7 @@ function EmptyKind(props: { kindKey: string; kind: NoteKind | IndexKind | undefi
     const name = props.kind?.name ?? '';
     switch (mode()) {
       case 'type': return `File an atom under ${name} from Unfiled, or start one here.`;
+      case 'task': return 'Add task behavior to any atom with #task, or start one here.';
       case 'question': return 'Make an atom a question from its atom menu, or start one here.';
       case 'project': return 'Make an atom a project from its atom menu, or start one here.';
       default: return undefined;
@@ -473,7 +474,7 @@ function NewKindAction(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'noteboo
   const mode = () => props.kind ? startable[props.kindKey] ?? (props.kind.type_id ? 'type' : undefined) : undefined;
   return <>
     <Show when={mode()}><Button class="bordered" icon="plus" aria-haspopup="dialog" onClick={event => setAnchor(event.currentTarget)}>New {kindNoun(props.kind!)}…</Button></Show>
-    <Show when={anchor()}>{target => <CreateSlip request={{ kind: mode() === 'question' ? 'question' : mode() === 'project' ? 'project' : `type:${props.kindKey}`, text: '', lockKind: true }} anchor={target()} notebook={props.notebook} onDismiss={() => setAnchor(undefined)} defaultBeside={window.matchMedia('(pointer: coarse)').matches && document.querySelectorAll('.panes > .pane:not(.folded)').length > 1} onOpen={props.onOpen} />}</Show>
+    <Show when={anchor()}>{target => <CreateSlip request={{ kind: mode() === 'task' ? 'task' : mode() === 'question' ? 'question' : mode() === 'project' ? 'project' : `type:${props.kindKey}`, text: '', lockKind: true }} anchor={target()} notebook={props.notebook} onDismiss={() => setAnchor(undefined)} defaultBeside={window.matchMedia('(pointer: coarse)').matches && document.querySelectorAll('.panes > .pane:not(.folded)').length > 1} onOpen={props.onOpen} />}</Show>
   </>;
 }
 

@@ -513,7 +513,13 @@ impl Notebook {
         let entity_members = entities
             .as_ref()
             .map(|entities| entities.keys().cloned().collect::<HashSet<_>>());
-        let note_candidates = self.note_candidates(query)?;
+        let capability_type = query
+            .r#type
+            .as_deref()
+            .map(|id| self.capability_kind_for_type(id))
+            .transpose()?
+            .flatten();
+        let note_candidates = self.note_candidates(query, capability_type)?;
         let matched = if query.selects_notes() {
             None
         } else {
@@ -587,7 +593,11 @@ impl Notebook {
             let selected = entity_members
                 .as_ref()
                 .map(|members| serde_json::to_string(members).expect("IDs serialize"));
-            let mut cursor = statement.query(params![query.r#type, matched, selected])?;
+            let member_type = query
+                .r#type
+                .as_deref()
+                .filter(|_| capability_type.is_none());
+            let mut cursor = statement.query(params![member_type, matched, selected])?;
             while let Some(row) = cursor.next()? {
                 let id: &str = row.get_ref(0)?.as_str().map_err(|error| {
                     rusqlite::Error::FromSqlConversionFailure(

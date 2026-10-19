@@ -101,12 +101,12 @@ impl Notebook {
         // field entry (which has no field_values row) and all its descendants are excluded too.
         let mut statement = self.conn.prepare_cached(
             "WITH RECURSIVE below(page, id, parent, text, heading, visible, path) AS (
-                 SELECT b.page_id, b.id, b.parent_id, b.text, b.heading, b.archived = 0,
+                 SELECT b.parent_id, b.id, b.parent_id, b.text, b.heading, b.archived = 0,
                         printf('%d%016x', b.ordinal >= 0, b.ordinal) || b.id
                  FROM blocks b WHERE b.parent_id IN (SELECT value FROM json_each(?1))
                    AND b.deletion_id IS NULL
                  UNION ALL
-                 SELECT b.page_id, b.id, b.parent_id, b.text, b.heading,
+                 SELECT s.page, b.id, b.parent_id, b.text, b.heading,
                         s.visible AND b.archived = 0, s.path || '/' || printf('%d%016x', b.ordinal >= 0, b.ordinal) || b.id
                  FROM blocks b JOIN below s ON b.parent_id = s.id WHERE b.deletion_id IS NULL
              ) SELECT page, id, parent, text, heading, visible FROM below ORDER BY page, path",

@@ -1,5 +1,8 @@
 use tessera_core::library::{ReadingState, SourceFormat, SourceState};
-use tessera_core::{Actor, Batch, Error, Notebook, Operation, ProjectState, QuestionState, Shelf};
+use tessera_core::{
+    Actor, Batch, Error, Filter, FilterOp, Notebook, Operation, ProjectState, Query, QuerySource,
+    QuestionState, Shelf, TaskState, TaskStatus,
+};
 
 fn id(value: u128) -> String {
     ulid::Ulid::from(value).to_string()
@@ -653,4 +656,190 @@ fn type_presentation_defaults_overrides_reset_and_validation() {
     let kind = nb.note_kinds(&id(2)).unwrap().remove(0);
     assert_eq!(kind.plural, "Books");
     assert_eq!(kind.icon.as_deref(), Some("book"));
+}
+
+#[test]
+fn capability_kind_counts_finding_aids_and_tables_include_untagged_atoms() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let mut operations = vec![
+        page(1, "Workshop"),
+        page(2, "Capability-only page"),
+        page(3, "Archived page"),
+    ];
+    for (value, parent, text) in [
+        (10, 1, "Capability-only atom"),
+        (11, 1, "Written tags #task #question #project #source"),
+        (12, 10, "Child prose"),
+        (20, 1, "Archived ancestor"),
+        (21, 20, "Hidden descendant"),
+        (30, 3, "Hidden page member"),
+        (40, 1, "Deleted atom"),
+        (50, 1, "Inactive atom"),
+        (60, 1, "Appointment"),
+    ] {
+        operations.push(Operation::Insert {
+            id: id(value),
+            parent_id: id(parent),
+            after: None,
+            text: text.into(),
+            heading: None,
+        });
+    }
+    apply(&mut nb, operations);
+
+    let capability = |key: &str, value: u128, base_revision: i64, active: bool| match key {
+        "task" => Operation::SetTask {
+            id: id(value),
+            base_revision,
+            task: active.then_some(TaskState {
+                status: Some(TaskStatus::Todo),
+                ..TaskState::default()
+            }),
+        },
+        "question" => Operation::SetQuestion {
+            id: id(value),
+            base_revision,
+            question: active.then_some(QuestionState::default()),
+        },
+        "project" => Operation::SetProject {
+            id: id(value),
+            base_revision,
+            project: active.then_some(ProjectState::default()),
+        },
+        "source" => Operation::SetSource {
+            id: id(value),
+            base_revision,
+            source: active.then_some(SourceState {
+                format: SourceFormat::Record,
+                state: ReadingState::Inbox,
+                origin: None,
+                match_key: None,
+                citation_key: None,
+            }),
+        },
+        _ => unreachable!(),
+    };
+    for key in ["task", "question", "project", "source"] {
+        let operations = [2, 10, 20, 21, 30, 40, 50]
+            .map(|value| capability(key, value, revision(&nb, value), true));
+        apply(&mut nb, operations.into());
+        let operation = capability(key, 50, revision(&nb, 50), false);
+        apply(&mut nb, vec![operation]);
+    }
+    let operations = vec![
+        Operation::SetArchived {
+            id: id(20),
+            base_revision: revision(&nb, 20),
+            archived: true,
+        },
+        Operation::SetArchived {
+            id: id(3),
+            base_revision: revision(&nb, 3),
+            archived: true,
+        },
+        Operation::Delete {
+            id: id(40),
+            base_revision: revision(&nb, 40),
+        },
+        Operation::SetTask {
+            id: id(60),
+            base_revision: revision(&nb, 60),
+            task: Some(TaskState {
+                scheduled: Some("2026-10-18".into()),
+                ..TaskState::default()
+            }),
+        },
+    ];
+    apply(&mut nb, operations);
+
+    let expected = [id(2), id(10), id(11)];
+    let index = nb.note_index().unwrap();
+    assert_eq!(
+        index.notes, 2,
+        "inline atoms do not increase titled-note totals"
+    );
+    for key in ["task", "question", "project", "source"] {
+        let kind = index
+            .kinds
+            .iter()
+            .find(|kind| kind.kind.key == key)
+            .unwrap();
+        assert_eq!(kind.count, 3, "{key} counts every visible active atom once");
+        assert_eq!(
+            kind.tagged_block_count, 1,
+            "written membership stays distinct"
+        );
+        let finding_aid = nb.kind_notes(key).unwrap();
+        let mut ids: Vec<_> = finding_aid
+            .notes
+            .iter()
+            .map(|note| note.id.clone())
+            .collect();
+        ids.sort();
+        assert_eq!(ids, expected, "{key} finding aid");
+        assert_eq!(
+            finding_aid
+                .notes
+                .iter()
+                .find(|note| note.id == id(10))
+                .unwrap()
+                .page_id,
+            id(1),
+            "inline rows retain their containing page"
+        );
+        assert_eq!(finding_aid.summaries[&id(10)].block_count, 1);
+        let type_id = kind.kind.type_id.clone().unwrap();
+        for query in [
+            Query {
+                note_kind: Some(key.into()),
+                ..Query::default()
+            },
+            Query {
+                note_kind: Some(key.into()),
+                r#type: Some(type_id.clone()),
+                ..Query::default()
+            },
+            Query {
+                r#type: Some(type_id),
+                ..Query::default()
+            },
+            Query {
+                source: Some(QuerySource::Notes),
+                filters: vec![Filter {
+                    field: "@kind".into(),
+                    op: FilterOp::Is,
+                    value: Some(key.into()),
+                    or_empty: false,
+                }],
+                ..Query::default()
+            },
+        ] {
+            let result = nb.query(&query).unwrap();
+            assert_eq!(result.total, 3, "{key} table/filter");
+            assert_eq!(
+                result
+                    .rows
+                    .iter()
+                    .map(|row| row.block.block.id.clone())
+                    .collect::<Vec<_>>(),
+                expected
+            );
+        }
+    }
+    let tasks = nb
+        .query(&Query {
+            source: Some(QuerySource::Tasks),
+            ..Query::default()
+        })
+        .unwrap();
+    assert_eq!(
+        tasks
+            .rows
+            .iter()
+            .map(|row| row.block.block.id.clone())
+            .collect::<Vec<_>>(),
+        expected,
+        "Tasks source agrees and excludes appointments"
+    );
 }

@@ -55,6 +55,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Included every active task, project and source atom in its built-in kind's counts, finding aid, table and saved filters, without requiring a written tag, and added New task to the empty Tasks finding aid.
 - Said atom and tag instead of block and type throughout the interface.
 - Said atom instead of page and note, tag instead of index kind, and format for field values throughout the interface.
 - Rendered built-in behavior tags as glyphs, kept scheduled atoms checkbox-free until tagged as tasks, protected built-in tag pages, and read creation choices from the tag registry.
