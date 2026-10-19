@@ -2,7 +2,7 @@ use serde_json::{Value, json};
 use tessera_core::library::*;
 use tessera_core::{
     Actor, AssessmentState, Batch, FieldKind, Notebook, Operation, Query, QuestionState,
-    RelationKind, RevisitAction, TaskState,
+    RelationKind, RevisitAction, TaskState, TaskStatus,
 };
 
 fn id(n: u128) -> String {
@@ -125,6 +125,7 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
             id: id(30),
             base_revision: nb.block(&id(30)).unwrap().revision,
             task: Some(TaskState {
+                status: Some(TaskStatus::Todo),
                 deadline: Some(nb.today(tessera_core::now_ms()).unwrap()),
                 ..Default::default()
             }),
