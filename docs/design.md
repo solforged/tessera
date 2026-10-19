@@ -601,7 +601,7 @@ Structural edits and paste keep the top visible row at its screen position, then
 
 Each split and its new task, or exit from a field value, is one undo step. Empty tasks in other states or with children follow the task Enter rule and keep their original status and planning facts. Enter never cuts a `[[reference]]` or `#tag`: with the caret inside one, as in a query kept with Escape, the split falls just after it. A selection reaching into one replaces the whole token.
 
-Tag normalization receipts rebase queued structural text and caret boundaries before the next save, including restored snapshots, undo history and outbox replay; finishing a tag and immediately continuing on the next row preserves both rows.
+Tag normalization receipts rebase queued structural text and caret boundaries before the next save, including restored snapshots, undo history and outbox replay; finishing a tag and immediately continuing on the next row preserves both rows. A remembered outline caret follows rewrites made while its editor is closed, so Enter or `i` resumes at the same authored boundary rather than inside a tag ID.
 
 Caret navigation and block splits stay on extended-grapheme boundaries. Backspace and forward Delete remove the same whole user-perceived character, including combining marks, emoji modifiers and conjuncts.
 

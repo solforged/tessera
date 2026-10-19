@@ -42,3 +42,16 @@ test('rewrite boundaries follow separate canonical tags in UTF-16 coordinates', 
   expect(mapTextOffset(before, after, before.length)).toBe(after.length);
   expect(mapTextOffset('abc', 'aXYZc', 2)).toBe(4);
 });
+
+test('a parked caret resumes after a tag normalized while its editor was closed', () => {
+  const authored = 'Repro #essay ';
+  const saved = 'Repro #[[566MCY9EM1J6FTT5NNS38TEDKY|essay]] ';
+  const parked = authored.length;
+  const resumed = mapTextOffset(authored, saved, parked);
+  expect(resumed).toBe(saved.length);
+  expect(saved.slice(0, resumed) + 'xy' + saved.slice(resumed)).toBe(`${saved}xy`);
+  expect(mapTextOffset(authored, saved, authored.indexOf('#'))).toBe(saved.indexOf('#'));
+  expect(mapTextOffset(authored, saved, authored.length - 1)).toBe(saved.length - 1);
+  // Resolving the same parked caret again must not apply the rewrite a second time.
+  expect(mapTextOffset(authored, saved, parked)).toBe(resumed);
+});

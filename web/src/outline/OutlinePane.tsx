@@ -1,10 +1,11 @@
 import { opensBeside } from '../shell/beside';
 import { CardSummary } from './CardSummary';
-import { For, Show, batch, createEffect, createMemo, createResource, createSignal, lazy, mapArray, on, onCleanup, onMount, untrack } from 'solid-js';
+import { For, Show, batch, createEffect, createMemo, createResource, createSignal, lazy, mapArray, on, onCleanup, onMount, untrack, type Setter } from 'solid-js';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { Block, FieldDefinition, PositionQuestion } from '../api/types';
 import { api } from '../api/client';
 import type { Caret, Edit, EditResult, PageDocument, TextRange } from '../document/contract';
+import { mapTextOffset } from '../document/text-patch';
 import { depthStops } from '../shell/contract';
 import type { Depth, OutlinePaneProps, ViewState } from '../shell/contract';
 import { fieldEntryId } from '../table/query';
@@ -145,7 +146,19 @@ function Pane(props: OutlinePaneProps) {
   let settleFold: (() => void) | undefined;
   const [showArchived, setShowArchived] = createSignal(initial.showArchived);
   const [depth, setDepth] = createSignal<Depth>(initial.depth ?? 'full');
-  const [caret, setCaret] = createSignal<Caret | null>(initial.caret);
+  // A parked caret belongs to the source text in which it was recorded, not a later normalized spelling.
+  const [rememberedCaret, setRememberedCaret] = createSignal({ at: initial.caret, text: initial.caret ? doc.block(initial.caret.id)?.text : undefined });
+  const caret = createMemo(() => {
+    const { at, text } = rememberedCaret();
+    const current = at ? doc.block(at.id)?.text : undefined;
+    return at && text !== undefined && current !== undefined && text !== current
+      ? { id: at.id, offset: mapTextOffset(text, current, at.offset) } : at;
+  });
+  const setCaret: Setter<Caret | null> = value => {
+    const at = typeof value === 'function' ? value(caret()) : value;
+    setRememberedCaret({ at, text: at ? doc.block(at.id)?.text : undefined });
+    return at;
+  };
   const [editing, setEditing] = createSignal<string | null>(initial.caret?.id ?? null);
   const [editorFocused, setEditorFocused] = createSignal(false);
   const [selected, setSelected] = createSignal<string | null>(initial.caret?.id ?? null);

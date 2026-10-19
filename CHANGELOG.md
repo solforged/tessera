@@ -82,6 +82,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Rebased remembered outline carets through saved-text rewrites so Enter and `i` resumed after a normalized tag instead of typing into its ID and creating junk tags.
 - Removed a whole `#[[id|Title]]` or `#[[Title]]` tag pill with one Backspace after it or Delete before it, instead of leaving a malformed bracket token that dropped the membership.
 - Displayed a tagged root title without its tag tokens in the page header, breadcrumbs, pane name, sidebar, Index, Library, Find and reference previews, with behavior tags as glyphs and other tags as pills beside it, and exported the same title to BibTeX, CSL, Markdown and the agent outline.
 - Mapped date, reference, field and slash completion ranges through saved-text rewrites, preserving tag identities when a date was accepted during normalization.
