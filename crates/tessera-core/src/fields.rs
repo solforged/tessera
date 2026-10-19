@@ -201,6 +201,7 @@ impl FieldChanges {
             | Operation::UpdateCardTemplate { .. }
             | Operation::SetCardTemplateApplied { .. }
             | Operation::DeleteCardTemplate { .. }
+            | Operation::TransferCardKey { .. }
             | Operation::SettleSyncCopy { .. }
             | Operation::SettleSyncRejection { .. }
             | Operation::AddType { .. }

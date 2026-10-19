@@ -2062,6 +2062,15 @@ impl Engine<'_, '_> {
                 }
                 self.bump(&current, true)
             }
+            Operation::TransferCardKey { source_id, .. } => {
+                let revision =
+                    crate::card_templates::transfer_key(self.tx, operation, self.now, index)?;
+                self.cards.insert(revision.id.clone(), revision);
+                self.card_sources.insert(source_id.clone());
+                let current = self.live(source_id)?;
+                self.record_revision(source_id, current.block.revision);
+                Ok(())
+            }
             Operation::CreateCardTemplate { .. }
             | Operation::UpdateCardTemplate { .. }
             | Operation::SetCardTemplateApplied { .. }

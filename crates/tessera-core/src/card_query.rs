@@ -124,7 +124,6 @@ impl Notebook {
             ", e.id, e.card_id, e.session_id, e.kind, e.grade, e.shown_front,
                 e.shown_back, e.definition_revision, e.scheduler_version,
                 e.before_state, e.after_state, e.created_at, e.change_seq, totals.total,
-                t.id, t.name, t.type_id, tp.text,
                 (SELECT CAST(g.key AS INTEGER) FROM occlusions o, json_each(o.state, '$.groups') g
                  WHERE o.block_id = c.source_block_id AND c.key = 'occlusion:' || json_extract(g.value, '$.id'))
             FROM (SELECT COUNT(*) AS total FROM queue) totals
@@ -134,8 +133,6 @@ impl Notebook {
             LEFT JOIN blocks p ON p.id = b.page_id
             LEFT JOIN grades g ON g.card_id = c.id AND g.position = 1
             LEFT JOIN review_events e ON e.id = g.event_id
-            LEFT JOIN card_templates t ON c.key = 'tpl:' || t.id
-            LEFT JOIN blocks tp ON tp.id = t.type_id
             ORDER BY s.is_new, s.due_at,
                 CASE WHEN s.is_new AND s.new_per_day IS NOT NULL THEN s.new_position END, s.id"
         ))?;
@@ -161,15 +158,7 @@ impl Notebook {
                 Some(review_event_at(row, 31)?)
             };
             let mut card = card_at(row, 0)?;
-            card.occlusion_index = row.get::<_, Option<i64>>(49)?.map(|index| index as usize);
-            if let Some(id) = row.get::<_, Option<String>>(45)? {
-                card.template = Some(crate::CardTemplateProvenance {
-                    id,
-                    name: row.get(46)?,
-                    type_id: row.get(47)?,
-                    type_name: row.get(48)?,
-                });
-            }
+            card.occlusion_index = row.get::<_, Option<i64>>(45)?.map(|index| index as usize);
             rows.push(CardRow {
                 card,
                 source: BlockInPage {
@@ -179,6 +168,10 @@ impl Notebook {
                 last_review,
             });
         }
+        crate::card_templates::recipe_provenance(
+            &self.conn,
+            rows.iter_mut().map(|row| &mut row.card),
+        )?;
         Ok(CardQueryResult { rows, total })
     }
 

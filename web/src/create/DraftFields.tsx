@@ -1,5 +1,5 @@
 import { For, Match, Show, Switch, createMemo, createResource, createSignal } from 'solid-js';
-import type { FieldDefinition } from '../api/types';
+import type { CardTemplateInfo, FieldDefinition } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { checkboxValue } from '../fields/kinds';
 import { PlainValueInput, ValueEditor } from '../fields/value-editor';
@@ -19,27 +19,41 @@ import { Popup } from '../ui/Popup';
 import type { CreateKind } from './request';
 import { draftFieldRows } from './draft';
 import type { DraftFieldsState, DraftValue } from './draft';
+import { draftPattern } from '../fields/card-patterns';
+import { parseCardText } from '../review/card-text';
 
 type Editing = { anchor: HTMLElement } & ({ kind: 'parent' | 'revisit' | 'review-date' | 'deadline' | 'holder' } | { kind: 'value'; field: FieldDefinition });
 
 export function DraftFields(props: {
   notebook: NotebookClient; kind: CreateKind; fieldIds: readonly string[]; existingId?: string; disabled: boolean;
   value: DraftFieldsState; onChange(value: DraftFieldsState): void;
+  recipes?: readonly CardTemplateInfo[]; atomText?: string;
 }) {
   const [editing, setEditing] = createSignal<Editing>();
   const [error, setError] = createSignal('');
   const [register] = createResource(() => props.kind.startsWith('type:') && props.fieldIds.length ? props.notebook.changeSequence() : false, () => props.notebook.api.fields());
   const [page] = createResource(() => props.existingId ? [props.existingId, props.notebook.changeSequence()] as const : false, async ([id]) => ({ id, page: await props.notebook.api.page(id) }));
-  const definitions = createMemo(() => props.fieldIds.slice(0, 4).flatMap(id => register()?.fields.find(field => field.id === id) ?? []));
+  const definitions = createMemo(() => (props.recipes?.length ? props.fieldIds : props.fieldIds.slice(0, 4)).flatMap(id => register()?.fields.find(field => field.id === id) ?? []));
   const existing = (field: FieldDefinition) => draftFieldRows(props.existingId && page()?.id === props.existingId ? page()!.page.rows.map(row => row.block) : [], props.existingId ?? '', field.id);
   const setValue = (field: FieldDefinition, value: DraftValue) => props.onChange({ ...props.value, values: { ...props.value.values, [field.id]: value } });
   const question = (value: Partial<DraftFieldsState['question']>) => props.onChange({ ...props.value, question: { ...props.value.question, ...value } });
   const dismiss = () => { const anchor = editing()?.anchor; setEditing(undefined); queueMicrotask(() => anchor?.focus({ preventScroll: true })); };
   const open = (value: Editing) => { setError(''); setEditing(value); };
+  const previews = createMemo(() => {
+    const syntax = parseCardText(props.atomText ?? '');
+    if (syntax.cards.length || syntax.problems.length) return [];
+    const values = Object.fromEntries(definitions().map(field => {
+      const current = existing(field), draft = props.value.values[field.id];
+      const text = current.filled ? current.values.map(value => value.text).join(', ') : draft?.option ?? draft?.relationPick?.query ?? draft?.text ?? '';
+      const reference = text.match(/^\[\[([0-9A-Z]{26})\]\]$/)?.[1];
+      return [field.id, reference ? field.options.find(option => option.id === reference)?.text ?? props.notebook.lookup(reference)()?.text ?? text : text];
+    }));
+    return (props.recipes ?? []).map(recipe => ({ recipe, front: draftPattern(recipe.front, props.atomText ?? '', values), back: draftPattern(recipe.back, props.atomText ?? '', values) }));
+  });
   const row = (label: string, text: string | undefined | null, kind: Exclude<Editing['kind'], 'value'>) => <Button class="create-field-row" disabled={props.disabled} onClick={event => open({ kind, anchor: event.currentTarget })}>
     <span class="create-field-label">{label}</span><span class="create-field-value" classList={{ 'create-field-empty': !text }}><Show when={text} fallback="Add…"><BlockText text={text!} notebook={props.notebook} interactive={false} /></Show></span>
   </Button>;
-  return <div class="create-fields" onKeyDown={event => { if (!event.metaKey && !event.ctrlKey) event.stopPropagation(); }}>
+  return <div class="create-fields" classList={{ 'create-recipe-fields': !!props.recipes?.length }} onKeyDown={event => { if (!event.metaKey && !event.ctrlKey) event.stopPropagation(); }}>
     <Show when={props.kind === 'question'}>
       {row('Parent question', props.value.question.parent ? `[[${props.value.question.parent}]]` : null, 'parent')}
       {row('Revisit', props.value.question.review_on, 'revisit')}
@@ -56,13 +70,14 @@ export function DraftFields(props: {
         const draft = props.value.values[field.id];
         return draft?.relationPick && !draft.relationPick.targetId ? draft.relationPick.query : draft?.text ?? '';
       };
-      return <Button class="create-field-row" disabled={props.disabled || current().filled || !!props.existingId && page.loading} onClick={event => {
+      return <Show when={props.recipes?.length && field.kind === 'text'} fallback={<Button class="create-field-row" disabled={props.disabled || current().filled || !!props.existingId && page.loading} onClick={event => {
         if (field.kind === 'checkbox') setValue(field, { text: checkboxValue(text()) ? 'no' : 'yes' });
         else open({ kind: 'value', field, anchor: event.currentTarget });
       }}><span class="create-field-label">{field.name}</span><span class="create-field-value" classList={{ 'create-field-empty': !text() }}>
         <Show when={text()} fallback="Add…"><Show when={field.kind === 'checkbox'} fallback={<BlockText text={text()} notebook={props.notebook} interactive={false} />}><Icon name={checkboxValue(text()) ? 'check' : 'stop'} /></Show></Show>
-      </span></Button>;
-    }}</For><Show when={props.fieldIds.length > 4}><p class="create-fields-more">More fields after creating</p></Show></Show>
+      </span></Button>}><label class="create-field-row create-field-input"><span class="create-field-label">{field.name}</span><input aria-label={field.name} value={text()} placeholder="Add…" disabled={props.disabled || current().filled} onInput={event => setValue(field, { text: event.currentTarget.value })} /></label></Show>;
+    }}</For><Show when={props.fieldIds.length > 4 && !props.recipes?.length}><p class="create-fields-more">More fields after creating</p></Show></Show>
+    <Show when={props.recipes?.length}><section class="create-card-preview" aria-label="Cards"><div class="create-card-head"><span class="ct-marker">01</span><span>Cards</span><span class="section-rule" /><span>{previews().filter(preview => preview.front && preview.back).length}</span></div><div class="create-card-directions"><For each={previews()}>{preview => <div><span class="create-field-label">{preview.recipe.name}</span><p>{preview.front ?? 'Waiting for the front'}</p><p>{preview.back ?? 'Waiting for the answer'}</p></div>}</For></div><Show when={!previews().length}><p class="create-fields-more">This atom keeps its syntax cards instead.</p></Show></section></Show>
     <Show when={error() || register.error || page.error}><p class="error" role="alert">{error() || String(register.error ?? page.error)}</p></Show>
     <Show keyed when={editing()}>{state => <Switch>
       <Match when={state.kind === 'parent'}><QuestionParentPicker id={props.existingId ?? ''} notebook={props.notebook} anchor={state.anchor} onDismiss={dismiss} onPick={async parent => { question({ parent }); }} /></Match>

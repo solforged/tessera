@@ -106,10 +106,11 @@ export type Operation =
   | { op: 'set_type_fields'; type_id: string; base_revision: number; fields: string[] }
   | { op: 'set_type_presentation'; type_id: string; base_revision: number; plural: string | null; icon: string | null }
   | { op: 'set_subject_criteria'; subject_id: string; base_revision: number; fields: string[] }
-  | { op: 'create_card_template'; id: string; type_id: string; name: string; front: string; back: string; new_per_day: number }
-  | { op: 'update_card_template'; id: string; base_revision: number; name: string; front: string; back: string; new_per_day: number }
+  | { op: 'create_card_template'; id: string; type_id: string; name: string; front: string; back: string; hint?: string | null; details?: string[]; new_per_day: number }
+  | { op: 'update_card_template'; id: string; base_revision: number; name: string; front: string; back: string; hint?: string | null; details?: string[]; new_per_day: number }
   | { op: 'set_card_template_applied'; id: string; base_revision: number; applied: boolean }
   | { op: 'delete_card_template'; id: string; base_revision: number }
+  | { op: 'transfer_card_key'; source_id: string; key: string; to_key: string | null; base_revision: number | null; held: boolean }
   | { op: 'save_view'; id: string; base_revision: number | null; name: string; query: Query }
   | { op: 'delete_view'; id: string; base_revision: number }
   | { op: 'set_setting'; key: string; base_revision: number | null; value: string }
@@ -523,9 +524,10 @@ export interface CardUnit {
   occlusion_index?: number;
 }
 
-export interface CardTemplateState { type_id: string; name: string; front: string; back: string; applied: boolean; new_per_day: number }
+export interface CardTemplateState { type_id: string; name: string; front: string; back: string; hint?: string | null; details?: string[]; applied: boolean; new_per_day: number }
 export interface CardTemplate extends CardTemplateState { id: string; position: number; revision: number; created_at: number; updated_at: number }
-export interface CardTemplateProvenance { id: string; name: string; type_id: string; type_name: string }
+export interface RecipeDetail { field_id: string; label: string; value: string; prose: boolean }
+export interface CardTemplateProvenance { id: string; name: string; type_id: string; type_name: string; front_label: string; back_label: string; hint: RecipeDetail | null; details: RecipeDetail[] }
 export interface CardTemplateInfo extends CardTemplate {
   front_display: string; back_display: string; ready: number; waiting_total: number; units_active: number; missing: string[];
   preview: { member_id: string; member_text: string; front: string; back: string } | null;

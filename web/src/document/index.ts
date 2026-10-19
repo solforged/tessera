@@ -841,12 +841,12 @@ export class Notebook implements NotebookClient, DocumentHost {
           if (!value) {
             operations.push({ op: 'delete_card_template', id, base_revision: revision });
           } else {
-            const { type_id, name, front, back, new_per_day, applied } = value;
+            const { type_id, name, front, back, hint = null, details = [], new_per_day, applied } = value;
             if (!previous) {
-              operations.push({ op: 'create_card_template', id, type_id, name, front, back, new_per_day });
+              operations.push({ op: 'create_card_template', id, type_id, name, front, back, hint, details, new_per_day });
               revision = 1;
-            } else if (name !== previous.name || front !== previous.front || back !== previous.back || new_per_day !== previous.new_per_day) {
-              operations.push({ op: 'update_card_template', id, base_revision: revision++, name, front, back, new_per_day });
+            } else if (name !== previous.name || front !== previous.front || back !== previous.back || hint !== (previous.hint ?? null) || JSON.stringify(details) !== JSON.stringify(previous.details ?? []) || new_per_day !== previous.new_per_day) {
+              operations.push({ op: 'update_card_template', id, base_revision: revision++, name, front, back, hint, details, new_per_day });
             }
             if (applied !== (previous?.applied ?? false)) operations.push({ op: 'set_card_template_applied', id, base_revision: revision, applied });
           }

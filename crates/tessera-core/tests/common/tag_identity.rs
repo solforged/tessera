@@ -142,10 +142,11 @@ fn migration_051_normalizes_existing_live_tags_without_changes_or_missing_pages(
     )
     .unwrap();
     conn.execute("INSERT INTO memberships(block_id, title_key, type_id, manual, title) VALUES (?1, 'codex', ?2, 1, 'Codex'), (?1, 'codex', ?2, 1, 'CODEX')", rusqlite::params![id(10), id(2)]).unwrap();
+    conn.execute_batch("ALTER TABLE card_templates DROP COLUMN hint; ALTER TABLE card_templates DROP COLUMN details;").unwrap();
     conn.pragma_update(None, "user_version", 50).unwrap();
     drop(conn);
     let mut nb = Notebook::open(dir.path()).unwrap();
-    assert_eq!(tessera_core::SCHEMA_VERSION, 51);
+    assert_eq!(tessera_core::SCHEMA_VERSION, 52);
     assert_eq!(
         nb.block(&id(10)).unwrap().text,
         format!(

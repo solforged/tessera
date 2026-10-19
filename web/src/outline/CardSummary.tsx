@@ -122,7 +122,7 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></p></Show>
       <Show when={!error() && ordered().length}><div class="outline-cards-list">
         <For each={ordered()}>{card => <div class="outline-cards-row">
-          <span class="outline-cards-kind">{card.template ? 'Template' : cardKindLabel(card, ordered())}</span>
+          <span class="outline-cards-kind">{card.template ? 'Recipe' : cardKindLabel(card, ordered())}</span>
           <div class="outline-cards-content">
             <CardPreview card={card} notebook={props.notebook} />
             <Show when={card.template}>{template => <p class="outline-cards-provenance">#{template().type_name} · {template().name}</p>}</Show>

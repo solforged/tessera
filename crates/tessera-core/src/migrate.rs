@@ -60,6 +60,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/049_occlusions.sql"),
     include_str!("../migrations/050_strict_tables.sql"),
     include_str!("../migrations/051_tag_identity.sql"),
+    include_str!("../migrations/052_recipe_details.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -173,6 +174,9 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     }
     if found < 34 {
         crate::card_store::rebuild(&tx, now_ms())?;
+    }
+    if found < 52 {
+        crate::card_templates::exclude_syntax_sources(&tx, now_ms())?;
     }
     tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     tx.commit()?;
@@ -468,7 +472,7 @@ mod tests {
             "type_presentation",
             "field_targets",
         ];
-        let before: Vec<_> = TABLES
+        let mut before: Vec<_> = TABLES
             .iter()
             .map(|table| {
                 rows(
@@ -477,6 +481,14 @@ mod tests {
                 )
             })
             .collect();
+        // Recipe extras are new columns; the old rows keep every prior value.
+        for row in &mut before[TABLES
+            .iter()
+            .position(|table| *table == "card_templates")
+            .unwrap()]
+        {
+            row.extend(["Null".into(), "Text(\"[]\")".into()]);
+        }
 
         migrate(&mut conn).unwrap();
 

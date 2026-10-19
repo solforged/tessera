@@ -32,6 +32,7 @@ const terse = (text: string) => text.length <= 40 && !text.includes('\n');
 
 export function ReviewCard(props: ReviewCardProps) {
   const [revealedItems, setRevealedItems] = createSignal(0);
+  const [hintShown, setHintShown] = createSignal(false);
   const itemCount = () => props.item.card.kind === 'list' ? props.item.card.answer_blocks.length : 1;
   const revealed = () => revealedItems() >= itemCount();
   const [resetOnGrade, setResetOnGrade] = createSignal(false);
@@ -68,6 +69,7 @@ export function ReviewCard(props: ReviewCardProps) {
     const focused = region?.contains(region.ownerDocument.activeElement);
     generation++;
     setRevealedItems(0);
+    setHintShown(false);
     setResetOnGrade(false);
     setPending(false);
     setError('');
@@ -138,7 +140,7 @@ export function ReviewCard(props: ReviewCardProps) {
     onCleanup(() => region.removeEventListener('keydown', keydown));
   });
 
-  return <div ref={region} class="review-card" role="region" aria-label="Review card" aria-busy={locked()} tabIndex={0} onClick={event => {
+  return <div ref={region} class="review-card" classList={{ 'review-recipe': !!props.item.card.template }} role="region" aria-label="Review card" aria-busy={locked()} tabIndex={0} onClick={event => {
     if (!window.matchMedia('(pointer: coarse)').matches || (event.target as Element).closest('button, a, summary, input, textarea, [role="button"]') || !window.getSelection()?.isCollapsed) return;
     reveal();
   }}>
@@ -149,20 +151,29 @@ export function ReviewCard(props: ReviewCardProps) {
       <span class="review-card-kind">{kindLabel()}</span>
       <Button icon="more" label="Card actions" aria-haspopup="menu" disabled={locked()} onClick={event => setActions(event.currentTarget)} />
     </div>
-    <Show when={props.item.card.template}>{template => <p class="review-card-meta">from #{template().type_name} · {template().name}</p>}</Show>
+    <Show when={props.item.card.template}>{template => <p class="review-card-meta recipe-provenance"><span>from #{template().type_name}</span><span>{template().name}</span></p>}</Show>
     <Show when={changed()}><p class="review-card-change-notice">Wording changed since your last review.</p></Show>
+    <Show when={props.item.card.template} fallback={<>
     <Show when={gaps()} fallback={<>
-      <section class="review-card-side" classList={{ 'review-card-terse': large() }} aria-label="Front"><CardFront kind={props.item.card.kind} front={props.item.card.front} back={props.item.card.back} plain={!!props.item.card.template} revealed={revealed()} notebook={props.notebook} /></section>
+      <section class="review-card-side" classList={{ 'review-card-terse': large() }} aria-label="Front"><CardFront kind={props.item.card.kind} front={props.item.card.front} back={props.item.card.back} revealed={revealed()} notebook={props.notebook} /></section>
       <Show when={revealedItems() > 0}>
-        <section id={answerId} class="review-card-side review-card-answer" classList={{ 'review-card-terse': large() }} aria-label="Answer"><Show when={props.item.card.template} fallback={<CardBack kind={props.item.card.kind} front={props.item.card.front} back={props.item.card.back} blocks={props.item.card.answer_blocks} visibleItems={revealedItems()} notebook={props.notebook} />}>{props.item.card.back}</Show></section>
+        <section id={answerId} class="review-card-side review-card-answer" classList={{ 'review-card-terse': large() }} aria-label="Answer"><CardBack kind={props.item.card.kind} front={props.item.card.front} back={props.item.card.back} blocks={props.item.card.answer_blocks} visibleItems={revealedItems()} notebook={props.notebook} /></section>
       </Show>
     </>}>{segments => <section id={revealed() ? answerId : undefined} class="review-card-side" classList={{ 'review-card-terse': large() }} aria-label={revealed() ? 'Answer' : 'Front'}>
       <ClozeText segments={segments()} revealed={revealed()} notebook={props.notebook} />
     </section>}</Show>
+    </>}>{recipe => <>
+      <section class="recipe-front" aria-label="Front"><span class="recipe-index">01</span><div><div class="recipe-label">{recipe().front_label}</div><div class="review-card-side">{props.item.card.front}</div></div></section>
+      <Show when={!revealed() && recipe().hint}>{hint => <div class="recipe-hint"><span>{hint().label}</span><Show when={hintShown()} fallback={<Button disabled={locked()} onClick={() => setHintShown(true)}>Show hint</Button>}><span>{hint().value}</span></Show></div>}</Show>
+      <Show when={revealed()}><section id={answerId} class="recipe-answer" aria-label="Answer">
+        <div class="recipe-label">{recipe().back_label}</div><div class="review-card-side">{props.item.card.back}</div>
+        <Show when={recipe().details.length}><dl class="recipe-apparatus"><For each={recipe().details}>{detail => <><dt>{detail.label}</dt><dd classList={{ 'recipe-prose': detail.prose }}>{detail.value}</dd></>}</For></dl></Show>
+      </section></Show>
+    </>}</Show>
     <Show when={props.item.card.kind === 'list' && revealedItems() > 0}><p class="review-list-progress" role="status">{revealedItems()} of {itemCount()}</p></Show>
     <Show when={revealed() && props.context?.following}><blockquote class="review-card-following">{props.context!.following}</blockquote></Show>
     <Show when={revealed()} fallback={<div class="review-card-actions">
-      <Button class="bordered" label={revealedItems() ? 'Reveal next item' : 'Reveal answer'} shortcut="Space" aria-keyshortcuts="Space" aria-expanded={revealedItems() > 0} aria-controls={answerId} disabled={locked()} onClick={reveal}>{revealedItems() ? 'Reveal next item' : 'Reveal answer'} <kbd>Space</kbd></Button>
+      <Button class="bordered" label={revealedItems() ? 'Reveal next item' : props.item.card.template ? 'Show answer' : 'Reveal answer'} shortcut="Space" aria-keyshortcuts="Space" aria-expanded={revealedItems() > 0} aria-controls={answerId} disabled={locked()} onClick={reveal}>{revealedItems() ? 'Reveal next item' : props.item.card.template ? 'Show answer' : 'Reveal answer'} <kbd>Space</kbd></Button>
     </div>}>
       <Show when={changed() && props.item.last_review}>{last => <section class="review-card-comparison" aria-label="Changed card text">
         <div class="review-card-comparison-versions">

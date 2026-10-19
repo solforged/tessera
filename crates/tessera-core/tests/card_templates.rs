@@ -33,6 +33,8 @@ fn create() -> Operation {
         name: "Recognition".into(),
         front: format!("{{{}}}", id(10)),
         back: format!("{{{}}}", id(11)),
+        hint: None,
+        details: Vec::new(),
         new_per_day: 2,
     }
 }
@@ -193,13 +195,13 @@ fn waiting_values_identity_schedule_and_field_renames() {
 }
 
 #[test]
-fn disable_enable_delete_undo_and_authored_derivation_coexist() {
+fn disable_enable_delete_undo_and_authored_syntax_exclusion() {
     let (_dir, mut nb) = fixture(2, 2);
     applied(&mut nb, true);
     let before = unit(&nb, 100);
     edit(&mut nb, 100, "Authored >> answer #Vocab");
     assert_eq!(unit(&nb, 100).id, before.id);
-    assert!(unit(&nb, 100).active);
+    assert!(!unit(&nb, 100).active);
     assert_eq!(nb.source_cards(&id(100)).unwrap().len(), 2);
     applied(&mut nb, false);
     assert!(!unit(&nb, 100).active);
@@ -372,6 +374,8 @@ fn patterns_validate_unknown_fields_escapes_revisions_and_linked_values() {
         name: "Recognition".into(),
         front,
         back: format!("{{{}}}", id(11)),
+        hint: None,
+        details: Vec::new(),
         new_per_day: 2,
     };
     assert!(
@@ -487,6 +491,8 @@ fn paced_counts_and_forecast_defer_five_of_fifteen_but_all_keeps_inventory() {
             name: template.name,
             front: template.front,
             back: template.back,
+            hint: template.hint,
+            details: template.details,
             new_per_day: 10,
         }],
     );
@@ -658,11 +664,11 @@ fn scoped_pacing_uses_civil_days_global_introductions_and_visible_nonheld_invent
             stats.total_cards,
             stats.held_cards
         ),
-        (1, 0, 4, 1)
+        (1, 0, 3, 1)
     );
     assert_eq!(stats.forecast[0].count, 1);
     assert_eq!(stats.forecast[1].date, "2030-03-11");
-    assert_eq!(stats.forecast[1].count, 3);
+    assert_eq!(stats.forecast[1].count, 2);
     assert_eq!(nb.card_query(&scoped, end - 1).unwrap().total, 1);
     assert_eq!(
         nb.card_query(
@@ -686,7 +692,7 @@ fn scoped_pacing_uses_civil_days_global_introductions_and_visible_nonheld_invent
         )
         .unwrap()
         .total,
-        4
+        3
     );
     assert_eq!(nb.card_query(&scoped, end).unwrap().total, 2);
     assert_eq!(

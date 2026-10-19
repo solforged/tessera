@@ -47,3 +47,18 @@
   .review-card-grade:nth-child(n + 3) { border-top-color: var(--line); }
   .review-card-actions > .button { width: 100%; min-height: var(--space-48); justify-content: center; }
 }
+
+.recipe-provenance { padding-bottom: var(--space-12); border-bottom: var(--rule-width) solid var(--line); color: var(--faint); }
+.recipe-front { display: grid; grid-template-columns: var(--space-48) minmax(0, 1fr); gap: var(--space-16); margin-top: var(--space-8); }
+.recipe-index { padding-top: var(--space-8); color: var(--danger); font: var(--apparatus); }
+.recipe-label { margin-bottom: var(--space-8); color: var(--faint); font: var(--apparatus); }
+.recipe-hint { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-16); margin-left: calc(var(--space-48) + var(--space-16)); color: var(--faint); font: var(--apparatus); }
+.recipe-hint .button { font: inherit; color: var(--muted); padding-inline: 0; }
+.recipe-answer { margin-left: calc(var(--space-48) + var(--space-16)); padding-top: var(--space-16); border-top: var(--rule-width) solid var(--line); }
+.recipe-apparatus { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); gap: var(--space-8) var(--space-16); margin: var(--space-24) 0 0; color: var(--muted); font: var(--apparatus); }
+.recipe-apparatus dt { color: var(--faint); }
+.recipe-apparatus dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.recipe-apparatus .recipe-prose { font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+.review-recipe .review-card-actions { margin-top: auto; padding-top: var(--space-48); border-top: var(--rule-width) solid var(--line); justify-content: flex-end; }
+.review-recipe .review-card-actions .button { color: var(--accent); border-color: var(--accent); }
+.review-recipe .review-card-grades { margin-top: auto; }

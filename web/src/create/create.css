@@ -36,3 +36,23 @@
 .create-field-empty, .create-fields-more { color: var(--faint); }
 .create-field-row.button:disabled { opacity: 1; cursor: default; }
 .create-fields-more { margin: var(--space-8) 0 0; font: var(--apparatus); }
+
+.create-body:has(.create-recipe) .capture-title { color: var(--text); font: var(--page-title-font); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-title); }
+.create-recipe-tag { display: flex; align-items: center; gap: var(--space-12); margin-bottom: var(--space-16); padding-bottom: var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
+.create-recipe-tag > span:last-child { margin-left: auto; color: var(--faint); font: var(--apparatus); }
+.create-recipe .create-page-title { border-bottom: var(--rule-width) solid var(--accent); }
+.create-field-input { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); align-items: baseline; gap: var(--space-12); padding-block: var(--space-8); border-bottom: var(--rule-width) dotted var(--line); }
+.create-field-input input { width: 100%; min-width: 0; padding: var(--space-4) 0; border: 0; border-radius: 0; background: transparent; color: var(--text); }
+.create-field-input input::placeholder { color: var(--faint); }
+.create-card-preview { margin-top: var(--space-24); }
+.create-card-head { display: flex; align-items: center; gap: var(--space-8); color: var(--muted); font: var(--apparatus); }
+.create-card-head .section-rule { flex: 1; }
+.create-card-directions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-16); padding-top: var(--space-12); }
+.create-card-directions > div:nth-child(even) { padding-left: var(--space-16); border-left: var(--rule-width) solid var(--line); }
+.create-card-directions p { margin: var(--space-4) 0; font: var(--weight-title) var(--text-h2)/var(--line-h2) var(--font-display); overflow-wrap: anywhere; }
+.create-card-directions p:last-child { color: var(--muted); }
+@media (pointer: coarse) {
+  .create-recipe-fields .create-field-row { grid-template-columns: 1fr; gap: 0; align-items: start; padding-top: var(--space-4); border-top: 0; border-bottom: var(--rule-width) dotted var(--line); }
+  .create-recipe-fields .create-field-value, .create-recipe-fields input { display: flex; align-items: center; min-height: var(--touch-target); }
+  .create-recipe .create-foot .bordered { min-height: var(--touch-target); padding-inline: var(--space-24); color: var(--accent); border-color: var(--accent); }
+}

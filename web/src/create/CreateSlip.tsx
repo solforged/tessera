@@ -58,12 +58,13 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
   const index = noteIndex(props.notebook);
   const noteKind = createMemo(() => index()?.kinds.find(value => value.key === (kind().startsWith('type:') ? kind().slice(5) : kind())));
   const moreKinds = createMemo(() => (index()?.kinds ?? []).filter(value => value.tag && !primaryKinds.some(primary => primary.kind === value.key)));
+  const [recipes] = createResource(() => kind().startsWith('type:') && noteKind()?.type_id || false, async id => (await props.notebook.api.cardTemplates(id)).filter(recipe => recipe.applied));
   const under = () => { const destination = into(); return destination.kind === 'under' ? destination.pageId : undefined; };
   const destinationTitle = () => under() ? props.notebook.lookup(under()!)()?.text ?? props.notebook.roots().find(page => page.id === under())?.text ?? 'Atom' : '';
   const pageDraft = () => kind() === 'project' || kind().startsWith('type:') || (kind() === 'note' || kind() === 'question') && into().kind === 'page';
   const moreSelected = () => !primaryKinds.some(value => value.kind === kind());
-  const action = () => kind() === 'source' ? 'Add to library' : kind() === 'task' ? 'New task' : kind() === 'card' ? 'New card' : kind() === 'project' ? 'New project' : kind().startsWith('type:') ? `New ${noteKind() ? kindNoun(noteKind()!) : 'atom'}` : pageDraft() ? kind() === 'question' ? 'New question' : 'New atom' : 'Add to today';
-  const where = () => kind() === 'source' ? 'Library inbox' : pageDraft() ? '' : under() ? `End of ${destinationTitle()}` : `${shortDay(props.notebook.todayDate())} · end of journal`;
+  const action = () => recipes()?.length ? `Add ${noteKind() ? kindNoun(noteKind()!) : 'an atom'}` : kind() === 'source' ? 'Add to library' : kind() === 'task' ? 'New task' : kind() === 'card' ? 'New card' : kind() === 'project' ? 'New project' : kind().startsWith('type:') ? `New ${noteKind() ? kindNoun(noteKind()!) : 'atom'}` : pageDraft() ? kind() === 'question' ? 'New question' : 'New atom' : 'Add to today';
+  const where = () => recipes()?.length ? 'Into today' : kind() === 'source' ? 'Library inbox' : pageDraft() ? '' : under() ? `End of ${destinationTitle()}` : `${shortDay(props.notebook.todayDate())} · end of journal`;
   const status = () => added() ? `${added()} added` : '';
   const [pages] = createResource(() => picker() ? [query(), props.notebook.roots()] as const : false, ([value, roots]) => completeNames(props.notebook, value, roots));
   let body!: HTMLDivElement;

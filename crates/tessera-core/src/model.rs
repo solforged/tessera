@@ -152,6 +152,10 @@ pub enum Operation {
         name: String,
         front: String,
         back: String,
+        #[serde(default)]
+        hint: Option<String>,
+        #[serde(default)]
+        details: Vec<String>,
         new_per_day: u32,
     },
     UpdateCardTemplate {
@@ -160,6 +164,10 @@ pub enum Operation {
         name: String,
         front: String,
         back: String,
+        #[serde(default)]
+        hint: Option<String>,
+        #[serde(default)]
+        details: Vec<String>,
         new_per_day: u32,
     },
     SetCardTemplateApplied {
@@ -170,6 +178,15 @@ pub enum Operation {
     DeleteCardTemplate {
         id: String,
         base_revision: i64,
+    },
+    /// Transfer a card between syntax and recipe keys without replacing its history.
+    /// A missing source creates a held counterpart; a null destination removes it.
+    TransferCardKey {
+        source_id: String,
+        key: String,
+        to_key: Option<String>,
+        base_revision: Option<i64>,
+        held: bool,
     },
     /// Split a block in two. `left + right` must equal the current text. The
     /// original ID keeps `left` and its children; `new_id` becomes the next

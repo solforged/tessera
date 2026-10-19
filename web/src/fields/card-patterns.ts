@@ -27,6 +27,7 @@ export function displayPattern(pattern: string, fields: readonly FieldDefinition
 export function storedPattern(pattern: string, fields: readonly FieldDefinition[]): string {
   return patternParts(pattern).map(part => {
     if (!part.field) return part.text;
+    if (part.text === '@text') return '{@text}';
     const exact = fields.find(field => field.id === part.text);
     const matches = exact ? [exact] : fields.filter(field => field.name === part.text);
     if (matches.length !== 1) throw new Error(matches.length ? `Choose one ${part.text} field from the picker.` : `Unknown field: ${part.text}`);
@@ -35,5 +36,17 @@ export function storedPattern(pattern: string, fields: readonly FieldDefinition[
 }
 
 export function usedFields(front: string, back: string): string[] {
-  return [...new Set([...patternParts(front), ...patternParts(back)].filter(part => part.field).map(part => part.text))];
+  return [...new Set([...patternParts(front), ...patternParts(back)].filter(part => part.field && part.text !== '@text').map(part => part.text))];
+}
+
+/** Render the same reserved token and literal braces as the recipe evaluator. */
+export function draftPattern(pattern: string, text: string, values: Readonly<Record<string, string>>): string | null {
+  let missing = false;
+  const result = patternParts(pattern).map(part => {
+    if (!part.field) return part.text.replaceAll('\\{', '{');
+    const value = part.text === '@text' ? text : values[part.text];
+    if (!value?.trim()) missing = true;
+    return value ?? '';
+  }).join('');
+  return missing || !result.trim() ? null : result;
 }

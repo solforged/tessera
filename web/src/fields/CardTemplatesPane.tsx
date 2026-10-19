@@ -7,12 +7,13 @@ import { opensBeside } from '../shell/beside';
 import { typeQuery } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
-import { kindLabel, noteIndex, noteKindIcon } from '../notes/kinds';
+import { Menu } from '../ui/Menu';
+import type { MenuItem } from '../ui/Menu';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
-import { FieldPicker } from './FieldPicker';
-import { displayPattern, patternParts, storedPattern, usedFields } from './card-patterns';
-import { isStableReference, textTokens } from '../document/text-tokens';
-import { referenceLabel } from '../outline/names';
+import { noteIndex } from '../notes/kinds';
+import { displayPattern, storedPattern } from './card-patterns';
+import { convertSyntax, syntaxAtom } from './recipe-conversion';
+import { parseCardText } from '../review/card-text';
 import './card-templates.css';
 
 interface Props {
@@ -21,218 +22,128 @@ interface Props {
 }
 
 export function CardTemplatesPane(props: Props) {
-  const [version, setVersion] = createSignal(0);
   const index = noteIndex(props.notebook);
   const kind = createMemo(() => index()?.kinds.find(value => value.type_id === props.typeId));
-  const cardCount = createMemo(() => kind()?.cards ?? 0);
+  const [type] = createResource(() => [props.typeId, props.notebook.changeSequence()] as const, ([id]) => props.notebook.api.type(id));
+  let scroll!: HTMLDivElement;
+  onMount(() => { scroll.scrollTop = props.view.scroll; scroll.focus({ preventScroll: true }); });
+  return <div ref={scroll} class="card-templates-pane" role="region" aria-label={`${type()?.page.text ?? 'Tag'} cards`} tabIndex={0} onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
+    <div class="ct-sheet"><header class="ct-heading"><div class="ct-title-row"><h1>{type()?.page.text ?? 'Cards'}</h1><Button onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, opensBeside(event))}>Open tag</Button></div></header>
+      <TypeModeTabs active="cards" indexCount={kind()?.count} tableCount={type()?.members} fieldsCount={type()?.fields.length} cardsCount={type()?.card_templates}
+        onIndex={event => props.onOpen({ kind: 'index', key: kind()?.key ?? `type:${props.typeId}` }, opensBeside(event))}
+        onTable={event => props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) }, opensBeside(event))}
+        onFields={event => props.onOpen({ kind: 'fields', typeId: props.typeId }, opensBeside(event))} onCards={() => {}} />
+      <RecipeSection typeId={props.typeId} notebook={props.notebook} onOpen={props.onOpen} />
+    </div>
+  </div>;
+}
+
+/** The tag page and Cards tab share the same recipe rows and history. */
+export function RecipeSection(props: { typeId: string; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
+  const [version, setVersion] = createSignal(0);
   const [error, setError] = createSignal('');
   const [busy, setBusy] = createSignal(false);
-  const [editing, setEditing] = createSignal<string | null>(null);
-  const [shown, setShown] = createSignal(20);
-  const doc = createMemo(() => {
-    const value = props.notebook.open(props.typeId);
-    onCleanup(() => value.release());
-    return value;
-  });
-  let scroll!: HTMLDivElement;
-  let restored = false;
+  const [converting, setConverting] = createSignal(false);
+  const [backField, setBackField] = createSignal('');
+  const [newField, setNewField] = createSignal('');
+  const [backMenu, setBackMenu] = createSignal<HTMLElement | null>(null);
+  const doc = createMemo(() => { const value = props.notebook.open(props.typeId); onCleanup(() => value.release()); return value; });
   createEffect(on(() => props.notebook.changeSequence(), () => {
     const timer = setTimeout(() => setVersion(value => value + 1), 150);
     onCleanup(() => clearTimeout(timer));
   }, { defer: true }));
   const [data, { refetch }] = createResource(() => [props.typeId, version()] as const, async ([id]) => {
-    const [type, fields, templates] = await Promise.all([
-      props.notebook.api.type(id), props.notebook.api.fields(), props.notebook.api.cardTemplates(id),
-    ]);
-    return { type, fields: fields.fields, templates };
+    const [type, register, templates, cards] = await Promise.all([props.notebook.api.type(id), props.notebook.api.fields(), props.notebook.api.cardTemplates(id), props.notebook.api.cardQuery({ source: typeQuery(id), selection: 'all', limit: 0 })]);
+    const members = await props.notebook.api.members(id, Math.max(1, type.members));
+    return { type, fields: register.fields, templates, members, cards };
   });
-  const title = () => data.latest?.type.page.text ?? props.notebook.lookup(props.typeId)()?.text ?? 'Tag';
+  const fields = createMemo(() => (data.latest?.type.fields ?? []).flatMap(id => data.latest?.fields.find(field => field.id === id && !field.archived) ?? []));
+  const atoms = createMemo(() => (data.latest?.members ?? []).flatMap(member => syntaxAtom(member) ?? []));
+  const skipped = createMemo(() => (data.latest?.members ?? []).filter(member => !syntaxAtom(member) && (() => { const parsed = parseCardText(member.block.text); return parsed.cards.length || parsed.problems.length; })()));
   const templates = () => data.latest?.templates ?? [];
-  const templatesById = createMemo(() => new Map(templates().map(template => [template.id, template])));
-  const applyTemplate = () => props.applyId ? templatesById().get(props.applyId) : undefined;
-  const [forecast, { refetch: refetchForecast }] = createResource(() => props.applyId ? [props.applyId, version()] as const : false,
-    ([id]) => props.notebook.api.cardTemplateForecast(id));
-  const first = () => templates()[0];
-  const fields = createMemo(() => (data.latest?.fields ?? []).filter(field => !field.archived && field.name.trim()));
-  const total = () => templates().reduce((sum, template) => sum + template.ready, 0);
-  createEffect(() => {
-    if (!data.latest || restored) return;
-    restored = true;
-    requestAnimationFrame(() => { scroll.scrollTop = props.view.scroll; });
-  });
-  onMount(() => { requestAnimationFrame(() => scroll.focus({ preventScroll: true })); });
-
-  async function save(template: CardTemplateInfo | null, value: CardTemplateState | null, id = template?.id ?? ulid()) {
+  const title = () => data.latest?.type.page.text ?? 'Tag';
+  const total = () => data.latest?.cards.total ?? 0;
+  async function work(action: () => Promise<void>) {
     if (busy()) return;
     setBusy(true); setError('');
-    try {
+    try { await action(); await refetch(); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setBusy(false); }
+  }
+  async function save(previous: CardTemplateInfo | null, value: CardTemplateState | null) {
+    await work(async () => {
       const document = doc();
-      const result = document.edit({ kind: 'cardTemplate', id, previous: template, value });
+      const result = document.edit({ kind: 'cardTemplate', id: previous?.id ?? ulid(), previous, value });
       if (!result.ok) throw new Error(result.reason);
       await document.flush();
       if (document.saveState() === 'error') throw new Error(document.saveMessage());
-      await refetch();
-      if (props.applyId) await refetchForecast();
-      setEditing(null);
-      return id;
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
-      return undefined;
-    } finally { setBusy(false); }
+    });
   }
-  async function history(redo: boolean) {
-    if (busy()) return;
-    setBusy(true); setError('');
-    try {
-      if (redo) doc().redo(); else doc().undo();
-      await doc().flush();
-      if (doc().saveState() === 'error') throw new Error(doc().saveMessage());
-      await refetch();
-      if (props.applyId) await refetchForecast();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setBusy(false); }
-  }
-  const toCards = () => props.onOpen({ kind: 'cards', typeId: props.typeId }, false);
-  return <div ref={scroll} class="card-templates-pane" role="region" aria-label={`${title()} cards`} tabIndex={0} data-pane-pending={!data.latest && !data.error ? '' : undefined} onFocusIn={props.onActivate}
-    onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })} onKeyDown={event => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !(event.target as Element).closest('input, textarea, [contenteditable]')) {
-        event.preventDefault(); event.stopPropagation(); void history(event.shiftKey);
-      }
-    }}>
-    <div class="ct-sheet">
-      <header class="ct-heading">
-        <div class="ct-apparatus ct-crumb"><Button onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, opensBeside(event))}>{title()}</Button><span> / {props.applyId ? `${applyTemplate()?.name ?? 'Cards'} / Apply` : 'Card templates'}</span></div>
-        <div class="ct-title-row"><h1><Show when={kind()}>{value => <Icon name={noteKindIcon(value())} />}</Show>{kind() ? kindLabel(kind()!) : title()}</h1><span class="ct-apparatus">{templates().length} {templates().length === 1 ? 'template' : 'templates'} · {templates().filter(template => template.applied).length} enabled</span><Button disabled={!cardCount()} title={!cardCount() ? 'No cards yet' : undefined} onClick={event => props.onOpen({ kind: 'review', deckId: props.typeId }, opensBeside(event))}>Review</Button></div>
-      </header>
-      <TypeModeTabs active="cards" indexCount={kind()?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length} cardsCount={data.latest?.templates.length}
-        onIndex={event => props.onOpen({ kind: 'index', key: kind()?.key ?? `type:${props.typeId}` }, opensBeside(event))}
-        onTable={event => props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) }, opensBeside(event))}
-        onFields={event => props.onOpen({ kind: 'fields', typeId: props.typeId }, opensBeside(event))} onCards={toCards} />
-      <Show when={error() || data.error || forecast.error}><p role="alert" class="error">{error() || String(data.error || forecast.error)} <Button onClick={() => { setError(''); setVersion(value => value + 1); }}>Retry</Button></p></Show>
-      <Show when={data.latest} fallback={<p class="empty-state" role="status">Loading templates…</p>}>
-        <Show when={props.applyId} fallback={<>
-          <div class="ct-meta"><span><span class="ct-num">{data.latest?.type.members ?? 0}</span> members</span><Show when={first()}>{template => <><span>{template().ready} ready</span><Show when={template().waiting_total > 0}><span class="ct-wait">{template().waiting_total} waiting{template().missing[0] ? ` on ${template().missing[0]}` : ''}</span></Show></>}</Show></div>
-          <For each={templates().slice(0, shown()).map(template => template.id)}>{(id, index) => <Show when={templatesById().get(id)}>{template => <section class="ct-section" aria-label={`${template().name} template`}>
-            <div class="ct-section-head"><span class="ct-marker">{String(index() + 1).padStart(2, '0')}</span><h2>{template().name}</h2><span class="ct-apparatus">{template().applied ? 'Enabled' : 'Draft · not in review'}</span>
-              <Button disabled={busy()} onClick={() => setEditing(id)}>Edit</Button>
-              <Show when={!template().applied} fallback={<Button disabled={busy()} onClick={() => void save(template(), { ...template(), applied: false })}>Disable · {template().units_active} cards</Button>}>
-                <Button class="bordered" disabled={busy() || !template().front.trim() || !template().back.trim()} onClick={() => props.onOpen({ kind: 'cards', typeId: props.typeId, applyId: id }, false)}>Enable…</Button>
-              </Show>
-            </div>
-            <Show when={editing() === id} fallback={<>
-              <div class="ct-template-grid"><div class="ct-patterns">
-                <div class="ct-pattern-line"><span class="ct-pattern-label">Front</span><PatternChips pattern={template().front} fields={data.latest?.fields ?? []} /></div>
-                <div class="ct-pattern-line"><span class="ct-pattern-label">Back</span><PatternChips pattern={template().back} fields={data.latest?.fields ?? []} /></div>
-                <p class="ct-footnote">Uses {usedFields(template().front, template().back).length} of {fields().length} fields</p>
-              </div><div class="ct-preview"><Show when={template().preview} fallback={<p class="ct-apparatus">Waiting for a ready member</p>}>{preview => <>
-                <div class="ct-preview-top"><span>Preview · {memberTitle(preview().member_text, id => props.notebook.lookup(id))}</span><span>1 / {template().ready}</span></div><p class="ct-preview-prompt">{preview().front}</p><p class="ct-preview-answer">{preview().back}</p>
-              </>}</Show></div></div>
-              <div class="ct-schedule"><label>New per day <input class="input ct-rate" type="number" min="1" max="9999" aria-label={`${template().name} new per day`} value={template().new_per_day} disabled={busy()} onChange={event => {
-                const value = event.currentTarget.valueAsNumber;
-                if (!Number.isInteger(value) || value < 1 || value > 9999) { setError('New per day must be between 1 and 9999.'); return; }
-                if (value !== template().new_per_day) void save(template(), { ...template(), new_per_day: value });
-              }} /></label><span>{template().ready} cards / {template().new_per_day} a day ≈ {Math.ceil(template().ready / template().new_per_day)} days</span></div>
-            </>}><TemplateEditor template={template()} fields={data.latest?.fields ?? []} templateFields={data.latest?.type.fields ?? []} busy={busy()} onCancel={() => setEditing(null)} onSave={value => save(template(), value)} onDelete={() => save(template(), null)} /></Show>
-          </section>}</Show>}</For>
-          <Show when={templates().length > shown()}><Button onClick={() => setShown(value => value + 20)}>Show more templates</Button></Show>
-          <div class="ct-bottom-rule"><Button class="bordered" disabled={busy()} onClick={async () => {
-            const id = await save(null, { type_id: props.typeId, name: `Template ${templates().length + 1}`, front: '', back: '', applied: false, new_per_day: 10 });
-            if (id) setEditing(id);
-          }}>+ Add template</Button><span class="ct-inline-rule" /><span class="ct-apparatus">{templates().length && templates().every(template => template.ready === first()?.ready) ? `${first()!.ready} ready × ${templates().length} templates = ` : ''}{total()} cards</span></div>
-          <section class="ct-foot"><div class="ct-section-head"><h3>Fields available to patterns</h3><Button onClick={event => props.onOpen({ kind: 'fields', typeId: props.typeId }, opensBeside(event))}>Open Fields →</Button></div><div class="ct-field-order"><For each={fields()}>{field => <span class="ct-chip">{field.name}</span>}</For></div><p>A member waits until every field used by the pattern has a value.</p></section>
-          <p class="ct-footnote">Existing review progress is kept when a field value changes.</p>
-        </>}>
-          <Show when={applyTemplate()} fallback={<p class="empty-state">Template not found. <Button onClick={toCards}>Open Cards</Button></p>}>{template => <>
-            <section class="ct-section ct-apply-view"><div class="ct-section-head"><span class="ct-marker">01</span><h2>Enable {template().name} on #{title()}</h2></div><p>One card per ready member. Check the size and pace before adding them to review.</p>
-              <Show when={forecast.latest} fallback={<p role="status">Checking members…</p>}>{value => <>
-                <div class="ct-forecast-counts"><div><strong>{value().cards_to_create}</strong><span>cards to create</span></div><div><strong>{value().waiting_total}</strong><span>waiting{template().missing[0] ? ` on ${template().missing[0]}` : ''}</span></div><p class="ct-apparatus">{value().members} members checked<br />0 existing reviews changed</p></div>
-                <section class="ct-section"><div class="ct-section-head"><h3>Introduction schedule</h3><span class="ct-apparatus">{value().ready} / {value().new_per_day} = {(value().ready / value().new_per_day).toFixed(1)} → {value().days_to_introduce} days</span></div>
-                  <div class="ct-schedule"><label>New per day <input class="input ct-rate" type="number" min="1" max="9999" aria-label="Apply new per day" value={template().new_per_day} disabled={busy()} onChange={event => {
-                    const limit = event.currentTarget.valueAsNumber;
-                    if (!Number.isInteger(limit) || limit < 1 || limit > 9999) { setError('New per day must be between 1 and 9999.'); return; }
-                    if (limit !== template().new_per_day) void save(template(), { ...template(), new_per_day: limit });
-                  }} /></label><span>Last ready card · {value().last_day ?? 'None'}</span></div>
-                </section>
-                <section class="ct-section"><div class="ct-section-head"><h3>Effect on daily review load</h3><span class="ct-apparatus">Next 14 days</span></div><LoadChart load={value().load} /><div class="ct-chart-key"><span>Existing reviews</span><span>Added new cards</span><span class="ct-apparatus">Not an FSRS prediction</span></div></section>
-                <Show when={value().waiting_total > 0}>
-                <section class="ct-section"><div class="ct-section-head"><h3>Waiting list</h3><span class="ct-apparatus">{value().waiting_total} members · no empty cards created</span></div><div class="ct-waiting-list"><For each={value().waiting.slice(0, 5)}>{member => <Button title={member.missing.join(', ')} onClick={async event => {
-                  const beside = opensBeside(event);
-                  try { const block = await props.notebook.api.block(member.id); props.onOpen({ kind: 'page', pageId: block.page_id, ...(block.parent_id ? { blockId: member.id } : {}) }, beside); }
-                  catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
-                }}>{memberTitle(member.text, id => props.notebook.lookup(id))}</Button>}</For>
-                  <Button onClick={event => {
-                    const field = data.latest?.fields.find(field => field.name === template().missing[0]);
-                    const query = typeQuery(props.typeId);
-                    if (field) query.filters = [{ field: field.id, op: 'empty', value: null }];
-                    props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query }, opensBeside(event));
-                  }}>Show all {value().waiting_total} →</Button></div></section>
-                </Show>
-                <footer class="ct-apply-footer"><div><p class="ct-apparatus">from #{title()} · {template().name}</p><p>Apply keeps existing review progress.</p></div><Button disabled={busy()} onClick={toCards}>Cancel</Button><Button class="bordered ct-apply" disabled={busy() || template().applied || forecast.loading} onClick={async () => {
-                  if (await save(template(), { ...template(), applied: true })) toCards();
-                }}>Apply · {value().ready} cards</Button></footer>
-              </>}</Show>
-            </section>
-          </>}</Show>
-        </Show>
+  const history = (redo: boolean) => work(async () => { if (redo) doc().redo(); else doc().undo(); await doc().flush(); if (doc().saveState() === 'error') throw new Error(doc().saveMessage()); });
+  return <section class="recipe-section ct-sheet" aria-label="Cards" onKeyDown={event => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z' && !(event.target as Element).closest('input, textarea, select, [contenteditable]')) { event.preventDefault(); event.stopPropagation(); void history(event.shiftKey); }
+  }}>
+    <div class="recipe-section-head"><span class="ct-marker">01</span><h2>Cards</h2><span class="section-rule" /><span>{templates().length} recipes</span><Show when={converting()}><Button onClick={() => setConverting(false)}>Back to recipes</Button></Show></div>
+    <Show when={error() || data.error}><p class="error" role="alert">{error() || String(data.error)} <Button onClick={() => void refetch()}>Retry</Button></p></Show>
+    <Show when={data.latest} fallback={<p role="status">Loading recipes…</p>}>
+      <Show when={converting()} fallback={<>
+        <p class="recipe-explanation">Each atom with this tag makes the cards below. Atoms with card syntax keep their existing cards instead.</p>
+        <For each={templates().map(template => template.id)}>{id => <Show when={templates().find(template => template.id === id)}>{recipe => <RecipeRow recipe={recipe()} fields={fields()} allFields={data.latest!.fields} busy={busy()} onSave={value => save(recipe(), value)} />}</Show>}</For>
+        <div class="ct-bottom-rule"><Button disabled={busy()} onClick={() => void save(null, { type_id: props.typeId, name: `Recipe ${templates().length + 1}`, front: '{@text}', back: fields()[0] ? `{${fields()[0]!.id}}` : '', hint: null, details: [], applied: false, new_per_day: 10 })}>+ Add recipe</Button><span class="ct-inline-rule" /><Button class="ct-apparatus" onClick={event => props.onOpen({ kind: 'review', deckId: props.typeId }, opensBeside(event))}>{total()} cards · #{title()}</Button></div>
+        <Show when={atoms().length}><p class="ct-footnote"><Button disabled={busy()} onClick={() => setConverting(true)}>Use fields for these {atoms().length} atoms</Button></p></Show>
+      </>}>
+        <h3>Use fields for these {atoms().length} atoms</h3><p class="recipe-explanation">Split the existing card text at its operator. Keep each atom where it is, along with its tags, child atoms and review history.</p>
+        <div class="recipe-back-field"><span>Back field</span><Button class="ct-chip" aria-label="Back field" aria-haspopup="menu" aria-expanded={!!backMenu()} disabled={busy()} onClick={event => setBackMenu(event.currentTarget)}>{backField() === 'new' ? 'New text field' : fields().find(field => field.id === backField())?.name ?? 'Choose a field'} <Icon name="down" /></Button></div>
+        <Show when={backMenu()}>{anchor => <Menu anchor={anchor()} label="Back field" onDismiss={() => setBackMenu(null)} items={[
+          ...fields().filter(field => field.kind === 'text').map((field): MenuItem => ({ label: field.name, checked: backField() === field.id, action: () => setBackField(field.id) })),
+          { label: 'Create a text field…', divider: fields().some(field => field.kind === 'text'), checked: backField() === 'new', action: () => setBackField('new') },
+        ]} />}</Show>
+        <Show when={backField() === 'new'}><label class="recipe-back-field">Field name <input class="input" aria-label="Field name" value={newField()} onInput={event => setNewField(event.currentTarget.value)} /></label></Show>
+        <Show when={atoms()[0]}>{atom => <div class="ct-template-grid recipe-conversion-example"><div><span class="ct-apparatus">Written now</span><p class="ct-preview-prompt">{atom().source.block.text}</p></div><div class="ct-preview"><span class="ct-apparatus">After conversion</span><p class="ct-preview-prompt">{atom().text}</p><p class="ct-preview-answer">{atom().back}</p></div></div>}</Show>
+        <div class="recipe-conversion-counts"><span>{atoms().length} atoms</span><span>{atoms().reduce((sum, atom) => sum + atom.directions.length, 0)} cards kept</span><span>0 new cards</span><span>0 reset</span></div>
+        <table class="recipe-conversion-table"><thead><tr><th>Atom text</th><th>{backField() === 'new' ? newField().trim() || 'Back field' : fields().find(field => field.id === backField())?.name ?? 'Back field'}</th><th>Cards</th></tr></thead><tbody><For each={atoms()}>{atom => <tr><td>{atom.text}<Show when={atom.directions.length === 1}><span class="ct-apparatus"> · {atom.directions[0] === 'forward' ? 'Reverse paused' : 'Forward paused'}</span></Show></td><td>{atom.back}</td><td>{atom.directions.length}</td></tr>}</For></tbody></table>
+        <Show when={skipped().length}><details><summary>{skipped().length} atoms not converted</summary><For each={skipped()}>{member => <p>{member.block.text}</p>}</For></details></Show>
+        <p class="recipe-explanation">Other card syntax keeps working. Atoms still using syntax are not also given these recipe cards; convert them when you choose.</p>
+        <div class="ct-apply-footer"><span class="ct-apparatus">One change · Undo restores the written syntax</span><Button disabled={busy()} onClick={() => setConverting(false)}>Not now</Button><Button class="bordered ct-apply" disabled={busy() || !backField() || backField() === 'new' && !newField().trim()} onClick={() => void work(async () => {
+          const field = backField() === 'new' ? { name: newField() } : fields().find(field => field.id === backField());
+          if (!field) throw new Error('Choose a back field.');
+          const pending = convertSyntax(props.notebook, data.latest!.type, atoms(), templates(), field);
+          const history = doc().rememberChange(pending);
+          await pending; await history;
+          setConverting(false);
+        })}>Convert {atoms().length} atoms</Button></div>
       </Show>
       <div class="ct-history"><Button disabled={busy() || !doc().canUndo()} onClick={() => void history(false)}>Undo</Button><Button disabled={busy() || !doc().canRedo()} onClick={() => void history(true)}>Redo</Button></div>
-    </div>
-  </div>;
+    </Show>
+  </section>;
 }
 
-function PatternChips(props: { pattern: string; fields: readonly FieldDefinition[] }) {
-  const parts = createMemo(() => patternParts(props.pattern));
-  return <span class="ct-pattern-text"><For each={parts()}>{part => part.field ? <span class="ct-chip">{'{'}{props.fields.find(field => field.id === part.text)?.name ?? part.text}{'}'}</span> : part.text.replaceAll('\\{', '{')}</For></span>;
-}
-
-function TemplateEditor(props: { template: CardTemplateInfo; fields: readonly FieldDefinition[]; templateFields: readonly string[]; busy: boolean; onCancel(): void; onSave(value: CardTemplateState): Promise<unknown>; onDelete(): Promise<unknown> }) {
-  const [name, setName] = createSignal(props.template.name);
-  const [front, setFront] = createSignal(displayPattern(props.template.front, props.fields));
-  const [back, setBack] = createSignal(displayPattern(props.template.back, props.fields));
-  const [problem, setProblem] = createSignal('');
-  const [picker, setPicker] = createSignal<{ input: HTMLInputElement; side: 'front' | 'back'; at: number } | null>(null);
-  function change(input: HTMLInputElement, side: 'front' | 'back') {
-    (side === 'front' ? setFront : setBack)(input.value);
-    const at = input.selectionStart ?? input.value.length;
-    if (input.value[at - 1] === '{' && input.value[at - 2] !== '\\') setPicker({ input, side, at: at - 1 });
-  }
-  return <form class="ct-editor" onSubmit={async event => {
-    event.preventDefault(); setProblem('');
-    try { await props.onSave({ ...props.template, name: name(), front: storedPattern(front(), props.fields), back: storedPattern(back(), props.fields) }); }
-    catch (reason) { setProblem(reason instanceof Error ? reason.message : String(reason)); }
-  }}>
-    <label>Name<input class="input" aria-label="Template name" value={name()} onInput={event => setName(event.currentTarget.value)} /></label>
-    <label>Front<input class="input ct-pattern-input" aria-label="Front pattern" value={front()} onInput={event => change(event.currentTarget, 'front')} /></label>
-    <label>Back<input class="input ct-pattern-input" aria-label="Back pattern" value={back()} onInput={event => change(event.currentTarget, 'back')} /></label>
-    <p class="ct-footnote">Type {'{'} to choose a field. Use {'\\{'} for a literal brace.</p>
-    <Show when={problem()}><p role="alert" class="error">{problem()}</p></Show>
-    <div class="ct-editor-actions"><Button type="submit" class="bordered" disabled={props.busy}>Save template</Button><Button disabled={props.busy} onClick={props.onCancel}>Cancel</Button><Button disabled={props.busy} onClick={() => void props.onDelete()}>Delete template</Button></div>
-    <Show when={picker()}>{value => <FieldPicker anchor={value().input} label="Pattern field" fields={props.fields} template={props.templateFields} onDismiss={() => setPicker(null)} onPick={field => {
-      const current = value();
-      const text = current.side === 'front' ? front() : back();
-      const token = `{${props.fields.filter(candidate => candidate.name === field.name).length > 1 ? field.id : field.name}}`;
-      const next = text.slice(0, current.at) + token + text.slice(current.at + 1);
-      (current.side === 'front' ? setFront : setBack)(next);
-      setPicker(null);
-      requestAnimationFrame(() => { current.input.focus(); current.input.setSelectionRange(current.at + token.length, current.at + token.length); });
-    }} />}</Show>
-  </form>;
-}
-
-/** A member's text as a title: references read as their targets, type tags dropped. */
-function memberTitle(text: string, lookup: NotebookClient['lookup']): string {
-  return textTokens(text).filter(token => token.kind !== 'tag').map(token => isStableReference(token) ? referenceLabel(token, lookup(token.id!)(), lookup) : token.value).join('').replace(/\s+/g, ' ').trim();
-}
-
-function LoadChart(props: { load: { date: string; due: number; added: number }[] }) {
-  const max = () => Math.max(1, ...props.load.map(day => day.due + day.added));
-  return <svg class="ct-load-chart" viewBox="0 0 760 166" role="img" aria-label="Daily existing reviews and added new cards">
-    <line x1="0" y1="130" x2="760" y2="130" stroke="var(--line)" />
-    <For each={props.load}>{(day, index) => {
-      const x = () => index() * (760 / props.load.length) + 12;
-      const due = () => day.due / max() * 100;
-      const added = () => day.added / max() * 100;
-      return <g><title>{day.date}: {day.due} existing reviews, {day.added} added new cards</title><rect x={x()} y={130 - due()} width="24" height={due()} fill="var(--muted)" opacity="0.45" /><rect x={x()} y={130 - due() - added()} width="24" height={added()} fill="var(--calendar-scheduled)" opacity="0.8" /><text x={x() + 12} y="18" text-anchor="middle">{day.due + day.added}</text><text x={x() + 12} y="153" text-anchor="middle">{new Date(`${day.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' }).slice(0, 2)}</text></g>;
-    }}</For>
-  </svg>;
+function RecipeRow(props: { recipe: CardTemplateInfo; fields: readonly FieldDefinition[]; allFields: readonly FieldDefinition[]; busy: boolean; onSave(value: CardTemplateState | null): Promise<void> }) {
+  const [patternSide, setPatternSide] = createSignal<'front' | 'back' | null>(null);
+  const [pattern, setPattern] = createSignal('');
+  const [error, setError] = createSignal('');
+  const [menu, setMenu] = createSignal<{ key: 'front' | 'back' | 'hint'; anchor: HTMLElement } | null>(null);
+  const single = (key: 'front' | 'back') => props.recipe[key] === '{@text}' || props.fields.some(field => props.recipe[key] === `{${field.id}}`);
+  const sideLabel = (key: 'front' | 'back') => props.recipe[key] === '{@text}' ? 'Atom text' : props.fields.find(field => props.recipe[key] === `{${field.id}}`)?.name ?? 'Pattern';
+  const editPattern = (key: 'front' | 'back') => { setPatternSide(key); setPattern(displayPattern(props.recipe[key], props.allFields)); };
+  const menuItems = (key: 'front' | 'back' | 'hint'): MenuItem[] => key === 'hint'
+    ? [{ label: 'None', checked: !props.recipe.hint, action: () => void props.onSave({ ...props.recipe, hint: null }) },
+      ...props.fields.map((field): MenuItem => ({ label: field.name, checked: props.recipe.hint === field.id, action: () => void props.onSave({ ...props.recipe, hint: field.id }) }))]
+    : [{ label: 'Atom text', checked: props.recipe[key] === '{@text}', action: () => void props.onSave({ ...props.recipe, [key]: '{@text}' }) },
+      ...props.fields.map((field): MenuItem => ({ label: field.name, checked: props.recipe[key] === `{${field.id}}`, action: () => void props.onSave({ ...props.recipe, [key]: `{${field.id}}` }) })),
+      { label: 'Pattern…', divider: true, checked: !single(key), action: () => editPattern(key) }];
+  const side = (label: 'Front' | 'Back', key: 'front' | 'back') => <div class="ct-pattern-line"><span class="ct-pattern-label">{label}</span><Button class="ct-chip" aria-label={`${props.recipe.name} ${label.toLowerCase()}: ${sideLabel(key)}`} aria-haspopup="menu" aria-expanded={menu()?.key === key} disabled={props.busy} onClick={event => setMenu({ key, anchor: event.currentTarget })}>{sideLabel(key)} <Icon name="down" /></Button><Show when={!single(key)}><Button disabled={props.busy} onClick={() => editPattern(key)}>Edit pattern</Button></Show></div>;
+  return <article class="ct-section" aria-label={`${props.recipe.name} recipe`}><div class="ct-template-grid"><div>
+    <input class="recipe-name" aria-label="Recipe name" value={props.recipe.name} disabled={props.busy} onChange={event => { if (event.currentTarget.value.trim()) void props.onSave({ ...props.recipe, name: event.currentTarget.value }); }} />
+    {side('Front', 'front')}{side('Back', 'back')}
+    <Show when={patternSide()}>{key => <form class="ct-editor" onSubmit={event => { event.preventDefault(); try { const value = storedPattern(pattern(), props.allFields); void props.onSave({ ...props.recipe, [key()]: value }).then(() => setPatternSide(null)); } catch (reason) { setError(String(reason)); } }}><label>{key() === 'front' ? 'Front' : 'Back'}<input class="input" aria-label="Recipe pattern" value={pattern()} onInput={event => setPattern(event.currentTarget.value)} /></label><p class="ct-footnote">Use {'{@text}'} for atom text or {'{Field name}'} for a field.</p><Button type="submit" disabled={props.busy}>Save pattern</Button><Button onClick={() => setPatternSide(null)}>Cancel</Button></form>}</Show>
+    <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
+  </div><div class="ct-preview"><Show when={props.recipe.preview} fallback={<p class="ct-apparatus">Waiting for an atom with both sides</p>}>{preview => <><div class="ct-preview-top">Preview · {preview().member_text}</div><p class="ct-preview-prompt">{preview().front}</p><p class="ct-preview-answer">{preview().back}</p></>}</Show></div></div>
+    <div class="recipe-enable"><span class="ct-apparatus">{props.recipe.applied ? `${props.recipe.units_active} cards` : 'Not in review'}<Show when={props.recipe.waiting_total}> · {props.recipe.waiting_total} waiting</Show></span><Button disabled={props.busy || !props.recipe.front.trim() || !props.recipe.back.trim()} onClick={() => void props.onSave({ ...props.recipe, applied: !props.recipe.applied })}>{props.recipe.applied ? 'Disable' : 'Enable'}</Button></div>
+    <details class="recipe-options"><summary>Details</summary><div class="recipe-back-field"><span>Hint</span><Button class="ct-chip" aria-label={`${props.recipe.name} hint: ${props.fields.find(field => field.id === props.recipe.hint)?.name ?? 'None'}`} aria-haspopup="menu" aria-expanded={menu()?.key === 'hint'} disabled={props.busy} onClick={event => setMenu({ key: 'hint', anchor: event.currentTarget })}>{props.fields.find(field => field.id === props.recipe.hint)?.name ?? 'None'} <Icon name="down" /></Button></div><p class="ct-apparatus">After the answer</p><For each={props.fields.map(field => field.id)}>{id => <label><input type="checkbox" checked={props.recipe.details?.includes(id) ?? false} disabled={props.busy} onChange={event => void props.onSave({ ...props.recipe, details: event.currentTarget.checked ? [...props.recipe.details ?? [], id] : (props.recipe.details ?? []).filter(value => value !== id) })} />{props.fields.find(field => field.id === id)?.name}</label>}</For>
+      <For each={props.recipe.details ?? []}>{(id, index) => <div class="recipe-detail-order"><span>{index() + 1} · {props.allFields.find(field => field.id === id)?.name}</span><Button disabled={props.busy || index() === 0} onClick={() => { const details = [...props.recipe.details ?? []]; [details[index() - 1], details[index()]] = [details[index()]!, details[index() - 1]!]; void props.onSave({ ...props.recipe, details }); }}>Move up</Button></div>}</For>
+      <div class="ct-schedule"><label>New per day <input class="input ct-rate" type="number" min="1" max="9999" aria-label={`${props.recipe.name} new per day`} value={props.recipe.new_per_day} disabled={props.busy} onChange={event => { const value = event.currentTarget.valueAsNumber; if (Number.isInteger(value) && value >= 1 && value <= 9999) void props.onSave({ ...props.recipe, new_per_day: value }); }} /></label><Button disabled={props.busy} onClick={() => void props.onSave(null)}>Delete recipe</Button></div>
+    </details>
+    <Show when={menu()}>{state => <Menu anchor={state().anchor} label={state().key === 'hint' ? `${props.recipe.name} hint` : `${props.recipe.name} ${state().key}`} onDismiss={() => setMenu(null)} items={menuItems(state().key)} />}</Show>
+  </article>;
 }

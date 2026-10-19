@@ -8,6 +8,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Added tag recipes using atom text, optional hints and answer details, catalogue-style review, live creation previews, and undoable syntax conversion that preserves card identities and progress across sync.
 - Addressed tags by page ID, normalized legacy tags with caret-preserving editor receipts, and added migration and check repair without rewriting members on rename. Pills read live titles, existing tag choices insert IDs, and tag tables and decks retain membership across renames.
 - Made card badges name their tag decks or say untagged, moved the deck explanation beside Decks, and added Review to each tag's Cards header.
 - Moved Fields to the end of the Index's Notes shelf and its directory, with a live definition count, and removed the sidebar foot icon without adding Fields to kind pickers.

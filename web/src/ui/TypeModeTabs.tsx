@@ -19,6 +19,6 @@ export function TypeModeTabs(props: TypeModeTabsProps) {
     <Button aria-pressed={props.active === 'table'} onClick={props.onTable}>Table <span class="faint">{props.tableCount}</span></Button>
     {/* Fields and Cards count the type's template, not its members' entries, so an empty template shows no count. */}
     <Button aria-pressed={props.active === 'fields'} onClick={props.onFields} title="Fields in this tag's template">Fields <span class="faint">{props.fieldsCount || ''}</span></Button>
-    <Button aria-pressed={props.active === 'cards'} onClick={props.onCards} title="Card templates for this tag">Cards <span class="faint">{props.cardsCount || ''}</span></Button>
+    <Button aria-pressed={props.active === 'cards'} onClick={props.onCards} title="Card recipes for this tag">Cards <span class="faint">{props.cardsCount || ''}</span></Button>
   </div>;
 }

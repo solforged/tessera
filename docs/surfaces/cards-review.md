@@ -111,34 +111,23 @@ Undo last grade stays visible during a session and on Done, with ⌘Z or Ctrl+Z 
 
 If that restored card is later held or removed, an explicit unavailable state offers Next rather than silently replacing it. A transport failure remains an error, not an unavailable-card state.
 
-## Type cards tab
+## Tag recipes
 
-A type's Cards tab, after Fields in the same strip, lists its card templates. A mono line counts members, ready members and those waiting, the last in warning ink with the field they lack.
+The tag page’s Cards section, below Template, and the Cards tab share one component. Each recipe has an editable display name, Front and Back pickers offering Atom text, the tag’s fields and Pattern… for free patterns. `{@text}` references the atom itself; `{Field name}` in the editor resolves to the field’s stable ID.
 
-The header offers Review for the tag's deck, using the registry's card count rather than its template count. With no cards it is disabled and its tooltip reads `No cards yet`.
+A real member previews beside each recipe: `Preview · il lavello`, the front in large display type and the answer below a hairline. Details holds an optional hint, ordered after-answer fields and New per day. Enable and Disable preserve existing progress. The footer offers + Add recipe and the live card total with its tag deck.
 
-Each template is a numbered section with:
+Atoms with syntax receive no additional recipe cards. Use fields for these N atoms opens an in-pane conversion preview with Atom text, the chosen back field and Cards columns, plus atoms/cards-kept/new/reset counts. Choose an existing text field or name a new one. Simple `<>`, `>>` and `<<` convert; other syntax is listed and left alone. The formerly absent direction stays paused. Not now dismisses. Convert is one change, with one Undo/Redo step preserving identities, schedules and review history.
 
-- Its Piazzolla name and Enabled or `Draft · not in review`.
-- Front and Back patterns whose field references show as mono chips; typing `{` opens the field picker.
-- `Uses 2 of 5 fields` and a New per day input. The total and Fields available to patterns use the same live field catalog as the pattern picker, not only the type's explicit template slots.
-- Beside them, a preview of the first ready member: the front in large Piazzolla over a hairline and the back.
+Recipe review keeps the source line, provenance and grading strip. The front has a mono source label and serif tested text. Show hint reveals only the configured hint field. The answer unfolds below a hairline with its source label, then ordered details: prose fields in sans text and other fields in a mono label/value apparatus. Syntax cards keep their existing presentation.
 
-Enable… opens the Apply view, in this order:
-
-1. The cards it will create and the members waiting in large mono numerals.
-2. The introduction schedule (`398 / 10 = 39.8 → 40 days`).
-3. A fourteen-day chart of existing reviews in muted bars with the added new cards in scheduled blue above them and two-letter weekday labels.
-4. The first waiting members with Show all, which opens the [type table](fields-tables.md) filtered to the missing field.
-5. Cancel and `Apply · 398 cards`.
-
-Disable pauses a template's cards and keeps their progress. In Review a template card shows plain front and back text under a mono `from #Vocab · Recognition`.
+Creating an atom tagged with applied recipes shows every template field and a live Cards preview. On touch, field labels stack over values. New atoms go into today; the atom, field entries and derived cards save together.
 
 ## Cards popup
 
 The outline badge reads `1 card · #arabic`, or `1 card · untagged` when the atom has no tags. Several tags share one separator: `1 card · #arabic #vocabulary`. Text tags and manual memberships both count. Each tag opens Review scoped to that tag's deck; the count still opens Cards.
 
-A block's card count opens its cards. Each row puts the kind in the same faint capitals in a fixed column, so every card's text starts at one edge, then the front, the answer in `--muted` and the due state. Clozes show their gaps and gilt answers as Review does. Multi-line and list answers show as their outline, at most five items, then `N more`. An occlusion card shows a thumbnail of its tested area and its answer, or `Mask A` when it has none. A template card reads `TEMPLATE` with its `#Vocab · Recognition` provenance under the text.
+An atom’s card count opens its cards. Each row puts the direction in the same faint capitals in a fixed column, so every card’s text starts at one edge, then the front, the answer in `--muted` and the due state. Clozes show their gaps and gilt answers as Review does. Multi-line and list answers show as their outline, at most five items, then `N more`. An occlusion card shows a thumbnail of its tested area and its answer, or `Mask A` when it has none. A recipe card reads `RECIPE` with its `#Vocab · Recognition` provenance under the text.
 
 The popup's Review, Shift-click on the count and the block menu's Review cards start a review of that block's active cards, due or not, titled by the block's subject. ⌘-click on Review opens it beside (Ctrl-click off Mac). An open review shows the same Finish or abandon prompt as switching decks before the block review starts; asking again for the block already under review returns to it. Review is disabled when every card is paused.
 

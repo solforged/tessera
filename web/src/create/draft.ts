@@ -60,6 +60,20 @@ export async function createPageDraft(notebook: NotebookClient, request: { kind:
   if (!text) throw new Error('A title cannot be empty.');
   if (typed && !request.noteKind) throw new Error('Choose a tag.');
   const existingId = await notebook.pageByTitle(text, false);
+  const recipes = typed && request.noteKind?.type_id ? await notebook.api.cardTemplates(request.noteKind.type_id) : [];
+  if (!existingId && recipes.some(recipe => recipe.applied)) {
+    const pageId = await notebook.today(), atomId = ulid();
+    await notebook.flush();
+    const [page, type, register] = await Promise.all([notebook.api.page(pageId), notebook.api.type(request.noteKind!.type_id!), notebook.api.fields()]);
+    const definitions = type.fields.flatMap(id => register.fields.find(field => field.id === id) ?? []);
+    const operations: Operation[] = [
+      { op: 'insert', id: atomId, parent_id: pageId, after: page.rows.filter(row => row.depth === 0).at(-1)?.block.id ?? null, text, heading: null },
+      { op: 'add_type', id: atomId, base_revision: 1, title: request.noteKind!.name },
+      ...await draftFieldOperations(notebook, atomId, [], definitions, request.fields?.values ?? {}, null),
+    ];
+    await notebook.commit(operations, 'Add atom and cards', [pageId]);
+    return { pageId, caretId: atomId, caretOffset: text.length, created: false };
+  }
   const pageId = existingId ?? ulid(), caretId = existingId ? undefined : ulid();
   const fields = request.fields ?? blankDraftFields();
   const line = request.kind === 'project' ? '' : request.gist?.trim() ?? '';
@@ -85,7 +99,7 @@ export async function createPageDraft(notebook: NotebookClient, request: { kind:
     }
     if (typed && Object.keys(fields.values).length) {
       const [type, register] = await Promise.all([request.noteKind!.type_id ? notebook.api.type(request.noteKind!.type_id) : undefined, notebook.api.fields()]);
-      const definitions = (type?.fields ?? []).slice(0, 4).flatMap(id => register.fields.find(field => field.id === id) ?? []);
+      const definitions = (recipes.some(recipe => recipe.applied) ? type?.fields ?? [] : (type?.fields ?? []).slice(0, 4)).flatMap(id => register.fields.find(field => field.id === id) ?? []);
       operations.push(...await draftFieldOperations(notebook, pageId, blocks, definitions, fields.values, blocks.filter(block => block.parent_id === pageId).at(-1)?.id ?? caretId ?? null));
     }
     if (!filed && request.kind === 'question' && fields.holder) {

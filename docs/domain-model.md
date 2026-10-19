@@ -795,12 +795,15 @@ Each retained card has a `held` flag, independent of syntax and scheduling:
 
 ### Templates and introductions
 
-A card template belongs to a type and stores a name, front/back patterns, an applied flag and a new-per-day limit from 1 to 9999. It starts as a draft.
+A card recipe belongs to a tag and stores a name, front/back patterns, an optional hint field, ordered after-answer detail fields, an applied flag and a new-per-day limit from 1 to 9999. The stored `card_templates` name remains the persistence protocol. A recipe starts as a draft.
 
-- Patterns reference field definitions by `{fieldId}`; `\{` is a literal brace. Renaming a field preserves its identity.
-- Every referenced field needs a nonblank value. Unused fields never delay a card.
-- Linked readings use the target's text; other values use authored text. Multiple values join with a comma and space.
+- Patterns reference field definitions by `{fieldId}` and the member atom’s own text by `{@text}`; `\{` is a literal brace. The reserved `@text` token cannot be a field ID. Renaming a field preserves its identity.
+- Every referenced side needs nonblank text. Unused fields, hints and details never delay a card.
+- Linked readings use the target’s text; other values use authored text. Multiple values join with a comma and space.
 - Draft previews and forecasts report ready members and those waiting on missing fields without creating empty cards.
+- An atom carrying explicit card syntax, including invalid syntax awaiting correction, gets no recipe cards. Its syntax cards keep working without doubling the deck. Migration 052 deactivates previously derived recipe cards on these atoms without discarding their schedules or history.
+- Opt-in conversion splits simple `<>`, `>>` and `<<` atoms into atom text and a chosen text-field entry. It creates or enables the two matching recipes, rekeys retained cards without replacing their identities, schedules or review events, and creates the previously absent direction held. Other syntax is left alone.
+- Conversion and its inverse are single revision-checked batches. Undo restores authored text, entries, recipes, keys and held flags; sync replays the same operations and deterministic counterpart IDs. An intervening edit or review rejects the inverse rather than losing newer work.
 
 Each template has its own daily introduction allowance:
 
@@ -809,7 +812,7 @@ Each template has its own daily introduction allowance:
 - Authored cards and already-reviewed units keep their existing queue rules.
 - Apply forecasts separate existing due reviews from new introductions, without simulating follow-up reviews.
 
-Card reads carry template and type names as provenance, separate from the actual source-page title.
+Card reads carry recipe and tag names as provenance, separate from the source-page title, plus side labels and hint/detail readings resolved from current field values. Recipe review shows the hint only on request and details only after revealing the answer; prose-role fields use the prose voice, while other fields form a labeled apparatus. Syntax review remains unchanged.
 
 ### Decks
 
@@ -837,6 +840,8 @@ Scheduling uses FSRS-6 with default parameters, 90% retention and deterministic 
 Grading checks the card revision, definition revision and exact shown front/back. Due queues include new cards after reviewed due cards, with stable tie ordering. Tag and saved decks share these queues. Held cards remain in their decks but stay out of review queues, counts and forecasts.
 
 Optional review sessions have open, finished or abandoned state. Closing one never discards grades. A session excludes cards already graded within it. Deck selection, queue selection and session identity are navigation state, not card ownership.
+
+Creating an atom under a tag with applied recipes offers all of that tag’s fields and a live card preview. A new atom is captured into today; its field entries and derived cards commit in the same change. Filing an existing titled atom preserves its filled entries.
 
 A stale or changed presentation's grade is rejected without an event. The client must obtain and show the current card before another grade. Pending delivery and confirmed rejection are distinct; neither is a successful review.
 

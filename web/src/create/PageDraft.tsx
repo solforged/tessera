@@ -48,6 +48,7 @@ export function PageDraft(props: {
     return [...rows.values()];
   });
   const [type] = createResource(() => props.noteKind?.type_id || false, key => props.notebook.api.type(key));
+  const [recipes] = createResource(() => props.noteKind?.type_id || false, async id => (await props.notebook.api.cardTemplates(id)).filter(recipe => recipe.applied));
   const found = () => existing.latest?.title === query() ? existing.latest.id ?? undefined : undefined;
   const [kinds] = createResource(() => found() || false, key => props.notebook.api.noteKinds(key));
   const member = () => !!found() && (props.kind === 'note' || kinds()?.some(kind => kind.key === (props.noteKind?.key ?? props.kind)));
@@ -81,18 +82,19 @@ export function PageDraft(props: {
     event.preventDefault(); event.stopPropagation();
     void submit(event.shiftKey && !event.metaKey && !event.ctrlKey, event.shiftKey && (event.metaKey || event.ctrlKey));
   }
-  return <form class="create-page" onSubmit={event => { event.preventDefault(); void submit(false); }} onKeyDown={keydown}>
-    <label class="visually-hidden" for={`${id}-title`}>Title</label>
+  return <form class="create-page" classList={{ 'create-recipe': !!recipes()?.length }} onSubmit={event => { event.preventDefault(); void submit(false); }} onKeyDown={keydown}>
+    <Show when={recipes()?.length}><div class="create-recipe-tag"><span class="outline-tag">#{props.noteKind?.name}</span><span>{type()?.fields.length ?? 0} template fields</span></div></Show>
+    <label class={recipes()?.length ? 'create-field-label' : 'visually-hidden'} for={`${id}-title`}>{recipes()?.length ? 'Atom text' : 'Title'}</label>
     <textarea ref={title} id={`${id}-title`} class="create-page-title" rows={1} value={props.text} disabled={busy()} autocomplete="off" placeholder={`Name the ${noun()}`} onInput={event => { props.onTextChange(event.currentTarget.value.replace(/[\r\n]+/g, ' ')); fit(); setError(''); }} />
-    <Show when={!typePage() && found()} fallback={<Show when={!typePage()}>
+    <Show when={!typePage() && found()} fallback={<Show when={!typePage() && !recipes()?.length}>
       <label class="visually-hidden" for={`${id}-gist`}>Gist</label>
       <input id={`${id}-gist`} class="new-kind-gist" value={props.gist} disabled={busy()} autocomplete="off" placeholder={gistPrompt[mode()]?.(noun())} onInput={event => props.onGistChange(event.currentTarget.value)} />
     </Show>}><p class="new-kind-note">“{query()}” {member() ? `is already ${noun() === 'atom' ? 'an' : 'a'} ${noun()}.` : `already exists; it will be ${mode() === 'type' ? `filed under ${props.noteKind!.name}` : `made ${noun() === 'atom' ? 'an' : 'a'} ${noun()}`}.`}</p></Show>
     <Show when={typePage()}><p class="new-kind-note">“{props.noteKind!.name}” names the tag itself.</p></Show>
-    <Show when={!typePage()}><DraftFields notebook={props.notebook} kind={props.kind} fieldIds={type()?.fields ?? []} existingId={found()} disabled={busy()} value={fields()} onChange={setFields} /></Show>
+    <Show when={!typePage()}><DraftFields notebook={props.notebook} kind={props.kind} fieldIds={type()?.fields ?? []} existingId={found()} disabled={busy()} value={fields()} onChange={setFields} recipes={recipes()} atomText={props.text} /></Show>
     <Show when={error() || existing.error || similar.error}><p class="error" role="alert">{error() || String(existing.error ?? similar.error)}</p></Show>
-    <footer class="create-foot"><span class="create-keys"><Show when={props.status} fallback={<Show when={!props.sheet}><kbd>↵</kbd> Create <kbd>⇧↵</kbd> Beside <kbd>⇧⌘↵</kbd> Another <kbd>esc</kbd> Close</Show>}>{text => <span role="status">{text()}</span>}</Show></span>
-      <Button type="submit" class="bordered" disabled={!query() || busy() || typePage() || mode() === 'type' && !props.noteKind}>{busy() ? 'Saving…' : member() ? `Open ${noun()}` : found() ? `File as ${noun()}` : `Create ${noun()}`}</Button><Show when={!props.sheet}><Button class="create-cancel" disabled={busy()} onClick={props.onDismiss}>Cancel</Button></Show>
+    <footer class="create-foot"><span class="create-keys"><Show when={props.status} fallback={<Show when={recipes()?.length} fallback={<Show when={!props.sheet}><kbd>↵</kbd> Create <kbd>⇧↵</kbd> Beside <kbd>⇧⌘↵</kbd> Another <kbd>esc</kbd> Close</Show>}>Atom and cards saved together</Show>}>{text => <span role="status">{text()}</span>}</Show></span>
+      <Button type="submit" class="bordered" disabled={!query() || busy() || typePage() || mode() === 'type' && (!props.noteKind || recipes.loading)}>{busy() ? 'Saving…' : member() ? `Open ${noun()}` : found() ? `File as ${noun()}` : recipes()?.length ? `Add ${noun()}` : `Create ${noun()}`}</Button><Show when={!props.sheet}><Button class="create-cancel" disabled={busy()} onClick={props.onDismiss}>Cancel</Button></Show>
     </footer>
     <Show when={matches().length}><div class="create-matches" role="group" aria-label="Similar atoms"><p class="new-kind-matches-label">Similar atoms</p>
       <For each={matches()}>{row => <div class="create-match"><span>{row.text}<Show when={row.alias}>{alias => <span class="reference-via"> via {alias()}</span>}</Show></span><Button onClick={() => props.onGistChange(`${props.gist} [[${row.text}]]`)}>Link</Button><Button onClick={() => props.onOpen({ kind: 'page', pageId: row.id }, false)}>Open</Button></div>}</For>

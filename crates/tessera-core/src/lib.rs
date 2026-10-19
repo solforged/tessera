@@ -91,7 +91,7 @@ pub use capabilities::{
 pub use capabilities::{RelationEndpoint, RelationInfo, RelationKind, RelationQuery, RelationRow};
 pub use card_templates::{
     CardTemplate, CardTemplateForecast, CardTemplateInfo, CardTemplatePreview,
-    CardTemplateProvenance, CardTemplateWaiting, TemplateLoadDay,
+    CardTemplateProvenance, CardTemplateWaiting, RecipeDetail, TemplateLoadDay,
 };
 pub use check::CheckReport;
 pub use error::{Error, Result};

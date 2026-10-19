@@ -1465,6 +1465,7 @@ export class Document implements PageDocument {
           if ((edit.value?.type_id ?? edit.previous?.type_id) !== this.pageId) throw new Error('Card templates belong to their tag.');
           const { previous, value } = edit;
           if (previous && value && previous.name === value.name && previous.front === value.front && previous.back === value.back
+            && (previous.hint ?? null) === (value.hint ?? null) && JSON.stringify(previous.details ?? []) === JSON.stringify(value.details ?? [])
             && previous.applied === value.applied && previous.new_per_day === value.new_per_day) break;
           actions.push({ kind: 'cardTemplate', id: edit.id, value: edit.value, previous: edit.previous, baseRevision: edit.previous?.revision ?? 0 });
           if (!edit.previous) created.push(edit.id);

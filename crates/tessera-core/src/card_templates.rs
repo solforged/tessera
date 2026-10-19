@@ -19,6 +19,8 @@ pub struct CardTemplate {
     pub name: String,
     pub front: String,
     pub back: String,
+    pub hint: Option<String>,
+    pub details: Vec<String>,
     pub position: i64,
     pub applied: bool,
     pub new_per_day: u32,
@@ -33,8 +35,23 @@ pub struct CardTemplateProvenance {
     pub name: String,
     pub type_id: String,
     pub type_name: String,
+    #[serde(default)]
+    pub front_label: String,
+    #[serde(default)]
+    pub back_label: String,
+    #[serde(default)]
+    pub hint: Option<RecipeDetail>,
+    #[serde(default)]
+    pub details: Vec<RecipeDetail>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecipeDetail {
+    pub field_id: String,
+    pub label: String,
+    pub value: String,
+    pub prose: bool,
+}
 #[derive(Debug, Clone, Serialize)]
 pub struct CardTemplatePreview {
     pub member_id: String,
@@ -84,7 +101,7 @@ pub struct CardTemplateForecast {
     pub load: Vec<TemplateLoadDay>,
 }
 
-const COLUMNS: &str = "id, type_id, name, front, back, position, applied, new_per_day, revision, created_at, updated_at";
+const COLUMNS: &str = "id, type_id, name, front, back, position, applied, new_per_day, revision, created_at, updated_at, hint, details";
 
 fn template_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<CardTemplate> {
     Ok(CardTemplate {
@@ -99,6 +116,14 @@ fn template_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<CardTemplate> {
         revision: row.get(8)?,
         created_at: row.get(9)?,
         updated_at: row.get(10)?,
+        hint: row.get(11)?,
+        details: serde_json::from_str(&row.get::<_, String>(12)?).map_err(|error| {
+            rusqlite::Error::FromSqlConversionFailure(
+                12,
+                rusqlite::types::Type::Text,
+                Box::new(error),
+            )
+        })?,
     })
 }
 
@@ -137,7 +162,10 @@ fn pattern(text: &str) -> Result<Vec<Part<'_>>> {
                 .map(|n| at + 1 + n)
                 .ok_or_else(|| validation("unclosed field token"))?;
             let id = &text[at + 1..end];
-            validate_id(id).map_err(|_| validation("patterns use field IDs inside braces"))?;
+            if id != "@text" {
+                validate_id(id)
+                    .map_err(|_| validation("patterns use field IDs or @text inside braces"))?;
+            }
             parts.push(Part::Field(id));
             at = end + 1;
             start = at;
@@ -170,10 +198,23 @@ fn validate(conn: &Connection, name: &str, front: &str, back: &str, limit: u32) 
     for text in [front, back] {
         crate::storage::validate_text(BlockKind::Block, text)?;
         for part in pattern(text)? {
-            if let Part::Field(id) = part {
+            if let Part::Field(id) = part
+                && id != "@text"
+            {
                 crate::fields::require_definition(conn, id)?;
             }
         }
+    }
+    Ok(())
+}
+
+fn validate_details(conn: &Connection, hint: Option<&str>, details: &[String]) -> Result<()> {
+    let mut unique = HashSet::new();
+    for id in hint.into_iter().chain(details.iter().map(String::as_str)) {
+        crate::fields::require_definition(conn, id)?;
+    }
+    if details.iter().any(|id| !unique.insert(id)) {
+        return Err(validation("recipe details must not repeat a field"));
     }
     Ok(())
 }
@@ -192,6 +233,8 @@ pub(crate) fn apply(
         front,
         back,
         new_per_day,
+        hint,
+        details,
     } = operation
     {
         validate_id(id)?;
@@ -200,6 +243,7 @@ pub(crate) fn apply(
             return Err(validation("template tag must be a live titled atom"));
         }
         validate(conn, name, front, back, *new_per_day)?;
+        validate_details(conn, hint.as_deref(), details)?;
         if conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM card_templates WHERE id = ?1)",
             [id],
@@ -207,7 +251,7 @@ pub(crate) fn apply(
         )? {
             return Err(validation("card template already exists"));
         }
-        conn.execute("INSERT INTO card_templates(id, type_id, name, front, back, position, new_per_day, revision, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, (SELECT COALESCE(MAX(position), -1) + 1 FROM card_templates WHERE type_id = ?2), ?6, 1, ?7, ?7)", params![id, type_id, name.trim(), front, back, new_per_day, now])?;
+        conn.execute("INSERT INTO card_templates(id, type_id, name, front, back, position, new_per_day, revision, created_at, updated_at, hint, details) VALUES (?1, ?2, ?3, ?4, ?5, (SELECT COALESCE(MAX(position), -1) + 1 FROM card_templates WHERE type_id = ?2), ?6, 1, ?7, ?7, ?8, ?9)", params![id, type_id, name.trim(), front, back, new_per_day, now, hint, serde_json::to_string(details).expect("details serialize")])?;
         return Ok((
             type_id.clone(),
             Revision {
@@ -241,10 +285,13 @@ pub(crate) fn apply(
             front,
             back,
             new_per_day,
+            hint,
+            details,
             ..
         } => {
             validate(conn, name, front, back, *new_per_day)?;
-            conn.execute("UPDATE card_templates SET name = ?2, front = ?3, back = ?4, new_per_day = ?5, revision = revision + 1, updated_at = ?6 WHERE id = ?1", params![id, name.trim(), front, back, new_per_day, now])?;
+            validate_details(conn, hint.as_deref(), details)?;
+            conn.execute("UPDATE card_templates SET name = ?2, front = ?3, back = ?4, new_per_day = ?5, revision = revision + 1, updated_at = ?6, hint = ?7, details = ?8 WHERE id = ?1", params![id, name.trim(), front, back, new_per_day, now, hint, serde_json::to_string(details).expect("details serialize")])?;
         }
         Operation::SetCardTemplateApplied { applied, .. } => {
             if *applied {
@@ -267,6 +314,92 @@ pub(crate) fn apply(
             revision: base + 1,
         },
     ))
+}
+
+pub(crate) fn transfer_key(
+    conn: &Connection,
+    operation: &Operation,
+    now: i64,
+    index: usize,
+) -> Result<Revision> {
+    let Operation::TransferCardKey {
+        source_id,
+        key,
+        to_key,
+        base_revision,
+        held,
+    } = operation
+    else {
+        unreachable!("card key transfer");
+    };
+    let source = crate::storage::stored(conn, source_id)?.ok_or_else(|| not_found(source_id))?;
+    if source.deletion_id.is_some() {
+        return Err(validation("card source must be live"));
+    }
+    for key in std::iter::once(key.as_str()).chain(to_key.as_deref()) {
+        if let Some(id) = key.strip_prefix("tpl:") {
+            get(conn, id)?;
+        } else if !matches!(key, "forward" | "reverse") {
+            return Err(validation(
+                "only simple syntax and recipe cards can transfer",
+            ));
+        }
+    }
+    let old: Option<(String, i64)> = conn
+        .query_row(
+            "SELECT id, revision FROM card_units WHERE source_block_id = ?1 AND key = ?2",
+            params![source_id, key],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?;
+    let found = old.as_ref().map(|(_, revision)| *revision);
+    if found != *base_revision {
+        return Err(Error::Conflict {
+            op_index: index,
+            id: source_id.clone(),
+            expected: base_revision.unwrap_or(0),
+            found,
+        });
+    }
+    match (old, to_key) {
+        (Some((id, revision)), Some(next)) => {
+            conn.execute("UPDATE card_units SET key = ?2, held = ?3, revision = revision + 1, updated_at = ?4 WHERE id = ?1",
+                params![id, next, held, now])?;
+            Ok(Revision {
+                id,
+                revision: revision + 1,
+            })
+        }
+        (None, Some(next)) if *held && next.starts_with("tpl:") => {
+            let id = crate::notebook::derived_id(&["card", source_id, next]);
+            let schedule = serde_json::to_string(&crate::scheduler::new_card(now))
+                .expect("schedule serializes");
+            conn.execute("INSERT INTO card_units(id, source_block_id, key, kind, active, definition_revision, front, back, revision, schedule, held, created_at, updated_at)
+                VALUES (?1, ?2, ?3, 'forward', 0, 1, '', '', 1, ?4, 1, ?5, ?5)",
+                params![id, source_id, next, schedule, now])?;
+            Ok(Revision { id, revision: 1 })
+        }
+        (Some((id, revision)), None) => {
+            let removable: bool = conn.query_row(
+                "SELECT held = 1 AND json_extract(schedule, '$.last_reviewed_at') IS NULL AND NOT EXISTS(SELECT 1 FROM review_events WHERE card_id = ?1) FROM card_units WHERE id = ?1",
+                [&id], |row| row.get(0),
+            )?;
+            if !removable
+                || !key.starts_with("tpl:")
+                || id != crate::notebook::derived_id(&["card", source_id, key])
+            {
+                return Err(validation(
+                    "only an unreviewed paused counterpart can be removed",
+                ));
+            }
+            conn.execute("DELETE FROM card_units WHERE id = ?1", [&id])?;
+            Ok(Revision {
+                id,
+                revision: revision + 1,
+            })
+        }
+        _ => Err(validation("a new counterpart must be paused")),
+    }
 }
 
 struct Member {
@@ -293,6 +426,11 @@ fn members(
         .collect::<rusqlite::Result<Vec<_>>>()?;
     if members.is_empty() {
         return Ok(members);
+    }
+    for member in &mut members {
+        if !member.text.trim().is_empty() {
+            member.values.insert("@text".into(), member.text.clone());
+        }
     }
     let ids = serde_json::to_string(&members.iter().map(|m| &m.id).collect::<Vec<_>>())
         .expect("member IDs serialize");
@@ -368,6 +506,10 @@ fn resolved(
     back: &[Part<'_>],
     refs: &[&str],
 ) -> Option<(String, String)> {
+    let syntax = crate::card_text::parse_card_text(&member.text);
+    if !syntax.cards.is_empty() || !syntax.problems.is_empty() {
+        return None;
+    }
     if refs.iter().any(|id| !member.values.contains_key(*id)) {
         return None;
     }
@@ -378,6 +520,28 @@ fn resolved(
     } else {
         Some((front, back))
     }
+}
+
+/// Existing recipe cards on syntax atoms must become inactive during the cutover.
+pub(crate) fn exclude_syntax_sources(conn: &Connection, now: i64) -> Result<()> {
+    let mut sources = conn.prepare_cached(
+        "SELECT DISTINCT b.id, b.text FROM blocks b JOIN card_units c ON c.source_block_id = b.id
+         WHERE c.key LIKE 'tpl:%' AND c.active = 1",
+    )?;
+    let mut update = conn.prepare_cached(
+        "UPDATE card_units SET active = 0, definition_revision = definition_revision + 1,
+         revision = revision + 1, updated_at = ?2
+         WHERE source_block_id = ?1 AND key LIKE 'tpl:%' AND active = 1",
+    )?;
+    let mut rows = sources.query([])?;
+    while let Some(row) = rows.next()? {
+        let text: String = row.get(1)?;
+        let syntax = crate::card_text::parse_card_text(&text);
+        if !syntax.cards.is_empty() || !syntax.problems.is_empty() {
+            update.execute(params![row.get::<_, String>(0)?, now])?;
+        }
+    }
+    Ok(())
 }
 
 /// Reconcile only affected owners, except template/type edits which reconcile that type in bulk.
@@ -478,19 +642,100 @@ pub(crate) fn derive(
 
 pub(crate) fn provenance(conn: &Connection, cards: &mut [CardUnit]) -> Result<()> {
     crate::occlusion::hydrate_cards(conn, cards)?;
-    let ids: Vec<_> = cards
-        .iter()
-        .filter_map(|c| c.key.strip_prefix("tpl:"))
-        .collect();
-    if ids.is_empty() {
+    recipe_provenance(conn, cards.iter_mut())
+}
+
+pub(crate) fn recipe_provenance<'a>(
+    conn: &Connection,
+    cards: impl Iterator<Item = &'a mut CardUnit>,
+) -> Result<()> {
+    let mut cards: Vec<_> = cards.filter(|card| card.key.starts_with("tpl:")).collect();
+    if cards.is_empty() {
         return Ok(());
     }
-    let mut by_id: HashMap<String, CardTemplateProvenance> = conn.prepare_cached("SELECT t.id, t.name, t.type_id, b.text FROM card_templates t JOIN blocks b ON b.id = t.type_id WHERE t.id IN (SELECT value FROM json_each(?1))")?
-        .query_map([serde_json::to_string(&ids).expect("template IDs serialize")], |row| { let id: String = row.get(0)?; Ok((id.clone(), CardTemplateProvenance { id, name: row.get(1)?, type_id: row.get(2)?, type_name: row.get(3)? })) })?.collect::<rusqlite::Result<_>>()?;
-    for card in cards {
-        if let Some(id) = card.key.strip_prefix("tpl:") {
-            card.template = by_id.get_mut(id).map(|p| p.clone());
+    let ids: Vec<_> = cards
+        .iter()
+        .filter_map(|card| card.key.strip_prefix("tpl:"))
+        .collect();
+    let templates = conn
+        .prepare_cached(&format!(
+            "SELECT {COLUMNS} FROM card_templates WHERE id IN (SELECT value FROM json_each(?1))"
+        ))?
+        .query_map(
+            [serde_json::to_string(&ids).expect("recipe IDs serialize")],
+            template_at,
+        )?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let defs = definitions(conn)?;
+    let definitions: HashMap<_, _> = defs.iter().map(|def| (def.id.as_str(), def)).collect();
+    let label = |text: &str| -> String {
+        if text == "{@text}" {
+            "Atom text".into()
+        } else if let Some(id) = text
+            .strip_prefix('{')
+            .and_then(|text| text.strip_suffix('}'))
+            && let Some(def) = definitions.get(id)
+        {
+            def.name.clone()
+        } else {
+            "Pattern".into()
         }
+    };
+    let sources = serde_json::to_string(
+        &cards
+            .iter()
+            .map(|card| &card.source_block_id)
+            .collect::<Vec<_>>(),
+    )
+    .expect("source IDs serialize");
+    let mut by_type = HashMap::new();
+    for template in &templates {
+        if !by_type.contains_key(&template.type_id) {
+            let title: String = conn.query_row(
+                "SELECT text FROM blocks WHERE id = ?1",
+                [&template.type_id],
+                |row| row.get(0),
+            )?;
+            let values: HashMap<_, _> = members(conn, &template.type_id, Some(&sources), &defs)?
+                .into_iter()
+                .map(|member| (member.id, member.values))
+                .collect();
+            by_type.insert(template.type_id.clone(), (title, values));
+        }
+    }
+    let templates: HashMap<_, _> = templates
+        .iter()
+        .map(|template| (template.id.as_str(), template))
+        .collect();
+    for card in &mut cards {
+        let Some(template) = templates.get(&card.key[4..]) else {
+            continue;
+        };
+        let (title, members) = &by_type[&template.type_id];
+        let detail = |id: &str| -> Option<RecipeDetail> {
+            let def = definitions.get(id)?;
+            let value = members.get(&card.source_block_id)?.get(id)?;
+            Some(RecipeDetail {
+                field_id: id.into(),
+                label: def.name.clone(),
+                value: value.clone(),
+                prose: def.role == crate::FieldRole::Prose,
+            })
+        };
+        card.template = Some(CardTemplateProvenance {
+            id: template.id.clone(),
+            name: template.name.clone(),
+            type_id: template.type_id.clone(),
+            type_name: title.clone(),
+            front_label: label(&template.front),
+            back_label: label(&template.back),
+            hint: template.hint.as_deref().and_then(detail),
+            details: template
+                .details
+                .iter()
+                .filter_map(|id| detail(id))
+                .collect(),
+        });
     }
     Ok(())
 }
@@ -544,12 +789,13 @@ impl Notebook {
             .query_map([type_id], template_at)?
             .collect::<rusqlite::Result<Vec<_>>>()?;
         let defs = definitions(&self.conn)?;
-        let names: HashMap<_, _> = defs
+        let mut names: HashMap<_, _> = defs
             .iter()
             .map(|d| (d.id.as_str(), d.name.as_str()))
             .collect();
+        names.insert("@text", "Atom text");
         let members = members(&self.conn, type_id, None, &defs)?;
-        let counts: HashMap<String, usize> = self.conn.prepare_cached("SELECT c.key, COUNT(*) FROM card_units c JOIN card_templates t ON c.key = 'tpl:' || t.id WHERE t.type_id = ?1 AND c.active = 1 GROUP BY c.key")?.query_map([type_id], |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as usize)))?.collect::<rusqlite::Result<_>>()?;
+        let counts: HashMap<String, usize> = self.conn.prepare_cached("SELECT c.key, COUNT(*) FROM card_units c JOIN card_templates t ON c.key = 'tpl:' || t.id WHERE t.type_id = ?1 AND c.active = 1 AND c.held = 0 GROUP BY c.key")?.query_map([type_id], |row| Ok((row.get(0)?, row.get::<_, i64>(1)? as usize)))?.collect::<rusqlite::Result<_>>()?;
         templates
             .into_iter()
             .map(|template| {
@@ -616,10 +862,11 @@ impl Notebook {
         }
         let template = get(&self.conn, id)?;
         let defs = definitions(&self.conn)?;
-        let names: HashMap<_, _> = defs
+        let mut names: HashMap<_, _> = defs
             .iter()
             .map(|d| (d.id.as_str(), d.name.as_str()))
             .collect();
+        names.insert("@text", "Atom text");
         let members = members(&self.conn, &template.type_id, None, &defs)?;
         let front = pattern(&template.front)?;
         let back = pattern(&template.back)?;
