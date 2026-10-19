@@ -82,6 +82,7 @@ export type Action =
   | { kind: 'addType' | 'removeType'; id: string; title: string }
   | { kind: 'insert'; block: Block; after: string | null }
   | { kind: 'delete'; id: string }
+  | { kind: 'restoreTag'; id: string; deletionId: string; revision: number }
   | { kind: 'restore'; id: string; snapshots: Snapshot[]; after: string | null }
   | { kind: 'move'; id: string; parentId: string; after: string | null };
 interface CommandRecord {

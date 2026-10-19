@@ -139,6 +139,7 @@ impl Notebook {
             positions: HashMap::new(),
             deletions: Vec::new(),
             removed: HashSet::new(),
+            pruned_pages: Vec::new(),
             restructured_pages: HashSet::new(),
             changed_pages: HashSet::new(),
             pending_types: BTreeMap::new(),
@@ -224,6 +225,7 @@ impl Notebook {
             seq,
             revisions: engine.revisions,
             removed,
+            pruned_pages: engine.pruned_pages,
             settings: engine.settings,
             deletions: engine.deletions,
             pages: Some(pages.into_iter().collect()),
@@ -515,6 +517,7 @@ struct Engine<'a, 'conn> {
     positions: HashMap<String, Touched>,
     deletions: Vec<String>,
     removed: HashSet<String>,
+    pruned_pages: Vec<crate::PrunedPage>,
     restructured_pages: HashSet<String>,
     changed_pages: HashSet<String>,
     pending_types: BTreeMap<(String, String), String>,
@@ -870,6 +873,15 @@ impl Engine<'_, '_> {
                 });
                 if !claimed {
                     self.delete(&id)?;
+                    self.pruned_pages.push(crate::PrunedPage {
+                        id: id.clone(),
+                        deletion_id: self
+                            .deletions
+                            .last()
+                            .expect("pruning records a deletion")
+                            .clone(),
+                        revision: self.revisions[self.positions[&id].position].revision,
+                    });
                     self.tx
                         .execute("DELETE FROM provisional_pages WHERE id = ?1", [&id])?;
                     deleted = true;

@@ -730,9 +730,16 @@ describe('real notebook operations and recovery', () => {
     expect(doc.undo()).toEqual(before);
     await instance.flush();
     expect(doc.block(first)?.text).toBe('base');
+    await expect(api.pageByTitle(title)).rejects.toMatchObject({ status: 404 });
     expect(doc.redo()).toEqual({ id: first, offset: canonical.length });
     await instance.flush();
     expect(doc.block(first)?.text).toBe(canonical);
+    expect((await api.pageByTitle(title)).id).toBe(target.id);
+    expect((await api.members(target.id)).map(row => row.block.id)).toContain(first);
+    doc.undo(); await doc.flush();
+    doc.redo(); await doc.flush();
+    expect((await api.pageByTitle(title)).id).toBe(target.id);
+    expect((await api.members(target.id)).map(row => row.block.id)).toContain(first);
     doc.release();
   });
 
@@ -872,6 +879,38 @@ describe('real notebook operations and recovery', () => {
       expect(recovered.queuedChanges()).toBe(0);
       reopened.release();
     } finally { release.resolve(); globalThis.fetch = actualFetch; }
+  });
+
+  test('tag redo queued before its undo receipt restores the pruned target', async () => {
+    const instance = await client();
+    const { doc, first } = await page(instance, 'base');
+    const title = `QueuedTag${++serial}`;
+    success(doc.edit({ kind: 'text', id: first, text: `read #${title}`, group: 92 }));
+    await doc.flush();
+    const target = await api.pageByTitle(title);
+    const canonical = doc.block(first)!.text;
+    const reached = Promise.withResolvers<void>(), gate = Promise.withResolvers<void>();
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const response = await actualFetch(input, init);
+      if (String(input).endsWith('/api/batches') && init?.body
+        && (JSON.parse(String(init.body)) as Batch).operations.some(operation => operation.op === 'edit_text' && operation.id === first && operation.text === 'base')) {
+        reached.resolve();
+        await gate.promise;
+      }
+      return response;
+    }) as typeof fetch;
+    try {
+      doc.undo();
+      const saving = doc.flush();
+      await reached.promise;
+      doc.redo();
+      gate.resolve();
+      await saving;
+      await doc.flush();
+      expect((await api.pageByTitle(title)).id).toBe(target.id);
+      expect((await api.block(first)).text).toBe(canonical);
+      expect((await api.members(target.id)).map(row => row.block.id)).toContain(first);
+    } finally { gate.resolve(); globalThis.fetch = actualFetch; doc.release(); }
   });
 
   test('a new field keeps its chosen kind through one undo and redo', async () => {
@@ -3059,6 +3098,47 @@ describe('durable Action and Learning document commands', () => {
     expect((await api.taskOccurrences(first)).filter(event => !event.reversed)).toHaveLength(1);
     expect((await api.capabilities(first)).task?.scheduled).toBe(mode === 'after_completion' ? '2026-10-16' : mode === 'fixed' ? '2026-10-02' : '2026-10-01');
     history.dispose();
+  });
+
+  test('removing a tagged Done task records behavior and restores its full state on undo', async () => {
+    const instance = await client();
+    const { doc, first, id } = await page(instance, 'Undo lamp #task ');
+    success(doc.addType(first, 'Task'));
+    const planned = { ...todo, scheduled: '2026-10-17', scheduled_time: '09:30', deadline: '2026-10-19' };
+    success(doc.edit({ kind: 'task', id: first, value: planned }));
+    await doc.flush();
+    success(doc.edit({ kind: 'completeTask', id: first, completedOn: '2026-10-18' }));
+    await doc.flush();
+    const before = structuredClone(doc.block(first)!.task), text = doc.block(first)!.text;
+    const occurrences = await api.taskOccurrences(first);
+    const bodies: Batch[] = [];
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/api/batches') && init?.body) bodies.push(JSON.parse(String(init.body)) as Batch);
+      return actualFetch(input, init);
+    }) as typeof fetch;
+    try {
+      success(doc.edit({ kind: 'task', id: first, value: null }));
+      await doc.flush();
+      expect(bodies[0]!.operations.some(operation => operation.op === 'set_task' && operation.task === null)).toBe(true);
+      expect(bodies[0]!.operations.some(operation => operation.op === 'edit_text')).toBe(false);
+      expect(doc.block(first)?.text).toBe('Undo lamp ');
+      expect(doc.block(first)?.task).toBeNull();
+      expect(doc.block(first)?.manual_types).toEqual([]);
+      doc.undo(); await doc.flush();
+      expect((await api.capabilities(first)).task).toEqual(before);
+      expect((await api.block(first)).text).toBe(text);
+      expect(doc.block(first)?.task).toEqual(before);
+      expect(doc.block(first)?.text).toBe(text);
+      expect(doc.block(first)?.manual_types).toEqual(['Task']);
+      expect(await api.taskOccurrences(first)).toEqual(occurrences);
+      doc.redo(); await doc.flush();
+      expect((await api.capabilities(first)).task).toBeNull();
+      await (doc as Document).reload(false);
+      expect(doc.block(first)?.text).toBe('Undo lamp ');
+      expect(doc.block(first)?.task).toBeNull();
+      expect((await api.page(id)).rows.find(row => row.block.id === first)?.manual_types).toEqual([]);
+      expect(await api.taskOccurrences(first)).toEqual(occurrences);
+    } finally { globalThis.fetch = actualFetch; doc.release(); }
   });
 
   test('planning is one text/state undo step and reopening undo restores done without new evidence', async () => {

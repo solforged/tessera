@@ -678,7 +678,7 @@ A hand-typed reference spanning lines or containing a nested `[[opener]]` stays 
 
 A tag being typed is not saved until the word is finished: a space or Enter, a choice from the picker, blur, or the caret leaving it. An idle pause never canonicalizes a tag token while the caret is still inside it. Until then no type page or sidebar row appears, so typing `#phil` slowly never shows `p`, `ph` or `phi`; the text is already kept for recovery.
 
-A page made for a tag or by Add tag goes away again once no tag, manual type or link uses it, unless it was edited, gained content or is named by a saved query.
+A page made for a tag or by Add tag goes away again once no tag, manual type or link uses it, unless it was edited, gained content or is named by a saved query. Undo retains its exact deletion ticket; Redo restores that same page before restoring its member text, and the restored page is then retained.
 
 #### Field shorthand
 

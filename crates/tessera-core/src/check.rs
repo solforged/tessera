@@ -700,6 +700,7 @@ fn record_change(
         seq,
         revisions,
         removed: Vec::new(),
+        pruned_pages: Vec::new(),
         deletions: Vec::new(),
         pages: Some(pages),
         text_rewrites,

@@ -586,3 +586,102 @@ fn journal_roots_still_refuse_source_records() {
         "A journal cannot be a source.",
     );
 }
+
+#[test]
+fn pruned_tag_receipt_restores_the_same_page_and_canonical_membership() {
+    let (_dir, mut nb) = fixture();
+    apply(&mut nb, vec![insert(10, "Read #undotagone")]);
+    let page = nb.page_by_title("undotagone").unwrap().unwrap();
+    let canonical = nb.block(&id(10)).unwrap().text;
+    let undo = edit(&nb, 10, "Read");
+    let removed = apply(&mut nb, vec![undo]);
+    assert!(nb.block(&page.id).is_err());
+    assert_eq!(removed.pruned_pages.len(), 1);
+    let ticket = &removed.pruned_pages[0];
+    assert_eq!(ticket.id, page.id);
+    assert!(removed.deletions.contains(&ticket.deletion_id));
+    let redo = edit(&nb, 10, &canonical);
+    apply(
+        &mut nb,
+        vec![
+            Operation::Restore {
+                id: ticket.id.clone(),
+                deletion_id: ticket.deletion_id.clone(),
+                revision: ticket.revision,
+            },
+            redo,
+        ],
+    );
+    assert_eq!(nb.page_by_title("undotagone").unwrap().unwrap().id, page.id);
+    assert_eq!(nb.block(&id(10)).unwrap().text, canonical);
+    assert_eq!(nb.members(&page.id, 10).unwrap()[0].block.id, id(10));
+    assert!(nb.check(false).unwrap().ok);
+}
+
+#[test]
+fn task_removal_undo_restores_done_date_and_plan_without_new_completion() {
+    let (_dir, mut nb) = fixture();
+    apply(&mut nb, vec![insert(10, "Read #task")]);
+    let planned = TaskState {
+        status: Some(TaskStatus::Todo),
+        scheduled: Some("2026-10-17".into()),
+        scheduled_time: Some("09:30".into()),
+        deadline: Some("2026-10-19".into()),
+        ..Default::default()
+    };
+    let plan = set_task(&nb, 10, Some(planned));
+    apply(&mut nb, vec![plan]);
+    let revision = nb.block(&id(10)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![
+            Operation::AddType {
+                id: id(10),
+                base_revision: revision,
+                title: "Task".into(),
+            },
+            Operation::CompleteTask {
+                id: id(10),
+                base_revision: revision + 1,
+                occurrence_id: id(100),
+                completed_on: "2026-10-18".into(),
+            },
+        ],
+    );
+    let before = nb.capabilities(&id(10)).unwrap().task.unwrap();
+    let text = nb.block(&id(10)).unwrap().text;
+    let history = nb.task_occurrences(&id(10)).unwrap();
+    let remove = set_task(&nb, 10, None);
+    let removed = apply(&mut nb, vec![remove]);
+    assert_eq!(removed.text_rewrites[0].before, text);
+    assert_eq!(nb.block(&id(10)).unwrap().text, "Read");
+    let revision = nb.block(&id(10)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![
+            Operation::SetTask {
+                id: id(10),
+                base_revision: revision,
+                task: Some(before.clone()),
+            },
+            Operation::AddType {
+                id: id(10),
+                base_revision: revision + 1,
+                title: "Task".into(),
+            },
+            Operation::EditText {
+                id: id(10),
+                base_revision: revision + 2,
+                text: text.clone(),
+            },
+        ],
+    );
+    assert_eq!(nb.capabilities(&id(10)).unwrap().task, Some(before));
+    assert_eq!(nb.block(&id(10)).unwrap().text, text);
+    assert_eq!(nb.task_occurrences(&id(10)).unwrap(), history);
+    let redo = set_task(&nb, 10, None);
+    apply(&mut nb, vec![redo]);
+    assert!(nb.capabilities(&id(10)).unwrap().task.is_none());
+    assert_eq!(nb.task_occurrences(&id(10)).unwrap(), history);
+    assert!(nb.check(false).unwrap().ok);
+}

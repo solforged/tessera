@@ -163,6 +163,8 @@ export interface Committed {
   revisions: Revision[];
   /** Touched blocks removed by the batch, including pruned provisional pages. */
   removed?: string[];
+  /** Exact restoration tickets for unused provisional tag pages pruned by this batch. */
+  pruned_pages?: { id: string; deletion_id: string; revision: number }[];
   /** Pages holding a block the batch changed or removed, plus restructured pages. Absent in receipts stored before it was recorded. */
   pages?: string[];
   settings: SettingRevision[];

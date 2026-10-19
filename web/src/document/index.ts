@@ -1031,7 +1031,10 @@ export class Notebook implements NotebookClient, DocumentHost {
         }
         case 'text': {
           const block = current(action.id);
-          operations.push({ op: 'edit_text', id: block.id, base_revision: action.baseRevision ?? block.revision, text: action.text });
+          // A receipt guard names the batch-start revision; prior inverse actions
+          // in this same batch may already have advanced the atom.
+          const revision = action.baseRevision === initialRevisions.get(action.id) ? block.revision : action.baseRevision ?? block.revision;
+          operations.push({ op: 'edit_text', id: block.id, base_revision: revision, text: action.text });
           if (block.text !== action.text) block.revision++;
           block.text = action.text;
           break;
@@ -1119,6 +1122,9 @@ export class Notebook implements NotebookClient, DocumentHost {
           for (const row of descendants) current(row.id).revision++;
           break;
         }
+        case 'restoreTag':
+          operations.push({ op: 'restore', id: action.id, deletion_id: action.deletionId, revision: action.revision });
+          break;
         case 'restore': {
           const ticket = this.tickets.get(action.id);
           if (!ticket) throw new Error('Waiting for the deletion acknowledgement before restoring.');
@@ -1381,10 +1387,10 @@ export class Notebook implements NotebookClient, DocumentHost {
           this.persisted.delete(command.id);
           this.generations.delete(command.id);
           doc.acknowledged(command, revisions, ack.text_rewrites, ack);
+          const historyChanges = new Set(doc.recordRewrites(command, ack.text_rewrites));
           this.receiveReceipt(ack);
           await this.outbox?.capabilities(ack.capabilities ?? [], ack.seq).catch(() => undefined);
           for (const pending of this.commands(doc.pageId)) if (!pending.frozen) await this.persist(pending);
-          const historyChanges = new Set(doc.recordRewrites(command, ack.text_rewrites));
           const choices = command.resolutions?.filter(choice => doc.isResolving(choice.id)) ?? [];
           for (const choice of choices) if (!choice.deferred) doc.confirmResolution(choice.id, choice.text);
           const deferred = choices.filter(choice => choice.deferred);

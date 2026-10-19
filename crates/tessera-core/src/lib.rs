@@ -104,10 +104,10 @@ pub use model::{
     FieldHide, FieldInterpretation, FieldKind, FieldOption, FieldOptionUse, FieldOwner,
     FieldOwnerValues, FieldRole, FieldSummary, FieldTemplate, FieldType, FieldValue, FieldValueUse,
     FieldsView, Filter, FilterOp, IncomingFieldValue, KeptCopy, NoteGroup, NoteLayout, NoteView,
-    Operation, PageView, Query, QueryAttribute, QueryAttributeValue, QueryColumn, QueryGroup,
-    QueryGrouping, QueryResult, QueryRow, QuerySource, QuoteState, QuoteStatus, QuotedRow, Reading,
-    ReadingValue, RequiredField, Revision, Row, Setting, SettingRevision, SettingsView, SortBy,
-    SortKey, Subtree, TextRewrite, TypeInfo, View, YearSpan,
+    Operation, PageView, PrunedPage, Query, QueryAttribute, QueryAttributeValue, QueryColumn,
+    QueryGroup, QueryGrouping, QueryResult, QueryRow, QuerySource, QuoteState, QuoteStatus,
+    QuotedRow, Reading, ReadingValue, RequiredField, Revision, Row, Setting, SettingRevision,
+    SettingsView, SortBy, SortKey, Subtree, TextRewrite, TypeInfo, View, YearSpan,
 };
 pub use notebook::{DATABASE_FILE, Notebook, NotebookInfo, now_ms};
 pub use notes::{

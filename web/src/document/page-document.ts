@@ -11,7 +11,7 @@ import type { Action, Command, HistoryEntry, PageCommand, Snapshot } from './typ
 import { currentReading, emptyCapabilities, isCapabilityAction, questionState, questionStatus, sameState, sourceState } from './types';
 import { parseCardText } from '../review/card-text';
 import { isStableReference, quoteTarget, textTokens } from './text-tokens';
-import { newTask, removeToken } from '../tasks/quick-date';
+import { newTask } from '../tasks/quick-date';
 import { mapTextOffset, rebaseText } from './text-patch';
 import { fieldHide } from '../fields/hide';
 import { countsReason, fieldCounts } from '../fields/counts';
@@ -344,6 +344,10 @@ export class Document implements PageDocument {
   private applyAction(action: Action, base = false): Action[] {
     const index = base ? this.baseOutline : this.outline;
     switch (action.kind) {
+      case 'restoreTag':
+        // The target belongs to another page; its receipt refreshes the shared lookup.
+        // Restoration claims it, so a later undo removes only this atom's membership.
+        return [];
       case 'cardHeld':
         return [{ ...action, value: action.previous, previous: action.value }];
       case 'cardTemplate':
@@ -934,7 +938,34 @@ export class Document implements PageDocument {
       this.refreshPending(touched);
       if (command.actions.some(action => action.kind === 'delete' && action.id === this.pageId)) this.markMissing();
       if (command.actions.some(action => action.kind === 'restore' && action.id === this.pageId)) { this.retainHistoryOnDelete = false; this.loadStatus[1]('ready'); this.loadMessage[1](''); }
+      this.recordPrunedPages(command, receipt?.pruned_pages ?? []);
     });
+  }
+  private recordPrunedPages(command: Command, pages: NonNullable<Committed['pruned_pages']>) {
+    const restored = new Set(command.actions.filter(action => action.kind === 'restoreTag').map(action => action.id));
+    if (restored.size) {
+      for (const entry of new Set([...this.undoStack, ...this.redoStack, ...[...this.historyCommands.values()].map(history => history.entry)])) {
+        entry.forward = entry.forward.filter(action => action.kind !== 'restoreTag' || !restored.has(action.id));
+        entry.inverse = entry.inverse.filter(action => action.kind !== 'restoreTag' || !restored.has(action.id));
+      }
+      for (const pending of this.host.commands(this.pageId)) if (!pending.frozen) {
+        pending.actions = pending.actions.filter(action => action.kind !== 'restoreTag' || !restored.has(action.id));
+      }
+    }
+    const history = this.historyCommands.get(command.id);
+    if (!history || !pages.length) return;
+    const retain = (actions: Action[]) => {
+      // Restore the entire pruning effect, including tags used by generated titles.
+      for (const page of pages) if (!actions.some(action => action.kind === 'restoreTag' && action.id === page.id)) {
+        actions.unshift({ kind: 'restoreTag', id: page.id, deletionId: page.deletion_id, revision: page.revision });
+      }
+    };
+    retain(history.undo ? history.entry.forward : history.entry.inverse);
+    // Redo may already be queued while the undo receipt was in flight.
+    for (const pending of this.host.commands(this.pageId)) {
+      const queued = this.historyCommands.get(pending.id);
+      if (!pending.frozen && queued?.entry === history.entry && queued.undo !== history.undo) retain(pending.actions);
+    }
   }
   private rememberHistory(command: Command, entry: HistoryEntry, undo: boolean, travel = false) {
     entry.commandId = command.id;
@@ -1250,17 +1281,12 @@ export class Document implements PageDocument {
     const setText = (block: Block, text: string) => {
       if (block.text !== text) actions.push({ kind: 'text', id: block.id, text });
     };
-    const removeCapabilityTag = (id: string, name: string): boolean => {
-      const block = this.snapshot(id);
-      const tokens = textTokens(block.text).filter(token => token.kind === 'tag' && titleKey(token.id ? this.host.lookup(token.id)()?.text ?? '' : token.value) === name);
-      if (!tokens.length) return false;
-      let text = block.text;
-      for (const token of tokens.reverse()) text = removeToken(text, { from: token.start, to: token.end }).text;
+    const removeCapabilityTags = (id: string, name: string) => {
+      // The behavior operation owns written-token removal and its text receipt.
+      // Keep manual removals in history too, so undo restores both origins.
       for (const title of this.block(id)?.manual_types ?? []) {
         if (titleKey(title) === name) actions.push({ kind: 'removeType', id, title });
       }
-      setText(block, text);
-      return true;
     };
     const guardSplit = (block: Block, prefix: string, suffix: string) => {
       if (!parseCardText(block.text).cards.length || !suffix && prefix === block.text) return;
@@ -1465,7 +1491,7 @@ export class Document implements PageDocument {
           created.push(...actions.flatMap(action => action.kind === 'insert' ? [action.block.id] : []));
           break;
         case 'source': {
-          if (edit.value === null && removeCapabilityTag(edit.id, 'source')) break;
+          if (edit.value === null) removeCapabilityTags(edit.id, 'source');
           const previous = sourceState(this.capabilities(edit.id).source);
           const value = sourceState(edit.value);
           if (!sameState(previous, value)) actions.push({ kind: 'source', id: edit.id, value, previous, baseRevision: this.snapshot(edit.id).revision });
@@ -1585,7 +1611,7 @@ export class Document implements PageDocument {
           break;
         }
         case 'question': {
-          if (edit.value === null && removeCapabilityTag(edit.id, 'question')) break;
+          if (edit.value === null) removeCapabilityTags(edit.id, 'question');
           const previous = questionState(this.capabilities(edit.id).question?.state);
           let value = questionState(edit.value);
           if (previous && value && previous.accepted !== value.accepted && sameState(previous.reading_history, value.reading_history)) {
@@ -1638,14 +1664,14 @@ export class Document implements PageDocument {
           if (this.host.commands(this.pageId).some(command => command.actions.some(action => action.kind === 'completeTask' && action.id === edit.id && action.previous.repeater))) throw new Error('Wait for the recurring completion before changing this task.');
           const baseRevision = block.revision;
           if (edit.kind === 'task' || edit.kind === 'planTask') {
-            if (edit.value === null && removeCapabilityTag(edit.id, 'task')) break;
+            if (edit.value === null) removeCapabilityTags(edit.id, 'task');
             const value = edit.value === null ? null : JSON.parse(JSON.stringify(edit.value));
             if (value?.status === 'done' && state.task?.status !== 'done') throw new Error('Complete the task to record its occurrence.');
             if (!state.task && value && value.status !== null && value.status !== 'todo') throw new Error('A new task starts Todo.');
             if (!sameState(state.task, value)) actions.push({ kind: 'task', id: edit.id, value, previous: state.task, baseRevision });
             if (edit.kind === 'planTask') { setText(block, edit.text); caret = { id: edit.id, offset: edit.text.length }; }
           } else if (edit.kind === 'project') {
-            if (edit.value === null && removeCapabilityTag(edit.id, 'project')) break;
+            if (edit.value === null) removeCapabilityTags(edit.id, 'project');
             const value = edit.value === null ? null : JSON.parse(JSON.stringify(edit.value));
             if (!sameState(state.project, value)) actions.push({ kind: 'project', id: edit.id, value, previous: state.project, baseRevision });
           } else if (edit.kind === 'completeTask') {

@@ -305,7 +305,7 @@ Completion records the exact planning snapshot and explicit completion date. A n
 
 An appointment cannot be completed or advanced by a repeater. Completion is refused with `Add #task before completing.` A work session also requires an unfinished status.
 
-Status is stored, not a fixed workflow. `SetTask` moves between the unfinished statuses, cancels, or reopens a done task; only `CompleteTask` makes a task done, and a repeating task goes back to todo with its dates advanced. Undo restores the saved status and plan, so it has no arrow.
+Status is stored, not a fixed workflow. `SetTask` moves between the unfinished statuses, cancels, or reopens a done task; only `CompleteTask` makes a task done, and a repeating task goes back to todo with its dates advanced. Undo restores the saved status and plan, including the completion date when undoing task removal without reversing its occurrence, so it has no arrow.
 
 ```mermaid
 stateDiagram-v2

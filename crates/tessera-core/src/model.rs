@@ -518,6 +518,14 @@ pub struct TextRewrite {
     pub revision: i64,
 }
 
+/// A provisional tag page removed by derivation, retained for exact history replay.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PrunedPage {
+    pub id: String,
+    pub deletion_id: String,
+    pub revision: i64,
+}
+
 /// The result of a committed batch.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Committed {
@@ -530,6 +538,9 @@ pub struct Committed {
     /// provisional pages removed by derivation.
     #[serde(default)]
     pub removed: Vec<String>,
+    /// Exact restoration tickets for unused provisional pages pruned by this batch.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pruned_pages: Vec<PrunedPage>,
     /// Deletion events created by `Delete` and `Merge`, in operation order.
     pub deletions: Vec<String>,
     /// Pages holding a block the batch changed or removed, plus pages whose
