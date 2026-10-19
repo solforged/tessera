@@ -28,14 +28,14 @@ impl Session<'_> {
                 return Ok(unit_list(
                     &cards,
                     &clock,
-                    &format!("Block {id} makes no card."),
+                    &format!("Atom {id} makes no card."),
                 ));
             }
             (None, Some(title)) => {
                 let page: Block = api
                     .get(&format!("/api/pages/by-title/{}", segment(title)))
                     .await
-                    .with_context(|| format!("No page is titled {title:?}"))?;
+                    .with_context(|| format!("No atom is titled {title:?}"))?;
                 let cards = page_cards(&api, &page.id).await?;
                 return Ok(unit_list(
                     &cards,
@@ -334,7 +334,7 @@ pub(super) async fn type_id(api: &Api, wanted: &str) -> anyhow::Result<String> {
                     .is_some_and(|plural| plural.eq_ignore_ascii_case(wanted))
         })
         .map(|info| info.page.id)
-        .with_context(|| format!("No type is named {wanted:?}; tessera_query lists types."))
+        .with_context(|| format!("No tag is named {wanted:?}; tessera_query lists tags."))
 }
 
 /// A deck by ID or name, ignoring case.

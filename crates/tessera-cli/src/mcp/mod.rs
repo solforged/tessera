@@ -197,7 +197,7 @@ fn describe(receipt: &AgentReceipt) -> String {
     let mut text = format!("{}. This is change {}", receipt.summary, receipt.seq);
     if let Some(page) = &receipt.page {
         text.push_str(&format!(
-            " on {} {:?} (page {})",
+            " on {} {:?} (id {})",
             kind_label(page.kind),
             page.text,
             page.id
@@ -206,7 +206,7 @@ fn describe(receipt: &AgentReceipt) -> String {
     text.push('.');
     if !receipt.created_pages.is_empty() {
         text.push_str(&format!(
-            " Created pages: {}.",
+            " Created atoms: {}.",
             quoted(&receipt.created_pages)
         ));
     }
@@ -222,7 +222,7 @@ fn describe(receipt: &AgentReceipt) -> String {
             .iter()
             .map(|block| format!("{} r{}", block.id, block.revision))
             .collect();
-        text.push_str(&format!(" Blocks: {}.", blocks.join(", ")));
+        text.push_str(&format!(" Atoms: {}.", blocks.join(", ")));
     }
     text
 }

@@ -26,7 +26,7 @@ impl Session<'_> {
             .get_with("/api/search", &[("q", query), ("limit", &limit)])
             .await?;
         if hits.is_empty() {
-            return Ok(format!("No blocks match {query:?}."));
+            return Ok(format!("No atoms match {query:?}."));
         }
         let mut text = String::new();
         for hit in hits {
@@ -58,7 +58,7 @@ impl Session<'_> {
             ));
         }
         Ok(if text.is_empty() {
-            "The workshop has no pages yet.".into()
+            "The workshop has no titled atoms yet.".into()
         } else {
             text
         })
@@ -71,7 +71,7 @@ impl Session<'_> {
             (Some(title), None, None) => api
                 .get(&format!("/api/pages/by-title/{}", segment(title)))
                 .await
-                .with_context(|| format!("No page is titled {title:?}"))?,
+                .with_context(|| format!("No atom is titled {title:?}"))?,
             (None, Some(date), None) => api
                 .get(&format!("/api/journal/{}", segment(date)))
                 .await
@@ -99,7 +99,7 @@ impl Session<'_> {
     pub(super) async fn add_note(&self, arguments: &Value) -> anyhow::Result<String> {
         let markdown = string(arguments, "markdown")?.context("markdown is required")?;
         let blocks = outline(markdown);
-        anyhow::ensure!(!blocks.is_empty(), "The note has no content.");
+        anyhow::ensure!(!blocks.is_empty(), "Nothing to add: the text is empty.");
         let target = match (
             string(arguments, "page")?,
             string(arguments, "journal")?,
@@ -248,7 +248,7 @@ impl Session<'_> {
         );
         if !receipt.kept_pages.is_empty() {
             text.push_str(&format!(
-                " Kept pages still in use: {}.",
+                " Kept atoms still in use: {}.",
                 quoted(&receipt.kept_pages)
             ));
         }

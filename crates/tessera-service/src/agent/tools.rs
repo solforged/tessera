@@ -83,7 +83,7 @@ pub(super) fn context(notebook: &Notebook, refs: &[ContextRef]) -> anyhow::Resul
         )?;
         if let Some((end, _)) = text.char_indices().nth(40_000) {
             text.truncate(end);
-            text.push_str("\n(Page truncated. Use read_page to read the remaining blocks.)\n");
+            text.push_str("\n(Truncated. Use read_page to read the remaining atoms.)\n");
         }
         system.push_str("\n\n");
         system.push_str(&text);
@@ -106,7 +106,7 @@ fn page(
     } else if let Some(title) = title {
         notebook
             .page_by_title(title)?
-            .with_context(|| format!("No page is titled {title:?}."))?
+            .with_context(|| format!("No atom is titled {title:?}."))?
             .id
     } else if let Some(id) = block_id {
         notebook.block(id)?.page_id
@@ -157,20 +157,20 @@ fn outline(text: &str) -> anyhow::Result<Vec<NoteBlock>> {
         let depth = spaces / 2;
         ensure!(
             depth <= levels.len(),
-            "A note cannot skip an indentation level."
+            "An atom cannot skip an indentation level."
         );
         while levels.len() > depth + 1 {
             let children = levels.pop().expect("nested level");
             levels
                 .last_mut()
                 .and_then(|blocks| blocks.last_mut())
-                .context("An indented note needs a parent.")?
+                .context("An indented atom needs a parent.")?
                 .children = children;
         }
         if depth == levels.len() {
             ensure!(
                 levels.last().is_some_and(|level| !level.is_empty()),
-                "An indented note needs a parent."
+                "An indented atom needs a parent."
             );
             levels.push(Vec::new());
         }
@@ -188,11 +188,11 @@ fn outline(text: &str) -> anyhow::Result<Vec<NoteBlock>> {
         levels
             .last_mut()
             .and_then(|blocks| blocks.last_mut())
-            .context("An indented note needs a parent.")?
+            .context("An indented atom needs a parent.")?
             .children = children;
     }
     let blocks = levels.pop().expect("root level");
-    ensure!(!blocks.is_empty(), "The note has no content.");
+    ensure!(!blocks.is_empty(), "Nothing to add: the text is empty.");
     Ok(blocks)
 }
 
@@ -248,10 +248,10 @@ pub(super) fn execute(
         "add_note" => {
             let target = args["target"]
                 .as_object()
-                .context("target must name a page, journal, or block.")?;
+                .context("target must be an object naming page, journal or block.")?;
             ensure!(
                 target.len() == 1,
-                "target must name exactly one page, journal, or block."
+                "target must name exactly one of page, journal or block."
             );
             let target = if target.contains_key("page") {
                 NoteTarget::Page {
@@ -266,7 +266,7 @@ pub(super) fn execute(
                     id: required(&args["target"], "block")?.into(),
                 }
             } else {
-                bail!("target must name a page, journal, or block.");
+                bail!("target must name exactly one of page, journal or block.");
             };
             AgentEdit::AddNote {
                 target,
@@ -499,7 +499,7 @@ mod tests {
         )
         .unwrap();
         assert!(rendered.contains("# Long page <!--"));
-        assert!(rendered.contains("(Page truncated. Use read_page"));
+        assert!(rendered.contains("(Truncated. Use read_page"));
         assert!(!rendered.contains("Last block"));
         let (full, _) = execute(
             &mut notebook,

@@ -88,10 +88,10 @@ impl Session<'_> {
             .map(|field| (field.id.as_str(), field.name.as_str()))
             .collect();
         if result.rows.is_empty() {
-            return Ok("No blocks match.".into());
+            return Ok("No atoms match.".into());
         }
         let mut text = format!(
-            "{} of {} blocks, from offset {}:\n",
+            "{} of {} atoms, from offset {}:\n",
             result.rows.len(),
             result.total,
             query.offset
@@ -149,7 +149,7 @@ impl Session<'_> {
     }
 }
 
-/// Types with their fields, field definitions with kinds, and saved views.
+/// Tags with their fields, field definitions with kinds, and saved views.
 async fn overview(api: &Api, fields: &FieldsView) -> anyhow::Result<String> {
     let types: Vec<TypeInfo> = api.get("/api/types").await?;
     let views: Vec<View> = api.get("/api/views").await?;
@@ -158,13 +158,13 @@ async fn overview(api: &Api, fields: &FieldsView) -> anyhow::Result<String> {
         .iter()
         .map(|field| (field.definition.id.as_str(), field.definition.name.as_str()))
         .collect();
-    let mut text = String::from("Types:\n");
+    let mut text = String::from("Tags:\n");
     if types.is_empty() {
-        text.push_str("- None yet; #Tag in block text makes one.\n");
+        text.push_str("- None yet; #tag in atom text makes one.\n");
     }
     for info in &types {
         text.push_str(&format!(
-            "- {} (type page {}): {} members",
+            "- {} (tag {}): {} members",
             info.page.text, info.page.id, info.members
         ));
         if !info.fields.is_empty() {
@@ -182,11 +182,11 @@ async fn overview(api: &Api, fields: &FieldsView) -> anyhow::Result<String> {
     }
     text.push_str("Fields:\n");
     if fields.fields.is_empty() {
-        text.push_str("- None yet; `Name:: value` in block text makes one.\n");
+        text.push_str("- None yet; `Name:: value` in atom text makes one.\n");
     }
     for field in &fields.fields {
         text.push_str(&format!(
-            "- {} (field {}): {}, on {} blocks",
+            "- {} (field {}): {}, on {} atoms",
             field.definition.name,
             field.definition.id,
             name(field.definition.kind),

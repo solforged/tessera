@@ -244,7 +244,7 @@ impl Session<'_> {
     }
 }
 
-/// `- [ ] text (block ID) on page "Title" (page ID): details`.
+/// `- [ ] text (block ID) on atom "Title" (id ID): details`.
 fn task_line(
     status: Option<TaskStatus>,
     text: &str,

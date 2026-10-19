@@ -97,7 +97,7 @@ pub fn render(
                 .iter()
                 .take_while(|row| row.depth > depth)
                 .count();
-            text.push_str(&format!("(The subtree under block {id}.)\n"));
+            text.push_str(&format!("(The subtree under atom {id}.)\n"));
             (&page.rows[start..start + length], depth)
         }
         None => (&page.rows[..], 0),
@@ -526,14 +526,14 @@ pub fn age(ms: i64) -> String {
 pub fn kind_label(kind: BlockKind) -> &'static str {
     match kind {
         BlockKind::Journal => "journal day",
-        _ => "page",
+        _ => "atom",
     }
 }
 
-/// `on page "Title" (page ID)`, naming where a block lives.
+/// `on atom "Title" (id ID)`, naming where a block lives.
 pub fn location(page: &Block) -> String {
     format!(
-        "on {} {:?} (page {})",
+        "on {} {:?} (id {})",
         kind_label(page.kind),
         page.text,
         page.id

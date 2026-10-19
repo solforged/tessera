@@ -46,7 +46,7 @@ impl Session<'_> {
         }
         anyhow::ensure!(
             !query.is_empty(),
-            "Give a kind, source, target or holder filter."
+            "Give a kind, source, target, source_holder or target_holder filter."
         );
         let count = limit(arguments, "limit", 50, 500)?.to_string();
         query.push(("limit", &count));

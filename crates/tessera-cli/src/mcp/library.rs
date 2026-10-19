@@ -180,7 +180,7 @@ async fn read(api: &Api, arguments: &Value) -> anyhow::Result<String> {
             .map(|citation| citation.block_id.as_str())
             .collect();
         if !cited.is_empty() {
-            text.push_str(&format!(" (cited by block {})", cited.join(", ")));
+            text.push_str(&format!(" (cited by atom {})", cited.join(", ")));
         }
         text.push('\n');
     }
@@ -264,7 +264,7 @@ async fn highlights(api: &Api, arguments: &Value) -> anyhow::Result<String> {
             text.push_str(", unprocessed");
         }
         if row.notes > 0 {
-            text.push_str(&format!(", {} notes", row.notes));
+            text.push_str(&format!(", {} child atoms", row.notes));
         }
         text.push('\n');
     }
@@ -279,7 +279,7 @@ async fn source(api: &Api, arguments: &Value) -> anyhow::Result<SourceView> {
     } else {
         api.get::<Block>(&format!("/api/pages/by-title/{}", segment(wanted)))
             .await
-            .with_context(|| format!("No page is titled {wanted:?}"))?
+            .with_context(|| format!("No atom is titled {wanted:?}"))?
             .id
     };
     api.get(&format!("/api/sources/{}", segment(&id)))
