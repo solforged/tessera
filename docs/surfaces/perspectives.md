@@ -152,7 +152,7 @@ Zooming into a perspective replaces the concept's title with holder · Gist, the
 
 Read in a perspective dossier opens its titled subject page without the zoom, brings the perspective into view and briefly marks its slip. A perspective filed elsewhere opens its subject's Perspectives filed elsewhere section instead. The mark leaves the row's size and location unchanged. The resulting Read projection and location survive reload. Header and Commands use the same action.
 
-Other block zooms show Read unavailable with a visible reason and a way back to the full page. A perspective whose subject is a journal explains that Read needs a titled subject, with File under as the way to choose one.
+Other block zooms leave Read unavailable without a permanent banner. Archived and loading reasons appear on the unavailable Read control, not above the outline. A perspective whose subject is a journal explains there that Read needs a titled subject, with File under as the way to choose one.
 
 Other block zooms also show only their own incoming links, under Linked to this block. Perspective reference previews lead with Gist and authored argument rather than field scaffolding.
 

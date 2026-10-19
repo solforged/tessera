@@ -1,17 +1,15 @@
-.review-queues { display: flex; flex-direction: column; min-height: 0; height: 100%; }
-/* The kind switch and the questions queue sit on the cards landing's measure, so switching kinds keeps one column edge. */
-.review-kind-tabs.review-queue-controls { flex-wrap: wrap; width: min(var(--measure), 100% - 2 * var(--pane-inset)); margin: var(--space-8) auto 0; }
-.review-queues > .review-pane, .notes-review { flex: 1; min-height: 0; }
-.notes-review { display: flex; flex-direction: column; overflow: auto; scrollbar-gutter: stable; padding: 0 var(--pane-inset) var(--page-bottom-space); }
+.notes-review { display: flex; flex-direction: column; min-height: 0; height: 100%; overflow: auto; scrollbar-gutter: stable; padding: 0 var(--pane-inset) var(--page-bottom-space); }
 .notes-review > :not(.revisit-outline) { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .notes-review > .empty-state { margin-block: 0; }
 .notes-review-heading { display: flex; align-items: flex-end; gap: var(--space-8); padding: var(--page-top-space) 0 var(--page-head-gap); }
-.notes-review-heading .review-heading h1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-12); margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
-.notes-review-heading .review-heading h1 > span, .revisit-meta, .note-revisit > span { color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.notes-review-heading h1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-12); margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.notes-review-heading h1 > span, .revisit-meta, .note-revisit > span { color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .revisit-meta { display: block; }
-.revisit-queue { display: flex; flex-wrap: wrap; gap: var(--space-8); }
-.revisit-queue > .button { flex-direction: column; align-items: flex-start; max-width: 100%; white-space: normal; text-align: left; }
-.revisit-queue > [aria-pressed="true"] { color: var(--accent); }
+.revisit-queue { display: flex; flex-direction: column; flex: none; gap: var(--section-gap); }
+.revisit-section-head { display: flex; align-items: center; gap: var(--space-8); margin: 0 0 var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.revisit-group-count { color: var(--faint); }
+.revisit-date-group > .button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; white-space: normal; text-align: left; }
+.revisit-date-group > [aria-pressed="true"] { color: var(--accent); }
 .revisit-action-bar, .note-revisit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
 .revisit-action-bar { padding-block: var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
 /* The note's outline keeps the pane's full width and its own insets. */

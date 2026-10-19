@@ -1,17 +1,57 @@
-import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
+import { For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
 import type { RevisitAction, RevisitRow } from '../api/types';
-import type { DocumentChange } from '../document/contract';
+import type { DocumentChange, NotebookClient } from '../document/contract';
 import { OutlinePane } from '../outline/OutlinePane';
 import { BlockText } from '../outline/BlockText';
 import { DatePicker } from '../tasks/DatePicker';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
-import type { ReviewPaneProps } from './ReviewPane';
-import { changeRevisit, revisitKind } from './revisits';
+import type { CommandRegistry, OpenTarget, PaneId, RevisitsViewState } from '../shell/contract';
+import { changeRevisit, createRevisits, revisitKind } from './revisits';
 import './revisits.css';
 
-export function NotesReview(props: ReviewPaneProps & { rows: RevisitRow[]; error: string }) {
-  const current = createMemo(() => props.rows.find(row => row.block.block.id === props.view.revisitId) ?? props.rows[0]);
+interface RevisitsPaneProps {
+  pane: PaneId;
+  view: RevisitsViewState;
+  notebook: NotebookClient;
+  commands: CommandRegistry;
+  active: boolean;
+  onActivate(): void;
+  onOpen(target: OpenTarget, beside: boolean): void;
+  onViewChange(view: RevisitsViewState): void;
+}
+
+export function NotesReview(props: RevisitsPaneProps) {
+  const queue = createRevisits(props.notebook);
+  const groups = createMemo(() => {
+    const dates = new Map<string, RevisitRow[]>();
+    for (const row of queue.rows()) {
+      const rows = dates.get(row.revisit_on);
+      if (rows) rows.push(row);
+      else dates.set(row.revisit_on, [row]);
+    }
+    return [...dates].sort(([a], [b]) => a.localeCompare(b));
+  });
+  const current = createMemo(() => queue.rows().find(row => row.block.block.id === props.view.revisitId) ?? groups()[0]?.[1][0]);
+  let pane!: HTMLDivElement;
+  let restoredScroll = false;
+  createEffect(() => {
+    if (!queue.rows().length || restoredScroll) return;
+    let frame = 0;
+    const restore = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (!pane.querySelector('.outline-pane') || pane.querySelector('[data-pane-pending]')) return;
+        pane.scrollTop = props.view.scroll;
+        restoredScroll = true;
+        observer.disconnect();
+      });
+    };
+    const observer = new MutationObserver(restore);
+    observer.observe(pane, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-pane-pending'] });
+    restore();
+    onCleanup(() => { cancelAnimationFrame(frame); observer.disconnect(); });
+  });
   const [confirm, setConfirm] = createSignal<{ anchor: HTMLElement; row: RevisitRow; action: 'revisited' | 'keep_recurrent' }>();
   const [next, setNext] = createSignal<string | null>(null);
   const [picker, setPicker] = createSignal<{ anchor: HTMLElement; later: boolean; row: RevisitRow }>();
@@ -25,7 +65,7 @@ export function NotesReview(props: ReviewPaneProps & { rows: RevisitRow[]; error
     try {
       setHistory(await changeRevisit(props.notebook, row.block.block.id, action, date));
       setUndone(false); setConfirm(undefined);
-      const after = props.rows.find(value => value.block.block.id !== row.block.block.id);
+      const after = groups().flatMap(([, rows]) => rows).find(value => value.block.block.id !== row.block.block.id);
       props.onViewChange({ ...props.view, revisitId: after?.block.block.id });
     } catch (reason) { setError(String(reason)); throw reason; }
     finally { setBusy(false); }
@@ -38,16 +78,19 @@ export function NotesReview(props: ReviewPaneProps & { rows: RevisitRow[]; error
     finally { setBusy(false); }
   }
   const openConfirmation = (anchor: HTMLElement, row: RevisitRow, action: 'revisited' | 'keep_recurrent') => { setNext(row.proposed_on); setConfirm({ anchor, row, action }); };
-  return <div class="notes-review">
+  return <div ref={pane} class="notes-review" onScroll={() => { if (restoredScroll) props.onViewChange({ ...props.view, scroll: pane.scrollTop }); }}>
     <header class="notes-review-heading">
-      <div class="review-heading"><div class="review-register">Review</div><h1>Revisits<span>{props.rows.length} due</span></h1></div>
+      <h1>Revisits<span>{queue.rows().length} due</span></h1>
       <Show when={history()}><Button disabled={busy()} onClick={() => { void travel(); }}>{undone() ? 'Redo revisit' : 'Undo revisit'}</Button></Show>
     </header>
-    <Show when={props.error || error()}><p class="pane-error" role="alert">{props.error || error()}</p></Show>
-    <Show when={props.rows.length} fallback={<p class="empty-state">Nothing to revisit. Set Revisit on an atom or question to bring it here on its revisit date.</p>}>
-      <nav class="revisit-queue" aria-label="Due revisits"><For each={props.rows}>{row => <Button aria-pressed={current()?.block.block.id === row.block.block.id} disabled={busy()} onClick={() => props.onViewChange({ ...props.view, revisitId: row.block.block.id })}>
-        <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /><span class="revisit-meta">{revisitKind(row)} · {row.revisit_on}</span>
-      </Button>}</For></nav>
+    <Show when={queue.error() || error()}><p class="pane-error" role="alert">{queue.error() || error()}</p></Show>
+    <Show when={queue.rows().length} fallback={<p class="empty-state">Nothing to revisit. Set Revisit on an atom or question to bring it here on its revisit date.</p>}>
+      <nav class="revisit-queue" aria-label="Due revisits"><For each={groups()}>{([date, rows]) => <section class="revisit-date-group" aria-label={date}>
+        <h2 class="revisit-section-head"><span>{date}</span><span class="section-rule" /><span class="revisit-group-count">{rows.length}</span></h2>
+        <For each={rows}>{row => <Button aria-pressed={current()?.block.block.id === row.block.block.id} disabled={busy()} onClick={() => props.onViewChange({ ...props.view, revisitId: row.block.block.id })}>
+          <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /><span class="revisit-meta">{revisitKind(row)}</span>
+        </Button>}</For>
+      </section>}</For></nav>
       <Show when={current()}>{row => <div class="revisit-action-bar">
         <Button disabled={busy()} onClick={event => openConfirmation(event.currentTarget, row(), 'revisited')}>Revisited</Button>
         <Button disabled={busy()} onClick={event => setPicker({ anchor: event.currentTarget, later: true, row: row() })}>Later</Button>
@@ -55,7 +98,7 @@ export function NotesReview(props: ReviewPaneProps & { rows: RevisitRow[]; error
         <Show when={row().question_status}><Button disabled={busy()} onClick={event => openConfirmation(event.currentTarget, row(), 'keep_recurrent')}>Keep recurrent</Button></Show>
       </div>}</Show>
       <Show keyed when={current()?.block.block.id}>{id => {
-        const row = props.rows.find(value => value.block.block.id === id)!;
+        const row = queue.rows().find(value => value.block.block.id === id)!;
         return <div class="revisit-outline"><OutlinePane pane={props.pane} pageId={row.block.page.id} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={props.onOpen} vim={props.notebook.vim()} onVimMode={() => {}} commands={props.commands}
           view={{ zoom: row.block.block.kind === 'block' ? id : null, caret: null, scroll: null, folds: null, showArchived: false, depth: 'full' }} onViewChange={() => {}} /></div>;
       }}</Show>

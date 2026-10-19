@@ -172,7 +172,7 @@ Desktop pointer dimensions, not to scale. The pane detail shows the measure and 
 
 Mono is for what the machine knows: ids, dates, counts, paths and modes. Key hints are the exception, in sans at apparatus size. Sans is for what you write and for places and actions. The serif is for what was written to be read.
 
-Glyphs mark places (Today, Agenda, Review, Library) and kinds of page; one glyph stands for one place everywhere it appears, and actions that read well as a word keep the word. Place glyphs are drawn from circles and rules like the oculus, with an optional filled hub.
+Glyphs mark places (Today, Agenda, Revisits, Review, Library) and kinds of page; one glyph stands for one place everywhere it appears, and actions that read well as a word keep the word. Place glyphs are drawn from circles and rules like the oculus, with an optional filled hub.
 
 ### Global rail
 
@@ -190,13 +190,14 @@ In the macOS app the rail is the window's title bar. The window buttons sit cent
 
 ### Sidebar
 
-Width 208 px. The desk has no heading: Today, Agenda, Review and Library, in `--text` with their glyphs, each with live state at the right in mono.
+Width 208 px. The desk has no heading: Today, Agenda, Revisits, Review and Library, in `--text` with their glyphs, each with live state at the right in mono.
 
 | Destination | Live state |
 |---|---|
 | Today | Weekday and day |
 | Agenda | Tasks planned for today, in `--danger` when any is overdue |
-| Review | Cards, questions and notes due |
+| Revisits | Questions and notes due for a revisit |
+| Review | Cards due |
 | Library | Unprocessed highlights |
 
 Zero counts are left out. Counts refresh after each committed change, canceling a refresh still in flight, and disappear rather than go stale when a request fails.
