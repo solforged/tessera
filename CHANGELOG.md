@@ -80,6 +80,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 ### Fixed
 
 - Preserved retained task, question, project and source state when repair or tag membership reactivated an inactive capability.
+- Preserved appointment dates without adding checkboxes on copy and paste, and exported live tag titles in plain-text clipboard data while keeping canonical tokens in Tessera's private format.
 - Allowed case-only renames of built-in tag pages from their title and Rename action, while the engine still refuses a different name.
 - Included timed and untimed appointments in the narrow Agenda week ledger, on their exact scheduled date without a checkbox.
 - Showed the sharing switch and Pair a phone under Settings › Devices on a Mac with no paired device, instead of `Sync is off` with no way to start.

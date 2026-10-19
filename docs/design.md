@@ -566,7 +566,7 @@ Non-Shift caret navigation, including modified arrows and Home/End, clears any c
 
 ⌘A in row-selection mode selects all visible outline rows. Backspace and forward Delete remove a row range, and either removes a single selected row when Vim is off.
 
-Copy and cut act on a single selected row or range and include every descendant, folded or archived, as indented plain text plus Tessera's structured clipboard format. Structured paste inserts intact subtrees at the destination depth: copy creates new identities with task state and card syntax, while cut within the same workshop restores and moves the original identities, capabilities, planning and work or review history.
+Copy and cut act on a single selected row or range and include every descendant, folded or archived, as indented plain text plus Tessera's structured clipboard format. Plain text uses live tag titles and shows checkbox markers only for tasks with a non-null status. Structured paste inserts intact subtrees at the destination depth: copy creates new identities with task state, appointment dates and card syntax, while cut within the same workshop restores and moves the original identities, capabilities, planning and work or review history.
 
 Pasting over selected rows replaces those rows and their subtrees in one undo step. External HTML becomes native content, never stored markup: headings keep their level (up to three), list items become nested rows, table rows keep their cells separated by ` | `, images keep their URL or alt text, and soft breaks stay within their row. Markdown paste consumes heading, bullet, numbered-list and task markers into native rows, headings and task states; fenced code keeps its markers literal.
 

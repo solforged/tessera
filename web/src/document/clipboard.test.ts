@@ -19,6 +19,39 @@ test('plain block clipboard text carries relative indentation, task markers and 
   expect(clipboardText(content)).toBe('[ ] Parent\n  Front >> Back\n    Nested\n  Other child\nNext');
 });
 
+test('appointment clipboard preserves null status and planning without a plain-text checkbox', () => {
+  const appointment: TaskState = { ...todo, status: null, scheduled: '2026-10-23', deadline: '2026-10-30' };
+  const content: BlockClipboard = { version: 1, scope: 'notebook', cut: false, blocks: [block('appointment', 'Copy appointment', 0, appointment)] };
+  expect(parseBlockClipboard(JSON.stringify(content))).toEqual(content);
+  expect(clipboardText(content)).toBe('Copy appointment');
+  expect(clipboardText({ ...content, blocks: [block('done', 'Finished', 0, { ...todo, status: 'done' })] })).toBe('[x] Finished');
+  for (const status of [undefined, '', 'unknown']) {
+    const invalid = { ...content, blocks: [block('appointment', 'Copy appointment', 0, { ...appointment, status } as TaskState)] };
+    expect(parseBlockClipboard(JSON.stringify(invalid))).toBeNull();
+  }
+});
+
+test('plain clipboard exports live tag titles while private data retains canonical authored tokens', () => {
+  const ids = ['01ARZ3NDEKTSV4RRFFQ69G5FAV', '01ARZ3NDEKTSV4RRFFQ69G5FAW', '01ARZ3NDEKTSV4RRFFQ69G5FAX', '01ARZ3NDEKTSV4RRFFQ69G5FAY'];
+  const titles = ['Task', 'Question', 'Project', 'Source'];
+  const authored = 'Copy tags ' + ids.map((id, index) => `#[[${id}|${titles[index]!.toLowerCase()}]]`).join(' ');
+  const content: BlockClipboard = { version: 1, scope: 'notebook', cut: false, blocks: [block('tags', authored)] };
+  expect(clipboardText(content, id => titles[ids.indexOf(id)])).toBe('Copy tags #Task #Question #Project #Source');
+  expect(parseBlockClipboard(JSON.stringify(content))?.blocks[0]?.block.text).toBe(authored);
+  expect(content.blocks[0]?.block.text).toBe(authored);
+});
+
+test('plain clipboard brackets multiword titles and falls back to tag aliases then IDs', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  const content: BlockClipboard = { version: 1, scope: 'notebook', cut: false, blocks: [block('tags', `Vocabulary #[[${id}|old]]`)] };
+  expect(clipboardText(content, () => 'Italian word')).toBe('Vocabulary #[[Italian word]]');
+  expect(clipboardText(content)).toBe('Vocabulary #old');
+  content.blocks[0]!.block.text = `Vocabulary #[[${id}|]]`;
+  expect(clipboardText(content)).toBe(`Vocabulary #${id}`);
+  content.blocks[0]!.block.text = `#[[Italian word]] \`#[[${id}|old]]\` [[${id}|Reference]]`;
+  expect(clipboardText(content)).toBe(`#[[Italian word]] \`#[[${id}|old]]\` [[${id}|Reference]]`);
+});
+
 test('view references export like page links and retain their remembered name', () => {
   const text = '[[view:01ARZ3NDEKTSV4RRFFQ69G5FAV|Open questions]]';
   const content: BlockClipboard = { version: 1, scope: 'notebook', cut: false, blocks: [block('heading', 'Questions'), block('embed', text, 1)] };

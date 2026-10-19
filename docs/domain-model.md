@@ -161,7 +161,7 @@ A reference to a source-capable page with a nonempty label or locator is a citat
 
 Full-text search includes the current labels of canonical references. This index is derived from authored text and live targets, and refreshes when either changes; an explicit alias keeps its authored wording.
 
-Canonical tags are memberships, not links, and never create reference backlinks. Their authored aliases remain searchable. Pills, text exports and agent outlines print `#Title` from the live tag page, falling back to the alias or ID when that page is gone. An unresolved pill is faint and keeps its authored token.
+Canonical tags are memberships, not links, and never create reference backlinks. Their authored aliases remain searchable. Pills, text exports and agent outlines print `#Title` from the live tag page, falling back to the alias or ID when that page is gone. Plain-text clipboard exports bracket multi-word titles as `#[[Title]]`; Tessera's private clipboard retains the canonical authored tokens. An unresolved pill is faint and keeps its authored token.
 
 A page's backlinks cover references to its root and to every block on it, grouped by referring page. Sources on the same page are left out of that list but count towards each block's reference count. Unlinked mentions are blocks elsewhere that contain the page's title or an alias as a whole word, outside references, tags, URLs and code, and do not already link to the page.
 

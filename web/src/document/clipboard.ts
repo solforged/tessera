@@ -1,26 +1,33 @@
 import type { TaskState } from '../api/types';
 import type { BlockClipboard, PasteRow } from './contract';
-import { quoteTarget } from './text-tokens';
+import { quoteTarget, textTokens } from './text-tokens';
 
 export const BLOCK_CLIPBOARD_MIME = 'application/x-tessera-blocks+json';
 
-export function clipboardText(content: BlockClipboard): string {
+export function clipboardText(content: BlockClipboard, tagTitle: (id: string) => string | null | undefined = () => undefined): string {
+  function plainText(text: string): string {
+    return textTokens(text).map(token => {
+      if (token.kind !== 'tag') return text.slice(token.start, token.end);
+      const title = (token.id ? tagTitle(token.id) : undefined) || token.alias || token.value || token.id || '';
+      return /^[\p{L}\p{M}\p{N}_/-]+$/u.test(title) ? `#${title}` : `#[[${title}]]`;
+    }).join('');
+  }
   return content.blocks.map(({ block, depth, capabilities }) => {
-    if (capabilities.image) return '  '.repeat(depth) + (block.text || 'Image');
+    if (capabilities.image) return '  '.repeat(depth) + (plainText(block.text) || 'Image');
     const quote = capabilities.quote;
     if (quote && quoteTarget(block.text) === quote.target_id) {
-      return quote.rows.flatMap(row => row.text.split('\n').map((line, index) =>
+      return quote.rows.flatMap(row => plainText(row.text).split('\n').map((line, index) =>
         '  '.repeat(depth) + '> ' + '  '.repeat(row.depth) + (index === 0 && row.heading ? '#'.repeat(row.heading) + ' ' : '') + line)).join('\n');
     }
-    const marker = capabilities.task ? capabilities.task.status === 'done' ? '[x] ' : '[ ] ' : '';
-    return block.text.split('\n').map((line, index) => '  '.repeat(depth) + (index === 0 ? marker : '') + line).join('\n');
+    const marker = capabilities.task?.status ? capabilities.task.status === 'done' ? '[x] ' : '[ ] ' : '';
+    return plainText(block.text).split('\n').map((line, index) => '  '.repeat(depth) + (index === 0 ? marker : '') + line).join('\n');
   }).join('\n');
 }
 
 const record = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 function task(value: unknown): value is TaskState | null {
   if (value === null) return true;
-  if (!record(value) || !['todo', 'doing', 'waiting', 'done', 'cancelled'].includes(String(value.status))) return false;
+  if (!record(value) || value.status !== null && !['todo', 'doing', 'waiting', 'done', 'cancelled'].includes(String(value.status))) return false;
   if (value.priority !== null && !['high', 'medium', 'low'].includes(String(value.priority))) return false;
   if (value.warning_days !== null && (!Number.isInteger(value.warning_days) || (value.warning_days as number) < 0)) return false;
   if (!['scheduled', 'scheduled_time', 'deadline', 'deadline_time', 'completed_on'].every(key => value[key] === null || typeof value[key] === 'string')) return false;

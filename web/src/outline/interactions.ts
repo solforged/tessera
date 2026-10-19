@@ -72,7 +72,7 @@ export function createOutlineInteractions(context: Pick<OutlineContext,
     if ((!hasText && !rows) || !event.clipboardData) return;
     const content = hasText ? null : doc.clipboard(roots(), cut);
     if (content && !content.blocks.length) return;
-    event.clipboardData.setData('text/plain', content ? clipboardText(content) : selectedText(doc, ids(), range!));
+    event.clipboardData.setData('text/plain', content ? clipboardText(content, id => props.notebook.lookup(id)()?.text) : selectedText(doc, ids(), range!));
     if (content) event.clipboardData.setData(BLOCK_CLIPBOARD_MIME, JSON.stringify(content));
     event.preventDefault();
     event.stopImmediatePropagation();
