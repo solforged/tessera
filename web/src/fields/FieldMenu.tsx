@@ -86,10 +86,10 @@ export function createFieldMenu(context: Pick<OutlineContext,
       const current = await props.notebook.api.type(type.page.id);
       await props.notebook.commit([{ op: 'set_type_fields', type_id: current.page.id, base_revision: current.page.revision,
         fields: remove ? current.fields.filter(id => id !== field.id) : [...new Set([...current.fields, field.id])],
-      }], 'Change type template');
+      }], 'Change tag template');
       context.showNotice(`${field.name} ${remove ? 'removed from' : 'added to'} ${type.page.text} template.`, async () => {
         const fresh = await props.notebook.api.type(type.page.id);
-        await props.notebook.commit([{ op: 'set_type_fields', type_id: fresh.page.id, base_revision: fresh.page.revision, fields: current.fields }], 'Undo type template change');
+        await props.notebook.commit([{ op: 'set_type_fields', type_id: fresh.page.id, base_revision: fresh.page.revision, fields: current.fields }], 'Undo tag template change');
       });
     } catch (error) { failure(error); }
   }
@@ -118,8 +118,8 @@ export function createFieldMenu(context: Pick<OutlineContext,
           const present = type.fields.includes(field.id);
           return { label: `${present ? 'Remove from' : 'Add to'} ${type.page.text} template`, disabledReason: present && requiredIds(type).has(field.id) ? requiredReason(type, field.name) : undefined, action: () => { void changeTemplate(type, field, present); } };
         }),
-        ...(types.loading ? [{ label: 'Loading templates…', disabledReason: 'Types are loading.' }] : []),
-        ...(types.error ? [{ label: 'Templates unavailable', disabledReason: 'Could not load types.' }] : []),
+        ...(types.loading ? [{ label: 'Loading templates…', disabledReason: 'Tags are loading.' }] : []),
+        ...(types.error ? [{ label: 'Templates unavailable', disabledReason: 'Could not load tags.' }] : []),
       ] }) }] : []),
       { label: 'Remove from this note', divider: true, danger: true, action: () => apply({ kind: 'delete', ids: [entry.id] }, false) },
     ] });

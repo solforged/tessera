@@ -78,9 +78,9 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
     remember(`${field.name} is now a ${kindNoun(kind)} field.`)(await changeFieldKind(props.notebook, detail, {}));
   });
   const kindSummary = (field: FieldDefinition) => field.kind === 'instance'
-    ? `${kindLabels.instance} → ${linksToSummary(props.notebook, field.targets, 'any block')}`
+    ? `${kindLabels.instance} → ${linksToSummary(props.notebook, field.targets, 'any atom')}`
     : field.kind === 'choice' ? `${kindLabels.choice} · ${field.options.length} ${field.options.length === 1 ? 'option' : 'options'}` : kindLabels[field.kind];
-  const setFields = (fields: string[]) => run(() => props.notebook.commit([{ op: 'set_type_fields', type_id: props.type.page.id, base_revision: props.type.page.revision, fields }], 'Change type template'));
+  const setFields = (fields: string[]) => run(() => props.notebook.commit([{ op: 'set_type_fields', type_id: props.type.page.id, base_revision: props.type.page.revision, fields }], 'Change tag template'));
   function move(index: number, by: -1 | 1) {
     const fields = [...props.type.fields];
     const [field] = fields.splice(index, 1);
@@ -147,7 +147,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
         <Button disabled={busy()} onClick={() => void run(() => props.notebook.api.startingTemplate(props.type.page.id))}>Start from the {props.type.page.text} template</Button>
         <span class="template-note">{props.type.starting.join(' · ')}</span>
       </div></Show>
-      <Show when={template().length} fallback={<p class="template-note">Fields added here become this type’s table columns and wait as empty slots on its blocks.</p>}>
+      <Show when={template().length} fallback={<p class="template-note">Fields added here become this tag’s table columns and wait as empty slots on its atoms.</p>}>
         <table class="template-field-table">
           <colgroup><col class="template-name-column" /><col class="template-kind-column" /><col class="template-usage-column" /><col class="template-actions-column" /></colgroup>
           <thead><tr><th scope="col">Name</th><th scope="col">Kind</th><th scope="col">Used by</th><th scope="col"><span class="visually-hidden">Field actions</span></th></tr></thead>
@@ -156,7 +156,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
               <form class="template-rename" onSubmit={event => { event.preventDefault(); void rename(); }}><input class="input" aria-label={`New name for ${field().name}`} value={renaming()!.text} onInput={event => setRenaming({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setRenaming(null); } }} onBlur={() => { if (renaming()?.id === id) void rename(); }} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} /></form>
             </Show></td>
             <td class="template-field-kind"><Button class="template-kind" aria-haspopup="menu" aria-expanded={kindMenu()?.id === id} aria-label={`Kind for ${field().name}: ${kindSummary(field())}`} disabled={busy()} onClick={event => setKindMenu({ id, anchor: event.currentTarget })}>{kindSummary(field())} <Icon name="down" /></Button></td>
-            <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span title="No block uses this field yet">Unused</span>}><Button title={`Blocks using ${field().name}: ${summaries().get(id)!.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{summaries().get(id)!.owners}</Button></Show></td>
+            <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span title="No atom uses this field yet">Unused</span>}><Button title={`Atoms using ${field().name}: ${summaries().get(id)!.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{summaries().get(id)!.owners}</Button></Show></td>
             <td>{fieldActions(id, index())}</td>
           </tr>}</Show>}</For></tbody>
         </table>
@@ -168,10 +168,10 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
           <Button disabled={busy()} onClick={() => void run(async () => { await done().change.undo(); setChanged(null); })}>Undo</Button>
         </>}</Show>
         <Show when={filled()} fallback={<Show when={missing() && !changed()}>
-          <span class="template-gap">{gaps()!.length} {gaps()!.length === 1 ? 'block lacks' : 'blocks lack'} {missing()} {missing() === 1 ? 'field' : 'fields'}</span>
+          <span class="template-gap">{gaps()!.length} {gaps()!.length === 1 ? 'atom lacks' : 'atoms lack'} {missing()} {missing() === 1 ? 'field' : 'fields'}</span>
           <Button class="bordered" disabled={busy()} onClick={() => void fill()}>Fill missing fields</Button>
         </Show>}>{done => <>
-          <span class="template-gap" role="status">Added {done().entries.length} {done().entries.length === 1 ? 'field' : 'fields'} to {done().owners} {done().owners === 1 ? 'block' : 'blocks'}</span>
+          <span class="template-gap" role="status">Added {done().entries.length} {done().entries.length === 1 ? 'field' : 'fields'} to {done().owners} {done().owners === 1 ? 'atom' : 'atoms'}</span>
           <Button disabled={busy()} onClick={() => void undoFill()}>Undo</Button>
         </>}</Show>
       </div>
@@ -187,7 +187,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
       ]} />;
     }}</Show>}</Show>
     <Show when={linksMenu()}>{menu => <Show when={byId().get(menu().id)}>{field => <LinksToPopup anchor={menu().anchor} notebook={props.notebook} targets={field().targets} disabled={busy()} onDismiss={() => setLinksMenu(null)}
-      onApply={targets => { const current = field(); setLinksMenu(null); void run(async () => remember(`${current.name} links to ${linksToSummary(props.notebook, targets, 'any block')}.`)(await setFieldTargets(props.notebook, current, targets))); }} />}</Show>}</Show>
+      onApply={targets => { const current = field(); setLinksMenu(null); void run(async () => remember(`${current.name} links to ${linksToSummary(props.notebook, targets, 'any atom')}.`)(await setFieldTargets(props.notebook, current, targets))); }} />}</Show>}</Show>
     <Show when={picker()}>{anchor => <FieldPicker anchor={anchor()} label="Add field to template" fields={props.fields} exclude={new Set(props.type.fields)}
       onPick={field => { setPicker(null); void setFields([...props.type.fields, field.id]); }}
       onCreate={(name, kind) => { setPicker(null); void run(() => createTemplateField(props.notebook, props.type, name, kind)); }} onDismiss={() => setPicker(null)} />}</Show>

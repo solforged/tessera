@@ -215,12 +215,12 @@ export function CaptureField(props: CaptureFieldProps) {
         onInput={event => { if (event.isComposing) { setDraft(event.currentTarget.value); track(); } else acceptInput(); }} onCompositionEnd={acceptInput} onKeyDown={keydown} onKeyUp={track} onClick={track} onSelect={track} />
     </div>
     <Show when={open()}>
-      <Popup anchor={line} role="listbox" label={token()?.kind === 'type' ? 'Types' : 'Pages'} class="picker capture-choices" width={line.offsetWidth} autofocus={false} onDismiss={() => setDismissed(draft())}>
+      <Popup anchor={line} role="listbox" label={token()?.kind === 'type' ? 'Tags' : 'Pages'} class="picker capture-choices" width={line.offsetWidth} autofocus={false} onDismiss={() => setDismissed(draft())}>
         <div class="picker-list" onMouseDown={event => event.preventDefault()}>
           <For each={choices()}>{(choice, row) =>
             <div role="option" aria-selected={index() === row()} class="picker-row" classList={{ selected: index() === row() }} onMouseEnter={() => setIndex(row())} onClick={() => { void choose(choice); }}>
               <Icon name={choice.create ? 'plus' : token()?.kind === 'type' ? 'tag' : 'page'} />
-              <span class="picker-text">{choice.create ? `${token()?.kind === 'type' ? 'Create type' : 'Create page'} “${choice.title}”` : choice.title}</span>
+              <span class="picker-text">{choice.create ? `${token()?.kind === 'type' ? 'Create tag' : 'Create page'} “${choice.title}”` : choice.title}</span>
             </div>}</For>
         </div>
       </Popup>

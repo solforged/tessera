@@ -33,7 +33,7 @@ export function createOutlineCapabilities(options: {
   const error = (id: string) => errors().get(id) ?? '';
   const failure = (id: string, reason: unknown) => setErrors(previous => new Map(previous).set(id, reason instanceof Error ? reason.message : String(reason)));
   async function run(id: string, operation: () => Promise<void>) {
-    if (busy(id)) throw new Error('A command is pending for this block.');
+    if (busy(id)) throw new Error('A command is pending for this atom.');
     setPending(previous => new Set(previous).add(id));
     setErrors(previous => { const next = new Map(previous); next.delete(id); return next; });
     try { await operation(); }

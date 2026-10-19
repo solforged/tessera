@@ -407,7 +407,7 @@ function ReferenceCard(props: {
   const observer = new ResizeObserver(() => { if (body) setClipped(body.scrollHeight > body.clientHeight + 1); });
   onCleanup(() => observer.disconnect());
   return <Show when={target() !== undefined} fallback={<p class="reference-preview-message">Loading reference…</p>}>
-    <Show when={target()} fallback={<p class="reference-preview-message">This reference points to a block that was deleted or never synced here.</p>}>{block => <>
+    <Show when={target()} fallback={<p class="reference-preview-message">This reference points to an atom that was deleted or never synced here.</p>}>{block => <>
       <header class="reference-preview-header">
         <div class="reference-preview-topline">
           <div class="reference-preview-crumbs"><Show when={!citationSource.error && citationSource()} fallback={<BlockBreadcrumb block={block()} notebook={props.notebook} />}>{source => <>{source().siglum}<Show when={props.locator}>{' · '}{props.locator}</Show></>}</Show></div>
@@ -416,7 +416,7 @@ function ReferenceCard(props: {
           </Button>
         </div>
         <div class="reference-preview-title">
-          <Show when={state()?.position} fallback={<Show when={isPage()} fallback={<span class="reference-preview-kind">Block</span>}><h2>{block().text || 'Untitled'}</h2></Show>}>
+          <Show when={state()?.position} fallback={<Show when={isPage()} fallback={<span class="reference-preview-kind">Atom</span>}><h2>{block().text || 'Untitled'}</h2></Show>}>
             <h2><BlockText text={block().text} notebook={props.notebook} interactive={false} /></h2>
           </Show>
         </div>
@@ -438,7 +438,7 @@ function ReferenceCard(props: {
             <Show when={props.pinned && positions.error}><p class="reference-preview-message" role="alert">Couldn’t load perspectives. The page preview is still available.</p></Show>
             <Show when={fieldList.error}><p class="reference-preview-message" role="alert">Couldn’t load field definitions.</p></Show>
             <Show when={!isPage() || !fieldList.loading} fallback={<p class="reference-preview-message" role="status">Loading preview…</p>}>
-              <Show when={rows().length} fallback={<p class="reference-preview-message">{isPage() ? summary() ? 'No further text on this page.' : 'Empty page.' : 'Block not found on its page.'}</p>}>
+              <Show when={rows().length} fallback={<p class="reference-preview-message">{isPage() ? summary() ? 'No further text on this page.' : 'Empty page.' : 'Atom not found on its page.'}</p>}>
                 <div ref={element => { body = element; observer.observe(element); }} class={`reference-preview-body${isPage() || state()?.position ? ' prose' : ''}${props.pinned ? ' scrollable' : clipped() ? ' clipped' : ''}`}>
                   <BlockTree rows={rows()} block={id => doc()?.block(id)} notebook={props.notebook} onOpen={props.onNested} prose={isPage() || !!state()?.position} rowRef={element => observer.observe(element)} />
                 </div>
@@ -457,7 +457,7 @@ function ReferenceCard(props: {
         <span class="reference-preview-counts">{counts()}</span>
         <span class="reference-preview-spacer" />
         <Button onClick={() => props.onOpen(true)}>Beside<Show when={props.keyboard}><kbd>{besideKey}↵</kbd></Show></Button>
-        <Button class="primary" onClick={() => props.onOpen(false)}>{isPage() ? 'Open' : 'Go to block'}<Show when={props.keyboard}><kbd>↵</kbd></Show></Button>
+        <Button class="primary" onClick={() => props.onOpen(false)}>{isPage() ? 'Open' : 'Go to atom'}<Show when={props.keyboard}><kbd>↵</kbd></Show></Button>
       </footer>
     </>}</Show>
   </Show>;

@@ -46,7 +46,7 @@ interface FiledNotes { count: number; undo(): Promise<void> }
 const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
 
 const tally = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
-const apparatus = (summary: NoteSummary | undefined) => summary ? [summary.block_count ? tally(summary.block_count, 'prose block') : '', summary.backlinks ? tally(summary.backlinks, 'backlink') : ''].filter(Boolean).join(' · ') : '';
+const apparatus = (summary: NoteSummary | undefined) => summary ? [summary.block_count ? tally(summary.block_count, 'prose atom') : '', summary.backlinks ? tally(summary.backlinks, 'backlink') : ''].filter(Boolean).join(' · ') : '';
 // The last read of each index shows at once when the pane opens again, while a fresh read replaces it.
 const directoryReads = new WeakMap<NotebookClient, NoteIndex>();
 const kindReads = new WeakMap<NotebookClient, Map<string, KindIndex>>();
@@ -364,7 +364,7 @@ function KindIndexPane(props: IndexPaneProps) {
                 <p class="index-eyebrow">Selected note</p><h2>{note().title}</h2><p class="index-apparatus">{apparatus(summary(note()))}</p>
                 <Show when={preview(note())}><p class="index-inspector-preview">{preview(note())}</p></Show>
                 <Show when={excerpt(note()).length}><div class="index-inspector-excerpt" aria-label="Opening prose"><For each={excerpt(note())}>{text => <p>{text}</p>}</For></div></Show>
-                <div class="index-inspector-actions"><Button class="bordered" onClick={event => showPopup('file', note(), event.currentTarget)}>File under a type…</Button><Button onClick={event => openNote(note(), event)}>Open note</Button>
+                <div class="index-inspector-actions"><Button class="bordered" onClick={event => showPopup('file', note(), event.currentTarget)}>File under a tag…</Button><Button onClick={event => openNote(note(), event)}>Open note</Button>
                   <Button disabled={!!actionReason(note(), 'merge')} title={actionReason(note(), 'merge')} onClick={event => showPopup('merge', note(), event.currentTarget)}>Merge into…</Button><Button class="danger" disabled={!!actionReason(note(), 'delete')} title={actionReason(note(), 'delete')} onClick={event => showPopup('delete', note(), event.currentTarget)}>Delete…</Button></div>
                 <Show when={summary(note())?.referenced_from.length}><div class="index-incoming"><p class="index-apparatus">Referenced from</p><For each={summary(note())?.referenced_from}>{page => <Button onClick={event => props.onOpen({ kind: 'page', pageId: page.id }, listOpensBeside(event, !!props.neighbour))}>{page.title}</Button>}</For></div></Show>
               </aside>}</Show></div>
@@ -393,7 +393,7 @@ function KindIndexPane(props: IndexPaneProps) {
                   <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${entry.note.title}`} checked={picked().includes(entry.note.id)} onClick={event => toggleSelection(entry.note.id, event.shiftKey)} /></label>
                   <button type="button" class="index-entry" data-open-page={entry.note.id} data-open-label={entry.note.title} onClick={event => selectOrOpen(entry.note, event)}>
                     <span class="index-entry-title">{entry.note.title}</span><Show when={needs(entry.note.id)}>{names => <span class="index-needs">needs {names()}</span>}</Show><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
-                    <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <Show when={value().field || value().block_count || value().backlinks}><span class="index-apparatus">{[value().field ? plainText(value().field!.value, lookup) : '', value().block_count ? tally(value().block_count, 'prose block') : value().backlinks ? tally(value().backlinks, 'backlink') : ''].filter(Boolean).join(' · ')}</span></Show>}</Show>}>
+                    <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <Show when={value().field || value().block_count || value().backlinks}><span class="index-apparatus">{[value().field ? plainText(value().field!.value, lookup) : '', value().block_count ? tally(value().block_count, 'prose atom') : value().backlinks ? tally(value().backlinks, 'backlink') : ''].filter(Boolean).join(' · ')}</span></Show>}</Show>}>
                       <Show when={collectionCounts.latest?.get(entry.note.id) != null}><span class="index-apparatus">{tally(collectionCounts.latest!.get(entry.note.id)!, 'source')}</span></Show>
                     </Show>
                   </button>
@@ -429,7 +429,7 @@ function KindIndexPane(props: IndexPaneProps) {
       <Match when={state.kind === 'rename'}><RenameNote notebook={props.notebook} note={state.note} anchor={state.anchor} onDismiss={() => setPopup(undefined)} /></Match>
       <Match when={state.kind === 'merge'}><PageMergePicker notebook={props.notebook} from={{ id: state.note.id, text: state.note.title }} anchor={state.anchor} onDismiss={() => setPopup(undefined)} onMerged={() => { setPopup(undefined); setVersion(value => value + 1); }} /></Match>
       <Match when={state.kind === 'delete'}><Popup anchor={state.anchor} placement={cover() ? 'sheet' : 'anchor'} class="index-note-popup" label="Delete page" onDismiss={() => { if (!busy()) setPopup(undefined); }}>
-        <p>Delete “{state.note.title}” and all its blocks?</p><p class="muted">You can undo this deletion.</p><Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button disabled={busy()} onClick={() => setPopup(undefined)}>Cancel</Button><Button class="danger bordered" disabled={busy() || !props.onDeletePages || !!actionReason(state.note, 'delete')} title={actionReason(state.note, 'delete')} onClick={() => void deleteNote(state.note)}>Delete page</Button></div>
+        <p>Delete “{state.note.title}” and all its atoms?</p><p class="muted">You can undo this deletion.</p><Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button disabled={busy()} onClick={() => setPopup(undefined)}>Cancel</Button><Button class="danger bordered" disabled={busy() || !props.onDeletePages || !!actionReason(state.note, 'delete')} title={actionReason(state.note, 'delete')} onClick={() => void deleteNote(state.note)}>Delete page</Button></div>
       </Popup></Match>
     </Switch>}</Show>
     <Show when={error() && !popup()}><p class="error" role="alert">{error()}</p></Show>
@@ -462,7 +462,7 @@ function EmptyKind(props: { kindKey: string; kind: NoteKind | IndexKind | undefi
       <NewKindAction {...props} />
     </>}>{kind => <>
       <p class="index-empty-title">No notes filed as {kind().name}.</p>
-      <p class="index-empty-hint">{kindLabel(kind())} tags {kind().tagged_block_count === 1 ? 'one block' : `${kind().tagged_block_count.toLocaleString()} blocks`}, listed in its table.</p>
+      <p class="index-empty-hint">{kindLabel(kind())} tags {kind().tagged_block_count === 1 ? 'one atom' : `${kind().tagged_block_count.toLocaleString()} atoms`}, listed in its table.</p>
       <Button class="bordered" icon="table" onClick={event => props.onOpen(indexKindTarget(kind()), opensBeside(event))}>Open table</Button>
     </>}</Show>
   </div>;
@@ -507,7 +507,7 @@ function FilingPicker(props: { notebook: NotebookClient; notes: NoteEntry[]; anc
       const targets = pages.filter(page => !page.root_manual_types?.some(title => title.toLocaleLowerCase() === titleKey));
       const operations = targets.flatMap((page, index) => filingOperations(page.root.id, page.root.revision, choice.title, choice.create && index === 0 ? ulid() : undefined));
       if (!operations.length) { props.onDismiss(); return; }
-      const receipt = await props.notebook.commit(operations, targets.length === 1 ? 'File note under a type' : 'File notes under a type');
+      const receipt = await props.notebook.commit(operations, targets.length === 1 ? 'File note under a tag' : 'File notes under a tag');
       const revisions = new Map(receipt.revisions.map(block => [block.id, block.revision]));
       const inverse: Operation[] = targets.map(page => ({ op: 'remove_type', id: page.root.id, base_revision: revisions.get(page.root.id)!, title: choice.title }));
       props.onFiled({ count: targets.length, undo: async () => { await props.notebook.commit(inverse, 'Undo filing notes'); } });
@@ -515,10 +515,10 @@ function FilingPicker(props: { notebook: NotebookClient; notes: NoteEntry[]; anc
     finally { for (const doc of docs) doc.release(); setBusy(false); }
   };
   return <Picker<FilingChoice> anchor={props.anchor} placement={cover() ? 'sheet' : 'anchor'} fitContent autofocus={!cover()} class="index-note-popup index-filing-popup" style={{ '--filing-visible-rows': Math.min(3, choices().length) }} label={`File ${heading()}`} onDismiss={() => { if (!busy()) props.onDismiss(); }}
-    query={query()} onQuery={setQuery} placeholder="Find or create a type" items={choices()} key={choice => choice.id}
-    onPick={choice => void file(choice)} disabledReason={() => busy() ? 'Filing…' : undefined} busy={types.loading} error={error() || (types.error ? String(types.error) : undefined)} empty="No matching types."
+    query={query()} onQuery={setQuery} placeholder="Find or create a tag" items={choices()} key={choice => choice.id}
+    onPick={choice => void file(choice)} disabledReason={() => busy() ? 'Filing…' : undefined} busy={types.loading} error={error() || (types.error ? String(types.error) : undefined)} empty="No matching tags."
     status={<div class="index-filing-head"><p class="index-eyebrow">{props.notes.length === 1 ? 'File a note' : `File ${props.notes.length} notes`}</p><h2>{heading()}</h2></div>}
-    row={choice => <><Icon name={choice.create ? 'plus' : 'tag'} /><span class="picker-text">{choice.create ? `Create type “${choice.title}” and file` : choice.title}</span></>} />;
+    row={choice => <><Icon name={choice.create ? 'plus' : 'tag'} /><span class="picker-text">{choice.create ? `Create tag “${choice.title}” and file` : choice.title}</span></>} />;
 }
 
 function RenameNote(props: { notebook: NotebookClient; note: NoteEntry; anchor: HTMLElement; onDismiss(): void }) {

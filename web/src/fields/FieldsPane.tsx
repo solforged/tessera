@@ -136,7 +136,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
     <div ref={scroll} class="fields-scroll" onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
       <div class="fields-master-detail"><div class="fields-master">
       <Show when={data()}>
-        <Show when={fields().length} fallback={<p class="empty-state">No fields yet. Use New field, or type <code>name::</code> in a block.</p>}>
+        <Show when={fields().length} fallback={<p class="empty-state">No fields yet. Use New field, or type <code>name::</code> in an atom.</p>}>
           <Show when={visibleFields().length} fallback={<p class="empty-state">No matching fields. <Button onClick={() => setSearch('')}>Clear filter</Button></p>}>
             <table class="fields-index"><thead><tr><th scope="col">Name</th><th scope="col" class="fields-kind">Kind</th><th scope="col" class="fields-count">Used by</th><th scope="col">Templates</th></tr></thead><tbody>
               <For each={pageFields()}>{field => <tr tabIndex={0} aria-selected={selected() === field.id} onClick={event => { if (!(event.target as HTMLElement).closest('button')) selectDefinition(field, opensBeside(event)); }} onDblClick={event => openDefinition(field, opensBeside(event))} onKeyDown={event => {
@@ -150,7 +150,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
               }}>
                 <td data-label="Name"><Button class="field-name" title={`Open ${field.name} · ${besideHint}`} onClick={event => selectDefinition(field, opensBeside(event), event.detail === 0)}>{field.name}</Button></td>
                 <td data-label="Kind"><Button class="fields-kind-button" aria-label={`Kind for ${field.name}: ${kindLabels[field.kind]}`} aria-haspopup="menu" aria-expanded={kindMenu()?.field.id === field.id} disabled={!ready()} onClick={event => setKindMenu({ field, anchor: event.currentTarget })}>{kindLabels[field.kind]} <Icon name="down" /></Button></td>
-                <td data-label="Used by" class="fields-count"><Show when={field.owners} fallback={<span class="fields-unused" title="No block uses this field yet">Unused</span>}><Button label={`Show blocks with ${field.name}`} title={`Blocks using ${field.name}: ${field.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: field.id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{field.owners}</Button></Show></td>
+                <td data-label="Used by" class="fields-count"><Show when={field.owners} fallback={<span class="fields-unused" title="No atom uses this field yet">Unused</span>}><Button label={`Show atoms with ${field.name}`} title={`Atoms using ${field.name}: ${field.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: field.id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{field.owners}</Button></Show></td>
                 <td data-label="Templates"><div class="fields-types"><For each={field.types} fallback={<span class="fields-unused">None</span>}>{type => <button type="button" class="outline-tag" title={`Open ${type.name} table · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: type.id, viewId: null, query: typeQuery(type.id) }, opensBeside(event))}>#{type.name}</button>}</For></div></td>
               </tr>}</For>
             </tbody></table>

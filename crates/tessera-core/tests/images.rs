@@ -91,7 +91,7 @@ fn image_set_remove_restore_and_split_keep_identity() {
             destination_id: id(destination),
             destination_revision: nb.block(&id(destination)).unwrap().revision,
         };
-        invalid(&mut nb, op, "Image blocks can't be merged.");
+        invalid(&mut nb, op, "Image atoms can't be merged.");
     }
     let revision = nb.block(&id(2)).unwrap().revision;
     let receipt = nb
@@ -112,7 +112,7 @@ fn image_set_remove_restore_and_split_keep_identity() {
 fn image_validation_requires_outline_raster_metadata_and_local_bytes() {
     let (_dir, mut nb, image) = setup();
     let op = set(&nb, 1, Some(image.clone()));
-    invalid(&mut nb, op, "Only an outline block can hold an image.");
+    invalid(&mut nb, op, "Only an outline atom can hold an image.");
     for bad in [
         ImageRef {
             width: 0,

@@ -124,7 +124,7 @@ export function DeskPane(props: TablePaneProps) {
     const value = columnQueries[column]!();
     const words = value.filters.map(condition => conditionLabel(column, condition));
     if (value.text) words.unshift(`Text contains ${value.text}`);
-    if (value.type) words.unshift(`Type is ${props.notebook.lookup(value.type)()?.text ?? 'Unavailable type'}`);
+    if (value.type) words.unshift(`Tag is ${props.notebook.lookup(value.type)()?.text ?? 'Unavailable tag'}`);
     return words.length ? words.join('; ') : column === 1 ? 'Perspectives on the selected question' : column === 2 ? 'Sources cited by the selected perspective' : 'All questions';
   };
   const openRow = (row: QueryRow, beside: boolean) => props.onOpen(rowTarget(row), beside);

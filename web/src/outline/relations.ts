@@ -6,7 +6,7 @@ export const relationLabels: Record<RelationKind, string> = { supports: 'Support
 export const incomingRelationLabels: Record<RelationKind, string> = { supports: 'Supported by', disputes: 'Disputed by', qualifies: 'Qualified by', answers: 'Answered by' };
 
 export function relationReason(block: BlockState | undefined): string | undefined {
-  if (block?.kind !== 'block') return 'Select an ordinary block.';
+  if (block?.kind !== 'block') return 'Select an ordinary atom.';
   if (block.position || block.question || block.assessment) return 'An argument cannot also be a perspective, question or answer.';
   return undefined;
 }

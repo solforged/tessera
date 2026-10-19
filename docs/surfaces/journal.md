@@ -18,7 +18,7 @@ Page drafts show kind-specific field rows beneath the gist: Parent question, Rev
 
 - A note, question or task line appends at the end of Today or the chosen page, reusing a trailing empty block. A question adds its question state in the same batch.
 - `[] ` and `[ ] ` task prefixes disappear on save. The Kind row replaces the old ⌘Enter note/task toggle.
-- `[[` completes pages (with Create page) and `#` pages used as types (with Create type), matching titles and aliases in a picker under the line. Type results never include matching note bodies. A hand-typed `[[Title]]` links as it would on leaving a block.
+- `[[` completes pages (with Create page) and `#` pages used as types (with Create tag), matching titles and aliases in a picker under the line. Type results never include matching note bodies. A hand-typed `[[Title]]` links as it would on leaving a block.
 - An `@date` plans a task, with the [same preview as Add a task](tasks-agenda.md#add-a-task). A plain-word date suffix plans only a task.
 
 ### Adding and saving
@@ -128,7 +128,7 @@ Front matter and unresolved contents use whole-book time left instead of inventi
 
 ## Touch outline
 
-Touch journals keep only the bullet left of the text, with the heading and the right edge at the pane inset. Task status replaces the bullet rather than adding a second indent. Nested rows retain the same depth increment and block actions no longer narrow the row when selected.
+Touch journals keep only the bullet left of the text, with the heading and the right edge at the pane inset. Task status replaces the bullet rather than adding a second indent. Nested rows retain the same depth increment and atom actions no longer narrow the row when selected.
 
 ## From your highlights
 

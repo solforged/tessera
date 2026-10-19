@@ -46,7 +46,7 @@ pub(crate) fn set(conn: &Connection, id: &str, relation: Option<RelationKind>) -
         ));
     }
     if !ordinary {
-        return Err(validation("Make an ordinary block a relation."));
+        return Err(validation("Make an ordinary atom a relation."));
     }
     Ok(conn
         .prepare_cached(

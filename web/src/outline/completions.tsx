@@ -138,7 +138,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
   }
   function applyDateChoice(state: DateToken & { id: string }, text: string, choice: DateSuggestion) {
     const id = state.id;
-    if (doc.block(id)?.text !== text) throw new Error('The block changed while choosing a date. Its text was kept.');
+    if (doc.block(id)?.text !== text) throw new Error('The atom changed while choosing a date. Its text was kept.');
     const plan = planDateToken(text, state, choice, doc.block(id)?.task ?? null);
     setDateCompletion(null);
     const result = doc.edit({ kind: 'planTask', id, text: plan.text, value: plan.value }, caret());
@@ -587,12 +587,12 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'clock', title: 'Clock in / out', aliases: ['timer', 'start work', 'stop work'], section: 'Task', icon: 'clock', keys: keys('clock'), run: id => capabilities.invoke(capabilities.clock(id)) },
       { id: 'remove-task', title: 'Remove task', aliases: ['plain'], section: 'Task', icon: 'close', when: block => !!block?.task, run: id => capabilities.invoke(capabilities.status(id, null)) },
       { id: 'project', title: 'Project', aliases: ['outcome'], section: 'Project', icon: 'flag', keys: 'Space o', run: openProject },
-      { id: 'perspective', title: 'Make perspective', aliases: ['position', 'view'], section: 'Block', icon: 'link', keys: 'Space v', when: block => block?.kind === 'block' && !block.position, disabledReason: id => doc.block(id)?.relation ? 'Remove the relation first.' : undefined, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: true })) },
-      { id: 'remove-perspective', title: 'Remove perspective', aliases: ['remove position', 'remove view'], section: 'Block', icon: 'close', keys: 'Space v', when: block => block?.kind === 'block' && !!block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: false })) },
-      { id: 'change-holder', title: 'Change holder…', aliases: ['holder', 'attribution'], section: 'Block', icon: 'link', when: block => !!block?.position, run: id => context.openRelation(id, 'holder') },
-      { id: 'file-under', title: 'File under…', aliases: ['subject', 'file'], section: 'Block', icon: 'link', when: block => !!block?.position, disabledReason: id => !doc.block(id)?.position?.holder_id ? 'Choose a holder before filing this perspective.' : undefined, run: id => context.openRelation(id, 'subject') },
-      { id: 'use-place', title: 'Use place', aliases: ['implicit subject'], section: 'Block', icon: 'close', when: block => !!block?.position, disabledReason: context.placeReason, run: context.usePlace },
-      ...(doc.root()?.kind === 'journal' ? [{ id: 'integrate', title: 'Integrate…', aliases: ['move', 'file thought'], section: 'Block', icon: 'link' as const, run: (id: string) => context.openRelation(id, 'integrate') }] : []),
+      { id: 'perspective', title: 'Make perspective', aliases: ['position', 'view'], section: 'Atom', icon: 'link', keys: 'Space v', when: block => block?.kind === 'block' && !block.position, disabledReason: id => doc.block(id)?.relation ? 'Remove the relation first.' : undefined, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: true })) },
+      { id: 'remove-perspective', title: 'Remove perspective', aliases: ['remove position', 'remove view'], section: 'Atom', icon: 'close', keys: 'Space v', when: block => block?.kind === 'block' && !!block.position, run: id => capabilities.invoke(capabilities.edit(id, { kind: 'position', id, value: false })) },
+      { id: 'change-holder', title: 'Change holder…', aliases: ['holder', 'attribution'], section: 'Atom', icon: 'link', when: block => !!block?.position, run: id => context.openRelation(id, 'holder') },
+      { id: 'file-under', title: 'File under…', aliases: ['subject', 'file'], section: 'Atom', icon: 'link', when: block => !!block?.position, disabledReason: id => !doc.block(id)?.position?.holder_id ? 'Choose a holder before filing this perspective.' : undefined, run: id => context.openRelation(id, 'subject') },
+      { id: 'use-place', title: 'Use place', aliases: ['implicit subject'], section: 'Atom', icon: 'close', when: block => !!block?.position, disabledReason: context.placeReason, run: context.usePlace },
+      ...(doc.root()?.kind === 'journal' ? [{ id: 'integrate', title: 'Integrate…', aliases: ['move', 'file thought'], section: 'Atom', icon: 'link' as const, run: (id: string) => context.openRelation(id, 'integrate') }] : []),
       ...relationKinds.map((kind): SlashItem => ({
         id: `relation-${kind}`, title: `${relationLabels[kind]}…`, aliases: [kind, 'argument', 'relation'], section: 'Argument', icon: 'link',
         disabledReason: id => relationReason(doc.block(id)), relationKind: kind,
@@ -622,8 +622,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'reference', title: 'Reference', aliases: ['link', 'page', 'mention'], section: 'Text', icon: 'link', keys: '[[', insert: () => ({ text: '[[]]', caret: 2 }) },
       { id: 'embed-view', title: 'Embed view', aliases: ['saved view', 'live table'], section: 'Text', icon: 'table', run: id => context.openViewEmbed(id) },
       { id: 'quote', title: 'Quote block', aliases: ['quote', 'frozen'], section: 'Text', icon: 'link', keys: '((', when: block => { const state = slashCompletion(); return !!state && !removeToken(block?.text ?? '', state).text.trim(); }, insert: () => ({ text: '(())', caret: 2 }) },
-      { id: 'tag', title: 'Tag', aliases: ['type', 'supertag', 'label'], section: 'Text', icon: 'tag', keys: '#', secondary: 'What this block is; a new name makes a new tag', insert: () => ({ text: '#', caret: 1 }) },
-      { id: 'field', title: 'Field…', aliases: ['property', 'attribute', 'value'], section: 'Text', icon: 'field', keys: '::', secondary: 'A named value on this block', run: id => context.pickField(id, context.rowAnchor(id) ?? document.body) },
+      { id: 'tag', title: 'Tag', aliases: ['type', 'supertag', 'label'], section: 'Text', icon: 'tag', keys: '#', secondary: 'What this atom is; a new name makes a new tag', insert: () => ({ text: '#', caret: 1 }) },
+      { id: 'field', title: 'Field…', aliases: ['property', 'attribute', 'value'], section: 'Text', icon: 'field', keys: '::', secondary: 'A named value on this atom', run: id => context.pickField(id, context.rowAnchor(id) ?? document.body) },
       { id: 'card', title: 'Card', aliases: ['flashcard'], section: 'Cards', icon: 'right', keys: '>>', cardKind: 'forward' },
       { id: 'reverse-card', title: 'Reverse card', aliases: ['reverse', 'flashcard'], section: 'Cards', icon: 'left', keys: '<<', cardKind: 'reverse' },
       { id: 'reversible-card', title: 'Reversible card', aliases: ['both ways', 'flashcard'], section: 'Cards', icon: 'panes', keys: '<>', cardKind: 'both' },
@@ -631,8 +631,8 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       { id: 'list-card', title: 'List card', aliases: ['list', 'flashcard'], section: 'Cards', icon: 'down', keys: '>>1.', cardKind: 'list' },
       { id: 'descriptor-card', title: 'Descriptor card', aliases: ['descriptor', 'attribute', 'flashcard'], section: 'Cards', icon: 'concept', keys: ';;', cardKind: 'descriptor' },
       { id: 'cloze', title: 'Cloze', aliases: ['blank', 'fill in', 'flashcard'], section: 'Cards', icon: 'select', keys: '⌘⇧C', cardKind: 'cloze' },
-      { id: 'zoom', title: 'Zoom in', aliases: ['focus'], section: 'Block', icon: 'bullet', keys: '⌘.', run: id => zoomTo(id) },
-      { id: 'copy-reference', title: 'Copy reference', section: 'Block', icon: 'copy', run: id => copy(`[[${id}]]`) },
+      { id: 'zoom', title: 'Zoom in', aliases: ['focus'], section: 'Atom', icon: 'bullet', keys: '⌘.', run: id => zoomTo(id) },
+      { id: 'copy-reference', title: 'Copy reference', section: 'Atom', icon: 'copy', run: id => copy(`[[${id}]]`) },
     ];
   }
   /**
@@ -652,23 +652,23 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     return { text: rest, caret: next };
   }
 function CompletionPopups(){ return <>
-    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.relationTarget ? 'Relation target' : completion()?.manual ? 'Add type…' : completion()?.types ? 'Type' : completion()?.fields ? 'Field' : completion()?.quote ? 'Quote block' : completion()?.blocks ? 'Block reference' : 'Reference completion'} role={completion()?.manual || completion()?.relationTarget ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!(completion()?.manual || completion()?.relationTarget)}>
-      <Show when={completion()?.manual || completion()?.relationTarget}><div class="picker-query"><Icon name={completion()?.relationTarget ? 'link' : 'tag'} class="picker-prefix" /><input class="picker-input" aria-label={completion()?.relationTarget ? 'Relation target' : 'Type title'} placeholder={completion()?.relationTarget ? 'Find a target' : 'Type title'} value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
+    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.relationTarget ? 'Relation target' : completion()?.manual ? 'Add tag…' : completion()?.types ? 'Tag' : completion()?.fields ? 'Field' : completion()?.quote ? 'Quote block' : completion()?.blocks ? 'Atom reference' : 'Reference completion'} role={completion()?.manual || completion()?.relationTarget ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!(completion()?.manual || completion()?.relationTarget)}>
+      <Show when={completion()?.manual || completion()?.relationTarget}><div class="picker-query"><Icon name={completion()?.relationTarget ? 'link' : 'tag'} class="picker-prefix" /><input class="picker-input" aria-label={completion()?.relationTarget ? 'Relation target' : 'Tag title'} placeholder={completion()?.relationTarget ? 'Find a target' : 'Tag title'} value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
       <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
-        <Show when={completion()?.blocks}><div class="picker-section">{completion()?.quote ? 'Quote block' : 'Block reference'}</div></Show>
+        <Show when={completion()?.blocks}><div class="picker-section">{completion()?.quote ? 'Quote block' : 'Atom reference'}</div></Show>
         <Show when={quoteBusy()}><p class="empty-state" role="status">Capturing quote…</p></Show>
         <Show when={completionKey() && matches.loading && !completionRows().length && !canCreate()}><p class="empty-state">Searching…</p></Show>
         <Show when={completionKey() && matches.error}><p class="error" role="alert">Couldn't load completion.</p></Show>
         <For each={completionRows()}>{(row, index) => <div role="option" aria-selected={pickable(index())} class="picker-row" classList={{ selected: pickable(index()) }} onClick={() => void chooseCompletion(index())}>
           <Show when={row.kind === 'block' ? row.block : null}>{block => {
             const icon = createPageIcon(props.notebook, block);
-            return <><Icon name={block().icon ? noteKindIcon({ key: '', icon: block().icon! }) : icon()} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty block'}</span><Show when={block().alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>;
+            return <><Icon name={block().icon ? noteKindIcon({ key: '', icon: block().icon! }) : icon()} /><span class="picker-text">{block().text ? <BlockText text={block().text} notebook={props.notebook} interactive={false} /> : 'Empty atom'}</span><Show when={block().alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show><Show when={block().kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={block()} notebook={props.notebook} /></span></Show></>;
           }}</Show>
           <Show when={row.kind === 'field' ? row.field : null}>{field => <><Icon name="field" /><span class="picker-text">{field().name}</span><span class="picker-meta">{completion()?.fields ? kindLabels[field().kind] : 'Field'}</span></>}</Show>
         </div>}</For>
-        <Show when={canCreate()}><div role="option" aria-selected={pickable(completionRows().length)} class="picker-row" classList={{ selected: pickable(completionRows().length) }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">{completion()?.fields ? 'Create field' : completion()?.types ? 'Create type' : 'Create page'} “{completion()?.query.trim()}”</span></div></Show>
+        <Show when={canCreate()}><div role="option" aria-selected={pickable(completionRows().length)} class="picker-row" classList={{ selected: pickable(completionRows().length) }} onClick={() => void chooseCompletion(completionRows().length)}><Icon name="plus" /><span class="picker-text">{completion()?.fields ? 'Create field' : completion()?.types ? 'Create tag' : 'Create page'} “{completion()?.query.trim()}”</span></div></Show>
         <Show when={!(completionKey() && (matches.loading || matches.error)) && !canCreate() && !completionRows().length}><p class="empty-state">{
-          completion()?.fields ? 'Type a field name.' : completion()?.blocks && !completion()?.query.trim() ? 'Type to search blocks.' : 'No matching blocks.'
+          completion()?.fields ? 'Type a field name.' : completion()?.blocks && !completion()?.query.trim() ? 'Type to search atoms.' : 'No matching atoms.'
         }</p></Show>
       </div>
     </Popup></Show>

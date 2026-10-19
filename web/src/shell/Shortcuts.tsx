@@ -19,7 +19,7 @@ const syntax: { write: string; means: string }[] = [
   { write: '/', means: 'Everything else: tags, fields, task states, images, views.' },
 ];
 
-const sections: Command['section'][] = ['Navigation', 'Create', 'Editing', 'Outline', 'Block', 'Page', 'View', 'Vim', 'Go to'];
+const sections: Command['section'][] = ['Navigation', 'Create', 'Editing', 'Outline', 'Atom', 'Page', 'View', 'Vim', 'Go to'];
 
 /** Keys and syntax on one sheet. Bindings are read from the command registry, so only mounted surfaces contribute. */
 export function Shortcuts(props: { commands: CommandRegistry; onDismiss(): void }) {

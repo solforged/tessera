@@ -198,7 +198,7 @@ function TableContent(props: TablePaneProps) {
     const template = new Set(query().type ? type()?.fields ?? [] : []);
     const own = fields().filter(field => template.has(field.id)).sort((a, b) => [...template].indexOf(a.id) - [...template].indexOf(b.id));
     return [
-      { section: 'Type template', fields: own },
+      { section: 'Tag template', fields: own },
       { section: 'Built in', fields: attributes() },
       { section: own.length ? 'Other fields' : 'Fields', fields: fields().filter(field => !template.has(field.id)) },
     ].filter(group => group.fields.length);
@@ -295,7 +295,7 @@ function TableContent(props: TablePaneProps) {
   const queryParts = createMemo(() => query().filters.length + query().sort.length + (query().group ? 1 : 0) + (query().text ? 1 : 0) + (query().source && query().source !== 'notes' ? 1 : 0) + (query().links?.length ?? 0) + (query().from?.length ?? 0) + (query().cites?.length ?? 0));
   const summary = createMemo(() => {
     const count = result()?.total ?? 0;
-    const plural = title() || 'blocks';
+    const plural = title() || 'atoms';
     const noun = count === 1 ? typeKind()?.name ?? type()?.page.text ?? (query().type ? props.notebook.lookup(query().type!)()?.text ?? plural : plural.slice(0, -1)) : plural;
     return [
     `${canAppend() ? `${(result()?.rows.length ?? 0).toLocaleString()} of ` : ''}${count.toLocaleString()} ${noun.toLocaleLowerCase()}`,
@@ -499,9 +499,9 @@ function TableContent(props: TablePaneProps) {
     reportView(next);
   };
   const viewMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Views',
-    header: <><div class="table-popup-heading">Views</div><div class="table-popup-note">{title() || 'All blocks'} · {query().filters.length ? `${query().filters.length} ${query().filters.length === 1 ? 'filter' : 'filters'}` : 'No filters'}<Show when={query().sort.length}> · {query().sort.map(key => sortLabel(key, fields())).join(', ')}</Show></div></>,
+    header: <><div class="table-popup-heading">Views</div><div class="table-popup-note">{title() || 'All atoms'} · {query().filters.length ? `${query().filters.length} ${query().filters.length === 1 ? 'filter' : 'filters'}` : 'No filters'}<Show when={query().sort.length}> · {query().sort.map(key => sortLabel(key, fields())).join(', ')}</Show></div></>,
     items: [
-      { label: title() ? `All ${title()}` : 'All blocks', checked: queriesEqual(query(), typeQuery(query().type)), shortcut: !props.target.viewId && !queriesEqual(query(), typeQuery(query().type)) ? 'Modified' : undefined, action: () => switchView(null) },
+      { label: title() ? `All ${title()}` : 'All atoms', checked: queriesEqual(query(), typeQuery(query().type)), shortcut: !props.target.viewId && !queriesEqual(query(), typeQuery(query().type)) ? 'Modified' : undefined, action: () => switchView(null) },
       ...(views() ?? []).filter(view => view.query.type === query().type && (view.query.source ?? 'notes') === (query().source ?? 'notes')).map((view): MenuItem => ({ label: view.name, checked: queriesEqual(query(), view.query), shortcut: view.id === props.target.viewId && !queriesEqual(query(), view.query) ? 'Modified' : undefined, action: () => switchView(view) })),
       { label: 'Save as view…', section: 'View actions', action: () => setPopup({ kind: 'name', anchor, action: 'save' }) },
       ...(narrow() ? [{ label: query().purpose ? 'Edit purpose…' : 'Add purpose…', action: () => setPopup({ kind: 'purpose' as const, anchor }) }] : []),
@@ -532,16 +532,16 @@ function TableContent(props: TablePaneProps) {
         { label: 'Move right', disabledReason: visibleColumns().indexOf(field.id) >= visibleColumns().length - 1 ? 'This is the last column' : undefined, action: () => moveColumn(field.id, 1) },
         ...(!field.id.startsWith('@') ? [
           { label: 'Edit field…', section: 'Definition', action: () => props.onOpen({ kind: 'field', fieldId: field.id }, false) },
-          ...(query().type && type()?.fields.includes(field.id) ? [{ label: 'Remove from template', section: 'Type template', icon: 'close' as const, disabledReason: required().has(field.id) ? requiredReason(type()!, field.name) : undefined, action: () => { const current = type()!; void submit({ op: 'set_type_fields', type_id: current.page.id, base_revision: current.page.revision, fields: current.fields.filter(id => id !== field.id) }).catch(message); } }] : []),
+          ...(query().type && type()?.fields.includes(field.id) ? [{ label: 'Remove from template', section: 'Tag template', icon: 'close' as const, disabledReason: required().has(field.id) ? requiredReason(type()!, field.name) : undefined, action: () => { const current = type()!; void submit({ op: 'set_type_fields', type_id: current.page.id, base_revision: current.page.revision, fields: current.fields.filter(id => id !== field.id) }).catch(message); } }] : []),
         ] : []),
       ] : []),
     ] });
   };
   const addColumnMenu = (anchor: HTMLElement) => {
     anchor.focus({ preventScroll: true });
-    setPopup({ kind: 'menu', anchor, label: 'Add field to type template', items: [
-      ...fields().filter(field => !type()?.fields.includes(field.id)).map((field): MenuItem => ({ label: field.name, disabledReason: !query().type ? 'Open a type to add fields' : undefined, action: () => { void appendField(field.id).catch(message); } })),
-      { label: 'New field…', disabledReason: !query().type ? 'Open a type to add fields' : undefined, action: () => { anchor.focus({ preventScroll: true }); setPopup({ kind: 'name', anchor, action: 'field', addColumn: true }); } },
+    setPopup({ kind: 'menu', anchor, label: 'Add field to tag template', items: [
+      ...fields().filter(field => !type()?.fields.includes(field.id)).map((field): MenuItem => ({ label: field.name, disabledReason: !query().type ? 'Open a tag to add fields' : undefined, action: () => { void appendField(field.id).catch(message); } })),
+      { label: 'New field…', disabledReason: !query().type ? 'Open a tag to add fields' : undefined, action: () => { anchor.focus({ preventScroll: true }); setPopup({ kind: 'name', anchor, action: 'field', addColumn: true }); } },
     ] });
   };
   // A field already sorted on is checked; choosing it again flips its direction.
@@ -850,7 +850,7 @@ function TableContent(props: TablePaneProps) {
       <header class="table-header">
         <div class="table-heading">
           <div class="table-register-label"><Show when={query().type}><Button class="table-type-label" onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, opensBeside(event))}>{title()}</Button><span aria-hidden="true"> / </span></Show><span>Register</span></div>
-          <h1><Button class="table-title" label="Views" aria-haspopup="menu" onClick={event => viewMenu(event.currentTarget)}><Show when={typeKind()}>{kind => <Icon name={noteKindIcon(kind())} />}</Show><span>{saved()?.name ?? (title() || 'All blocks')}</span><Icon name="down" /></Button></h1>
+          <h1><Button class="table-title" label="Views" aria-haspopup="menu" onClick={event => viewMenu(event.currentTarget)}><Show when={typeKind()}>{kind => <Icon name={noteKindIcon(kind())} />}</Show><span>{saved()?.name ?? (title() || 'All atoms')}</span><Icon name="down" /></Button></h1>
           <input class="table-purpose" aria-label="View purpose" placeholder="Add a one-line purpose…" value={query().purpose ?? ''} maxlength={240} onChange={event => updateQuery({ ...query(), purpose: event.currentTarget.value.trim() })} />
           <Show when={narrow()}><p class="table-summary">{summary()}<Show when={changed()}> · <span class="table-modified">Modified</span></Show></p></Show>
         </div>
@@ -867,7 +867,7 @@ function TableContent(props: TablePaneProps) {
       <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Note view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, opensBeside(event))}>Index <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button></div></Show>
       <Show when={!narrow()}>{queryToolbar()}</Show>
       <Show when={narrow()}><div class="table-query-bar" style={{ left: `${dockBounds().left}px`, width: `${dockBounds().width}px` }}>
-        <label class="table-query-find"><Icon name="search" /><input class="input" aria-label={`Find in ${title() || 'blocks'}`} placeholder={`Find in ${title() || 'blocks'}…`} value={query().text ?? ''} onInput={event => { setSearch(event.currentTarget.value); updateQuery({ ...query(), text: event.currentTarget.value.trim() || null, offset: 0 }); }} /></label>
+        <label class="table-query-find"><Icon name="search" /><input class="input" aria-label={`Find in ${title() || 'atoms'}`} placeholder={`Find in ${title() || 'atoms'}…`} value={query().text ?? ''} onInput={event => { setSearch(event.currentTarget.value); updateQuery({ ...query(), text: event.currentTarget.value.trim() || null, offset: 0 }); }} /></label>
         <Button class="bordered" aria-haspopup="dialog" aria-expanded={!!querySheet()} onClick={event => setQuerySheet(event.currentTarget)}><Icon name="query" />Query <span class="table-query-count">{queryParts()}</span></Button>
       </div></Show>
       <Show when={definitions() && missingFields().length}><MissingFields fields={missingFields()} busy={savingView()} onRemove={id => { void removeMissingField(id).catch(message); }} /></Show>
@@ -884,7 +884,7 @@ function TableContent(props: TablePaneProps) {
         <span>{loading() ? 'Loading…' : error() || (missingFields().length ? 'Results paused; remove the missing field or undo its deletion.' : `${(result()?.rows.length ?? 0).toLocaleString()} of ${membersLabel(result()?.total ?? 0)}`)}</span>
         <Show when={!loading() && canAppend()}><span aria-hidden="true">·</span><Button class="table-show-more" disabled={appending()} aria-busy={appending()} onClick={() => { void appendRows(); }}>Show {pageSize().toLocaleString()} more</Button></Show>
         <Show when={rowUndo()}><span>Row deleted ·</span><Button disabled={replaying()} onClick={() => { setRowUndo(false); void replayCell(false).catch(message); }}>Undo</Button></Show>
-        <Show when={rowNotice()}>{note => <><span>· {note().title}{result()?.rows.some(row => row.block.block.id === note().id) ? ' is in this table.' : ' was filed under this type but does not match the current view.'}</span><Button onClick={event => props.onOpen({ kind: 'page', pageId: note().id }, opensBeside(event))}>Open note</Button><Button label="Dismiss row notice" onClick={() => setRowNotice(undefined)}>×</Button></>}</Show>
+        <Show when={rowNotice()}>{note => <><span>· {note().title}{result()?.rows.some(row => row.block.block.id === note().id) ? ' is in this table.' : ' was filed under this tag but does not match the current view.'}</span><Button onClick={event => props.onOpen({ kind: 'page', pageId: note().id }, opensBeside(event))}>Open note</Button><Button label="Dismiss row notice" onClick={() => setRowNotice(undefined)}>×</Button></>}</Show>
         <Show when={viewUndo()}><span>View saved ·</span><Button disabled={replaying()} onClick={() => { void replayCell(false).catch(message); }}>Undo</Button></Show>
       </>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>
     </div>
@@ -898,10 +898,10 @@ function TableContent(props: TablePaneProps) {
     <Show keyed when={popup()}>{state => <>
       {state.kind === 'menu' && <Menu anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => setPopup(null)} />}
       {state.kind === 'new-row' && rowKind() && <CreateSlip request={{ kind: rowKind()!.key === 'question' ? 'question' : `type:${rowKind()!.key}`, text: '', lockKind: true }} anchor={state.anchor} notebook={props.notebook} onDismiss={() => setPopup(null)} defaultBeside={window.matchMedia('(pointer: coarse)').matches && !!props.neighbour} onCreated={pageId => { history.push({ kind: 'created-row', pageId }); undone.length = 0; setViewUndo(false); setRowUndo(false); }} onOpen={(target, beside) => { if (target.kind === 'page') void revealNewRow(target, beside).catch(message); }} />}
-      {state.kind === 'delete-row' && <Popup anchor={state.anchor} placement={narrow() ? 'sheet' : 'anchor'} label={state.row.block.block.kind === 'block' ? 'Delete block' : 'Delete page'} onDismiss={() => { if (!deleting()) setPopup(null); }}>
-        <p>Delete “{plainText(state.row.block.block.text, id => props.notebook.lookup(id))}” and all its {state.row.block.block.kind === 'block' ? 'children' : 'blocks'}?</p><p class="muted">You can undo this deletion.</p>
+      {state.kind === 'delete-row' && <Popup anchor={state.anchor} placement={narrow() ? 'sheet' : 'anchor'} label={state.row.block.block.kind === 'block' ? 'Delete atom' : 'Delete page'} onDismiss={() => { if (!deleting()) setPopup(null); }}>
+        <p>Delete “{plainText(state.row.block.block.text, id => props.notebook.lookup(id))}” and all its {state.row.block.block.kind === 'block' ? 'children' : 'atoms'}?</p><p class="muted">You can undo this deletion.</p>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
-        <div class="popup-actions"><Button disabled={deleting()} onClick={() => setPopup(null)}>Cancel</Button><Button class="bordered danger" disabled={deleting()} onClick={() => { void deleteRow(state.row); }}>Delete {state.row.block.block.kind === 'block' ? 'block' : 'page'}</Button></div>
+        <div class="popup-actions"><Button disabled={deleting()} onClick={() => setPopup(null)}>Cancel</Button><Button class="bordered danger" disabled={deleting()} onClick={() => { void deleteRow(state.row); }}>Delete {state.row.block.block.kind === 'block' ? 'atom' : 'page'}</Button></div>
       </Popup>}
       {state.kind === 'purpose' && <Popup anchor={state.anchor} label="View purpose" onDismiss={() => setPopup(null)}><form onSubmit={event => { event.preventDefault(); setPopup(null); }}><input class="input" aria-label="View purpose" value={query().purpose ?? ''} maxlength={240} onInput={event => updateQuery({ ...query(), purpose: event.currentTarget.value })} /><div class="popup-actions"><Button type="submit" class="bordered">Done</Button></div></form></Popup>}
       {state.kind === 'value' && <ValueEditor anchor={state.anchor} field={fieldById(state.field.id) ?? state.field} owner={{ id: state.row.block.block.id, page: state.row.block.page.id }} text={(state.value ?? state.row.values[state.field.id]?.[0])?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()}
@@ -932,7 +932,7 @@ function TableContent(props: TablePaneProps) {
         </Show>
         <div class="table-popup-heading">Phone card fields</div><p class="table-popup-note">Sort fields are always shown.</p>
         <For each={columnChoices()}>{field => <label class="table-column-choice"><input type="checkbox" checked={query().card?.includes(field.id) ?? false} onChange={event => updateQuery({ ...query(), card: event.currentTarget.checked ? [...query().card ?? [], field.id] : (query().card ?? []).filter(id => id !== field.id) })} />{field.name}</label>}</For>
-        <Show when={query().type}><div class="table-template-actions"><Button onClick={() => addColumnMenu(state.anchor)}>Add field to type template…</Button><Button onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, opensBeside(event))}>Open type template</Button></div></Show>
+        <Show when={query().type}><div class="table-template-actions"><Button onClick={() => addColumnMenu(state.anchor)}>Add field to tag template…</Button><Button onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, opensBeside(event))}>Open tag template</Button></div></Show>
       </Popup>}
       {state.kind === 'sources' && <SourcesPopup anchor={state.anchor} label={state.label} sources={state.sources} notebook={props.notebook} onDismiss={() => setPopup(null)} />}
     </>}</Show>

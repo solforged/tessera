@@ -39,7 +39,7 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
       return undefined;
     }
   });
-  const title = createMemo(() => data.latest?.type.page.text ?? props.notebook.lookup(props.typeId)()?.text ?? 'Type');
+  const title = createMemo(() => data.latest?.type.page.text ?? props.notebook.lookup(props.typeId)()?.text ?? 'Tag');
   createEffect(() => {
     if (!data.latest || restored) return;
     restored = true;

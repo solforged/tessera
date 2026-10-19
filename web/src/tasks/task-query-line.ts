@@ -110,7 +110,7 @@ export function parseTaskQueryLine(text: string, ctx: TaskQueryLineContext): { q
       const value = raw.slice(1);
       const title = value.startsWith('[[') && value.endsWith(']]') ? titleValue(value) : unquote(value);
       const id = title ? ctx.resolveType(title) : null;
-      if (!id) fail(`Unknown type: ${title || '(empty)'}.`);
+      if (!id) fail(`Unknown tag: ${title || '(empty)'}.`);
       else source.type = id;
     } else if (raw.startsWith('[[')) {
       if (!raw.endsWith(']]')) { fail('Use [[Project title]] for a project.'); continue; }

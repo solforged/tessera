@@ -532,7 +532,7 @@ pub(crate) fn guard_merge(conn: &Connection, source_id: &str) -> Result<()> {
         .query_row([source_id], |row| row.get(0))?;
     if protected {
         return Err(validation(
-            "This block has active capability state or completion/work history; delete it or keep it separate",
+            "This atom has active behavior or completion/work history; delete it or keep it separate",
         ));
     }
     Ok(())

@@ -254,9 +254,9 @@ The Vim mode shows only in the active pane, as a hairline-boxed mono tag of fixe
 | Normal | `--text` |
 | Insert | Gilt |
 | Visual | `--selection` |
-| Blocks, while moving between blocks | `--muted` |
+| Atoms, while moving between atoms | `--muted` |
 
-Every label is six letters, so a mode change never shifts the header.
+The mode labels share a fixed width, so a mode change never shifts the header.
 
 [Journal headers](surfaces/journal.md) also hold their own previous-day, calendar and next-day controls; these always target the owning pane. Page errors stay under their owning header. Workshop recovery feedback appears once above every pane, so activating a pane cannot move a control between pointer-down and click.
 
@@ -378,7 +378,7 @@ Handle and fold live in the gutter and show on hover, focus and selection. The h
 
 Dragging starts after a small movement and shows an indented horizontal drop line: the upper or lower half of a row chooses before or after its subtree, moving right of its text edge makes it the first child, and moving left chooses an ancestor depth. A selected row moves the whole selection with its subtrees in one undo step; the pane scrolls at its edges, Escape cancels, and drops cannot cross the zoom boundary or enter a moved subtree.
 
-The titled Block actions menu names its block in at most two mono lines. Edit, Insert below, Move…, Copy reference and Open beside come first. Move contains Indent, Outdent, Move up, Move down, Move to page… and, on journal days, Integrate. Move to page opens the shared page picker and places the selected roots with their subtrees at the end of the chosen page, preserving identities and capabilities in one undo step. The source page stays open and offers Undo.
+The titled Atom actions menu names its block in at most two mono lines. Edit, Insert below, Move…, Copy reference and Open beside come first. Move contains Indent, Outdent, Move up, Move down, Move to page… and, on journal days, Integrate. Move to page opens the shared page picker and places the selected roots with their subtrees at the end of the chosen page, preserving identities and capabilities in one undo step. The source page stays open and offers Undo.
 
 Choosing a Move to page destination reserves its undo step before saving. Undo requested while the move is pending waits for its acknowledgment, then reverses the move without undoing earlier text.
 
@@ -644,7 +644,7 @@ Typed triggers act in block text. Each character means one thing, opens a picker
 | Trigger | Means |
 |---|---|
 | `[[` | Reference to a page, field or block |
-| `((` | On an otherwise empty row: Quote block, a frozen [quote](domain-model.md#quotes) of a block and its subtree. Inside other text: Block reference, searching blocks only |
+| `((` | On an otherwise empty row: Quote block, a frozen [quote](domain-model.md#quotes) of an atom and its subtree. Inside other text: Atom reference, searching atoms only |
 | `#name` | Tag: picks a registered tag or creates one; built-in tags add their behavior |
 | `@` | Schedule or deadline on this atom, without a checkbox: `@fri` schedules, `@by fri` or `@due fri` sets a deadline; Tab flips the field, Enter picks. `#task`, `/Todo` or ⌘Enter adds a checkbox |
 | `/` | Every atom verb: tags, fields, statuses, schedule, deadline, priority, repeat, clock, project, headings, references, cards |
@@ -670,13 +670,13 @@ A hand-typed reference spanning lines or containing a nested `[[opener]]` stays 
 
 #### Types
 
-`#` at block start or after whitespace opens a tag picker under the hash once a non-space name character follows. It searches the same pages as Add type and offers Create type for a new name. Enter or Tab inserts `#[[id|Title]]` for an existing page, followed by a space. A new tag or a built-in without a page uses `#Title`, or `#[[Title]]` for a name with spaces or punctuation, until the save normalizes it. Escape keeps the text. Pills read the live title by ID, falling back to the alias and then the ID in faint ink when the target is gone. A rename changes the pill without changing the member's text.
+`#` at block start or after whitespace opens a tag picker under the hash once a non-space name character follows. It searches the same pages as Add tag and offers Create tag for a new name. Enter or Tab inserts `#[[id|Title]]` for an existing page, followed by a space. A new tag or a built-in without a page uses `#Title`, or `#[[Title]]` for a name with spaces or punctuation, until the save normalizes it. Escape keeps the text. Pills read the live title by ID, falling back to the alias and then the ID in faint ink when the target is gone. A rename changes the pill without changing the member's text.
 
 A bare `#`, `# `, repeated hashes, URL fragments, references, code, card/cloze syntax and field shorthand do not open the type picker; `# ` at block start still makes a heading.
 
 A tag being typed is not saved until the word is finished: a space or Enter, a choice from the picker, the caret leaving it, or 3 seconds without a keystroke. Until then no type page or sidebar row appears, so typing `#phil` slowly never shows `p`, `ph` or `phi`; the text is already kept for recovery.
 
-A page made for a tag or by Add type goes away again once no tag, manual type or link uses it, unless it was edited, gained content or is named by a saved query.
+A page made for a tag or by Add tag goes away again once no tag, manual type or link uses it, unless it was edited, gained content or is named by a saved query.
 
 #### Field shorthand
 
@@ -764,7 +764,7 @@ Bottom sheets share a grab area and an accessible Close button. Dragging downwar
 ### Shared popup patterns
 
 - **Menu:** 28 px desktop rows with a label and shortcut at the right; an icon column is reserved whenever any item has one. Cleaned action menus use hairline dividers and keep danger last. Piazzolla titles have Close; a drill-in replaces the rows with its title and Back, including ArrowRight to enter and ArrowLeft or Backspace to return. Context is at most two mono lines. Titled menus become bottom sheets with 44 px rows on coarse phones below 600 px. Dedicated selectors may retain section labels. Existing information headers remain above root rows, with their buttons in the arrow-key order.
-- **Picker:** an input on top and 28 px rows below. Arrows move, Enter picks, typing filters, the mouse hovers to highlight. Chips before the input show steps already chosen. Optional mono section headings group results without entering the keyboard selection order. Used by the palette, reference completion, Add type, Add condition and the time zone.
+- **Picker:** an input on top and 28 px rows below. Arrows move, Enter picks, typing filters, the mouse hovers to highlight. Chips before the input show steps already chosen. Optional mono section headings group results without entering the keyboard selection order. Used by the palette, reference completion, Add tag, Add condition and the time zone.
 - **Form:** compact labeled controls with an optional 18 px Piazzolla title and an action row. Fixed forms fit their content; a date picker's footer remains visible when its body must scroll.
 - **Confirm:** 13 px body text and two buttons.
 - **Preview:** a read-only card for a reference's target; see [Reference previews](#reference-previews).
@@ -776,7 +776,7 @@ Bottom sheets share a grab area and an accessible Close button. Dragging downwar
 | Keys and syntax (⌘/, `?` with an outline row selected, Commands, the Mac's Help menu) | Two registers under mono WRITE and PRESS rubrics: atom syntax, including `#task`, `#question`, `#project` and `#source` with their behavior; `@` only schedules. Every bound command follows in registry order. `?` inside an editing atom keeps Vim's backward search. Bindings hide with `kbd` on coarse touch screens | Top center, 820 px; one column below 720 px; a bottom sheet on the cover |
 | [Creation slip](surfaces/journal.md) (⌘E / ⌘N) | Mono action/destination rubric, then `#task`, `#question`, note, card and `#source`. More lists the other registry tags with glyphs. Into segments precede the body; index and table requests lock their tag | 560 px, anchored with a trigger and top-centered without one; a bottom sheet on the cover |
 | [Card composer](surfaces/cards-review.md#card-composer) | Front and back under a mono rubric, the front in the display voice, key hints and Create on a hairline | Below its trigger, 560 px; top center without one; a bottom sheet on coarse pointers |
-| `[[`, `((`, `#`, `name::` completion and Add type | Picker; `#` rows show the registry's glyph and list built-in tags without a page after matching pages | Below the opening brackets, the caret or the block |
+| `[[`, `((`, `#`, `name::` completion and Add tag | Picker; `#` rows show the registry's glyph and list built-in tags without a page after matching pages | Below the opening brackets, the caret or the block |
 | New tag's Add fields | Expanded template editor, sharing the tag page's field controls | Below the receipt line, 560 px, fitted to its content |
 | `@` dates and `/` commands | Picker without an input; the block text is the query, sections label `/` rows, faster keys at the right; Text offers Tag (`#`) and Field… (`::`), which opens the block's Add field picker | Below the token |
 | Leader, status and priority menus | Menu; leader letters at the right and pressed directly | Below the row |
@@ -789,7 +789,7 @@ Bottom sheets share a grab area and an accessible Close button. Dragging downwar
 | Workshop, layout, pill, column, view, sort and field kind menus | Menu | Below their trigger |
 | Delete page | Confirm | Below its trigger |
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
-| Block backlinks | Each referring block with its page breadcrumb, parent and children, and an Open beside glyph on hover; `--measure` wide | Below the row's reference count |
+| Atom backlinks | Each referring block with its page breadcrumb, parent and children, and an Open beside glyph on hover; `--measure` wide | Below the row's reference count |
 | Notice / Undo toast | One shell notice at a time, with up to two actions such as Open and Undo; eight seconds, paused under pointer or focus. Page deletions use the same surface. An outline's local notice still owns that pane's ⌘Z until a newer edit returns Undo to its document | Bottom center |
 | Sync status | An icon-only button after the Tessera wordmark wherever a hub has paired devices or a copy has a Mac. Shape and color together: an 8 px filled circle in `--status-done` for synced or sending (`ok`); an 8 px hollow ring with a 1.5 px `--warning` stroke for unreachable or review (`wait`); a 7 px square rotated 45° in `--danger` for version mismatch, forgotten or retired (`act`). No animation. On pointer devices, hover after 350 ms or keyboard focus shows a slip: the state in mono, colored `--text`, `--warning` or `--danger`, then a short hint in muted sans. The slip has no controls and hides on leave, blur, Escape or an open summary. Click or tap opens the summary; coarse pointers never show the slip. On the cover screen a row above the bottom nav shows only `wait` or `act`, with the same glyph, label and detail | Global rail's left, immediately after the wordmark; above the bottom nav on the cover screen |
 | Sync summary | Device → Mac register over the state's title, one or two sentences naming the side that is behind or what to check, the one fixing action (Download page on the Mac and GitHub releases, Try again or Sync now, Pair again, Download the workshop again) and `Settings › Devices`, which opens Settings with that device expanded. The top bar uses `--danger` for `act`, `--warning` for `wait`, and no bar for `ok`, clear of the pointer | Under the mark, left-aligned, 380 px with its pointer under the glyph; a bottom sheet on touch |
@@ -835,7 +835,7 @@ A `((ID))` row without a snapshot shows the target's live text in the same frame
 
 Below the outline, Backlinks is open by default and counts every distinct referring block, including references to the page's own blocks. Groups follow the referring page, newest first, under a mono capital heading that opens the page, with the group's count at the right. Each source shows its live text, opens at the block on click (⌘ opens beside), and has a disclosure that shows its parent and up to six descendants from the live page. An Open beside glyph appears at the right of the row under the pointer or in focus, and always on touch screens; related blocks follow the same pattern. A source that names one of this page's blocks only through an alias adds a faint mono `→` line naming that block, which zooms to it. Load more fetches the next hundred.
 
-Blocks on the page with incoming references carry their count as a faint mono numeral in the outside right rail, where it cannot shift text or the editor. It opens the Block backlinks popup.
+Blocks on the page with incoming references carry their count as a faint mono numeral in the outside right rail, where it cannot shift text or the editor. It opens the Atom backlinks popup.
 
 A relation's target shows a quiet meta line beneath its row, or beneath a page's title: `← qualifies` and its owners' labels, one group per field, after any argument line. Each label opens its owner where it is written, and its title names the owner's page. A field with more than three owners shows three, then a +N more button.
 

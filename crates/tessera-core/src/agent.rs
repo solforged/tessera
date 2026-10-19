@@ -726,7 +726,7 @@ impl Notebook {
                 .any(|id| !owned.contains(id.as_str()))
             {
                 return Err(validation(format!(
-                    "block {} has children added after change {seq}; move or delete them first",
+                    "atom {} has children added after change {seq}; move or delete them first",
                     block.id
                 )));
             }
@@ -802,7 +802,7 @@ impl Notebook {
             )
             .map_err(|error| match error {
                 Error::Conflict { id, .. } => validation(format!(
-                    "block {id} changed after change {seq}; undo or revert that edit first"
+                    "atom {id} changed after change {seq}; undo or revert that edit first"
                 )),
                 error => error,
             })?;
@@ -820,7 +820,7 @@ impl Notebook {
         blocks: &[NoteBlock],
     ) -> Result<(String, String)> {
         if blocks.is_empty() {
-            return Err(validation("a note must contain a block"));
+            return Err(validation("a note must contain an atom"));
         }
         let (page_id, parent_id, after, title) = match target {
             NoteTarget::Page { title } => {
@@ -872,7 +872,7 @@ impl Notebook {
         self.plan_blocks(plan, &parent_id, after, blocks, true)?;
         let count = plan.inserted.len();
         let summary = format!(
-            "Added {count} block{} to {title}",
+            "Added {count} atom{} to {title}",
             if count == 1 { "" } else { "s" }
         );
         Ok((page_id, summary))
@@ -1035,7 +1035,7 @@ impl Notebook {
         }
         if plan.steps.is_empty() {
             return Err(validation(
-                "nothing to change: the block already reads that way",
+                "nothing to change: the atom already reads that way",
             ));
         }
         plan.changed.push(id.to_owned());
@@ -1273,7 +1273,7 @@ impl Notebook {
                 let sibling = self.block(after)?;
                 let sibling_parent = sibling
                     .parent_id
-                    .ok_or_else(|| validation("a block cannot be placed after a page"))?;
+                    .ok_or_else(|| validation("an atom cannot be placed after a page"))?;
                 if parent.is_some_and(|parent| parent != sibling_parent) {
                     return Err(validation("after must be a child of parent_id"));
                 }
@@ -1289,7 +1289,7 @@ impl Notebook {
         };
         let old_after = self.previous_sibling(&block)?;
         if after.as_deref() == Some(id) || (parent == old_parent && after == old_after) {
-            return Err(validation("nothing to change: the block is already there"));
+            return Err(validation("nothing to change: the atom is already there"));
         }
         touch(plan, &block, revision);
         plan.operations.push(Operation::Move {
@@ -1927,7 +1927,7 @@ fn resulting(committed: &Committed, ids: &[String]) -> Result<Vec<Revision>> {
                 .iter()
                 .find(|revision| &revision.id == id)
                 .cloned()
-                .ok_or_else(|| validation(format!("block {id} has no resulting revision")))
+                .ok_or_else(|| validation(format!("atom {id} has no resulting revision")))
         })
         .collect()
 }

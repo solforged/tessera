@@ -132,7 +132,7 @@ export function filterLabel(filter: Filter, fields: readonly FieldDefinition[], 
   const definition = fields.find(field => field.id === filter.field);
   const name = definition?.name ?? names?.[filter.field] ?? 'Missing field';
   const value = definition?.kind === 'instance' && (filter.op === 'is' || filter.op === 'is_not') && filter.value
-    ? (target => !target ? filter.value : target.kind === 'page' ? target.text : targetLabel(target.text, id => notebook.lookup(id)) || 'Empty block')(notebook.lookup(filter.value)())
+    ? (target => !target ? filter.value : target.kind === 'page' ? target.text : targetLabel(target.text, id => notebook.lookup(id)) || 'Empty atom')(notebook.lookup(filter.value)())
     : definition?.kind === 'choice' && definition.id.startsWith('@') ? definition.options.find(option => option.id === filter.value)?.text ?? filter.value : filter.value;
   if (filter.field === '@resolved' && (filter.op === 'is' || filter.op === 'is_not') && (value === 'true' || value === 'false')) {
     return (value === 'true') === (filter.op === 'is') ? 'Resolved' : 'Not resolved';

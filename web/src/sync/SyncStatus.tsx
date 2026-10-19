@@ -87,10 +87,10 @@ export function SyncExplanation(props: { health: SyncHealth }) {
     </Match>
     <Match when={value().kind === 'review'}>
       <div class="sync-review-counts">
-        <Show when={value().kept}><p><span class="sync-rubric sync-mono">{value().kept}</span> {value().kept === 1 ? 'version kept beside its block' : 'versions kept beside their blocks'}</p></Show>
+        <Show when={value().kept}><p><span class="sync-rubric sync-mono">{value().kept}</span> {value().kept === 1 ? 'version kept beside its atom' : 'versions kept beside their atoms'}</p></Show>
         <Show when={value().rejected}><p><span class="sync-rubric sync-mono">{value().rejected}</span> {value().rejected === 1 ? 'rejected change' : 'rejected changes'} the Mac could not apply</p></Show>
       </div>
-      <p><Show when={value().kept}>The kept versions are still beside their blocks. </Show><Show when={value().rejected}>Rejected changes are available in Settings.</Show></p><p class="sync-waiting">Review when convenient. Nothing has been discarded.</p>
+      <p><Show when={value().kept}>The kept versions are still beside their atoms. </Show><Show when={value().rejected}>Rejected changes are available in Settings.</Show></p><p class="sync-waiting">Review when convenient. Nothing has been discarded.</p>
     </Match>
     <Match when={value().kind === 'forgotten'}><p>{value().hubName} no longer accepts this device's key. Pair it again to sync.</p><p class="sync-waiting">Changes waiting here stay on this device.</p></Match>
     <Match when={value().kind === 'retired'}><p>{value().role === 'hub' ? `${value().deviceName} needs to download the workshop again.` : `${value().hubName} stopped keeping changes for this device after 30 days away.`}</p><p class="sync-waiting">Pins and downloaded books stay.</p></Match>

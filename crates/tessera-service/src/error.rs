@@ -81,7 +81,7 @@ impl From<tessera_core::Error> for ApiError {
             tessera_core::Error::NotFound { id, op_index } => Self {
                 status: StatusCode::NOT_FOUND,
                 code: "not_found",
-                message: format!("block {id} not found"),
+                message: format!("atom {id} not found"),
                 details: op_index.map(|index| serde_json::json!({ "op_index": index })),
             },
             tessera_core::Error::Validation { message, op_index } => Self {

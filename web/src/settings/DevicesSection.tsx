@@ -215,7 +215,7 @@ function NeedsReview(props: { notebook: NotebookClient; onOpenPage(pageId: strin
     <details class="devices-disclosure devices-review" aria-label="Needs review" open>
       <summary><span class="devices-name">Needs review</span><span class="devices-row-status">{syncConflicts.state()?.kept.length ?? 0} kept · {syncConflicts.state()?.rejected.length ?? 0} rejected</span></summary>
       <div class="devices-expanded">
-      <p>Kept versions are beside their blocks. Rejected changes are kept here until you copy them back or dismiss them.</p>
+      <p>Kept versions are beside their atoms. Rejected changes are kept here until you copy them back or dismiss them.</p>
       <Show when={undo()}>{last => <div class="devices-undo" role="status"><span>{last().label}</span><Button class="bordered" disabled={busy()} onClick={() => { void undoLast(); }}>Undo</Button></div>}</Show>
       <For each={syncConflicts.state()?.kept}>{copy => <article class="devices-review-item">
         <p class="settings-mono">{copy.mine ? 'This device' : copy.origin_name ?? 'Another device'} · version kept beside</p><h4>{copy.page_title}</h4><blockquote>{copy.text}</blockquote>

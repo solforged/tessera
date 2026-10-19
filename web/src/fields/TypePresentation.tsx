@@ -49,13 +49,13 @@ export function TypePresentation(props: { type: Type; notebook: NotebookClient; 
       <Button aria-haspopup="dialog" aria-expanded={!!anchor()} disabled={busy() || doc().status() !== 'ready'} onClick={event => {
         setPlural(props.type.plural ?? ''); setIcon(props.type.icon); setAnchor(event.currentTarget);
       }}>Icon and name…</Button>
-      <Show when={doc().canUndo()}><Button icon="undo" label="Undo type change" disabled={busy()} onClick={() => void history(false)} /></Show>
-      <Show when={doc().canRedo()}><Button icon="redo" label="Redo type change" disabled={busy()} onClick={() => void history(true)} /></Show>
+      <Show when={doc().canUndo()}><Button icon="undo" label="Undo tag change" disabled={busy()} onClick={() => void history(false)} /></Show>
+      <Show when={doc().canRedo()}><Button icon="redo" label="Redo tag change" disabled={busy()} onClick={() => void history(true)} /></Show>
     </div>
     <Show when={anchor()}>{trigger => <Popup anchor={trigger()} label="Icon and name" fitContent onDismiss={() => setAnchor(null)}>
       <form class="type-presentation-form" onSubmit={event => { event.preventDefault(); void save(); }}>
         <h2 class="popup-title">Icon and name</h2>
-        <div class="type-presentation-icons" role="group" aria-label="Type icon"><For each={icons}>{name =>
+        <div class="type-presentation-icons" role="group" aria-label="Tag icon"><For each={icons}>{name =>
           <Button icon={name} label={name.replaceAll('-', ' ')} aria-pressed={icon() === name} disabled={busy()} onClick={() => setIcon(name)} />
         }</For></div>
         <label>Plural name<input class="input" value={plural()} placeholder={autoPlural(props.type.page.text)} disabled={busy()} onInput={event => setPlural(event.currentTarget.value)} /></label>

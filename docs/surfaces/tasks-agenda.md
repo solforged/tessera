@@ -54,7 +54,7 @@ Typed dates count from the workshop's today, also on another day's journal page 
 
 The picker's first, non-selectable row reads Scheduled or Deadline, with a mono Tab hint. Tab flips the field by inserting `by ` or removing `by `/`due ` while retaining the query. Other pickers keep Tab to pick.
 
-Enter picks a date: a plain block becomes a todo, the task is scheduled or due, and the token and its leading space leave the text. Pick a date… opens the full picker with the typed query, without changing the block until a date is chosen. Canceling either picker keeps the token and the existing task unchanged.
+Enter picks a date: a plain atom becomes an appointment with no status or checkbox, an existing task keeps its status, and the token and its leading space leave the text. `#task`, `/Todo` or ⌘Enter adds a checkbox. Pick a date… opens the full picker with the typed query, without changing the atom until a date is chosen. Canceling either picker keeps the token and the existing schedule unchanged.
 
 A multi-word query that matches no date is prose (`@sam about the report`). The picker closes so Enter splits the block as usual, and reopens if the words become a date again. A recognized but impossible date such as `feb 30` instead keeps the picker open with an error and preserves the token.
 
@@ -148,7 +148,7 @@ Add condition opens one searchable picker grouped into Task, Source and Fields:
 | Group | Conditions |
 |---|---|
 | Task | Selection, status, priority, project, scheduled/deadline ranges and result limit |
-| Source | Type and text |
+| Source | Tag and text |
 | Fields | The workshop's definitions |
 
 Choosing a condition replaces the picker with its editor at the same trigger. Changing a syntax-backed condition rewrites the query line. Field predicates stay outside the syntax as editable, removable chips in the condition row, with the task count at the trailing edge. Editing a field predicate preserves its place and the other predicates.

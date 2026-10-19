@@ -22,7 +22,7 @@ export function IncomingRelationLine(props: RelationProps & { rows: readonly Rel
       const label = createMemo(() => {
         const holder = row.source.holder_id;
         const text = holder ? props.notebook.lookup(holder)()?.text : props.notebook.lookup(source.id)()?.text ?? source.text;
-        return plainText(text ?? '', id => props.notebook.lookup(id)) || (holder ? 'Loading holder…' : 'Empty block');
+        return plainText(text ?? '', id => props.notebook.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom');
       });
       return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span>{incomingRelationLabels[row.kind]} <Button onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: row.source.block.page.id, blockId: source.kind === 'block' ? source.id : undefined }, opensBeside(event)); }}>{label()}</Button></span></>;
     }}</For>
@@ -47,7 +47,7 @@ export function IncomingFieldLine(props: RelationProps & { rows: readonly Incomi
     return [...byField.values()];
   });
   const [expanded, setExpanded] = createSignal(new Set<string>());
-  const label = (owner: FieldOwner) => targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, id => props.notebook.lookup(id)) || 'Empty block';
+  const label = (owner: FieldOwner) => targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, id => props.notebook.lookup(id)) || 'Empty atom';
   return <Show when={groups().length}><div class="relation-line incoming-fields" onMouseDown={event => event.stopPropagation()}>
     <For each={groups()}>{(group, index) => {
       const shown = () => expanded().has(group.id) ? group.owners : group.owners.slice(0, ownersShown);
@@ -86,7 +86,7 @@ export function OutgoingRelations(props: RelationProps & { rows: readonly BlockS
       const target = () => relation().target_id ? props.notebook.lookup(relation().target_id!)() : null;
       const label = () => {
         const block = target();
-        return block ? plainText(block.text, id => props.notebook.lookup(id)) || 'Empty block' : relation().target_id ? 'Loading reference…' : 'No target';
+        return block ? plainText(block.text, id => props.notebook.lookup(id)) || 'Empty atom' : relation().target_id ? 'Loading reference…' : 'No target';
       };
       return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span>{relationLabels[relation().kind]} <Button onClick={event => {
         const block = target();

@@ -333,7 +333,7 @@ pub fn parse_card_text(text: &str) -> CardParse {
     if let Some((first, last, _)) = operators {
         if first != last {
             result.problems.push(problem(
-                "Use only one card operator per block.",
+                "Use only one card operator per atom.",
                 first,
                 last + operator(text, last).expect("recognized operator").len(),
             ));
@@ -364,7 +364,7 @@ pub fn parse_card_text(text: &str) -> CardParse {
                 ));
             } else if !right.is_empty() {
                 result.problems.push(problem(
-                    "Child-answer operators must end the block.",
+                    "Child-answer operators must end the atom.",
                     at,
                     text.len(),
                 ));

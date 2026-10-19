@@ -98,9 +98,9 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
           for (const block of preferred.questions) if (block.kind === 'block' && (!ids || ids.has(block.id))) result.push({ block, section: 'Questions and concepts' });
         } else if (current.kind === 'integrate' && text.trim()) {
           const found = await props.notebook.api.search(text, 100);
-          for (const row of found) if (row.block.kind === 'block' && !row.block.archived) result.push({ block: row.block, section: 'Blocks' });
+          for (const row of found) if (row.block.kind === 'block' && !row.block.archived) result.push({ block: row.block, section: 'Atoms' });
         }
-        const sorted = result.sort((a, b) => Number(a.section === 'Pages' || a.section === 'Blocks') - Number(b.section === 'Pages' || b.section === 'Blocks') || Number(a.section === 'Blocks') - Number(b.section === 'Blocks'));
+        const sorted = result.sort((a, b) => Number(a.section === 'Pages' || a.section === 'Atoms') - Number(b.section === 'Pages' || b.section === 'Atoms') || Number(a.section === 'Atoms') - Number(b.section === 'Atoms'));
         return sorted;
       });
       const dismiss = () => { if (!busy()) { setState(undefined); restoreFocus(); } };
@@ -120,7 +120,7 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
             setState(undefined);
             showNotice(`Integrated into ${plainText(choice.block.text, target => props.notebook.lookup(target))}.`, change.undo);
           } else {
-            if (!doc.block(current.id)?.position) throw new Error('This block is no longer a perspective.');
+            if (!doc.block(current.id)?.position) throw new Error('This atom is no longer a perspective.');
             let text = doc.block(current.id)!.text;
             if (current.kind === 'holder') {
               const alias = positionLinks(text)[0]?.alias;
@@ -134,7 +134,7 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
         } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
         finally { setBusy(false); }
       };
-      return <Picker<Choice> anchor={current.anchor} placement={window.matchMedia('(max-width: 600px)').matches ? 'sheet' : 'anchor'} label={labels[current.kind]} query={query()} onQuery={setQuery} placeholder={holding ? 'Find a person or group' : current.kind === 'subject' ? 'Find a question, concept or page' : 'Find a page or block'} items={choices() ?? []} key={choice => `${choice.block.id}:${choice.create ?? choice.file ?? ''}`} section={choice => choice.section} onDismiss={dismiss} onPick={choice => { void pick(choice); }} busy={choices.loading || preferred.loading || busy()} error={error() || (choices.error || preferred.error ? String(choices.error || preferred.error) : undefined)} empty="No matching destinations." disabledReason={choice => busy() ? 'Saving…' : choices.loading || preferred.loading ? 'Loading destinations…' : current.kind === 'integrate' && choice.block.id === current.id ? 'A block cannot move into itself.' : undefined}
+      return <Picker<Choice> anchor={current.anchor} placement={window.matchMedia('(max-width: 600px)').matches ? 'sheet' : 'anchor'} label={labels[current.kind]} query={query()} onQuery={setQuery} placeholder={holding ? 'Find a person or group' : current.kind === 'subject' ? 'Find a question, concept or page' : 'Find a page or atom'} items={choices() ?? []} key={choice => `${choice.block.id}:${choice.create ?? choice.file ?? ''}`} section={choice => choice.section} onDismiss={dismiss} onPick={choice => { void pick(choice); }} busy={choices.loading || preferred.loading || busy()} error={error() || (choices.error || preferred.error ? String(choices.error || preferred.error) : undefined)} empty="No matching destinations." disabledReason={choice => busy() ? 'Saving…' : choices.loading || preferred.loading ? 'Loading destinations…' : current.kind === 'integrate' && choice.block.id === current.id ? 'An atom cannot move into itself.' : undefined}
         row={choice => <><Icon name={choice.create || choice.file ? 'plus' : choice.block.kind === 'block' ? 'bullet' : 'note'} /><span class="picker-text"><Show when={choice.create}>{kind => <>Create {entityLabel(kind())} “</>}</Show><Show when={choice.file}>File “</Show><BlockText text={choice.block.text} notebook={props.notebook} interactive={false} /><Show when={choice.create}>”</Show><Show when={choice.file}>{kind => <>” as {entityLabel(kind())}</>}</Show></span><Show when={choice.alias}><span class="reference-via">via {choice.alias}</span></Show><Show when={choice.block.kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={choice.block} notebook={props.notebook} /></span></Show></>} />;
     }}</Show>;
   }

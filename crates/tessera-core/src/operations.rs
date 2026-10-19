@@ -462,7 +462,7 @@ pub(crate) fn derive_capability(
         Operation::SetQuestion { id, .. } => {
             if present && stored(conn, id)?.is_some_and(|row| row.block.kind == BlockKind::Journal)
             {
-                return Err(validation("Make an ordinary block or page a question."));
+                return Err(validation("Make an ordinary atom or page a question."));
             }
             let before = crate::revisit_store::snapshot(conn, id)?;
             let today = crate::settings::today_in_connection(conn, now)?;
@@ -926,7 +926,7 @@ impl Engine<'_, '_> {
             .prepare_cached("SELECT EXISTS(SELECT 1 FROM blocks WHERE id = ?1)")?
             .query_row([id], |row| row.get(0))?;
         if used {
-            Err(validation(format!("block ID is already used: {id}")))
+            Err(validation(format!("atom ID is already used: {id}")))
         } else {
             Ok(())
         }
@@ -1078,9 +1078,7 @@ impl Engine<'_, '_> {
     fn restore(&mut self, current: &Stored, event: &str) -> Result<()> {
         validate_id(event)?;
         if current.deletion_id.as_deref() != Some(event) {
-            return Err(validation(
-                "restore deletion event does not match the block",
-            ));
+            return Err(validation("restore deletion event does not match the atom"));
         }
         if let Some(parent) = &current.block.parent_id {
             self.live(parent)?;
@@ -1149,7 +1147,7 @@ impl Engine<'_, '_> {
     fn ordinal(&self, parent: &str, after: Option<&str>, excluded: Option<&str>) -> Result<i64> {
         if let Some(after) = after {
             if Some(after) == excluded {
-                return Err(validation("a block cannot be placed after itself"));
+                return Err(validation("an atom cannot be placed after itself"));
             }
             let sibling = self.live(after)?;
             if sibling.block.parent_id.as_deref() != Some(parent) {
@@ -1605,8 +1603,8 @@ impl Engine<'_, '_> {
                         "UPDATE sync_conflicts SET settled_at = ?2 WHERE id = ?1",
                         params![id, settled.then_some(self.now)],
                     )?;
-                    let current = stored(self.tx, id)?
-                        .ok_or_else(|| validation("unknown sync copy block"))?;
+                    let current =
+                        stored(self.tx, id)?.ok_or_else(|| validation("unknown sync copy atom"))?;
                     self.tx.execute(
                         "UPDATE blocks SET revision = revision + 1, updated_at = ?2 WHERE id = ?1",
                         params![id, self.now],
@@ -1753,7 +1751,7 @@ impl Engine<'_, '_> {
                     params![id, crate::storage::title_key(title)],
                 )? + usize::from(self.pending_types.remove(&(id.clone(), crate::storage::title_key(title))).is_some());
                 if removed == 0 {
-                    return Err(validation("type has no manual membership"));
+                    return Err(validation("tag has no manual membership"));
                 }
                 self.restructured_pages
                     .insert(current.block.page_id.clone());
@@ -1940,7 +1938,7 @@ impl Engine<'_, '_> {
                 {
                     let block = self.live(target)?;
                     if block.block.kind != BlockKind::Page || block.block.archived {
-                        return Err(validation("target type must be a live page"));
+                        return Err(validation("target tag must be a live page"));
                     }
                 }
                 crate::fields::file_targets(self.tx, id, targets)?;
@@ -1953,7 +1951,7 @@ impl Engine<'_, '_> {
             } => {
                 let current = self.checked(type_id, *base_revision, index, false)?;
                 if current.block.kind != BlockKind::Page {
-                    return Err(validation("type must be a page"));
+                    return Err(validation("tag must be a page"));
                 }
                 let mut unique = HashSet::new();
                 for field in fields {
@@ -1963,7 +1961,7 @@ impl Engine<'_, '_> {
                         )));
                     }
                     if !unique.insert(field) {
-                        return Err(validation("duplicate field in type template"));
+                        return Err(validation("duplicate field in tag template"));
                     }
                 }
                 if let Some(problem) =
@@ -1989,7 +1987,7 @@ impl Engine<'_, '_> {
             } => {
                 let current = self.checked(type_id, *base_revision, index, false)?;
                 if current.block.kind != BlockKind::Page {
-                    return Err(validation("type must be a page"));
+                    return Err(validation("tag must be a page"));
                 }
                 let plural = plural.as_deref().map(str::trim);
                 if plural.is_some_and(str::is_empty) {
@@ -2287,7 +2285,7 @@ impl Engine<'_, '_> {
                     }
                 ) && current.block.kind == BlockKind::Journal
                 {
-                    return Err(validation("Make an ordinary block or page a question."));
+                    return Err(validation("Make an ordinary atom or page a question."));
                 }
                 if matches!(
                     operation,
@@ -2297,7 +2295,7 @@ impl Engine<'_, '_> {
                     }
                 ) && current.block.kind != BlockKind::Block
                 {
-                    return Err(validation("Make an ordinary block an answer."));
+                    return Err(validation("Make an ordinary atom an answer."));
                 }
                 let revisit_before = if matches!(operation, Operation::SetQuestion { .. }) {
                     Some(crate::revisit_store::snapshot(self.tx, id)?)

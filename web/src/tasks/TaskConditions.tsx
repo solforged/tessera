@@ -45,7 +45,7 @@ const conditionChoices: ConditionChoice[] = [
   { kind: 'scheduled', section: 'Task', label: 'Scheduled' },
   { kind: 'deadline', section: 'Task', label: 'Deadline' },
   { kind: 'limit', section: 'Task', label: 'Result limit' },
-  { kind: 'type', section: 'Source', label: 'Type' },
+  { kind: 'type', section: 'Source', label: 'Tag' },
   { kind: 'text', section: 'Source', label: 'Text' },
 ];
 const selectionLabels: Record<TaskSelection, string> = { unfinished: 'Unfinished', unfinished_or_recent: 'Unfinished or recently completed', all: 'All' };
@@ -64,7 +64,7 @@ export function TaskConditions(props: TaskConditionsProps) {
     ...props.fields.map((field): ConditionChoice => ({ kind: 'field', section: 'Fields', label: field.name, field: field.id })),
   ].filter(item => `${item.section} ${item.label}`.toLocaleLowerCase().includes(needle())));
   const projects = createMemo((): NamedChoice[] => [{ id: null, name: 'Any project' }, ...[...props.projects].map(([id, name]) => ({ id, name })).filter(item => item.name.toLocaleLowerCase().includes(needle()))]);
-  const types = createMemo((): NamedChoice[] => [{ id: null, name: 'Any type' }, ...props.notebook.roots().filter(block => block.kind === 'page' && !block.archived && block.text.toLocaleLowerCase().includes(needle())).map(block => ({ id: block.id, name: block.text }))]);
+  const types = createMemo((): NamedChoice[] => [{ id: null, name: 'Any tag' }, ...props.notebook.roots().filter(block => block.kind === 'page' && !block.archived && block.text.toLocaleLowerCase().includes(needle())).map(block => ({ id: block.id, name: block.text }))]);
   const update = (query: TaskQuery) => { if (!props.disabled) props.onChange(query); };
   const updateFilter = (patch: Partial<TaskFilter>) => update({ ...props.query, filter: { ...props.query.filter, ...patch } });
   const updateSource = (value: Query) => update({ ...props.query, source: value.type || value.text?.trim() || value.filters.length ? value : null });
@@ -123,7 +123,7 @@ export function TaskConditions(props: TaskConditionsProps) {
       ]} />;
       if (state.kind === 'priority') return <Menu anchor={state.anchor} label="Task priority" onDismiss={dismiss} items={([null, 'high', 'medium', 'low'] as (TaskPriority | null)[]).map(priority => ({ label: priority ? priorityLabels[priority] : 'Any priority', checked: props.query.filter.priority === priority, disabledReason: props.disabled ? 'Saving task view…' : undefined, action: () => updateFilter({ priority }) }))} />;
       if (state.kind === 'project') return <Picker<NamedChoice> class="task-condition-popup" anchor={state.anchor} width={320} label="Project" query={search()} onQuery={setSearch} placeholder="Find a project" items={projects()} key={item => item.id ?? 'any'} busy={props.metadataLoading} error={props.metadataError} disabledReason={() => props.disabled ? 'Saving task view…' : undefined} onDismiss={dismiss} onPick={item => { updateFilter({ project_id: item.id }); dismiss(); }} row={item => <><Icon name={props.query.filter.project_id === item.id ? 'check' : 'page'} /><span class="picker-text">{item.name}</span></>} empty="No matching projects." />;
-      if (state.kind === 'type') return <Picker<NamedChoice> class="task-condition-popup" anchor={state.anchor} width={320} label="Source type" query={search()} onQuery={setSearch} placeholder="Type name" items={types()} key={item => item.id ?? 'any'} disabledReason={() => props.disabled ? 'Saving task view…' : undefined} onDismiss={dismiss} onPick={item => { updateSource({ ...source(), type: item.id }); dismiss(); }} row={item => <><Icon name={source().type === item.id ? 'check' : 'tag'} /><span class="picker-text">{item.name}</span></>} empty="No matching types." />;
+      if (state.kind === 'type') return <Picker<NamedChoice> class="task-condition-popup" anchor={state.anchor} width={320} label="Source tag" query={search()} onQuery={setSearch} placeholder="Tag name" items={types()} key={item => item.id ?? 'any'} disabledReason={() => props.disabled ? 'Saving task view…' : undefined} onDismiss={dismiss} onPick={item => { updateSource({ ...source(), type: item.id }); dismiss(); }} row={item => <><Icon name={source().type === item.id ? 'check' : 'tag'} /><span class="picker-text">{item.name}</span></>} empty="No matching tags." />;
       if (state.kind === 'range') return <DatePicker notebook={props.notebook} anchor={state.anchor} label={`${state.field === 'scheduled' ? 'Scheduled' : 'Deadline'} ${state.edge}`} value={props.query.filter[state.field]?.[state.edge] ?? null} contextDate={props.date} onDismiss={dismiss} onSelect={value => { update(taskRange(props.query, state.field, state.edge, value.date)); open({ kind: state.field, anchor: state.anchor }); }} />;
       if (state.kind === 'scheduled' || state.kind === 'deadline') {
         const field = state.kind;

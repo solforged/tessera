@@ -327,7 +327,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         const block = await props.notebook.api.block(blockFrom).catch((reason: unknown) => { if (reason instanceof ApiError && reason.status === 404) return null; throw reason; });
         const units = block ? await props.notebook.api.sourceCards(blockFrom) : [];
         candidates = await Promise.all(units.filter(card => card.active && !card.held).map(card => loadReviewCard(props.notebook.api, card.id)));
-        nextScope = block ? cardSubject(block.text) || 'Untitled block' : 'Deleted block';
+        nextScope = block ? cardSubject(block.text) || 'Untitled atom' : 'Deleted atom';
       }
       const queue = currentSession?.state === 'open' ? await sessionQueue(props.notebook.api, candidates, history, restored) : { rows: candidates, restoredUnavailable: false };
       const remaining = queue.rows;
@@ -555,7 +555,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     try {
       // Store only the block, never a copied card definition or schedule. Its cards are due or not.
       localStorage.setItem(`tessera.review-block.${id}`, blockId);
-      await props.notebook.commit([{ op: 'start_review_session', id, deck_id: null, started_at: Date.now() }], 'Review block cards');
+      await props.notebook.commit([{ op: 'start_review_session', id, deck_id: null, started_at: Date.now() }], 'Review atom cards');
       if (!disposed) moveTo({ deckId: null, sessionId: id, selection: 'all' });
     } catch (reason) {
       if (!disposed) setCommandError(reason instanceof Error ? reason.message : String(reason));

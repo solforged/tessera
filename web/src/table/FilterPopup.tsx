@@ -50,7 +50,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
     const members = await relationMembers(props.notebook, field.targets);
     return [...members.pages, ...members.blocks.map(row => row.block)];
   });
-  const label = (block: Block) => block.kind === 'page' ? block.text : targetLabel(block.text, id => props.notebook.lookup(id)) || 'Empty block';
+  const label = (block: Block) => block.kind === 'page' ? block.text : targetLabel(block.text, id => props.notebook.lookup(id)) || 'Empty atom';
   const [names] = createResource(() => identity() && pages() ? { pages: pages()!, query: query() } : false, async ({ pages, query }) => {
     const names = await completeNames(props.notebook, query, pages);
     const other = pages.filter(block => block.kind !== 'page');

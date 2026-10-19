@@ -181,7 +181,7 @@ export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient;
       seen.add(parent);
       const block = props.notebook.lookup(parent)();
       if (!block) break;
-      ancestors.unshift(plainText(block.text, id => props.notebook.lookup(id)) || 'Empty block');
+      ancestors.unshift(plainText(block.text, id => props.notebook.lookup(id)) || 'Empty atom');
       parent = block.parent_id;
     }
     const page = props.notebook.lookup(props.block.page_id)();

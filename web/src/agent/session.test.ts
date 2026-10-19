@@ -182,8 +182,8 @@ test('marks show the newest un-undone change and undo failures retain their mark
   expect(await dock.undo(11)).toBeNull();
   expect(dock.marks().get('a')).toEqual({ seq: 10, summary: 'First' });
   expect(assistant(dock).parts.at(-1)).toMatchObject({ undone: true });
-  server.refuse('This block changed after the agent edit.');
-  expect(await dock.undo(10)).toBe('This block changed after the agent edit.');
+  server.refuse('This atom changed after the agent edit.');
+  expect(await dock.undo(10)).toBe('This atom changed after the agent edit.');
   expect(dock.marks().get('b')).toEqual({ seq: 10, summary: 'First' });
   expect(server.undos).toEqual([11, 10]);
 });

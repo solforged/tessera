@@ -53,9 +53,9 @@ Numbered sections follow with rubric numerals and hairlines, starting at 01 and 
 | Used by | Up to twelve owners with their values in mono: three columns in wide panes, two below 840 px of pane width and one below 480 px. View owner (one owner) or View all N owners opens the field-only table. |
 | Problem values | The written text in rubric beside its owner and the problem. Choice rows offer Make option: create or reuse the matching option and link every matching value in one undoable change. The help reads “Make it an option, or open its owner to edit it.” |
 
-Blocks in the pane header opens the definition in the Fields page, where names and options remain ordinary blocks. Edit definitions opens the Fields page.
+Atoms in the pane header opens the definition in the Fields page, where names and options remain ordinary blocks. Edit definitions opens the Fields page.
 
-Deleting an in-use choice option from Blocks opens an impact confirmation with the affected value and owner counts. Continuing keeps its labels as written problem values, with their child notes, rather than unresolved option IDs. One Undo restores the options and the exact original values.
+Deleting an in-use choice option from Atoms opens an impact confirmation with the affected value and owner counts. Continuing keeps its labels as written problem values, with their child notes, rather than unresolved option IDs. One Undo restores the options and the exact original values.
 
 Choice and relation value pickers check the current value, expose it as selected and start the keyboard cursor there. An unmatched choice query offers `Add option “Y”`; adding the option and selecting it are one undoable change, including in tables. A note's Add field picker offers `Create text field “X”` and `Create field “X” as…`; the latter opens Text, Number, Date, Span, Checkbox, Choice, Relation, URL and Identifier. The definition, chosen kind and entry are created together. A new Choice field opens its value picker so its first option can be added there.
 
@@ -71,7 +71,7 @@ Apply changes the kind and all reviewed mappings in one undoable edit. Unmapped 
 
 ## Links to
 
-Relation definitions show **Links to** below Kind, both on their page and in the Fields inspector. The checklist offers Source first, then the types, and applies as one undoable change; no selection reads **Any block**. Members of the selected types qualify whether they are pages or tagged blocks inside a page, and Source admits any source. A reference outside the selected types stays written and reads as a problem.
+Relation definitions show **Links to** below Kind, both on their page and in the Fields inspector. The checklist offers Source first, then the types, and applies as one undoable change; no selection reads **Any atom**. Members of the selected types qualify whether they are pages or tagged blocks inside a page, and Source admits any source. A reference outside the selected types stays written and reads as a problem.
 
 Library Author, Editor and Translator start with Person and Group targets. Import and the one-time workshop backfill file untyped creator pages as Person without changing pages already filed elsewhere.
 
@@ -79,7 +79,7 @@ Metadata suggestions, field-slot pickers and value pickers for such a field show
 
 Enter commits the relation query as it is written at that moment, including before its candidates arrive. A pending query never permits accepting an older query's highlighted target. The accepted query and target constraints enter the value's durable outbox immediately; reloading during lookup resumes the selection and stores its canonical reference without reopening the picker.
 
-Without Links to types, the picker offers pages, and from the third character also blocks found by search under **Blocks**.
+Without Links to types, the picker offers pages, and from the third character also blocks found by search under **Atoms**.
 
 ## Type page template
 
@@ -89,7 +89,7 @@ Open, it shows the same field rows as the type's Fields tab, described below. Ad
 
 ### Field rows
 
-The type page and the Fields tab list a template with one row design: Name, Kind and Used by in template order. A name opens its field page. Kind reads as Relation → Person, Group for a relation, any block when it has no Links to types, and as Choice · 3 options for a choice field. Kind opens a menu of the nine kinds, then Links to… for a relation, Options… for a choice and Open field page.
+The type page and the Fields tab list a template with one row design: Name, Kind and Used by in template order. A name opens its field page. Kind reads as Relation → Person, Group for a relation, any atom when it has no Links to types, and as Choice · 3 options for a choice field. Kind opens a menu of the nine kinds, then Links to… for a relation, Options… for a choice and Open field page.
 
 - A kind every value already reads as applies in place, as a field with no values always does. Otherwise the field page opens its kind review for that kind.
 - Links to… opens the same Links to chooser as the field page.
@@ -200,7 +200,7 @@ Apparatus headers are sticky on `--canvas`, with the title sticky at the left. C
 
 Source values keep the first authored label and hostname, with a named derived Refs column opening every original URL destination. Labels can be Markdown links or `Title: URL`; bare URLs use their hostname/path. Remaining prose stays visible, and invalid readings retain their warning.
 
-Note and tagged non-page members share the same grid and field cells, ordered notes first and then blocks while retaining query order within each kind. Only a mixed register inserts a full-width mono Tagged blocks row with its count and a hairline above; a block-only register needs no divider. Block titles use the same three-line clamp and More/Less expansion as note titles, followed by a faint apparatus `in <page title>` line (the journal date for journal pages). A run of blocks from one page names it on the first row only. A group heading or the Tagged blocks row starts a new run. Titles reuse the outline's quiet card display: direction arrows are faint and cloze answers have a dotted underline.
+Note and tagged non-page members share the same grid and field cells, ordered notes first and then blocks while retaining query order within each kind. Only a mixed register inserts a full-width mono Tagged atoms row with its count and a hairline above; a block-only register needs no divider. Block titles use the same three-line clamp and More/Less expansion as note titles, followed by a faint apparatus `in <page title>` line (the journal date for journal pages). A run of blocks from one page names it on the first row only. A group heading or the Tagged atoms row starts a new run. Titles reuse the outline's quiet card display: direction arrows are faint and cloze answers have a dotted underline.
 
 Columns past the right edge fade under the rows. `+N ›` at the header's end counts them and scrolls to them.
 
@@ -236,7 +236,7 @@ With text in Find columns, Only these selects the matching columns together, kee
 
 Derived Refs sit beside their visible backing field. Hiding the field also hides its Refs. The separate Refs toggle stays pane-local and is never a saved column key.
 
-Column menus contain sort, filter and hide. Edit field opens the field page and its reviewed kind-change map. Remove from template is separate. Add field to type template and Open type template remain explicit actions.
+Column menus contain sort, filter and hide. Edit field opens the field page and its reviewed kind-change map. Remove from template is separate. Add field to tag template and Open tag template remain explicit actions.
 
 ### Footer
 

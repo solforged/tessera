@@ -31,7 +31,7 @@ fn validate_query_fields(
         && query.source.is_none()
         && !query.selects_notes()
     {
-        return Err(validation("query needs a type, text or filter"));
+        return Err(validation("query needs a tag, text or filter"));
     }
     if let Some(id) = &query.r#type {
         validate_id(id)?;
@@ -156,7 +156,7 @@ fn validate_source_type(conn: &Connection, query: &Query) -> Result<()> {
             ))?
             .query_row([id], |row| row.get::<_, bool>(0))?;
         if !live {
-            return Err(validation(format!("not a live type page: {id}")));
+            return Err(validation(format!("not a live tag page: {id}")));
         }
     }
     Ok(())

@@ -1676,7 +1676,7 @@ function Pane(props: OutlinePaneProps) {
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} relations={holderRelations()} sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))} onOpen={props.onOpen} /></Show>
     <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} onClose={() => setSourceDetailsOpen(false)} /></Show>
     <div ref={heading} class="outline-heading" style={{ visibility: doc.root()?.source && !sourceApparatusReady() ? 'hidden' : undefined }}>
-      <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{rootTitle()}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference), undefined, doc.block(id)?.position?.deleted_holder) || 'Empty block'}</button></>}</For></nav></Show>
+      <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{rootTitle()}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference), undefined, doc.block(id)?.position?.deleted_holder) || 'Empty atom'}</button></>}</For></nav></Show>
       <Show when={isNote()}><NoteEyebrow kinds={noteKinds.error ? undefined : noteKinds.latest} onOpen={props.onOpen} /></Show>
       <Show when={positionZoom()}>{id => <div class="position-dossier">
         <h1><Show when={doc.block(id())?.position?.holder_id ?? doc.block(id())?.position?.deleted_holder?.id} fallback="Unattributed">{holder => <BlockText text={`[[${holder()}]]`} deletedHolder={doc.block(id())?.position?.deleted_holder} notebook={props.notebook} onOpen={props.onOpen} />}</Show>
@@ -1730,7 +1730,7 @@ function Pane(props: OutlinePaneProps) {
         <p class="outline-citation-quote" title={citation.quote}>{citation.quote}</p>
       </Show>}</For>
       <Show when={capabilities.error(props.pageId)}><p class="outline-capability-error" role="alert">{capabilities.error(props.pageId)}</p></Show>
-      <Show when={showArchived()}><p class="archive-notice">Showing archived blocks <button type="button" class="text-button" onClick={() => { setShowArchived(false); scheduleReport(); }}>Hide archived</button></p></Show>
+      <Show when={showArchived()}><p class="archive-notice">Showing archived atoms <button type="button" class="text-button" onClick={() => { setShowArchived(false); scheduleReport(); }}>Hide archived</button></p></Show>
       <Show when={message()}><p class="outline-message" role="alert">{message()} <button class="text-button" type="button" onClick={() => setMessage('')}>Dismiss</button></p></Show>
       <Show when={doc.status() === 'error' || doc.status() === 'missing'}><p role="alert">{doc.statusMessage()}</p></Show>
       <Show when={doc.status() === 'ready' && depth() === 'gloss' && !zoom() && !glossId()}>
@@ -1782,7 +1782,7 @@ function Pane(props: OutlinePaneProps) {
     </section></Show>
     <Show when={!zoom() && sourceHighlights.error}><p class="library-error" role="alert">{String(sourceHighlights.error)}</p></Show>
     <Show when={doc.root()?.source && fields.error}><p class="library-error" role="alert">{String(fields.error)}</p></Show>
-    <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add a block</button></Show>
+    <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add an atom</button></Show>
     <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><Show when={doc.root()!.text === props.notebook.todayDate()}><ResearchToRevisit notebook={props.notebook} onOpen={props.onOpen} /></Show><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
     <Show when={!zoom()}><projectSummary.LinkedTasks /></Show>
@@ -1795,7 +1795,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={doc.root()?.source}><Backlinks cited /></Show>
       <Show when={doc.root()?.source || relatedError() || related()?.total}><Backlinks /></Show>
       <Show when={mentionsAvailable()}><UnlinkedMentions /></Show>
-      <Show when={relatedError() || related()?.tagged.length}><Related title="Tagged blocks" rows={relatedError() ? [] : related()?.tagged ?? []} /></Show>
+      <Show when={relatedError() || related()?.tagged.length}><Related title="Tagged atoms" rows={relatedError() ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show when={doc.status() === 'ready' && zoom()}><div class="related-sections"><Backlinks /></div></Show>
     <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>

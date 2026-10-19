@@ -24,7 +24,7 @@ Rows stay on one line: the kind's glyph in `--faint`, the name at control size, 
 | --- | --- |
 | Note kind | Titled notes. |
 | Questions | Visible question blocks, including inline questions. |
-| Tag-only type | Tagged blocks. The row uses the tag's spelling, not an automatic plural. |
+| Tag-only type | Tagged atoms. The row uses the tag's spelling, not an automatic plural. |
 | Fields | Live named definitions, including archived definitions, as in the Fields register. Always shown, including at zero. |
 | Empty built-in kind | The same row, named in `--faint` without a count, on its shelf. Each name opens its finding aid. |
 
@@ -106,7 +106,7 @@ Opening a blank note does not add stored blocks. Add a block starts writing only
 
 Each row has File and a titled Note actions menu containing Open, File under…, Rename…, Delete… and More…. More holds Merge into… and Copy reference, which copies `[[id]]`. The existing title and apparatus header stays above the root rows; Back returns from More, and Close, Escape or clicking outside dismisses the menu. Desktop and unfolded layouts pair the list with a selected-note inspector, a short excerpt from its first three visible prose blocks (separate from the gloss), and links to its referring pages. The excerpt is bounded to eight display lines. The touch cover uses a filing sheet above navigation.
 
-The shared one-step type picker serves row File, the inspector and bulk filing. Clicking a type or pressing Enter files immediately; Create type “X” and file creates and files in the same acknowledged batch. Escape or clicking away cancels. The list reserves at least three full rows (or all choices when fewer), scrolls internally and flips above the trigger when there is more room there. After filing, focus moves to the next remaining row's File button, or the previous row when the queue ends.
+The shared one-step type picker serves row File, the inspector and bulk filing. Clicking a type or pressing Enter files immediately; Create tag “X” and file creates and files in the same acknowledged batch. Escape or clicking away cancels. The list reserves at least three full rows (or all choices when fewer), scrolls internally and flips above the trigger when there is more room there. After filing, focus moves to the next remaining row's File button, or the previous row when the queue ends.
 
 Checkboxes appear at each row's left on hover or keyboard focus and stay visible when selected or on touch screens. Cmd/Ctrl-click toggles selection; Shift-click extends it in visible queue order. The selection bar shows `N selected`, `File…` and `Clear`; changing All, With text or Blank clears it. Bulk File uses `FILE N NOTES`, names up to three titles followed by `and N more`, and files every selected note in one attributed batch. The filing status offers one Undo for the whole batch, using revision checks so later edits are not overwritten. Undo removes memberships but retains a newly created type page; without remaining members or template fields, that page returns to Unfiled. Rename uses the canonical page document; merge and delete retain their existing confirmations and undo rules.
 
@@ -152,7 +152,7 @@ Rename, Merge into…, Pin or Unpin and Open beside stay at the top. Description
 
 Built-in tag pages are system pages. Their title control, Rename, Merge and Delete actions are disabled with the engine's refusal, for example `Task is a built-in tag; its name cannot change.` The core permits a change of case but never a different name. Removing a task, question, project or source removes its written tag token when present; its glyph is that tag's pill at rest.
 
-Types… lists Add type… and a Remove action for each manual membership, on filed and unfiled pages alike. Add uses the shared type picker; removing a type keeps the note's written field values and is undoable. Commands offers Page types…, Add page type… and Remove page type… without requiring a selected body row. The kind names above the title still open their finding aids.
+Tags… lists Add tag… and a Remove action for each manual membership, on filed and unfiled pages alike. Add uses the shared type picker; removing a type keeps the note's written field values and is undoable. Commands offers Page tags…, Add page tag… and Remove page tag… without requiring a selected body row. The kind names above the title still open their finding aids.
 
 Compare remains a projection tab and palette command, and Undo and Redo remain palette commands and shortcuts rather than menu rows. On coarse phones the menu becomes a bottom sheet with Close, 44 px rows and Back for drill-ins; it scrolls on shorter screens.
 

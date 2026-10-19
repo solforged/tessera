@@ -188,7 +188,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     const total = () => section.cited ? related()?.citationTotal ?? 0 : related()?.total ?? 0;
     const remaining = () => Math.max(0, total() - shown());
     return <details class="related-section backlinks-section" open onToggle={event => setOpen(event.currentTarget.open)}>
-      <summary>{section.cited ? 'Cited in' : zoom() ? 'Linked to this block' : 'Backlinks'} <span>{scoped() ? blockBacklinks.error ? 'Unavailable' : blockBacklinks()?.length ?? 'Loading…' : relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : total()}</span></summary>
+      <summary>{section.cited ? 'Cited in' : zoom() ? 'Linked to this atom' : 'Backlinks'} <span>{scoped() ? blockBacklinks.error ? 'Unavailable' : blockBacklinks()?.length ?? 'Loading…' : relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : total()}</span></summary>
       <Show when={open()}>
         <Show when={scoped() ? blockBacklinks.error : relatedError()}><p role="alert">Couldn't load backlinks.</p></Show>
         <For each={pages()}>{pageId => {
@@ -200,7 +200,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
             <h3 class="backlink-group-heading"><Button role="link" onClick={event => props.onOpen({ kind: 'page', pageId }, opensBeside(event))}>{page().kind === 'journal' ? journalDayLabel(page().text) : page().text}</Button><span>{ids().length}</span></h3>
             <For each={ids()}>{id => <div class="backlink-entry">
               <BacklinkSource block={sources().get(id)!.source} page={group().page} notebook={props.notebook} onOpen={props.onOpen} />
-              <For each={hiddenTargets(sources().get(id)!.source.text, sources().get(id)!.targets)}>{target => <Button class="backlink-target" onClick={() => zoomTo(target)}>→ {plainText(doc.block(target)?.text ?? props.notebook.lookup(target)()?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty block'}</Button>}</For>
+              <For each={hiddenTargets(sources().get(id)!.source.text, sources().get(id)!.targets)}>{target => <Button class="backlink-target" onClick={() => zoomTo(target)}>→ {plainText(doc.block(target)?.text ?? props.notebook.lookup(target)()?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty atom'}</Button>}</For>
             </div>}</For>
           </section>;
         }}</For>
@@ -272,7 +272,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       if (next !== propsRelated.expanded) propsRelated.onExpanded?.(next);
     }}><summary>{propsRelated.title} <span>{relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span></summary>
       <Show when={expanded()}>
-      <Show when={!relatedError()} fallback={<p role="alert">Couldn't load related blocks.</p>}>
+      <Show when={!relatedError()} fallback={<p role="alert">Couldn't load related atoms.</p>}>
       <For each={propsRelated.rows}>{result => {
         const live = props.notebook.lookup(result.block.id);
         return <div class="related-block" data-reading-id={propsRelated.relations ? result.block.id : undefined} data-open-page={result.page.id} data-open-block={result.block.id} data-open-label={result.page.text}><div class="related-open" role="link" tabIndex={0} title={`Open · ${besideHint}`} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, opensBeside(event)); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, opensBeside(event))}>

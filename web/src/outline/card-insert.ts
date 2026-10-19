@@ -35,7 +35,7 @@ export function insertCard(text: string, kind: InsertCardKind, at = text.length)
 
 /** Wrap one plain-text selection, preserving its surrounding whitespace. */
 export function makeCloze(text: string, from: number, to = from): CardInsertion | { reason: string } {
-  if (hasCardOperator(text)) return { reason: 'This block already has a card operator.' };
+  if (hasCardOperator(text)) return { reason: 'This atom already has a card operator.' };
   const overlaps = (start: number, end: number) => from === to ? from > start && from < end : from < end && to > start;
   if (cardMarks(text).some(mark => mark.kind === 'cloze' && overlaps(mark.start, mark.end))
     || parseCardText(text).problems.some(problem => overlaps(problem.start, problem.end))) {

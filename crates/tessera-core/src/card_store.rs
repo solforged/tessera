@@ -311,7 +311,7 @@ fn reviewed(conn: &Connection, source_id: &str) -> Result<bool> {
 pub(crate) fn guard_merge(conn: &Connection, source_id: &str) -> Result<()> {
     if reviewed(conn, source_id)? {
         return Err(validation(
-            "this block has card review history and cannot be merged away",
+            "this atom has card review history and cannot be merged away",
         ));
     }
     Ok(())
@@ -335,12 +335,12 @@ pub(crate) fn guard_split(conn: &Connection, id: &str, left: &str, right: &str) 
     }
     if !left.is_empty() {
         return Err(validation(
-            "split at the end of the card text to keep it on one block",
+            "split at the end of the card text to keep it on one atom",
         ));
     }
     if reviewed(conn, id)? {
         return Err(validation(
-            "reviewed cards must stay on their original block",
+            "reviewed cards must stay on their original atom",
         ));
     }
     Ok(())

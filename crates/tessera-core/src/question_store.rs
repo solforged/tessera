@@ -262,7 +262,7 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, today: &str) -> Re
                 .expect("Engine checked block");
             if current.assessment.is_some() && question.is_some() {
                 return Err(validation(
-                    "A block cannot be both a question and an answer.",
+                    "An atom cannot be both a question and an answer.",
                 ));
             }
             let previous = current.question.as_ref();
@@ -362,7 +362,7 @@ pub(crate) fn apply(conn: &Connection, operation: &Operation, today: &str) -> Re
                 validate_civil_date(&next.assessed_on)?;
                 if current.question.is_some() {
                     return Err(validation(
-                        "A block cannot be both a question and an answer.",
+                        "An atom cannot be both a question and an answer.",
                     ));
                 }
                 let owner = current

@@ -175,7 +175,7 @@ export function ComparePane(props: ComparePaneProps) {
           </div>
         </Show>
         <Show when={tab() === 'readings'}>
-        <Show when={perspectives().length >= 2} fallback={<p class="empty-state">Compare needs two or more perspectives filed under this page. Make a block a perspective from its menu and write its Gist beneath it.</p>}>
+        <Show when={perspectives().length >= 2} fallback={<p class="empty-state">Compare needs two or more perspectives filed under this page. Make an atom a perspective from its menu and write its Gist beneath it.</p>}>
           <div class="compare-readings" style={{ '--reading-count': selected().length }}><For each={selected()}>{perspective => {
             const page = perspective.row.block.page.id;
             const id = perspective.row.block.block.id;

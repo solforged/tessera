@@ -11,8 +11,8 @@ export const questionVerbs: Record<string, string> = {
 
 export const questionDescriptions: Record<string, string> = {
   ...questionVerbs,
-  'Make question': 'Marks this block as an active question.',
-  'Make assessment': 'Dates this block as an assessment without accepting it.',
+  'Make question': 'Marks this atom as an active question.',
+  'Make assessment': 'Dates this atom as an assessment without accepting it.',
   'Set revisit date…': 'Sets the date this question comes back.',
   'Set parent question…': 'Names this question’s parent.',
   'Remove parent': 'Clears the named parent; its place supplies any parent.',

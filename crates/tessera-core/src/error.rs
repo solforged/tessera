@@ -17,7 +17,7 @@ pub enum Error {
     /// An operation was based on a revision that is no longer current. The
     /// whole batch wrote nothing. `found` is `None` when the block is gone.
     #[error(
-        "operation {op_index} is stale for block {id}: expected revision {expected}, found {found:?}"
+        "operation {op_index} is stale for atom {id}: expected revision {expected}, found {found:?}"
     )]
     Conflict {
         op_index: usize,
@@ -25,7 +25,7 @@ pub enum Error {
         expected: i64,
         found: Option<i64>,
     },
-    #[error("block {id} not found (operation {op_index:?})")]
+    #[error("atom {id} not found (operation {op_index:?})")]
     NotFound { id: String, op_index: Option<usize> },
     /// The request breaks a domain rule. The whole batch wrote nothing.
     #[error("{message} (operation {op_index:?})")]

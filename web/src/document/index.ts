@@ -557,15 +557,15 @@ export class Notebook implements NotebookClient, DocumentHost {
         }));
         const sourceDoc = docs[pages.indexOf(source.page_id)]!;
         const destinationDoc = docs[pages.indexOf(destination.page_id)]!;
-        if (sourceDoc.root()?.kind !== 'journal' || source.kind !== 'block') throw new Error('Integrate a block from a journal day.');
+        if (sourceDoc.root()?.kind !== 'journal' || source.kind !== 'block') throw new Error('Integrate an atom from a journal day.');
         const block = await this.api.block(id);
-        if (!block.parent_id || block.page_id !== source.page_id) throw new Error('The block moved while choosing its destination.');
+        if (!block.parent_id || block.page_id !== source.page_id) throw new Error('The atom moved while choosing its destination.');
         const parentId = block.parent_id;
         const siblings = sourceDoc.outline.children(parentId);
         const after = siblings[siblings.indexOf(id) - 1] ?? null;
         let ancestor: string | null = destinationId;
         while (ancestor) {
-          if (ancestor === id) throw new Error('A block cannot move into its own subtree.');
+          if (ancestor === id) throw new Error('An atom cannot move into its own subtree.');
           ancestor = destinationDoc.block(ancestor)?.parentId ?? null;
         }
         const referenceId = ulid();
@@ -577,7 +577,7 @@ export class Notebook implements NotebookClient, DocumentHost {
           try {
             await Promise.all(opened.map(async doc => { if (doc.status() === 'loading') await doc.reload(false); await doc.flush(); }));
             const current = await this.api.block(id);
-            if (current.parent_id !== (forward ? parentId : destinationId)) throw new Error('The block moved since this change. Its current place was kept.');
+            if (current.parent_id !== (forward ? parentId : destinationId)) throw new Error('The atom moved since this change. Its current place was kept.');
             const operations: Operation[] = [];
             if (forward) {
               const dest = opened[pages.indexOf(destination.page_id)]!;
@@ -592,7 +592,7 @@ export class Notebook implements NotebookClient, DocumentHost {
               operations.push({ op: 'delete', id: referenceId, base_revision: reference.revision });
               operations.push({ op: 'move', id, base_revision: current.revision, parent_id: parentId, after });
             }
-            const receipt = await this.commitOperations(operations, forward ? 'Integrate journal block' : 'Undo integration', pages, false);
+            const receipt = await this.commitOperations(operations, forward ? 'Integrate journal atom' : 'Undo integration', pages, false);
             referenceRevision = receipt.revisions.find(value => value.id === referenceId)!.revision;
             if (!forward) deletionId = receipt.deletions[0];
             applied = forward;
@@ -608,7 +608,7 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   async moveBlocks(ids: readonly string[], destinationId: string): Promise<DocumentChange> {
     return this.serializeSourceChange(async () => {
-      if (!ids.length) throw new Error('Select blocks to move.');
+      if (!ids.length) throw new Error('Select atoms to move.');
       const first = await this.api.block(ids[0]!);
       if (first.page_id === destinationId) throw new Error('Choose another page.');
       const pages = [first.page_id, destinationId];
@@ -627,7 +627,7 @@ export class Notebook implements NotebookClient, DocumentHost {
           predecessors.set(block.id, previous.get(block.parent_id!) ?? null);
           previous.set(block.parent_id!, block.id);
         }
-        if (ids.some(id => !blocks.has(id))) throw new Error('A selected block moved or was deleted.');
+        if (ids.some(id => !blocks.has(id))) throw new Error('A selected atom moved or was deleted.');
         const roots = source.rows.filter(({ block }) => {
           if (!selected.has(block.id)) return false;
           for (let parent = block.parent_id; parent && parent !== source.root.id; parent = blocks.get(parent)?.parent_id ?? null) if (selected.has(parent)) return false;
@@ -642,7 +642,7 @@ export class Notebook implements NotebookClient, DocumentHost {
             await Promise.all(docs.map(async doc => { if (doc.status() === 'loading') await doc.reload(false); await this.flushPage(doc.pageId); }));
             const current = await Promise.all(roots.map(root => this.api.block(root.id)));
             if (current.some((block, index) => block.parent_id !== (forward ? roots[index]!.parentId : destinationId)
-              || block.page_id !== (forward ? first.page_id : destinationId))) throw new Error('A block moved since this change. Its current place was kept.');
+              || block.page_id !== (forward ? first.page_id : destinationId))) throw new Error('An atom moved since this change. Its current place was kept.');
             const target = forward ? await this.api.page(destinationId) : null;
             let after = target?.rows.filter(row => row.depth === 0).at(-1)?.block.id ?? null;
             const operations: Operation[] = roots.map((root, index) => {
@@ -650,7 +650,7 @@ export class Notebook implements NotebookClient, DocumentHost {
               after = root.id;
               return operation;
             });
-            await this.commitOperations(operations, forward ? 'Move blocks to page' : 'Undo move to page', pages, false);
+            await this.commitOperations(operations, forward ? 'Move atoms to page' : 'Undo move to page', pages, false);
             applied = forward;
           } finally { for (const doc of docs) doc.release(); }
         };
@@ -671,9 +671,9 @@ export class Notebook implements NotebookClient, DocumentHost {
       try {
         if (journal.status() === 'loading') await journal.reload(false);
         await journal.flush();
-        if (journal.root()?.kind !== 'journal' || source.kind !== 'block') throw new Error('Promote a block from a journal day.');
+        if (journal.root()?.kind !== 'journal' || source.kind !== 'block') throw new Error('Promote an atom from a journal day.');
         const row = await this.api.block(id);
-        if (row.page_id !== source.page_id) throw new Error('The block moved while making it a project.');
+        if (row.page_id !== source.page_id) throw new Error('The atom moved while making it a project.');
         const children = [...journal.outline.children(id)];
         const found = await this.pageByTitle(name, false);
         const existing = found ? await this.api.block(found) : null;
@@ -690,7 +690,7 @@ export class Notebook implements NotebookClient, DocumentHost {
           const operations: Operation[] = [];
           const current = await this.api.block(id);
           if (forward) {
-            if (current.text !== originalText) throw new Error('The journal block changed since this change. Its current text was kept.');
+            if (current.text !== originalText) throw new Error('The journal atom changed since this change. Its current text was kept.');
             if (created) operations.push(deletionId
               ? { op: 'restore', id: pageId, deletion_id: deletionId, revision: pageRevision }
               : { op: 'create_page', id: pageId, title: name });
@@ -825,7 +825,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       if (!block) {
         const cached = this.cache.get(id)?.[0]();
         const saved = doc.baseBlocks.get(id) ?? (cached && this.docs.get(cached.page_id)?.baseBlocks.get(id)) ?? cached;
-        if (!saved) throw new Error('The block no longer exists.');
+        if (!saved) throw new Error('The atom no longer exists.');
         block = { ...saved };
         working.set(id, block);
         initialRevisions.set(id, saved.revision);
@@ -884,7 +884,7 @@ export class Notebook implements NotebookClient, DocumentHost {
         case 'workNote':
         case 'workState': {
           const block = current(action.id);
-          if (action.baseRevision !== initialRevisions.get(action.id)) throw new Error('The capability source changed. Rejected command kept; refresh before applying it again.');
+          if (action.baseRevision !== initialRevisions.get(action.id)) throw new Error('The atom changed. Rejected command kept; refresh before applying it again.');
           let value = capabilities.get(action.id);
           if (!value) { value = doc.capabilities(action.id, true); capabilities.set(action.id, value); }
           let changed = true;

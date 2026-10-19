@@ -103,7 +103,7 @@ type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; pagePresenta
 type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 /** A drop replaces a pane, or inserts a new one at a position in the row. */
 type DropZone = { replace: PaneId } | { insert: number };
-const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Blocks' };
+const vimLabels: Record<Exclude<VimMode, null>, string> = { insert: 'Insert', normal: 'Normal', visual: 'Visual', outline: 'Atoms' };
 type PopupState = { kind: 'search' | 'commands' | 'calendar' | 'new-view' | 'delete' | 'restore-pages' | 'layout' | 'shortcuts'; anchor: HTMLElement; pane: PaneId; date?: string; source?: boolean } | null;
 const emptySession = (): PaneSession => ({ entries: [], index: -1, generation: 0 });
 let paneSequence = 0;
@@ -723,7 +723,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.delete', title: 'Delete page', section: 'Page', run: () => { const anchor = document.querySelector<HTMLButtonElement>(`[data-pane="${active()}"] .page-menu-button`); if (anchor) setPopup({ kind: 'delete', anchor, pane: active() }); } },
     { id: 'shell.restore-page', title: 'Undo page deletion', section: 'Page', disabledReason: () => deleted() ? undefined : retainedDeletions.error ? 'Could not read deleted pages' : retainedDeletions.loading ? 'Loading deleted pages…' : retainedDeletions()?.length ? undefined : 'No deleted page to restore', run: () => { void restorePage(); } },
     { id: 'shell.deleted-pages', title: 'Restore deleted page…', section: 'Page', run: () => setPopup({ kind: 'restore-pages', anchor: searchButton, pane: active() }) },
-    { id: 'shell.review-conflict', title: 'Review workshop conflict', section: 'Editing', disabledReason: () => notebook.conflictedPages().length ? undefined : 'No conflicting blocks', run: reviewConflict },
+    { id: 'shell.review-conflict', title: 'Review workshop conflict', section: 'Editing', disabledReason: () => notebook.conflictedPages().length ? undefined : 'No conflicting atoms', run: reviewConflict },
     { id: 'shell.retry', title: 'Retry saving', section: 'Editing', disabledReason: () => notebook.saveState() === 'saved' && notebook.connection() === 'live' ? 'All changes are saved' : undefined, run: () => notebook.retry() },
     { id: 'shell.copy-unsaved', title: 'Copy unsaved text', section: 'Editing', disabledReason: () => notebook.localPersistence() === 'failed' || notebook.rejectedText() ? undefined : 'Local recovery storage is working', run: () => { void navigator.clipboard.writeText(notebook.rejectedText() || notebook.unsavedText()).catch(reportError); } },
     { id: 'shell.dismiss-rejected', title: 'Dismiss rejected changes', section: 'Editing', disabledReason: () => notebook.rejectedText() ? undefined : 'No rejected changes', run: () => notebook.dismissRejected() },
@@ -813,7 +813,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     if (target?.kind === 'field') return `Fields / ${notebook.lookup(target.fieldId)()?.text ?? 'Definition'}`;
     if (target?.kind === 'index') return views()?.find(view => view.id === target.viewId)?.name ?? indexKind(pane)?.plural;
     if (target?.kind === 'fields' && target.typeId) return rootById().get(target.typeId)?.text;
-    if (target?.kind === 'cards') return `${rootById().get(target.typeId)?.text ?? 'Type'} / Cards${target.applyId ? ' / Apply' : ''}`;
+    if (target?.kind === 'cards') return `${rootById().get(target.typeId)?.text ?? 'Tag'} / Cards${target.applyId ? ' / Apply' : ''}`;
     if (target?.kind !== 'table') return undefined;
     return (views() ?? []).find(view => view.id === target.viewId)?.name ?? rootById().get(target.typeId ?? '')?.text;
   };
@@ -1147,9 +1147,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     <Show when={questionsMenu()}>{anchor => <Menu anchor={anchor()} label="Questions" onDismiss={() => setQuestionsMenu(undefined)} items={[
       { label: 'Open research desk', icon: 'panes', action: () => { setQuestionsMenu(undefined); open(deskTarget()); } },
     ]} />}</Show>
-    <Show when={typesMenu()}>{state => <Menu anchor={state().anchor} label="Types" onDismiss={() => setTypesMenu(null)} items={[
+    <Show when={typesMenu()}>{state => <Menu anchor={state().anchor} label="Tags" onDismiss={() => setTypesMenu(null)} items={[
       { label: 'Library', icon: 'library', checked: entry(active())?.target.kind === 'library', action: () => open({ kind: 'library' }) },
-      ...state().types.map(type => ({ section: 'Types', label: type.page.text, icon: 'table' as const, checked: activeTypeId() === type.page.id,
+      ...state().types.map(type => ({ section: 'Tags', label: type.page.text, icon: 'table' as const, checked: activeTypeId() === type.page.id,
         action: () => open({ kind: 'table', typeId: type.page.id, viewId: null, query: { type: type.page.id, text: null, filters: [], sort: [], limit: null } }) })),
     ]} />}</Show>
     <Show keyed when={popup()}>{state => <>
@@ -1170,7 +1170,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       </Show>
       <Show when={state.kind === 'delete'}>
         <Popup anchor={state.anchor} label="Delete page" onDismiss={() => setPopup(null)} width={300} fitContent>
-          <p>Delete “{notebook.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ?? rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}” and {state.source ? 'its highlights' : 'all its blocks'}?</p>
+          <p>Delete “{notebook.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ?? rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}” and {state.source ? 'its highlights' : 'all its atoms'}?</p>
           <HolderDeletionImpact notebook={notebook} pageId={pageIdOf(entry(state.pane))} />
           <p class="muted">Undo this deletion, or use Restore deleted page in Commands after reloading.</p>
           <div class="popup-actions"><Button onClick={() => setPopup(null)}>Cancel</Button><Button icon="trash" class="danger bordered" disabled={!!deleteDisabledReason(state.pane)} title={deleteDisabledReason(state.pane)} onClick={() => { void deletePage(state.pane); }}>Delete page</Button></div>
@@ -1458,7 +1458,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       { label: 'Add alias', icon: 'edit', disabledReason: outlineCommand('alias')?.disabledReason?.(), action: () => outlineCommand('alias')?.run() },
     ] }) } satisfies MenuItem] : []),
     { label: 'Add field…', icon: 'field', divider: !titled(), disabledReason: outlineCommand('add-field-root')?.disabledReason?.(), action: () => outlineCommand('add-field-root')?.run() },
-    { label: 'Types…', icon: 'tag', disabledReason: outlineCommand('types-root')?.disabledReason?.(), action: () => outlineCommand('types-root')?.run() },
+    { label: 'Tags…', icon: 'tag', disabledReason: outlineCommand('types-root')?.disabledReason?.(), action: () => outlineCommand('types-root')?.run() },
     ...(makeItems().length ? [{ label: 'Make…', icon: 'plus', submenu: () => ({ title: 'Make', items: makeItems(), note: 'Each adds to this note and keeps its text.' }) } satisfies MenuItem] : []),
     ...(root()?.task ? [{ label: 'Task…', icon: 'select', disabledReason: outlineCommand('task-root')?.disabledReason?.(), action: () => rootCapability('task') } satisfies MenuItem] : []),
     ...(root()?.project ? [{ label: 'Project…', icon: 'flag', disabledReason: outlineCommand('project-root')?.disabledReason?.(), action: () => rootCapability('project') } satisfies MenuItem] : []),
@@ -1499,7 +1499,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Icon class="pane-kind" name={kindIcon()} />
       <Show when={props.split}><span class="pane-number" aria-hidden="true">{props.number}</span></Show>
       <Show when={pageId()}>
-        <nav class="pane-breadcrumbs" aria-label="Page breadcrumbs" style={{ visibility: root() ? undefined : 'hidden' }}><Show when={root()?.source && !breadcrumbs().length}><Button class="breadcrumb-library" onClick={event => props.onOpen({ kind: 'library' }, opensBeside(event))}>Library</Button><span class="breadcrumb-separator">/</span></Show><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{plainText(block.text, id => props.notebook.lookup(id), undefined, block.position?.deleted_holder) || 'Empty block'}</Button></>}</For></nav>
+        <nav class="pane-breadcrumbs" aria-label="Page breadcrumbs" style={{ visibility: root() ? undefined : 'hidden' }}><Show when={root()?.source && !breadcrumbs().length}><Button class="breadcrumb-library" onClick={event => props.onOpen({ kind: 'library' }, opensBeside(event))}>Library</Button><span class="breadcrumb-separator">/</span></Show><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{root()?.text ?? 'Loading…'}</Button><For each={breadcrumbs()}>{block => <><span class="breadcrumb-separator">/</span><Button onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{plainText(block.text, id => props.notebook.lookup(id), undefined, block.position?.deleted_holder) || 'Empty atom'}</Button></>}</For></nav>
         <Show when={root()?.kind === 'journal'}><nav class="journal-navigation" aria-label="Journal navigation">
           <Button icon="left" label="Previous journal day" onClick={() => props.onShiftDate(-1)} />
           <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
@@ -1512,7 +1512,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
           <span class="depth-label" aria-hidden="true">{depthLabels[depth()]}</span>
         </div></Show>
         <span class="pane-save-state" data-state={saveState()} title={doc()?.saveMessage()}><Show when={saveState() !== 'saved' && saveState() !== 'queued' && (saveState() !== 'saving' || slowSave())} fallback={<><span class="save-dot" /><span class="visually-hidden">{saveState() === 'saved' ? 'Saved' : 'Saving…'}</span></>}><Icon name={saveState() === 'offline' ? 'offline' : saveState() === 'error' || saveState() === 'conflict' ? 'warning' : 'saving'} />{status()}</Show></span>
-        <Show when={props.vim && props.active}><span class="vim-mode" data-mode={props.vimMode ?? 'outline'} title={props.vimMode === 'insert' ? 'Vim: typing into the block' : props.vimMode === 'visual' ? 'Vim: selecting text' : props.vimMode === 'normal' ? 'Vim: commands inside the block' : 'Vim: moving between blocks'}>{vimLabels[props.vimMode ?? 'outline']}</span></Show>
+        <Show when={props.vim && props.active}><span class="vim-mode" data-mode={props.vimMode ?? 'outline'} title={props.vimMode === 'insert' ? 'Vim: typing into the atom' : props.vimMode === 'visual' ? 'Vim: selecting text' : props.vimMode === 'normal' ? 'Vim: commands inside the atom' : 'Vim: moving between atoms'}>{vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
       <Show when={!pageId() && current().target.kind !== 'field'}><Show when={current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined} fallback={<span class="pane-breadcrumbs">{props.title ?? paneLabel(current().target)}</span>}>{target =>
         <nav class="pane-breadcrumbs" aria-label="Source breadcrumbs"><Button class="breadcrumb-library" onClick={event => props.onOpen({ kind: 'library' }, opensBeside(event))}>Library</Button><span class="breadcrumb-separator">/</span><Button onClick={event => props.onOpen({ kind: 'page', pageId: target().sourceId }, opensBeside(event))}>{props.notebook.lookup(target().sourceId)()?.text ?? 'Reader'}</Button></nav>
@@ -1526,7 +1526,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       </Show>
       <Show when={current().target.kind === 'field' ? current().target as Extract<OpenTarget, { kind: 'field' }> : undefined}>{target => <>
         <nav class="pane-breadcrumbs" aria-label="Field breadcrumbs"><Button onClick={event => props.onOpen({ kind: 'fields' }, opensBeside(event))}>Fields</Button><span class="breadcrumb-separator">/</span><Button onClick={event => props.onOpen({ kind: 'field', fieldId: target().fieldId }, opensBeside(event))}>{props.notebook.lookup(target().fieldId)()?.text ?? 'Definition'}</Button></nav>
-        <Button disabled={!props.notebook.lookup(target().fieldId)()} onClick={event => { const field = props.notebook.lookup(target().fieldId)(); if (field) props.onOpen({ kind: 'page', pageId: field.page_id, blockId: field.id }, opensBeside(event)); }}>Blocks</Button>
+        <Button disabled={!props.notebook.lookup(target().fieldId)()} onClick={event => { const field = props.notebook.lookup(target().fieldId)(); if (field) props.onOpen({ kind: 'page', pageId: field.page_id, blockId: field.id }, opensBeside(event)); }}>Atoms</Button>
       </>}</Show>
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Page menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>

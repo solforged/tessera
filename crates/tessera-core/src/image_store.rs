@@ -63,7 +63,7 @@ pub(crate) fn set(
     image: Option<&ImageRef>,
 ) -> Result<bool> {
     if block.kind != BlockKind::Block {
-        return Err(validation("Only an outline block can hold an image."));
+        return Err(validation("Only an outline atom can hold an image."));
     }
     let Some(image) = image else {
         return Ok(conn
@@ -147,7 +147,7 @@ fn active(conn: &Connection, id: &str) -> Result<bool> {
 
 pub(crate) fn guard_merge(conn: &Connection, id: &str) -> Result<()> {
     if active(conn, id)? {
-        return Err(validation("Image blocks can't be merged."));
+        return Err(validation("Image atoms can't be merged."));
     }
     Ok(())
 }

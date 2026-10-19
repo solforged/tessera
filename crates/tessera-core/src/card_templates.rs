@@ -197,7 +197,7 @@ pub(crate) fn apply(
         validate_id(id)?;
         let owner = crate::storage::stored(conn, type_id)?.ok_or_else(|| not_found(type_id))?;
         if owner.block.kind != BlockKind::Page || owner.deletion_id.is_some() {
-            return Err(validation("template type must be a live page"));
+            return Err(validation("template tag must be a live page"));
         }
         validate(conn, name, front, back, *new_per_day)?;
         if conn.query_row(

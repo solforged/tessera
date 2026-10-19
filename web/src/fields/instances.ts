@@ -54,7 +54,7 @@ export async function relationCandidates(notebook: NotebookClient, members: Rela
     : [];
   const blocks = found.flatMap(row => {
     if (row.block.id === owner?.id) return [];
-    const label = targetLabel(row.block.text, lookup) || 'Empty block';
+    const label = targetLabel(row.block.text, lookup) || 'Empty atom';
     return !targeted || foldName(label).includes(needle) ? [{ block: row.block, page: row.page, label, alias: null, here: row.page.id === owner?.page }] : [];
   }).sort((a, b) => Number(b.here) - Number(a.here) || a.label.localeCompare(b.label));
   const pages = names.rows.filter(match => match.page.id !== owner?.id).map(match => ({ block: match.page, page: null, label: match.page.text, alias: match.alias, here: false }));
@@ -75,7 +75,7 @@ export async function resolveRelationPick(notebook: NotebookClient, intent: Rela
     else {
       const types = await Promise.all(intent.targets.map(id => notebook.api.block(id)));
       const type = types.find(type => !type.archived);
-      if (intent.targets.length && !type) throw new Error('The relation target types are no longer available. Its text was kept.');
+      if (intent.targets.length && !type) throw new Error('The relation target tags are no longer available. Its text was kept.');
       create = { typeTitle: type?.text };
     }
   }

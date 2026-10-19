@@ -423,7 +423,7 @@ export class PaneEditor {
         this.reportMode();
       }),
     ] }) });
-    this.view.contentDOM.setAttribute('aria-label', 'Block text');
+    this.view.contentDOM.setAttribute('aria-label', 'Atom text');
     // CM skips extension key handlers during composition. The native commit
     // key belongs to the IME, not contenteditable's default newline insertion.
     this.view.contentDOM.addEventListener('keydown', event => {

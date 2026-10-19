@@ -163,7 +163,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       const [error, setError] = createSignal('');
       return <Popup anchor={state.anchor} label="Remove highlight" placement="top" onDismiss={() => { if (!busy()) setRemoval(undefined); }}>
         <h3 class="popup-title">Remove highlight?</h3>
-        <p>This also deletes {state.written} written child {state.written === 1 ? 'block' : 'blocks'} and breaks {state.references} incoming {state.references === 1 ? 'reference' : 'references'}. You can undo this from the highlight actions.</p>
+        <p>This also deletes {state.written} written child {state.written === 1 ? 'atom' : 'atoms'} and breaks {state.references} incoming {state.references === 1 ? 'reference' : 'references'}. You can undo this from the highlight actions.</p>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
         <div class="popup-actions"><Button disabled={busy()} onClick={() => setRemoval(undefined)}>Cancel</Button><Button class="bordered danger" disabled={busy()} onClick={() => {
           setBusy(true); setError('');

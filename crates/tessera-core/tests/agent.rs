@@ -128,7 +128,7 @@ fn a_missing_page_is_created_with_the_nested_outline_and_attributed() {
     assert_eq!(root.kind, BlockKind::Page);
     assert_eq!(root.text, "Reading log");
     assert_eq!(receipt.created_pages, vec![root.clone()]);
-    assert_eq!(receipt.summary, "Added 4 blocks to Reading log");
+    assert_eq!(receipt.summary, "Added 4 atoms to Reading log");
     assert_eq!(outline(&nb, &root.id), ["Summary", "  a", "    a1", "b"]);
     let rows = nb.page(&root.id).unwrap().rows;
     assert_eq!(

@@ -126,7 +126,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         { label: 'Set parent question…', secondary: questionDescriptions['Set parent question…'], action: () => capabilities.open(id, 'question-parent') },
         ...(question.parent ? [{ label: 'Remove parent', secondary: questionDescriptions['Remove parent'], action: () => { const { parent: _, ...value } = question; edit({ kind: 'question', id, value }); } }] : []),
         { label: 'Remove question', secondary: questionDescriptions['Remove question'], danger: true, action: () => edit({ kind: 'question', id, value: null }) },
-      ] : [{ label: 'Make question', secondary: questionDescriptions['Make question'], disabledReason: block.relation ? 'Remove the relation first.' : assessment ? 'Remove the assessment first.' : block.kind === 'journal' ? 'Make an ordinary block or page a question.' : undefined,
+      ] : [{ label: 'Make question', secondary: questionDescriptions['Make question'], disabledReason: block.relation ? 'Remove the relation first.' : assessment ? 'Remove the assessment first.' : block.kind === 'journal' ? 'Make an ordinary atom or page a question.' : undefined,
         action: () => edit({ kind: 'question', id, value: { unsettled: false, parked: false, accepted: null, review_on: null } }) }]),
       ...(assessment ? [
         { label: 'Accept current answer', secondary: questionVerbs['Accept current answer'], disabledReason: !owner ? 'Put the assessment under a question first.' : owner.state.parked ? 'Resume the question before accepting an answer.' : assessment.accepted ? 'This is already the current answer.' : undefined,
@@ -170,8 +170,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   function pageTypes(removeOnly = false) {
     if (!context.heading) return;
     const types = doc.root()?.manual_types ?? [];
-    setMenu({ anchor: context.heading, label: removeOnly ? 'Remove page type' : 'Page types', title: removeOnly ? 'Remove page type' : 'Page types', context: doc.root()?.text, items: [
-      ...(!removeOnly ? [{ label: 'Add type…', icon: 'plus' as const, action: addPageType }] : []),
+    setMenu({ anchor: context.heading, label: removeOnly ? 'Remove page tag' : 'Page tags', title: removeOnly ? 'Remove page tag' : 'Page tags', context: doc.root()?.text, items: [
+      ...(!removeOnly ? [{ label: 'Add tag…', icon: 'plus' as const, action: addPageType }] : []),
       ...types.map((title, index): MenuItem => ({ label: `Remove ${title}`, icon: 'tag', divider: !removeOnly && index === 0, action: () => {
         const result = doc.removeType(props.pageId, title);
         if (!result.ok) setMessage(result.reason);
@@ -181,16 +181,16 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   const moveReason = () => {
     const ids = roots();
     const parent = ids[0] ? doc.outline.parentOf(ids[0]) : null;
-    return ids.some(id => doc.outline.parentOf(id) !== parent) ? 'Select blocks with the same parent to move them up or down.' : undefined;
+    return ids.some(id => doc.outline.parentOf(id) !== parent) ? 'Select atoms with the same parent to move them up or down.' : undefined;
   };
   const commandsFor = (selected = context.selected): Command[] => [
     { id: 'copy-page-reference', title: 'Copy page reference', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => copy(`[[${props.pageId}]]`) },
     { id: 'rename', title: 'Rename atom', section: 'Page', disabledReason: () => builtInTagReason(doc.root()?.text ?? '', doc.capabilities(props.pageId), 'name') ?? (doc.root()?.kind === 'page' ? undefined : 'Journal dates cannot be renamed.'), run: rename },
     { id: 'open-table', title: 'Open as table', section: 'Page', keys: ['⌘⇧T'], disabledReason: () => doc.root()?.kind === 'page' ? undefined : 'Journal days cannot be opened as tables.', run: () => openTable(false) },
     { id: 'add-field-root', title: 'Add field…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pickField(props.pageId, context.heading) },
-    { id: 'types-root', title: 'Page types…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pageTypes() },
-    { id: 'add-type-root', title: 'Add page type…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: addPageType },
-    { id: 'remove-type-root', title: 'Remove page type…', section: 'Page', disabledReason: () => !doc.root()?.manual_types.length ? 'This page has no manual types.' : undefined, run: () => pageTypes(true) },
+    { id: 'types-root', title: 'Page tags…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: () => pageTypes() },
+    { id: 'add-type-root', title: 'Add page tag…', section: 'Page', disabledReason: () => doc.status() !== 'ready' ? 'Page is unavailable.' : undefined, run: addPageType },
+    { id: 'remove-type-root', title: 'Remove page tag…', section: 'Page', disabledReason: () => !doc.root()?.manual_types.length ? 'This page has no manual tags.' : undefined, run: () => pageTypes(true) },
     { id: 'task-root', title: 'Task', section: 'Page', disabledReason: () => doc.status() !== 'ready' || capabilities.busy(props.pageId) ? 'Page is unavailable.' : undefined, run: () => {
       if (!doc.root()?.task?.status) capabilities.invoke(capabilities.status(props.pageId, 'todo'));
       capabilities.open(props.pageId, 'task');
@@ -222,31 +222,31 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       const id = selected() && doc.block(selected()!)?.question ? selected()! : props.pageId;
       capabilities.open(id, 'question-parent', id === props.pageId ? context.heading : undefined);
     } },
-    { id: 'previous-row', title: 'Select previous block', section: 'Navigation', keys: ['↑', 'k'], run: () => adjacent(-1) },
-    { id: 'next-row', title: 'Select next block', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
+    { id: 'previous-row', title: 'Select previous atom', section: 'Navigation', keys: ['↑', 'k'], run: () => adjacent(-1) },
+    { id: 'next-row', title: 'Select next atom', section: 'Navigation', keys: ['↓', 'j'], run: () => adjacent(1) },
     { id: 'parent', title: 'Fold children / select parent', section: 'Navigation', keys: ['←', 'h'], run: () => horizontal('left') },
     { id: 'child', title: 'Unfold children / select first child', section: 'Navigation', keys: ['→', 'l'], run: () => horizontal('right') },
-    { id: 'first-row', title: 'Select first block', section: 'Navigation', keys: ['gg'], run: () => ids()[0] && rowFocus(ids()[0]!) },
-    { id: 'last-row', title: 'Select last block', section: 'Navigation', keys: ['G'], run: () => ids().at(-1) && rowFocus(ids().at(-1)!) },
-    { id: 'extend-up', title: 'Extend block selection up', section: 'Outline', keys: ['⇧↑'], run: () => adjacent(-1, true) },
-    { id: 'extend-down', title: 'Extend block selection down', section: 'Outline', keys: ['⇧↓'], run: () => adjacent(1, true) },
-    { id: 'edit', title: 'Edit block', section: 'Editing', keys: ['Enter', 'i'], run: () => selected() && editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true) },
-    { id: 'split', title: 'Split block', section: 'Editing', keys: ['Enter'], disabledReason: () => editing() ? undefined : 'Edit a block first.', run: () => editing() && context.editor && split(context.editor.view) },
-    { id: 'newline', title: 'Insert newline', section: 'Editing', keys: ['⇧Enter'], disabledReason: () => editing() ? undefined : 'Edit a block first.', run: () => editing() && context.editor?.view.dispatch(context.editor.view.state.replaceSelection('\n')) },
-    { id: 'insert-below', title: 'Insert block below', section: 'Editing', keys: ['o'], run: () => selected() && apply({ kind: 'insert', parentId: doc.outline.parentOf(selected()!), after: selected() }, true) },
-    { id: 'insert-above', title: 'Insert block above', section: 'Editing', keys: ['O'], run: () => { const id = selected(); if (!id) return; const parentId = doc.outline.parentOf(id); const siblings = doc.outline.children(parentId); apply({ kind: 'insert', parentId, after: siblings[siblings.indexOf(id) - 1] ?? null }, true); } },
-    { id: 'indent', title: 'Indent blocks', section: 'Outline', keys: ['Tab', '>>'], run: () => apply({ kind: 'indent', ids: roots() }) },
-    { id: 'outdent', title: 'Outdent blocks', section: 'Outline', keys: ['⇧Tab', '<<'], run: () => apply({ kind: 'outdent', ids: roots() }) },
-    { id: 'move-up', title: 'Move blocks up', section: 'Outline', keys: ['⌥↑'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'up' }) },
-    { id: 'move-down', title: 'Move blocks down', section: 'Outline', keys: ['⌥↓'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'down' }) },
+    { id: 'first-row', title: 'Select first atom', section: 'Navigation', keys: ['gg'], run: () => ids()[0] && rowFocus(ids()[0]!) },
+    { id: 'last-row', title: 'Select last atom', section: 'Navigation', keys: ['G'], run: () => ids().at(-1) && rowFocus(ids().at(-1)!) },
+    { id: 'extend-up', title: 'Extend atom selection up', section: 'Outline', keys: ['⇧↑'], run: () => adjacent(-1, true) },
+    { id: 'extend-down', title: 'Extend atom selection down', section: 'Outline', keys: ['⇧↓'], run: () => adjacent(1, true) },
+    { id: 'edit', title: 'Edit atom', section: 'Editing', keys: ['Enter', 'i'], run: () => selected() && editAt(selected()!, caret()?.id === selected() ? caret()!.offset : 0, true) },
+    { id: 'split', title: 'Split atom', section: 'Editing', keys: ['Enter'], disabledReason: () => editing() ? undefined : 'Edit an atom first.', run: () => editing() && context.editor && split(context.editor.view) },
+    { id: 'newline', title: 'Insert newline', section: 'Editing', keys: ['⇧Enter'], disabledReason: () => editing() ? undefined : 'Edit an atom first.', run: () => editing() && context.editor?.view.dispatch(context.editor.view.state.replaceSelection('\n')) },
+    { id: 'insert-below', title: 'Insert atom below', section: 'Editing', keys: ['o'], run: () => selected() && apply({ kind: 'insert', parentId: doc.outline.parentOf(selected()!), after: selected() }, true) },
+    { id: 'insert-above', title: 'Insert atom above', section: 'Editing', keys: ['O'], run: () => { const id = selected(); if (!id) return; const parentId = doc.outline.parentOf(id); const siblings = doc.outline.children(parentId); apply({ kind: 'insert', parentId, after: siblings[siblings.indexOf(id) - 1] ?? null }, true); } },
+    { id: 'indent', title: 'Indent atoms', section: 'Outline', keys: ['Tab', '>>'], run: () => apply({ kind: 'indent', ids: roots() }) },
+    { id: 'outdent', title: 'Outdent atoms', section: 'Outline', keys: ['⇧Tab', '<<'], run: () => apply({ kind: 'outdent', ids: roots() }) },
+    { id: 'move-up', title: 'Move atoms up', section: 'Outline', keys: ['⌥↑'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'up' }) },
+    { id: 'move-down', title: 'Move atoms down', section: 'Outline', keys: ['⌥↓'], disabledReason: moveReason, run: () => apply({ kind: 'move', ids: roots(), direction: 'down' }) },
     { id: 'move-to-page', title: 'Move to page…', section: 'Outline', run: () => context.openMoveToPage() },
-    { id: 'select', title: 'Select blocks', section: 'Outline', keys: ['V', '⇧↑/↓'], run: () => selected() && rowFocus(selected()!, true) },
-    { id: 'select-all', title: 'Select all visible blocks', section: 'Outline', run: () => { const first = ids()[0]; const last = ids().at(-1); if (first && last) { rowFocus(last); setRowRange({ anchor: first, head: last }); } } },
+    { id: 'select', title: 'Select atoms', section: 'Outline', keys: ['V', '⇧↑/↓'], run: () => selected() && rowFocus(selected()!, true) },
+    { id: 'select-all', title: 'Select all visible atoms', section: 'Outline', run: () => { const first = ids()[0]; const last = ids().at(-1); if (first && last) { rowFocus(last); setRowRange({ anchor: first, head: last }); } } },
     { id: 'fold', title: 'Fold / unfold children', section: 'View', keys: ['←/→', 'h/l'], run: () => fold(selected() ?? undefined) },
-    { id: 'zoom', title: 'Zoom into block', section: 'Navigation', keys: ['⌘.', 'Space z'], run: () => selected() && zoomTo(selected()) },
+    { id: 'zoom', title: 'Zoom into atom', section: 'Navigation', keys: ['⌘.', 'Space z'], run: () => selected() && zoomTo(selected()) },
     { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧.'], disabledReason: () => zoom() ? undefined : 'Already at the page root.', run: zoomOut },
     { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openSelected(true, selected()) },
-    { id: 'copy-reference', title: 'Copy block reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
+    { id: 'copy-reference', title: 'Copy atom reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
     { id: 'make-image', title: 'Insert image', section: 'Editing', run: () => context.chooseImage(selected() ?? zoom() ?? doc.pageId) },
     { id: 'edit-occlusion', title: 'Edit image masks', section: 'Editing', disabledReason: () => selected() && doc.block(selected()!)?.image ? undefined : 'Add an image before drawing masks.', run: () => selected() && context.editOcclusion(selected()!) },
     { id: 'make-task', title: 'Make task', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.task?.status ? 'Already a task.' : undefined, run: () => selected() && capabilities.invoke(capabilities.status(selected()!, 'todo')) },
@@ -264,20 +264,20 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'make-cloze', title: 'Make cloze', section: 'Editing', keys: ['⌘⇧C'], run: makeCloze },
     { id: 'leader', title: 'Show leader keys', section: 'Editing', keys: ['Space'], run: () => selected() && leaderMenu(selected()!) },
     { id: 'make-project', title: 'Make project', section: 'Outline', keys: ['Space o'], disabledReason: () => selected() && doc.block(selected()!)?.project ? 'Already a project.' : undefined, run: () => selected() && openProject(selected()!) },
-    { id: 'make-perspective', title: 'Make perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : doc.block(selected()!)?.relation ? 'Remove the relation first.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
-    { id: 'remove-perspective', title: 'Remove perspective', section: 'Block', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary block.' : !doc.block(selected()!)?.position ? 'Select a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })) },
-    { id: 'change-holder', title: 'Change holder…', section: 'Block', disabledReason: () => context.positionReason(selected() ?? ''), run: () => selected() && context.openRelation(selected()!, 'holder') },
-    { id: 'file-under', title: 'File under…', section: 'Block', disabledReason: () => context.positionReason(selected() ?? '') ?? (!textTokens(doc.block(selected() ?? '')?.text ?? '').some(token => token.kind === 'reference') ? 'Choose a holder before filing this perspective.' : undefined), run: () => selected() && context.openRelation(selected()!, 'subject') },
-    { id: 'use-place', title: 'Use place', section: 'Block', disabledReason: () => context.placeReason(selected() ?? ''), run: () => selected() && context.usePlace(selected()!) },
-    ...(doc.root()?.kind === 'journal' ? [{ id: 'integrate', title: 'Integrate…', section: 'Block' as const, disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select a journal block.' : undefined, run: () => selected() && context.openRelation(selected()!, 'integrate') }] : []),
+    { id: 'make-perspective', title: 'Make perspective', section: 'Atom', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary atom.' : doc.block(selected()!)?.relation ? 'Remove the relation first.' : doc.block(selected()!)?.position ? 'Already a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: true })) },
+    { id: 'remove-perspective', title: 'Remove perspective', section: 'Atom', keys: ['Space v'], disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select an ordinary atom.' : !doc.block(selected()!)?.position ? 'Select a perspective.' : undefined, run: () => selected() && capabilities.invoke(capabilities.edit(selected()!, { kind: 'position', id: selected()!, value: false })) },
+    { id: 'change-holder', title: 'Change holder…', section: 'Atom', disabledReason: () => context.positionReason(selected() ?? ''), run: () => selected() && context.openRelation(selected()!, 'holder') },
+    { id: 'file-under', title: 'File under…', section: 'Atom', disabledReason: () => context.positionReason(selected() ?? '') ?? (!textTokens(doc.block(selected() ?? '')?.text ?? '').some(token => token.kind === 'reference') ? 'Choose a holder before filing this perspective.' : undefined), run: () => selected() && context.openRelation(selected()!, 'subject') },
+    { id: 'use-place', title: 'Use place', section: 'Atom', disabledReason: () => context.placeReason(selected() ?? ''), run: () => selected() && context.usePlace(selected()!) },
+    ...(doc.root()?.kind === 'journal' ? [{ id: 'integrate', title: 'Integrate…', section: 'Atom' as const, disabledReason: () => doc.block(selected() ?? '')?.kind !== 'block' ? 'Select a journal atom.' : undefined, run: () => selected() && context.openRelation(selected()!, 'integrate') }] : []),
     ...relationKinds.map((kind): Command => ({
-      id: `relation-${kind}`, title: `${relationLabels[kind]}…`, section: 'Block',
+      id: `relation-${kind}`, title: `${relationLabels[kind]}…`, section: 'Atom',
       disabledReason: () => relationReason(doc.block(selected() ?? '')),
       run: () => { const id = selected(); if (id) markRelation(id, kind); },
     })),
-    { id: 'relation-kind', title: 'Change kind', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) relationMenu(id); } },
-    { id: 'remove-relation', title: 'Remove argument', section: 'Block', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) markRelation(id, null); } },
-    { id: 'add-relation', title: 'Add argument…', section: 'Block', disabledReason: () => addRelationReason(doc.block(selected() ?? '')), run: () => { const id = selected(); if (id) relationMenu(id, true); } },
+    { id: 'relation-kind', title: 'Change kind', section: 'Atom', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) relationMenu(id); } },
+    { id: 'remove-relation', title: 'Remove argument', section: 'Atom', disabledReason: () => doc.block(selected() ?? '')?.relation ? undefined : 'Select a relation.', run: () => { const id = selected(); if (id) markRelation(id, null); } },
+    { id: 'add-relation', title: 'Add argument…', section: 'Atom', disabledReason: () => addRelationReason(doc.block(selected() ?? '')), run: () => { const id = selected(); if (id) relationMenu(id, true); } },
     ...['Make question', 'Make assessment', ...Object.keys(questionVerbs), 'Record aporia', 'Clear aporia', 'Set revisit date…', 'Remove parent', 'Remove question', 'Remove assessment'].map((title): Command => ({
       id: title.toLowerCase().replaceAll(' ', '-'), title, description: questionDescriptions[title], section: selected() ? 'Outline' : 'Page', keys: title === 'Make question' || title === 'Make assessment' ? ['Space q'] : undefined,
       disabledReason: () => {
@@ -293,8 +293,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'project-actions', title: 'Show actions', section: 'Outline', disabledReason: () => selected() && doc.block(selected()!)?.project ? undefined : 'Select a project.', run: () => selected() && capabilities.showActions(selected()!) },
     { id: 'review-cards', title: 'Review cards', section: 'View', run: () => props.onOpen({ kind: 'review' }, false) },
     { id: 'card-source', title: 'Show card source', section: 'Navigation', run: () => selected() && capabilities.source(selected()!) },
-    { id: 'archive', title: 'Archive / unarchive block', section: 'Outline', run: () => selected() && apply({ kind: 'archive', id: selected()!, archived: !doc.block(selected()!)?.archived }, false) },
-    { id: 'show-archived', title: 'Show / hide archived blocks', section: 'View', run: () => { anchored(() => setShowArchived(value => !value)); scheduleReport(); } },
+    { id: 'archive', title: 'Archive / unarchive atom', section: 'Outline', run: () => selected() && apply({ kind: 'archive', id: selected()!, archived: !doc.block(selected()!)?.archived }, false) },
+    { id: 'show-archived', title: 'Show / hide archived atoms', section: 'View', run: () => { anchored(() => setShowArchived(value => !value)); scheduleReport(); } },
     { id: 'delete', title: 'Delete selected subtrees', section: 'Outline', keys: ['Backspace', 'dd'], run: () => {
       const selectedRoots = roots();
       const definition = selectedRoots.find(id => context.definitionsById().has(id));
@@ -322,7 +322,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'review-conflict', title: 'Review conflict', section: 'Editing', disabledReason: () => {
       doc.outline.version();
       for (let index = 0; index < doc.outline.size(); index++) if (doc.block(doc.outline.idAt(index))?.conflict) return undefined;
-      return 'No conflicting blocks.';
+      return 'No conflicting atoms.';
     }, run: () => {
       for (let index = 0; index < doc.outline.size(); index++) {
         const id = doc.outline.idAt(index);
@@ -341,13 +341,13 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const commands = commandsFor().map(command => ({
       ...command,
       id: `outline.${props.pane}.${command.id}`,
-      disabledReason: () => !props.active ? 'This pane is not active.' : command.disabledReason?.() ?? (command.section !== 'Page' && !['first-row', 'zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) && !selected() ? 'Select a block first.' : undefined),
+      disabledReason: () => !props.active ? 'This pane is not active.' : command.disabledReason?.() ?? (command.section !== 'Page' && !['first-row', 'zoom-out', 'show-archived', 'undo', 'redo'].includes(command.id) && !selected() ? 'Select an atom first.' : undefined),
       ...(['add-field-root', 'change-holder', 'file-under', 'use-place', 'integrate'].includes(command.id) ? { capture: (): Command => {
         const id = selected();
         const bound = commandsFor(() => id).find(candidate => candidate.id === command.id)!;
         const label = id ? plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)) : '';
         const reason = !props.active ? 'This pane is not active.' : bound.disabledReason?.();
-        if (command.id === 'add-field-root') return { ...bound, id: `outline.${props.pane}.${command.id}`, section: id ? 'Block' : 'Page', title: `${bound.title}${label ? ` · ${label}` : ''}`, disabledReason: () => reason, run: () => { const owner = id ?? props.pageId; pickField(owner, rowAnchor(owner) ?? context.heading); } };
+        if (command.id === 'add-field-root') return { ...bound, id: `outline.${props.pane}.${command.id}`, section: id ? 'Atom' : 'Page', title: `${bound.title}${label ? ` · ${label}` : ''}`, disabledReason: () => reason, run: () => { const owner = id ?? props.pageId; pickField(owner, rowAnchor(owner) ?? context.heading); } };
         return { ...bound, id: `outline.${props.pane}.${command.id}`, title: `${bound.title}${label ? ` · ${label}` : ''}`, disabledReason: () => reason };
       } } : {}),
     }));
@@ -428,7 +428,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ...(sourceItems.length ? [group('Citation…', 'Citation', () => sourceItems)] : []),
     ];
     const makeItems: MenuItem[] = [
-      { label: 'Type…', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
+      { label: 'Tag…', action: () => { setCompletionIndex(0); setCompletion({ from: 0, to: 0, query: '', manual: { blockId: id, anchor } }); } },
       ...(!entry.image ? [item('make-image', 'Image…')] : []),
       ...(!entry.task ? [item('make-task', 'Task')] : []),
       ...(!entry.project ? [item('make-project', 'Project')] : []),
@@ -441,7 +441,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       }] : []),
       ...(!hasCards ? [group('Card…', 'Cards', () => cardItems(id))] : []),
     ];
-    setMenu({ anchor, label: 'Block actions', title: 'Block actions', context: plainText(entry.text, target => props.notebook.lookup(target)), items: [
+    setMenu({ anchor, label: 'Atom actions', title: 'Atom actions', context: plainText(entry.text, target => props.notebook.lookup(target)), items: [
       item('edit', 'Edit'), item('insert-below', 'Insert below'),
       group('Move…', 'Move', () => [
         item('indent', 'Indent'), item('outdent', 'Outdent'),
@@ -495,7 +495,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   }
   async function promoteToProject(id: string) {
     const title = plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)).trim();
-    if (!title) { setMessage('Write the project’s name in the block, then make it a project.'); return; }
+    if (!title) { setMessage('Write the project’s name in the atom, then make it a project.'); return; }
     rowFocus(id);
     await capabilities.run(id, async () => {
       const { change } = await props.notebook.promoteToProject(id, title);
@@ -513,7 +513,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const id = editing() ?? selected();
     if (!id) return;
     const range = context.activeRange();
-    if (range && range.anchor.id !== range.head.id) { setMessage('Select text in one block.'); return; }
+    if (range && range.anchor.id !== range.head.id) { setMessage('Select text in one atom.'); return; }
     const text = doc.block(id)?.text ?? '';
     const from = range ? Math.min(range.anchor.offset, range.head.offset) : caret()?.id === id ? caret()!.offset : text.length;
     const to = range ? Math.max(range.anchor.offset, range.head.offset) : from;
@@ -557,7 +557,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ...(block?.question
         ? [leader('q', 'Question…', () => keyboardMenu(id, 'Question', investigationItems(id, true)), 'Question')]
         : [commandItem('q', ancestor ? 'make-assessment' : 'make-question', 'Question')]),
-      commandItem('v', block?.position ? 'remove-perspective' : 'make-perspective', 'Block'),
+      commandItem('v', block?.position ? 'remove-perspective' : 'make-perspective', 'Atom'),
       leader('c', 'Add card', () => cardMenu(id)),
       leader('z', 'Zoom in', () => zoomTo(id)),
     ]);

@@ -46,7 +46,7 @@ export function CardTemplatesPane(props: Props) {
     ]);
     return { type, fields: fields.fields, templates };
   });
-  const title = () => data.latest?.type.page.text ?? props.notebook.lookup(props.typeId)()?.text ?? 'Type';
+  const title = () => data.latest?.type.page.text ?? props.notebook.lookup(props.typeId)()?.text ?? 'Tag';
   const templates = () => data.latest?.templates ?? [];
   const templatesById = createMemo(() => new Map(templates().map(template => [template.id, template])));
   const applyTemplate = () => props.applyId ? templatesById().get(props.applyId) : undefined;

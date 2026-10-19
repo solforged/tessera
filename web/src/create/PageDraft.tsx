@@ -88,7 +88,7 @@ export function PageDraft(props: {
       <label class="visually-hidden" for={`${id}-gist`}>Gist</label>
       <input id={`${id}-gist`} class="new-kind-gist" value={props.gist} disabled={busy()} autocomplete="off" placeholder={gistPrompt[mode()]?.(noun())} onInput={event => props.onGistChange(event.currentTarget.value)} />
     </Show>}><p class="new-kind-note">“{query()}” {member() ? `is already a ${noun()}.` : `already exists; it will be ${mode() === 'type' ? `filed under ${props.noteKind!.name}` : `made a ${noun()}`}.`}</p></Show>
-    <Show when={typePage()}><p class="new-kind-note">“{props.noteKind!.name}” names the type itself.</p></Show>
+    <Show when={typePage()}><p class="new-kind-note">“{props.noteKind!.name}” names the tag itself.</p></Show>
     <Show when={!typePage()}><DraftFields notebook={props.notebook} kind={props.kind} fieldIds={type()?.fields ?? []} existingId={found()} disabled={busy()} value={fields()} onChange={setFields} /></Show>
     <Show when={error() || existing.error || similar.error}><p class="error" role="alert">{error() || String(existing.error ?? similar.error)}</p></Show>
     <footer class="create-foot"><span class="create-keys"><Show when={props.status} fallback={<Show when={!props.sheet}><kbd>↵</kbd> Create <kbd>⇧↵</kbd> Beside <kbd>⇧⌘↵</kbd> Another <kbd>esc</kbd> Close</Show>}>{text => <span role="status">{text()}</span>}</Show></span>

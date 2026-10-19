@@ -12,10 +12,10 @@ const MAX_TEXT_BYTES: usize = 64 * 1024;
 fn validate(block: &Block, quote: &QuoteState) -> Result<()> {
     validate_id(&quote.target_id)?;
     if block.id == quote.target_id {
-        return Err(validation("a block cannot quote itself"));
+        return Err(validation("an atom cannot quote itself"));
     }
     if quote_target(&block.text) != Some(quote.target_id.as_str()) {
-        return Err(validation("quote target must match the block text"));
+        return Err(validation("quote target must match the atom text"));
     }
     let Some(root) = quote.rows.first() else {
         return Err(validation("quote must contain its root row"));

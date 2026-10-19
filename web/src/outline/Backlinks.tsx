@@ -71,6 +71,6 @@ export function BlockReferenceCount(props: {
     </>;
   }
   return <><Button class="block-reference-count" label={`${props.count} ${props.count === 1 ? 'backlink' : 'backlinks'}`} aria-haspopup="dialog" aria-expanded={!!anchor()} onClick={event => setAnchor(previous => previous ? undefined : event.currentTarget)}>{props.count}</Button>
-    <Show when={anchor()}>{element => <Popup anchor={element()} label="Block backlinks" class="block-backlinks-popup" onDismiss={() => setAnchor(undefined)}><Sources /></Popup>}</Show>
+    <Show when={anchor()}>{element => <Popup anchor={element()} label="Atom backlinks" class="block-backlinks-popup" onDismiss={() => setAnchor(undefined)}><Sources /></Popup>}</Show>
   </>;
 }

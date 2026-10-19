@@ -54,7 +54,7 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
   insert(welcome, 'Welcome! This is the real Tessera editor and workshop engine, running entirely in your browser. No account, server workshop or cloud sync is involved.');
   insert(welcome, 'Your workshop stays in this browser on this device, and clearing site data removes it. Keep one Tessera tab open at a time. Settings › Backups downloads a copy, restores one or starts over.');
   const outline = insert(welcome, 'Make room for a thought', 2);
-  insert(outline, 'Click a block to edit it. Enter makes another block; Tab nests it and Shift+Tab brings it back out.');
+  insert(outline, 'Click an atom to edit it. Enter makes another atom; Tab nests it and Shift+Tab brings it back out.');
   insert(outline, `Try undo and redo, fold a branch, or open a linked page beside this one: ${besideHint}.`);
   insert(welcome, `Follow ${link(ideas, 'Small ideas')} for an outline with typed fields and a saved table, or ${link(learning, 'Learning by doing')} for a few flashcards.`);
   insert(welcome, 'Today opens your daily journal. Agenda collects tasks and their dates. Review lets you study cards. Find or create searches your pages; the command palette lists the rest.');
@@ -82,7 +82,7 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
   insert(journal, '');
 
   insert(learning, 'A few cards to try', 1);
-  insert(learning, 'Cards come from ordinary block text. Edit these examples to see their syntax, then open Review.');
+  insert(learning, 'Cards come from ordinary atom text. Edit these examples to see their syntax, then open Review.');
   insert(learning, 'Where does this demo store your workshop? >> In this browser, on this device.');
   insert(learning, 'Outline <> A thought with room for smaller thoughts beneath it.');
   insert(learning, 'A linked workshop connects {{c1::ideas}} rather than isolating them.');
@@ -94,7 +94,7 @@ export function seedBatch(fieldsPage: string, today = localToday(), book?: SeedB
   operations.push({ op: 'set_field_kind', id: started, base_revision: 1, kind: 'date' });
   operations.push({ op: 'set_type_fields', type_id: ideaType, base_revision: 1, fields: [effort, started] });
   insert(ideas, 'Small experiments, connected', 1);
-  insert(ideas, 'These ideas have a Demo idea type and two typed fields. Open the Small experiments view in the sidebar to see the same blocks as a table.');
+  insert(ideas, 'These ideas have a Demo idea tag and two typed fields. Open the Small experiments view in the sidebar to see the same atoms as a table.');
   const sample = (text: string, cost: string) => {
     const id = insert(ideas, text);
     operations.push({ op: 'add_type', id, base_revision: 1, title: 'Demo idea' });

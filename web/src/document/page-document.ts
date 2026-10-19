@@ -195,11 +195,11 @@ export class Document implements PageDocument {
   snapshot(id: string, base = false): Block {
     if (base) {
       const block = this.baseBlocks.get(id);
-      if (!block) throw new Error('The block no longer exists.');
+      if (!block) throw new Error('The atom no longer exists.');
       return { ...block };
     }
     const state = this.cells.get(id)?.state;
-    if (!state) throw new Error('The block no longer exists.');
+    if (!state) throw new Error('The atom no longer exists.');
     const saved = this.baseBlocks.get(id);
     return { id, kind: state.kind, parent_id: state.parentId, page_id: state.pageId, text: state.text, heading: state.heading, archived: state.archived, kept_copy: state.keptCopy ? { ...state.keptCopy } : null, revision: state.revision, created_at: saved?.created_at ?? Date.now(), updated_at: saved?.updated_at ?? Date.now() };
   }
@@ -248,7 +248,7 @@ export class Document implements PageDocument {
   }
   private guardMerge(id: string) {
     const value = this.capabilities(id);
-    if (value.image) throw new Error("Image blocks can't be merged.");
+    if (value.image) throw new Error("Image atoms can't be merged.");
     if (value.merge_protected) throw new Error(value.history
       ? 'This task has completion or work history; delete it or keep it separate.'
       : 'Cannot merge away an active task, project, perspective, argument, question, answer, or reviewed card.');
@@ -638,7 +638,7 @@ export class Document implements PageDocument {
         return [{ kind: 'delete', id: action.id }];
       }
       case 'move': {
-        if (index.indexOf(action.id) < 0) throw new Error('The block to move no longer exists.');
+        if (index.indexOf(action.id) < 0) throw new Error('The atom to move no longer exists.');
         if (!base) for (let ancestor: string | null = action.parentId; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(action.id); break; }
         const inverse: Action = { kind: 'move', id: action.id, parentId: index.parentOf(action.id), after: index.previousSibling(action.id) };
         const after = action.after && index.parentOf(action.after) === action.parentId ? action.after : null;
@@ -1134,7 +1134,7 @@ export class Document implements PageDocument {
       created.push(id);
       actions.push({ kind: 'insert', after, block: { id, kind: 'block', parent_id: parentId, page_id: this.pageId, text, heading, archived: false, kept_copy: null, revision: 0, created_at: Date.now(), updated_at: Date.now() } });
       if (quote) {
-        if (quoteTarget(text) !== quote.target_id || quote.target_id === id) throw new Error('Quote target must match a different block.');
+        if (quoteTarget(text) !== quote.target_id || quote.target_id === id) throw new Error('Quote target must match a different atom.');
         actions.push({ kind: 'quote', id, value: structuredClone(quote), previous: null, baseRevision: 0 });
       }
       return id;
@@ -1148,7 +1148,7 @@ export class Document implements PageDocument {
         if (ids.some(id => { const at = this.outline.indexOf(id); return at <= start || at >= end; })) return [];
       }
       return ids.filter(id => {
-        if (this.outline.indexOf(id) < 0) throw new Error('A selected block no longer exists.');
+        if (this.outline.indexOf(id) < 0) throw new Error('A selected atom no longer exists.');
         let parent = this.outline.parentOf(id);
         while (parent !== this.pageId) { if (set.has(parent)) return false; parent = this.outline.parentOf(parent); }
         return true;
@@ -1157,7 +1157,7 @@ export class Document implements PageDocument {
     const move = (ids: string[], parentId: string, after: string | null) => {
       for (const id of ids) {
         let parent = parentId;
-        while (parent !== this.pageId) { if (parent === id) throw new Error('A block cannot move into its own subtree.'); if (!this.block(parent)) throw new Error('The destination no longer exists.'); parent = this.outline.parentOf(parent); }
+        while (parent !== this.pageId) { if (parent === id) throw new Error('An atom cannot move into its own subtree.'); if (!this.block(parent)) throw new Error('The destination no longer exists.'); parent = this.outline.parentOf(parent); }
         if (after && !ids.includes(after) && this.outline.parentOf(after) !== parentId) throw new Error('The destination sibling no longer exists.');
         for (let ancestor: string | null = parentId; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(id); break; }
         actions.push({ kind: 'move', id, parentId, after });
@@ -1181,7 +1181,7 @@ export class Document implements PageDocument {
     };
     const guardSplit = (block: Block, prefix: string, suffix: string) => {
       if (!parseCardText(block.text).cards.length || !suffix && prefix === block.text) return;
-      if (prefix || this.block(block.id)?.reviewedCards) throw new Error('This split would divide or move a card. Keep its source in one block.');
+      if (prefix || this.block(block.id)?.reviewedCards) throw new Error('This split would divide or move a card. Keep its source in one atom.');
     };
     const split = (block: Block, prefix: string, suffix: string, zoomRoot?: string | null, fieldEntry?: string | null) => {
       if (this.block(block.id)?.image && !prefix && suffix) {
@@ -1281,7 +1281,7 @@ export class Document implements PageDocument {
     };
     const replace = (range: TextRange, visible: string[], text: string, mode: 'text' | 'paste' | 'split', zoomRoot?: string | null, fieldEntry?: string | null, rows?: PasteRow[]) => {
       let { anchor: start, head: end } = range;
-      if (this.outline.indexOf(start.id) < 0 || this.outline.indexOf(end.id) < 0) throw new Error('A selected block no longer exists.');
+      if (this.outline.indexOf(start.id) < 0 || this.outline.indexOf(end.id) < 0) throw new Error('A selected atom no longer exists.');
       if (this.outline.indexOf(start.id) > this.outline.indexOf(end.id) || start.id === end.id && start.offset > end.offset) [start, end] = [end, start];
       const first = this.snapshot(start.id);
       const last = this.snapshot(end.id);
@@ -1297,9 +1297,9 @@ export class Document implements PageDocument {
         for (const token of textTokens(last.text)) if (token.kind === 'reference' && endOffset > token.start && endOffset < token.end) endOffset = token.end;
       }
       const between = this.outline.slice(this.outline.indexOf(start.id) + 1, this.outline.indexOf(end.id)).map(row => row.id);
-      if (between.length !== visible.length || between.some((id, i) => id !== visible[i])) throw new Error('Expand hidden blocks before deleting this text range.');
+      if (between.length !== visible.length || between.some((id, i) => id !== visible[i])) throw new Error('Expand hidden atoms before deleting this text range.');
       if (start.id !== end.id) this.guardMerge(end.id);
-      if (start.id !== end.id && this.block(start.id)?.image) throw new Error("Image blocks can't be merged.");
+      if (start.id !== end.id && this.block(start.id)?.image) throw new Error("Image atoms can't be merged.");
       const multiline = mode === 'split' || mode === 'paste' && (rows ? rows.length > 1 : /[\r\n]/.test(text));
       if (multiline && (parseCardText(first.text).cards.length || start.id !== end.id && parseCardText(last.text).cards.length)
         && !(start.id === end.id && startOffset === endOffset && (endOffset === first.text.length || mode === 'split' && startOffset === 0))) {
@@ -1353,7 +1353,7 @@ export class Document implements PageDocument {
           break;
         }
         case 'cardTemplate': {
-          if ((edit.value?.type_id ?? edit.previous?.type_id) !== this.pageId) throw new Error('Card templates belong to their type page.');
+          if ((edit.value?.type_id ?? edit.previous?.type_id) !== this.pageId) throw new Error('Card templates belong to their tag page.');
           const { previous, value } = edit;
           if (previous && value && previous.name === value.name && previous.front === value.front && previous.back === value.back
             && previous.applied === value.applied && previous.new_per_day === value.new_per_day) break;
@@ -1364,7 +1364,7 @@ export class Document implements PageDocument {
         case 'keptCopy': {
           const block = this.snapshot(edit.id);
           const copy = block.kept_copy;
-          if (!copy) throw new Error('This block is not a kept copy.');
+          if (!copy) throw new Error('This atom is not a kept copy.');
           if (edit.choice === 'both') {
             actions.push({ kind: 'settleSyncCopy', id: edit.id, settled: true, copy });
           } else {
@@ -1456,7 +1456,7 @@ export class Document implements PageDocument {
         }
         case 'position': {
           const block = this.snapshot(edit.id);
-          if (block.kind !== 'block') throw new Error('Only ordinary blocks can be perspectives.');
+          if (block.kind !== 'block') throw new Error('Only ordinary atoms can be perspectives.');
           if (edit.value && this.block(edit.id)?.relation) throw new Error('Remove the argument first.');
           const previous = !!this.capabilities(edit.id).position;
           if (previous !== edit.value) actions.push({ kind: 'position', id: edit.id, value: edit.value, previous, baseRevision: block.revision });
@@ -1464,7 +1464,7 @@ export class Document implements PageDocument {
         }
         case 'relation': {
           const block = this.snapshot(edit.id);
-          if (block.kind !== 'block') throw new Error('Only ordinary blocks can be arguments.');
+          if (block.kind !== 'block') throw new Error('Only ordinary atoms can be arguments.');
           const capability = this.capabilities(edit.id);
           if (edit.value && (capability.position || capability.question || capability.assessment)) throw new Error('An argument cannot also be a perspective, question or answer.');
           const previous = capability.relation?.kind ?? null;
@@ -1509,7 +1509,7 @@ export class Document implements PageDocument {
             value = currentReading({ ...value, accepted: previous.accepted }, value.accepted, this.host.todayDate());
           }
           if (edit.value && this.block(edit.id)?.relation) throw new Error('Remove the argument first.');
-          if (edit.value && this.block(edit.id)?.assessment) throw new Error('A block cannot be both a question and an answer.');
+          if (edit.value && this.block(edit.id)?.assessment) throw new Error('An atom cannot be both a question and an answer.');
           if ((previous?.parked || edit.value?.parked) && (previous?.accepted ?? null) !== (edit.value?.accepted ?? null) && edit.value?.accepted) throw new Error('Resume the question before accepting a reading.');
           if (!sameState(previous, value)) actions.push({ ...edit, value: structuredClone(value), previous, baseRevision: this.snapshot(edit.id).revision });
           break;
@@ -1517,7 +1517,7 @@ export class Document implements PageDocument {
         case 'quote': {
           const block = this.snapshot(edit.id);
           const text = edit.text ?? block.text;
-          if (edit.value && (quoteTarget(text) !== edit.value.target_id || edit.value.target_id === edit.id)) throw new Error('Quote target must match a different block.');
+          if (edit.value && (quoteTarget(text) !== edit.value.target_id || edit.value.target_id === edit.id)) throw new Error('Quote target must match a different atom.');
           const previous = this.capabilities(edit.id).quote ?? null;
           setText(block, text);
           if (!sameState(previous, edit.value)) actions.push({ kind: 'quote', id: edit.id, value: structuredClone(edit.value), previous, baseRevision: block.revision });
@@ -1528,7 +1528,7 @@ export class Document implements PageDocument {
           const previous = this.capabilities(edit.id).assessment?.state ?? null;
           if (edit.value) {
             if (this.block(edit.id)?.relation) throw new Error('Remove the argument first.');
-            if (this.block(edit.id)?.question) throw new Error('A block cannot be both a question and an answer.');
+            if (this.block(edit.id)?.question) throw new Error('An atom cannot be both a question and an answer.');
             let owner = this.block(edit.id)?.parentId;
             while (owner && !this.block(owner)?.question) owner = this.block(owner)?.parentId;
             if (!owner) throw new Error('Put the answer under a question first.');
@@ -1701,15 +1701,15 @@ export class Document implements PageDocument {
           break;
         }
         case 'typePresentation': {
-          if (this.snapshot(edit.id).revision !== edit.revision || this.block(edit.id)?.pending) throw new Error('The type changed. Refresh before changing its icon or name.');
+          if (this.snapshot(edit.id).revision !== edit.revision || this.block(edit.id)?.pending) throw new Error('The tag changed. Refresh before changing its icon or name.');
           if (!sameState(edit.value, edit.previous)) actions.push({ kind: 'typePresentation', id: edit.id, value: { ...edit.value }, previous: { ...edit.previous }, baseRevision: edit.revision });
           break;
         }
         case 'addType':
         case 'removeType': {
           const block = this.block(edit.id);
-          if (!block) throw new Error('The block no longer exists.');
-          if (!edit.title || edit.title.trim() !== edit.title || /[\[\]\r\n]/.test(edit.title)) throw new Error('Invalid type title.');
+          if (!block) throw new Error('The atom no longer exists.');
+          if (!edit.title || edit.title.trim() !== edit.title || /[\[\]\r\n]/.test(edit.title)) throw new Error('Invalid tag title.');
           const exists = block.manual_types.some(title => titleKey(title) === titleKey(edit.title));
           if (edit.kind === 'addType' && exists) break;
           if (edit.kind === 'removeType' && !exists) throw new Error('From the text. Edit the #tag there to remove it.');
@@ -1749,7 +1749,7 @@ export class Document implements PageDocument {
         }
         case 'split': {
           const old = this.snapshot(edit.id);
-          if (old.kind !== 'block') throw new Error('Only outline blocks can split.');
+          if (old.kind !== 'block') throw new Error('Only outline atoms can split.');
           const at = Math.max(0, Math.min(edit.offset, old.text.length));
           const offset = splitToken(old.text, at)?.end ?? at;
           split(old, old.text.slice(0, offset), old.text.slice(offset), edit.zoomRoot, edit.fieldEntry);
@@ -1758,12 +1758,12 @@ export class Document implements PageDocument {
         case 'merge': {
           const source = this.snapshot(edit.sourceId);
           const destination = this.snapshot(edit.destinationId);
-          if (source.kind !== 'block') throw new Error('A page cannot merge into a block.');
+          if (source.kind !== 'block') throw new Error('A page cannot merge into an atom.');
           let parent = destination.id;
           while (parent !== this.pageId) { if (parent === source.id) throw new Error('Cannot merge into a descendant.'); parent = this.outline.parentOf(parent); }
           for (let ancestor: string | null = destination.id; ancestor; ancestor = this.block(ancestor)?.parentId ?? null) if (this.block(ancestor)?.archived) { this.guardHide(source.id); break; }
           this.guardMerge(source.id);
-          if (this.block(destination.id)?.image) throw new Error("Image blocks can't be merged.");
+          if (this.block(destination.id)?.image) throw new Error("Image atoms can't be merged.");
           actions.push({ kind: 'merge', id: source.id, destinationId: destination.id, text: destination.text + source.text });
           caret = { id: destination.id, offset: destination.text.length };
           break;

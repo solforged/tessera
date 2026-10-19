@@ -188,7 +188,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
             </div>
           </div>
           <div class="settings-row">
-            <div class="settings-label"><span class="settings-name"><label for={`settings-vim-${props.pane}`}>Vim keys</label><span class="settings-scope">Workshop</span></span><p>Normal, insert and visual modes inside a block; j and k move between blocks.</p></div>
+            <div class="settings-label"><span class="settings-name"><label for={`settings-vim-${props.pane}`}>Vim keys</label><span class="settings-scope">Workshop</span></span><p>Normal, insert and visual modes inside an atom; j and k move between atoms.</p></div>
             <input id={`settings-vim-${props.pane}`} class="settings-switch" type="checkbox" role="switch" checked={props.notebook.vim()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('vim', String(event.currentTarget.checked)); }} />
           </div>
           <div class="settings-row">

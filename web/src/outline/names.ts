@@ -104,7 +104,7 @@ export function referenceLabel(token: Token, target: Block | null | undefined, l
   if (target === null) return token.alias || `Unresolved ${token.id}`;
   if (token.alias) return token.alias;
   if (seen.has(target.id)) return 'Circular reference';
-  return targetLabel(target.text, lookup, new Set([...seen, target.id])) || 'Empty block';
+  return targetLabel(target.text, lookup, new Set([...seen, target.id])) || 'Empty atom';
 }
 
 /** Tag aliases are a fallback, never an override of the live page title. */

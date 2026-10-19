@@ -17,8 +17,8 @@ pub(crate) fn validate_source(conn: &Connection, id: &str) -> Result<()> {
         .optional()?;
     match kind.as_deref() {
         Some("block") => Ok(()),
-        Some(_) => Err(validation("Only ordinary blocks can be perspectives")),
-        None => Err(validation("Perspective block does not exist")),
+        Some(_) => Err(validation("Only ordinary atoms can be perspectives")),
+        None => Err(validation("Perspective atom does not exist")),
     }
 }
 

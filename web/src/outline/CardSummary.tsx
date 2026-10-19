@@ -145,7 +145,7 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks
       <Show when={holdError()}><p class="error" role="alert">{holdError()}</p></Show>
       <div class="outline-capability-actions">
         <Show when={ordered().length >= 2 && ordered().some(card => card.held)}><Button disabled={busy() || loading() || !!error()} onClick={() => void hold(ordered().filter(card => card.held), false)}>Start all</Button></Show>
-        <Button class="bordered" disabled={!ordered().some(card => !card.held)} title={`Review this block's cards · ${besideHint}`} onClick={event => { dismiss(); props.onOpen({ kind: 'review', blockId: props.blockId }, opensBeside(event)); }}>Review</Button>
+        <Button class="bordered" disabled={!ordered().some(card => !card.held)} title={`Review this atom's cards · ${besideHint}`} onClick={event => { dismiss(); props.onOpen({ kind: 'review', blockId: props.blockId }, opensBeside(event)); }}>Review</Button>
       </div>
     </Popup>}</Show>
   </>;
