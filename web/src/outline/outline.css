@@ -257,7 +257,7 @@
 .outline-source-line { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-8); }
 /* A single fact trails the text. A cluster keeps the right edge, so dates still line up. */
 .outline-source { flex: 1 1 auto; min-width: 0; }
-.outline-source-line:has(> .outline-capability-metadata > :only-child) > .outline-source { flex-grow: 0; }
+.outline-source-line:has(> .outline-capability-metadata > :only-child):not(:has(.outline-citation-local)) > .outline-source { flex-grow: 0; }
 .outline-capability-metadata { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
 .outline-capability-metadata .outline-planning { display: inline-flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 /* A card count is a count: apparatus mono, like every other number the notebook reports. */
