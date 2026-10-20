@@ -28,10 +28,10 @@
 .fields-index .button { min-width: var(--target-size); min-height: var(--row-height); max-width: 100%; padding: var(--space-2) var(--space-4); }
 .fields-index .field-name { justify-content: flex-start; color: var(--text); font-weight: var(--weight-body); }
 .fields-index .field-name:hover { text-decoration: underline; text-underline-offset: var(--space-4); }
-/* Kind reads as text; its menu affordance appears with the row's hover or focus. */
+/* Keep the format menu discoverable without competing with the field name. */
 .fields-kind-button.button { font-weight: var(--weight-body); color: var(--muted); }
-.fields-kind-button > .icon { width: var(--icon-size-small); height: var(--icon-size-small); opacity: 0; transition: opacity var(--motion-fast) var(--motion-ease); }
-.fields-index tr:hover .fields-kind-button > .icon, .fields-kind-button:focus-visible > .icon, .fields-kind-button[aria-expanded="true"] > .icon { opacity: 1; }
+.fields-kind-button > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); transition: color var(--motion-fast) var(--motion-ease); }
+.fields-index tr:is(:hover, :focus-within) .fields-kind-button > .icon, .fields-kind-button[aria-expanded="true"] > .icon { color: var(--text); }
 .fields-unused { color: var(--faint); }
 .fields-types { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .fields-types .outline-tag { display: inline-flex; align-items: center; min-width: var(--target-size); min-height: var(--target-size); max-width: 100%; margin: 0; overflow-wrap: anywhere; white-space: normal; }
@@ -43,18 +43,22 @@
 .field-create-fields .button { justify-content: space-between; border-color: var(--line); }
 .fields-actions { display: flex; gap: var(--space-4); }
 .fields-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); padding-block: var(--space-8); border-top: 1px solid var(--line); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.fields-hint { font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); letter-spacing: normal; }
 
-/* Keep one semantic register; its phone rows become ruled cards without hiding Templates. */
-@media (max-width: 599px) {
+/* Narrow panes keep each field on one line, with templates only when present. */
+@container pane (max-width: 599px) {
+  .fields-toolbar { flex-wrap: nowrap; }
+  .fields-search { flex: 1 1 0; }
+  .fields-toolbar > .button, .fields-actions { flex: none; }
+  .fields-actions { gap: 0; }
   .fields-index, .fields-index tbody { display: block; min-width: 0; width: 100%; }
-  .fields-index thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
-  .fields-index tbody tr { display: flex; flex-direction: column; gap: var(--section-item-gap); padding: var(--card-padding); border-bottom: var(--rule-width) solid var(--line); }
-  .fields-index td, .fields-index td:first-child, .fields-index .fields-count { position: static; display: flex; align-items: baseline; gap: var(--section-item-gap); width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; text-align: left; }
-  .fields-index td::before { content: attr(data-label); flex: 0 0 5rem; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-  .fields-index .button { justify-content: flex-start; min-width: var(--target-size); white-space: normal; overflow-wrap: anywhere; text-align: left; }
-  .fields-types { flex: 1; min-width: 0; }
-  .fields-kind-button > .icon { opacity: 1; }
+  .fields-index thead { position: absolute; width: var(--rule-width); height: var(--rule-width); padding: 0; overflow: hidden; clip-path: inset(50%); }
+  .fields-index tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: var(--space-8); padding-block: var(--space-8); border-bottom: var(--rule-width) solid var(--line); }
+  .fields-index td, .fields-index td:first-child, .fields-index .fields-count { position: static; width: auto; min-width: 0; padding: 0; border: 0; background: transparent; }
+  .fields-index .field-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fields-index .fields-kind-button { color: var(--faint); white-space: nowrap; }
+  .fields-index .fields-count { justify-self: end; text-align: right; }
+  .fields-index .fields-templates { grid-column: 1 / -1; padding-top: var(--space-4); }
+  .fields-index .fields-templates[data-empty] { display: none; }
 }
 
 /* A type page's template heads like the journal's sections: name, hairline, the fields in order, chevron. */
@@ -86,14 +90,13 @@
 .type-fields-title h1 { display: flex; align-items: baseline; gap: var(--space-12); min-width: 0; margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 /* The kind's glyph leads the name, as on its index and table. */
 .type-fields-title h1 > .icon { flex: none; align-self: center; color: var(--faint); }
-.type-fields-title > span { margin-left: auto; color: var(--faint); font: var(--apparatus); white-space: nowrap; }
 .template-register { margin-top: var(--page-head-gap); }
 .template-register .template-body { margin: 0; }
 .template-field-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: var(--text-control); line-height: var(--line-control); }
-.template-name-column { width: 30%; }
-.template-kind-column { width: 32%; }
-.template-usage-column { width: 12%; }
-.template-actions-column { width: 26%; }
+.template-name-column { width: calc(var(--space-48) * 4); }
+.template-kind-column { width: auto; }
+.template-usage-column { width: calc(var(--row-height) * 2 + var(--space-8)); }
+.template-actions-column { width: calc(var(--target-size) * 4 + var(--space-4) * 3 + var(--space-8)); }
 .template-field-table :is(th, td) { height: var(--row-height); padding: 0 var(--space-8) 0 0; border-bottom: var(--rule-width) solid var(--line); text-align: left; overflow-wrap: anywhere; }
 .template-field-table th { color: var(--muted); font: var(--apparatus); }
 .template-field-table tr:is(:hover, :focus-within) { background: var(--hover); }
@@ -105,10 +108,11 @@
 .template-built-in { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .template-field-table .template-kind { gap: var(--space-4); max-width: 100%; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: left; }
 .template-field-table .template-kind:hover { color: var(--text); }
-.template-field-table .template-kind .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); }
+.template-field-table .template-kind .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); }
 .template-rename .input { width: 100%; min-height: calc(var(--row-height) - var(--space-8)); }
 .template-field-usage, .template-field-usage .button { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.template-field-table .template-field-actions { gap: var(--space-4); }
+.template-field-table .template-field-usage { text-align: right; }
+.template-field-table .template-field-actions { justify-content: flex-end; gap: var(--space-4); }
 .template-field-table .template-field-actions .button { width: var(--target-size); flex: none; color: var(--muted); }
 .template-register .template-actions { padding-top: var(--space-12); }
 .template-register .template-actions > .button:first-child { border-color: var(--line); border-radius: 0; }
@@ -127,8 +131,14 @@
   .template-field-usage, .template-field-usage .button { font-size: var(--text-apparatus); }
 }
 
+.type-presentation-actions { display: flex; align-items: center; gap: var(--space-4); margin-left: auto; }
+.type-presentation-actions > .button { color: var(--muted); font-weight: var(--weight-body); }
 .type-presentation-form { display: flex; flex-direction: column; gap: var(--space-12); }
 .type-presentation-icons { display: grid; grid-template-columns: repeat(6, minmax(var(--target-size), 1fr)); gap: var(--space-4); }
 .type-presentation-icons .button { min-height: var(--touch-target); }
 .type-presentation-icons .button[aria-pressed="true"] { background: var(--selection); color: var(--accent); }
 .type-presentation-form label { display: flex; flex-direction: column; gap: var(--space-4); color: var(--muted); font: var(--apparatus); }
+
+.field-picker { display: flex; flex-direction: column; }
+.field-picker > .picker-query { flex: none; }
+.field-picker > .picker-list { min-height: 0; max-height: calc(8 * var(--row-height) + 2 * var(--space-4)); }

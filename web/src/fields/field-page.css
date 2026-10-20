@@ -2,10 +2,11 @@
 .field-sheet { width: 100%; max-width: var(--measure); margin-inline: auto; font-size: var(--text-control); line-height: var(--line-control); }
 .field-eyebrow { margin-bottom: var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .field-eyebrow .button { min-height: 0; padding: 0; border: 0; font: inherit; color: var(--muted); }
-.field-heading { display: flex; align-items: baseline; gap: var(--space-16); justify-content: space-between; }
+.field-heading { display: flex; align-items: baseline; gap: var(--space-16); }
 .field-heading h1 { min-width: 0; margin: 0; overflow-wrap: anywhere; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 .field-heading > .button, .field-heading-actions { flex: none; }
-.field-heading-actions { display: flex; gap: var(--space-4); }
+.field-heading-actions { margin-inline-start: auto; }
+.field-built-in { flex: none; color: var(--faint); font: var(--apparatus); }
 .field-summary { margin: var(--page-title-gap) 0 var(--page-head-gap); color: var(--muted); font: var(--apparatus); }
 .field-kind-row { display: flex; align-items: center; gap: var(--space-16); padding-block: var(--space-12); border-block: var(--rule-width) solid var(--line); color: var(--muted); }
 .field-kind-row > :first-child { margin-right: auto; }
@@ -30,8 +31,13 @@
 .field-options { table-layout: auto; }
 .field-options th:first-child { width: auto; }
 .field-options :is(th, td):nth-child(n + 2) { width: 1%; white-space: nowrap; }
-.field-options :is(th, td):nth-child(2), .field-options td:last-child { text-align: right; }
-.field-options td:last-child .button { color: var(--faint); font: var(--apparatus); white-space: nowrap; }
+.field-options :is(th, td):nth-child(2), .field-options td:nth-child(3) { text-align: right; }
+.field-options :is(th, td):nth-child(2) { padding-inline-end: var(--space-16); }
+.field-options :is(th, td):nth-child(3) { width: var(--target-size); padding-inline-end: 0; }
+.field-option-editable { cursor: pointer; }
+.field-option-editable:is(:hover, :focus-within) td { background: var(--hover); }
+.field-options .field-option-edit.button { display: inline-flex; align-items: center; justify-content: center; width: var(--target-size); min-height: var(--target-size); padding: 0; color: var(--faint); opacity: 0; transition: opacity var(--motion-fast) var(--motion-ease); }
+.field-option-editable:is(:hover, :focus-within) .field-option-edit { opacity: 1; }
 .field-inline-edit { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); padding-block: var(--space-4); }
 .field-inline-edit .input { flex: 1; min-width: 0; width: 100%; }
 .field-add.button { margin-top: var(--space-8); padding-inline: 0; color: var(--muted); font-weight: var(--weight-body); }
@@ -78,4 +84,7 @@
   .field-ledger:not(.field-options) th:nth-child(2) { width: 36%; }
   .field-ledger.field-interpretations th:nth-child(2) { width: 12%; }
   .field-preview-actions > :first-child { flex-basis: 100%; }
+}
+@media (hover: none) {
+  .field-options .field-option-edit.button { opacity: 1; }
 }

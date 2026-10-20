@@ -89,7 +89,7 @@ Open, it shows the same field rows as the type's Fields tab, described below. Ad
 
 ### Field rows
 
-The type page and the Fields tab list a template with one row design: Name, Format and Used by in template order. A name opens its field page. Format reads as Relation → Person, Group for a relation, any atom when it has no Links to types, and as Choice · 3 options for a choice field. Format opens a menu of the nine kinds, then Links to… for a relation, Options… for a choice and Open field definition.
+The type page and the Fields tab list a template with one row design: Name, Format and right-aligned Atoms in template order. Built-in field names read in sentence case without changing their stored names. A name opens its field page. Format has a faint menu chevron and reads as Relation → Person, Group for a relation, any atom when it has no Links to types, and as Choice · 3 options for a choice field. Format opens a menu of the nine kinds, then Links to… for a relation, Options… for a choice and Open field definition.
 
 - A kind every value already reads as applies in place, as a field with no values always does. Otherwise the field page opens its kind review for that kind.
 - Links to… opens the same Links to chooser as the field page.
@@ -98,13 +98,13 @@ The type page and the Fields tab list a template with one row design: Name, Form
 - Each rename, kind change and Links to change reports itself beside Add field, such as rank links to Person, with an Undo while it is the latest change.
 - Task's built-in fields have a quiet mono `built-in` mark here only. Status also reads `required`; it alone cannot be removed from the Task template. Built-in task names, formats and global deletion are protected. Repeat reads Repeat, while Scheduled and Deadline read Date + time.
 
-Under the list sits a count of the members that lack template fields and Fill missing fields. This gives each of them an empty entry for every template field it lacks, placed in template order, in one workshop command. Undo beside the result removes the entries it added that are still empty; an entry that gained a value or a note stays. Changing the template never rewrites members.
+Under the list, a gap line appears only when at least one missing field has Hide set to Never. It reads `19 empty fields on 7 people`, using the tag's plural noun, with Fill missing fields. This gives each affected atom an empty entry for every template field it lacks, placed in template order, in one workshop command. Undo beside the result removes the entries it added that are still empty; an entry that gained a value or a note stays. Changing the template never rewrites atoms.
 
 ## Type fields tab
 
 The type's Fields tab opens its field template as a third in-pane view, with the same Index, Table, Fields and Cards strip. All four tabs, the table title and the pane title read the kind as the sidebar does: its glyph and plural, or the spelling you wrote for a tag that only marks blocks (`#essay` titles `essay`, not `essays`), and Index, Fields and Cards share one left edge. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists the template in the [field rows](#field-rows) the type page uses. Usage counts are workshop-wide distinct owners, including empty entries.
 
-Add field and Fill missing fields keep the type page's editing behavior. The underlined type crumb opens the ordinary type page; the global Fields register remains separate.
+Add field and Fill missing fields keep the type page's editing behavior. The eyebrow shows only the tag's register name, such as People, linking to its index. The field count appears in the Fields tab, not again beside the title. Where there is no type-page menu, Icon and name… is a quiet control at the end of the editing toolbar. The global Fields register remains separate.
 
 ## Field bed
 

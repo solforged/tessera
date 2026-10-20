@@ -9,7 +9,7 @@ import type { PopupAnchor } from '../ui/Popup';
 import { RelationPicker } from './RelationPicker';
 import { choiceRows } from './value-options';
 import type { ChoiceRow } from './value-options';
-import { partialDatePlaceholder } from './kinds';
+import { fieldLabel, partialDatePlaceholder } from './kinds';
 
 /** Plain table values retain multiline input, native input modes and Enter/blur commit behavior. */
 export function PlainValueInput(props: {
@@ -17,7 +17,7 @@ export function PlainValueInput(props: {
   onInput(text: string): void; onCommit(returnFocus: boolean): void; onCancel(): void;
 }) {
   const placeholders = { date: partialDatePlaceholder, url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
-  return <textarea class={`input ${props.class ?? ''}`} aria-label={`Edit ${props.field?.name ?? 'field'} value`}
+  return <textarea class={`input ${props.class ?? ''}`} aria-label={`Edit ${props.field ? fieldLabel(props.field) : 'field'} value`}
     placeholder={props.field && props.field.kind in placeholders ? placeholders[props.field.kind as keyof typeof placeholders] : undefined}
     inputmode={props.field?.kind === 'number' ? 'decimal' : props.field?.kind === 'url' ? 'url' : undefined}
     rows={Math.min(8, Math.max(1, (props.text.match(/\n/g)?.length ?? 0) + 1))} value={props.text}
@@ -86,7 +86,7 @@ export function ValueEditor(props: {
     finally { setBusy(false); }
   }
   return <Switch>
-    <Match when={props.field.kind === 'choice'}><Picker<ChoiceRow> anchor={props.anchor} label={`${props.field.name} options`} query={query()} onQuery={setQuery} placeholder="Find an option"
+    <Match when={props.field.kind === 'choice'}><Picker<ChoiceRow> anchor={props.anchor} label={`${fieldLabel(props.field)} options`} query={query()} onQuery={setQuery} placeholder="Find an option"
       items={rows()} initial={Math.max(0, rows().findIndex(row => row.kind === 'option' && row.option.id === current()))}
       isCurrent={row => row.kind === 'option' && row.option.id === current()}
       key={row => row.kind === 'option' ? row.option.id : row.kind} disabledReason={() => busy() ? 'Saving…' : undefined}
@@ -95,7 +95,7 @@ export function ValueEditor(props: {
         : row.kind === 'create' ? <><Icon name="plus" /><span class="picker-text">Add option “{row.text}”</span></> : <><Icon name="close" /><span class="picker-text">Clear</span></>} /></Match>
     <Match when={props.field.kind === 'instance'}><RelationPicker anchor={props.anchor} field={props.field} notebook={props.notebook} current={current()} owner={props.owner}
       onPick={async intent => { await props.onWrite(`[[${intent.targetId ?? intent.query.trim()}]]`, intent); props.onDismiss(); }} onDismiss={props.onDismiss} onError={props.onError} /></Match>
-    <Match when={props.field.kind === 'date'}><DatePicker notebook={props.notebook} anchor={props.anchor} label={props.field.name} value={props.text || null} partialDates contextDate={props.contextDate}
+    <Match when={props.field.kind === 'date'}><DatePicker notebook={props.notebook} anchor={props.anchor} label={fieldLabel(props.field)} value={props.text || null} partialDates contextDate={props.contextDate}
       onSelect={value => props.onWrite(value.date ?? '')} onDismiss={props.onDismiss} onAdvance={props.onAdvance} /></Match>
   </Switch>;
 }

@@ -11,11 +11,12 @@ import { Menu } from '../ui/Menu';
 import { FieldPicker } from './FieldPicker';
 import { LinksToPopup } from './LinksToPopup';
 import { changeFieldKind, createTemplateField, renameField, setFieldTargets } from './commands';
-import { fieldKinds, kindLabels, kindNoun } from './kinds';
+import { fieldKinds, fieldLabel, kindLabels, kindNoun } from './kinds';
 import { TypePresentation } from './TypePresentation';
 import { requiredIds, requiredReason } from './required';
 import { entryAnchor } from './templates';
 import { linksToSummary } from './targets';
+import { fieldHide } from './hide';
 import './fields.css';
 import { taskFieldName, taskFieldFormat } from '../tasks/task-fields';
 
@@ -42,7 +43,7 @@ async function templateGaps(notebook: NotebookClient, type: Type): Promise<Gap[]
  * every member an empty entry for each template field it lacks, in one command that Undo removes again while those
  * entries are still empty.
  */
-export function TemplateEditor(props: { type: Type; fields: readonly FieldDefinition[]; notebook: NotebookClient; onError(message: string): void; onOpen(target: OpenTarget, beside: boolean): void; register?: { fields: readonly FieldSummary[]; pageId: string } }) {
+export function TemplateEditor(props: { type: Type; fields: readonly FieldDefinition[]; notebook: NotebookClient; onError(message: string): void; onOpen(target: OpenTarget, beside: boolean): void; pluralName?: string; register?: { fields: readonly FieldSummary[]; pageId: string } }) {
   const [open, setOpen] = createSignal(false);
   const [busy, setBusy] = createSignal(false);
   const [picker, setPicker] = createSignal<HTMLElement | null>(null);
@@ -60,6 +61,14 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
   // The count is a guide, recounted when the template or membership changes; Fill recounts before it writes.
   const [gaps, { refetch }] = createResource(() => (props.register || open()) && `${props.type.page.id}:${props.type.fields.join(',')}:${props.type.members}`, () => templateGaps(props.notebook, props.type));
   const missing = createMemo(() => (gaps() ?? []).reduce((sum, gap) => sum + gap.fields.length, 0));
+  const hasVisibleGap = createMemo(() => (gaps() ?? []).some(gap => gap.fields.some(id => {
+    const field = byId().get(id);
+    return field && fieldHide(field) === 'never';
+  })));
+  const atomNames = createMemo(() => ({
+    singular: props.type.page.text.trim().toLocaleLowerCase() || 'atom',
+    plural: (props.pluralName?.trim() || props.type.plural?.trim() || 'atoms').toLocaleLowerCase(),
+  }));
   async function run(action: () => Promise<unknown>) {
     if (busy()) return;
     setBusy(true);
@@ -72,13 +81,13 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
     const name = edit.text.trim();
     setRenaming(null);
     if (name === field.name) return;
-    remember(`${field.name} renamed to ${name}.`)(await renameField(props.notebook, field, name));
+    remember(`${fieldLabel(field)} renamed to ${name}.`)(await renameField(props.notebook, field, name));
   });
   /** A kind every value already reads as applies in place; otherwise the field page reviews the values first. */
   const changeKind = (field: FieldDefinition, kind: FieldKind, beside: boolean) => run(async () => {
     const detail = await props.notebook.api.fieldDetail(field.id, kind);
     if (detail.problems_total) { props.onOpen({ kind: 'field', fieldId: field.id, previewKind: kind }, beside); return; }
-    remember(`${field.name} is now a ${kindNoun(kind)} field.`)(await changeFieldKind(props.notebook, detail, {}));
+    remember(`${fieldLabel(field)} is now a ${kindNoun(kind)} field.`)(await changeFieldKind(props.notebook, detail, {}));
   });
   const kindSummary = (field: FieldDefinition) => taskFieldFormat(field) ?? (field.kind === 'instance'
     ? `${kindLabels.instance} → ${linksToSummary(props.notebook, field.targets, 'any atom')}`
@@ -134,16 +143,15 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
   });
 
   const fieldActions = (id: string, index: number) => <span class="template-field-actions">
-    <Button icon="edit" label={byId().get(id)!.built_in ? `${byId().get(id)!.name} is built in and cannot be renamed.` : `Rename ${byId().get(id)!.name}`} disabled={busy() || !!byId().get(id)!.built_in} onClick={() => setRenaming({ id, text: byId().get(id)!.name })} />
-    <Button icon="up" label={`Move ${byId().get(id)!.name} up`} disabled={busy() || index === 0} onClick={() => move(props.type.fields.indexOf(id), -1)} />
-    <Button icon="down" label={`Move ${byId().get(id)!.name} down`} disabled={busy() || index === template().length - 1} onClick={() => move(props.type.fields.indexOf(id), 1)} />
-    <Button icon="close" label={required().has(id) ? requiredReason(props.type, byId().get(id)!.name) : `Remove ${byId().get(id)!.name} from template`} disabled={busy() || required().has(id)} onClick={() => void setFields(props.type.fields.filter(field => field !== id))} />
+    <Button icon="edit" label={byId().get(id)!.built_in ? `${fieldLabel(byId().get(id)!)} is built in and cannot be renamed.` : `Rename ${fieldLabel(byId().get(id)!)}`} disabled={busy() || !!byId().get(id)!.built_in} onClick={() => setRenaming({ id, text: byId().get(id)!.name })} />
+    <Button icon="up" label={`Move ${fieldLabel(byId().get(id)!)} up`} disabled={busy() || index === 0} onClick={() => move(props.type.fields.indexOf(id), -1)} />
+    <Button icon="down" label={`Move ${fieldLabel(byId().get(id)!)} down`} disabled={busy() || index === template().length - 1} onClick={() => move(props.type.fields.indexOf(id), 1)} />
+    <Button icon="close" label={required().has(id) ? requiredReason(props.type, fieldLabel(byId().get(id)!)) : `Remove ${fieldLabel(byId().get(id)!)} from template`} disabled={busy() || required().has(id)} onClick={() => void setFields(props.type.fields.filter(field => field !== id))} />
   </span>;
   return <section class={`template-editor ${props.register ? 'template-register' : ''}`} aria-label="Template">
-    <TypePresentation type={props.type} notebook={props.notebook} onError={props.onError} />
     <Show when={!props.register}><Button class="template-toggle" aria-expanded={open()} onClick={() => setOpen(value => !value)}>
       <span class="template-name">Template</span><span class="section-rule" />
-      <span class="template-summary">{template().length ? template().map(id => byId().get(id)!.name).join(' · ') : 'No fields'}</span><Icon name="down" />
+      <span class="template-summary">{template().length ? template().map(id => fieldLabel(byId().get(id)!)).join(' · ') : 'No fields'}</span><Icon name="down" />
     </Button></Show>
     <Show when={props.register || open()}><div class="template-body" aria-busy={busy() || gaps.loading}>
       <Show when={props.type.starting.length}><div class="template-actions">
@@ -153,13 +161,13 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
       <Show when={template().length} fallback={<p class="template-note">Fields added here become this tag’s table columns and wait as empty slots on its atoms.</p>}>
         <table class="template-field-table">
           <colgroup><col class="template-name-column" /><col class="template-kind-column" /><col class="template-usage-column" /><col class="template-actions-column" /></colgroup>
-          <thead><tr><th scope="col">Name</th><th scope="col">Format</th><th scope="col">Used by</th><th scope="col"><span class="visually-hidden">Field actions</span></th></tr></thead>
+          <thead><tr><th scope="col">Name</th><th scope="col">Format</th><th scope="col" class="template-field-usage">Atoms</th><th scope="col"><span class="visually-hidden">Field actions</span></th></tr></thead>
           <tbody><For each={template()}>{(id, index) => <Show when={byId().get(id)}>{field => <tr>
-            <td><Show when={renaming()?.id === id} fallback={<><Button class="template-definition" title={`Open ${field().name} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'field', fieldId: id }, opensBeside(event))}>{field().name}</Button><Show when={field().built_in}> <span class="template-built-in">built-in</span></Show><Show when={required().has(id)}> <span class="template-required" title={requiredReason(props.type, field().name)}>required</span></Show></>}>
-              <form class="template-rename" onSubmit={event => { event.preventDefault(); void rename(); }}><input class="input" aria-label={`New name for ${field().name}`} value={renaming()!.text} onInput={event => setRenaming({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setRenaming(null); } }} onBlur={() => { if (renaming()?.id === id) void rename(); }} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} /></form>
+            <td><Show when={renaming()?.id === id} fallback={<><Button class="template-definition" title={`Open ${fieldLabel(field())} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'field', fieldId: id }, opensBeside(event))}>{fieldLabel(field())}</Button><Show when={field().built_in}> <span class="template-built-in">built-in</span></Show><Show when={required().has(id)}> <span class="template-required" title={requiredReason(props.type, fieldLabel(field()))}>required</span></Show></>}>
+              <form class="template-rename" onSubmit={event => { event.preventDefault(); void rename(); }}><input class="input" aria-label={`New name for ${fieldLabel(field())}`} value={renaming()!.text} onInput={event => setRenaming({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setRenaming(null); } }} onBlur={() => { if (renaming()?.id === id) void rename(); }} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} /></form>
             </Show></td>
-            <td class="template-field-kind"><Button class="template-kind" aria-haspopup="menu" aria-expanded={kindMenu()?.id === id} aria-label={`Format for ${field().name}: ${kindSummary(field())}`} disabled={busy() || !!taskFieldName(field())} onClick={event => setKindMenu({ id, anchor: event.currentTarget })}>{kindSummary(field())} <Show when={!taskFieldName(field())}><Icon name="down" /></Show></Button></td>
-            <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span title="No atom uses this field yet">Unused</span>}><Button title={`Atoms using ${field().name}: ${summaries().get(id)!.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{summaries().get(id)!.owners}</Button></Show></td>
+            <td class="template-field-kind"><Button class="template-kind" aria-haspopup="menu" aria-expanded={kindMenu()?.id === id} aria-label={`Format for ${fieldLabel(field())}: ${kindSummary(field())}`} disabled={busy() || !!taskFieldName(field())} onClick={event => setKindMenu({ id, anchor: event.currentTarget })}>{kindSummary(field())} <Show when={!taskFieldName(field())}><Icon name="down" /></Show></Button></td>
+            <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span title="No atom uses this field yet">Unused</span>}><Button title={`Atoms using ${fieldLabel(field())}: ${summaries().get(id)!.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{summaries().get(id)!.owners}</Button></Show></td>
             <td>{fieldActions(id, index())}</td>
           </tr>}</Show>}</For></tbody>
         </table>
@@ -170,19 +178,20 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
           <span class="template-gap" role="status">{done().label}</span>
           <Button disabled={busy()} onClick={() => void run(async () => { await done().change.undo(); setChanged(null); })}>Undo</Button>
         </>}</Show>
-        <Show when={filled()} fallback={<Show when={missing() && !changed()}>
-          <span class="template-gap">{gaps()!.length} {gaps()!.length === 1 ? 'atom lacks' : 'atoms lack'} {missing()} {missing() === 1 ? 'field' : 'fields'}</span>
+        <Show when={filled()} fallback={<Show when={hasVisibleGap() && !changed()}>
+          <span class="template-gap">{missing()} empty {missing() === 1 ? 'field' : 'fields'} on {gaps()!.length} {gaps()!.length === 1 ? atomNames().singular : atomNames().plural}</span>
           <Button class="bordered" disabled={busy()} onClick={() => void fill()}>Fill missing fields</Button>
         </Show>}>{done => <>
-          <span class="template-gap" role="status">Added {done().entries.length} {done().entries.length === 1 ? 'field' : 'fields'} to {done().owners} {done().owners === 1 ? 'atom' : 'atoms'}</span>
+          <span class="template-gap" role="status">Added {done().entries.length} {done().entries.length === 1 ? 'field' : 'fields'} to {done().owners} {done().owners === 1 ? atomNames().singular : atomNames().plural}</span>
           <Button disabled={busy()} onClick={() => void undoFill()}>Undo</Button>
         </>}</Show>
+        <TypePresentation type={props.type} notebook={props.notebook} onError={props.onError} />
       </div>
     </div></Show>
     <Show when={kindMenu()}>{menu => <Show when={byId().get(menu().id)}>{field => {
       // The menu closes before an item runs, so items keep their own copy of the row they belong to.
       const { anchor } = menu(); const current = field();
-      return <Menu anchor={anchor} label={`Format for ${current.name}`} onDismiss={() => setKindMenu(null)} items={[
+      return <Menu anchor={anchor} label={`Format for ${fieldLabel(current)}`} onDismiss={() => setKindMenu(null)} items={[
         ...fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === current.kind, action: () => { if (kind !== current.kind) void changeKind(current, kind, false); } })),
         ...(current.kind === 'instance' ? [{ label: 'Links to…', divider: true, action: () => setLinksMenu({ id: current.id, anchor }) }] : []),
         ...(current.kind === 'choice' ? [{ label: 'Options…', divider: true, action: () => props.onOpen({ kind: 'field', fieldId: current.id, section: 'options' }, false) }] : []),
@@ -190,7 +199,7 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
       ]} />;
     }}</Show>}</Show>
     <Show when={linksMenu()}>{menu => <Show when={byId().get(menu().id)}>{field => <LinksToPopup anchor={menu().anchor} notebook={props.notebook} targets={field().targets} disabled={busy()} onDismiss={() => setLinksMenu(null)}
-      onApply={targets => { const current = field(); setLinksMenu(null); void run(async () => remember(`${current.name} links to ${linksToSummary(props.notebook, targets, 'any atom')}.`)(await setFieldTargets(props.notebook, current, targets))); }} />}</Show>}</Show>
+      onApply={targets => { const current = field(); setLinksMenu(null); void run(async () => remember(`${fieldLabel(current)} links to ${linksToSummary(props.notebook, targets, 'any atom')}.`)(await setFieldTargets(props.notebook, current, targets))); }} />}</Show>}</Show>
     <Show when={picker()}>{anchor => <FieldPicker anchor={anchor()} label="Add field to template" fields={props.fields} exclude={new Set(props.type.fields)}
       onPick={field => { setPicker(null); void setFields([...props.type.fields, field.id]); }}
       onCreate={(name, kind) => { setPicker(null); void run(() => createTemplateField(props.notebook, props.type, name, kind)); }} onDismiss={() => setPicker(null)} />}</Show>

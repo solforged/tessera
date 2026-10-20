@@ -7,7 +7,7 @@ export const fieldRoles = ['standfirst', 'attribute', 'prose', 'citation'] as co
 export type FieldRole = typeof fieldRoles[number];
 export const roleLabels: Record<FieldRole, string> = { standfirst: 'Standfirst', attribute: 'Attribute', prose: 'Prose', citation: 'Citation' };
 export const roleDescriptions: Record<FieldRole, string> = {
-  standfirst: 'A sentence under its owner, without a label.',
+  standfirst: 'A sentence below the atom, without a label.',
   attribute: 'A compact label and value in the field bed.',
   prose: 'A full-width passage below the field bed.',
   citation: 'References as siglum and locator in the field bed.',

@@ -1,4 +1,5 @@
 import { taskFieldName, taskFieldFormat } from '../tasks/task-fields';
+import { priorities, priorityLabel, statuses, statusLabels } from '../tasks/TaskControls';
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup } from 'solid-js';
 import type { FieldDetail, FieldKind, FieldOwner, FieldValueUse } from '../api/types';
 import type { DocumentChange, NotebookClient, PageDocument } from '../document/contract';
@@ -9,8 +10,8 @@ import { plural } from '../sync/state';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
-import { fieldKinds, fieldNameProblem, kindLabels } from './kinds';
-import { fieldHide, fieldHides, hideLabels } from './hide';
+import { fieldKinds, fieldLabel, fieldNameProblem, kindLabels } from './kinds';
+import { fieldHide, fieldHides, hideDescriptions, hideLabels } from './hide';
 import type { FieldHide } from './hide';
 import { countsAsValues, countsDescriptions, countsLabel, countsLabels, countsReason, fieldCounts } from './counts';
 import type { CountsAs } from './counts';
@@ -53,6 +54,7 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [loading, setLoading] = createSignal(true);
   const [applying, setApplying] = createSignal(false);
   const [menu, setMenu] = createSignal<HTMLElement | null>(null);
+  const [actionsMenu, setActionsMenu] = createSignal<HTMLElement | null>(null);
   const [hideMenu, setHideMenu] = createSignal<HTMLElement | null>(null);
   const [roleMenu, setRoleMenu] = createSignal<HTMLElement | null>(null);
   const [countsMenu, setCountsMenu] = createSignal<HTMLElement | null>(null);
@@ -104,6 +106,19 @@ export function FieldDetails(props: FieldDetailsProps) {
   const taskBacked = () => {
     const field = data()?.field; const name = field && taskFieldName(field);
     return !!name && name !== 'project';
+  };
+  const options = createMemo(() => {
+    const field = data()?.field;
+    if (!field) return [];
+    const name = taskFieldName(field);
+    if (name === 'status') return statuses.map(status => ({ id: status, text: statusLabels[status] }));
+    if (name === 'priority') return priorities.flatMap(priority => priority === null ? [] : [{ id: priority, text: priorityLabel(priority) }]);
+    return field.options;
+  });
+  const sectionNumber = (section: 'options' | 'templates' | 'owners' | 'problems') => {
+    if (props.inspector || preview()) return undefined;
+    const shown = [...data()?.kind === 'choice' ? ['options'] : [], 'templates', ...!taskBacked() ? ['owners'] : [], ...data()?.problems_total ? ['problems'] : []];
+    return String(shown.indexOf(section) + 1).padStart(2, '0');
   };
   let article!: HTMLElement;
   let openedSection = '';
@@ -239,14 +254,14 @@ export function FieldDetails(props: FieldDetailsProps) {
     <input class="input" aria-label={id === props.fieldId ? 'Field name' : 'Option name'} value={editing()?.text ?? ''} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} onInput={event => setEditing({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') finishEditing(); }} />
     <Button type="submit" disabled={!ready()}>Save</Button><Button onClick={finishEditing}>Cancel</Button>
   </form></Show>;
-  const ledger = (items: FieldValueUse[], after: boolean) => <table class="field-ledger"><thead><tr><th scope="col">Written value</th><th scope="col">Owner</th><th scope="col">{after ? 'After applying' : 'Problem'}</th></tr></thead><tbody>
+  const ledger = (items: FieldValueUse[], after: boolean) => <table class="field-ledger"><thead><tr><th scope="col">Written value</th><th scope="col">Atom</th><th scope="col">{after ? 'After applying' : 'Problem'}</th></tr></thead><tbody>
     <For each={items}>{item => <tr><td classList={{ 'field-rubric': !item.value.reading.ok }}>{plainText(item.value.text, id => props.notebook.lookup(id))}</td><td><Button onClick={event => ownerLink(item.owner, opensBeside(event))}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button></td><td class="field-apparatus">{readingLabel(item.value.reading)}<Show when={!after && data()?.kind === 'choice'}><Button disabled={!ready()} onClick={() => void makeOption(item.value.text)}>Make option</Button></Show></td></tr>}</For>
   </tbody></table>;
   const templates = (value: FieldDetail, title: string) => <section class="field-section">
-    <SectionHead number={!props.inspector && !preview() ? value.kind === 'choice' ? '02' : '01' : undefined} title={title} count={plural(value.templates.length, 'template')} />
+    <SectionHead number={sectionNumber('templates')} title={title} count={plural(value.templates.length, 'template')} />
     <For each={value.templates} fallback={<p class="field-note">No templates use this field.</p>}>{template => <div class="field-template-row">
       <button type="button" class="outline-tag" onClick={event => props.onOpen({ kind: 'fields', typeId: template.type_id }, opensBeside(event))}>#{template.name}</button>
-      <span class="field-apparatus">{ordinal(template.position)} field</span><span class="field-apparatus field-member-count">{plural(template.members, 'member')}</span>
+      <span class="field-apparatus">{ordinal(template.position)} field</span><span class="field-apparatus field-member-count">{template.name.toLocaleLowerCase() === 'task' ? plural(register()?.fields.find(field => taskFieldName(field) === 'status')?.owners ?? value.owners_total, 'task') : plural(template.members, 'atom')}</span>
       <Show when={!props.inspector}><Button onClick={event => props.onOpen({ kind: 'fields', typeId: template.type_id }, opensBeside(event))}>Open template</Button></Show>
     </div>}</For>
   </section>;
@@ -259,37 +274,45 @@ export function FieldDetails(props: FieldDetailsProps) {
     <Show when={documentError()}><p class="error" role="alert">{documentError()}</p></Show>
     <Show when={lastChange()}>{change => <p class="field-note">Field changed. <Button disabled={applying()} onClick={async () => { setApplying(true); try { await change().undo(); setRemoved(false); setLastChange(undefined); setVersion(value => value + 1); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } finally { setApplying(false); } }}>Undo</Button></p>}</Show>
     <Show when={data()} fallback={<Show when={loading()}><p role="status">Loading field…</p></Show>}>{value => <>
-      <div class="field-eyebrow"><Show when={props.inspector} fallback={<><Button onClick={event => props.onOpen({ kind: 'fields' }, opensBeside(event))}>Fields</Button> / Definition</>}>Selected definition</Show></div>
-      <header class="field-heading"><h1>{value().field.name}</h1><Show when={props.inspector} fallback={<Show when={!preview()}><span class="field-heading-actions"><Button disabled={!ready() || value().field.built_in} title={value().field.built_in ? `${value().field.name} is built in and cannot be renamed.` : undefined} onClick={() => setEditing({ id: props.fieldId, text: value().field.name })}>Rename…</Button><Button disabled={!ready() || !!taskFieldName(value().field)} onClick={() => void previewImpact()}>Delete definition…</Button></span></Show>}><Button onClick={event => props.onOpen({ kind: 'field', fieldId: props.fieldId }, opensBeside(event))}>Open atom ↗</Button></Show></header>
+      <Show when={!props.inspector}><div class="field-eyebrow"><Button onClick={event => props.onOpen({ kind: 'fields' }, opensBeside(event))}>Fields</Button></div></Show>
+      <header class="field-heading"><h1>{fieldLabel(value().field)}</h1><Show when={value().field.built_in}><span class="field-built-in">Built in</span></Show><Show when={props.inspector} fallback={<Show when={!preview() && !value().field.built_in}><Button class="field-heading-actions" icon="more" label="Field actions" aria-haspopup="menu" aria-expanded={!!actionsMenu()} disabled={!ready()} onClick={event => setActionsMenu(event.currentTarget)} /></Show>}><Button class="field-heading-actions" onClick={event => props.onOpen({ kind: 'field', fieldId: props.fieldId }, opensBeside(event))}>Open atom ↗</Button></Show></header>
       {inlineEdit(props.fieldId)}
       <Show when={value().field.archived}><p class="field-note">Archived; values remain readable.</p></Show>
       <Show when={impact()}>{current => <FieldImpactPreview impact={current()} fields={register()?.fields ?? []} busy={applying()} onTarget={target => void previewImpact(target)} onApply={action => void applyImpact(action)} onCancel={() => setImpact(undefined)} />}</Show>
-      <p class="field-summary">{taskFieldFormat(value().field) ?? kindLabels[value().field.kind]} · {plural(value().owners_total, 'owner')}<Show when={!taskBacked()}> · {plural(value().values_total, 'value')}</Show></p>
-      <div class="field-kind-row"><span>{preview() ? 'Change format' : 'Format'}</span><Show when={preview()}><span class="field-apparatus">{kindLabels[value().field.kind]} →</span></Show><Button class="bordered" aria-label={`Format for ${value().field.name}: ${taskFieldFormat(value().field) ?? kindLabels[value().kind]}`} aria-haspopup="menu" aria-expanded={!!menu()} disabled={applying() || !!taskFieldName(value().field)} onClick={event => setMenu(event.currentTarget)}>{taskFieldFormat(value().field) ?? kindLabels[value().kind]} <Show when={!taskFieldName(value().field)}><Icon name="down" /></Show></Button></div>
+      <p class="field-summary">{taskFieldFormat(value().field) ?? kindLabels[value().field.kind]} · {plural(value().owners_total, 'atom')}</p>
+      <div class="field-kind-row"><span>{preview() ? 'Change format' : 'Format'}</span><Show when={preview()}><span class="field-apparatus">{kindLabels[value().field.kind]} →</span></Show><Show when={!value().field.built_in && !taskFieldName(value().field)} fallback={<span>{taskFieldFormat(value().field) ?? kindLabels[value().kind]}</span>}><Button class="bordered" aria-label={`Format for ${fieldLabel(value().field)}: ${taskFieldFormat(value().field) ?? kindLabels[value().kind]}`} aria-haspopup="menu" aria-expanded={!!menu()} disabled={applying()} onClick={event => setMenu(event.currentTarget)}>{taskFieldFormat(value().field) ?? kindLabels[value().kind]} <Icon name="down" /></Button></Show></div>
       <Show when={value().kind === 'instance' && !preview()}><div class="field-kind-row" data-field-section="targets"><span>Links to</span><Button class="bordered" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!targetsMenu()} onClick={event => setTargetsMenu(event.currentTarget)}>{linksToSummary(props.notebook, value().field.targets, 'Any atom')} <Icon name="down" /></Button></div></Show>
-      <div class="field-kind-row"><span>Hide</span><Button class="bordered" aria-label={`Hide for ${value().field.name}: ${hideLabels[fieldHide(value().field)]}`} aria-haspopup="menu" aria-expanded={!!hideMenu()} disabled={!ready()} onClick={event => setHideMenu(event.currentTarget)}>{hideLabels[fieldHide(value().field)]} <Icon name="down" /></Button></div>
-      <p class="field-note">{fieldHide(value().field) === 'never' ? 'Shown even when empty.' : fieldHide(value().field) === 'when_empty' ? 'Hidden in atoms while empty.' : 'Hidden in atoms; tables still show it.'}</p>
-      <div class="field-kind-row"><span>Role</span><Button class="bordered" aria-label={`Role for ${value().field.name}: ${roleLabels[fieldRole(value().field)]}`} aria-haspopup="menu" aria-expanded={!!roleMenu()} disabled={!ready()} onClick={event => setRoleMenu(event.currentTarget)}>{roleLabels[fieldRole(value().field)]} <Icon name="down" /></Button></div>
+      <div class="field-kind-row"><span>Hide</span><Button class="bordered" aria-label={`Hide for ${fieldLabel(value().field)}: ${hideLabels[fieldHide(value().field)]}`} aria-haspopup="menu" aria-expanded={!!hideMenu()} disabled={!ready()} onClick={event => setHideMenu(event.currentTarget)}>{hideLabels[fieldHide(value().field)]} <Icon name="down" /></Button></div>
+      <p class="field-note">{hideDescriptions[fieldHide(value().field)]}</p>
+      <div class="field-kind-row"><span>Shows as</span><Button class="bordered" aria-label={`Shows as for ${fieldLabel(value().field)}: ${roleLabels[fieldRole(value().field)]}`} aria-haspopup="menu" aria-expanded={!!roleMenu()} disabled={!ready()} onClick={event => setRoleMenu(event.currentTarget)}>{roleLabels[fieldRole(value().field)]} <Icon name="down" /></Button></div>
       <p class="field-note">{roleDescriptions[fieldRole(value().field)]}</p>
-      <div class="field-kind-row"><span>Counts as</span><Button class="bordered" aria-label={`Counts as for ${value().field.name}: ${countsLabel(value().field)}`} aria-haspopup="menu" aria-expanded={!!countsMenu()} title={countsReason(value().field)} disabled={!ready() || !!countsReason(value().field)} onClick={event => setCountsMenu(event.currentTarget)}>{countsLabel(value().field)} <Icon name="down" /></Button></div>
-      <p class="field-note">{countsReason(value().field) && value().field.built_in ? countsReason(value().field) : countsDescriptions[fieldCounts(value().field) ?? 'nothing']}</p>
+      <Show when={!countsReason(value().field)}>
+        <div class="field-kind-row"><span>Counts as</span><Button class="bordered" aria-label={`Counts as for ${fieldLabel(value().field)}: ${countsLabel(value().field)}`} aria-haspopup="menu" aria-expanded={!!countsMenu()} disabled={!ready()} onClick={event => setCountsMenu(event.currentTarget)}>{countsLabel(value().field)} <Icon name="down" /></Button></div>
+        <p class="field-note">{countsDescriptions[fieldCounts(value().field) ?? 'nothing']}</p>
+      </Show>
       <Show when={preview()} fallback={<>
-        <Show when={value().kind === 'choice' && !props.inspector && !taskFieldName(value().field)}><section class="field-section" data-field-section="options"><SectionHead number="01" title="Options" count={plural(value().field.options.length, 'option')} />
-          <table class="field-ledger field-options"><thead><tr><th scope="col">Value</th><th scope="col">Uses</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr></thead><tbody><For each={value().field.options}>{option => <tr><td><Show when={editing()?.id !== option.id} fallback={inlineEdit(option.id)}>{option.text}</Show></td><td class="field-apparatus">{optionUses().get(option.id) ?? 0}</td><td><Button disabled={!ready()} aria-label={`Rename option ${option.text}`} onClick={() => setEditing({ id: option.id, text: option.text })}>Edit…</Button></td></tr>}</For></tbody></table>
-          <Show when={adding()} fallback={<Button class="field-add" disabled={!ready()} onClick={() => setAdding(true)}>+ Add option</Button>}><form class="field-inline-edit" onSubmit={event => { event.preventDefault(); addOption(); }}><input class="input" aria-label="New option" value={option()} onInput={event => setOption(event.currentTarget.value)} ref={input => queueMicrotask(() => input.focus())} /><Button type="submit" disabled={!ready() || !option().trim()}>Add option</Button><Button onClick={() => setAdding(false)}>Cancel</Button></form></Show>
+        <Show when={value().kind === 'choice' && !props.inspector}><section class="field-section" data-field-section="options"><SectionHead number={sectionNumber('options')} title="Options" count={plural(options().length, 'option')} />
+          <table class="field-ledger field-options"><thead><tr><th scope="col">Value</th><Show when={!value().field.built_in}><th scope="col">Atoms</th><th scope="col"><span class="visually-hidden">Actions</span></th></Show></tr></thead><tbody>
+            <For each={options()}>{option => <tr classList={{ 'field-option-editable': !value().field.built_in }} tabIndex={!value().field.built_in && ready() ? 0 : undefined} aria-label={!value().field.built_in ? `Edit option ${option.text}` : undefined} onClick={event => {
+              if (!value().field.built_in && ready() && editing()?.id !== option.id && !(event.target as HTMLElement).closest('button, form')) setEditing({ id: option.id, text: option.text });
+            }} onKeyDown={event => {
+              if (event.target === event.currentTarget && event.key === 'Enter' && !value().field.built_in && ready()) { event.preventDefault(); setEditing({ id: option.id, text: option.text }); }
+            }}><td><Show when={editing()?.id !== option.id} fallback={inlineEdit(option.id)}>{option.text}</Show></td><Show when={!value().field.built_in}><td class="field-apparatus">{optionUses().get(option.id) ?? 0}</td><td><Button class="field-option-edit" icon="edit" disabled={!ready()} label={`Edit option ${option.text}`} onClick={() => setEditing({ id: option.id, text: option.text })} /></td></Show></tr>}</For>
+          </tbody></table>
+          <Show when={!value().field.built_in}><Show when={adding()} fallback={<Button class="field-add" disabled={!ready()} onClick={() => setAdding(true)}>+ Add option</Button>}><form class="field-inline-edit" onSubmit={event => { event.preventDefault(); addOption(); }}><input class="input" aria-label="New option" value={option()} onInput={event => setOption(event.currentTarget.value)} ref={input => queueMicrotask(() => input.focus())} /><Button type="submit" disabled={!ready() || !option().trim()}>Add option</Button><Button onClick={() => setAdding(false)}>Cancel</Button></form></Show></Show>
         </section></Show>
         <Show when={!props.inspector}>{templates(value(), 'In templates')}</Show>
         <Show when={props.inspector && value().kind === 'date' && !taskBacked()}><section class="field-section"><SectionHead title="Reading" /><Show when={dateExample()} fallback={<p class="field-note">Accepts bare years from 1 to 9999. No day is added.</p>}>{example => <p class="field-apparatus">{plainText(example().value.text, id => props.notebook.lookup(id))} → {(() => { const reading = example().value.reading; if (!reading.ok) return ''; const text = String(reading.value); return /^\d{1,4}$/.test(text) ? `year ${Number(text)}` : text; })()}</p>}</Show></section></Show>
-        <Show when={!taskBacked()} fallback={<p class="field-note">Each task keeps this value. <Button onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [], sort: [], limit: null, source: 'tasks' } }, opensBeside(event))}>Tasks</Button> lists them.</p>}>
-        <section class="field-section"><SectionHead number={props.inspector ? undefined : value().kind === 'choice' ? '03' : '02'} title="Used by" count={plural(value().owners_total, 'owner')} /><div class="field-owners"><For each={value().owners} fallback={<p class="field-note">No owners yet.</p>}>{item => <div class="field-owner"><Button onClick={event => ownerLink(item.owner, opensBeside(event))}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button><div class="field-owner-values"><For each={item.values} fallback={<span class="field-apparatus">Empty</span>}>{fieldValue => <span classList={{ 'field-apparatus': true, 'field-rubric': !fieldValue.reading.ok }}>{fieldValue.reading.ok && typeof fieldValue.reading.value !== 'object' ? readingLabel(fieldValue.reading) : plainText(fieldValue.text, id => props.notebook.lookup(id))}</span>}</For></div></div>}</For></div>
-          <Show when={value().owners_total}><Button class="field-view-all" onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: props.fieldId, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{value().owners_total === 1 ? 'View owner' : `View all ${plural(value().owners_total, 'owner')}`} →</Button></Show>
+        <Show when={!taskBacked()} fallback={<p class="field-note">Each task keeps this value. <button type="button" class="outline-reference" onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [], sort: [], limit: null, source: 'tasks' } }, opensBeside(event))}>Tasks</button> lists them.</p>}>
+        <section class="field-section"><SectionHead number={sectionNumber('owners')} title="Used by" count={plural(value().owners_total, 'atom')} /><div class="field-owners"><For each={value().owners} fallback={<p class="field-note">No atoms yet.</p>}>{item => <div class="field-owner"><Button onClick={event => ownerLink(item.owner, opensBeside(event))}>{plainText(item.owner.text, id => props.notebook.lookup(id))}</Button><div class="field-owner-values"><For each={item.values} fallback={<span class="field-apparatus">Empty</span>}>{fieldValue => <span classList={{ 'field-apparatus': true, 'field-rubric': !fieldValue.reading.ok }}>{fieldValue.reading.ok && typeof fieldValue.reading.value !== 'object' ? readingLabel(fieldValue.reading) : plainText(fieldValue.text, id => props.notebook.lookup(id))}</span>}</For></div></div>}</For></div>
+          <Show when={value().owners_total}><Button class="field-view-all" onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: props.fieldId, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>View all {plural(value().owners_total, 'atom')} →</Button></Show>
         </section>
         </Show>
         <Show when={props.inspector}>{templates(value(), 'In templates')}</Show>
-        <Show when={!props.inspector && !taskBacked()}><section class="field-section"><SectionHead number={value().kind === 'choice' ? '04' : '03'} title="Problem values" count={plural(value().problems_total, 'value')} problem={!!value().problems_total} /><Show when={value().problems_total} fallback={<p class="field-note">No problem values.</p>}>{ledger(value().problems, false)}<Show when={value().problems_total > value().problems.length}><p class="field-apparatus">Showing the first {plural(value().problems.length, 'problem')}.</p></Show><p class="field-note">{value().kind === 'choice' ? 'Make it an option, or open its owner to edit it.' : 'The value stays as written. Open its owner to edit it.'}</p></Show></section></Show>
+        <Show when={!props.inspector && !taskBacked() && value().problems_total}><section class="field-section"><SectionHead number={sectionNumber('problems')} title="Problem values" count={plural(value().problems_total, 'value')} problem />{ledger(value().problems, false)}<Show when={value().problems_total > value().problems.length}><p class="field-apparatus">Showing the first {plural(value().problems.length, 'problem')}.</p></Show><p class="field-note">{value().kind === 'choice' ? 'Make it an option, or open the atom to edit it.' : 'The value stays as written. Open the atom to edit it.'}</p></section></Show>
       </>}>
         <Show when={!props.inspector}><ChoiceConversion detail={rawData()!} mappings={mappings()} notebook={props.notebook} disabled={applying()} onChange={setMappings} /></Show>
-        <section class="field-preview-summary" classList={{ 'field-preview-clean': !value().problems_total }}><h2>{value().problems_total ? `${value().problems_total} of ${plural(value().values_total, 'value')} would stay unreadable` : `All ${plural(value().values_total, 'value')} read as ${kindLabels[value().kind]}`}</h2><p class="field-note">Owners and child atoms stay in place.</p></section>
+        <section class="field-preview-summary" classList={{ 'field-preview-clean': !value().problems_total }}><h2>{value().problems_total ? `${value().problems_total} of ${plural(value().values_total, 'value')} would stay unreadable` : `All ${plural(value().values_total, 'value')} read as ${kindLabels[value().kind]}`}</h2><p class="field-note">Atoms and their children stay in place.</p></section>
         <Show when={!props.inspector} fallback={<div class="field-preview-actions"><Button onClick={() => props.onPreview()}>Cancel</Button><Button onClick={event => props.onOpen({ kind: 'field', fieldId: props.fieldId, previewKind: value().kind }, opensBeside(event))}>Open preview</Button></div>}>
           <Show when={value().problems_total}><section class="field-section"><SectionHead title="Will become problems" count={plural(value().problems_total, 'value')} />{ledger(value().problems, true)}<Show when={value().problems_total > value().problems.length}><p class="field-apparatus">Showing the first {plural(value().problems.length, 'problem')}.</p></Show></section></Show>
           <section class="field-section"><SectionHead title={`Will read as ${kindLabels[value().kind]}`} count={plural(value().values_total - value().problems_total, 'value')} />{ledger(value().readable, true)}<Show when={value().values_total - value().problems_total > value().readable.length}><p class="field-apparatus">Showing the first {plural(value().readable.length, 'readable value')}.</p></Show></section>
@@ -297,10 +320,14 @@ export function FieldDetails(props: FieldDetailsProps) {
           <footer class="field-preview-actions"><span class="field-apparatus">One undoable change</span><Button disabled={applying()} onClick={() => props.onPreview()}>Cancel</Button><Button class="bordered" disabled={!ready()} onClick={() => void applyKind()}>Apply format change</Button></footer>
         </Show>
       </Show>
-      <Show when={menu()}>{anchor => <Menu anchor={anchor()} label={`Format for ${value().field.name}`} onDismiss={() => setMenu(null)} items={fieldKinds.map(kind => ({ label: kindLabels[kind], icon: kind === value().kind ? 'check' : undefined, action: () => { setEditing(null); props.onPreview(kind === value().field.kind ? undefined : kind); } }))} />}</Show>
-      <Show when={hideMenu()}>{anchor => <Menu anchor={anchor()} label={`Hide for ${value().field.name}`} onDismiss={() => setHideMenu(null)} items={fieldHides.map(hide => ({ label: hideLabels[hide], checked: hide === fieldHide(value().field), action: () => { void applyHide(hide); } }))} />}</Show>
-      <Show when={countsMenu()}>{anchor => <Menu anchor={anchor()} label={`Counts as for ${value().field.name}`} onDismiss={() => setCountsMenu(null)} items={[null, ...countsAsValues].map(counts => ({ label: countsLabels[counts ?? 'nothing'], checked: counts === fieldCounts(value().field), action: () => { void applyCounts(counts); } }))} />}</Show>
-      <Show when={roleMenu()}>{anchor => <Menu anchor={anchor()} label={`Role for ${value().field.name}`} onDismiss={() => setRoleMenu(null)} items={fieldRoles.map(role => ({ label: roleLabels[role], checked: role === fieldRole(value().field), action: () => { void applyRole(role); } }))} />}</Show>
+      <Show when={actionsMenu() && !value().field.built_in ? actionsMenu() : null}>{anchor => <Menu anchor={anchor()} label="Field actions" onDismiss={() => setActionsMenu(null)} items={[
+        { label: 'Rename…', icon: 'edit', action: () => setEditing({ id: props.fieldId, text: value().field.name }) },
+        ...!taskFieldName(value().field) ? [{ label: 'Delete definition…', danger: true, action: () => { void previewImpact(); } }] : [],
+      ]} />}</Show>
+      <Show when={menu()}>{anchor => <Menu anchor={anchor()} label={`Format for ${fieldLabel(value().field)}`} onDismiss={() => setMenu(null)} items={fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === value().kind, action: () => { setEditing(null); props.onPreview(kind === value().field.kind ? undefined : kind); } }))} />}</Show>
+      <Show when={hideMenu()}>{anchor => <Menu anchor={anchor()} label={`Hide for ${fieldLabel(value().field)}`} onDismiss={() => setHideMenu(null)} items={fieldHides.map(hide => ({ label: hideLabels[hide], secondary: hideDescriptions[hide], checked: hide === fieldHide(value().field), action: () => { void applyHide(hide); } }))} />}</Show>
+      <Show when={countsMenu()}>{anchor => <Menu anchor={anchor()} label={`Counts as for ${fieldLabel(value().field)}`} onDismiss={() => setCountsMenu(null)} items={[null, ...countsAsValues].map(counts => ({ label: countsLabels[counts ?? 'nothing'], secondary: countsDescriptions[counts ?? 'nothing'], checked: counts === fieldCounts(value().field), action: () => { void applyCounts(counts); } }))} />}</Show>
+      <Show when={roleMenu()}>{anchor => <Menu anchor={anchor()} label={`Shows as for ${fieldLabel(value().field)}`} onDismiss={() => setRoleMenu(null)} items={fieldRoles.map(role => ({ label: roleLabels[role], secondary: roleDescriptions[role], checked: role === fieldRole(value().field), action: () => { void applyRole(role); } }))} />}</Show>
       <Show when={targetsMenu()}>{anchor => <LinksToPopup anchor={anchor()} notebook={props.notebook} targets={value().field.targets} disabled={!ready()} onApply={targets => void applyTargets(targets)} onDismiss={() => setTargetsMenu(null)} />}</Show>
     </>}</Show>
   </article>;

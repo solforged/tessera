@@ -17,7 +17,7 @@ export interface DatePickerProps {
   value: string | null;
   /** A typed inline query can seed the input without becoming the calendar's selected date. */
   initialQuery?: string;
-  /** Field dates may retain year or month precision; task dates always name a day. */
+  /** Field dates retain year or month precision and omit task-planning marks and presets. */
   partialDates?: boolean;
   presets?: 'revisit';
   /** Omit for date-only values; null enables an optional time. */
@@ -116,7 +116,7 @@ export function DatePicker(props: DatePickerProps) {
     const parsed = parseTaskDate(date(), props.contextDate);
     return parsed.ok ? parsed.date : null;
   });
-  const planning = props.presets === 'revisit' ? undefined : createMonthPlanningMarks(() => props.notebook, preview() ?? props.contextDate);
+  const planning = props.partialDates || props.presets === 'revisit' ? undefined : createMonthPlanningMarks(() => props.notebook, preview() ?? props.contextDate);
 
   return <Popup anchor={props.anchor} label={props.label} onDismiss={props.onDismiss} class="date-picker" fitContent>
     <form class="date-picker-form" aria-busy={busy()} onKeyDown={keydown} onCompositionStart={() => { composing = true; }} onCompositionEnd={() => { composing = false; }} onSubmit={event => { event.preventDefault(); if (!composing) apply(); }}>
@@ -135,8 +135,10 @@ export function DatePicker(props: DatePickerProps) {
         <div class="date-picker-quick-picks">
           <Show when={props.presets === 'revisit'} fallback={<>
             <Button disabled={busy()} onClick={() => quickPick('today')}>Today</Button>
-            <Button disabled={busy()} onClick={() => quickPick('tomorrow')}>Tomorrow</Button>
-            <Button disabled={busy()} onClick={() => quickPick('+1w')}>Next week</Button>
+            <Show when={!props.partialDates}>
+              <Button disabled={busy()} onClick={() => quickPick('tomorrow')}>Tomorrow</Button>
+              <Button disabled={busy()} onClick={() => quickPick('+1w')}>Next week</Button>
+            </Show>
           </>}>
             <Button disabled={busy()} onClick={() => quickPick('+1w')}>Revisit in a week</Button>
             <Button disabled={busy()} onClick={() => quickPick('+1m')}>Revisit in a month</Button>

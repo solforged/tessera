@@ -45,12 +45,12 @@ export function TypePresentation(props: { type: Type; notebook: NotebookClient; 
     finally { setBusy(false); }
   }
   return <>
-    <div class="template-actions">
+    <div class="type-presentation-actions">
+      <Show when={doc().canUndo()}><Button icon="undo" label="Undo tag change" disabled={busy()} onClick={() => void history(false)} /></Show>
+      <Show when={doc().canRedo()}><Button icon="redo" label="Redo tag change" disabled={busy()} onClick={() => void history(true)} /></Show>
       <Button aria-haspopup="dialog" aria-expanded={!!anchor()} disabled={busy() || doc().status() !== 'ready'} onClick={event => {
         setPlural(props.type.plural ?? ''); setIcon(props.type.icon); setAnchor(event.currentTarget);
       }}>Icon and name…</Button>
-      <Show when={doc().canUndo()}><Button icon="undo" label="Undo tag change" disabled={busy()} onClick={() => void history(false)} /></Show>
-      <Show when={doc().canRedo()}><Button icon="redo" label="Redo tag change" disabled={busy()} onClick={() => void history(true)} /></Show>
     </div>
     <Show when={anchor()}>{trigger => <Popup anchor={trigger()} label="Icon and name" fitContent onDismiss={() => setAnchor(null)}>
       <form class="type-presentation-form" onSubmit={event => { event.preventDefault(); void save(); }}>

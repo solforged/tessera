@@ -8,6 +8,7 @@ import { Icon } from '../ui/Icon';
 import { kindLabel, noteKindIcon } from '../notes/kinds';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { TemplateEditor } from './TemplateEditor';
+import { autoPlural } from './presentation';
 import './fields.css';
 
 interface TypeFieldsPaneProps {
@@ -40,6 +41,7 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
     }
   });
   const title = createMemo(() => data.latest?.type.page.text ?? props.notebook.lookup(props.typeId)()?.text ?? 'Tag');
+  const registerName = createMemo(() => data.latest?.kind ? kindLabel(data.latest.kind) : data.latest?.type.plural || autoPlural(title()));
   createEffect(() => {
     if (!data.latest || restored) return;
     restored = true;
@@ -48,8 +50,8 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
   return <div ref={scroll} class="type-fields-pane" role="region" tabIndex={0} data-pane-pending={!data.latest && !error() ? '' : undefined} aria-label={`${title()} fields`} onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
     <div class="type-fields-register">
       <header class="type-fields-heading">
-        <div class="fields-register"><Button class="type-fields-crumb" onClick={event => props.onOpen({ kind: 'page', pageId: props.typeId }, opensBeside(event))}>{title()}</Button><span> / Template</span></div>
-        <div class="type-fields-title"><h1><Show when={data.latest?.kind}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>{data.latest?.kind ? kindLabel(data.latest.kind) : title()}</h1><span>{data.latest?.type.fields.length ?? 0} fields</span></div>
+        <div class="fields-register"><Button class="type-fields-crumb" onClick={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}>{registerName()}</Button></div>
+        <div class="type-fields-title"><h1><Show when={data.latest?.kind}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>{registerName()}</h1></div>
       </header>
       <TypeModeTabs active="fields" indexCount={data.latest?.kind?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length}
         cardsCount={data.latest?.type.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: props.typeId }, opensBeside(event))}
@@ -58,7 +60,7 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
         onFields={() => { scroll.scrollTop = 0; }} />
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setVersion(value => value + 1)}>Retry</Button></p></Show>
       <Show when={data.latest} fallback={<Show when={!error()}><p class="empty-state" role="status">Loading fields…</p></Show>}>{value =>
-        <TemplateEditor type={value().type} fields={value().fields.fields} notebook={props.notebook} onError={setError} onOpen={props.onOpen} register={{ fields: value().fields.fields, pageId: value().fields.page_id }} />
+        <TemplateEditor type={value().type} fields={value().fields.fields} notebook={props.notebook} onError={setError} onOpen={props.onOpen} pluralName={value().kind?.plural ?? value().type.plural ?? autoPlural(title())} register={{ fields: value().fields.fields, pageId: value().fields.page_id }} />
       }</Show>
     </div>
   </div>;

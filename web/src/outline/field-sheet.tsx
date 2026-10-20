@@ -7,6 +7,8 @@ import { writeFieldValue } from '../fields/value-editor';
 import type { RelationPickIntent } from '../document/contract';
 import { fieldHide } from '../fields/hide';
 import { entryAnchor, typeKeys } from '../fields/templates';
+import { fieldLabel } from '../fields/kinds';
+import { titleKey } from '../document/title-key';
 import { isCatalogueField } from '../library/details';
 import { fieldEntryId } from '../table/query';
 import { Icon } from '../ui/Icon';
@@ -335,7 +337,7 @@ export function createFieldSheet(context: Pick<OutlineContext,
       if (pending && !pending.signal.aborted) pendingCaretInput.begin(props.pane, value);
       if (kind === 'checkbox' || left) context.rowFocus(value);
       else context.editAt(value, doc.block(value)?.text.length ?? 0, true);
-      context.showNotice(`${field.name} created.`, bufferedText ? undefined : change.undo);
+      context.showNotice(`${fieldLabel(field)} created.`, bufferedText ? undefined : change.undo);
     } catch (error) { pending?.(); setMessage(error instanceof Error ? error.message : String(error)); }
   }
   function fill(entry: string) {
@@ -374,8 +376,8 @@ export function createFieldSheet(context: Pick<OutlineContext,
       <Show when={hidden()}><button type="button" class="field-area-hidden" aria-expanded={options.revealed().has(area.state.owner)} onClick={() => options.reveal(area.state.owner)}>{hidden()} hidden</button></Show>
     </div>;
     return <Show when={root() || missing().length} fallback={<Controls />}><div class="field-slots" classList={{ 'field-slots-root': root() }} data-field-owner={area.state.owner} style={{ '--slot-depth': area.state.depth }} onPointerEnter={() => setHovered(area.state.owner)} onPointerLeave={() => setHovered(null)}>
-      <For each={missing()}>{id => <Show when={definitionsById().get(id)}>{field => <button type="button" class="field-slot" aria-label={`Add ${field().name} value`} onClick={event => choose(area.state.owner, event.currentTarget, field())}>
-        <span class="field-slot-label"><Icon name="field" /><span>{field().name}</span></span>
+      <For each={missing()}>{id => <Show when={definitionsById().get(id)}>{field => <button type="button" class="field-slot" aria-label={`Add ${fieldLabel(field())} value`} onClick={event => choose(area.state.owner, event.currentTarget, field())}>
+        <span class="field-slot-label"><Icon name="field" /><span>{fieldLabel(field())}</span></span>
         {/* A page's empty slot says it can be filled rather than reading as missing metadata. */}
         <span class="field-slot-value"><Show when={field().kind === 'checkbox'} fallback={<Show when={root()}><span class="field-slot-add" aria-hidden="true">Add…</span></Show>}><span class="field-checkbox" aria-hidden="true" /></Show></span>
       </button>}</Show>}</For>
@@ -385,9 +387,24 @@ export function createFieldSheet(context: Pick<OutlineContext,
   function FieldSlots(slotProps: { id: string }) {
     return <For each={placed().get(slotProps.id)}>{state => <Area state={state} />}</For>;
   }
+  function pickerFields(owner: string) {
+    const block = doc.block(owner);
+    return definitions().filter(field => (!block?.source || !isCatalogueField(field.name)) && (!!block?.task || !taskFieldName(field)));
+  }
+  function pickerTemplateLabel(owner: string) {
+    const block = doc.block(owner);
+    if (block?.position) return 'From this recipe';
+    const keys = [...typeKeys(block?.text ?? '', block?.manual_types ?? []), ...(block?.task?.status ? ['task'] : [])];
+    const names = new Map<string, string>();
+    for (const field of context.fields.error ? [] : context.fields()?.fields ?? []) for (const type of field.types) {
+      names.set(type.id.toLowerCase(), type.name);
+      names.set(titleKey(type.name), type.name);
+    }
+    return [...new Set(keys.flatMap(key => names.get(key) ?? []))].join(' · ') || 'Template';
+  }
   function Popups() {
     return <>
-      <Show keyed when={picker()}>{value => <FieldPicker anchor={value.anchor} label="Add field" fields={doc.block(value.owner)?.source ? definitions().filter(field => !isCatalogueField(field.name)) : definitions()} template={(states().get(value.owner) ?? stateFor(value.owner)).template} templateLabel={doc.block(value.owner)?.position ? 'From this recipe' : 'Template'} exclude={(states().get(value.owner) ?? stateFor(value.owner)).present}
+      <Show keyed when={picker()}>{value => <FieldPicker anchor={value.anchor} label="Add field" fields={pickerFields(value.owner)} template={(states().get(value.owner) ?? stateFor(value.owner)).template} templateLabel={pickerTemplateLabel(value.owner)} exclude={(states().get(value.owner) ?? stateFor(value.owner)).present}
         onPick={field => { setPicker(null); choose(value.owner, value.anchor, field); }} onCreate={(name, kind) => { setPicker(null); void create(value.owner, name, kind); }} onDismiss={() => setPicker(null)} />}</Show>
       <Show when={instance()}>{value => <RelationPicker anchor={value().anchor} field={value().field} notebook={props.notebook} owner={{ id: value().owner, page: doc.block(value().owner)?.pageId ?? '' }} onDismiss={() => setInstance(null)} onError={setMessage} onPick={intent => { add(value().owner, value().field, `[[${intent.targetId ?? intent.query.trim()}]]`, intent); setInstance(null); }} />}</Show>
     </>;

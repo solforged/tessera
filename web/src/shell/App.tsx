@@ -14,6 +14,7 @@ import { createPageIcon } from '../outline/source';
 import { builtInTagReason, PageMergePicker, pageMergeDisabledReason } from '../outline/PageMerge';
 import { copyTaskQuery, createTaskQuery } from '../tasks/query';
 import { copyQuery, typeQuery } from '../table/query';
+import { fieldLabel } from '../fields/kinds';
 import { querySources } from '../table/attributes';
 import { deskTarget } from '../desk/query';
 import '../desk/desk.css';
@@ -132,7 +133,7 @@ function pageIdOf(current: HistoryEntry | undefined): string | undefined {
 }
 /** Header and tab text for panes that are not pages. */
 function paneLabel(target: OpenTarget | undefined): string {
-  if (target?.kind === 'field') return 'Fields / Definition';
+  if (target?.kind === 'field') return 'Fields';
   if (target?.kind === 'cards') return 'Cards';
   if (target?.kind === 'spread') return 'Spread';
   if (target?.kind === 'revisits') return 'Revisits';
@@ -816,10 +817,17 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const activeKindKey = () => { const target = entry(active())?.target; return target?.kind === 'index' ? target.key : (target?.kind === 'fields' || target?.kind === 'cards') && target.typeId ? index()?.kinds.find(kind => kind.type_id === target.typeId)?.key : undefined; };
   /** The note kind a pane shows: its index, or the type behind its fields or cards. */
   const indexKind = (pane: PaneId) => { const target = entry(pane)?.target; return target?.kind === 'index' ? index()?.kinds.find(kind => kind.key === target.key) : (target?.kind === 'fields' || target?.kind === 'cards') && target.typeId ? index()?.kinds.find(kind => kind.type_id === target.typeId) : undefined; };
+  const [fieldNames] = createResource(() => order().some(pane => entry(pane)?.target.kind === 'field') ? notebook.changeSequence() : false, async () => {
+    try { return await notebook.api.fields(); } catch (reason) { reportError(reason); return undefined; }
+  });
+  const fieldName = (id: string) => {
+    const field = fieldNames()?.fields.find(field => field.id === id);
+    return field ? fieldLabel({ name: notebook.lookup(id)()?.text ?? field.name, built_in: field.built_in }) : '…';
+  };
   // A table pane is named for its saved view, else its type, and an index pane for its kind, rather than the generic label.
   const paneTitle = (pane: PaneId) => {
     const target = entry(pane)?.target;
-    if (target?.kind === 'field') return `Fields / ${notebook.lookup(target.fieldId)()?.text ?? 'Definition'}`;
+    if (target?.kind === 'field') return `Fields / ${fieldName(target.fieldId)}`;
     if (target?.kind === 'index') { const kind = indexKind(pane); return views()?.find(view => view.id === target.viewId)?.name ?? (kind && kindLabel(kind)); }
     if (target?.kind === 'fields' && target.typeId) return rootById().get(target.typeId)?.text;
     if (target?.kind === 'cards') return `${rootById().get(target.typeId)?.text ?? 'Tag'} / Cards${target.applyId ? ' / Apply' : ''}`;
@@ -1108,7 +1116,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
             onResize={(left, right) => setWeights(values => ({ ...values, [order()[position() - 1]!]: left, [pane]: right }))} onReset={() => setWeights({})} />
         </Show>
         <Show when={entry(pane)}>
-        <Pane pane={pane} number={position() + 1} folded={!shown(pane)} grow={weights()[pane] ?? 1} neighbour={position() < order().length - 1} session={() => sessions()[pane]!} active={active() === pane} split={split()} immersive={immersive() === pane} onImmersive={on => immerse(pane, on)} notebook={notebook} commands={commands} vim={vim()} vimMode={vimModes()[pane] ?? null} onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))} pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')} pagePresentations={pagePresentations()} title={paneTitle(pane)} noteKind={indexKind(pane)}
+        <Pane pane={pane} number={position() + 1} folded={!shown(pane)} grow={weights()[pane] ?? 1} neighbour={position() < order().length - 1} session={() => sessions()[pane]!} active={active() === pane} split={split()} immersive={immersive() === pane} onImmersive={on => immerse(pane, on)} notebook={notebook} commands={commands} vim={vim()} vimMode={vimModes()[pane] ?? null} onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))} pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')} pagePresentations={pagePresentations()} title={paneTitle(pane)} fieldName={fieldName} noteKind={indexKind(pane)}
           noteKinds={index()?.kinds}
           onCreate={openCreate}
           sidebarOpen={sidebarVisible()} onSidebar={toggleSidebar}
@@ -1295,7 +1303,7 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   </div></Show>;
 }
 
-function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: number; neighbour: boolean; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; noteKind?: IndexKind; noteKinds?: NoteKind[]; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onCreate(request: CreateRequest, anchor?: PopupAnchor): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
+function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: number; neighbour: boolean; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; fieldName(id: string): string; noteKind?: IndexKind; noteKinds?: NoteKind[]; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onCreate(request: CreateRequest, anchor?: PopupAnchor): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
   const readerTarget = () => current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined;
@@ -1536,8 +1544,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
         </span>
       </Show>
       <Show when={current().target.kind === 'field' ? current().target as Extract<OpenTarget, { kind: 'field' }> : undefined}>{target => <>
-        <nav class="pane-breadcrumbs" aria-label="Field breadcrumbs"><Button onClick={event => props.onOpen({ kind: 'fields' }, opensBeside(event))}>Fields</Button><span class="breadcrumb-separator">/</span><Button onClick={event => props.onOpen({ kind: 'field', fieldId: target().fieldId }, opensBeside(event))}>{props.notebook.lookup(target().fieldId)()?.text ?? 'Definition'}</Button></nav>
-        <Button disabled={!props.notebook.lookup(target().fieldId)()} onClick={event => { const field = props.notebook.lookup(target().fieldId)(); if (field) props.onOpen({ kind: 'page', pageId: field.page_id, blockId: field.id }, opensBeside(event)); }}>Atoms</Button>
+        <nav class="pane-breadcrumbs" aria-label="Field breadcrumbs"><Button onClick={event => props.onOpen({ kind: 'fields' }, opensBeside(event))}>Fields</Button><span class="breadcrumb-separator">/</span><Button onClick={event => props.onOpen({ kind: 'field', fieldId: target().fieldId }, opensBeside(event))}>{props.fieldName(target().fieldId)}</Button></nav>
       </>}</Show>
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Atom menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>

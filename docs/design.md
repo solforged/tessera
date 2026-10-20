@@ -451,7 +451,7 @@ Each kind has its own value editor, the same in outlines and tables:
 |---|---|---|
 | Choice | The pill opens its options: type to filter, Create option for a new name, Clear | Opens the option beside |
 | Relation | The pill opens its target; the blank space after it, or Enter on the selected value, opens a picker of the target types | Opens the target beside |
-| Date | Opens the date picker at the value; a year or year-month can still be typed | |
+| Date | Opens a plain calendar without task dots or a planning legend, with Today as its only preset; a year or year-month can still be typed | |
 | Checkbox | A control that writes `yes` or `no`; other spellings stay text | |
 | Text, number, URL, identifier | Edits the text | |
 
@@ -469,7 +469,7 @@ Tasks keep only their checkbox and compact planning facts at rest. Focus opens o
 
 Slots read as suggestions: the name in `--faint` and no value text. On a page, slot names take the specimen block's mono apparatus without the icon, the value reads `Add…` in `--faint`, and a dotted hairline follows each slot. Slots share the field labels' edge and sit on the canvas outside the row's hover and selection. A slot adds the entry with a blank value and opens its kind's editor; a checkbox slot adds a ticked value.
 
-Add field opens a picker with missing template fields under Template, then the rest, and Create field for a new name. A perspective instead begins with From this recipe: Gist, Work, then its subject's explicit or derived criteria. A suggested field takes its recipe or template place among the entries; another follows the last entry. Each addition is one undo step.
+Add field opens a picker with missing template fields under the template's name, then Other fields, and Create field for a new name. Task built-ins appear only for task atoms. Its list shows about eight rows before scrolling and opens below its trigger, flipping only when below does not fit. A perspective instead begins with From this recipe: Gist, Work, then its subject's explicit or derived criteria. A suggested field takes its recipe or template place among the entries; another follows the last entry. Each addition is one undo step.
 
 A definition's Hide setting (Never, When empty, Always; see the [domain model](domain-model.md#types-and-fields)) leaves its entries and slots out of outlines. A field the owner's type requires is the exception while it has no value: its slot shows even at rest, outside the focused owner. An entry stays while it or one of its values is edited or selected. The area then counts `N hidden`, which reveals that owner's hidden fields in this pane.
 
