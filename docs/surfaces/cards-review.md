@@ -28,25 +28,27 @@ After an action the next item opens. Undo revisit restores the prior date and st
 
 ### Landing and decks
 
-Review is a pane on the outline measure, like [Library](library.md). Its mono register sits over the deck's Piazzolla title and picker; Open reviews and Deck actions stay at its right.
+Review is a pane on the outline measure, like [Library](library.md). Its mono register sits over the deck's static Piazzolla title. Open reviews stays at its right; Deck actions appears only for a saved deck and contains Edit deck and Delete deck. Both actions explain that an open review must end first when unavailable. The deck ledger is the only deck chooser.
 
-The landing's Due, New and All tabs share the tab-strip baseline, with a 2 px gilt rule under the whole selected tab. The landing is a ruled register rather than a dashboard: one hairline opens the overview, with no boxes. The selected queue leads with its total as a Piazzolla figure at `--text-figure`; Due says due now, while New and All say cards in this queue.
+The landing's Due, New and All tabs head the overview's left column, sharing the tab-strip baseline with a 2 px gilt rule under the whole selected tab. There is no landing toolbar row. The landing is a ruled register rather than a dashboard: one hairline opens the overview, with no boxes. The selected queue follows its tabs with its total as a Piazzolla figure at `--text-figure`; Due says due now, while New and All say cards in this queue.
 
 One apparatus line follows: how many come due later today, after due now on New and All. Review N cards (Space) starts the bounded batch and is a gilt hairline button, as are Review's other start actions. An empty queue instead says All caught up, or Nothing new yet for New, in the display voice. When another card is scheduled, one mono line gives Next card, its weekday within seven days or ISO date beyond, and time in the workshop's time zone. There is no disabled start button or repeated empty sentence; paused cards keep their explanation. The fourteen-day forecast stays secondary at the right, square bars on a baseline rule; All includes deferred introductions.
 
-The forecast's first bar is gilt. Every forecast bar has a two-letter weekday label; today's accessible name is “today”. Retention over thirty local days, this week's review count, the streak and total cards follow as one mono ledger line between rules, then a deck ledger with Due, New and Cards. The session summary uses the same stats line.
+The forecast's first bar and today's weekday label are gilt. Every forecast bar has a two-letter weekday label, with its full weekday, ISO date and due count in its tooltip and accessible name. Zero days retain a hairline in `--line`; counts appear only in the tooltip and the section's total, not a separate number row. Retention over thirty local days, Last 7 days, the streak and total cards follow as one mono ledger line between rules, then a deck ledger with Due, New and Cards. Last 7 days counts from local midnight six days before the selected date through that date's end, not from Monday. The session summary uses the same stats line.
 
-Beside Decks, a muted mono sentence reads `Tag a card to make a deck. Save a deck for other filters.` New card and New deck remain in that header.
+When All cards is the ledger's only row, a muted sans sentence beneath the Decks head reads `Tag a card to make a deck. Save a deck for other filters.` The sentence disappears once another deck exists. New card and New deck remain in the header.
 
 Counts come from active visible cards and committed review events, never sample data. No time estimate appears because reviews do not record per-card duration.
 
 Decks save source predicates, not copied collections. A tag on a card's own block appears in the same ledger without saving a deck. The row uses the tag's title, not its plural, and reviewing it studies the cards on blocks with that tag. The ledger says to tag a card to make a deck, and to save a deck for other filters. Removing the tag from those cards removes the row. A saved deck that filters only on that type replaces the tag row. New deck remains for a queue a tag cannot express, such as a field filter or more than one condition.
 
+Cards follows the deck ledger with a mono section head, rule and total. It lists the first fifty cards in the selected deck and Due, New or All queue, refreshing with the landing. Each full-width button shows the front's first line without markup, its kind in faint capitals, a truncated source title and a mono due label. Unscheduled cards say new; scheduled cards show an ISO date in the workshop's time zone, rubric when past due. Opening a row opens its source atom; ⌘-click opens beside (Ctrl-click off Mac). A faint mono N more closes a longer queue.
+
 Start takes focus on a mouse-and-keyboard device, but touch leaves it alone and the pane has no focus ring. Today's Review tile starts the due queue directly, or lands on the caught-up state when empty. That request is consumed once; sidebar and palette navigation keep the landing.
 
 ### Session progress
 
-A session replaces the queue preview with one segment per card. Its grades survive reload. The deck title stays at its landing size but becomes static text; the picker, deck actions and Open reviews leave the session. Progress shares the queue tabs' height, so the content column does not jump.
+A session replaces the landing with one segment per card in the progress toolbar. Its grades survive reload. The deck title keeps its landing size and stays static; deck actions and Open reviews leave the session.
 
 | Card state or grade | Segment appearance |
 | --- | --- |
@@ -62,7 +64,7 @@ A completed or explicitly closed session with at least one review keeps its coun
 
 ### Appearance and source
 
-The card reads as a quiet sheet on the page rather than a boxed panel. Its column is capped at the page measure with 48 px of breathing room above it, placing its prompt in the upper third. On a fine-pointer device it is headed by the same rubric mark as popups. Its top rule turns gilt only on fine-pointer keyboard focus; touch shows neither this rule nor the rubric, leaving the progress strip alone.
+The card reads as a quiet sheet on the page rather than a boxed panel. Its column is capped at the page measure with 48 px of breathing room above it, placing its prompt in the upper third. It has no rubric mark. Its top rule turns gilt only on fine-pointer keyboard focus; touch hides this rule, leaving the progress strip alone.
 
 One mono line heads every card: the source at the left, then the kind in faint capitals (`FORWARD`, `REVERSE`, `CLOZE`, `MULTI-LINE`, `LIST`, `DESCRIPTOR`, `OCCLUSION`) and Card actions at the right. A cloze or occlusion card is numbered (`CLOZE 2`, `OCCLUSION 2`) only when its block makes more than one. A cited card's source shows siglum, title, chapter and paragraph and opens that citation. ⌘-click opens it beside (Ctrl-click off Mac). An uncited card's source path opens its block. Card actions holds the same open action, Edit card, which opens the canonical block, and Reset progress, which requires a revealed answer and confirmation. On an occlusion card, Edit card also opens the mask editor.
 
@@ -79,10 +81,12 @@ Once revealed, a cited card shows prose following its quotation from the snapsho
 | Layout | Behavior |
 | --- | --- |
 | Unfolded touch screen at least 900 px wide | The card sits left and its passage sits right with the citation highlighted. The passage waits for reveal so it cannot give the answer away. |
-| Cover | The bottom nav steps aside during a live session. Tapping non-control card space reveals. Interval-bearing grades form a two-by-two block at the bottom. |
+| Cover | The bottom nav and session footer step aside during a live session. Tapping non-control card space reveals. Interval-bearing grades form the sole bottom bar in a two-by-two block. Undo last grade and End review live in Card actions. The footer and bottom nav return on Done. |
 | Larger layouts | Review history stays available. |
 
 Good is ringed in gilt as the default, and Space or Enter selects it after reveal; 1–4 remain available. Again's label is rubric.
+
+Review history shows each event as a mono toggle line: local ISO date and 24-hour time, grade and interval change, such as `2026-10-17 07:40 · Again · new → 1 day`. Toggling the line expands its shown front and back beneath it, without a nested disclosure.
 
 ## Grading and progress
 
@@ -105,9 +109,9 @@ A source or schedule change invalidates the shown snapshot and requires Review c
 
 ### End and undo
 
-The session footer offers plain Undo last grade at the left and End review at the right. End review asks `End this review? Graded cards keep their grades.` with Keep going and End review. Switching away from an open review uses the same choice; ending records a finished session and keeps committed grades.
+On larger layouts the session footer offers plain Undo last grade at the left and End review at the right. Card actions also offers both controls, with Undo last grade disabled whenever the footer's action is disabled. End review opens the same confirmation at its trigger, including the Card actions button: `End this review? Graded cards keep their grades.` with Keep going and End review. Switching away from an open review uses the same choice; ending records a finished session and keeps committed grades.
 
-Undo last grade stays visible during a session and on Done, with ⌘Z or Ctrl+Z outside editable controls. It restores the card and its schedule; undoing the final grade reopens the finished session.
+Undo last grade stays available during a session and in the footer on Done, with ⌘Z or Ctrl+Z outside editable controls. It restores the card and its schedule; undoing the final grade reopens the finished session.
 
 If that restored card is later held or removed, an explicit unavailable state offers Next rather than silently replacing it. A transport failure remains an error, not an unavailable-card state.
 
@@ -135,7 +139,7 @@ The block request is consumed once; later session snapshots and reloads resume t
 
 ## Done summary and deck forms
 
-The Done summary returns to the shared page insets and responsive title scale, with section gaps between its grade strip, counts, forecast and missed cards. Its header no longer says in progress.
+The Done summary returns to the shared page insets and responsive title scale, with section gaps between its sentence heading, counts, forecast and missed cards. The deck title remains above it; no duplicate deck-and-Done eyebrow or completed grade strip appears. The Hard count, when present, and the summary actions stay. Its header no longer says in progress.
 
 Deck forms retain the popup's viewport gutters on the cover, so fields and actions stay inside both edges.
 

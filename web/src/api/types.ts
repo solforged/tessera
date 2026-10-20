@@ -616,7 +616,7 @@ export interface CardPreviews { current: GradePreview[]; reset: GradePreview[] }
 export interface ReviewForecastDay { date: string; count: number }
 export interface ReviewStats {
   date: string; due_review: number; due_new: number; forecast: ReviewForecastDay[];
-  retention: number | null; reviews_this_week: number; streak: number; total_cards: number; held_cards: number;
+  retention: number | null; reviews_past_week: number; streak: number; total_cards: number; held_cards: number;
 }
 
 export type SourceFormat = 'epub' | 'article' | 'record';

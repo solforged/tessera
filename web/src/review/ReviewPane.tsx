@@ -1,14 +1,17 @@
-import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount, untrack } from 'solid-js';
+import { For, Show, batch, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount, untrack } from 'solid-js';
 import { ulid } from 'ulid';
 import { ApiError } from '../api/client';
-import type { CardKind, CardPreviews, CardQuery, CardRow, CardSelection, Deck, Grade, ReviewEvent, ReviewSession, ReviewStats, TagDeck } from '../api/types';
+import type { CardKind, CardPreviews, CardQuery, CardQueryResult, CardRow, CardSelection, Deck, Grade, ReviewEvent, ReviewSession, ReviewStats, TagDeck } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
+import { plainText } from '../outline/names';
+import { opensBeside } from '../shell/beside';
 import type { CommandRegistry, OpenTarget, PaneId, ReviewViewState } from '../shell/contract';
 import { shortDay } from '../shell/desk-counts';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
+import { localDate } from '../ui/MonthGrid';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { createSlowFlag } from '../ui/loading';
@@ -17,7 +20,7 @@ import { CardComposer } from './CardComposer';
 import type { CreateRequest } from '../create/request';
 import type { PopupAnchor } from '../ui/Popup';
 import { DeckEditor } from './DeckEditor';
-import { cardSubject } from './card-text';
+import { cardKindLabel, cardSubject, groupLetter, occlusionSides, parseCardText } from './card-text';
 import { CardBack, CardFront } from './CardSides';
 import { ReviewCard } from './ReviewCard';
 import { copyCardQuery, formatInterval, gradeLabels, gradeOperation, loadReviewCard, openReviewSession, sameCardSnapshot, selectionLabels, sessionQueue } from './query';
@@ -40,7 +43,7 @@ export interface ReviewPaneProps {
 type Presentation = { item: CardRow; previews: CardPreviews; context: ReviewSource | null };
 /** `blockId` starts a review of that block's cards once the open review, if any, is closed. */
 type Destination = { deckId: string | null; sessionId: string | null; selection?: CardSelection | null; blockId?: string };
-type DeckChoice = { id: string | null; name: string; query: CardQuery; tag: boolean };
+type DeckChoice = { id: string | null; name: string; query: CardQuery };
 type DeckCounts = { id: string | null; name: string; due: number; new: number; all: number };
 
 const selections = Object.keys(selectionLabels) as CardSelection[];
@@ -54,10 +57,10 @@ function deckRows(saved: readonly Deck[], tags: readonly TagDeck[]): DeckChoice[
       && !source.cites?.length && !source.note_kind && !source.source ? [source.type] : [];
   }));
   const rows = [
-    ...saved.map(deck => ({ id: deck.id, name: deck.name, query: deck.query, tag: false })),
-    ...tags.filter(deck => !superseded.has(deck.id)).map(deck => ({ ...deck, tag: true })),
+    ...saved.map(deck => ({ id: deck.id, name: deck.name, query: deck.query })),
+    ...tags.filter(deck => !superseded.has(deck.id)),
   ].sort((a, b) => a.name.toLocaleLowerCase().localeCompare(b.name.toLocaleLowerCase()) || a.id.localeCompare(b.id));
-  return [{ id: null, name: 'All cards', query: { source: null, selection: 'due', limit: null }, tag: false }, ...rows];
+  return [{ id: null, name: 'All cards', query: { source: null, selection: 'due', limit: null } }, ...rows];
 }
 
 export function ReviewPane(props: ReviewPaneProps) {
@@ -95,7 +98,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   // A command's status line waits like a load notice; shown at once, it pushes the card down for a frame.
   const slowPending = createSlowFlag(() => !!pending());
   const [retry, setRetry] = createSignal(0);
-  const [picker, setPicker] = createSignal<{ kind: 'decks' | 'sessions'; anchor: HTMLElement } | null>(null);
+  const [picker, setPicker] = createSignal<HTMLElement | null>(null);
   const [search, setSearch] = createSignal('');
   const [actions, setActions] = createSignal<HTMLElement | null>(null);
   const [composer, setComposer] = createSignal<HTMLElement | null>(null);
@@ -108,6 +111,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   const [nextDue, setNextDue] = createSignal<number | null>(null);
   const [inventory, setInventory] = createSignal<number | null>(null);
   const [ledger, setLedger] = createSignal<DeckCounts[]>([]);
+  const [landingCards, setLandingCards] = createSignal<CardQueryResult | null>(null);
   const [answerRevealed, setAnswerRevealed] = createSignal(false);
   const [restoredCardId, setRestoredCardId] = createSignal<string | null>(null);
   const [blockRequest, setBlockRequest] = createSignal(props.view.blockId ?? null);
@@ -119,8 +123,6 @@ function CardReviewPane(props: ReviewPaneProps) {
   const gradedCount = () => grades().length;
   const missed = createMemo(() => grades().filter(event => event.grade === 'again'));
   const selectedDeck = createMemo(() => decks().find(deck => deck.id === deckId()));
-  const selectedTagDeck = createMemo(() => selectedDeck() ? undefined : tagDecks().find(deck => deck.id === deckId()) ?? (sessionTagDeck()?.id === deckId() ? sessionTagDeck() : undefined));
-  const listedDecks = createMemo(() => deckRows(decks(), tagDecks()));
   const openSession = createMemo(() => session()?.state === 'open' && session()?.id === sessionId() ? session() : null);
   const sessionActive = createMemo(() => !!openSession());
   const openSessions = createMemo(() => sessions().filter(value => value.state === 'open').sort((a, b) => b.started_at - a.started_at || b.id.localeCompare(a.id)));
@@ -131,10 +133,6 @@ function CardReviewPane(props: ReviewPaneProps) {
   const locked = createMemo(() => !!pending() || queued());
   const done = createMemo(() => !!session() && session()!.state !== 'open' && ready() && !loading() && !readError() && !locked());
   const undoDisabled = createMemo(() => locked() || loading() || !!readError() || !latestGrade());
-  const deckChoices = createMemo((): DeckChoice[] => {
-    const needle = search().trim().toLocaleLowerCase();
-    return listedDecks().filter(deck => deck.name.toLocaleLowerCase().includes(needle));
-  });
   const sessionChoices = createMemo(() => {
     const needle = search().trim().toLocaleLowerCase();
     return otherSessions().filter(value => sessionLabel(value).toLocaleLowerCase().includes(needle));
@@ -170,6 +168,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       setDeckId(target.deckId); setSessionId(target.sessionId); setSession(null); setSelection(target.selection ?? null);
       setShown(null); setUpdated(null); setStale(''); setNeedsReload(false); setCommandError('');
       setEvents([]); setStats(null); setLedger([]); setInventory(null); setRestoredCardId(null); setScope(null);
+      setLandingCards(null);
       setSessionTagDeck(null);
       setRows([]); setCounts({}); setReady(false); setLoading(true); setSwitching(null); setRetry(value => value + 1);
     });
@@ -299,11 +298,12 @@ function CardReviewPane(props: ReviewPaneProps) {
       }
       const nextQuery = copyCardQuery(deck?.query ?? { source: null, selection: 'due', limit: null });
       if (requestedSelection) nextQuery.selection = requestedSelection;
-      const [result, history, nextStats, globalStats, ...totals] = await Promise.all([
+      const [result, history, nextStats, globalStats, nextLandingCards, ...totals] = await Promise.all([
         props.notebook.api.cardQuery({ ...nextQuery, limit: nextQuery.limit ?? 2000 }),
         currentSession ? props.notebook.api.reviewSessionEvents(currentSession.id) : Promise.resolve([] as ReviewEvent[]),
         props.notebook.api.reviewStats(requestedDeck, props.notebook.todayDate()),
         !currentSession && requestedDeck ? props.notebook.api.reviewStats(null, props.notebook.todayDate()) : Promise.resolve(null),
+        !currentSession ? props.notebook.api.cardQuery({ source: nextQuery.source, selection: nextQuery.selection, limit: 50 }) : Promise.resolve(null),
         ...selections.map(value => props.notebook.api.cardQuery({ ...nextQuery, selection: value, limit: 0 }).then(found => found.total)),
       ]);
       // All is ordered by scheduled time before new cards; one row is enough
@@ -363,6 +363,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         setDecks(savedDecks); setTagDecks(currentTagDecks); setSessionTagDeck(nextSessionTagDeck);
         setSessions(savedSessions); setSession(currentSession); setScope(nextScope);
         setQuery(nextQuery); setRows(remaining); setTotal(result.total); setLoadedCount(result.rows.length);
+        setLandingCards(nextLandingCards);
         setEvents(history); setStats(nextStats); setLedger(nextLedger);
         setNextDue(upcoming && upcoming > Date.now() ? upcoming : null);
         if (!currentSession) setInventory((globalStats ?? nextStats).total_cards + (globalStats ?? nextStats).held_cards);
@@ -595,23 +596,19 @@ function CardReviewPane(props: ReviewPaneProps) {
       <header class="review-header">
         <div ref={heading} class="review-heading">
           <div class="review-register">Review</div>
-          <h1><Show when={!sessionActive()} fallback={<span>{deckName()}</span>}><Button class="review-deck-title" disabled={locked() || loading()} aria-haspopup="dialog" title="Choose a deck" onClick={event => { setSearch(''); setPicker({ kind: 'decks', anchor: event.currentTarget }); }}><span>{deckName()}</span><Icon name="down" /></Button></Show></h1>
+          <h1>{deckName()}</h1>
         </div>
         <Show when={!sessionActive()}>
-          <Show when={otherSessions().length}><Button class="review-open-sessions" disabled={locked() || loading()} aria-haspopup="dialog" onClick={event => { setSearch(''); setPicker({ kind: 'sessions', anchor: event.currentTarget }); }}>Open reviews<span class="review-count">{otherSessions().length}</span></Button></Show>
-          <Button class="review-deck-actions" icon="more" label="Deck actions" aria-haspopup="menu" disabled={locked() || loading()} onClick={event => setActions(event.currentTarget)} />
+          <Show when={otherSessions().length}><Button class="review-open-sessions" disabled={locked() || loading()} aria-haspopup="dialog" onClick={event => { setSearch(''); setPicker(event.currentTarget); }}>Open reviews<span class="review-count">{otherSessions().length}</span></Button></Show>
+          <Show when={selectedDeck()}><Button class="review-deck-actions" icon="more" label="Deck actions" aria-haspopup="menu" disabled={locked() || loading()} onClick={event => setActions(event.currentTarget)} /></Show>
         </Show>
       </header>
-      <div class="review-toolbar">
-        <Show when={!session()}><div role="group" aria-label="Review queue" class="review-queue-controls mode-tabs tab-strip" data-mode-panel=".review-scroll"><For each={selections}>{value => <Button aria-pressed={query().selection === value} disabled={locked() || loading()} onClick={() => {
-          if (value === query().selection) return;
-          setShown(null); setUpdated(null); setStale(''); setNeedsReload(false); setSelection(value); publish();
-        }}>{selectionLabels[value]}<Show when={counts()[value] !== undefined}><span class="review-count">{counts()[value]}</span></Show></Button>}</For></div></Show>
+      <Show when={session()}><div class="review-toolbar">
         <Show when={sessionActive() && ready()}><div class="review-session-progress">
           <span class="review-progress-label">{Math.min(gradedCount() + 1, gradedCount() + rows().length)} of {gradedCount() + rows().length}</span>
           <GradeStrip grades={grades()} remaining={rows().length} />
         </div></Show>
-      </div>
+      </div></Show>
     </div></Show>
     <Show when={queued() && !pending()}><div class="review-notice" role="status">
       {commandState() === 'offline' ? 'Offline · Review changes are kept for retry.' : 'Saving review changes…'}
@@ -630,7 +627,10 @@ function CardReviewPane(props: ReviewPaneProps) {
       <Show when={!session() && ready() && inventory() !== 0 && stats()}>{value => <div class="review-landing">
         <div class="review-overview">
           <section class="review-today-load" aria-label="Selected review queue">
-            <h2>{selectionLabels[query().selection]}</h2>
+            <div role="group" aria-label="Review queue" class="review-queue-controls mode-tabs tab-strip" data-mode-panel=".review-scroll"><For each={selections}>{value => <Button aria-pressed={query().selection === value} disabled={locked() || loading()} onClick={() => {
+              if (value === query().selection) return;
+              setShown(null); setUpdated(null); setStale(''); setNeedsReload(false); setSelection(value); publish();
+            }}>{selectionLabels[value]}<Show when={counts()[value] !== undefined}><span class="review-count">{counts()[value]}</span></Show></Button>}</For></div>
             <Show when={rows().length} fallback={<>
               <div class="review-caught-up">{query().selection === 'new' ? 'Nothing new yet' : 'All caught up'}</div>
               <Show when={nextDue()}>{due => <p>Next card {nextCardTime(due(), props.notebook.todayDate(), props.notebook.settings()?.time_zone)}</p>}</Show>
@@ -648,21 +648,25 @@ function CardReviewPane(props: ReviewPaneProps) {
         </div>
         <dl class="review-stats">
           <div><dt>Retention</dt><dd title="Non-Again grades over the last 30 days">{value().retention === null ? '—' : Math.round(value().retention! * 100)}<Show when={value().retention !== null}><small>%</small></Show></dd></div>
-          <div><dt>This week</dt><dd>{value().reviews_this_week}<small>{value().reviews_this_week === 1 ? 'review' : 'reviews'}</small></dd></div>
+          <div><dt>Last 7 days</dt><dd>{value().reviews_past_week}<small>{value().reviews_past_week === 1 ? 'review' : 'reviews'}</small></dd></div>
           <div><dt>Streak</dt><dd>{value().streak}<small>{value().streak === 1 ? 'day' : 'days'}</small></dd></div>
           <div><dt>Cards</dt><dd>{value().total_cards}</dd></div>
         </dl>
         <section class="review-decks" aria-label="Decks">
-          <header><h2>Decks</h2><p class="review-decks-intro">Tag a card to make a deck. Save a deck for other filters.</p><Button icon="plus" disabled={locked()} onClick={event => props.onCreate({ kind: 'card', text: '' }, event.currentTarget)}>New card</Button><Button icon="plus" disabled={locked()} onClick={event => setEditor({ anchor: event.currentTarget, deck: null })}>New deck</Button></header>
+          <header><h2>Decks</h2><Button icon="plus" disabled={locked()} onClick={event => props.onCreate({ kind: 'card', text: '' }, event.currentTarget)}>New card</Button><Button icon="plus" disabled={locked()} onClick={event => setEditor({ anchor: event.currentTarget, deck: null })}>New deck</Button></header>
+          <Show when={ledger().length === 1}><p class="review-decks-intro">Tag a card to make a deck. Save a deck for other filters.</p></Show>
           <table><thead><tr><th>Deck</th><th>Due</th><th>New</th><th>Cards</th></tr></thead><tbody><For each={ledger()}>{deck => <tr>
             <td><Button class="review-ledger-deck" classList={{ selected: deck.id === deckId() }} disabled={locked() || loading()} onClick={event => requestMove({ deckId: deck.id, sessionId: null }, event.currentTarget)}>{deck.name}</Button></td><td>{deck.due}</td><td>{deck.new}</td><td>{deck.all}</td>
           </tr>}</For></tbody></table>
         </section>
+        <Show when={landingCards()}>{cards => <section class="review-cards" aria-label="Cards">
+          <h2><span>Cards</span><span class="section-rule" /><span class="review-count">{cards().total}</span></h2>
+          <For each={cards().rows}>{row => <ReviewQueueRow row={row} notebook={props.notebook} onOpen={props.onOpen} />}</For>
+          <Show when={cards().total > cards().rows.length}><p class="review-cards-more">{cards().total - cards().rows.length} more</p></Show>
+        </section>}</Show>
       </div>}</Show>
       <Show when={done() && session()}>{value => <section class="review-done" aria-label="Session summary" tabIndex={-1}>
-        <p class="review-register">{deckName()} · {value().state === 'abandoned' ? 'Abandoned' : 'Done'}</p>
         <h2>{gradedCount()} reviewed this session in {reviewDuration((value().ended_at ?? grades().at(-1)?.created_at ?? value().started_at) - value().started_at)}</h2>
-        <GradeStrip grades={grades()} />
         <dl class="review-stats">
           <div><dt>Good or easy</dt><dd>{grades().filter(event => event.grade === 'good' || event.grade === 'easy').length}</dd></div>
           <div><dt>Again</dt><dd class="error">{missed().length}</dd></div>
@@ -688,7 +692,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         <div class="review-session-layout" classList={{ 'review-has-context': !!snapshot.context }}>
           <ReviewCard item={snapshot.item} context={snapshot.context} onReveal={setAnswerRevealed} onEdit={beside => { publish(); props.onOpen({ kind: 'page', pageId: snapshot.item.source.page.id, blockId: snapshot.item.source.block.id, editOcclusion: snapshot.item.card.kind === 'occlusion' }, beside); }} notebook={props.notebook} previews={snapshot.previews.current} resetPreviews={snapshot.previews.reset} busy={locked() || loading() || !!readError() || !!stale() || needsReload() || !openSession()} onGrade={(value, restart) => grade(value, restart, snapshot)} onReset={() => reset(snapshot)} onSource={beside => {
             publish(); props.onOpen(snapshot.context && !snapshot.item.card.template ? { kind: 'reader', sourceId: snapshot.context.citation.source_id, snapshotId: snapshot.context.citation.snapshot_id, at: snapshot.context.citation.start.passage_id, citationId: snapshot.context.citation.id } : { kind: 'page', pageId: snapshot.item.source.page.id, blockId: snapshot.item.source.block.id }, beside);
-          }} />
+          }} onUndo={() => void undoGrade()} undoDisabled={undoDisabled()} onEnd={anchor => { setCommandError(''); setClosing(anchor); }} />
           <Show when={snapshot.context}>{context => <ReviewSourcePassage context={context()} revealed={answerRevealed()} />}</Show>
         </div>
         <Show when={snapshot.item.last_review}><ReviewHistory cardId={snapshot.item.card.id} kind={snapshot.item.card.kind} template={!!snapshot.item.card.template} notebook={props.notebook} /></Show>
@@ -701,13 +705,10 @@ function CardReviewPane(props: ReviewPaneProps) {
       </Show>
     </footer></Show>
     <Show keyed when={composer()}>{anchor => <CardComposer anchor={anchor} where={`${shortDay(props.notebook.todayDate())} · end of journal`} onSave={createCard} onDismiss={() => setComposer(null)} />}</Show>
-    <Show keyed when={picker()}>{state => state.kind === 'decks'
-      ? <Picker<DeckChoice> anchor={state.anchor} label="Deck" query={search()} onQuery={setSearch} placeholder="Find a deck" items={deckChoices()} key={value => value.id ?? 'all'} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); if (value.id !== deckId()) requestMove({ deckId: value.id, sessionId: null }, state.anchor); }} row={value => <><Icon name={value.id === deckId() ? 'check' : value.tag ? 'tag' : 'table'} /><span class="picker-text">{value.name}</span></>} empty="No matching decks." />
-      : <Picker<ReviewSession> anchor={state.anchor} label="Open reviews" query={search()} onQuery={setSearch} placeholder="Find a review" items={sessionChoices()} key={value => value.id} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); requestMove({ deckId: value.deck_id, sessionId: value.id }, state.anchor); }} row={value => <><Icon name={value.id === sessionId() ? 'check' : 'page'} /><span class="picker-text">{sessionLabel(value)}</span></>} empty="No open reviews." />}</Show>
-    <Show keyed when={actions()}>{anchor => <Menu anchor={anchor} label="Deck actions" onDismiss={() => setActions(null)} items={[
-      { label: 'New deck', disabledReason: openSession() ? 'End the open review first.' : undefined, action: () => setEditor({ anchor, deck: null }) },
-      { label: 'Edit deck', disabledReason: selectedTagDeck() ? `This deck is the #${selectedTagDeck()!.name} tag. Remove the tag from its cards, or save a deck if you need other filters.` : openSession() ? 'End the open review first.' : !selectedDeck() ? 'Choose a saved deck first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setEditor({ anchor, deck }); } },
-      { label: 'Delete deck', danger: true, disabledReason: selectedTagDeck() ? `This deck is the #${selectedTagDeck()!.name} tag. Remove the tag from its cards.` : openSession() ? 'End the open review first.' : !selectedDeck() ? 'Choose a saved deck first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setDeletion({ anchor, deck }); } },
+    <Show keyed when={picker()}>{anchor => <Picker<ReviewSession> anchor={anchor} label="Open reviews" query={search()} onQuery={setSearch} placeholder="Find a review" items={sessionChoices()} key={value => value.id} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); requestMove({ deckId: value.deck_id, sessionId: value.id }, anchor); }} row={value => <><Icon name={value.id === sessionId() ? 'check' : 'page'} /><span class="picker-text">{sessionLabel(value)}</span></>} empty="No open reviews." />}</Show>
+    <Show keyed when={selectedDeck() && actions()}>{anchor => <Menu anchor={anchor} label="Deck actions" onDismiss={() => setActions(null)} items={[
+      { label: 'Edit deck', disabledReason: openSession() ? 'End the open review first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setEditor({ anchor, deck }); } },
+      { label: 'Delete deck', danger: true, disabledReason: openSession() ? 'End the open review first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setDeletion({ anchor, deck }); } },
     ]} />}</Show>
     <Show keyed when={editor()}>{state => <DeckEditor anchor={state.anchor} notebook={props.notebook} deck={state.deck} query={query()} onDismiss={() => setEditor(null)} onSaved={id => { setEditor(null); moveTo({ deckId: id, sessionId: null }); }} />}</Show>
     <Show keyed when={closing()}>{anchor => <Popup anchor={anchor} label="End review" class="review-confirm" onDismiss={() => { if (!pending()) setClosing(null); }}>
@@ -726,6 +727,21 @@ function CardReviewPane(props: ReviewPaneProps) {
       <div class="popup-actions"><Button disabled={locked()} onClick={() => setSwitching(null)}>Keep going</Button><Button class="bordered" disabled={locked()} onClick={() => void closeSession('finished', state.target)}>End review</Button></div>
     </Popup>}</Show>
   </div>;
+}
+
+function ReviewQueueRow(props: { row: CardRow; notebook: NotebookClient; onOpen: ReviewPaneProps['onOpen'] }) {
+  const [siblings] = createResource(() => props.row.card.kind === 'occlusion' ? props.row : false, row => props.notebook.api.sourceCards(row.card.source_block_id).then(cards => cards.filter(card => card.active)));
+  const kind = createMemo(() => cardKindLabel(props.row.card, siblings() ?? parseCardText(props.row.source.block.text).cards));
+  const front = createMemo(() => {
+    const card = props.row.card;
+    const text = card.kind === 'occlusion' ? occlusionSides(card)?.front.hint ?? `Mask ${groupLetter(card.occlusion_index ?? 0)}` : card.front;
+    return text.split('\n', 1)[0] ?? '';
+  });
+  const due = createMemo(() => props.row.card.schedule.last_reviewed_at === null ? null : new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(props.row.card.schedule.due_at));
+  return <Button class="review-queue-row" onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, opensBeside(event))}>
+    <span class="review-queue-text"><span class="review-queue-front"><Show when={props.row.card.kind === 'occlusion'} fallback={<CardFront plain={!!props.row.card.template} kind={props.row.card.kind} front={front()} back={props.row.card.back} notebook={props.notebook} />}>{front()}</Show></span><span class="review-queue-meta"><span class="review-queue-kind">{kind()}</span><span class="review-queue-source">{plainText(props.row.source.page.text, id => props.notebook.lookup(id))}</span></span></span>
+    <span class="review-queue-due" classList={{ overdue: due() !== null && props.row.card.schedule.due_at < Date.now() }}>{due() ?? 'new'}</span>
+  </Button>;
 }
 
 function nextCardTime(due: number, today: string, timeZone?: string): string {
@@ -750,9 +766,13 @@ function ReviewForecast(props: { stats: ReviewStats }) {
   const maximum = createMemo(() => Math.max(1, ...props.stats.forecast.map(day => day.count)));
   return <section class="review-forecast" aria-label="Next two weeks due forecast">
     <header><h2>Next two weeks</h2><span>{props.stats.forecast.reduce((sum, day) => sum + day.count, 0)} due</span></header>
-    <div class="review-forecast-bars"><For each={props.stats.forecast}>{(day, index) => <div classList={{ 'review-forecast-today': index() === 0 }} role="img" aria-label={index() === 0 ? 'today' : day.date} aria-description={`${day.count} due`} title={`${day.date}: ${day.count} due`}>
-      <span>{day.count}</span><div class="review-forecast-track"><i style={{ height: `${day.count / maximum() * 100}%` }} /></div><span>{new Date(`${day.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' }).slice(0, 2)}</span>
-    </div>}</For></div>
+    <div class="review-forecast-bars"><For each={props.stats.forecast}>{(day, index) => {
+      const weekday = new Date(`${day.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' });
+      const label = `${weekday} ${day.date} · ${day.count} due`;
+      return <div classList={{ 'review-forecast-today': index() === 0, 'review-forecast-empty': day.count === 0 }} role="img" aria-label={label} title={label}>
+        <div class="review-forecast-track"><i style={{ height: `${day.count / maximum() * 100}%` }} /></div><span>{weekday.slice(0, 2)}</span>
+      </div>;
+    }}</For></div>
   </section>;
 }
 
@@ -794,10 +814,14 @@ function ReviewHistory(props: { cardId: string; kind: CardKind; template: boolea
       <Show when={loading() && !events().length}><p role="status">Loading history…</p></Show>
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></p></Show>
       <Show when={!loading() && !error() && !events().length}><p>No review events.</p></Show>
-      <ul><For each={[...events()].reverse()}>{event => <li>
-        <div><time dateTime={new Date(event.created_at).toISOString()}>{new Date(event.created_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time> · {event.kind === 'reset' ? 'Reset' : gradeLabels[event.grade!]}<Show when={event.undone_by}> · Undone</Show> · {event.before.interval_days ? formatInterval(event.before.interval_days) : 'New'} → {formatInterval(event.after.interval_days)}</div>
-        <details><summary>Shown text</summary><div class="review-history-text"><CardFront plain={props.template} kind={props.kind} front={event.shown_front} back={event.shown_back} notebook={props.notebook} /></div><div class="review-history-text"><CardBack plain={props.template} kind={props.kind} front={event.shown_front} back={event.shown_back} notebook={props.notebook} /></div></details>
-      </li>}</For></ul>
+      <ul><For each={[...events()].reverse()}>{event => {
+        const [expanded, setExpanded] = createSignal(false);
+        const date = new Date(event.created_at);
+        return <li>
+          <Button class="review-history-event" aria-expanded={expanded()} onClick={() => setExpanded(value => !value)}><time dateTime={date.toISOString()}>{localDate(date)} {date.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}</time> · {event.kind === 'reset' ? 'Reset' : gradeLabels[event.grade!]}<Show when={event.undone_by}> · Undone</Show> · {event.before.interval_days ? formatInterval(event.before.interval_days) : 'new'} → {formatInterval(event.after.interval_days)}</Button>
+          <Show when={expanded()}><div class="review-history-text"><CardFront plain={props.template} kind={props.kind} front={event.shown_front} back={event.shown_back} notebook={props.notebook} /></div><div class="review-history-text"><CardBack plain={props.template} kind={props.kind} front={event.shown_front} back={event.shown_back} notebook={props.notebook} /></div></Show>
+        </li>;
+      }}</For></ul>
     </Show>
   </details>;
 }

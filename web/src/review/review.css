@@ -1,13 +1,10 @@
 .review-pane { display: flex; flex-direction: column; min-height: 0; height: 100%; min-width: 0; outline: none; }
 /* Header, toolbar, status, card and footer share the outline measure, like Library and Agenda.
-   The deck is the page title, set like a table's view name, with the queue tabs beneath. */
+   The deck is a static page title; the landing's queue tabs head its overview. */
 .review-header { display: flex; align-items: flex-end; gap: var(--space-8); width: 100%; max-width: calc(var(--measure) + 2 * var(--pane-inset)); margin-inline: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-title-gap); }
 .review-heading { flex: 1; min-width: 0; font: var(--page-title-font); min-height: calc(var(--line-apparatus) + var(--page-eyebrow-gap) + max(1lh, var(--target-size))); }
 .review-register { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.review-heading h1 { margin: var(--page-eyebrow-gap) 0 0; font: inherit; font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
-.review-deck-title.button { justify-content: flex-start; max-width: 100%; min-width: 0; padding: 0; border: 0; font-family: var(--font-display); font-size: inherit; line-height: inherit; font-weight: var(--weight-title); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
-.review-deck-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.review-deck-title > .icon { color: var(--faint); }
+.review-heading h1 { margin: var(--page-eyebrow-gap) 0 0; font: inherit; font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .review-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-16); width: 100%; max-width: calc(var(--measure) + 2 * var(--pane-inset)); margin-inline: auto; padding: 0 var(--pane-inset) var(--page-head-gap); }
 .review-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .review-queue-controls { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-right: auto; }
@@ -44,7 +41,7 @@
 .review-history summary { cursor: pointer; padding-block: var(--space-4); }
 .review-history summary:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
 .review-history ul { display: flex; flex-direction: column; gap: var(--space-8); margin: var(--space-8) 0 0; padding-inline-start: var(--space-16); list-style: none; }
-.review-history li summary { color: var(--faint); }
+.review-history-event.button { display: block; width: 100%; padding-inline: 0; text-align: left; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .review-history time { font-variant-numeric: tabular-nums; }
 .review-history-text { color: var(--text); }
 .review-confirm { width: var(--search-width); font-size: var(--text-control); line-height: var(--line-control); }
@@ -61,6 +58,7 @@
 .review-forecast { min-width: 0; padding: var(--space-24); border: 1px solid var(--line); border-radius: var(--radius-popup); }
 .review-landing .review-forecast { padding: 0; border: 0; border-radius: 0; }
 .review-today-load { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-12); min-width: 0; }
+.review-today-load .review-queue-controls { align-self: stretch; margin-right: 0; }
 .review-landing h2, .review-forecast h2, .review-missed h3 { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .review-stat-value { font: var(--weight-body) var(--text-figure)/var(--line-figure) var(--font-display); font-variation-settings: var(--optical-heading); font-variant-numeric: lining-nums tabular-nums; }
 .review-stat-value small { margin-left: var(--space-8); color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
@@ -79,7 +77,8 @@
 .review-stats small { margin-left: var(--space-4); color: var(--muted); font: var(--apparatus); }
 .review-forecast header, .review-decks header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .review-decks header { flex-wrap: wrap; }
-.review-decks-intro { flex: 1 1 16rem; margin: 0; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.review-decks header h2 { margin-right: auto; }
+.review-decks-intro { margin: var(--section-item-gap) 0 0; color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
 .review-forecast header > span { color: var(--faint); font: var(--apparatus); white-space: nowrap; }
 .review-forecast-bars { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-16); }
 .review-landing .review-forecast-bars { margin-top: var(--section-item-gap); }
@@ -90,6 +89,7 @@
 .review-forecast-bars { padding-bottom: var(--space-4); border-bottom: var(--rule-width) solid var(--line); }
 .review-forecast-today, .review-forecast-today > span { color: var(--accent); }
 .review-forecast-today .review-forecast-track > i { background: var(--accent); }
+.review-forecast-empty .review-forecast-track > i { min-height: var(--rule-width); background: var(--line); }
 .review-decks table { width: 100%; border-collapse: collapse; }
 .review-decks :is(th, td) { border-bottom: 1px solid var(--line); padding: var(--space-8); text-align: left; }
 .review-decks :is(th, td):not(:first-child) { width: 12%; font: var(--apparatus); font-variant-numeric: tabular-nums; }
@@ -97,6 +97,15 @@
 .review-ledger-deck.button { padding: 0; justify-content: flex-start; font-family: var(--font-display); font-size: var(--text-quote); font-weight: var(--weight-body); }
 .review-ledger-deck.button.selected { background: transparent; color: var(--accent); }
 .review-decks table { margin-top: var(--section-item-gap); }
+.review-cards h2 { display: flex; align-items: center; gap: var(--space-8); margin-bottom: var(--section-item-gap); }
+.review-queue-row.button { display: flex; justify-content: space-between; width: 100%; min-height: var(--target-size); gap: var(--space-16); padding: var(--space-8) 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; text-align: left; font-weight: var(--weight-body); }
+.review-queue-text { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.review-queue-front, .review-queue-source { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.review-queue-meta { display: flex; gap: var(--space-8); min-width: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.review-queue-kind { flex: none; text-transform: uppercase; }
+.review-queue-due { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; }
+.review-queue-due.overdue { color: var(--danger); }
+.review-cards-more { margin: var(--section-item-gap) 0 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 /* An empty workshop uses the empty-kind voice, not the session summary's page title. */
 .review-empty { max-width: var(--measure); padding-top: var(--space-24); }
 .review-empty h2 { margin: 0; color: var(--muted); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
@@ -137,6 +146,7 @@
   .review-session-active .review-card { flex: 1; }
   .review-session-active :is(.review-card-actions, .review-card-comparison, .review-card-grades:not(.review-card-comparison + *)) { margin-top: auto; }
   .review-session-active .review-history { display: none; }
+  .review-session-active .review-session-actions { display: none; }
   .review-session-actions { padding: var(--space-4) var(--space-16) max(var(--space-8), var(--bottom-inset)); }
   .review-overview { grid-template-columns: 1fr; gap: var(--space-24); }
   .review-done-actions { position: sticky; bottom: 0; padding-block: var(--space-12); background: var(--canvas); }

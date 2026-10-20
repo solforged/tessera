@@ -387,7 +387,7 @@ The review pane holds shown text until acknowledgment. Refresh detects changed c
 | `date`, `due_review`, `due_new` | Context date and due counts |
 | Fourteen `{date,count}` entries | Forecast, folding overdue cards into today |
 | `retention` | Non-Again share over thirty local days; null without reviews |
-| `reviews_this_week` | Monday-start week |
+| `reviews_past_week` | Last seven local days, from midnight six days before the context date through that date's end |
 | `streak` | Consecutive reviewed days ending today or yesterday |
 | `total_cards` | Card total |
 

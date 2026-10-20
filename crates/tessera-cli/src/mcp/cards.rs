@@ -271,12 +271,12 @@ async fn stats(api: &Api, arguments: &Value) -> anyhow::Result<String> {
     let stats: Value = api.get_with("/api/review/stats", &query).await?;
     let count = |key: &str| stats[key].as_u64().unwrap_or(0);
     let mut text = format!(
-        "{}: {} reviews and {} new cards due; {} cards in all; {} reviews this week; streak {} days",
+        "{}: {} reviews and {} new cards due; {} cards in all; {} reviews in the last 7 days; streak {} days",
         stats["date"].as_str().unwrap_or_default(),
         count("due_review"),
         count("due_new"),
         count("total_cards"),
-        count("reviews_this_week"),
+        count("reviews_past_week"),
         count("streak"),
     );
     if let Some(retention) = stats["retention"].as_f64() {

@@ -593,7 +593,7 @@ async fn review_stats_use_local_forecast_boundaries_and_today_or_yesterday_strea
         json!({"date": "2026-11-02", "count": 1})
     );
     assert_eq!(stats["streak"], 3); // ending yesterday
-    assert_eq!(stats["reviews_this_week"], 5);
+    assert_eq!(stats["reviews_past_week"], 5);
     assert_eq!(stats["retention"], 0.8);
     let scoped = get(
         &app,
@@ -603,6 +603,21 @@ async fn review_stats_use_local_forecast_boundaries_and_today_or_yesterday_strea
     assert_eq!(scoped["total_cards"], 1); // saved selection and limit do not truncate statistics
     assert_eq!(scoped["streak"], 3);
     assert!((scoped["retention"].as_f64().unwrap() - 2.0 / 3.0).abs() < 1e-12);
+    assert_eq!(scoped["reviews_past_week"], 3);
+    // Monday keeps the prior week's reviews rather than resetting the count.
+    assert_eq!(
+        get(&app, "/api/review/stats?date=2026-11-02").await["reviews_past_week"],
+        5
+    );
+    // The seven-day window includes Oct 30 local midnight, across the DST fold.
+    assert_eq!(
+        get(&app, "/api/review/stats?date=2026-11-05").await["reviews_past_week"],
+        4
+    );
+    assert_eq!(
+        get(&app, "/api/review/stats?date=2026-11-06").await["reviews_past_week"],
+        2
+    );
     assert_eq!(
         get(&app, "/api/review/stats?date=2026-11-02").await["streak"],
         0

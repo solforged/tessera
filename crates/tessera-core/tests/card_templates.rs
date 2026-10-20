@@ -541,7 +541,7 @@ fn paced_counts_and_forecast_defer_five_of_fifteen_but_all_keeps_inventory() {
     }
     let stats = nb.review_stats(None, "2030-01-15").unwrap();
     assert_eq!(
-        (stats.due_new, stats.reviews_this_week, stats.retention),
+        (stats.due_new, stats.reviews_past_week, stats.retention),
         (7, 3, Some(1.0))
     );
     assert_eq!(queue(&nb, now).len(), 7);
@@ -561,7 +561,7 @@ fn paced_counts_and_forecast_defer_five_of_fifteen_but_all_keeps_inventory() {
     );
     let stats = nb.review_stats(None, "2030-01-15").unwrap();
     assert_eq!(
-        (stats.due_new, stats.reviews_this_week, stats.streak),
+        (stats.due_new, stats.reviews_past_week, stats.streak),
         (8, 2, 1)
     );
     assert_eq!(stats.forecast[0].count, 8);

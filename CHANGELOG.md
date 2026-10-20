@@ -8,9 +8,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Added
 
+- Tidied Review history into ISO-dated preview toggles, removed the Done summary's duplicate eyebrow and grade strip and the card's rubric tick, and moved phone session undo and end actions into the card menu.
+- Listed the selected review queue's cards below Decks with plain-text fronts, kinds, source links and due dates.
 - Removed the permanent Read-unavailable banner from zoomed atoms; unavailable Read controls keep their contextual reasons.
 - Moved Revisits beside Agenda with its own dated groups, sidebar count, saved pane state and Open revisits command; kept Review for cards.
-
 - Added tag recipes using atom text, optional hints and answer details, catalogue-style review, live creation previews, and undoable syntax conversion that preserves card identities and progress across sync.
 - Unified task planning and user fields in one focused field bed, seeded the editable Task template with protected built-ins, added editable task table fields and kept cover editing in one sheet.
 - Addressed tags by page ID, normalized legacy tags with caret-preserving editor receipts, and added migration and check repair without rewriting members on rename. Pills read live titles, existing tag choices insert IDs, and tag tables and decks retain membership across renames.
@@ -60,6 +61,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Simplified Review's landing to a static deck title and in-column queue tabs, kept saved-deck actions only, reduced forecast labels, and counted the last seven local days instead of the calendar week.
 - Made review sessions take over the pane with a static deck title, larger card text and click-to-reveal, quiet End review controls, caught-up empty queues, and one-tap starts from Today.
 - Included every active task, project and source atom in its built-in kind's counts, finding aid, table and saved filters, without requiring a written tag, and added New task to the empty Tasks finding aid.
 - Said atom and tag instead of block and type throughout the interface.

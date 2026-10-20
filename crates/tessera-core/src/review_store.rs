@@ -25,7 +25,7 @@ pub struct ReviewStats {
     pub due_new: usize,
     pub forecast: Vec<ReviewForecastDay>,
     pub retention: Option<f64>,
-    pub reviews_this_week: usize,
+    pub reviews_past_week: usize,
     pub streak: usize,
     pub total_cards: usize,
     pub held_cards: usize,
@@ -942,9 +942,6 @@ impl Notebook {
         crate::calendar::validate_civil_date(date)?;
         let zone = TimeZone::get(&self.settings_view(crate::now_ms())?.time_zone)
             .map_err(|error| validation(error.to_string()))?;
-        let day: Date = date
-            .parse()
-            .map_err(|error: jiff::Error| validation(error.to_string()))?;
         let midnight = |label: &str| -> Result<i64> {
             let date: Date = label
                 .parse()
@@ -999,9 +996,7 @@ impl Notebook {
         };
         let start = midnight(date)?;
         let end = midnight(&crate::calendar::add_days(date, 1)?)?;
-        let week =
-            crate::calendar::add_days(date, -i64::from(day.weekday().to_monday_zero_offset()))?;
-        let week_start = midnight(&week)?;
+        let week_start = midnight(&crate::calendar::add_days(date, -6)?)?;
         let recent_start = midnight(&crate::calendar::add_days(date, -29)?)?;
         let (due_review, due_new, total_cards, held_cards) = self
             .conn
@@ -1023,7 +1018,7 @@ impl Notebook {
                 ))
             })?;
         let forecast = forecast(&self.conn, source_ids.as_deref(), date, 14, false)?;
-        let (recent, retained, reviews_this_week): (usize, usize, usize) = self
+        let (recent, retained, reviews_past_week): (usize, usize, usize) = self
             .conn
             .prepare_cached(concat!(
                 review_eligible!(),
@@ -1076,7 +1071,7 @@ impl Notebook {
             due_new,
             forecast,
             retention: (recent > 0).then(|| retained as f64 / recent as f64),
-            reviews_this_week,
+            reviews_past_week,
             streak,
             total_cards,
             held_cards,

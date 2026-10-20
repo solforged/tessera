@@ -1050,7 +1050,7 @@ fn undo_restores_exact_schedule_reopens_session_and_replays_after_backup_restore
     assert_eq!(
         (
             stats.due_new,
-            stats.reviews_this_week,
+            stats.reviews_past_week,
             stats.streak,
             stats.retention
         ),
@@ -1547,7 +1547,7 @@ fn tag_deck_stats_share_saved_source_scope_and_survive_empty_membership() {
             stats.due_new,
             stats.due_review,
             stats.held_cards,
-            stats.reviews_this_week,
+            stats.reviews_past_week,
             stats.streak,
         ),
         (0, 0, 0, 0, 0, 0)
