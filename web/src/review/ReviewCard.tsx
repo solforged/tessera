@@ -24,6 +24,9 @@ export interface ReviewCardProps {
   onGrade(grade: Grade, reset: boolean): void | Promise<void>;
   onSource(beside: boolean): void;
   onReset(): void | Promise<void>;
+  onUndo(): void;
+  undoDisabled: boolean;
+  onEnd(anchor: HTMLElement): void;
 }
 
 const grades = (['again', 'hard', 'good', 'easy'] as const).map((grade, index) => ({ grade, label: gradeLabels[grade], shortcut: String(index + 1) }));
@@ -209,6 +212,8 @@ export function ReviewCard(props: ReviewCardProps) {
       { label: props.context ? 'Open in the book' : 'Open source', action: () => props.onSource(false) },
       { label: 'Edit card', action: () => props.onEdit(false) },
       { label: 'Reset progress', disabledReason: !revealed() ? 'Reveal the answer first.' : props.item.card.schedule.last_reviewed_at === null ? 'This card has no progress yet.' : undefined, action: () => setResetAnchor(anchor) },
+      { label: 'Undo last grade', divider: true, disabledReason: props.undoDisabled ? 'Nothing graded yet.' : undefined, action: props.onUndo },
+      { label: 'End review', action: () => props.onEnd(anchor) },
     ]} />}</Show>
     <Show when={resetAnchor()}>{anchor => <Popup anchor={anchor()} label="Reset progress" class="review-card-reset" onDismiss={() => setResetAnchor(null)}>
       <p>Reset this card’s schedule? Review history stays.</p>

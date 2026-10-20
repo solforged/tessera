@@ -1,11 +1,9 @@
 /* The source, reading and grading strip share one sheet on the text measure. */
 .review-card { position: relative; display: flex; flex-direction: column; gap: var(--space-16); min-width: 0; padding: var(--space-12) 0 var(--space-24); border-top: var(--rule-width) solid var(--line); transition: border-color var(--motion-fast) var(--motion-ease); }
-/* The rubric mark that heads popups and resurfaced slips also heads the card sheet. */
-.review-card::before { content: ''; position: absolute; top: calc(-1 * var(--rule-width)); left: 0; width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
 .review-card:focus-visible { outline: none; }
 /* Only a fine-pointer keyboard focus adds gilt; touch keeps the progress strip as its one rule. */
 @media (pointer: fine) { .review-card:focus-visible { border-color: var(--accent); } }
-@media (pointer: coarse) { .review-card { border-top-color: transparent; } .review-card::before { display: none; } }
+@media (pointer: coarse) { .review-card { border-top-color: transparent; } }
 /* Source, kind and card actions share one apparatus line; the source shortens first. */
 .review-card-meta { display: flex; align-items: center; gap: var(--space-4) var(--space-12); min-height: var(--target-size); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .review-card-source.button { min-width: 0; max-width: 100%; padding-inline: 0; color: inherit; font: inherit; }
