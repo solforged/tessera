@@ -1,5 +1,4 @@
 import { For, Show, createMemo, createSignal } from 'solid-js';
-import type { JSX } from 'solid-js';
 import type { DateRange, FieldDefinition, Filter, Query, TaskFilter, TaskPriority, TaskQuery, TaskSelection, TaskStatus } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { FilterPopup } from '../table/FilterPopup';
@@ -11,6 +10,7 @@ import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { DatePicker } from './DatePicker';
 import { taskRange } from './query';
+import { taskFieldName } from './task-fields';
 
 interface TaskConditionsProps {
   notebook: NotebookClient;
@@ -26,7 +26,6 @@ interface TaskConditionsProps {
   onRecentInput(value: string): void;
   onLimitInput(value: string): void;
   onChange(query: TaskQuery): void;
-  children?: JSX.Element;
 }
 
 type ConditionKind = 'selection' | 'statuses' | 'priority' | 'project' | 'scheduled' | 'deadline' | 'limit' | 'type' | 'text';
@@ -61,7 +60,7 @@ export function TaskConditions(props: TaskConditionsProps) {
   const needle = () => search().trim().toLocaleLowerCase();
   const choices = createMemo((): ConditionChoice[] => [
     ...conditionChoices,
-    ...props.fields.map((field): ConditionChoice => ({ kind: 'field', section: 'Fields', label: field.name, field: field.id })),
+    ...props.fields.filter(field => !['status', 'priority', 'project', 'scheduled', 'deadline'].includes(taskFieldName(field) ?? '')).map((field): ConditionChoice => ({ kind: 'field', section: 'Fields', label: field.name, field: field.id })),
   ].filter(item => `${item.section} ${item.label}`.toLocaleLowerCase().includes(needle())));
   const projects = createMemo((): NamedChoice[] => [{ id: null, name: 'Any project' }, ...[...props.projects].map(([id, name]) => ({ id, name })).filter(item => item.name.toLocaleLowerCase().includes(needle()))]);
   const types = createMemo((): NamedChoice[] => [{ id: null, name: 'Any tag' }, ...props.notebook.roots().filter(block => block.kind === 'page' && !block.archived && block.text.toLocaleLowerCase().includes(needle())).map(block => ({ id: block.id, name: block.text }))]);
@@ -93,7 +92,6 @@ export function TaskConditions(props: TaskConditionsProps) {
       <Button disabled={props.disabled} label={`Remove ${filterLabel(filter, props.fields, props.notebook)}`} onClick={() => updateSource(removeFilter(source(), index()))}>×</Button>
     </span>}</For>
     <Button ref={addButton} class="bordered" disabled={props.disabled} aria-haspopup="dialog" aria-expanded={popup()?.anchor === addButton} onClick={event => popup()?.anchor === addButton ? setPopup(null) : open({ kind: 'conditions', anchor: event.currentTarget })}>Add condition<Icon name="down" /></Button>
-    {props.children}
     <Show keyed when={popup()}>{state => {
       const dismiss = () => { if (popup() === state) setPopup(null); };
       if (state.kind === 'conditions') return <Picker<ConditionChoice> class="task-condition-popup" anchor={state.anchor} width={320} label="Add condition" query={search()} onQuery={setSearch} placeholder="Find a condition" items={choices()} section={item => item.section} key={item => item.kind === 'field' ? `field:${item.field}` : item.kind} busy={props.metadataLoading} error={props.metadataError} onDismiss={dismiss} onPick={item => open(item.kind === 'field' ? { kind: 'field', anchor: state.anchor, field: item.field } : { kind: item.kind, anchor: state.anchor })} row={item => <span class="picker-text">{item.label}</span>} empty="No matching conditions." />;

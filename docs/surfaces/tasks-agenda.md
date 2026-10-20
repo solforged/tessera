@@ -37,6 +37,8 @@ On a narrow touch screen, the field bed is one bottom sheet headed Task fields a
 
 ## Dates and times
 
+Planning facts use `today`, `tomorrow` and `yesterday`, then weekday and day within six days of today (`Fri 16`), and ISO dates beyond that (`2026-11-02`). Missed schedules prefix the date with `since`; deadlines prefix it with `due`. The full civil date stays in the tooltip and accessible label.
+
 ### Date suggestions
 
 Typing `@` after a space or at block start opens date suggestions under the `@`: Today, Tomorrow, the next five weekdays and Next week, with a parsed query first.
@@ -105,9 +107,11 @@ The task API's optional `project_via: "field"` filter restricts results to expli
 
 ## Agenda destination
 
-The Agenda destination has an Agenda kicker and spoken date heading with Previous / Today / Next alongside it. Day / Week / Tasks sit beneath on the shared ruled tab baseline. The date heading opens the journal's calendar: picking a day moves there, and its Today returns to today.
+The Agenda destination keeps an Agenda kicker above its title. Day has a spoken date heading with Previous day / Today / Next day alongside it. Week uses a week number and compact range (`W43 · Oct 19–25`) with Previous week / Today / Next week. Both date headings open the journal's calendar; picking a day moves there, and its Today returns to today. Tasks has a plain Tasks title with no date navigation.
 
-The seven-day strip has no boxes:
+Day / Week / Tasks sit beneath on the shared ruled tab baseline. On the wide Week grid, the hour-window toggle sits at the right end of this same row; it is absent from Day, Tasks and the narrow Week ledger.
+
+Day's seven-day strip has no boxes:
 
 - Each column carries a small mono weekday, serif numeral and faint mono open-task count, deduplicating a task whose schedule and deadline coincide.
 - The selected day has a 2 px gilt rule on the strip's hairline; today's numeral is gilt.
@@ -126,9 +130,9 @@ After acknowledgement, the list refreshes, scrolls the new task row into view an
 
 ## Tasks query
 
-Tasks has one mono query line on a hairline. Focus edits plain text; Enter or blur applies it. Outside editing each term is a chip with its own remove control. Invalid terms keep their text, carry a `--danger` underline and explain the error beneath; the last valid query stays applied.
+Tasks has one mono query line on a hairline, beside its saved-view trigger. The line never wraps: its empty placeholder truncates with an ellipsis, and applied term chips scroll horizontally when they exceed the available width. Focus edits one line of plain text; Enter or blur applies it. Outside editing each term is a chip with its own remove control. Invalid terms keep their text, carry a `--danger` underline and explain the error beneath; the last valid query stays applied.
 
-A faint mono count sits under the line. Terms combine before the result limit, and double quotes group words or multi-word date expressions.
+A faint mono count trails the condition-builder rail, which can wrap below the query when space runs out. Terms combine before the result limit, and double quotes group words or multi-word date expressions. Finished tasks, both Done and Canceled, follow all unfinished results while retaining the query's order within each group.
 
 | Task query term | Means |
 |---|---|
@@ -193,7 +197,7 @@ Planned rows reschedule without dragging:
 
 Date-only moves keep the time, deadline and repeat, and keep the keyboard on the next row when the task leaves the list. The picker also edits time, including a same-day change; clearing its time makes the task all-day. An inline date/time updates the time field, and editing that field normalizes the date to avoid competing clocks.
 
-On today, timed rows stay chronological regardless of status, with every elapsed clock above a gilt rule that starts from a gilt dot at the present. Past work recedes to `--muted`; work in progress keeps its status appearance. Untimed work stays below the rule.
+Untimed work leads each day, followed by timed rows in chronological order regardless of status. On today, elapsed clocks sit above a gilt now rule that starts from a gilt dot; future clocks follow below it. Past work recedes to `--muted`; work in progress keeps its status appearance. The now rule belongs only to timed work and is omitted when there are no clocks.
 
 ### Groups
 
@@ -207,9 +211,7 @@ Day groups canonical tasks in this order:
 
 Headings read label, hairline, count. Today always has a ruled heading and count; when empty it shows one muted Nothing planned line.
 
-The Overdue heading ends in All to today and All to tomorrow. Each moves every unfinished task in one command, keeping times and deadlines, and leaves a `Moved 6 to today · Undo` line until the next move. A missed deadline already scheduled today cannot move to today, so that action hides when nothing would move.
-
-In an Agenda pane narrower than 560 px the two moves sit on their own line beneath the heading, aligned with Overdue, so the rule and count keep their room.
+The Overdue heading ends in one Move all menu with To today and To tomorrow. Each moves every unfinished task in one command, keeping times and deadlines, and leaves a `Moved 6 to today · Undo` line until the next move. To today is disabled with an explanation when every task is already scheduled today, including tasks whose deadline is still overdue. The single menu keeps the rule and count in the heading on narrow panes.
 
 Next 7 days groups compact rows by their earliest future schedule or deadline, and excludes tasks already listed as overdue or planned. A live task appears only once across these sections, even when both planning dates contribute to the strip. Collapsed Unplanned and Done groups retain undated work and completion history; a completed occurrence never suppresses its source's live task.
 
@@ -219,15 +221,19 @@ Opening a row still opens its source. ⌘-click opens it beside (Ctrl-click off 
 
 Week shows the displayed date's Monday-start week. Previous week, Next week and Today use the same single date control. Week drops the week strip, since its day headings already name the days.
 
-The heading, shared tabs, drag hint and drop feedback keep the same 760 px measure and alignment across Day, Week and Tasks even when the week grid is wider.
+The heading, shared tabs and drop feedback keep the same 760 px measure and alignment across Day, Week and Tasks.
 
-The all-day strip holds untimed scheduled tasks and deadlines labeled Due. Each card leads with its status glyph in the status color, then the time or Due in mono. Timed scheduled tasks sit in an hourly grid, initially scrolled to 08:00 or the earliest earlier task. Overlapping times use separate lanes.
+The all-day strip holds untimed scheduled tasks and deadlines labeled Due. Each card leads with its status glyph in the status color, then the time or Due in mono. The strip grows to fit its tallest day up to roughly four two-line cards, using the shared type and spacing tokens; days with more cards scroll within the strip.
 
-At an Agenda container width below 600 px, Week becomes a seven-day ledger on one scroll axis, including narrow desktop splits. Mono weekdays, serif numerals, hairlines and faint open counts head Day's canonical task rows. Today's numeral and now rule are gilt. Timed rows stay chronological regardless of status, with every elapsed clock above the rule and untimed work below it. Empty days take one line. Days before today fold to a done count and any open count, and expand on tap.
+In the week containing today, unfinished tasks with a missed schedule or deadline before the week's first day also appear as Overdue cards in today's all-day lane. Overdue plans from earlier days of this same week keep their red card on their original day and are not repeated in today's lane.
+
+Timed scheduled tasks sit in an hourly grid, initially scrolled to 08:00 or the earliest earlier task. The default hour window is 06:00–22:00 and expands to include any task outside it. Show all hours at the right of the tab row opens 00:00–24:00; its pressed state and label change to Hide early and late hours. A live gilt now line and dot cross today's timed column at the current time when it falls inside the shown window. Overlapping times use separate lanes.
+
+At an Agenda container width below 600 px, Week becomes a seven-day ledger on one scroll axis, including narrow desktop splits. Mono weekdays, serif numerals, hairlines and faint open counts head Day's canonical task rows. Today's numeral and now rule are gilt. Untimed work leads each day, followed by chronological timed rows regardless of status; elapsed clocks sit above the now rule and future clocks below it. Empty days take one line. Days before today fold to a done count and any open count, and expand on tap.
 
 Appointments, scheduled atoms without `#task`, appear on their exact date in both the grid and the narrow ledger, with or without a time and without a status glyph.
 
-The ledger replaces the drag hint with a mono week range, open-task count and due count. A task with both dates on the same day appears once. It has no drag: each open row offers Day's calendar button and keyboard planning behavior, and completion uses that row's day.
+The ledger starts with a mono open-task count and due count (`7 open · 1 due`), without repeating the range already in the title. A task with both dates on the same day appears once. It has no drag: each open row offers Day's calendar button and keyboard planning behavior, and completion uses that row's day.
 
 At 600 px and wider the grid remains. Intermediate-width panes, including the unfolded Fold, fit all seven columns and subdivide overlapping lanes inside each day without sideways scrolling. Wider desktop grids retain their existing column measure.
 

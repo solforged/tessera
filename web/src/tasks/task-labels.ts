@@ -3,7 +3,6 @@ import type { AgendaItem, TaskRow, TaskState } from '../api/types';
 // One vocabulary for a task's planning, shared by outline rows, the agenda and task queries, and the rules that keep a plan saveable.
 
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const priorityNames = { high: 'High', medium: 'Medium', low: 'Low' } as const;
 const repeatModes = { fixed: 'fixed', catch_up: 'catch up', after_completion: 'after completion' } as const;
 // Local noon keeps day arithmetic clear of daylight-saving edges.
@@ -14,7 +13,7 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((noon(to).getTime() - noon(from).getTime()) / 86_400_000);
 }
 
-/** A date as a reader says it near today: today, tomorrow, yesterday, `Fri 16` within a week, `16 Oct` this year, else ISO. */
+/** Nearby dates use words or weekday and day; dates beyond six days use ISO. */
 export function relativeDate(date: string, today: string): string {
   const days = daysBetween(today, date);
   if (days === 0) return 'today';
@@ -22,7 +21,6 @@ export function relativeDate(date: string, today: string): string {
   if (days === -1) return 'yesterday';
   const day = noon(date);
   if (Math.abs(days) < 7) return `${weekdays[day.getDay()]} ${day.getDate()}`;
-  if (date.slice(0, 4) === today.slice(0, 4)) return `${day.getDate()} ${months[day.getMonth()]}`;
   return date;
 }
 
@@ -59,13 +57,13 @@ export function taskFacts(task: TaskState, context: FactContext): TaskFact[] {
   if (task.scheduled && !(context.listed && task.scheduled === context.date)) {
     const late = task.scheduled < context.date;
     const time = context.timeShown ? '' : clock(task.scheduled_time);
-    facts.push({ field: 'schedule', text: late ? `since ${relativeDate(task.scheduled, context.today)}` : `${relativeDate(task.scheduled, context.today)}${time}`, label: `Scheduled ${task.scheduled}${clock(task.scheduled_time)}`, late });
+    facts.push({ field: 'schedule', text: `${late ? 'since ' : ''}${relativeDate(task.scheduled, context.today)}${time}`, label: `Scheduled ${task.scheduled}${clock(task.scheduled_time)}`, late });
   }
   if (task.deadline) {
     const late = task.deadline < context.date;
     const listedDay = context.listed && task.deadline === context.date;
     const time = listedDay && context.timeShown ? '' : clock(task.deadline_time);
-    facts.push({ field: 'deadline', text: listedDay ? `due${time}` : `${late ? 'was due' : 'due'} ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${task.deadline}${clock(task.deadline_time)}`, late });
+    facts.push({ field: 'deadline', text: listedDay ? `due${time}` : `due ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${task.deadline}${clock(task.deadline_time)}`, late });
   }
   if (task.priority) facts.push({ field: 'priority', text: priorityNames[task.priority], label: `${priorityNames[task.priority]} priority`, priority: task.priority });
   if (task.repeater) {

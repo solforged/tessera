@@ -8,8 +8,9 @@ import { besideHint, besideKey, opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { statusIcons, statusLabels } from './TaskControls';
-import { isFinished } from './task-labels';
-import { calendarWeekDates, fetchWeekTaskRange, keyboardWeekSchedule, layoutWeekTimedEntries, mergeWeekTaskRows, mondayWeekStart, scheduleWeekTask, snapWeekMinutes, weekTaskEntries } from './week-calendar';
+import { groupAgenda, isFinished } from './task-labels';
+import { createClock } from './clock';
+import { calendarWeekDates, fetchWeekTaskRange, keyboardWeekSchedule, layoutWeekTimedEntries, mergeWeekTaskRows, mondayWeekStart, scheduleWeekTask, snapWeekMinutes, timeMinutes, weekTaskEntries } from './week-calendar';
 import type { IncompleteWeekRange, TimedWeekEntry, WeekEntry } from './week-calendar';
 import { WeekScheduleHistory } from './week-schedule';
 import type { ScheduledWeekTask } from './week-schedule';
@@ -18,6 +19,7 @@ import './week-calendar.css';
 
 export interface WeekCalendarProps {
   date: string;
+  showAllHours: boolean;
   notebook: NotebookClient;
   onOpen(target: OpenTarget, beside: boolean): void;
 }
@@ -37,6 +39,10 @@ interface WeekDrag {
   active: boolean;
 }
 
+interface CalendarEntry extends WeekEntry {
+  overdue?: boolean;
+}
+
 const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const scheduleKeys: Record<string, true> = { ArrowLeft: true, ArrowRight: true, ArrowUp: true, ArrowDown: true, Home: true };
 
@@ -44,6 +50,8 @@ export function WeekCalendar(props: WeekCalendarProps) {
   const instructionsId = createUniqueId();
   const start = createMemo(() => mondayWeekStart(props.date));
   const dates = createMemo(() => calendarWeekDates(props.date));
+  const clock = createClock(props.notebook);
+  const nowMinute = createMemo(() => timeMinutes(clock()));
   const [fetchedRows, setFetchedRows] = createSignal<TaskRow[]>([]);
   const [optimistic, setOptimistic] = createSignal(new Map<string, ScheduledWeekTask>());
   const [incomplete, setIncomplete] = createSignal<IncompleteWeekRange[]>([]);
@@ -84,7 +92,17 @@ export function WeekCalendar(props: WeekCalendarProps) {
     for (const [id, value] of optimistic()) byId.set(id, value.row);
     return [...byId.values()];
   });
-  const entries = createMemo(() => weekTaskEntries(rows(), dates()));
+  const entries = createMemo<CalendarEntry[]>(() => {
+    const today = props.notebook.todayDate();
+    const first = start();
+    const overdue = dates().includes(today) && first ? rows().filter(row => row.task.status !== null && !isFinished(row.task)
+      && (!!row.task.scheduled && row.task.scheduled < first || !!row.task.deadline && row.task.deadline < first)) : [];
+    const overdueIds = new Set(overdue.map(row => row.source.block.id));
+    return [
+      ...weekTaskEntries(rows(), dates()).filter(entry => entry.date !== today || entry.kind === 'scheduled' && entry.time !== null || !overdueIds.has(entry.row.source.block.id)),
+      ...overdue.map(row => ({ key: `overdue:${row.source.block.id}`, row, date: today, kind: 'scheduled' as const, time: null, due: !!row.task.deadline && row.task.deadline < today, overdue: true })),
+    ];
+  });
   const byKey = createMemo(() => new Map(entries().map(entry => [entry.key, entry])));
   const days = createMemo(() => dates().map(date => {
     const values = entries().filter(entry => entry.date === date);
@@ -93,12 +111,20 @@ export function WeekCalendar(props: WeekCalendarProps) {
       date,
       allDay: values.filter(entry => entry.kind === 'due' || entry.time === null),
       timed,
-      lanes: Math.max(1, ...timed.map(item => item.lanes)),
     };
   }));
+  const hours = createMemo(() => {
+    if (props.showAllHours) return { start: 0, end: 24 };
+    const timed = days().flatMap(day => day.timed.map(item => item.minute));
+    return {
+      start: Math.floor(Math.min(6 * 60, ...timed) / 60),
+      end: Math.min(24, Math.max(22, ...timed.map(minute => Math.floor(minute / 60) + 1))),
+    };
+  });
   const sheetStyle = createMemo((): JSX.CSSProperties => ({
-    '--week-columns': `var(--week-time-gutter) ${days().map(day => `minmax(calc(var(--week-day-min-width) * ${day.lanes}), 1fr)`).join(' ')}`,
-    '--week-sheet-width': `calc(var(--week-time-gutter) + var(--week-day-min-width) * ${days().reduce((sum, day) => sum + day.lanes, 0)})`,
+    '--week-columns': 'var(--week-time-gutter) repeat(7, minmax(0, 1fr))',
+    '--week-grid-height': `calc(${hours().end - hours().start} * var(--week-hour-height))`,
+    '--week-start-minute': hours().start * 60,
   }));
   const pendingCount = createMemo(() => [...optimistic().values()].filter(value => value.pending).length);
   const dropLabel = createMemo(() => {
@@ -110,7 +136,9 @@ export function WeekCalendar(props: WeekCalendarProps) {
 
   createEffect(() => {
     const from = start();
-    const through = dates().filter((date): date is string => date !== null).at(-1);
+    const visibleDates = dates().filter((date): date is string => date !== null);
+    const through = visibleDates.at(-1);
+    const today = props.notebook.todayDate();
     const sequence = Math.max(props.notebook.changeSequence(), acknowledgedSequence);
     refresh();
     let current = true;
@@ -125,13 +153,16 @@ export function WeekCalendar(props: WeekCalendarProps) {
     void Promise.all([
       fetchWeekTaskRange(value => props.notebook.api.taskQuery(value), 'scheduled', from, through),
       fetchWeekTaskRange(value => props.notebook.api.taskQuery(value), 'deadline', from, through),
-      Promise.all(dates().filter((date): date is string => date !== null).map(date => props.notebook.api.agenda(date))),
+      Promise.all(visibleDates.map(date => props.notebook.api.agenda(date))),
     ]).then(([scheduled, deadline, agendas]) => {
       if (!current) return;
       batch(() => {
         const appointments: TaskRow[] = agendas.flatMap(agenda => agenda.items.filter(item => item.task.status === null)
           .map(item => ({ source: item.source, task: item.task, project_id: item.project_id, section_id: null, section_text: null })));
-        setFetchedRows(mergeWeekTaskRows(scheduled.rows, deadline.rows, appointments));
+        const todayAgenda = agendas[visibleDates.indexOf(today)];
+        const overdue: TaskRow[] = todayAgenda ? groupAgenda(todayAgenda.items, today).overdue
+          .map(item => ({ source: item.source, task: item.task, project_id: item.project_id, section_id: null, section_text: null })) : [];
+        setFetchedRows(mergeWeekTaskRows(scheduled.rows, deadline.rows, appointments, overdue));
         setIncomplete([...scheduled.incomplete, ...deadline.incomplete]);
         setOptimistic(previous => new Map([...previous].filter(([, value]) => value.pending || value.committedSequence !== null && value.committedSequence > sequence)));
         setLoading(false);
@@ -142,25 +173,15 @@ export function WeekCalendar(props: WeekCalendarProps) {
           if (!current || !scroll) return;
           const firstDay = root.querySelector<HTMLElement>('[data-week-drop="timed"]');
           if (!firstDay) return;
-          const earliest = Math.min(8 * 60, ...untrack(days).flatMap(day => day.timed.map(item => item.minute)));
-          scroll.scrollTop = earliest / (24 * 60) * firstDay.getBoundingClientRect().height;
+          const earliest = Math.max(untrack(hours).start * 60, Math.min(8 * 60, ...untrack(days).flatMap(day => day.timed.map(item => item.minute))));
+          const range = untrack(hours);
+          scroll.scrollTop = (earliest - range.start * 60) / ((range.end - range.start) * 60) * firstDay.getBoundingClientRect().height;
         });
       }
     }).catch(reason => {
       if (current) { setError(reason instanceof Error ? reason.message : String(reason)); setLoading(false); }
     });
     onCleanup(() => { current = false; });
-  });
-  // A pane too narrow for the whole week opens with the displayed day first after the hours, a three-day view in effect.
-  createEffect(() => {
-    const selected = dates().indexOf(props.date);
-    if (selected < 0) return;
-    requestAnimationFrame(() => {
-      if (!scroll || scroll.scrollWidth <= scroll.clientWidth) return;
-      const header = scroll.querySelectorAll<HTMLElement>('.week-calendar-day-header')[selected];
-      const corner = scroll.querySelector<HTMLElement>('.week-calendar-corner');
-      if (header && corner) scroll.scrollLeft = header.offsetLeft - corner.offsetWidth;
-    });
   });
 
   function focusTask(id: string, kind: WeekEntry['kind']) {
@@ -220,7 +241,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
     if (!element || !date || !root.contains(element)) { setDrop(null); return; }
     if (element.dataset.weekDrop === 'all-day') { setDrop({ date, minutes: null }); return; }
     const rect = element.getBoundingClientRect();
-    setDrop({ date, minutes: snapWeekMinutes((drag.y - rect.top) / rect.height * 24 * 60) });
+    setDrop({ date, minutes: snapWeekMinutes(hours().start * 60 + (drag.y - rect.top) / rect.height * (hours().end - hours().start) * 60) });
   }
 
   function advanceDrag() {
@@ -316,7 +337,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
         event.preventDefault(); event.stopPropagation();
       }
     } }}>
-    <p id={instructionsId} class="week-calendar-instructions">Drag a task to reschedule it. <span class="visually-hidden">Alt+←/→ changes day. Alt+↑/↓ changes time by 15 min. Alt+Home makes all-day. Enter opens; {besideKey}+Enter opens beside. Esc cancels a drag. Due cards change the schedule, not the deadline.</span></p>
+    <p id={instructionsId} class="visually-hidden">Drag a task to reschedule it. Alt+←/→ changes day. Alt+↑/↓ changes time by 15 min. Alt+Home makes all-day. Enter opens; {besideKey}+Enter opens beside. Esc cancels a drag. Due cards change the schedule, not the deadline.</p>
     <Show when={error()}><div class="agenda-error" role="alert"><span>Could not load this week: {error()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry</Button></div></Show>
     <Show when={commandError()}><div class="agenda-error" role="alert"><span>{commandError()}</span><Button onClick={() => { setCommandError(''); setRefresh(value => value + 1); }}>Refresh</Button></div></Show>
     <Show when={!loading() && !error() && !entries().length}><p class="agenda-message">No scheduled tasks or deadlines this week. Schedule a task from its source to see it here.</p></Show>
@@ -340,7 +361,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
           }}</For></div>
         </div>
         <div class="week-calendar-timeline">
-          <div class="week-calendar-hours" aria-hidden="true"><For each={Array.from({ length: 24 }, (_, hour) => hour)}>{hour => <span style={{ top: `calc(var(--week-hour-height) * ${hour})` }}>{String(hour).padStart(2, '0')}:00</span>}</For></div>
+          <div class="week-calendar-hours" aria-hidden="true"><For each={Array.from({ length: hours().end - hours().start + 1 }, (_, index) => hours().start + index)}>{hour => <span style={{ top: `calc(var(--week-hour-height) * ${hour - hours().start})` }}>{String(hour).padStart(2, '0')}:00</span>}</For></div>
           <For each={dates()}>{(date, index) => {
             const timedByKey = createMemo(() => new Map(days()[index()]!.timed.map(item => [item.entry.key, item])));
             const keys = createMemo(() => [...timedByKey().keys()]);
@@ -349,7 +370,8 @@ export function WeekCalendar(props: WeekCalendarProps) {
                 const initial = timedByKey().get(key)!;
                 return <WeekTaskCard entry={byKey().get(key) ?? initial.entry} position={timedByKey().get(key) ?? initial} notebook={props.notebook} instructionsId={instructionsId} busy={!!optimistic().get(initial.entry.row.source.block.id)?.pending} dragging={draggingId() === initial.entry.row.source.block.id} onOpen={props.onOpen} onPointerDown={beginDrag} onKeyDown={taskKeyDown} />;
               }}</For>
-              <Show when={drop()?.date === date && drop()?.minutes !== null && drop()?.minutes !== undefined}><div class="week-calendar-drop-preview" aria-hidden="true" style={{ top: `calc(var(--week-hour-height) * ${(drop()?.minutes ?? 0) / 60})` }}>{dropLabel()}</div></Show>
+              <Show when={date === props.notebook.todayDate() && nowMinute() >= hours().start * 60 && nowMinute() <= hours().end * 60}><span class="agenda-now week-calendar-now" aria-hidden="true" style={{ top: `calc(var(--week-hour-height) * ${(nowMinute() - hours().start * 60) / 60})` }} /></Show>
+              <Show when={drop()?.date === date && drop()?.minutes !== null && drop()?.minutes !== undefined}><div class="week-calendar-drop-preview" aria-hidden="true" style={{ top: `calc(var(--week-hour-height) * ${((drop()?.minutes ?? 0) - hours().start * 60) / 60})` }}>{dropLabel()}</div></Show>
             </div>;
           }}</For>
         </div>
@@ -359,7 +381,7 @@ export function WeekCalendar(props: WeekCalendarProps) {
 }
 
 function WeekTaskCard(props: {
-  entry: WeekEntry;
+  entry: CalendarEntry;
   position?: TimedWeekEntry;
   notebook: NotebookClient;
   instructionsId: string;
@@ -370,13 +392,20 @@ function WeekTaskCard(props: {
   onKeyDown(event: KeyboardEvent, entry: WeekEntry): void;
 }) {
   const completed = createMemo(() => isFinished(props.entry.row.task));
-  const late = createMemo(() => !completed() && props.entry.date < props.notebook.todayDate());
-  const label = createMemo(() => `${props.entry.row.source.block.text || 'Empty atom'}${props.entry.row.task.status ? `, ${statusLabels[props.entry.row.task.status]}` : ''}, ${props.entry.kind === 'due' ? 'due' : 'scheduled'} ${props.entry.date}${props.entry.time ? ` at ${props.entry.time}` : ', all-day'}${props.entry.due && props.entry.kind !== 'due' ? `, due${props.entry.row.task.deadline_time ? ` at ${props.entry.row.task.deadline_time}` : ''}` : ''}${late() ? ', overdue' : ''}, source ${props.entry.row.source.page.text}`);
+  const late = createMemo(() => !completed() && (props.entry.overdue || props.entry.date < props.notebook.todayDate()));
+  const label = createMemo(() => {
+    const entry = props.entry;
+    const task = entry.row.task;
+    const plan = entry.overdue
+      ? ['overdue', task.scheduled ? `scheduled ${task.scheduled}` : null, task.deadline ? `due ${task.deadline}` : null].filter(Boolean).join(', ')
+      : `${entry.kind === 'due' ? 'due' : 'scheduled'} ${entry.date}${entry.time ? ` at ${entry.time}` : ', all-day'}${entry.due && entry.kind !== 'due' ? `, due${task.deadline_time ? ` at ${task.deadline_time}` : ''}` : ''}${late() ? ', overdue' : ''}`;
+    return `${entry.row.source.block.text || 'Empty atom'}${task.status ? `, ${statusLabels[task.status]}` : ''}, ${plan}, source ${entry.row.source.page.text}`;
+  });
   const position = createMemo((): JSX.CSSProperties | undefined => {
     const value = props.position;
     if (!value) return undefined;
     return {
-      top: `calc(var(--week-hour-height) * ${value.minute / 60})`,
+      top: `calc(var(--week-hour-height) * (${value.minute} - var(--week-start-minute)) / 60)`,
       left: `calc(100% / ${value.lanes} * ${value.lane} + var(--space-2))`,
       width: `calc(100% / ${value.lanes} - var(--space-4))`,
     };
@@ -385,7 +414,7 @@ function WeekTaskCard(props: {
     style={position()} data-week-task={props.entry.row.source.block.id} data-week-kind={props.entry.kind} data-week-status={props.entry.row.task.status} aria-label={label()} aria-describedby={props.instructionsId} aria-busy={props.busy} title={`${label()} · ${besideHint}`}
     onPointerDown={event => props.onPointerDown(event, props.entry)} onKeyDown={event => props.onKeyDown(event, props.entry)}
     onClick={event => props.onOpen({ kind: 'page', pageId: props.entry.row.source.page.id, blockId: props.entry.row.source.block.id }, opensBeside(event))}>
-    <span class="week-calendar-task-meta"><Show when={props.entry.row.task.status}>{status => <Icon name={statusIcons[status()]} />}</Show><Show when={props.entry.due}>Due{props.entry.row.task.deadline_time ? ` ${props.entry.row.task.deadline_time}` : ''}</Show><Show when={!props.entry.due && props.entry.time}>{props.entry.time}</Show></span>
+    <span class="week-calendar-task-meta"><Show when={props.entry.row.task.status}>{status => <Icon name={statusIcons[status()]} />}</Show><Show when={props.entry.overdue} fallback={<><Show when={props.entry.due}>Due{props.entry.row.task.deadline_time ? ` ${props.entry.row.task.deadline_time}` : ''}</Show><Show when={!props.entry.due && props.entry.time}>{props.entry.time}</Show></>}>Overdue</Show></span>
     <span class="week-calendar-task-text"><BlockText text={props.entry.row.source.block.text || 'Empty task'} notebook={props.notebook} interactive={false} /></span>
   </button>;
 }

@@ -1,9 +1,8 @@
-.week-calendar { min-width: 0; display: flex; flex-direction: column; gap: var(--space-8); }
-/* The hint and drop feedback keep the toolbar's measure even when the grid is wider. */
-.week-calendar-instructions, .week-calendar-feedback { width: 100%; max-width: var(--measure); margin: 0 auto; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+.week-calendar { --week-all-day-card-height: calc(var(--line-apparatus) + 2 * var(--line-control) + var(--space-2) + 2 * var(--space-4) + 2 * var(--week-rule-width)); --week-all-day-max-height: calc(4 * var(--week-all-day-card-height) + 5 * var(--space-4)); width: 100%; max-width: var(--measure); min-width: 0; margin-inline: auto; display: flex; flex-direction: column; gap: var(--space-8); }
+.week-calendar-feedback { width: 100%; max-width: var(--measure); margin: 0 auto; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 .week-calendar-feedback { min-height: var(--line-meta); color: var(--accent); }
 .week-calendar-scroll { min-width: 0; max-height: var(--week-scroll-height); overflow: auto; border: var(--week-rule-width) solid var(--line); border-radius: var(--radius-control); overscroll-behavior: contain; scroll-padding-top: calc(var(--space-48) + var(--week-all-day-max-height)); scroll-padding-bottom: var(--week-task-height); }
-.week-calendar-sheet { min-width: var(--week-sheet-width); }
+.week-calendar-sheet { min-width: 0; }
 .week-calendar-top { position: sticky; top: 0; z-index: 2; background: var(--canvas); }
 .week-calendar-header, .week-calendar-all-day, .week-calendar-timeline { display: grid; grid-template-columns: var(--week-columns); }
 .week-calendar-header { background: var(--surface); }
@@ -22,6 +21,7 @@
 .week-calendar-hours { position: sticky; left: 0; z-index: 1; height: var(--week-grid-height); background: var(--canvas); color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); font-variant-numeric: tabular-nums; }
 .week-calendar-hours > span { position: absolute; left: 0; right: 0; padding: var(--space-2) var(--space-4); text-align: right; }
 .week-calendar-time-column { position: relative; min-width: 0; height: var(--week-grid-height); border-left: var(--week-rule-width) solid var(--line); background: repeating-linear-gradient(to bottom, var(--line) 0, var(--line) var(--week-rule-width), transparent var(--week-rule-width), transparent var(--week-hour-height)); }
+.week-calendar-now { z-index: 1; }
 .week-calendar-task { display: flex; flex-direction: column; flex: none; min-width: 0; gap: var(--space-2); padding: var(--space-4); border: var(--week-rule-width) solid var(--control-border); border-radius: var(--radius-control); background: var(--raised); color: var(--text); text-align: left; font-size: var(--text-control); line-height: var(--line-control); user-select: none; touch-action: none; }
 .week-calendar-task:hover { background: var(--hover); border-color: var(--accent); }
 .week-calendar-task:focus-visible { outline-offset: calc(-1 * var(--focus-offset)); }
@@ -39,10 +39,4 @@
 .week-calendar-task-dragging { border-style: dashed; border-color: var(--accent); }
 .week-calendar-task[aria-busy="true"] { border-color: var(--accent); cursor: progress; }
 .week-calendar-drop-preview { position: absolute; left: var(--space-2); right: var(--space-2); z-index: 1; height: var(--week-task-height); padding: var(--space-4); outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-offset)); border-radius: var(--radius-control); background: var(--selection); color: var(--accent); font-size: var(--text-meta); line-height: var(--line-meta); pointer-events: none; }
-/* Seven columns stay in view on unfolded and intermediate-width panes.
-   Lanes subdivide their day instead of widening the whole sheet. */
-@container agenda-pane (min-width: 600px) and (max-width: 1055px) {
-  .week-calendar-sheet { min-width: 0; }
-  .week-calendar-header, .week-calendar-all-day, .week-calendar-timeline { grid-template-columns: var(--week-time-gutter) repeat(7, minmax(0, 1fr)); }
-  .week-calendar-task-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; }
-}
+.week-calendar-all-day-column .week-calendar-task-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; }

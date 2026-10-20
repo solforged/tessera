@@ -49,7 +49,7 @@ export function TaskSourceRows(props: {
   plan?: boolean;
   /** The notebook clock while the displayed day is today: past timed rows fade under a now rule. */
   now?: string;
-  /** Week keeps today's rule even when no row has a clock. */
+  /** Week labels today's rule with the notebook clock. */
   showNow?: boolean;
   /** Week's gutter names an untimed deadline and uses only this day's exact plan clock. */
   deadlineLabel?: boolean;
@@ -59,17 +59,16 @@ export function TaskSourceRows(props: {
   const byId = createMemo(() => new Map(props.rows.map(row => [row.source.block.id, row])));
   const ids = createMemo(() => {
     const keys = [...byId().keys()];
-    if (!props.now || !props.timetable) return keys;
+    if (!props.timetable) return keys;
     const times = new Map(keys.map(id => [id, agendaTaskTime(byId().get(id)!, props.plannedDate ?? props.date, !props.deadlineLabel) ?? '']));
-    return keys.sort((left, right) => Number(!!times.get(right) && times.get(right)! < props.now!) - Number(!!times.get(left) && times.get(left)! < props.now!)
-      || times.get(left)!.localeCompare(times.get(right)!));
+    return keys.sort((left, right) => times.get(left)!.localeCompare(times.get(right)!));
   });
-  // The now rule sits above the first row not yet due, once any row has a time; after the last when all are past.
+  // Untimed work leads the day; the now rule belongs only to its timed rows.
   const nowAt = createMemo(() => {
     if (!props.now || !props.timetable) return null;
     const times = ids().map(id => agendaTaskTime(byId().get(id)!, props.plannedDate ?? props.date, !props.deadlineLabel));
-    if (!props.showNow && !times.some(Boolean)) return null;
-    const index = times.findIndex(time => !time || time >= props.now!);
+    if (!times.some(Boolean)) return null;
+    const index = times.findIndex(time => !!time && time >= props.now!);
     return index < 0 ? 'end' : ids()[index]!;
   });
   return <ul class="agenda-rows"><For each={ids()}>{(id, index) => {

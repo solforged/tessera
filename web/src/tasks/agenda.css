@@ -3,7 +3,6 @@
 /* The date, tabs and day list share the outline measure and one left edge. */
 .agenda-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); container: agenda-pane / inline-size; }
 .agenda-content { max-width: var(--measure); margin-inline: auto; display: flex; flex-direction: column; gap: var(--page-head-gap); }
-.agenda-content-week { max-width: var(--week-measure); }
 /* Date navigation accompanies the heading; modes get their own shared ruled baseline below. */
 .agenda-toolbar, .agenda-date { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); }
 .agenda-toolbar { align-items: flex-end; justify-content: flex-start; width: 100%; max-width: var(--measure); margin-inline: auto; gap: var(--space-8) var(--space-24); }
@@ -12,6 +11,8 @@
 .agenda-heading > h1 { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 .agenda-title-date { min-width: var(--target-size); min-height: var(--target-size); border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .agenda-modes { width: 100%; max-width: var(--measure); margin: calc(var(--page-title-gap) - var(--page-head-gap)) auto 0; }
+.agenda-week-hours { display: flex; align-items: center; margin-left: auto; }
+.agenda-week-hours > .button { min-height: var(--target-size); padding: var(--space-2) var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .agenda-date > .button { min-height: var(--row-height); border-color: transparent; color: var(--muted); }
 /* Seven quiet columns end on one hairline; only the selected date carries the gilt rule. */
 .agenda-week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); width: 100%; max-width: var(--measure); margin-inline: auto; box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); overflow-x: auto; }
@@ -41,14 +42,11 @@
 .agenda-section-toggle[aria-expanded="false"] > .icon { rotate: -90deg; }
 .agenda-day-empty { padding-block: var(--space-4); }
 .agenda-lookahead-date { margin: var(--space-8) 0 var(--space-2); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-transform: capitalize; }
-/* The query is the active condition rail; its builder and count sit together below. */
-.task-query-heading { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-8); }
-.task-query-view.button { min-width: 0; max-width: 100%; padding-inline: 0; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
-.task-query-heading > .icon-only { margin-left: auto; }
-.task-query-heading .agenda-message { color: var(--faint); font: var(--apparatus); }
-.task-query-toolbar { display: flex; align-items: flex-start; min-width: 0; }
-.task-condition-bar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-8); min-width: 0; }
-.task-condition-bar > .agenda-count { margin-left: auto; }
+/* The query, condition builder and count share one rail, wrapping only when space runs out. */
+.task-query-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-8); min-width: 0; }
+.task-query-view.button { min-width: 0; max-width: 100%; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.task-condition-bar { display: contents; }
+.task-query-toolbar > .agenda-count { margin-left: auto; white-space: nowrap; }
 .task-condition-chip { min-width: 0; max-width: 100%; padding-left: 0; }
 .task-condition-chip > .button:first-child { min-width: 0; overflow-wrap: anywhere; color: var(--text); text-align: left; }
 .popup.task-condition-popup:not(.picker) { padding: var(--space-12); }
@@ -56,17 +54,17 @@
 .task-condition-row > :is(.input, .button) { flex: 1; min-width: 0; width: auto; color: var(--text); }
 .task-condition-label { flex: 0 0 4rem; color: var(--muted); }
 .task-condition-value { justify-content: flex-start; }
-.task-query-line { flex: 1; min-width: 0; }
+.task-query-line { flex: 1 1 calc(var(--space-48) * 3); min-width: 0; }
 .task-query-chips, .task-query-input.input, .task-query-highlight { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.task-query-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); min-height: var(--row-height); padding: var(--space-2) var(--space-4); border-bottom: var(--rule-width) solid var(--line); cursor: text; }
+.task-query-chips { display: flex; flex-wrap: nowrap; align-items: center; gap: var(--space-4); min-height: var(--row-height); padding: var(--space-2) var(--space-4); border-bottom: var(--rule-width) solid var(--line); overflow-x: auto; white-space: nowrap; cursor: text; }
 .task-query-chips:hover { border-color: var(--control-border); }
-.task-query-placeholder { color: var(--faint); }
-.task-query-chip { display: inline-flex; align-items: center; min-width: 0; max-width: 100%; padding-left: var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: var(--raised); }
-.task-query-chip > span { overflow-wrap: anywhere; }
+.task-query-placeholder { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--faint); }
+.task-query-chip { display: inline-flex; flex: none; align-items: center; min-width: 0; max-width: 100%; padding-left: var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: var(--raised); }
+.task-query-chip > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .task-query-chip > .button { flex: 0 0 auto; min-height: var(--target-size); padding: 0 var(--space-4); font: inherit; border-radius: var(--radius-pill); color: var(--faint); }
 .task-query-editor { position: relative; }
 .task-query-input.input, .task-query-highlight { width: 100%; height: var(--row-height); padding: calc((var(--row-height) - var(--line-apparatus) - var(--rule-width)) / 2) var(--space-4); border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; background: transparent; }
-.task-query-input.input { position: relative; min-height: var(--row-height); }
+.task-query-input.input { position: relative; min-height: var(--row-height); text-overflow: ellipsis; }
 .task-query-input.input:focus-visible { outline: none; border-color: var(--accent); }
 .task-query-highlight { position: absolute; inset: 0; overflow: hidden; white-space: pre; color: transparent; pointer-events: none; }
 .task-query-invalid { text-decoration: underline wavy var(--danger); text-underline-offset: var(--space-2); }
@@ -103,6 +101,16 @@
 .agenda-late { color: var(--danger); }
 .agenda-row:is(.agenda-row-completed, .agenda-row-cancelled) .agenda-source-text { color: var(--muted); }
 .agenda-row-cancelled .agenda-source-text { text-decoration: line-through var(--faint); }
+/* Query rows reserve one priority column, keeping every planning token intact. */
+.agenda-row:not(.agenda-row-timetable) .agenda-task-line > .agenda-source { flex: 1 1 auto; }
+.agenda-row:not(.agenda-row-timetable) .agenda-row-meta { display: grid; grid-template-columns: max-content calc(var(--space-48) + var(--space-8)); align-items: baseline; align-content: start; margin-left: auto; }
+.agenda-row:not(.agenda-row-timetable) .agenda-row-meta:empty { display: none; }
+.agenda-row:not(.agenda-row-timetable) .agenda-row-meta > * { grid-column: 1; justify-self: end; white-space: nowrap; }
+.agenda-row:not(.agenda-row-timetable) .agenda-row-meta > .agenda-priority { grid-column: 2; grid-row: 1; width: 100%; justify-content: flex-end; font: inherit; }
+@container agenda-pane (max-width: 599px) {
+  .agenda-row:not(.agenda-row-timetable) .agenda-task-line { flex-wrap: wrap; }
+  .agenda-row:not(.agenda-row-timetable) .agenda-task-line > .agenda-source { flex-basis: 100%; }
+}
 .agenda-row > .agenda-error, .agenda-row > .agenda-message { flex-basis: 100%; margin-left: calc(var(--target-size) + var(--space-8)); }
 /* Day rows keep the clock fixed, the canonical task readable, and provenance quietly at the right. */
 .agenda-row-timetable { display: grid; grid-template-columns: var(--space-48) var(--target-size) minmax(0, 1fr) minmax(0, 20%) max-content; column-gap: var(--space-8); align-items: center; min-height: var(--agenda-row-height); padding: var(--space-2) 0; border-radius: 0; }
@@ -128,19 +136,17 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
 .agenda-row-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .agenda-row:is(:hover, :focus-within, .agenda-row-picking) > .agenda-row-actions .button { color: var(--muted); }
 .agenda-row-actions .button:hover:not(:disabled) { color: var(--text); }
+@media (hover: hover) and (pointer: fine) {
+  .agenda-row:not(:hover, :focus-within, .agenda-row-picking) > .agenda-row-actions { opacity: .6; }
+}
 /* Touch keeps the calendar in the same reserved slot, without hover-only controls. */
 @media (hover: none), (pointer: coarse) {
   .agenda-row-actions .button { color: var(--muted); }
   .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
 }
 .agenda-section-actions { display: flex; gap: var(--space-2); margin-left: var(--space-8); }
-.agenda-section-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.agenda-section-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .agenda-section-actions .button:hover:not(:disabled) { color: var(--text); }
-/* A phone or half pane keeps the heading's rule and count on one line and puts the moves beneath, under Overdue. */
-@container agenda-pane (max-width: 560px) {
-  .agenda-section-heading:has(> .agenda-section-actions) { flex-wrap: wrap; row-gap: 0; }
-  .agenda-section-actions { flex-basis: 100%; margin: calc(-1 * var(--space-8)) 0 0 calc(-1 * var(--space-4)); }
-}
 .journal-agenda { margin-block: var(--space-4) var(--space-8); font-weight: var(--weight-body); }
 /* Journal sections head like the sidebar's: the name, a hairline rule, then the state and the chevron at the right. */
 .journal-agenda-toggle.button { display: flex; width: 100%; justify-content: flex-start; gap: var(--space-8); min-height: var(--target-size); padding: 0 var(--space-4) 0 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }

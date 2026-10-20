@@ -148,8 +148,8 @@ export function DatePicker(props: DatePickerProps) {
       <div class="date-picker-footer">
         <Show when={props.time !== undefined}>
           <div class="date-picker-field">
-            <label for={`${id}-time`}>Time (optional)</label>
-            <input id={`${id}-time`} class="input date-picker-time" type="text" value={time()} placeholder="HH:MM" autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => {
+            <label for={`${id}-time`} title="Optional time">Time</label>
+            <input id={`${id}-time`} class="input date-picker-time" type="text" aria-label="Time (optional)" value={time()} placeholder="HH:MM" autocomplete="off" spellcheck={false} disabled={busy()} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} onInput={event => {
               setTime(event.currentTarget.value);
               const parsed = parseTaskDate(date(), props.contextDate);
               if (parsed.ok && parsed.time !== null) setDate(parsed.date ?? '');

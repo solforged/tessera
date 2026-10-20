@@ -10,13 +10,13 @@ function item(id: string, reasons: AgendaReason[], patch: Partial<TaskState> = {
 }
 
 describe('relativeDate', () => {
-  test('names nearby days, then weekdays within a week, then day and month, then ISO across years', () => {
+  test('names nearby days, then weekdays within six days, then ISO', () => {
     expect(relativeDate('2026-10-10', '2026-10-10')).toBe('today');
     expect(relativeDate('2026-10-11', '2026-10-10')).toBe('tomorrow');
     expect(relativeDate('2026-10-09', '2026-10-10')).toBe('yesterday');
     expect(relativeDate('2026-10-16', '2026-10-10')).toBe('Fri 16');
     expect(relativeDate('2026-10-04', '2026-10-10')).toBe('Sun 4');
-    expect(relativeDate('2026-10-17', '2026-10-10')).toBe('17 Oct');
+    expect(relativeDate('2026-10-17', '2026-10-10')).toBe('2026-10-17');
     expect(relativeDate('2027-01-02', '2026-12-30')).toBe('Sat 2');
     expect(relativeDate('2027-01-20', '2026-12-30')).toBe('2027-01-20');
   });
@@ -32,7 +32,7 @@ describe('taskFacts', () => {
 
   test('marks missed scheduled and deadline dates late against the displayed day', () => {
     const facts = taskFacts({ ...todo, scheduled: '2026-10-06', scheduled_time: '19:00', deadline: '2026-10-08' }, day);
-    expect(facts.map(fact => [fact.text, !!fact.late])).toEqual([['since Tue 6', true], ['was due Thu 8', true]]);
+    expect(facts.map(fact => [fact.text, !!fact.late])).toEqual([['since Tue 6 19:00', true], ['due Thu 8', true]]);
     expect(facts[0]!.label).toBe('Scheduled 2026-10-06 19:00');
   });
 

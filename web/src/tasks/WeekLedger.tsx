@@ -22,7 +22,7 @@ export function WeekLedger(props: {
   onChanged(): void;
 }) {
   const clock = createClock(props.notebook);
-  const days = createMemo(() => weekLedgerDays(props.rows, props.date, props.notebook.todayDate(), clock()));
+  const days = createMemo(() => weekLedgerDays(props.rows, props.date));
   const dates = createMemo(() => calendarWeekDates(props.date).filter((day): day is string => day !== null));
   const byDate = createMemo(() => new Map(days().map(day => [day.date, day])));
   const summary = createMemo(() => weekLedgerSummary(props.rows, props.date));
