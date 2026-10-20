@@ -7,13 +7,15 @@ import { TaskSourceRows } from './JournalAgenda';
 import { createClock } from './clock';
 import { spokenJournalDate } from './journal-date';
 import { calendarWeekDates } from './week-calendar';
-import { weekLedgerDays, weekLedgerSummary } from './week-ledger';
+import { weekLedgerDays, weekLedgerOverdue, weekLedgerSummary } from './week-ledger';
 import type { TaskSourceHistory } from './source-history';
 import './week-ledger.css';
 
 export function WeekLedger(props: {
   date: string;
   rows: readonly TaskRow[];
+  /** Today's overdue agenda rows; the ledger keeps those planned before this week. */
+  overdue: readonly TaskRow[];
   notebook: NotebookClient;
   history: TaskSourceHistory;
   loading: boolean;
@@ -22,10 +24,11 @@ export function WeekLedger(props: {
   onChanged(): void;
 }) {
   const clock = createClock(props.notebook);
-  const days = createMemo(() => weekLedgerDays(props.rows, props.date));
+  const overdue = createMemo(() => weekLedgerOverdue(props.overdue, props.date));
+  const days = createMemo(() => weekLedgerDays(props.rows, props.date, props.notebook.todayDate(), overdue()));
   const dates = createMemo(() => calendarWeekDates(props.date).filter((day): day is string => day !== null));
   const byDate = createMemo(() => new Map(days().map(day => [day.date, day])));
-  const summary = createMemo(() => weekLedgerSummary(props.rows, props.date));
+  const summary = createMemo(() => weekLedgerSummary(props.rows, props.date, overdue()));
   const [expanded, setExpanded] = createSignal<Record<string, boolean>>({});
   return <section class="week-ledger" data-task-rows aria-label="Week agenda" aria-busy={props.loading}>
     <p class="week-ledger-summary">{summary()}</p>

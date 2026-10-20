@@ -14,7 +14,7 @@ import { Popup } from '../ui/Popup';
 import { createSlowFlag, sameData } from '../ui/loading';
 import { AgendaWeekStrip } from './AgendaWeekStrip';
 import { spokenJournalDate } from './journal-date';
-import { groupDayAgenda, isFinished, relativeDate } from './task-labels';
+import { groupAgenda, groupDayAgenda, isFinished, relativeDate } from './task-labels';
 import { TaskSourceRows } from './JournalAgenda';
 import { parseTaskDate } from './date-input';
 import { CaptureField } from '../capture/CaptureField';
@@ -65,6 +65,7 @@ export function AgendaPane(props: AgendaPaneProps) {
   const [stripStart, setStripStart] = createSignal(props.view.mode === 'week' ? mondayWeekStart(props.view.date) ?? props.view.date : props.view.date);
   const stripDates = createMemo(() => Array.from({ length: 7 }, (_, index) => shiftCalendarDate(stripStart(), index)));
   const [weekRows, setWeekRows] = createSignal<TaskRow[]>([], { equals: sameData });
+  const [weekOverdue, setWeekOverdue] = createSignal<TaskRow[]>([], { equals: sameData });
   const [weekLoading, setWeekLoading] = createSignal(true);
   const slowWeekLoading = createSlowFlag(weekLoading);
   let weekRange: string | undefined;
@@ -204,8 +205,12 @@ export function AgendaPane(props: AgendaPaneProps) {
       appointments ? Promise.all(stripDates().filter((date): date is string => !!date).map(date => props.notebook.api.agenda(date, controller.signal))) : [],
     ]).then(([scheduled, deadlines, agendas]) => {
       if (controller.signal.aborted) return;
-      const appointments: TaskRow[] = agendas.flatMap(agenda => agenda.items.filter(item => item.task.status === null)
-        .map(item => ({ source: item.source, task: item.task, project_id: item.project_id, section_id: null, section_text: null })));
+      const agendaRow = (item: Agenda['items'][number]): TaskRow => ({ source: item.source, task: item.task, project_id: item.project_id, section_id: null, section_text: null });
+      const appointments: TaskRow[] = agendas.flatMap(agenda => agenda.items.filter(item => item.task.status === null).map(agendaRow));
+      // The phone ledger lists today's missed work under today, as the desktop grid's all-day lane does.
+      const today = props.notebook.todayDate();
+      const todayAgenda = agendas[stripDates().filter((date): date is string => !!date).indexOf(today)];
+      setWeekOverdue(todayAgenda ? groupAgenda(todayAgenda.items, today).overdue.map(agendaRow) : []);
       setWeekRows(mergeWeekTaskRows(scheduled.rows, deadlines.rows, appointments));
       setWeekLoading(false);
       if (scheduled.incomplete.length || deadlines.incomplete.length) setWeekError('Some days exceed the task query limit. The strip and Next 7 days show the available tasks.');
@@ -441,7 +446,7 @@ export function AgendaPane(props: AgendaPaneProps) {
       <Show when={mode() === 'week'}>
         <Show when={narrowWeek()} fallback={<WeekCalendar date={date()} showAllHours={showAllHours()} notebook={props.notebook} onOpen={props.onOpen} />}>
           <Show when={slowWeekLoading()}><p class="agenda-message" role="status">Loading week…</p></Show>
-          <WeekLedger date={date()} rows={weekRows()} notebook={props.notebook} history={taskHistory} loading={weekLoading()} disabled={busy() || weekLoading() || !!weekError()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
+          <WeekLedger date={date()} rows={weekRows()} overdue={weekOverdue()} notebook={props.notebook} history={taskHistory} loading={weekLoading()} disabled={busy() || weekLoading() || !!weekError()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
         </Show>
       </Show>
       <Show when={mode() !== 'week'}>

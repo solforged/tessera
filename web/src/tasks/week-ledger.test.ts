@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { Block, TaskRow, TaskState } from '../api/types';
 import { agendaTaskTime } from './task-labels';
-import { weekLedgerDays, weekLedgerSummary } from './week-ledger';
+import { weekLedgerDays, weekLedgerOverdue, weekLedgerSummary } from './week-ledger';
 
 const page: Block = { id: 'page', kind: 'page', parent_id: null, page_id: 'page', text: 'Notes', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
 function row(id: string, task: Partial<TaskState>): TaskRow {
@@ -41,4 +41,18 @@ test('appointments stay on their exact day with no task status', () => {
   expect(days[1]!.rows.every(row => row.task.status === null)).toBe(true);
   expect(days[2]!.rows.map(row => row.source.block.id)).toEqual(['tomorrow']);
   expect(days[0]!.rows).toEqual([]);
+});
+
+test('work missed before the week joins today once; work missed this week stays on its day', () => {
+  const before = row('before', { scheduled: '2026-10-09' });
+  const thisWeek = row('monday', { scheduled: '2026-10-12' });
+  const finished = row('finished', { status: 'done', scheduled: '2026-10-09' });
+  const appointment = row('appointment', { status: null, scheduled: '2026-10-09' });
+  const overdue = weekLedgerOverdue([before, thisWeek, finished, appointment], '2026-10-14');
+  expect(overdue.map(row => row.source.block.id)).toEqual(['before']);
+  const days = weekLedgerDays([thisWeek], '2026-10-14', '2026-10-14', overdue);
+  expect(days[0]!.rows.map(row => row.source.block.id)).toEqual(['monday']);
+  expect(days[2]!.rows.map(row => row.source.block.id)).toEqual(['before']);
+  expect(days.flatMap(day => day.rows).filter(row => row.source.block.id === 'before')).toHaveLength(1);
+  expect(weekLedgerSummary([thisWeek], '2026-10-14', overdue)).toBe('1 open · 0 due · 1 overdue');
 });

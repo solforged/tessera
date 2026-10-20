@@ -225,7 +225,7 @@ The heading, shared tabs and drop feedback keep the same 760 px measure and alig
 
 The all-day strip holds untimed scheduled tasks and deadlines labeled Due. Each card leads with its status glyph in the status color, then the time or Due in mono. The strip grows to fit its tallest day up to roughly four two-line cards, using the shared type and spacing tokens; days with more cards scroll within the strip.
 
-In the week containing today, unfinished tasks with a missed schedule or deadline before the week's first day also appear as Overdue cards in today's all-day lane. Overdue plans from earlier days of this same week keep their red card on their original day and are not repeated in today's lane.
+In the week containing today, unfinished tasks with a missed schedule or deadline before the week's first day also appear as Overdue cards in today's all-day lane. Overdue plans from earlier days of this same week keep their red card on their original day and are not repeated in today's lane. The narrow week ledger follows the same rule: those tasks list under today with their `since` facts, and its summary line adds `· N overdue`.
 
 Timed scheduled tasks sit in an hourly grid, initially scrolled to 08:00 or the earliest earlier task. The default hour window is 06:00–22:00 and expands to include any task outside it. Show all hours at the right of the tab row opens 00:00–24:00; its pressed state and label change to Hide early and late hours. A live gilt now line and dot cross today's timed column at the current time when it falls inside the shown window. Overlapping times use separate lanes.
 

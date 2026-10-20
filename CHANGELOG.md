@@ -61,7 +61,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
-- Gave Agenda a per-tab header: an ISO week title on Week and a plain Tasks heading. Week stays on the page measure with a 06:00-22:00 window, a now line and older overdue tasks in today's all-day lane; Day lists untimed tasks first and gathers overdue moves into one Move all menu.
+- Gave Agenda a per-tab header: an ISO week title on Week and a plain Tasks heading. Week stays on the page measure with a 06:00-22:00 window, a now line and older overdue tasks in today's all-day lane, and the phone's week ledger lists those tasks under today; Day lists untimed tasks first and gathers overdue moves into one Move all menu.
 - Put the task query on one row, listed done tasks last, gave task dates one grammar (today, weekday within six days, ISO beyond) and dropped duplicate task fields from Add condition.
 - Gave the desktop Library the phone's head with Reading, Inbox, Highlights and More, hid the facet rail below 20 sources, stopped grouping by year by default, unified source rows, flattened collection covers and showed only sigla on placeholder covers.
 - Folded the highlight source and section pickers into Filters and kept three processing actions in the highlight footer with the rest in a menu.
