@@ -16,6 +16,7 @@ import { HubDevices, PhoneDevices } from './DevicesSection';
 import { BrowserBackups } from './BrowserBackups';
 import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, notebookPlace, openNotebook, workshopName, workshopsHome } from './notebooks';
 import { AgentSettings } from '../agent/AgentSettings';
+import '../fields/field-page.css';
 import './settings.css';
 import './devices.css';
 
@@ -76,15 +77,33 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     setForgetting(path); setError('');
     try { await forgetNotebook(path); } catch (reason) { report(reason); } finally { setForgetting(null); }
   };
-  const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const available = Intl.supportedValuesOf('timeZone');
-  const zone = () => props.notebook.settings()?.time_zone ?? deviceZone;
-  const zones = createMemo(() => [deviceZone, ...[...new Set([zone(), 'UTC', ...available])].filter(value => value !== deviceZone).sort()]);
+  const aliases: Record<string, string> = {
+    'Africa/Asmera': 'Africa/Asmara', 'Asia/Calcutta': 'Asia/Kolkata', 'Asia/Katmandu': 'Asia/Kathmandu',
+    'Asia/Saigon': 'Asia/Ho_Chi_Minh', 'Asia/Rangoon': 'Asia/Yangon', 'Europe/Kiev': 'Europe/Kyiv',
+    'America/Godthab': 'America/Nuuk', 'Pacific/Truk': 'Pacific/Chuuk', 'Pacific/Ponape': 'Pacific/Pohnpei', 'Pacific/Enderbury': 'Pacific/Kanton',
+  };
+  const canonicalZone = (value: string) => {
+    const canonical = aliases[value] ?? new Intl.DateTimeFormat('en', { timeZone: value }).resolvedOptions().timeZone;
+    return aliases[canonical] ?? canonical;
+  };
+  const deviceZone = canonicalZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const available = Intl.supportedValuesOf('timeZone').map(value => aliases[value] ?? value);
+  const zone = createMemo(() => canonicalZone(props.notebook.settings()?.time_zone ?? deviceZone));
+  const [zoneTime, setZoneTime] = createSignal(Date.now());
+  const zoneLabel = (value: string) => {
+    const offset = new Intl.DateTimeFormat('en', { timeZone: value, timeZoneName: 'shortOffset' }).formatToParts(zoneTime()).find(part => part.type === 'timeZoneName')!.value;
+    const city = value === 'UTC' ? 'Coordinated Universal Time' : value.split('/').at(-1)!.replace(/_/g, ' ');
+    return `${city} · ${offset.replace(/^GMT/, 'UTC').replace('-', '−')}${offset === 'GMT' || offset === 'UTC' ? '+0' : ''}`;
+  };
+  const zones = createMemo(() => {
+    const rows = [...new Set([zone(), 'UTC', ...available])].filter(id => id !== deviceZone).map(id => ({ id, label: zoneLabel(id) }));
+    return [{ id: deviceZone, label: zoneLabel(deviceZone) }, ...rows.sort((a, b) => a.label.localeCompare(b.label))];
+  });
   const [zoneAnchor, setZoneAnchor] = createSignal<HTMLElement | null>(null);
   const [zoneQuery, setZoneQuery] = createSignal('');
   const zoneRows = createMemo(() => {
-    const needle = zoneQuery().trim().toLocaleLowerCase().replace(/ /g, '_');
-    return zones().filter(value => value.toLocaleLowerCase().includes(needle));
+    const needle = zoneQuery().trim().toLocaleLowerCase().replace(/_/g, ' ');
+    return zones().filter(value => `${value.label} ${value.id} ${value.id === deviceZone ? 'device' : ''}`.toLocaleLowerCase().replace(/_/g, ' ').includes(needle));
   });
   let region!: HTMLDivElement;
   // Devices: the Mac shares and pairs; the phone copies. The browser demo does not sync.
@@ -104,9 +123,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   const [current, setCurrent] = createSignal('preferences');
   const [scrolled, setScrolled] = createSignal(false);
   const [allChanges, setAllChanges] = createSignal(false);
-  // The index follows the last section whose heading has reached the sticky header, and the last section once the
-  // pane can scroll no further. A section chosen from the index stays current until the reader scrolls by hand, since
-  // the last sections may never reach the header.
+  // A chosen section stays current until manual scrolling, since the last sections may not reach the header.
   const [chosen, setChosen] = createSignal<string | null>(null);
   const follow = () => {
     setScrolled(region.scrollTop > 0);
@@ -115,7 +132,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     let key = sections()[0]!.key;
     for (const section of sections()) {
       const element = document.getElementById(sectionId(section.key));
-      if (element && element.offsetTop - region.scrollTop <= header + 1) key = section.key;
+      if (element && element.getBoundingClientRect().top - region.getBoundingClientRect().top <= header + 1) key = section.key;
     }
     if (region.scrollTop > 0 && region.scrollTop + region.clientHeight >= region.scrollHeight - 1) key = sections().at(-1)!.key;
     setCurrent(key);
@@ -127,11 +144,26 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     setChosen(key); setCurrent(key);
     const header = region.querySelector<HTMLElement>('.settings-header')?.offsetHeight ?? 0;
     const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
-    region.scrollTo({ top: element.offsetTop - header, behavior: smooth ? 'smooth' : 'auto' });
+    const top = element.getBoundingClientRect().top - region.getBoundingClientRect().top + region.scrollTop - header;
+    region.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
   };
-  const when = (value: number) => new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(value);
+  const when = (value: number) => {
+    const date = new Date(value), pad = (part: number) => String(part).padStart(2, '0');
+    return `${String(date.getFullYear()).padStart(4, '0')}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  };
   const heading = (index: number, key: string, label: string, aside?: JSX.Element) =>
-    <h2 id={`${sectionId(key)}-heading`}><span class="section-number">{String(index).padStart(2, '0')}</span><span class="settings-section-name">{label}</span>{aside}<span class="section-rule" /></h2>;
+    <h2 class="field-section-head" id={`${sectionId(key)}-heading`}><span class="field-rubric">{String(index).padStart(2, '0')}</span><span>{label}</span><span class="section-rule" />{aside}</h2>;
+  const pathText = (value: string) => value.split('/').map((part, index) => <>{index > 0 && <>/<wbr /></>}{part}</>);
+  createEffect(() => {
+    const key = current();
+    queueMicrotask(() => {
+      const chips = region.querySelector<HTMLElement>('.settings-index');
+      const selected = chips?.querySelector<HTMLElement>(`[data-section="${key}"]`);
+      if (!chips || !selected) return;
+      if (selected.offsetLeft < chips.scrollLeft) chips.scrollLeft = selected.offsetLeft;
+      else if (selected.offsetLeft + selected.offsetWidth > chips.scrollLeft + chips.clientWidth) chips.scrollLeft = selected.offsetLeft + selected.offsetWidth - chips.clientWidth;
+    });
+  });
   createEffect(() => {
     const section = props.section;
     if (section) requestAnimationFrame(() => reveal(section));
@@ -161,21 +193,17 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     }
   }}>
     <div class="settings-layout">
-      <nav class="settings-index" aria-label="Settings sections">
-        <For each={sections()}>{section =>
-          <button type="button" class="settings-index-item" aria-current={current() === section.key ? 'location' : undefined} onClick={() => reveal(section.key)}>
-            <span>{section.label}</span><Show when={section.count > 0}><span class="settings-count">{section.count}</span></Show>
-          </button>}</For>
-      </nav>
       <div class="settings-main">
         <header class="settings-header" data-scrolled={scrolled() ? '' : undefined}>
-          <div class="settings-heading">
-            <div class="settings-register">Workshop and device</div>
-            <h1>Settings</h1>
-          </div>
+          <div class="settings-heading"><h1>Settings</h1></div>
           <span class="settings-status" role="status">{props.notebook.settingsMessage()}</span>
           <Button icon="undo" label="Undo setting" shortcut="⌘Z" disabled={!props.notebook.canUndoSetting()} onClick={() => { void history(false); }} />
           <Button icon="redo" label="Redo setting" shortcut="⌘⇧Z" disabled={!props.notebook.canRedoSetting()} onClick={() => { void history(true); }} />
+          <nav class="settings-index" aria-label="Settings sections">
+            <For each={sections()}>{section => <button type="button" class="settings-index-item" data-section={section.key} aria-current={current() === section.key ? 'location' : undefined} onClick={() => reveal(section.key)}>
+              <span>{section.label}</span><Show when={section.count > 0}><span class="settings-count">{section.count}</span></Show>
+            </button>}</For>
+          </nav>
         </header>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
         <section id={sectionId('preferences')} aria-labelledby={`${sectionId('preferences')}-heading`}>
@@ -197,15 +225,15 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           </div>
           <div class="settings-row">
             <div class="settings-label"><span class="settings-name">Journal day<span class="settings-scope">Workshop</span></span><p>Decides which day Today opens and when scheduled times fall.</p></div>
-            <Button class="bordered settings-select" aria-label="Time zone" aria-haspopup="listbox" aria-expanded={zoneAnchor() !== null} disabled={props.notebook.settingsBusy()} onClick={event => setZoneAnchor(event.currentTarget)}>
-              <span class="settings-select-text"><Show when={zone() === deviceZone}><span>Device</span></Show><span class="settings-mono">{zone()}</span></span><Icon name="down" />
+            <Button class="bordered settings-select" aria-label="Time zone" aria-haspopup="listbox" aria-expanded={zoneAnchor() !== null} disabled={props.notebook.settingsBusy()} title={zone()} onClick={event => { setZoneTime(Date.now()); setZoneAnchor(event.currentTarget); }}>
+              <span class="settings-select-text"><Show when={zone() === deviceZone}><span>Device</span></Show><span class="settings-mono">{zones().find(value => value.id === zone())?.label}</span></span><Icon name="down" />
             </Button>
           </div>
-          <Show when={zoneAnchor()}>{anchor => <Picker<string> anchor={anchor()} width={360} label="Choose time zone" onDismiss={() => { setZoneAnchor(null); setZoneQuery(''); }}
+          <Show when={zoneAnchor()}>{anchor => <Picker<{ id: string; label: string }> anchor={anchor()} placement="below" class="settings-zone-picker" width={360} label="Choose time zone" onDismiss={() => { setZoneAnchor(null); setZoneQuery(''); }}
             query={zoneQuery()} onQuery={setZoneQuery} placeholder="Search time zones"
-            items={zoneRows()} key={value => value} empty="No matching time zone."
-            onPick={value => { setZoneAnchor(null); setZoneQuery(''); void change('time_zone', value); }}
-            row={value => <><Show when={value === zone()} fallback={<span class="icon" />}><Icon name="check" /></Show><span class="picker-text">{value === deviceZone ? `Device time zone (${deviceZone})` : value}</span></>} />}</Show>
+            items={zoneRows()} key={value => value.id} isCurrent={value => value.id === zone()} empty="No matching time zone."
+            onPick={value => { setZoneAnchor(null); setZoneQuery(''); void change('time_zone', value.id); }}
+            row={value => <><Show when={value.id === zone()} fallback={<span class="icon" />}><Icon name="check" /></Show><span class="settings-zone-text"><span>{value.label}</span><span class="settings-zone-id">{value.id}{value.id === deviceZone ? ' · Device' : ''}</span></span></>} />}</Show>
           <div class="settings-row">
             <div class="settings-label"><span class="settings-name">Reader display<span class="settings-scope">This device</span></span><p>Typeface, size, measure and Scroll or Pages are set in the reader, beside the text, so each change shows as you make it.</p></div>
             <span class="settings-aside">In the reader</span>
@@ -214,11 +242,11 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         {DEMO && !ANDROID && <BrowserBackups id={sectionId('backups')} heading={heading(number('backups'), 'backups', 'Backups')} when={when} onError={setError} />}
         {!EMBEDDED && <section id={sectionId('notebooks')} aria-labelledby={`${sectionId('notebooks')}-heading`} aria-busy={notebookOpening() !== null}>
           {heading(number('notebooks'), 'notebooks', 'Workshops')}
-          <Show when={workshopsHome()}>{home => <p class="settings-empty">Workshops made by name live in <span class="settings-mono">{home()}</span>. Opening one reloads this window.</p>}</Show>
+          <Show when={workshopsHome()}>{home => <p class="settings-empty">Workshops made by name live in <span class="settings-mono settings-path">{pathText(home())}</span>. Opening one reloads this window.</p>}</Show>
           <For each={knownNotebooks()?.notebooks}>{entry => <div class="settings-row notebooks-entry" data-current={entry.current ? '' : undefined}>
             <div class="settings-label">
               <span class="settings-name">{notebookLabel(entry)}<Show when={entry.current}><span class="settings-scope">Open</span></Show></span>
-              <Show when={notebookPlace(entry)}>{place => <p class="settings-mono notebooks-path" title={entry.path}>{place()}</p>}</Show>
+              <Show when={notebookPlace(entry)}>{place => <p class="settings-mono notebooks-path settings-path" title={entry.path}>{pathText(place())}</p>}</Show>
             </div>
             <Show when={!entry.current} fallback={<span />}>
               <span class="notebooks-actions">
@@ -232,7 +260,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           <form class="settings-row notebooks-add" onSubmit={event => { event.preventDefault(); switchTo(notebookPath().trim(), false); }}>
             <div class="settings-label">
               <span class="settings-name"><label for={`settings-notebook-path-${props.pane}`}>Open or create</label></span>
-              <p>A name, such as reading, or a folder anywhere, such as ~/Documents/reading. Open uses a workshop that is there; New starts an empty one.</p>
+              <p>A name, such as reading, or a folder anywhere, such as <span class="settings-path">{pathText('~/Documents/reading')}</span>. Open uses a workshop that is there; New starts an empty one.</p>
               <input id={`settings-notebook-path-${props.pane}`} class="input notebooks-path-input" type="text" autocapitalize="off" autocomplete="off" spellcheck={false} placeholder="reading" value={notebookPath()} disabled={notebookOpening() !== null} onInput={event => setNotebookPath(event.currentTarget.value)} />
             </div>
             <span class="notebooks-actions">
@@ -305,15 +333,15 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         <section id={sectionId('about')} aria-labelledby={`${sectionId('about')}-heading`}>
           {heading(number('about'), 'about', 'About')}
           <Show when={info()}>{value => <dl>
-            <dt>Workshop</dt><dd>{value().path}</dd>
+            <dt>Workshop</dt><dd class="settings-path">{pathText(value().path)}</dd>
             <dt>Created</dt><dd>{new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(value().created_at)}</dd>
             <dt>Id</dt><dd>{value().id}</dd>
           </dl>}</Show>
           {!EMBEDDED && <Show when={service()}>{value => <dl>
             <dt>Version</dt><dd>{value().version}<Show when={value().build}>{build => <> · {build()}</>}</Show></dd>
-            <dt>URL</dt><dd>{`http://127.0.0.1:${value().port}`}</dd>
-            <dt>Assets</dt><dd>{value().assets}</dd>
-            <dt>Launch agent</dt><dd>{value().launch_agent.installed ? 'Installed' : 'Not installed · run tessera install'}</dd>
+            <dt>URL</dt><dd class="settings-path">{pathText(`http://127.0.0.1:${value().port}`)}</dd>
+            <dt>Assets</dt><dd class="settings-path">{pathText(value().assets)}</dd>
+            <dt>Launch agent</dt><dd>{value().launch_agent.installed ? 'Installed' : 'Not installed'}<Show when={!value().launch_agent.installed}><span class="settings-hint">Opening Tessera.app installs it.</span></Show></dd>
           </dl>}</Show>}
         </section>
       </div>

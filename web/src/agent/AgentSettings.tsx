@@ -1,8 +1,10 @@
-import { For, Show, createResource, createSignal } from 'solid-js';
+import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
 import type { ProviderInput, ProviderView } from '../api/types';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
+import { Menu } from '../ui/Menu';
 import './agent.css';
 
 type Protocol = ProviderView['protocol'];
@@ -26,6 +28,24 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const [tested, setTested] = createSignal<Record<string, string>>({});
+  const [validated, setValidated] = createSignal(false);
+  const [protocolAnchor, setProtocolAnchor] = createSignal<HTMLElement | null>(null);
+  let formElement!: HTMLFormElement;
+  const fieldErrors = createMemo(() => {
+    const errors: Partial<Record<'name' | 'base_url' | 'model', string>> = {};
+    const value = draft();
+    if (!validated() || !value) return errors;
+    if (!value.name.trim()) errors.name = 'Enter a name.';
+    if (!value.base_url.trim()) errors.base_url = 'Enter an address.';
+    else {
+      try {
+        const url = new URL(value.base_url.trim());
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') errors.base_url = 'Use an http:// or https:// address.';
+      } catch { errors.base_url = 'Use an http:// or https:// address.'; }
+    }
+    if (!value.model.trim()) errors.model = 'Enter a model name.';
+    return errors;
+  });
   const inputs = (except?: string): ProviderInput[] => (saved()?.providers ?? []).filter(item => item.id !== except)
     .map(({ id, name, protocol, base_url, model }) => ({ id, name, protocol, base_url, model }));
   const save = async (providers: ProviderInput[], fallback: string | null) => {
@@ -39,6 +59,12 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
   };
   const submit = async () => {
     const value = draft(); if (!value) return;
+    if (busy()) return;
+    setValidated(true);
+    if (Object.keys(fieldErrors()).length) {
+      queueMicrotask(() => formElement.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus());
+      return;
+    }
     const key = value.clearKey ? '' : value.api_key.trim() || null;
     const entry: ProviderInput = { ...(value.id ? { id: value.id } : {}), name: value.name.trim(), protocol: value.protocol, base_url: value.base_url.trim(), model: value.model.trim(), api_key: key };
     const list = saved()?.providers ?? [];
@@ -57,28 +83,40 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
     try { await api.testAgentProvider(provider.id); setTested(values => ({ ...values, [provider.id]: 'Answered' })); }
     catch (reason) { setTested(values => ({ ...values, [provider.id]: message(reason) })); }
   };
-  const edit = (provider?: ProviderView) => setDraft(provider
-    ? { id: provider.id, name: provider.name, protocol: provider.protocol, base_url: provider.base_url, model: provider.model, api_key: '', has_key: provider.has_key, clearKey: false }
-    : { name: 'Anthropic', protocol: 'anthropic', base_url: presets[0]!.base_url, model: '', api_key: '', has_key: false, clearKey: false });
+  const edit = (provider?: ProviderView) => {
+    setValidated(false); setProtocolAnchor(null); setError('');
+    setDraft(provider
+      ? { id: provider.id, name: provider.name, protocol: provider.protocol, base_url: provider.base_url, model: provider.model, api_key: '', has_key: provider.has_key, clearKey: false }
+      : { name: 'Anthropic', protocol: 'anthropic', base_url: presets[0]!.base_url, model: '', api_key: '', has_key: false, clearKey: false });
+  };
   const update = (patch: Partial<Draft>) => setDraft(value => value && { ...value, ...patch });
 
-  const Form = (form: { value: Draft }) => <form class="agent-provider-form" onSubmit={event => { event.preventDefault(); void submit(); }}>
+  const Form = (form: { value: Draft }) => <form ref={formElement} class="agent-provider-form" noValidate onSubmit={event => { event.preventDefault(); void submit(); }}>
     <Show when={!form.value.id}><div class="agent-presets" role="group" aria-label="Fill in a provider">
       <For each={presets}>{preset => <Button class="bordered" aria-pressed={form.value.base_url === preset.base_url} onClick={() => update({ name: preset.label, protocol: preset.protocol, base_url: preset.base_url })}>{preset.label}</Button>}</For>
     </div></Show>
-    <label><span>Name</span><input class="input" value={form.value.name} onInput={event => update({ name: event.currentTarget.value })} required /></label>
-    <label><span>Speaks</span><select class="input" value={form.value.protocol} onChange={event => update({ protocol: event.currentTarget.value as Protocol })}>
-      <For each={Object.entries(protocolLabels)}>{([value, label]) => <option value={value}>{label}</option>}</For>
-    </select></label>
-    <label><span>Address</span><input class="input settings-mono" type="url" value={form.value.base_url} onInput={event => update({ base_url: event.currentTarget.value })} required /></label>
-    <label><span>Model</span><input class="input settings-mono" value={form.value.model} placeholder="As the provider names it" onInput={event => update({ model: event.currentTarget.value })} required /></label>
+    <label><span>Name</span><span class="agent-input-field"><input class="input" value={form.value.name} onInput={event => update({ name: event.currentTarget.value })} required aria-invalid={!!fieldErrors().name} aria-describedby={fieldErrors().name ? `${props.id}-name-error` : undefined} />
+      <Show when={fieldErrors().name}>{error => <span class="error agent-field-error" id={`${props.id}-name-error`} role="alert">{error()}</span>}</Show>
+    </span></label>
+    <label><span id={`${props.id}-protocol-label`}>Speaks</span><span class="agent-input-field">
+      <Button class="bordered agent-protocol" aria-labelledby={`${props.id}-protocol-label`} aria-haspopup="menu" aria-expanded={protocolAnchor() !== null} onClick={event => setProtocolAnchor(event.currentTarget)}><span>{protocolLabels[form.value.protocol]}</span><Icon name="down" /></Button>
+      <Show when={protocolAnchor()}>{anchor => <Menu anchor={anchor()} label="Protocol" onDismiss={() => setProtocolAnchor(null)} items={(Object.keys(protocolLabels) as Protocol[]).map(protocol => ({
+        label: protocolLabels[protocol], checked: form.value.protocol === protocol, action: () => update({ protocol }),
+      }))} />}</Show>
+    </span></label>
+    <label><span>Address</span><span class="agent-input-field"><input class="input settings-mono" type="url" value={form.value.base_url} onInput={event => update({ base_url: event.currentTarget.value })} required aria-invalid={!!fieldErrors().base_url} aria-describedby={fieldErrors().base_url ? `${props.id}-address-error` : undefined} />
+      <Show when={fieldErrors().base_url}>{error => <span class="error agent-field-error" id={`${props.id}-address-error`} role="alert">{error()}</span>}</Show>
+    </span></label>
+    <label><span>Model</span><span class="agent-input-field"><input class="input settings-mono" value={form.value.model} placeholder="As the provider names it" onInput={event => update({ model: event.currentTarget.value })} required aria-invalid={!!fieldErrors().model} aria-describedby={fieldErrors().model ? `${props.id}-model-error` : undefined} />
+      <Show when={fieldErrors().model}>{error => <span class="error agent-field-error" id={`${props.id}-model-error`} role="alert">{error()}</span>}</Show>
+    </span></label>
     <label><span>Key</span><input class="input settings-mono" type="password" autocomplete="off" value={form.value.api_key} disabled={form.value.clearKey}
       placeholder={form.value.has_key && !form.value.clearKey ? 'Saved; type to replace it' : form.value.protocol === 'openai' ? 'Not needed for a local server' : 'Your API key'}
       onInput={event => update({ api_key: event.currentTarget.value })} /></label>
     <Show when={form.value.has_key}><label class="agent-clear-key"><input type="checkbox" checked={form.value.clearKey} onChange={event => update({ clearKey: event.currentTarget.checked, api_key: '' })} /><span>Forget the saved key</span></label></Show>
     <div class="agent-form-actions">
-      <Button class="text-button" onClick={() => setDraft(null)}>Cancel</Button>
-      <Button class="bordered" type="submit" disabled={busy()}>{form.value.id ? 'Save' : 'Add model'}</Button>
+      <Button class="text-button" onClick={() => { setProtocolAnchor(null); setDraft(null); }}>Cancel</Button>
+      <Button class="bordered" type="submit" disabled={busy()}>Save model</Button>
     </div>
   </form>;
 

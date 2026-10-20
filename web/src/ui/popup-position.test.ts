@@ -33,6 +33,14 @@ describe('anchored popup placement', () => {
     expect(position.clipped).toBe(true);
   });
 
+  test('a below-only picker clips its list rather than flipping over the header', () => {
+    const position = anchoredPopupPosition({ left: 982, right: 1342, top: 430, bottom: 458 }, viewport, 360, 700, 560, undefined, true);
+    expect(position.top).toBe(462);
+    expect(position.height).toBe(430);
+    expect(position.side).toBe('below');
+    expect(position.clipped).toBe(true);
+  });
+
   test('pane bounds intersect the keyboard-resized visual viewport', () => {
     const keyboard = { left: 0, top: 80, right: 1440, bottom: 500, width: 1440, height: 420 };
     const bounds = popupBounds(keyboard, pane);

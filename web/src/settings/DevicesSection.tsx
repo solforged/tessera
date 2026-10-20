@@ -19,18 +19,27 @@ interface DeviceProps { heading: JSX.Element; notebook: NotebookClient; deviceId
 export function HubDevices(props: DeviceProps & { onCount(count: number): void }) {
   const [busy, setBusy] = createSignal(false);
   const [pairing, setPairing] = createSignal(false);
+  const [pairNeedsSharing, setPairNeedsSharing] = createSignal(false);
   // Settled once the Mac has answered for its hub records; until then neither the rows nor "Sync is off" show.
   const [checked, setChecked] = createSignal(false);
   void sync.refresh().then(() => hubDevices.refresh()).finally(() => setChecked(true));
   createEffect(() => props.onCount(hubDevices.state()?.devices.length ?? 0));
   const share = async (on: boolean) => {
     setBusy(true);
+    setPairNeedsSharing(false);
     try {
       const sharing = await api.setSharing(on);
       const value = hubDevices.state();
       if (value) hubDevices.set({ ...value, sharing });
-    } catch (reason) { props.onError(message(reason)); }
+      return sharing.on;
+    } catch (reason) { props.onError(message(reason)); return false; }
     finally { setBusy(false); void hubDevices.refresh(); }
+  };
+  const pair = async () => {
+    if (busy()) return;
+    const sharing = hubDevices.state()?.sharing;
+    if (!sharing?.on && (!sharing?.available || !await share(true))) { setPairNeedsSharing(true); return; }
+    setPairNeedsSharing(false); setPairing(true);
   };
   const forget = async (id: string) => {
     try { await api.forgetDevice(id); }
@@ -56,7 +65,9 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
       </div>
       <div class="settings-row">
         <div class="settings-label"><span class="settings-name">Pair a phone</span><p>The phone gets a copy of this workshop. Changes go both ways.</p></div>
-        <Button class="bordered" disabled={!value().sharing.on} title={value().sharing.on ? undefined : 'Turn on sharing first'} onClick={() => setPairing(true)}>Pair a phone</Button>
+        <div class="settings-action"><Button class="bordered" disabled={busy()} onClick={() => { void pair(); }}>Pair a phone</Button>
+          <Show when={!value().sharing.on && (pairNeedsSharing() || !value().sharing.available)}><span class="settings-hint" role="status">Turn on Sharing first</span></Show>
+        </div>
       </div>
       <For each={value().devices.map(device => device.id)}>{id => {
         const device = () => value().devices.find(device => device.id === id)!;

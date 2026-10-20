@@ -6,9 +6,8 @@ import { anchoredPopupPosition, popupBounds } from './popup-position';
 import { Button } from './Button';
 
 export type PopupAnchor = HTMLElement | DOMRect | (() => DOMRect | null);
-/** `anchor` hangs the panel off its trigger; `top` centres it near the top of the viewport, for palettes; `sheet` rises
- * from the bottom edge at full width, for touch screens. */
-export type PopupPlacement = 'anchor' | 'top' | 'sheet';
+/** Anchored panels normally fit either side; `below` keeps growing lists under their trigger. */
+export type PopupPlacement = 'anchor' | 'below' | 'top' | 'sheet';
 export interface PopupProps {
   anchor: PopupAnchor;
   onDismiss(): void;
@@ -147,7 +146,7 @@ export function Popup(props: PopupProps) {
   };
   const place = () => {
     if (disposed || props.ready === false) return;
-    const viewport = popupBounds(visualViewportBounds(), props.placement === undefined || props.placement === 'anchor' ? props.bounds?.() : null);
+    const viewport = popupBounds(visualViewportBounds(), props.placement === undefined || props.placement === 'anchor' || props.placement === 'below' ? props.bounds?.() : null);
     if (props.placement === 'sheet') {
       // A menu sheet may rise to just under the top bar so a full page menu needs no inner scroll; forms keep 85%.
       const cap = props.role === 'menu' ? viewport.height - 32 : Math.round(viewport.height * 0.85);
@@ -169,7 +168,7 @@ export function Popup(props: PopupProps) {
     if (!props.fixedSize) size = undefined;
     const height = props.fixedSize && size?.width === width ? size.height : contentHeight();
     if (props.fixedSize && size?.width !== width) size = { width, height };
-    const placed = anchoredPopupPosition(rect, viewport, width, height, props.role === 'menu' ? Infinity : 560, props.role === 'menu' ? side : undefined);
+    const placed = anchoredPopupPosition(rect, viewport, width, height, props.role === 'menu' ? Infinity : 560, props.role === 'menu' ? side : undefined, props.placement === 'below');
     if (props.role === 'menu') side ??= placed.side;
     setPosition(placed);
   };

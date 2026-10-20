@@ -66,6 +66,11 @@
 .agent-provider-form { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; max-width: 36rem; gap: var(--space-8) var(--space-16); margin-top: var(--space-12); padding: var(--space-12) 0; border-block: var(--rule-width) solid var(--line); font-size: var(--text-control); line-height: var(--line-control); }
 .agent-provider-form > label { display: contents; }
 .agent-provider-form > label > span { color: var(--muted); }
+.agent-input-field { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
+.agent-provider-form .agent-field-error { margin: 0; color: var(--danger); font-size: var(--text-meta); line-height: var(--line-meta); }
+.agent-provider-form .input[aria-invalid="true"] { border-color: var(--danger); }
+.agent-protocol.button { justify-content: space-between; width: 100%; }
+.agent-protocol > .icon { color: var(--faint); }
 .agent-presets, .agent-form-actions, .agent-provider-form > .agent-clear-key { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
 .agent-provider-form > .agent-clear-key { grid-column: 2; color: var(--muted); }
 .agent-presets > .button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }

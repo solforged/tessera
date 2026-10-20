@@ -61,6 +61,11 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Showed built-in field names in sentence case, counted fields in atoms, removed Edit definitions and the definition page's Atoms button, kept the Fields page out of table views, and laid the phone field register out as one line per field.
+- Marked built-in definitions with one Built in label, listed their options read-only, explained Hide, Shows as and Counts as choices in their menus, moved Rename and Delete into a menu, and counted tasks on the Task template.
+- Listed a page's missing template fields first in Add field, left task fields out of non-tasks, and gave plain date fields a calendar without task marks.
+- Aligned the template Fields tab with the register and only offered Fill missing fields for fields that are always shown.
+- Put Settings on the page measure with its sections in the margin, or as chips on phones; showed ISO backup times, city time zones with offsets, inline model form errors and a Save model button; let Pair a phone turn on Sharing first.
 - Gave Agenda a per-tab header: an ISO week title on Week and a plain Tasks heading. Week stays on the page measure with a 06:00-22:00 window, a now line and older overdue tasks in today's all-day lane, and the phone's week ledger lists those tasks under today; Day lists untimed tasks first and gathers overdue moves into one Move all menu.
 - Put the task query on one row, listed done tasks last, gave task dates one grammar (today, weekday within six days, ISO beyond) and dropped duplicate task fields from Add condition.
 - Gave the desktop Library the phone's head with Reading, Inbox, Highlights and More, hid the facet rail below 20 sources, stopped grouping by year by default, unified source rows, flattened collection covers and showed only sigla on placeholder covers.

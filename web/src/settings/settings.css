@@ -2,30 +2,31 @@
    Preferences come first; facts about the notebook and service come last, since they are read rarely and changed never. */
 .settings-pane { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--pane-inset) var(--page-bottom-space); outline: none; container: settings-pane / inline-size; }
 .settings-layout { max-width: var(--measure); margin-inline: auto; }
-.settings-index { display: none; }
-/* The index and measure centre together, as the Library's browse rail does. */
-@container settings-pane (min-width: 1096px) {
-  .settings-layout { display: grid; grid-template-columns: var(--apparatus-width) var(--measure); justify-content: center; column-gap: var(--space-48); max-width: none; }
-  .settings-index { display: flex; flex-direction: column; gap: var(--space-2); position: sticky; top: 0; align-self: start; padding-top: calc(var(--page-top-space) + var(--line-apparatus) + var(--page-eyebrow-gap)); }
-}
-.settings-index-item { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--target-size); padding: 0 var(--space-8) 0 var(--space-12); border: 0; border-radius: 0; background: none; box-shadow: inset calc(2 * var(--rule-width)) 0 transparent; color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); text-align: left; cursor: pointer; transition: color var(--motion-fast) var(--motion-ease), box-shadow var(--motion-ui) var(--motion-ease); }
+.settings-main { min-width: 0; }
+.settings-index { position: relative; grid-column: 1 / -1; display: flex; gap: var(--space-4); overflow-x: auto; padding-block: var(--page-title-gap) var(--space-4); }
+.settings-index-item { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--target-size); padding: 0 var(--space-12); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: none; color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); text-align: left; white-space: nowrap; cursor: pointer; transition: color var(--motion-fast) var(--motion-ease), border-color var(--motion-ui) var(--motion-ease); }
 .settings-index-item:hover { color: var(--text); }
-.settings-index-item[aria-current] { color: var(--text); box-shadow: inset calc(2 * var(--rule-width)) 0 var(--accent); }
+.settings-index-item[aria-current] { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+/* The sticky header carries its index in the spare margin without moving the measure. */
+@container settings-pane (min-width: 72rem) {
+  .settings-index { position: absolute; top: var(--page-top-space); right: calc(100% + var(--space-24)); width: min(var(--apparatus-width), calc((100cqw - var(--measure)) / 2 - var(--space-24))); flex-direction: column; gap: var(--space-2); padding: 0; overflow: visible; }
+  .settings-index .settings-index-item { flex: initial; padding: 0 var(--space-8) 0 var(--space-12); border: 0; border-radius: 0; background: none; color: var(--muted); box-shadow: inset calc(2 * var(--rule-width)) 0 transparent; white-space: normal; }
+  .settings-index .settings-index-item:hover, .settings-index .settings-index-item[aria-current] { color: var(--text); }
+  .settings-index .settings-index-item[aria-current] { box-shadow: inset calc(2 * var(--rule-width)) 0 var(--accent); }
+}
 .settings-index-item:focus-visible { outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-offset)); }
 .settings-count { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 
 /* The header stays in view, so the save status and Undo are always reachable; a hairline appears once the page scrolls under it. */
-.settings-header { position: sticky; top: 0; z-index: 2; display: flex; align-items: flex-end; gap: var(--space-4); padding: var(--page-top-space) 0 var(--page-head-gap); background: var(--canvas); box-shadow: inset 0 calc(-1 * var(--rule-width)) transparent; transition: box-shadow var(--motion-ui) var(--motion-ease); }
+.settings-header { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: end; gap: var(--space-4); padding: var(--page-top-space) 0 var(--page-head-gap); background: var(--canvas); box-shadow: inset 0 calc(-1 * var(--rule-width)) transparent; transition: box-shadow var(--motion-ui) var(--motion-ease); }
 .settings-header[data-scrolled] { box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); }
-.settings-heading { flex: 1; min-width: 0; }
-.settings-register { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.settings-header h1 { margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.settings-heading { min-width: 0; }
+.settings-header h1 { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 .settings-status { margin-right: var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 
-/* Sections head with a rubric numeral, a Piazzolla name and a hairline rule. */
+/* Shared field section classes keep numbered heads in the apparatus voice. */
 .settings-pane section + section { margin-top: var(--section-gap); }
-.settings-pane h2 { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); margin: 0 0 var(--section-item-gap); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.settings-section-name { color: var(--text); font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+.settings-pane .field-rubric { color: var(--danger); }
 
 /* A preference is one row: its name, scope and a sentence on the left, the control flush right. Rows divide with hairlines. */
 .settings-row, .settings-change { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-24); padding-block: var(--space-12); font-size: var(--text-control); line-height: var(--line-control); }
@@ -44,6 +45,9 @@
 .settings-select-text { display: flex; align-items: baseline; gap: var(--space-8); min-width: 0; overflow: hidden; white-space: nowrap; }
 .settings-select-text .settings-mono { overflow: hidden; color: var(--muted); text-overflow: ellipsis; }
 .settings-select > .icon { color: var(--faint); }
+.settings-zone-picker .picker-row { align-items: flex-start; padding-block: var(--space-8); }
+.settings-zone-text { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+.settings-zone-id { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
 
 /* The switch: a hairline track with a muted knob; on, the track fills gilt and the knob slides across in canvas. */
 .settings-switch { appearance: none; position: relative; flex: none; width: var(--switch-width); height: var(--switch-height); margin: 0; border: var(--rule-width) solid var(--control-border); border-radius: var(--radius-pill); background: transparent; cursor: pointer; transition: background-color var(--motion-ui) var(--motion-ease), border-color var(--motion-ui) var(--motion-ease); }
@@ -97,6 +101,9 @@
 .settings-pane dl + dl { padding-top: var(--space-12); border-top: var(--rule-width) solid var(--line); }
 .settings-pane dt { color: var(--muted); }
 .settings-pane dd { margin: 0; color: var(--text); font: var(--apparatus); line-height: var(--line-control); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.settings-pane .settings-path, .settings-pane .settings-label p.settings-path { overflow-wrap: normal; word-break: normal; }
+.settings-hint { display: block; margin-top: var(--space-4); color: var(--faint); font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); letter-spacing: normal; }
+.settings-action { display: flex; flex-direction: column; align-items: flex-start; }
 
 /* A split pane and the Fold cover stack each control under its description, except the switch, which stays beside it. */
 @container settings-pane (max-width: 599px) {
