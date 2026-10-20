@@ -166,7 +166,7 @@ export function SourceHeader(props: {
       <div class="outline-source-info">
         <Show when={metadata().subtitle && !props.doc.root()?.text.includes(metadata().subtitle!)}><p class="outline-source-subtitle">{metadata().subtitle}</p></Show>
         <div class="outline-source-summary">
-          <For each={creators()}>{creator => <Show when={creator.id} fallback={<span class="outline-source-creator">{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</span>}>{id => <Button class="outline-source-creator" onClick={event => props.onOpen({ kind: 'page', pageId: id() }, opensBeside(event))}>{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</Button>}</Show>}</For>
+          <For each={creators()}>{creator => <Show when={creator.id} fallback={<span class="outline-source-creator">{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</span>}>{id => <Button class="outline-source-creator outline-reference" onClick={event => props.onOpen({ kind: 'page', pageId: id() }, opensBeside(event))}>{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</Button>}</Show>}</For>
           <span>{imprint()}</span>
         </div>
       </div>

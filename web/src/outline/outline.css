@@ -305,7 +305,9 @@
 .outline-source-citation > div { flex: 1; min-width: 0; }
 .outline-source-citation-imprint { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .outline-source-citation-byline { margin: var(--space-4) 0 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
-.outline-source-creator, .outline-source-creator.button { display: inline-flex; align-items: center; min-height: var(--row-height); padding: var(--space-2) var(--space-12); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); color: var(--text); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+.outline-source-creator, .outline-source-creator.button { display: inline; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--text); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+.outline-source-creator.outline-reference { text-decoration-color: var(--line); }
+.outline-source-creator.outline-reference:is(:hover, :focus-visible) { background: transparent; color: var(--accent); text-decoration-color: currentColor; }
 .outline-source-progress-block { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-16); }
 .outline-source-chapter { margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .outline-source-time { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4) var(--space-16); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
@@ -314,9 +316,10 @@
 .outline-source-description p.expanded { display: block; }
 .outline-source-description .button { flex: none; }
 .outline-source-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-8); }
+/* Reading is the gilt hairline action Review's start uses, at the height of its neighbours. */
+.outline-source-read.button { padding-inline: var(--space-16); border: var(--rule-width) solid color-mix(in srgb, var(--accent) 55%, transparent); background: none; color: var(--accent); }
+.outline-source-read.button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 .source-actions-menu[aria-label="Snapshots"] .menu-label { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.outline-source-read.button { padding-inline: var(--space-16); border-color: var(--accent); background: var(--accent); color: var(--surface); }
-.outline-source-read.button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, var(--text)); }
 /* Colour filters keep individual touch targets and real highlight hues. Their buttons' padding counts toward the interval before the grouping control, whose own padding hangs past the column so its chevron meets the paragraph numbers' edge. */
 .outline-source-highlight-toolbar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--section-item-gap) var(--space-16); margin-top: var(--section-gap); }
 .outline-source-highlight-toolbar h2 { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
