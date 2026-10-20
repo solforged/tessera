@@ -19,6 +19,7 @@ export const [linkedCitation, setLinkedCitation] = createSignal<string | null>(n
 
 export interface HighlightMenu {
   items: MenuItem[];
+  secondaryItems: MenuItem[];
   Header: Component<{ onDismiss(): void }>;
   openNote(): void;
   makeCard(): void;
@@ -128,16 +129,17 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
         await document.flush();
       })().catch(fail);
     };
+    const secondaryItems: MenuItem[] = [
+      { label: 'Tag', icon: 'tag', shortcut: 'T', key: 't', action: tag },
+    ];
+    if (copyText !== undefined) secondaryItems.push({ label: 'Copy with citation', action: () => { void navigator.clipboard.writeText(copyText).catch(reason => onError(reason instanceof Error ? reason.message : String(reason))); } });
+    secondaryItems.push({ label: 'Remove highlight', danger: true, action: () => fire('remove') });
     const items: MenuItem[] = [
       { label: hasNote ? 'Open atom' : 'Add atom', action: () => fire('note') },
       { label: 'Make card', action: () => fire('card') },
-    ];
-    if (copyText !== undefined) items.push({ label: 'Copy with citation', action: () => { void navigator.clipboard.writeText(copyText).catch(reason => onError(reason instanceof Error ? reason.message : String(reason))); } });
-    items.push(
       { label: row.processed ? 'Mark unprocessed' : 'Mark processed', action: () => fire('triage') },
-      { label: 'Add tag…', action: tag },
-      { label: 'Remove highlight', danger: true, action: () => fire('remove') },
-    );
+      ...secondaryItems,
+    ];
     const Header: HighlightMenu['Header'] = props => <>
       <p class="highlight-menu-quote">{row.citation.quote}</p>
       <div class="highlight-menu-colors">
@@ -149,7 +151,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
         }}</For>
       </div>
     </>;
-    return { items, Header, openNote: () => fire('note'), makeCard: () => fire('card'), toggleProcessed: () => run('triage'), tag, setColor };
+    return { items, secondaryItems, Header, openNote: () => fire('note'), makeCard: () => fire('card'), toggleProcessed: () => run('triage'), tag, setColor };
   };
   return Object.assign(menu, {
     prepare: async (rows: readonly HighlightRow[]) => { await Promise.all([...new Set(rows.filter(row => row.notes > 0).map(row => row.block.page.id))].map(loadDocument)); },

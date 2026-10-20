@@ -61,6 +61,11 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Gave Agenda a per-tab header: an ISO week title on Week and a plain Tasks heading. Week stays on the page measure with a 06:00-22:00 window, a now line and older overdue tasks in today's all-day lane; Day lists untimed tasks first and gathers overdue moves into one Move all menu.
+- Put the task query on one row, listed done tasks last, gave task dates one grammar (today, weekday within six days, ISO beyond) and dropped duplicate task fields from Add condition.
+- Gave the desktop Library the phone's head with Reading, Inbox, Highlights and More, hid the facet rail below 20 sources, stopped grouping by year by default, unified source rows, flattened collection covers and showed only sigla on placeholder covers.
+- Folded the highlight source and section pickers into Filters and kept three processing actions in the highlight footer with the rest in a menu.
+- Made the source page's Continue reading a gilt hairline action and its author an ink reference.
 - Simplified Review's landing to a static deck title and in-column queue tabs, kept saved-deck actions only, reduced forecast labels, and counted the last seven local days instead of the calendar week.
 - Made review sessions take over the pane with a static deck title, larger card text and click-to-reveal, quiet End review controls, caught-up empty queues, and one-tap starts from Today.
 - Included every active task, project and source atom in its built-in kind's counts, finding aid, table and saved filters, without requiring a written tag, and added New task to the empty Tasks finding aid.
@@ -90,6 +95,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Kept source-page highlights full width beside their ¶ chip instead of one character per line.
 - Kept agenda provenance visible beside stable rescheduling actions and stacked narrow Today and Day rows with full-width titles above their facts and calendar.
 - Rebased remembered outline carets through saved-text rewrites so Enter and `i` resumed after a normalized tag instead of typing into its ID and creating junk tags.
 - Removed a whole `#[[id|Title]]` or `#[[Title]]` tag pill with one Backspace after it or Delete before it, instead of leaving a malformed bracket token that dropped the membership.

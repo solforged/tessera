@@ -4,21 +4,16 @@
 .library-toolbar { display: flex; flex: none; flex-direction: column; gap: var(--page-title-gap); padding: var(--page-top-space) var(--pane-inset) var(--page-head-gap); overflow: hidden; scrollbar-gutter: stable; }
 .library-toolbar > *, .library-scroll > * { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .library-tabs, .library-controls, .library-filter { display: flex; align-items: center; gap: var(--space-4); }
-/* Tabs that do not fit leave the strip for More, so it never scrolls; measuring lays them all out for one forced layout. */
-.library-toolbar > .library-tabs { overflow: hidden; }
+/* The same three primary tabs leave secondary and saved views in More. */
+.library-toolbar > .library-primary-tabs { overflow: visible; gap: var(--space-8); }
 .library-tabs > .button { white-space: nowrap; }
-.library-tabs > .library-tab-overflow { display: none; }
-.library-tabs-measuring > .library-tab-overflow { display: inline-flex; }
-.library-tabs-measuring > .library-tabs-more.button { flex: none; }
-.library-toolbar > .library-primary-tabs { overflow: visible; }
 .library-primary-tabs > [data-library-tab] { flex: none; }
 .library-tabs-more.button { flex: 0 1 auto; min-width: 0; margin-left: auto; }
 .library-tabs-more > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.library-cover-header { display: none; }
+.library-cover-header { display: flex; align-items: flex-end; gap: var(--space-4); }
 .library-cover-heading { flex: 1; min-width: 0; }
 .library-register { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .library-cover-header h1 { margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
-.library-cover-header > .button { display: none; }
 /* The search line and the selection bar that replaces it share one height, so selecting never moves the list. */
 .library-controls, .library-filter { gap: var(--space-8); }
 .library-controls { min-height: var(--space-32); }
@@ -38,6 +33,7 @@
 .library-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--pane-inset) var(--page-bottom-space); scrollbar-gutter: stable; }
 .library-count, .library-progress, .library-highlight-count { display: inline-flex; align-items: center; gap: var(--space-4); flex-shrink: 0; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .library-progress { width: 15ch; min-width: 15ch; justify-content: flex-start; gap: var(--space-8); color: var(--faint); white-space: nowrap; }
+.library-progress.library-progress-finished { width: 19ch; min-width: 19ch; }
 .library-progress > .library-reading-rule { flex: 1; }
 .library-progress > span:last-child { flex: none; min-width: 4ch; text-align: right; }
 .library-highlight-count { width: 5ch; min-width: 5ch; justify-content: flex-end; }
@@ -47,10 +43,9 @@
 /* A half pane on a wide screen keeps the title: the state and year columns step aside, and progress keeps only its number. Phones lay rows out as cards instead. */
 @media (min-width: 600px) {
   @container library-pane (max-width: 560px) {
-    .library-row-open :is(.library-state, .library-year), .library-progress > .library-reading-rule { display: none; }
+    .library-row-open :is(.library-state, .library-year, .library-byline), .library-progress > .library-reading-rule { display: none; }
     .library-progress { width: auto; min-width: 4ch; }
-    .library-inbox-ledger .library-row-open { display: flex; }
-    .library-inbox-ledger .library-author, .library-colhead { display: none; }
+    .library-start-reading-label { display: none; }
   }
 }
 .library-siglum { flex: none; width: 5ch; font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--faint); transition: color var(--motion-fast) var(--motion-ease); }
@@ -66,8 +61,10 @@
 .library-byline { flex: 0 1000 auto; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; margin-right: auto; }
 .library-row > .button:last-child { opacity: 0; }
 .library-row:hover > .button:last-child, .library-row:focus-within > .button:last-child, .library-row > .button[aria-expanded="true"]:last-child { opacity: 1; }
+.library-start-reading.button { position: absolute; top: 50%; right: calc(var(--row-height) + var(--space-4)); transform: translateY(-50%); background: var(--raised); opacity: 0; }
+.library-source-row:hover > .library-start-reading, .library-source-row:focus-within > .library-start-reading { opacity: 1; }
 /* Without hover the row menu would never show, and tapping the row opens the book. */
-@media (hover: none) { .library-row > .button:last-child { opacity: 1; } }
+@media (hover: none) { .library-row > .button:last-child, .library-start-reading.button { opacity: 1; } }
 .library-row:hover { background: var(--hover); }
 .library-source-row { position: relative; }
 .library-row.library-row-selected { background: var(--selection); }
@@ -82,6 +79,7 @@
 .library-checkbox.button { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; }
 .library-checkbox-square { display: flex; align-items: center; justify-content: center; width: var(--space-16); height: var(--space-16); border: 1px solid var(--control-border); border-radius: 2px; }
 .library-source-row:hover .library-checkbox, .library-source-row:focus-within .library-checkbox, .library-has-selection .library-checkbox { opacity: 1; }
+.library-select-mode .library-checkbox.button { opacity: 1; }
 .library-source-row:hover .library-source-image, .library-source-row:focus-within .library-source-image, .library-has-selection .library-source-image { opacity: 0; }
 .library-message, .library-error, .library-empty { font-size: var(--text-control); line-height: var(--line-control); color: var(--muted); }
 .library-error, .library-job-error { color: var(--danger); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -92,17 +90,6 @@
 /* A plain action under the message starts at the message's edge, as the rail's All N does. */
 .library-empty > .button:not(.bordered) { margin-left: calc(-1 * var(--space-8)); }
 .library-jobs { display: flex; flex-direction: column; }
-.library-inbox-ledger .library-row-open { display: grid; grid-template-columns: minmax(0, 1fr) 22ch 4.5ch auto; column-gap: var(--space-16); align-items: baseline; }
-.library-year-grouped.library-inbox-ledger .library-row-open { grid-template-columns: minmax(0, 1fr) 22ch auto; }
-.library-inbox-ledger .library-title { grid-column: 1; }
-.library-author { grid-column: 2; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
-.library-inbox-ledger .library-year { grid-column: 3; }
-.library-inbox-ledger .library-highlight-count { grid-column: 4; width: auto; min-width: 0; justify-self: end; }
-.library-year-grouped.library-inbox-ledger .library-highlight-count { grid-column: 3; }
-.library-colhead { min-height: 20px; border-bottom: 0; content-visibility: visible; contain-intrinsic-size: auto 20px; color: var(--faint); }
-.library-colhead .library-author, .library-colhead .library-year { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-/* The head lays out like a row's open button, so its 22ch author column resolves in the same font, and it keeps the row menu's width at the end so the columns line up. */
-.library-colhead .library-row-open { flex: 1; min-width: 0; margin-right: calc(var(--row-height) + var(--space-4)); padding-inline: calc(var(--space-8) + var(--rule-width)); font-size: var(--text-control); }
 .library-job { flex-wrap: wrap; font-size: var(--text-control); line-height: var(--line-control); }
 .library-failures { width: 100%; border-bottom: var(--rule-width) solid var(--line); }
 .library-failure-heading { display: flex; align-items: center; min-height: var(--target-size); margin: 0; padding-inline: var(--space-8); color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
@@ -125,13 +112,10 @@
 .library-highlights-tab .library-scroll { display: block; overflow: hidden; }
 .library-highlights-tab .library-main { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .library-highlights-tab .library-rows { display: flex; flex: 1; flex-direction: column; min-height: 0; }
-.library-highlight-controls { flex: 1; min-width: 0; }
-.library-highlight-selectors { display: flex; flex: 1; justify-content: flex-end; min-width: 0; gap: var(--space-8); }
-.library-highlight-selectors .button { min-width: 0; max-width: 28em; overflow: hidden; text-overflow: ellipsis; justify-content: flex-start; }
-.library-highlight-source-selector.button { font-family: var(--font-display); }
+.library-highlight-controls { flex: 1; min-width: 0; flex-wrap: nowrap; }
+.library-highlight-filters.button { margin-left: auto; }
 .library-highlights-workbench { display: grid; flex: 1; min-height: 0; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); }
 .library-highlight-queue { display: flex; min-width: 0; min-height: 0; flex-direction: column; border-right: 1px solid var(--line); }
-.library-highlight-queue-head { display: flex; flex: none; align-items: center; justify-content: space-between; gap: var(--space-8); padding: var(--space-12); border-bottom: 1px solid var(--line); color: var(--faint); font: var(--apparatus); }
 .library-highlight-queue-scroll { flex: 1; min-height: 0; overflow: auto; }
 .library-highlight.button { position: relative; display: flex; flex-direction: column; align-items: stretch; width: 100%; height: auto; padding: var(--space-12) var(--space-16); gap: var(--space-4); text-align: left; white-space: normal; font-weight: var(--weight-body); border-radius: 0; border-bottom: 1px solid var(--line); }
 .source-elsewhere > .library-highlight.button { width: calc(100% - (var(--indent-width) - var(--space-8))); }
@@ -153,6 +137,7 @@
 .library-passage-topline { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .library-back-highlights.button { display: none; }
 .library-passage-scroll { flex: 1; min-height: 0; overflow: auto; padding: var(--space-24); }
+.library-passage-scroll.library-passage-has-context { mask-image: linear-gradient(to bottom, var(--mask-opaque) calc(100% - var(--space-24)), transparent); }
 .library-passage-quote { margin: 0; padding-left: var(--space-16); border-left: 2px solid var(--highlight-bar); color: var(--text); font: var(--weight-body) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-quote); white-space: pre-wrap; overflow-wrap: anywhere; text-align: left; }
 .library-highlight-authored { margin-bottom: var(--space-16); color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .library-passage-context { margin-top: var(--space-24); }
@@ -160,18 +145,18 @@
 .library-passage-context p { margin: 0; color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); white-space: pre-wrap; overflow-wrap: anywhere; }
 .library-highlight-dock { display: flex; flex: none; flex-direction: column; gap: var(--space-8); padding: var(--space-12) var(--space-16); border-top: 1px solid var(--line); background: var(--canvas); }
 .library-passage-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
-.library-highlight-primary { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: var(--space-8); }
-.library-highlight-primary .button { min-width: 0; padding-inline: var(--space-8); }
+.library-highlight-primary { display: grid; grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr)) var(--target-size); gap: var(--space-8); }
+.library-highlight-primary .button { min-width: 0; height: auto; padding-inline: var(--space-8); white-space: normal; }
 .library-highlight-primary .button kbd { margin-left: auto; }
 .library-mark-processed.button { border-color: var(--accent); color: var(--accent); }
-.library-highlight-secondary { display: flex; align-items: center; gap: var(--space-4); }
-.library-highlight-open-reader.button { margin-left: auto; }
-.library-highlight-color-bar { display: inline-block; flex: none; width: 2px; height: var(--space-16); background: var(--highlight-bar); }
-.library-highlight-queue-dock { display: none; }
+.library-highlight-color-bar { display: inline-block; flex: none; width: var(--space-2); height: var(--space-16); background: var(--highlight-bar); }
+.library-highlight-queue-dock { display: flex; flex: none; align-items: center; justify-content: space-between; gap: var(--space-8); padding: var(--space-12) var(--space-16); border-top: var(--rule-width) solid var(--line); background: var(--canvas); }
+.library-highlight-queue-dock > .button { display: none; }
 .library-highlight-filter-popup { padding: var(--space-16); }
 .library-highlight-filter-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .library-highlight-filter-head h2 { margin: 0; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
 .library-highlight-filter-label { margin: var(--space-16) 0 var(--space-8); color: var(--muted); font: var(--apparatus); }
+.library-highlight-scope.button { width: 100%; height: auto; min-height: var(--row-height); justify-content: space-between; white-space: normal; text-align: left; }
 .library-highlight-filter-colors { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-8); }
 .library-highlight-filter-colors .button { justify-content: flex-start; gap: var(--space-8); padding-inline: var(--space-8); }
 .library-highlight-filter-colors .button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
@@ -180,14 +165,13 @@
 .library-highlight-filter-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8); margin-top: var(--space-24); }
 .library-highlight-filter-footer .library-mark-processed { margin-left: auto; }
 @media (pointer: coarse) {
-  .library-highlight-dock .button, .library-highlight-filter-colors .button { min-height: 44px; }
-  .library-highlight-secondary .button.icon-only { flex-shrink: 0; min-width: var(--touch-target); }
+  .library-highlight-dock .button, .library-highlight-filter-colors .button, .library-highlight-scope.button { min-height: var(--touch-target); }
+  .library-highlight-primary { grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr)) var(--touch-target); }
   .library-highlight-dock kbd { display: none; }
 }
 @container library-pane (max-width: 719px) {
-  .library-highlight-selectors { flex-basis: 100%; justify-content: flex-start; }
-  .library-highlight-primary { grid-template-columns: 1fr; }
-  .library-highlight-secondary { flex-wrap: wrap; }
+  .library-highlight-primary { gap: var(--space-4); }
+  .library-highlight-primary > .button:not(.icon-only) > .icon { display: none; }
 }
 @media (max-width: 599px) and (pointer: coarse) {
   .library-highlights-tab .library-toolbar { padding-bottom: var(--page-head-gap); }
@@ -196,24 +180,15 @@
   .library-highlights-tab .library-rows { border-top: 0; }
   .library-highlight-queue .library-empty { padding-inline: var(--space-16); }
   .library-highlight-controls { gap: var(--space-8); }
-  .library-highlight-filters.button { margin-left: auto; }
-  .library-highlight-selectors { flex-basis: 100%; justify-content: space-between; padding-top: var(--space-8); border-top: 1px solid var(--line); }
-  .library-highlight-selectors .button { white-space: normal; height: auto; text-align: left; }
-  .library-highlight-source-selector.button { flex: 1; font-size: var(--text-h2); line-height: var(--line-h2); }
   .library-highlights-workbench { display: flex; }
   .library-highlight-queue { flex: 1; border-right: 0; }
-  .library-highlight-queue-head { padding-inline: var(--space-16); }
   .library-highlight-passage { display: none; }
-  .library-highlight-queue-dock { display: flex; flex: none; align-items: center; justify-content: space-between; gap: var(--space-8); padding: var(--space-12) var(--space-16); border-top: 1px solid var(--line); background: var(--canvas); }
+  .library-highlight-queue-dock > .button { display: inline-flex; }
   .library-highlight-passage-open .library-toolbar, .library-highlight-passage-open .library-highlight-queue { display: none; }
   .library-highlight-passage-open .library-highlight-passage { display: flex; flex: 1; }
   .library-back-highlights.button { display: inline-flex; padding-left: 0; }
   .library-passage-heading { padding: var(--space-12) var(--space-16); }
   .library-passage-scroll { padding: var(--space-16); }
-  .library-highlight-primary { grid-template-columns: 1.35fr 1fr 1fr; gap: var(--space-4); }
-  .library-highlight-primary .button { min-height: 48px; white-space: normal; font-size: var(--text-control); }
-  .library-highlight-secondary { flex-wrap: nowrap; }
-  .library-highlight-undo.button { align-self: flex-start; }
   .library-highlight-filter-shade { position: fixed; inset: 0 0 calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)); z-index: 45; background: color-mix(in srgb, var(--shell) 72%, transparent); }
   .library-highlight-filter-popup.popup-sheet { top: auto !important; bottom: calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)); max-height: calc(85dvh - var(--bottom-nav-height, 56px) - var(--bottom-inset)) !important; padding-bottom: var(--space-16); }
 }
@@ -285,11 +260,9 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
 .library-book-open:hover .library-cover { box-shadow: 0 0 0 var(--rule-width) var(--control-border); }
 .library-book.library-row-selected { background: none; box-shadow: none; }
 .library-book.library-row-selected .library-cover { box-shadow: 0 0 0 var(--space-2) var(--accent); }
-/* A coverless source reads as a typeset spine label: gilt siglum, a short rule, the title, centred clear of the corner controls. */
-.library-spine { display: flex; flex-direction: column; justify-content: center; gap: var(--space-8); height: 100%; padding: var(--space-12); }
-.library-spine-siglum { color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.library-spine-siglum::after { content: ""; display: block; width: var(--space-16); margin-top: var(--space-8); border-top: var(--rule-width) solid var(--line); }
-.library-spine-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; overflow-wrap: break-word; hyphens: auto; color: var(--text); font: var(--weight-title) var(--text-library-title)/var(--line-source-title) var(--font-display); font-variation-settings: var(--optical-quote); }
+/* Captions carry the title; placeholder covers carry only a centered shelfmark. */
+.library-spine { display: flex; align-items: center; justify-content: center; height: 100%; padding: var(--space-8); }
+.library-spine-siglum { max-width: 100%; overflow-wrap: anywhere; color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; }
 /* The reader's 2 px position rule, filled to `--progress`; the track shows once reading has started. */
 .library-reading-rule { display: block; height: var(--space-2); background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 0 / var(--progress, 0%) 100%; }
 .library-reading-rule.library-reading-started { background-color: var(--line); }
@@ -326,8 +299,6 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
 .library-reading-card.button:hover:not(:disabled) { background: var(--hover); border-color: var(--control-border); }
 .library-reading-card.library-reading-current { border-color: var(--accent); }
 .library-reading-card .library-cover { flex: none; align-self: flex-start; width: var(--reading-cover-width); }
-.library-reading-card .library-spine { align-items: flex-start; justify-content: center; padding: var(--space-8); }
-.library-reading-card .library-spine-title { display: none; }
 .library-reading-text { display: flex; flex: 1; flex-direction: column; gap: var(--space-4); min-width: 0; }
 .library-reading-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text); font: var(--weight-source-title) var(--text-gloss)/var(--line-source-title) var(--font-display); font-variation-settings: var(--optical-quote); }
 .library-reading-author, .library-reading-chapter { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
@@ -337,8 +308,6 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
 .library-reading-card > .book-map:not(.library-reading-map-pending) { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 .library-reading-position { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .library-reading-position > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-/* Reading now already shows every Reading source, so the Reading tab's rows would repeat it; search, filters and views bring them back. */
-.library-reading-cards .library-rows > :is([role="list"], .library-group) { display: none; }
 .library-reading-cards .library-rows { border-top: 0; }
 .library-up-next { margin-top: var(--space-4); }
 .library-up-next-book.button { display: flex; justify-content: flex-start; gap: var(--space-12); width: 100%; padding: var(--space-8) 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; font-weight: var(--weight-body); }
@@ -365,65 +334,52 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
 .library-browse-more.button { align-self: flex-start; margin-left: calc(-1 * var(--space-8)); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .library-browse-check { display: inline-flex; flex: none; width: var(--space-16); }
 .library-browse-picker .picker-row { gap: var(--space-8); }
-/* The rail and measure centre together, as the outline's apparatus margin does; 1096 px fits both with the pane's padding.
-   The measure keeps the rail's offset on every tab, rail or not, so switching tabs never slides the page sideways.
-   A library with no sources has no rail on any tab, so its measure centres alone. */
+/* Only a rendered rail reserves its column beside the measure. */
 @container library-pane (min-width: 1096px) {
-  .library-pane:not(.library-inspecting, .library-no-sources) .library-toolbar > *, .library-pane:not(.library-inspecting, .library-highlight-desk, .library-no-sources) .library-scroll > .library-main { margin-left: calc(50% + (var(--apparatus-width) + var(--space-48) - var(--measure)) / 2); margin-right: 0; }
+  .library-pane:has(.library-browse):not(.library-inspecting) .library-toolbar > * { margin-left: calc(50% + (var(--apparatus-width) + var(--space-48) - var(--measure)) / 2); margin-right: 0; }
+  .library-pane:has(.library-browse) .library-scroll > .library-main { margin-inline: 0; }
   .library-pane:has(.library-browse) .library-scroll { display: flex; align-items: flex-start; }
   .library-scroll > .library-browse { display: flex; flex: none; flex-direction: column; gap: var(--space-24); width: var(--apparatus-width); margin: 0 var(--space-48) 0 calc(50% - (var(--apparatus-width) + var(--space-48) + var(--measure)) / 2); padding-top: var(--space-4); }
-  .library-pane .library-scroll > .library-browse + .library-main { margin-left: 0; }
-  .library-browse-button.button { display: none; }
+  .library-pane:has(.library-browse) .library-browse-button.button { display: none; }
 }
-/* Cover navigation: Reading comes first; Search and Add stay in the heading, and the Inbox follows the cards as Up next. */
+/* The cover adds Up next below Reading cards without changing the shared heading. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .library-cover-header { display: flex; align-items: flex-end; gap: var(--space-4); }
-  .library-cover-header > .button { display: inline-flex; }
-  .library-tabs [data-library-tab="reading"] { order: -1; }
-  .library-toolbar > .library-tabs { gap: var(--space-8); scrollbar-width: none; }
-  .library-pane:not(.library-search-open, .library-highlights-tab) .library-controls { display: none; }
-  .library-controls > .library-add-trigger { display: none; }
+  .library-pane:not(.library-search-open, .library-highlights-tab) .library-controls:not(:has(.library-selection-count)) { display: none; }
   .library-cover-reading .library-reading { padding-top: 0; }
   .library-cover-reading .library-reading > .library-reading-heading { display: none; }
   .library-reading-books { grid-template-columns: minmax(0, 1fr); }
   .library-reading-card .library-cover { width: calc(var(--space-48) + var(--space-12)); }
 }
-/* The phone ledger uses the same boxed rhythm as Reading; its cover rail is separate from the readable title and metadata stack. */
+/* Every phone source row shares the same cover, shelfmark and metadata layout. */
 @media (max-width: 599px) {
-  .library-pane:not(.library-all-tab) .library-row-open.button { display: grid; grid-template-columns: minmax(0, 1fr) auto; height: auto; gap: var(--space-4) var(--space-8); padding-block: var(--space-8); }
-  .library-pane:not(.library-all-tab) .library-row-open :is(.library-title, .library-byline, .library-author) { grid-column: 1 / -1; max-width: none; margin: 0; }
-  .library-colhead { display: none; }
-  .library-pane:not(.library-all-tab) .library-row-open .library-siglum { display: none; }
-  .library-pane:not(.library-all-tab) .library-row-open :is(.library-state, .library-progress, .library-highlight-count) { width: auto; min-width: 0; }
-  .library-pane:not(.library-all-tab) .library-progress > .library-reading-rule { display: none; }
-  .library-row-open :is(.library-progress, .library-highlight-count, .library-year):empty { display: none; }
-  .library-all-tab .library-rows:not(.library-rows-shelf) { border-top: 0; }
-  .library-all-tab .library-rows [role="list"]:has(> .library-row.library-source-row) { display: flex; flex-direction: column; gap: var(--card-gap); }
-  .library-all-tab .library-row.library-source-row { align-items: flex-start; gap: var(--section-item-gap); padding: var(--card-padding); border: var(--rule-width) solid var(--line); border-radius: var(--space-8); background: var(--raised); contain-intrinsic-size: auto calc(var(--space-48) * 3); }
-  .library-all-tab .library-source-row .library-leading { flex-basis: calc(var(--space-48) + var(--space-12)); height: auto; aspect-ratio: 2 / 3; }
-  .library-all-tab .library-source-image { width: 100%; height: 100%; }
-  .library-all-tab .library-row-open.button { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; height: auto; padding: 0; gap: var(--section-item-gap); white-space: normal; }
-  .library-all-tab .library-row-open .library-title { grid-column: 1 / -1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; line-height: var(--line-source-title); }
-  .library-all-tab .library-byline { grid-column: 1 / -1; max-width: none; margin: 0; }
-  .library-all-tab .library-row-open :is(.library-siglum, .library-year) { display: none; }
-  .library-all-tab .library-state { width: auto; min-width: 0; }
-  .library-all-tab .library-progress { grid-column: 1 / -1; width: 100%; min-width: 0; min-height: var(--target-size); }
-  .library-all-tab .library-row > .button:last-child { flex: none; opacity: 1; }
+  .library-rows:has(.library-source-row):not(.library-rows-shelf) { border-top: 0; }
+  .library-rows [role="list"]:has(> .library-row.library-source-row) { display: flex; flex-direction: column; gap: var(--card-gap); }
+  .library-row.library-source-row { align-items: flex-start; gap: var(--section-item-gap); padding: var(--card-padding); border: var(--rule-width) solid var(--line); border-radius: var(--space-8); background: var(--raised); contain-intrinsic-size: auto calc(var(--space-48) * 3); }
+  .library-source-row .library-leading { flex-basis: calc(var(--space-48) + var(--space-12)); height: auto; aspect-ratio: 2 / 3; }
+  .library-source-row .library-source-image { width: 100%; height: 100%; }
+  .library-source-row .library-row-open.button { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; height: auto; padding: 0; gap: var(--section-item-gap); white-space: normal; }
+  .library-source-row .library-row-open .library-siglum { grid-column: 1; grid-row: 1; width: auto; }
+  .library-source-row .library-row-open .library-title { grid-column: 1 / -1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; line-height: var(--line-source-title); }
+  .library-source-row .library-byline { grid-column: 1 / -1; max-width: none; margin: 0; }
+  .library-source-row .library-row-open .library-year { display: none; }
+  .library-source-row .library-state { grid-column: 2; grid-row: 1; width: auto; min-width: 0; }
+  .library-source-row .library-progress { grid-column: 1 / -1; width: 100%; min-width: 0; min-height: var(--target-size); }
+  .library-source-row .library-highlight-count { width: auto; min-width: 0; }
+  .library-source-row .library-row-open :is(.library-progress, .library-highlight-count):empty { display: none; }
+  .library-source-row > .button:last-child { flex: none; opacity: 1; }
+  .library-start-reading-label { display: none; }
+  .library-start-reading.button { position: static; flex: none; transform: none; }
 }
 
-/* Collections keep their ordinary page identity; a small fan previews at most three member covers. */
+/* Collections preview up to four member covers in a flat two-by-two grid. */
 /* The Collections heading stands in for the controls row at the same height, so switching tabs keeps the content in place. */
 .library-collection-heading { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); min-height: var(--space-32); }
 .library-collection-heading h2 { flex: 1; min-width: 0; margin: 0; overflow-wrap: anywhere; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
 .library-collections { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(var(--shelf-cover-width) * 2)), 1fr)); gap: var(--card-gap); }
 .library-collection-card.button { display: flex; flex-wrap: wrap; justify-content: flex-start; width: 100%; height: 100%; padding: var(--card-padding); gap: var(--space-12); border: var(--rule-width) solid var(--line); border-radius: var(--space-8); background: var(--raised); text-align: left; white-space: normal; }
 .library-collection-card.button:hover:not(:disabled) { background: var(--hover); border-color: var(--control-border); }
-.library-collection-covers { position: relative; display: flex; align-items: center; justify-content: center; flex: 0 0 100%; height: calc(var(--work-cover-width) * 1.8); padding-block: var(--space-12); color: var(--faint); }
-.library-collection-covers > .library-cover { position: absolute; width: var(--work-cover-width); transform-origin: center bottom; }
-.library-collection-covers > .library-cover:first-child:not(:last-child) { transform: translateX(calc(-1 * var(--space-16))) rotate(-10deg); }
-.library-collection-covers > .library-cover:nth-child(2) { transform: translateX(var(--space-16)) rotate(10deg); }
-.library-collection-covers > .library-cover:nth-child(3) { transform: none; }
-.library-collection-covers .library-spine-title { font-size: var(--text-control); }
+.library-collection-covers { display: grid; grid-template-columns: repeat(2, var(--reading-cover-width)); grid-template-rows: repeat(2, calc(var(--reading-cover-width) * 3 / 2)); justify-content: center; gap: var(--space-8); flex: 0 0 100%; color: var(--faint); }
+.library-collection-covers > .icon { grid-column: 1 / -1; grid-row: 1 / -1; align-self: center; justify-self: center; }
 .library-collection-title { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text); font: var(--weight-source-title) var(--text-library-title)/var(--line-source-title) var(--font-display); }
 .library-collection-name { display: flex; flex-direction: column; gap: var(--space-8); }
 .library-collection-notice { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
@@ -444,11 +400,11 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
   .library-collection-chip-new::after { opacity: 0; }
 }
 .library-collection-chip > span { overflow-wrap: anywhere; }
+.library-pane:has(.library-selection-count) .library-controls { display: flex; }
 @media (pointer: coarse) {
   .library-pane .library-checkbox.button { opacity: 1; }
   .library-leading .library-checkbox.button { inset: auto auto 0 0; width: var(--target-size); height: var(--target-size); background: var(--surface); }
   .library-pane .library-source-image { opacity: 1; }
-  .library-pane:has(.library-selection-count) .library-controls,
   .library-pane:has(.library-collection-heading) .library-controls { display: flex; }
 }
 /* The phone shows covers whole; Select reveals the checkboxes, and a tap anywhere on a source then toggles it. */

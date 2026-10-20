@@ -1,14 +1,12 @@
 import { Show } from 'solid-js';
 import type { LibraryRow } from '../api/types';
 import { ResourceImage } from './ResourceImage';
-import { displayTitle } from '../outline/names';
 
-/** A source's cover, or for a source without one a typeset spine: its siglum in gilt over the title. */
+/** Coverless sources keep only their siglum, with the title in the caption. */
 export function SourceCover(props: { row: LibraryRow; siglum: string }) {
   return <span class="library-cover" data-source-cover={props.row.page.id}>
     <Show when={props.row.cover} fallback={<span class="library-spine" aria-hidden="true">
       <span class="library-spine-siglum">{props.siglum}</span>
-      <span class="library-spine-title">{displayTitle(props.row.page.text)}</span>
     </span>}>
       <ResourceImage snapshotId={props.row.source.current_snapshot_id ?? ''} href={props.row.cover!} alt="" loading="lazy" />
     </Show>

@@ -8,30 +8,30 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ### Header and tabs
 
-The header starts with Reading, Inbox and Highlights with its unprocessed count, then All, Collections, Finished, Abandoned and saved views. Zero counts are left out. The selected tab's 2 px gilt rule spans its label and count on the strip's baseline. The last tab is remembered per workshop.
+Every layout starts with the `Sources and highlights` eyebrow and the Library title. Source tabs offer Select and Add actions. The touch cover layout also has Search beside the title; source tabs elsewhere keep the search field visible below the tabs. Collections and Highlights keep their own heading actions. Reading, Inbox and Highlights are the fixed primary tabs; only Highlights shows its nonzero unprocessed count. More holds All, Collections, Finished, Abandoned and saved views, including Not started when saved, and takes the chosen secondary view's name. The selected tab's 2 px gilt rule spans its label and count on the strip's baseline. The last tab is remembered per workshop.
 
-Under the tabs sit a 28 px search field, a sort menu (Added, Title, Author, Year, Last read, Progress, then Group and Save view…), the List and Shelf toggles, Browse, an Export menu (BibTeX, CSL JSON, Markdown) for the selection or the listed sources, and Add. Every tab keeps this row at one height and the same controls, Browse disabled where the tab has nothing to browse and Export disabled while nothing is listed; Collections puts its heading and New collection in the same row. On wide panes the tab strip and the list keep the Browse rail's offset on every tab, so switching tabs never moves them sideways. A library with no sources has no rail on any tab, so its tabs, controls and empty state center in one measure, Highlights included.
+Source tabs show a controls row below the tabs: a 28 px search field, a sort menu (Added, Title, Author, Year, Last read, Progress, then Group and Save view…), the List and Shelf toggles, Browse and an Export menu (BibTeX, CSL JSON, Markdown) for the selection or the listed sources. On the touch cover layout, Search reveals this row. Browse is disabled where the tab has nothing to browse and Export while nothing is listed. Collections puts its heading and New collection below the tabs. Without a Browse rail, the heading, controls and sources share the centered page measure. A rendered rail and the source measure are centered together; no empty side column is reserved.
 
 Tabs, Browse values, sorting and search answer at once in the toolbar, while the rows below keep showing the previous result until the new rows arrive. The panel then cross-fades to them in one step, together with its headings, Reading now and the filter chips. Typing waits for a short pause; a tab, filter or sort loads at once, and a tab already visited shows its last rows immediately and refreshes them quietly. Loading… appears only when nothing of that kind is loaded and the load takes over 300 ms. Returning to the Library, by Back, the sidebar or in the other pane, shows its last rows, tab, layout and scroll in the first frame and refreshes them quietly. Reading cards keep their last chapter, map and time left from earlier visits.
 
 | Context | Header behavior |
 | --- | --- |
-| State and saved-view tabs | Names stay on one line. |
-| Narrow desktop pane | Tabs and saved views stay in order while they fit; the rest move into a More menu at the strip's end, which takes the selected one's name when it is among them. The strip never scrolls. |
+| Primary tabs | Reading, Inbox and Highlights stay visible on one line. Secondary and saved views open from More. |
+| Desktop pane | The heading and primary tabs match the phone; source controls stay visible below the tabs, without a Search action beside the title. The strip never scrolls. |
 | Half pane | Controls wrap under a full-width search field. |
-| Phone | Reading, Inbox and Highlights remain visible. More contains All, Collections, Finished, Abandoned and saved views; its label preserves the selected secondary view. Reading and Inbox counts give way before the Highlights count. |
+| Touch cover | More preserves the selected secondary view's name; only Highlights shows a count. Search reveals the source controls. |
 
 ### List
 
 Rows read as a ledger on one 28 px line:
 
 - A leading slot holds a book or article glyph in `--faint`. A 28 px row cannot show a cover legibly, so covers appear in the Shelf, Reading now and the phone ledger's taller rows.
-- On Inbox the siglum steps aside. The title is followed by a fixed author column in `--muted`: the first author, else the editor, else the site. A long title cannot eat the name, and a duplicate second name stays in the record rather than the row. A faint mono `Author` head sits over that column, aligned with it in grouped and ungrouped lists. Other tabs keep the mono siglum, gilt on hover, and the ragged byline (creators, else site), which truncates before the title.
-- Trailing fixed-width mono columns show year, progress and the unprocessed highlight count, so figures line up across rows. Inside a year group the year column steps aside, because the heading already says it. An empty progress or highlight cell reserves no width on Inbox.
+- Every tab uses the same row: the mono siglum, gilt on hover, then title and a muted ragged byline (creators, else site), which truncates before the title.
+- Trailing fixed-width mono columns show state in views spanning states, year, progress and the unprocessed highlight count, so figures line up across tabs. Inside a year group the year column steps aside, because the heading already says it. Inbox rows offer Start reading on hover or focus, always visible without hover; it changes the source's state to Reading.
 
-Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows only its state-change date (`Oct 11`, named `Finished Oct 11` on hover), never a percentage, since the tab or the state column already says Finished. All and saved views spanning states add a state column (`Inbox`, `Reading`, `Finished`, `Abandoned`) in `--faint` before the year.
+Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows `Finished 2026-10-19` using its ISO state-change date, never a percentage or a second Finished label. State-specific tabs omit the redundant state column.
 
-In a pane narrower than 560 px on a wide screen, the state, author and year columns step aside and progress keeps only its number, so the title keeps its room. Below 600 px, ledger rows stack the title and author or byline across the available width, omit the siglum, and put compact metadata beneath; empty progress, highlight and year cells reserve no space. All and collection ledgers retain their taller card layout.
+In a pane narrower than 560 px on a wide screen, the state, byline and year columns step aside and progress keeps only its number, so the title keeps its room. Below 600 px, every source ledger uses the same taller card layout, retaining the siglum beside any needed state and stacking the title, byline and compact metadata. Empty progress and highlight cells reserve no space.
 
 The leading slot shows a selection checkbox on hover, focus, or while any row is selected. On a phone the checkboxes stay hidden so covers show whole: Select in the heading reveals them and turns a tap on a source into a toggle rather than opening it, and Done, Clear selection, Escape or a new tab or search ends it. A long press still opens the source's details outside Select. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details (while the catalog card is closed), Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Beside an open card, a ledger narrower than 840 px (1000 px inside a collection, which adds Remove from collection) shows Browse, Export, Add to collection, Delete and Clear selection as glyphs named in tooltips, and Remove without its object, so the bar stays one line. Escape clears.
 
@@ -52,7 +52,7 @@ The shelf is a grid of 2:3 covers at least `--shelf-cover-width` wide, sharing a
 - The byline in `--muted`.
 - One mono apparatus line in `--faint`: siglum (gilt on hover), state in views spanning states, year, progress (none once finished) and the unprocessed highlight count.
 
-A source without a cover gets a typeset spine on `--surface`: the gilt siglum over a short rule and the title, centered clear of the corners. Spine titles hyphenate long words and break one mid-word only when it cannot fit alone.
+A source without a cover gets a placeholder on `--surface` with only its centered gilt siglum. The caption carries its title; the same placeholder is used on the shelf, Reading now and collection previews.
 
 The selection checkbox and the actions button sit on the cover's top corners and appear as in the list, on a phone only in Select. A selected cover takes a 2 px accent ring.
 
@@ -64,7 +64,7 @@ Title sorting uses the finding aid's case- and diacritic-folded filing key, so a
 
 ### Group
 
-The sort menu has a second section, Group: None, Author, Year, Decade, Publisher or Language. A source sits in one group. A new library pane starts on Year. A pane saved before Year existed, still on None, is offered Year once on this device; choosing None after that sticks. Grouping belongs to the pane, so the choice also groups All.
+The sort menu has a second section, Group: None, Author, Year, Decade, Publisher or Language. A new library pane starts ungrouped, sorted by Added. Explicit grouping choices remain pane state and also group All.
 
 | Group | Basis | Group order | Missing value, placed last |
 | --- | --- | --- | --- |
@@ -78,14 +78,14 @@ Rows keep the chosen sort within each group, and Shift-click ranges follow the g
 
 ### Browse
 
-Browse narrows the sources by People, Decades, Publishers and Languages. Inbox shows Years in place of Decades. The service counts each value over the current tab and search, ignoring the Browse filters themselves, so every value the tab offers stays visible. Years are the first four digits of the published date, newest first, not the six commonest; undated sources are not a year.
+Browse narrows the sources by People, Decades, Publishers and Languages on every tab. The service counts each value over the current tab and search, ignoring the Browse filters themselves, so every value the tab offers stays visible.
 
 Values combine with OR inside a field and AND across fields. People match as author, editor or translator, by page, so a renamed person keeps their filter. Languages count by primary code, so `en`, `en-US`, `eng` and case-insensitive English language names such as `English` are one English. Imports resolve ISO language names to codes; existing catalog fields are normalized when read, without rewriting their authored text.
 
 | Pane width | Browse presentation |
 | --- | --- |
-| At least 1096 px | A 240 px rail left of the measure, the two centered together. It shows each field's six commonest values with their counts, or the six newest years, chosen values pressed, and `All N` opening the rest in a picker. The rail's offset stays on every tab, so switching between Inbox and All does not slide the list. With no sources at all, the offset drops and the measure centers alone. |
-| Narrower | A Browse glyph beside the layout toggles, pressed while any filter applies. It opens one sectioned picker. |
+| At least 1096 px, with at least 20 sources in the library | A 240 px rail left of the measure, the two centered together. It shows each field's six commonest values with their counts, chosen values pressed, and `All N` opening the rest in a picker. Only a rendered rail reserves its column; Collections has no empty rail offset. |
+| Narrower, or fewer than 20 sources | A Browse glyph beside the layout toggles, pressed while any filter applies. It opens one sectioned picker. |
 
 Chosen values also show as removable chips under the controls with Clear filters. Continue reading steps aside while Browse filters apply. Filters travel with the query, so saved views and Export of the listed sources keep them.
 
@@ -99,7 +99,7 @@ The Works heading and shelf share the page title's left edge. Works and its coun
 
 ### Reading now
 
-Reading now leads the unsearched, unfiltered Reading and All tabs with one card for every Reading source, including books not yet started, in the toolbar's sort order. Other tabs list only their own state. On the Reading tab the cards are the list: they replace the rows in the ungrouped List layout, while Shelf shows the covers and a grouping shows grouped rows instead; a search, filter or saved view brings the rows back. Each card reads top-down:
+Reading now appears only on the unsearched, unfiltered Reading tab, with one card for every Reading source, including books not yet started, in the toolbar's sort order. The cards are the list: they replace the rows in the ungrouped List layout, while Shelf shows the covers and a grouping shows grouped rows instead. The touch cover layout keeps Reading cards in either layout and with grouping, without duplicate rows below Up next. A search, filter or saved view brings the rows back on every layout. All lists each source once, without a Reading now card above it. Each card reads top-down:
 
 - Its real cover or spine tile, 56 px wide, beside the title on up to two lines, the author and the current chapter (`4 · Deus Vult!`; `Not started` before any reading, `Reading position` in front matter). Cards use a wider two-column measure so short articles retain their identities; authors and chapter labels also wrap to two lines instead of clipping to one.
 - Under the cover, spanning the card, the segmented chapter map, then `N min left` inside a named chapter (the full `N min left in chapter` on hover) and the book's percentage on one line. The maps sit at the cards' feet, level across a row. Until the source's contents load, a plain track holds the map's place, so the card never grows.
@@ -378,7 +378,7 @@ A block whose text no longer equals the quote shows the quote beneath it in `--m
 
 ### Cards and membership
 
-Collections follows All in the Library's mode tabs. Each card fans up to three member covers above the page name and a mono count. New collection creates an ordinary page typed Collection.
+Collections lives in the Library's More menu. Each card previews up to four member covers in a flat two-by-two grid above the page name and a mono count. Placeholder covers show only the siglum. New collection creates an ordinary page typed Collection.
 
 The first collection adds a Collections Instance field that links to the Collection type, and appends it to the Book and Article templates that exist. A later collection adds it to library types imported since. Membership lives in that field's reference values, so the collection page's backlinks list its sources and ordinary sync carries every edit.
 
