@@ -226,12 +226,13 @@ async function seed() {
   const where = out.block(fieldsPage, 'Where');
   const attendees = out.block(fieldsPage, 'Attendees');
   const followUp = out.block(fieldsPage, 'Follow-up');
-  const status = out.block(fieldsPage, 'Status');
-  const statuses = Object.fromEntries(['Draft', 'Review', 'Done'].map(name => [name, out.block(status, name)]));
+  // Not `Status`: built-in task fields claim their names, so a user Status would merge into the task one.
+  const progress = out.block(fieldsPage, 'Progress');
+  const statuses = Object.fromEntries(['Draft', 'Review', 'Done'].map(name => [name, out.block(progress, name)]));
   await out.commit('Types and fields');
   await on(lastContact, base => ({ op: 'set_field_kind', id: lastContact, base_revision: base, kind: 'date' }), 'Last contact is a date');
   await on(stage, base => ({ op: 'set_field_kind', id: stage, base_revision: base, kind: 'choice' }), 'Stage is a choice');
-  for (const [id, kind] of [[rating, 'number'], [owned, 'checkbox'], [website, 'url'], [metAt, 'instance'], [priority, 'choice'], [recommendedBy, 'instance'], [attendees, 'instance'], [followUp, 'checkbox'], [status, 'choice']] as const) {
+  for (const [id, kind] of [[rating, 'number'], [owned, 'checkbox'], [website, 'url'], [metAt, 'instance'], [priority, 'choice'], [recommendedBy, 'instance'], [attendees, 'instance'], [followUp, 'checkbox'], [progress, 'choice']] as const) {
     await on(id, base => ({ op: 'set_field_kind', id, base_revision: base, kind }), 'Field kind');
   }
   for (const [id, targets] of [[metAt, [place]], [recommendedBy, [person]], [attendees, [person]]] as const) {
@@ -259,7 +260,7 @@ async function seed() {
   out.block(hana, 'Commissioned the slow reading essay. Prefers a draft early over a polished draft late.');
   out.block(hana, 'Likes concrete openings; cut throat-clearing.');
   const editorialNote = out.block(hana, 'Editorial follow-up on the slow reading essay');
-  out.field(editorialNote, status, link(statuses.Review));
+  out.field(editorialNote, progress, link(statuses.Review));
   const opening = out.block(editorialNote, 'Try opening with the train journey rather than a definition.');
   out.block(opening, 'Keep the reader in the scene until the first concrete example.');
   out.block(editorialNote, `Send the revised opening after the call on ${day(-6)}.`);

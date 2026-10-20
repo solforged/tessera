@@ -20,6 +20,11 @@ export function kindNoun(kind: FieldKind): string {
   return kind === 'url' ? 'URL' : kindLabels[kind].toLowerCase();
 }
 
+/** A field's name as people read it: built-ins are stored lowercase (`status`) but read in sentence case. */
+export function fieldLabel(field: { name: string; built_in?: boolean }): string {
+  return field.built_in ? field.name.charAt(0).toLocaleUpperCase() + field.name.slice(1) : field.name;
+}
+
 /** Why a field name is refused; creation and rename share syntax and notebook-wide uniqueness. */
 export function fieldNameProblem(name: string, fields: readonly { id: string; name: string }[] = [], exceptId?: string): string | null {
   const text = name.trim();
