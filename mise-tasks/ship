@@ -38,7 +38,9 @@ else
 fi
 # The worktree's mise.toml is this repository's, at another path.
 mise trust --quiet "$src/mise.toml"
-TESSERA_BUILD="$build" mise --cd "$src" run --quiet desktop:build --bundles app >/dev/null
+# The bundle is copied from the worktree's own target below; a caller's
+# CARGO_TARGET_DIR would build elsewhere and leave a stale bundle there.
+CARGO_TARGET_DIR="$src/target" TESSERA_BUILD="$build" mise --cd "$src" run --quiet desktop:build --bundles app >/dev/null
 
 # Replacing the app replaces the binary the agent may run, so keep a copy to
 # roll back to.

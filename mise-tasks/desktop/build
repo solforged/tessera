@@ -13,10 +13,13 @@ if [ -z "${TESSERA_BUILD:-}" ]; then
 fi
 export TESSERA_BUILD
 host=$(rustc -vV | sed -n 's/^host: //p')
+# Cargo and Tauri write wherever CARGO_TARGET_DIR points, so the sidecar must
+# come from there too, or a stale ./target copy ships.
+target_dir=${CARGO_TARGET_DIR:-target}
 
 cargo build --quiet --release --locked -p tessera-cli --features embed-web
 mkdir -p crates/tessera-desktop/binaries
-cp target/release/tessera "crates/tessera-desktop/binaries/tessera-$host"
+cp "$target_dir/release/tessera" "crates/tessera-desktop/binaries/tessera-$host"
 
 config='"externalBin":["binaries/tessera"]'
 if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
