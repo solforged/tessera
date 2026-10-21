@@ -6,6 +6,7 @@ import { api } from '../api/client';
 import type { QueryAttributeValue, FieldDefinition, FieldKind, Fields, FieldValue, NoteIndex, Operation, Query, QueryResult, QueryRow, SortKey, Type, View } from '../api/types';
 import type { NotebookClient, PageDocument, RelationPickIntent } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
+import { titleKey } from '../document/title-key';
 import { BlockText } from '../outline/BlockText';
 import { plainText } from '../outline/names';
 import { EmbedOnPagePicker } from '../outline/ViewPicker';
@@ -582,7 +583,9 @@ function TableContent(props: TablePaneProps) {
     const text = current.text.trim();
     if (!text) { setError('A title cannot be empty.'); return; }
     const id = current.row.block.block.id;
-    const duplicate = current.row.block.block.kind !== 'block' && props.notebook.roots().some(root => root.id !== id && root.text.toLocaleLowerCase() === text.toLocaleLowerCase());
+    const duplicate = current.row.block.block.kind === 'page'
+      ? props.notebook.roots().some(root => root.kind === 'page' && root.id !== id && titleKey(root.text) === titleKey(text))
+      : current.row.block.block.kind === 'journal' && props.notebook.roots().some(root => root.kind === 'journal' && root.id !== id && root.text === text);
     if (duplicate) { setError('An atom already has that title.'); return; }
     setRenaming(null);
     if (returnFocus) focusCell(id, null);

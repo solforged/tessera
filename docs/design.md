@@ -328,7 +328,7 @@ Creation rows offer Add “{q}” to library for a whole source identifier, or C
 | Highlights | Case-insensitive quotation, authored text and tag matching against up to 500 highlights loaded once per opening |
 | Passages | Search starts after three characters, debounces by 100 ms and cancels superseded requests; up to 40 matches. Source siglum, chapter when available and paragraph number |
 | Books | Actual percentage and highlight count |
-| Pages | NFC-normalized, Unicode-casefolded exact title comes first, including a locally created page not yet in server search, and suppresses creation rows |
+| Pages | The exact identity name (title tags removed, then NFC-normalized and Unicode-casefolded) comes first, including a locally created page not yet in server search, and suppresses creation rows |
 
 At wide widths the finder has equal index and preview halves: page titles with their first lines; block matches in their full surrounding outline, with ancestors dimmed, the target highlighted and scrolled into view; or a passage between its neighbors with highlight ranges and every search term marked. Block previews scroll their outline independently of the page title and opening keys.
 

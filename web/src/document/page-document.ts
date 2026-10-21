@@ -1715,7 +1715,7 @@ export class Document implements PageDocument {
           break;
         case 'addField': {
           const root = this.root();
-          if (root?.kind !== 'page' || root.text.toLowerCase() !== 'fields') throw new Error('Field definitions belong on the Fields register.');
+          if (root?.kind !== 'page' || titleKey(root.text) !== 'fields') throw new Error('Field definitions belong on the Fields register.');
           if (!edit.name.trim()) throw new Error('A field needs a name.');
           const id = insert(this.pageId, this.outline.children(this.pageId).at(-1) ?? null, edit.name);
           if (edit.value !== 'text') actions.push({ kind: 'fieldKind', id, value: edit.value, previous: 'text' });

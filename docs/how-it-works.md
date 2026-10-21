@@ -65,7 +65,7 @@ The [block model](domain-model.md#blocks) maps pages, journal days and outline r
 | `page_id` | Owning root; equal to `id` on roots |
 | `ordinal` | Integer sibling-order key |
 | `text` | Authored source text, or root title/date |
-| `title_key` | Lowercased page title for lookup and uniqueness; null on other kinds |
+| `title_key` | NFC-normalized, Unicode default case-folded identity name for lookup and uniqueness: remove title tags and collapse adjoining whitespace, but keep untagged and tag-only titles verbatim before folding; null on other kinds |
 | `heading` | Null or heading level 1, 2 or 3 |
 | `archived` | Boolean flag on this row |
 | `revision` | Positive revision of this block's stored state |

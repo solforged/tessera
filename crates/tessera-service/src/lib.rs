@@ -1862,12 +1862,17 @@ mod tests {
         let mut notebook = Notebook::open(dir.path()).unwrap();
         let page = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
         let kind = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
+        let lab = "01ARZ3NDEKTSV4RRFFQ69G5FAX";
         notebook
             .apply(&Batch {
                 actor: Actor::Person,
                 reason: None,
                 idempotency_key: None,
                 operations: vec![
+                    tessera_core::Operation::CreatePage {
+                        id: lab.into(),
+                        title: "Lab #project".into(),
+                    },
                     tessera_core::Operation::CreatePage {
                         id: page.into(),
                         title: "Cicero".into(),
@@ -1918,6 +1923,23 @@ mod tests {
             notifications.try_recv(),
             Err(broadcast::error::TryRecvError::Empty)
         ));
+
+        for path in [
+            "/api/pages/by-title/Lab",
+            "/api/pages/by-title/lab%20%23project",
+        ] {
+            let found = request(&app, "GET", path, None).await;
+            assert_eq!(found["id"], lab);
+            assert!(found["text"].as_str().unwrap().starts_with("Lab #[["));
+        }
+        assert_eq!(
+            request(&app, "GET", "/api/names/lab", None).await[0]["page"]["id"],
+            lab
+        );
+        assert_eq!(
+            request(&app, "GET", "/api/complete?q=La&limit=1", None).await[0]["id"],
+            lab
+        );
 
         let matches = request(&app, "GET", "/api/names/tully", None).await;
         assert_eq!(matches[0]["page"]["id"], page);

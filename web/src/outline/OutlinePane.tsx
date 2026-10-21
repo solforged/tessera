@@ -34,6 +34,7 @@ import { Popup } from '../ui/Popup';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { BlockText } from './BlockText';
 import { displayTitle, plainText, tagLabel } from './names';
+import { titleKey } from '../document/title-key';
 import { isStableReference, isViewReference, textTokens } from '../document/text-tokens';
 import type { Token } from '../document/text-tokens';
 import { PaneEditor } from './editor';
@@ -207,8 +208,8 @@ function Pane(props: OutlinePaneProps) {
   const [mergeTarget, setMergeTarget] = createSignal<{ page: Block; from: { id: string; text: string }; anchor: HTMLElement }>();
   const [tagRegistry] = createResource(() => [props.notebook.changeSequence(), props.notebook.connection()] as const, () => readTagRegistry(props.notebook));
   const titleCollision = createMemo(() => {
-    const value = title().trim().toLocaleLowerCase();
-    return renaming() && value ? props.notebook.roots().find(page => page.id !== props.pageId && page.kind === 'page' && page.text.toLocaleLowerCase() === value) : undefined;
+    const value = titleKey(title().trim());
+    return renaming() && value ? props.notebook.roots().find(page => page.id !== props.pageId && page.kind === 'page' && titleKey(page.text) === value) : undefined;
   });
   const [conflicts, setConflicts] = createSignal(new Set<string>());
   const [editedConflicts, setEditedConflicts] = createSignal(new Set<string>());
@@ -332,7 +333,7 @@ function Pane(props: OutlinePaneProps) {
       if (!offer || disposed) return;
       const name = definitionsById().get(fieldId)?.name ?? 'This field';
       // The tag as the owner spells it, else the type's title.
-      const typed = textTokens(owner.text).find(token => token.kind === 'tag' && (token.id ? token.id === offer.type.page.id : token.value.trim().toLowerCase() === offer.type.page.text.toLowerCase()));
+      const typed = textTokens(owner.text).find(token => token.kind === 'tag' && (token.id ? token.id === offer.type.page.id : titleKey(token.value.trim()) === titleKey(offer.type.page.text)));
       const tag = typed ? `#${offer.type.page.text}` : offer.type.page.text;
       showNotice(`${name} is on another ${tag} too.`, undefined, { label: `Add to ${tag}`, run: async () => {
         const change = await addTemplateField(props.notebook, offer.type, fieldId);

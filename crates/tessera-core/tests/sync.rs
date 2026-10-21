@@ -973,7 +973,7 @@ fn the_same_day_and_the_same_title_made_offline_become_one() {
             insert(11, &id(10), None, "Desktop morning"),
             Operation::CreatePage {
                 id: id(12),
-                title: "Reading".into(),
+                title: "Lab #project".into(),
             },
             insert(13, &id(12), None, "Desktop book"),
         ],
@@ -988,7 +988,7 @@ fn the_same_day_and_the_same_title_made_offline_become_one() {
             insert(21, &id(20), None, "Phone train ride"),
             Operation::CreatePage {
                 id: id(22),
-                title: "reading".into(),
+                title: "lab".into(),
             },
             insert(23, &id(22), None, "Phone article"),
         ],
@@ -1002,6 +1002,13 @@ fn the_same_day_and_the_same_title_made_offline_become_one() {
     p.sync();
     p.assert_converged();
     assert!(p.replica.block(&id(20)).is_err());
+    assert!(p.replica.block(&id(22)).is_err());
+    assert_eq!(p.hub.page_by_title("Lab").unwrap().unwrap().id, id(12));
+    assert_eq!(
+        p.replica.page_by_title("Lab #project").unwrap().unwrap().id,
+        id(12)
+    );
+    assert!(p.hub.block(&id(12)).unwrap().text.starts_with("Lab #[["));
     assert_eq!(
         children(&p.replica, &id(10)),
         ["Desktop morning", "Phone train ride", "Phone evening"]

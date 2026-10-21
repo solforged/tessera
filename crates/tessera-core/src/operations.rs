@@ -856,13 +856,14 @@ impl Engine<'_, '_> {
             // Queries store IDs (including nested source/filter IDs) and free text.
             // Search text naming a title also claims that page. Settings currently
             // hold only time_zone and vim; pins are local client navigation state.
+            // This is query prose, not a page title: #title still claims Title.
             let query_values = self.tx.prepare_cached(
                 "SELECT DISTINCT j.atom FROM (
                      SELECT query FROM views UNION ALL SELECT query FROM decks
                      UNION ALL SELECT query FROM task_views UNION ALL SELECT query FROM library_views
                  ) saved, json_tree(saved.query) j WHERE j.type = 'text'"
             )?.query_map([], |row| row.get::<_, String>(0))?
-                .map(|value| value.map(|value| crate::storage::title_key(&value)))
+                .map(|value| value.map(|value| crate::storage::fold_title(&value)))
                 .collect::<rusqlite::Result<Vec<_>>>()?;
             let mut deleted = false;
             for (id, title) in candidates {
@@ -1374,7 +1375,7 @@ impl Engine<'_, '_> {
         if page.block.kind != BlockKind::Page {
             return Err(validation("only titled atoms can be merged"));
         }
-        if page.block.text.to_lowercase() == "fields" {
+        if crate::storage::tag_title_matches(&page.block.text, "fields") {
             return Err(validation("the Fields register cannot be merged"));
         }
         let source: bool = self

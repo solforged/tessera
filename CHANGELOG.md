@@ -6,6 +6,14 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ## Unreleased
 
+### Changed
+
+- Made page names ignore tags, so `[[Lab]]`, Find and agents reach `Lab #project` and a second Lab is refused as a duplicate. On upgrade, the newer of two pages that now share a name gets the first free `(2)`, `(3)` suffix.
+
+### Fixed
+
+- Fixed phone reading: Reading now cards open the book at the saved position, Add atom on a bare highlight opens the note sheet, the reader's Back, settings and actions fit the width, jumps offer a way back, peeks no longer save a position, and each pane tab closes its own pane.
+
 ## 0.5.0, 2026-10-21
 
 ### Added

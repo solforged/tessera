@@ -437,8 +437,13 @@ pub(crate) fn tag_names(text: &str) -> impl Iterator<Item = &str> {
     tag_tokens(text).map(|token| token.title)
 }
 
-/// Unicode 16 default full case folding in NFC; never rewrites authored text.
+/// A page's identity name, NFC-normalized and Unicode 16 default case-folded.
 pub(crate) fn title_key(title: &str) -> String {
+    fold_title(&identity_name(title))
+}
+
+/// The pre-053 spelling rule, also used after identity extraction.
+pub(crate) fn fold_title(title: &str) -> String {
     if title.is_ascii() {
         return title.to_ascii_lowercase();
     }
@@ -446,10 +451,11 @@ pub(crate) fn title_key(title: &str) -> String {
 }
 
 pub(crate) fn tag_title_matches(title: &str, title_key: &str) -> bool {
+    let title = identity_name(title);
     if title.is_ascii() && title_key.is_ascii() {
         title.eq_ignore_ascii_case(title_key)
     } else {
-        self::title_key(title) == title_key
+        fold_title(&title) == title_key
     }
 }
 
@@ -650,14 +656,9 @@ pub fn render_tags<'a, 'b>(
     }
 }
 
-/// A root's title as surfaces display it: the authored text with its tag
-/// tokens removed and the whitespace around them collapsed. A title that is
-/// nothing but tags keeps them, rendered as `render_tags` does. Title keys
-/// and lookups keep the authored text.
-pub fn display_title<'a, 'b>(
-    text: &'a str,
-    title: impl FnMut(&str) -> Option<&'b str>,
-) -> std::borrow::Cow<'a, str> {
+/// The name shared by page identity and display: remove tag tokens and collapse
+/// adjoining whitespace. Untagged and tag-only titles keep their full text.
+pub fn identity_name(text: &str) -> std::borrow::Cow<'_, str> {
     let mut tags = tag_tokens(text).peekable();
     if tags.peek().is_none() {
         return std::borrow::Cow::Borrowed(text);
@@ -670,9 +671,20 @@ pub fn display_title<'a, 'b>(
     }
     push_words(&mut output, &text[cursor..]);
     if output.is_empty() {
-        return render_tags(text, title);
+        return std::borrow::Cow::Borrowed(text);
     }
     std::borrow::Cow::Owned(output)
+}
+
+/// Display the identity name, rendering tag-only titles with live tag labels.
+pub fn display_title<'a, 'b>(
+    text: &'a str,
+    title: impl FnMut(&str) -> Option<&'b str>,
+) -> std::borrow::Cow<'a, str> {
+    match identity_name(text) {
+        std::borrow::Cow::Borrowed(_) => render_tags(text, title),
+        name => name,
+    }
 }
 
 fn push_words(output: &mut String, text: &str) {
@@ -755,6 +767,15 @@ impl crate::Notebook {
 #[cfg(test)]
 mod reference_tests {
     use super::{inline_code_spans, link_tokens, reference_parts, rewrite_links, tag_names};
+
+    #[test]
+    fn identity_keys_strip_only_tags_and_preserve_tag_only_titles() {
+        let cases: Vec<(String, String)> =
+            serde_json::from_str(include_str!("../tests/fixtures/title-keys.json")).unwrap();
+        for (title, key) in cases {
+            assert_eq!(super::title_key(&title), key, "{title:?}");
+        }
+    }
 
     #[test]
     fn canonical_and_legacy_tags_share_boundaries_and_code_shielding() {

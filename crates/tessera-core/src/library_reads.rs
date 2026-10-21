@@ -980,7 +980,7 @@ impl Notebook {
         let text = query
             .text
             .as_ref()
-            .map(|s| s.to_lowercase())
+            .map(|s| crate::storage::title_key(s))
             .filter(|s| !s.is_empty());
         let query_languages: Vec<_> = query
             .languages
@@ -1007,10 +1007,10 @@ impl Notebook {
             source_siglum(&mut source, &page.text, &fields);
             let creators = crate::library_export::creators(&fields).to_vec();
             if let Some(text) = &text
-                && !page.text.to_lowercase().contains(text.as_str())
+                && !crate::storage::title_key(&page.text).contains(text.as_str())
                 && !creators
                     .iter()
-                    .any(|s| s.to_lowercase().contains(text.as_str()))
+                    .any(|s| crate::storage::title_key(s).contains(text.as_str()))
             {
                 continue;
             }

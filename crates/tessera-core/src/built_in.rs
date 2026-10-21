@@ -241,7 +241,7 @@ pub(crate) fn required_fields(
     title: &str,
     template: &[String],
 ) -> Result<Vec<(String, &'static str)>> {
-    let required: Vec<&str> = schema(&title.trim().to_lowercase())
+    let required: Vec<&str> = schema(&crate::storage::title_key(title.trim()))
         .iter()
         .filter(|(_, level)| *level == Level::Required)
         .map(|(name, _)| *name)

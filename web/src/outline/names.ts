@@ -6,10 +6,15 @@ import type { MenuItem } from '../ui/Menu';
 import { documentReady } from './source-fields';
 import { cardMarks, cardOperators } from '../review/card-text';
 import { titleKey } from '../document/title-key';
+import { identityName } from '../document/title-name';
 
-/** Names compare as the core folds them: no case, diacritics or apostrophes, and any other run of spaces or punctuation is one space. */
+/** Names compare as the core folds their identity: ignore tags, case, diacritics and apostrophes; punctuation becomes spaces. */
 export function foldName(value: string): string {
-  return titleKey(value.normalize('NFD').replace(/\p{M}|['’]/gu, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim());
+  return foldWords(identityName(value));
+}
+
+function foldWords(value: string): string {
+  return titleKey(value.normalize('NFD').replace(/\p{M}|['’]/gu, '').replace(/[^\p{Alphabetic}\p{N}]+/gu, ' ').trim());
 }
 
 const highlightGraphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
@@ -21,7 +26,7 @@ export function foldedHighlights(value: string, query: string): [number, number]
   const offsets: [number, number][] = [];
   let gap: [number, number] | undefined;
   for (const { segment, index } of highlightGraphemes.segment(value)) {
-    const folded = foldName(segment);
+    const folded = foldWords(segment);
     if (!folded) {
       if (segment.normalize('NFD').replace(/\p{M}|['’]/gu, '')) gap = [gap?.[0] ?? index, index + segment.length];
       continue;
@@ -31,7 +36,7 @@ export function foldedHighlights(value: string, query: string): [number, number]
     for (let i = 0; i < folded.length; i++) offsets.push([index, index + segment.length]);
   }
   // Fold the whole string for context-sensitive lowercase forms, not each glyph independently.
-  const folded = foldName(value);
+  const folded = foldWords(value);
   const ranges: [number, number][] = [];
   for (const term of terms) {
     for (let at = folded.indexOf(term); at >= 0; at = folded.indexOf(term, at + term.length)) {
@@ -125,12 +130,10 @@ export function targetLabel(text: string, lookup: NotebookClient['lookup'], seen
   return tokens.map(token => token.kind === 'tag' ? tagLabel(token, lookup) : plainToken(token, lookup, seen)).join('').trim();
 }
 
-/** A root's title as surfaces display it: the authored text with its tag tokens removed and the whitespace around them collapsed. A title that is nothing but tags keeps them as `#Title`, or as their aliases without a lookup. Title keys and lookups keep the authored text. */
+/** Display the identity name, rendering tag-only titles with live tag labels. */
 export function displayTitle(text: string, lookup: NotebookClient['lookup'] = () => () => undefined): string {
-  const tokens = textTokens(text);
-  if (!tokens.some(token => token.kind === 'tag')) return text;
-  const title = tokens.filter(token => token.kind !== 'tag').map(token => text.slice(token.start, token.end)).join(' ').replace(/\s+/g, ' ').trim();
-  return title || plainText(text, lookup);
+  const name = identityName(text);
+  return name === text && textTokens(text).some(token => token.kind === 'tag') ? plainText(text, lookup) : name;
 }
 
 function plainToken(token: Token, lookup: NotebookClient['lookup'], seen: ReadonlySet<string>, deletedHolder?: { id: string; text: string } | null): string {

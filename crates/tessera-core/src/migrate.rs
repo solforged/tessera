@@ -5,6 +5,7 @@ use crate::notebook::now_ms;
 use crate::storage::derive_memberships;
 
 const UNICODE_TITLE_KEYS: &str = include_str!("../migrations/047_unicode_title_keys.sql");
+const DISPLAY_TITLE_KEYS: &str = include_str!("../migrations/053_display_title_keys.sql");
 
 /// Ordered schema migrations. Version N is the Nth entry; never edit or
 /// reorder a released entry, only append.
@@ -61,6 +62,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/050_strict_tables.sql"),
     include_str!("../migrations/051_tag_identity.sql"),
     include_str!("../migrations/052_recipe_details.sql"),
+    DISPLAY_TITLE_KEYS,
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -87,10 +89,21 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
         1,
         rusqlite::functions::FunctionFlags::SQLITE_UTF8
             | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
-        |context| Ok(crate::storage::title_key(context.get_raw(0).as_str()?)),
+        |context| Ok(crate::storage::fold_title(context.get_raw(0).as_str()?)),
     )?;
+    // Historical migrations retain their original spelling rule. Apply 053
+    // after the 051 text rewrite, so tag-only titles are keyed in stored form.
     for sql in &MIGRATIONS[found as usize..] {
-        tx.execute_batch(sql)?;
+        if *sql != DISPLAY_TITLE_KEYS {
+            tx.execute_batch(sql)?;
+        }
+    }
+    if found < 53 {
+        tx.execute_batch(
+            "DROP TRIGGER IF EXISTS blocks_title_insert;
+             DROP TRIGGER IF EXISTS blocks_title_update;
+             DROP INDEX blocks_live_title;",
+        )?;
     }
     if found < 39 {
         crate::query::migrate_instance_filters(&tx)?;
@@ -138,7 +151,6 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
             }
         }
     }
-    crate::fields::ensure_page(&tx)?;
     if found < 51 {
         let sources = tx
             .prepare("SELECT id, text FROM blocks WHERE deletion_id IS NULL ORDER BY id")?
@@ -168,6 +180,18 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
             crate::card_store::derive_sources(&tx, &rewritten, now_ms())?;
         }
     }
+    if found < 53 {
+        disambiguate_display_titles(&tx)?;
+        tx.create_scalar_function(
+            "tessera_title_key",
+            1,
+            rusqlite::functions::FunctionFlags::SQLITE_UTF8
+                | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+            |context| Ok(crate::storage::title_key(context.get_raw(0).as_str()?)),
+        )?;
+        tx.execute_batch(DISPLAY_TITLE_KEYS)?;
+    }
+    crate::fields::ensure_page(&tx)?;
     crate::fields::rebuild(&tx)?;
     if found < 20 {
         crate::review_store::backfill_fsrs(&tx)?;
@@ -184,6 +208,49 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     for version in found + 1..=SCHEMA_VERSION {
         tracing::info!(version, "migration applied");
     }
+    Ok(())
+}
+
+/// Reserve every existing identity before choosing suffixes, including names
+/// already ending in "(2)". The oldest live page wins, with ID as the tie-break.
+fn disambiguate_display_titles(conn: &Connection) -> Result<()> {
+    use std::collections::HashSet;
+
+    let pages = conn
+        .prepare(
+            "SELECT id, text FROM blocks WHERE kind = 'page' AND deletion_id IS NULL
+             ORDER BY created_at, id",
+        )?
+        .query_map([], |row| {
+            let text: String = row.get(1)?;
+            let key = crate::storage::title_key(&text);
+            Ok((row.get::<_, String>(0)?, text, key))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let mut reserved: HashSet<String> = pages.iter().map(|(_, _, key)| key.clone()).collect();
+    let mut claimed = HashSet::new();
+    let mut rewritten = Vec::new();
+    for (id, text, key) in pages {
+        if claimed.insert(key) {
+            continue;
+        }
+        let mut suffix = 2_u64;
+        let renamed = loop {
+            let candidate = format!("{text} ({suffix})");
+            if reserved.insert(crate::storage::title_key(&candidate)) {
+                break candidate;
+            }
+            suffix += 1;
+        };
+        conn.execute(
+            "UPDATE blocks SET text = ?1 WHERE id = ?2",
+            rusqlite::params![renamed, id],
+        )?;
+        crate::storage::derive_links(conn, &id, &renamed)?;
+        derive_memberships(conn, &id, &renamed, None)?;
+        rewritten.push(id);
+    }
+    crate::card_store::derive_sources(conn, &rewritten, now_ms())?;
     Ok(())
 }
 
@@ -656,7 +723,107 @@ mod tests {
     }
 
     #[test]
-    fn unicode_title_upgrade_preserves_legacy_collisions_and_membership_targets() {
+    fn display_title_upgrade_renames_newer_collisions_without_changing_memberships_or_history() {
+        use crate::{Actor, Batch, Notebook, Operation};
+
+        for reserve_second in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let mut notebook = Notebook::open(dir.path()).unwrap();
+            let id = |n: u128| ulid::Ulid::from(n).to_string();
+            let mut operations = vec![
+                Operation::CreatePage {
+                    id: id(10),
+                    title: "Lab".into(),
+                },
+                Operation::CreatePage {
+                    id: id(1),
+                    title: "Temporary #project".into(),
+                },
+                Operation::CreatePage {
+                    id: id(2),
+                    title: "Another #person".into(),
+                },
+                Operation::AddType {
+                    id: id(10),
+                    base_revision: 1,
+                    title: "Temporary".into(),
+                },
+            ];
+            if reserve_second {
+                operations.push(Operation::CreatePage {
+                    id: id(50),
+                    title: "Lab (2)".into(),
+                });
+            }
+            let committed = notebook
+                .apply(&Batch {
+                    actor: Actor::Person,
+                    reason: None,
+                    idempotency_key: None,
+                    operations,
+                })
+                .unwrap();
+            let first = notebook.block(&id(1)).unwrap();
+            let second = notebook.block(&id(2)).unwrap();
+            let first_text = first.text.replacen("Temporary", "Lab", 1);
+            let second_text = second.text.replacen("Another", "Lab", 1);
+            // 052 has the same tables, but keys the entire stored title. Restore
+            // those keys and titles to create the collision that 053 must resolve.
+            for (page, text, created) in [
+                (id(10), "Lab".to_owned(), 0),
+                (id(1), first_text.clone(), 1),
+                (id(2), second_text.clone(), 1),
+            ] {
+                notebook.conn.execute(
+                    "UPDATE blocks SET text = ?1, title_key = ?2, created_at = ?3 WHERE id = ?4",
+                    params![text, crate::storage::fold_title(&text), created, page],
+                ).unwrap();
+            }
+            let membership_rows = |conn: &Connection| {
+                conn.prepare("SELECT block_id, type_id, manual, title FROM memberships ORDER BY block_id, type_id, manual")
+                    .unwrap()
+                    .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?, row.get::<_, String>(3)?)))
+                    .unwrap()
+                    .collect::<rusqlite::Result<Vec<_>>>()
+                    .unwrap()
+            };
+            let memberships = membership_rows(&notebook.conn);
+            notebook
+                .conn
+                .pragma_update(None, "user_version", 52)
+                .unwrap();
+            drop(notebook);
+
+            let mut notebook = Notebook::open(dir.path()).unwrap();
+            let suffix = if reserve_second { 3 } else { 2 };
+            assert_eq!(notebook.page_by_title("Lab").unwrap().unwrap().id, id(10));
+            for (page, before, revision, suffix) in [
+                (id(1), first_text, first.revision, suffix),
+                (id(2), second_text, second.revision, suffix + 1),
+            ] {
+                let title = format!("Lab ({suffix})");
+                let block = notebook.page_by_title(&title).unwrap().unwrap();
+                assert_eq!(block.id, page);
+                assert_eq!(block.text, format!("{before} ({suffix})"));
+                assert_eq!(block.revision, revision);
+                assert_eq!(notebook.display_title(&block.text).unwrap(), title);
+            }
+            assert_eq!(membership_rows(&notebook.conn), memberships);
+            assert!(
+                notebook
+                    .changes_since(committed.seq, 100)
+                    .unwrap()
+                    .is_empty()
+            );
+            let report = notebook.check(false).unwrap();
+            assert!(report.ok, "{report:?}");
+            let repaired = notebook.check(true).unwrap();
+            assert!(repaired.ok && repaired.repaired.is_none(), "{repaired:?}");
+        }
+    }
+
+    #[test]
+    fn unicode_title_upgrade_disambiguates_legacy_collisions_and_preserves_membership_targets() {
         assert_eq!(caseless::UNICODE_VERSION, (16, 0, 0));
         let mut conn = Connection::open_in_memory().unwrap();
         let previous_version = MIGRATIONS
@@ -692,6 +859,8 @@ mod tests {
         // Only the Unicode upgrade is re-run: undo the migrations after it.
         conn.execute_batch(
             "DROP TABLE occlusions; DROP TABLE images;
+             ALTER TABLE card_templates DROP COLUMN hint;
+             ALTER TABLE card_templates DROP COLUMN details;
              ALTER TABLE memberships RENAME TO id_memberships;
              DROP INDEX memberships_type;
              CREATE TABLE memberships (
@@ -729,7 +898,7 @@ mod tests {
             titles,
             vec![
                 (first.clone(), "café".into(), "café".into()),
-                (second.clone(), "cafe\u{301}".into(), "café".into()),
+                (second.clone(), "cafe\u{301} (2)".into(), "café (2)".into()),
             ]
         );
         let targets = conn

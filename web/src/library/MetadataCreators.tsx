@@ -13,6 +13,7 @@ import { Popup } from '../ui/Popup';
 import { MetadataField } from './MetadataField';
 import { derivedSourceSiglum, similarPages } from './details';
 import type { SourceCreator, SourceFieldChange } from './details';
+import { titleKey } from '../document/title-key';
 
 const roles: readonly { role: SourceCreator['role']; label: string }[] = [{ role: 'author', label: 'Author' }, { role: 'editor', label: 'Editor' }, { role: 'translator', label: 'Translator' }];
 
@@ -59,7 +60,7 @@ export function MetadataCreators(props: {
   const [mergePages] = createResource(() => merging()?.person.id, async id => {
     const library = await props.notebook.api.library({ limit: Number.MAX_SAFE_INTEGER });
     const sources = new Set(library.rows.map(row => row.page.id));
-    return props.notebook.roots().filter(page => page.kind === 'page' && page.id !== id && !page.archived && !sources.has(page.id) && page.text.toLocaleLowerCase() !== 'fields');
+    return props.notebook.roots().filter(page => page.kind === 'page' && page.id !== id && !page.archived && !sources.has(page.id) && titleKey(page.text) !== 'fields');
   });
   const mergedMark = createMemo(() => derivedSourceSiglum([{ id: mergeTarget()?.id ?? null, name: mergeTarget()?.text ?? '', role: 'author' }], '', '').mark);
   const scope = createMemo(() => props.docs.length > 1 ? `Changes the creator links on all ${props.docs.length} sources.` : `Changes only “${props.docs[0]?.root()?.text ?? 'this source'}”.`);
@@ -160,7 +161,7 @@ export function MetadataCreators(props: {
       setMenu(undefined);
       queueMicrotask(() => queueMicrotask(() => { if (!disposed && adding() && !addRow?.contains(document.activeElement)) void add(); }));
     }} />}</Show>
-    <Show when={merging()}>{state => <Show when={mergeTarget()} fallback={<Picker<Block> anchor={state().anchor} class="metadata-popup" label="Merge person into" placeholder="Find a person" query={query()} onQuery={setQuery} items={(mergePages() ?? []).filter(page => page.text.toLocaleLowerCase().includes(query().trim().toLocaleLowerCase()))} key={page => page.id} busy={mergePages.loading} error={mergePages.error ? String(mergePages.error) : undefined} empty="No matching people." row={page => <span class="picker-text">{page.text}</span>} onPick={page => setMergeTarget(page)} onDismiss={() => setMerging(undefined)} />}>{target => <Popup anchor={state().anchor} class="metadata-popup metadata-merge" width={400} label="Merge this person?" onDismiss={() => { if (!busy()) setMerging(undefined); }}>
+    <Show when={merging()}>{state => <Show when={mergeTarget()} fallback={<Picker<Block> anchor={state().anchor} class="metadata-popup" label="Merge person into" placeholder="Find a person" query={query()} onQuery={setQuery} items={(mergePages() ?? []).filter(page => titleKey(page.text).includes(titleKey(query().trim())))} key={page => page.id} busy={mergePages.loading} error={mergePages.error ? String(mergePages.error) : undefined} empty="No matching people." row={page => <span class="picker-text">{page.text}</span>} onPick={page => setMergeTarget(page)} onDismiss={() => setMerging(undefined)} />}>{target => <Popup anchor={state().anchor} class="metadata-popup metadata-merge" width={400} label="Merge this person?" onDismiss={() => { if (!busy()) setMerging(undefined); }}>
       <h3 class="popup-title">Merge this person?</h3>
       <p class="metadata-merge-names">{state().person.name} → {target().text}</p>
       <p>{countText()}. Books and linked notes follow to {target().text}. Both pages’ notes join there. {state().person.name} stays as an alias.</p>

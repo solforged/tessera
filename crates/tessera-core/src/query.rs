@@ -297,7 +297,10 @@ pub(crate) fn migrate_instance_filters(conn: &Connection) -> Result<()> {
     while let Some(row) = rows.next()? {
         let id: String = row.get(0)?;
         let title: String = row.get(1)?;
-        names.entry(title.to_lowercase()).or_default().push(id);
+        names
+            .entry(crate::storage::title_key(&title))
+            .or_default()
+            .push(id);
     }
     fn canonicalize(
         value: &mut serde_json::Value,
@@ -318,7 +321,7 @@ pub(crate) fn migrate_instance_filters(conn: &Connection) -> Result<()> {
                     && let Some(value) = object.get_mut("value")
                     && let Some(label) = value.as_str().filter(|label| validate_id(label).is_err())
                     && let Some(ids) = names
-                        .get(&label.to_lowercase())
+                        .get(&crate::storage::title_key(label))
                         .filter(|ids| ids.len() == 1)
                 {
                     *value = serde_json::Value::String(ids[0].clone());
@@ -415,6 +418,7 @@ impl Notebook {
     /// Each required template field with how many live members lack a nonblank value for it, which is
     /// what a field's empty filter lists.
     fn required_fields(&self, page: &Block, template: &[String]) -> Result<Vec<RequiredField>> {
+        let is_task = crate::storage::tag_title_matches(&page.text, "task");
         let mut missing = self.conn.prepare_cached(concat!(hidden_blocks!(),
             "SELECT COUNT(DISTINCT m.block_id) FROM memberships m JOIN blocks b ON b.id = m.block_id
              JOIN blocks p ON p.id = b.page_id JOIN blocks t ON t.id = m.type_id
@@ -426,7 +430,7 @@ impl Notebook {
         crate::built_in::required_fields(&self.conn, &page.text, template)?
             .into_iter()
             .map(|(field_id, name)| {
-                let count = if page.text.eq_ignore_ascii_case("task") && name == "status" {
+                let count = if is_task && name == "status" {
                     0
                 } else {
                     missing.query_row(params![page.id, field_id], |row| row.get::<_, i64>(0))?
@@ -471,7 +475,12 @@ impl Notebook {
                 members: row.get::<_, i64>(0)? as usize,
             });
         }
-        types.sort_by_cached_key(|info| (info.page.text.to_lowercase(), info.page.id.clone()));
+        types.sort_by_cached_key(|info| {
+            (
+                crate::storage::title_key(&info.page.text),
+                info.page.id.clone(),
+            )
+        });
         Ok(types)
     }
 

@@ -404,6 +404,37 @@ fn idempotent_replay_survives_reopen_and_mismatch_is_rejected() {
 }
 
 #[test]
+fn tagged_page_names_share_lookup_completion_and_duplicate_checks() {
+    let (_dir, mut nb) = fixture();
+    apply(&mut nb, vec![page(1, "Lab #project"), page(2, "Other")]);
+    let stored = nb.block(&id(1)).unwrap();
+    assert!(stored.text.starts_with("Lab #[["));
+    for title in [
+        "Lab",
+        "lab",
+        "Lab #project",
+        "Lab #[[project]]",
+        &stored.text,
+    ] {
+        assert_eq!(nb.page_by_title(title).unwrap().unwrap().id, id(1));
+        assert_eq!(nb.resolve_name(title).unwrap()[0].page.id, id(1));
+    }
+    assert_eq!(nb.complete("La", 1).unwrap()[0].block.id, id(1));
+    for title in ["Lab", "lab #person"] {
+        let error = nb.apply(&batch(vec![page(3, title)])).unwrap_err();
+        assert!(
+            error.to_string().contains("page title already exists"),
+            "{error}"
+        );
+        assert!(nb.apply(&batch(vec![edit(2, 1, title)])).is_err());
+    }
+    let revision = stored.revision;
+    apply(&mut nb, vec![edit(1, revision, "Lab #person")]);
+    assert_eq!(nb.page_by_title("Lab").unwrap().unwrap().id, id(1));
+    assert!(nb.check(false).unwrap().ok);
+}
+
+#[test]
 fn unicode_titles_and_calendar_dates_are_unique_among_live_roots() {
     let (_dir, mut nb) = fixture();
     apply(&mut nb, vec![page(1, "ÄRGER"), page(2, "Other")]);

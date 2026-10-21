@@ -198,11 +198,17 @@ impl Notebook {
             total: 0,
             rows: Vec::new(),
         };
-        if page.kind == BlockKind::Journal || page.archived || page.text.to_lowercase() == "fields"
+        if page.kind == BlockKind::Journal
+            || page.archived
+            || crate::storage::tag_title_matches(&page.text, "fields")
         {
             return Ok(result);
         }
-        let mut terms = vec![page.text];
+        let name = match crate::storage::identity_name(&page.text) {
+            std::borrow::Cow::Borrowed(_) => page.text,
+            std::borrow::Cow::Owned(name) => name,
+        };
+        let mut terms = vec![name];
         terms.extend(self.page_aliases(page_id)?);
         terms.retain(|term| term.chars().count() >= 3 && term.chars().any(char::is_alphanumeric));
         if terms.is_empty() {

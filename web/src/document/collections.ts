@@ -3,6 +3,7 @@ import type { ApiClient } from '../api/client';
 import type { Block, Committed, FieldKind, Fields, Operation, PageView } from '../api/types';
 import type { NotebookClient } from './contract';
 import { fieldEntryId } from '../table/query';
+import { titleKey } from './title-key';
 
 export interface CollectionChange { undo(): Promise<void> }
 type Inverse = (receipt: Committed) => Operation;
@@ -37,7 +38,7 @@ async function commit(notebook: NotebookClient, plan: Plan, reason: string): Pro
 
 /** Pages, not a separate membership store. Empty collections still appear here. */
 export async function collectionPages(api: ApiClient, signal?: AbortSignal): Promise<Block[]> {
-  const type = (await api.roots(signal)).find(page => page.text.toLocaleLowerCase() === 'collection');
+  const type = (await api.roots(signal)).find(page => titleKey(page.text) === 'collection');
   if (!type) return [];
   const result = await api.query({ type: type.id, text: null, filters: [], sort: [{ by: 'title', field: null, direction: 'asc' }], limit: null }, signal);
   return result.rows.flatMap(row => row.block.block.kind === 'page' ? [row.block.block] : []);
@@ -59,7 +60,7 @@ async function ensureCollectionsField(notebook: NotebookClient, pending: Plan, r
     fieldRevision += 1;
   }
   const roots = await notebook.api.roots();
-  const find = (title: string) => roots.find(page => page.kind === 'page' && page.text.toLocaleLowerCase() === title);
+  const find = (title: string) => roots.find(page => page.kind === 'page' && titleKey(page.text) === title);
   let collectionType = find('collection')?.id;
   if (!collectionType) {
     collectionType = ulid();

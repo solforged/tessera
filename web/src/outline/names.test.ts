@@ -81,6 +81,9 @@ describe('page names', () => {
     expect(foldName('J.M. Keynes')).toBe('j m keynes');
     expect(foldName('Merleau-Ponty')).toBe('merleau ponty');
     expect(foldName('Flann O’Brien')).toBe(foldName("flann obrien"));
+    expect(foldName('Lab #[[01ARZ3NDEKTSV4RRFFQ69G5FAV|project]]')).toBe('lab');
+    expect(foldName('Lab #project')).toBe('lab');
+    expect(foldName('Lab #[[project]]')).toBe('lab');
   });
 
   test('shares folded resolutions until the notebook change sequence advances', async () => {

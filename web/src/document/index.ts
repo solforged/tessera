@@ -1887,7 +1887,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   }
   async pageByTitle(title: string, create: boolean) {
     await this.ready;
-    const cached = this.roots().find(root => root.kind === 'page' && root.text.toLocaleLowerCase() === title.toLocaleLowerCase());
+    const key = titleKey(title);
+    const cached = this.roots().find(root => root.kind === 'page' && titleKey(root.text) === key);
     if (cached) return cached.id;
     try { return (await this.api.pageByTitle(title)).id; }
     catch (error) { if (!(error instanceof ApiError) || error.status !== 404 && !(create && error.uncertain)) throw error; }

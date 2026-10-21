@@ -84,7 +84,7 @@ flowchart TD
     P["One pushed change"] --> I{"Change ID already recorded?"}
     I -->|Yes| R["Return stored receipt<br/>accepted or rejected"]
     I -->|No| K["Resolve known ID aliases"]
-    K --> N{"Natural-key collision?<br/>Same-day journal, same-title page<br/>or same book"}
+    K --> N{"Natural-key collision?<br/>Same-day journal, same-name page<br/>or same book"}
     N -->|Yes| M["Merge into the existing root or source<br/>and record ID aliases"]
     N -->|No| T{"Text differs from the replica's base<br/>and its new wording differs from the hub?"}
     M --> T
@@ -182,7 +182,7 @@ Every device must reach the same state from the same changes, so applying a chan
 | Created during apply | ID derived from |
 |---|---|
 | Deletion event | change ID, operation index, deleted block |
-| Type page created by a tag | change ID, title key |
+| Type page created by a tag | change ID, tag-free title key |
 | Card unit | source block, card key (its unique identity) |
 | Reset event recorded with a grade | the grade's event ID |
 | Conflict copy of a block's text | change ID, block |
@@ -251,7 +251,7 @@ While a service owns a replica, commands use its routes instead of opening the w
 
 A phone with its own workshop sends the hub its whole change log with empty text bases, plus snapshots, files, reading positions and surfacings. It then clones the hub and swaps the clone in place.
 
-As with any push, matching page titles and journal dates resolve to the hub's root; changes the hub cannot apply remain in `sync_conflicts`. The Fields page predates the log and has different IDs in each workshop, so import first sends its creation for the hub to resolve by title.
+As with any push, matching page identity names and journal dates resolve to the hub's root; changes the hub cannot apply remain in `sync_conflicts`. Page keys remove tags before NFC normalization and Unicode default case folding, so a replica's `create_page` for `Lab` merges into the hub's `Lab #project`; the operation still carries authored title text, not a key. Untagged and tag-only titles retain their full text before folding. The Fields page predates the log and has different IDs in each workshop, so import first sends its creation for the hub to resolve by the unchanged `fields` key. Journals still match by date text.
 
 The old database stays beside the new one as `notebook.db.before-pairing-<unix seconds>`. Only the newest recovery copy of each kind is kept, including pairing and recloning copies. Two independent histories are never merged.
 

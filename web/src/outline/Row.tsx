@@ -14,6 +14,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { BlockText } from './BlockText';
 import { plainText, tagLabel } from './names';
+import { titleKey } from '../document/title-key';
 import { TypePill } from './references';
 import { isCapabilityTag } from './capabilities';
 import { hasCitationDetail } from './source-reads';
@@ -193,10 +194,10 @@ export function createOutlineRows(context: Pick<OutlineContext,
       const value = block();
       const tags = [
         ...textTokens(value?.text ?? '').filter(token => token.kind === 'tag').map(token => ({ id: token.id, name: tagLabel(token, id => props.notebook.lookup(id)) })),
-        ...(value?.manual_types ?? []).map(name => ({ id: props.notebook.roots().find(page => page.text.toLocaleLowerCase() === name.toLocaleLowerCase())?.id, name })),
+        ...(value?.manual_types ?? []).map(name => ({ id: props.notebook.roots().find(page => titleKey(page.text) === titleKey(name))?.id, name })),
       ];
       for (const tag of tags) {
-        const key = tag.id ?? tag.name.trim().toLocaleLowerCase();
+        const key = tag.id ?? titleKey(tag.name.trim());
         if (!key || seen.has(key) || tag.id && props.notebook.lookup(tag.id)() === null) continue;
         seen.add(key);
         decks.push(tag);

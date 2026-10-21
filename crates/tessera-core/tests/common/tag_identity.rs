@@ -146,7 +146,10 @@ fn migration_051_normalizes_existing_live_tags_without_changes_or_missing_pages(
     conn.pragma_update(None, "user_version", 50).unwrap();
     drop(conn);
     let mut nb = Notebook::open(dir.path()).unwrap();
-    assert_eq!(tessera_core::SCHEMA_VERSION, 52);
+    assert_eq!(
+        nb.info().unwrap().schema_version,
+        tessera_core::SCHEMA_VERSION
+    );
     assert_eq!(
         nb.block(&id(10)).unwrap().text,
         format!(

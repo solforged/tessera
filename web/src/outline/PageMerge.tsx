@@ -6,6 +6,7 @@ import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
+import { titleKey } from '../document/title-key';
 
 type Page = Pick<Block, 'id' | 'text'>;
 
@@ -21,7 +22,7 @@ export function pageMergeDisabledReason(root: BlockState | undefined, capabiliti
   if (system) return system;
   if (root.source) return 'Sources cannot merge.';
   if (root.kind !== 'page') return 'Only titled atoms can merge.';
-  if (root.text.toLocaleLowerCase() === 'fields') return 'Fields cannot merge.';
+  if (titleKey(root.text) === 'fields') return 'Fields cannot merge.';
   if (root.spread) return "A spread can't be merged.";
   if (root.project) return "A project can't be merged.";
   if (root.task) return "An atom with a task can't be merged.";
@@ -68,15 +69,15 @@ export function PageMergePicker(props: { anchor: PopupAnchor; notebook: Notebook
   const [target, setTarget] = createSignal<Block>();
   const [pages] = createResource(() => {
     props.notebook.changeSequence();
-    return props.notebook.roots().filter(page => page.kind === 'page' && page.id !== props.from.id && page.text.trim() && page.text.toLocaleLowerCase() !== 'fields');
+    return props.notebook.roots().filter(page => page.kind === 'page' && page.id !== props.from.id && page.text.trim() && titleKey(page.text) !== 'fields');
   }, async roots => {
     const library = await props.notebook.api.library({ limit: roots.length });
     const sources = new Set(library.rows.map(row => row.source.block_id));
     return roots.filter(page => !sources.has(page.id));
   });
   const matches = createMemo(() => {
-    const text = query().trim().toLocaleLowerCase();
-    return pages.error ? [] : (pages() ?? []).filter(page => page.text.toLocaleLowerCase().includes(text));
+    const text = titleKey(query().trim());
+    return pages.error ? [] : (pages() ?? []).filter(page => titleKey(page.text).includes(text));
   });
   return <Show keyed when={target()} fallback={<Picker<Block> anchor={props.anchor} label="Merge into" onDismiss={props.onDismiss}
     query={query()} onQuery={setQuery} placeholder="Find an atom" items={matches()} key={page => page.id}

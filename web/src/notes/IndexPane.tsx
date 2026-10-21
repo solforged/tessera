@@ -7,6 +7,7 @@ import { RequiredGaps } from '../fields/RequiredGaps';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
 import { displayTitle, plainText, readableText, referenceValue } from '../outline/names';
+import { titleKey } from '../document/title-key';
 import { builtInTagReason, PageMergePicker } from '../outline/PageMerge';
 import { documentReady } from '../outline/source-fields';
 import { addFilter, copyQuery, filterLabel, missingQueryFields, noteTableQuery, queriesEqual, removeFilter, removeQueryField, retainFieldNames, typeQuery } from '../table/query';
@@ -126,7 +127,7 @@ function KindIndexPane(props: IndexPaneProps) {
   const [index] = createResource(() => [props.kindKey, changes(), version()] as const, ([key]) => props.notebook.api.kindNotes(key).then(result => { reads.set(key, result); return result; }), cached ? { initialValue: cached } : {});
   const typeId = () => props.kind?.type_id ?? (props.kindKey.startsWith('type:') ? props.kindKey.slice(5) : undefined);
   const [type] = createResource(() => typeId() ? [typeId()!, changes(), version()] as const : false, ([id]) => props.notebook.api.type(id));
-  const isCollection = createMemo(() => (props.kind?.name ?? type()?.page.text)?.toLocaleLowerCase() === 'collection');
+  const isCollection = createMemo(() => titleKey(props.kind?.name ?? type()?.page.text ?? '') === 'collection');
   // The bibliography uses the same current-snapshot predicate as Library source menus.
   const [readableSources] = createResource(() => props.kindKey === 'source' ? [changes(), version()] as const : false, async () => {
     const result = await props.notebook.api.library({ limit: null });
@@ -491,10 +492,10 @@ function FilingPicker(props: { notebook: NotebookClient; notes: NoteEntry[]; anc
   const heading = () => `${props.notes.slice(0, 3).map(note => note.title).join(', ')}${props.notes.length > 3 ? ` and ${props.notes.length - 3} more` : ''}`;
   const choices = createMemo(() => {
     const text = query().trim();
-    const key = text.toLocaleLowerCase();
-    const result: FilingChoice[] = (types() ?? []).filter(type => !noteIds.has(type.page.id) && type.page.text.toLocaleLowerCase().includes(key)).map(type => ({ id: type.page.id, title: type.page.text, create: false }));
-    if (text && !result.some(type => type.title.toLocaleLowerCase() === key)) {
-      const existing = props.notebook.roots().find(page => page.kind === 'page' && page.text.toLocaleLowerCase() === key);
+    const key = titleKey(text);
+    const result: FilingChoice[] = (types() ?? []).filter(type => !noteIds.has(type.page.id) && titleKey(type.page.text).includes(key)).map(type => ({ id: type.page.id, title: type.page.text, create: false }));
+    if (text && !result.some(type => titleKey(type.title) === key)) {
+      const existing = props.notebook.roots().find(page => page.kind === 'page' && titleKey(page.text) === key);
       if ((!existing || !noteIds.has(existing.id)) && key !== 'fields') result.push({ id: existing?.id ?? 'create', title: existing?.text ?? text, create: !existing });
     }
     return result;
@@ -506,8 +507,8 @@ function FilingPicker(props: { notebook: NotebookClient; notes: NoteEntry[]; anc
     try {
       await Promise.all(docs.map(async doc => { await documentReady(doc); await doc.flush(); }));
       const pages = await Promise.all(props.notes.map(note => props.notebook.api.page(note.id)));
-      const titleKey = choice.title.toLocaleLowerCase();
-      const targets = pages.filter(page => !page.root_manual_types?.some(title => title.toLocaleLowerCase() === titleKey));
+      const key = titleKey(choice.title);
+      const targets = pages.filter(page => !page.root_manual_types?.some(title => titleKey(title) === key));
       const operations = targets.flatMap((page, index) => filingOperations(page.root.id, page.root.revision, choice.title, choice.create && index === 0 ? ulid() : undefined));
       if (!operations.length) { props.onDismiss(); return; }
       const receipt = await props.notebook.commit(operations, targets.length === 1 ? 'File atom under a tag' : 'File atoms under a tag');
@@ -528,7 +529,7 @@ function RenameNote(props: { notebook: NotebookClient; note: NoteEntry; anchor: 
   const [title, setTitle] = createSignal(props.note.title);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  const collision = () => props.notebook.roots().find(page => page.id !== props.note.id && page.text.toLocaleLowerCase() === title().trim().toLocaleLowerCase());
+  const collision = () => props.notebook.roots().find(page => page.kind === 'page' && page.id !== props.note.id && titleKey(page.text) === titleKey(title().trim()));
   const [merge, setMerge] = createSignal(false);
   const rename = async () => {
     if (!title().trim() || busy()) return;

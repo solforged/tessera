@@ -331,7 +331,7 @@ impl Notebook {
             .optional()?)
     }
 
-    /// Resolve a live named page by its NFC, Unicode-casefolded title.
+    /// Resolve a live page by its tag-free, NFC-normalized, case-folded name.
     pub fn page_by_title(&self, title: &str) -> Result<Option<Block>> {
         let mut statement = self.conn.prepare_cached(concat!(
             "SELECT ", block_columns!("b"),

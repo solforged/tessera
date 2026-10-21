@@ -21,9 +21,10 @@ pub struct Completion {
     pub alias: Option<String>,
 }
 
-/// Folds a name for matching: no case, diacritics or apostrophes, and any other run of
-/// spaces or punctuation becomes one space, so `J. M. Keynes` matches `j m keynes`.
+/// Folds an identity name for matching: ignore tags, case, diacritics and
+/// apostrophes; punctuation becomes spaces, so `J. M. Keynes` matches `j m keynes`.
 pub(crate) fn fold(value: &str) -> String {
+    let value = crate::storage::identity_name(value);
     let mut folded = String::with_capacity(value.len());
     let mut space = false;
     for character in value.nfd().filter(|c| !is_combining_mark(*c)) {
@@ -44,7 +45,7 @@ pub(crate) fn fold(value: &str) -> String {
         folded.make_ascii_lowercase();
         folded
     } else {
-        crate::storage::title_key(&folded)
+        crate::storage::fold_title(&folded)
     }
 }
 

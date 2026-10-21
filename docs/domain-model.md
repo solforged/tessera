@@ -129,7 +129,7 @@ Only these words appear in the schema, the API and the code. The interface uses 
 
 ## Blocks
 
-A block has an ID (ULID), parent, page, ordinal, text, optional heading level (1 to 3), revision, archive flag and an optional deletion event. Roots have no parent. New page titles are unique among live roots under NFC normalization and default full Unicode case folding; accents remain significant and authored spelling is unchanged. Upgrading preserves any legacy equivalent pages and their IDs rather than merging them; a title lookup that would choose between them reports ambiguity. Journal dates are unique among live roots.
+A block has an ID (ULID), parent, page, ordinal, text, optional heading level (1 to 3), revision, archive flag and an optional deletion event. Roots have no parent. Page names exclude tag tokens: `Lab #project` is named `Lab`. Removing tags collapses adjoining whitespace; titles without tags and titles made only of tags keep their full text for identity. The title key applies NFC normalization and default full Unicode case folding to that name, with accents significant. Stored title text keeps its tags. Live page names are unique, so creating `Lab` or `Lab #person` while `Lab #project` lives is refused. Migration 053 re-keys all pages without recording changes; for each collision the oldest page (creation time, then ID) keeps its name, and newer pages receive the first free ` (2)`, ` (3)`, … suffix at the end of their stored text. IDs and memberships stay intact. Journal dates remain unique among live roots.
 
 Rules:
 
@@ -189,7 +189,7 @@ A quote is frozen; a reference is live. A block whose whole text is `((ID))` is 
 
 A type is an ordinary page used as the target of memberships. A block can have many types. Membership keys are `(block_id, type_id, manual)`. The `title` column keeps the authored spelling but does not decide identity. Membership records whether it came from text or was added manually; either keeps it.
 
-Canonical tag text is `#[[id|alias]]`. The alias may be empty and cannot contain brackets, pipes or line breaks. Legacy `#Title` and `#[[Title]]` remain valid input. A bracket token with a non-ID before a pipe keeps the whole bracket content as its legacy title. On commit, the engine resolves legacy tags to a live page by title key, creating a provisional page when needed, and reports canonical text in `text_rewrites`. A spelling that cannot fit the alias grammar uses an empty alias. An existing canonical tag keeps its ID and refreshes its alias to the live title when its atom is next edited. Renaming a tag page changes that page alone; members keep their text and revisions.
+Canonical tag text is `#[[id|alias]]`. The alias may be empty and cannot contain brackets, pipes or line breaks. Legacy `#Title` and `#[[Title]]` remain valid input. A bracket token with a non-ID before a pipe keeps the whole bracket content as its legacy title. On commit, the engine resolves legacy tags to a live page by the tag-free title key described above, creating a provisional page when needed, and reports canonical text in `text_rewrites`. Canonical tags resolve by ID, not by name or alias. A spelling that cannot fit the alias grammar uses an empty alias. An existing canonical tag keeps its ID and refreshes its alias to the live title when its atom is next edited. Renaming a tag page changes that page alone; members keep their text and revisions.
 
 A canonical tag without a live target stays in the text and creates no membership. Reusing its old title on another page does not rebind it. Migration 051 normalizes live legacy tags without creating pages or recording changes. `tessera check` reports unresolved tokens and text memberships that disagree with tags. Repair normalizes legacy tags and rebuilds memberships, while dangling IDs remain unresolved.
 
@@ -627,7 +627,7 @@ Aliases need not be unique; two Plinys may both have Pliny. Matching ignores cas
 
 Completion and Find match titles and aliases. An alias result names that alias. Words within an alias match while typing, but only a whole alias links on its own.
 
-Hand-typed `[[Name]]` left as text resolves by title or alias:
+Hand-typed `[[Name]]` left as text resolves by identity name or alias. Name matching removes title tags before folding case, diacritics and punctuation, so `[[Lab]]`, Find, completion, by-title API calls, MCP and agent title targets reach `Lab #project`. Lookup input follows the same rule: `Lab`, `lab` and `Lab #project` identify the same page. Creation duplicate checks and Similar pages use these names too:
 
 | Matching pages | Result |
 |---|---|

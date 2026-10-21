@@ -2633,6 +2633,22 @@ describe('real notebook operations and recovery', () => {
     }
   });
 
+  test('tagged page names match locally and on the server and refuse duplicate names', async () => {
+    const instance = await client();
+    const name = `Lab ${++serial}`;
+    const id = await instance.createPage(`${name} #project`);
+    expect(await instance.pageByTitle(name, false)).toBe(id);
+    expect(instance.titleAvailable(name, '')).toBe(false);
+    await expect(instance.createPage(`${name} #person`)).rejects.toThrow('already taken');
+    await instance.flush();
+    expect((await api.pageByTitle(name)).id).toBe(id);
+    expect((await api.block(id)).text).toContain(`${name} #[[`);
+    expect(await instance.pageByTitle(`${name} #[[project]]`, false)).toBe(id);
+    expect(instance.titleAvailable(`${name} #person`, id)).toBe(true);
+    const { doc } = await page(instance);
+    expect(doc.rename(name).ok).toBe(false);
+  });
+
   test('an IndexedDB open failure keeps edits visible without sending an unfrozen request', async () => {
     const id = ulid();
     const first = ulid();

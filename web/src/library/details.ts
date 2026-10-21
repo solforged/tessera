@@ -4,7 +4,8 @@ import { sourceState } from '../document/types';
 import { addFieldOption, documentReady } from '../outline/source-fields';
 import { sourceFieldName, valueLabel } from '../outline/source';
 import { createInstance } from '../fields/instances';
-import { referenceValue, resolveName } from '../outline/names';
+import { foldName, referenceValue, resolveName } from '../outline/names';
+import { titleKey } from '../document/title-key';
 
 export type SourceField = 'title' | 'subtitle' | 'creators' | 'firstPublished' | 'originalLanguage' | 'published' | 'publisher' | 'edition' | 'series' | 'number' | 'pages' | 'volume' | 'issue' | 'pageRange' | 'language' | 'identifiers' | 'url' | 'site' | 'description' | 'cover' | 'siglum' | 'citationKey' | 'state' | 'started' | 'finished' | 'tags';
 export interface SourceCreator extends ExtractedCreator { id: string | null }
@@ -89,7 +90,7 @@ export function sourceMetadata(doc: PageDocument, notebook: NotebookClient, defi
     url: text('url') || null, site: text('site') || null, description: text('description') || null };
 }
 
-const nameTokens = (name: string) => name.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+const nameTokens = (name: string) => foldName(name).split(' ').filter(Boolean);
 
 /**
  * Pages that may name the same person: the same words in any order, where a word may be an initial or a prefix of
@@ -99,7 +100,7 @@ const nameTokens = (name: string) => name.normalize('NFD').replace(/\p{M}/gu, ''
 export function similarPages(name: string, pages: readonly Block[], limit = 3): Block[] {
   const query = nameTokens(name);
   if (!query.some(token => token.length >= 3)) return [];
-  const key = name.trim().toLocaleLowerCase();
+  const key = titleKey(name.trim());
   const matches = (shorter: string[], longer: string[]) => {
     const free = [...longer];
     let whole = false;
@@ -112,7 +113,7 @@ export function similarPages(name: string, pages: readonly Block[], limit = 3): 
     return whole;
   };
   return pages.filter(page => {
-    if (page.kind !== 'page' || page.archived || page.text.trim().toLocaleLowerCase() === key) return false;
+    if (page.kind !== 'page' || page.archived || titleKey(page.text.trim()) === key) return false;
     const tokens = nameTokens(page.text);
     if (!tokens.length || Math.abs(tokens.length - query.length) > 1) return false;
     return query.length <= tokens.length ? matches(query, tokens) : matches(tokens, query);

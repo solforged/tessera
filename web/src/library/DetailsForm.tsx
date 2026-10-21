@@ -5,6 +5,7 @@ import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { similarPages } from './details';
 import { createInstance, instancePages } from '../fields/instances';
+import { titleKey } from '../document/title-key';
 
 const roles: readonly [ExtractedCreator['role'], string][] = [['author', 'Author'], ['editor', 'Editor'], ['translator', 'Translator']];
 const textFields = [['title', 'Title'], ['subtitle', 'Subtitle']] as const;
@@ -61,8 +62,8 @@ export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: Note
       <Index each={creators()}>{(creator, index) => {
         const allowed = createMemo(() => people()?.[creator().role] ?? []);
         const similar = createMemo(() => {
-          const name = creator().name.trim().toLowerCase();
-          const exactOrPrefix = allowed().filter(page => name && page.text.toLowerCase().includes(name));
+          const name = titleKey(creator().name.trim());
+          const exactOrPrefix = allowed().filter(page => name && titleKey(page.text).includes(name));
           const seen = new Set(exactOrPrefix.map(page => page.id));
           return [...exactOrPrefix, ...similarPages(creator().name, allowed()).filter(page => !seen.has(page.id))].slice(0, 8);
         });
