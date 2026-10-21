@@ -6,6 +6,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ## Unreleased
 
+## 0.5.0, 2026-10-21
+
 ### Added
 
 - Tidied Review history into ISO-dated preview toggles, removed the Done summary's duplicate eyebrow and grade strip and the card's rubric tick, and moved phone session undo and end actions into the card menu.
