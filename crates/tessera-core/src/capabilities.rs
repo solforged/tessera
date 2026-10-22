@@ -358,6 +358,9 @@ pub struct BlockCapabilities {
     /// Non-reversed task occurrences or work sessions exist for this source.
     #[serde(default)]
     pub history: bool,
+    /// Milliseconds in ended, non-reversed work sessions, excluding running work.
+    #[serde(default)]
+    pub logged_work_ms: i64,
     /// Live capability state, history, or reviewed cards.
     pub merge_protected: bool,
     pub reviewed_cards: bool,

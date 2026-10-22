@@ -2440,7 +2440,9 @@ impl Engine<'_, '_> {
                     self.bump(&current, false)?;
                     if matches!(
                         operation,
-                        Operation::StartWork { .. } | Operation::SetWorkSessionState { .. }
+                        Operation::StartWork { .. }
+                            | Operation::StopWork { .. }
+                            | Operation::SetWorkSessionState { .. }
                     ) {
                         self.capability_sources.insert(id.clone());
                     }

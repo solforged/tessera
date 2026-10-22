@@ -298,6 +298,142 @@ fn projected_fields_share_task_edits_completion_undo_and_user_values() {
 }
 
 #[test]
+fn project_field_projects_task_membership_without_replacing_authored_relations() {
+    let (_directory, mut nb) = fixture();
+    let project = field(&nb, "project");
+    let task_type = nb.page_by_title("Task").unwrap().unwrap().id;
+    let revision = nb.block(&id(1)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![
+            Operation::SetProject {
+                id: id(1),
+                base_revision: revision,
+                project: Some(Default::default()),
+            },
+            Operation::CreatePage {
+                id: id(30),
+                title: "Essay".into(),
+            },
+            Operation::SetProject {
+                id: id(30),
+                base_revision: 1,
+                project: Some(Default::default()),
+            },
+            Operation::CreatePage {
+                id: id(31),
+                title: "Project reference".into(),
+            },
+            Operation::Insert {
+                id: id(32),
+                parent_id: id(31),
+                after: None,
+                text: format!("[[{project}]]"),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(33),
+                parent_id: id(32),
+                after: None,
+                text: format!("[[{}]]", id(30)),
+                heading: None,
+            },
+        ],
+    );
+    let task_table = query(&nb, json!({"type":task_type}));
+    assert_eq!(task_table.total, 1);
+    assert_eq!(
+        task_table.rows[0].attributes[&project][0].reading,
+        query(&nb, json!({"source":"tasks"})).rows[0].attributes["@project"][0].reading
+    );
+    assert_eq!(
+        query(&nb, json!({"filters":[{"field":project,"op":"present"}]})).total,
+        2
+    );
+    assert_eq!(
+        query(
+            &nb,
+            json!({"filters":[{"field":project,"op":"is","value":id(1)}]})
+        )
+        .total,
+        1
+    );
+    assert_eq!(
+        query(
+            &nb,
+            json!({"filters":[{"field":project,"op":"is","value":id(30)}]})
+        )
+        .total,
+        1
+    );
+    assert_eq!(
+        nb.fields()
+            .unwrap()
+            .fields
+            .iter()
+            .find(|field| field.definition.id == project)
+            .unwrap()
+            .owners,
+        2
+    );
+    let detail = nb.field_detail(&project, None, None).unwrap();
+    assert_eq!(detail.owners_total, 2);
+    assert_eq!(detail.values_total, 2);
+    assert_eq!(detail.owners[0].owner.id, id(31));
+
+    // An explicit assignment replaces the inherited project without counting the task twice.
+    apply(
+        &mut nb,
+        vec![
+            Operation::Insert {
+                id: id(10),
+                parent_id: id(2),
+                after: None,
+                text: format!("[[{project}]]"),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(11),
+                parent_id: id(10),
+                after: None,
+                text: format!("[[{}]]", id(30)),
+                heading: None,
+            },
+        ],
+    );
+    assert_eq!(
+        query(
+            &nb,
+            json!({"filters":[{"field":project,"op":"is","value":id(1)}]})
+        )
+        .total,
+        0
+    );
+    assert_eq!(
+        query(
+            &nb,
+            json!({"filters":[{"field":project,"op":"is","value":id(30)}]})
+        )
+        .total,
+        2
+    );
+    assert_eq!(
+        nb.fields()
+            .unwrap()
+            .fields
+            .iter()
+            .find(|field| field.definition.id == project)
+            .unwrap()
+            .owners,
+        2
+    );
+    assert_eq!(
+        nb.field_detail(&project, None, None).unwrap().owners_total,
+        2
+    );
+}
+
+#[test]
 fn appointment_becomes_task_without_moving_or_changing_its_date() {
     let (_directory, mut nb) = fixture();
     let appointment = TaskState {

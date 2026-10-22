@@ -158,16 +158,15 @@ pub(crate) fn visible_tasks(
         .collect::<rusqlite::Result<Vec<_>>>()?)
 }
 
-/// Every live project a task belongs to by ancestry, nearest first, as a project filter matches it.
-/// Tasks with an explicit Project field belong only to that project and are omitted.
-pub(crate) fn ancestry_projects(conn: &Connection) -> Result<HashMap<String, Vec<String>>> {
+/// Every live project a task belongs to, nearest first. An explicit assignment replaces ancestry.
+pub(crate) fn project_memberships(conn: &Connection) -> Result<HashMap<String, Vec<String>>> {
     let mut statement = conn.prepare_cached(concat!(
         hidden_blocks!(),
         task_memberships!(),
-        " SELECT m.block_id, a.ancestor_id FROM memberships m
-         JOIN ancestors a ON a.task_id = m.block_id
-         JOIN live_projects pr ON pr.block_id = a.ancestor_id
-         WHERE m.explicit_project IS NULL ORDER BY m.block_id, a.depth"
+        " SELECT m.block_id, coalesce(m.explicit_project, a.ancestor_id) FROM memberships m
+         LEFT JOIN ancestors a ON a.task_id = m.block_id AND m.explicit_project IS NULL
+         JOIN live_projects pr ON pr.block_id = coalesce(m.explicit_project, a.ancestor_id)
+         WHERE json_extract(m.state, '$.status') IS NOT NULL ORDER BY m.block_id, a.depth"
     ))?;
     let mut result = HashMap::<String, Vec<String>>::new();
     for pair in statement.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))? {
