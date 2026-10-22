@@ -3,8 +3,8 @@ import type { Block, BlockInPage } from '../api/types';
 export type SearchHit = BlockInPage & { alias?: string | null };
 export type SearchEntry = { kind: 'hit'; hit: SearchHit } | { kind: 'more'; page: Block; count: number };
 
-/** Title hits lead, then page groups with prose matches ahead of URL-only matches. */
-export function paletteRows(hits: readonly SearchHit[], query: string, pageId?: string): SearchEntry[] {
+/** Title hits lead, then prose matches; definition pages follow all content. */
+export function paletteRows(hits: readonly SearchHit[], query: string, pageId?: string, definitionPages?: ReadonlySet<string>): SearchEntry[] {
   const needle = query.trim().toLocaleLowerCase();
   const ranked = hits.map(hit => {
     const text = hit.block.text.toLocaleLowerCase();
@@ -23,7 +23,7 @@ export function paletteRows(hits: readonly SearchHit[], query: string, pageId?: 
     for (const hit of group.slice(0, 2)) result.push({ kind: 'hit', hit });
     if (group.length > 2) result.push({ kind: 'more', page: group[0]!.page, count: group.length - 2 });
   }
-  return result;
+  return definitionPages ? result.sort((a, b) => Number(definitionPages.has(a.kind === 'hit' ? a.hit.page.id : a.page.id)) - Number(definitionPages.has(b.kind === 'hit' ? b.hit.page.id : b.page.id))) : result;
 }
 
 /** Preview matches use the same Unicode search terms; source snippets already carry structured matches. */

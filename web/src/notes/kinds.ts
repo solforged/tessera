@@ -6,9 +6,16 @@ import { paths, type IconName } from '../ui/glyphs';
 import type { OpenTarget } from '../shell/contract';
 import { typeQuery } from '../table/query';
 
-/** One glyph per kind, read from the registry; the web-only All kind and unknown glyphs fall back here. */
+/** One glyph per registry kind, with shell-only kinds and page capabilities resolved here. */
 export function noteKindIcon(kind: string | Pick<NoteKind, 'key' | 'icon'>): IconName {
-  if (typeof kind === 'string') return kind === 'all' ? 'contents' : 'tag';
+  if (typeof kind === 'string') {
+    switch (kind) {
+      case 'all': return 'contents';
+      case 'question': return 'question-open';
+      case 'project': return 'flag';
+      default: return 'tag';
+    }
+  }
   return kind.icon && Object.hasOwn(paths, kind.icon) ? kind.icon as IconName : 'tag';
 }
 

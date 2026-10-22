@@ -5,7 +5,7 @@ export function creatableKinds(kinds: readonly IndexKind[]): IndexKind[] {
   return kinds.filter(kind => kind.tag && !['task', 'question', 'project', 'source'].includes(kind.key));
 }
 
-/** Built-in kinds read in lower case mid-sentence (`New person`); a notebook's own types keep the name as written (`New Italian word`). */
+/** Generated action labels read in sentence case for built-in and notebook-defined kinds alike. */
 export function kindNoun(kind: Pick<NoteKind, 'key' | 'name'>): string {
-  return kind.key.startsWith('type:') ? kind.name : kind.name.toLocaleLowerCase();
+  return kind.name.toLocaleLowerCase();
 }
