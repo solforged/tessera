@@ -1,5 +1,16 @@
 import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
+import type { AgendaItem } from '../api/types';
+import { groupAgenda } from '../tasks/task-labels';
+
+/** Today and the sidebar share the day's actionable plans, separate from overdue work and future warnings. */
+export function agendaDaySummary(rows: readonly AgendaItem[], date: string): { planned: number; overdue: number; items: AgendaItem[] } {
+  const groups = groupAgenda(rows, date);
+  const items = groups.planned.filter(item => item.task.status === 'doing'
+    || !!item.task.scheduled && item.task.scheduled <= date
+    || !!item.task.deadline && item.task.deadline <= date);
+  return { planned: items.length, overdue: groups.overdue.length, items };
+}
 
 /** What the sidebar's landmarks report: planned tasks for the day, cards due and highlights not yet worked. */
 export interface DeskCounts { planned: number; overdue: number; cards: number; revisits: number; highlights: number }
@@ -17,12 +28,7 @@ export function deskCounts(notebook: NotebookClient, date: Accessor<string>): Ac
         notebook.api.revisits(day, controller.signal),
       ]).then(([agenda, cards, highlights, revisits]) => {
         if (controller.signal.aborted) return;
-        let planned = 0, overdue = 0;
-        for (const item of agenda.items) {
-          if (item.reasons.includes('recently_completed') || item.reasons.every(reason => reason === 'unplanned')) continue;
-          planned++;
-          if (item.reasons.includes('overdue') || !!item.task.scheduled && item.task.scheduled < day) overdue++;
-        }
+        const { planned, overdue } = agendaDaySummary(agenda.items, day);
         setCounts({ planned, overdue, cards: cards.total, revisits: revisits.length, highlights: highlights.total });
       }, () => {
         // A stale count would mislead; each destination reports its own loading errors.

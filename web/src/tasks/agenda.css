@@ -99,6 +99,7 @@
 .agenda-priority[data-priority="high"] { color: var(--danger); }
 .agenda-task-line > .agenda-row-meta.agenda-row-meta-lone { margin-left: 0; }
 .agenda-late { color: var(--danger); }
+.agenda-warning { color: var(--warning); }
 .agenda-row:is(.agenda-row-completed, .agenda-row-cancelled) .agenda-source-text { color: var(--muted); }
 .agenda-row-cancelled .agenda-source-text { text-decoration: line-through var(--faint); }
 /* Query rows reserve one priority column, keeping every planning token intact. */
@@ -118,8 +119,8 @@
 .agenda-row-timetable .agenda-status { grid-column: 2; grid-row: 1; align-self: start; }
 .agenda-row-timetable .agenda-status.task-status-button, .agenda-row-timetable .agenda-source { min-height: var(--agenda-row-height); }
 .agenda-row-timetable .agenda-task-line { grid-column: 3; grid-row: 1; flex: none; align-items: center; min-height: var(--agenda-row-height); }
-.agenda-provenance { grid-column: 4; grid-row: 1; align-self: start; min-width: 0; min-height: var(--agenda-row-height); padding: var(--space-2) 0; border: 0; background: transparent; color: var(--faint); text-align: left; font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agenda-provenance:hover { color: var(--muted); }
+.agenda-provenance { grid-column: 4; grid-row: 1; align-self: start; min-width: 0; min-height: var(--agenda-row-height); padding: var(--space-2) 0; border: 0; background: transparent; color: var(--text); text-align: left; font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-2); }
+.agenda-provenance:is(:hover, :focus-visible) { color: var(--accent); text-decoration-color: var(--accent); }
 .agenda-row-timetable:not(:has(> .agenda-provenance, > .agenda-row-actions)) .agenda-task-line { grid-column: 3 / -1; }
 .agenda-row-timetable .agenda-task-line > .agenda-source { padding-inline: 0; min-height: 0; }
 .agenda-row-timetable > .agenda-error, .agenda-row-timetable > .agenda-message { grid-column: 3 / -1; margin: 0; }
@@ -133,12 +134,8 @@
 li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(--rule-width)); }
 /* Planning has its own trailing slot. Only the ink changes on hover or focus, never the provenance or columns. */
 .agenda-row-actions { grid-column: 5; grid-row: 1; align-self: start; display: flex; flex: 0 0 auto; justify-content: flex-end; align-items: center; gap: var(--space-2); min-height: var(--agenda-row-height); }
-.agenda-row-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.agenda-row:is(:hover, :focus-within, .agenda-row-picking) > .agenda-row-actions .button { color: var(--muted); }
-.agenda-row-actions .button:hover:not(:disabled) { color: var(--text); }
-@media (hover: hover) and (pointer: fine) {
-  .agenda-row:not(:hover, :focus-within, .agenda-row-picking) > .agenda-row-actions { opacity: .6; }
-}
+.agenda-row-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.agenda-row-actions .button:is(:hover, :focus-visible):not(:disabled) { color: var(--text); background: transparent; text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-2); }
 /* Touch keeps the calendar in the same reserved slot, without hover-only controls. */
 @media (hover: none), (pointer: coarse) {
   .agenda-row-actions .button { color: var(--muted); }
@@ -160,9 +157,8 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 /* One resurfaced slip sits below the journal, marked by the highlight's colour along its left edge. */
 .resurface-heading, .resurface-navigation { display: flex; align-items: center; gap: var(--space-4); }
 .resurface-heading > .journal-section-heading { flex: 1; min-width: 0; margin: 0; }
-/* Today's own sections, Journal and From your highlights, head in the serif at section size, as H2s: the name stands
-   apart from the mono apparatus around it, and the rule, state and chevron follow as before. */
-:is(.journal-section-name, .journal-writing-heading > span:first-child) { color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+/* The journal's authored writing heading retains its display voice; highlight disclosure uses the shared apparatus. */
+.journal-writing-heading > span:first-child { color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
 .resurface-card { position: relative; min-width: 0; padding: var(--card-padding); border: 0; border-radius: var(--radius-workspace); background: var(--raised); }
 .resurface-color { position: absolute; inset: 0 auto 0 0; width: var(--space-2); }
 .resurface-quote { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
@@ -251,6 +247,7 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 .journal-agenda-tile[aria-expanded="true"] .journal-tile-chevron { rotate: 0deg; }
 .today-ledger { margin-top: var(--space-12); padding-top: var(--space-4); border-top: var(--rule-width) solid var(--line); }
 .today-carried { display: flex; align-items: center; gap: var(--space-8); min-height: var(--row-height); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.today-carried-collapsed { border-bottom: var(--rule-width) solid var(--line); margin-bottom: var(--space-4); }
 .today-carried .button { min-height: var(--target-size); padding-inline: var(--space-4); font: inherit; }
 .today-carried-toggle > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); rotate: -90deg; transition: rotate var(--motion-fast) var(--motion-ease); }
 .today-carried-toggle[aria-expanded="true"] > .icon { rotate: 0deg; }
@@ -322,6 +319,16 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
   .agenda-row-timetable > .agenda-error, .agenda-row-timetable > .agenda-message { grid-row: 3; }
 }
+@media (max-width: 480px) {
+  .agenda-toolbar { flex-wrap: nowrap; align-items: center; gap: var(--space-8); }
+  .agenda-heading > p { display: none; }
+  .agenda-title-date { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+  .agenda-date { flex-wrap: nowrap; gap: var(--space-2); margin-left: auto; }
+  .agenda-date > .button { padding-inline: var(--space-4); }
+  .agenda-row-timetable > .agenda-provenance { grid-column: 3 / -1; grid-row: 3; min-height: var(--target-size); white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > .agenda-provenance { grid-column: 2 / -1; }
+  .agenda-row-timetable > .agenda-error, .agenda-row-timetable > .agenda-message { grid-row: 4; }
+}
 /* On the cover the capture field stays above navigation, and drops to the keyboard edge when navigation hides. */
 @media (max-width: 599px) and (pointer: coarse) {
   .agenda-pane:has(.agenda-add) { --agenda-capture-clearance: calc(var(--target-size) + 2 * var(--space-4) + 2 * var(--rule-width) + var(--space-12) + var(--bottom-inset)); padding-bottom: calc(var(--page-bottom-space) + var(--agenda-capture-clearance)); }
@@ -333,4 +340,7 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .pane:not(.active) .agenda-add { display: none; }
   .app.keyboard-open .agenda-add { bottom: calc(var(--visual-viewport-bottom-gap, 0px) + var(--bottom-inset) + var(--space-8)); }
   .agenda-add .capture-input { min-height: var(--target-size); border: 0; }
+}
+@media (pointer: coarse) {
+  .agenda-title-date, .agenda-row-actions .button, .agenda-row-timetable > .agenda-provenance, .today-carried .button { min-height: var(--touch-target); }
 }

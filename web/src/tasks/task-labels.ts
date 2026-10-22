@@ -13,14 +13,15 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((noon(to).getTime() - noon(from).getTime()) / 86_400_000);
 }
 
-/** Nearby dates use words or weekday and day; dates beyond six days use ISO. */
+/** Civil neighbors use words; other dates in today's Monday–Sunday week use weekday and day, then ISO. */
 export function relativeDate(date: string, today: string): string {
   const days = daysBetween(today, date);
   if (days === 0) return 'today';
   if (days === 1) return 'tomorrow';
   if (days === -1) return 'yesterday';
   const day = noon(date);
-  if (Math.abs(days) < 7) return `${weekdays[day.getDay()]} ${day.getDate()}`;
+  const weekStart = -((noon(today).getDay() + 6) % 7);
+  if (days >= weekStart && days < weekStart + 7) return `${weekdays[day.getDay()]} ${day.getDate()}`;
   return date;
 }
 
@@ -31,12 +32,14 @@ export interface TaskFact {
   label: string;
   field: 'status' | 'schedule' | 'deadline' | 'priority' | 'repeat';
   late?: boolean;
+  /** An unfinished deadline within its inclusive warning window, but not late. */
+  warning?: boolean;
   /** Set when the fact is a priority word. High is danger; medium and low stay faint. */
   priority?: NonNullable<TaskState['priority']>;
 }
 
 export interface FactContext {
-  /** The displayed day: lateness is measured against it. */
+  /** The displayed day: a plan is late only when it also precedes civil today. */
   date: string;
   /** The civil today: relative words are measured against it. */
   today: string;
@@ -55,15 +58,17 @@ export function taskFacts(task: TaskState, context: FactContext): TaskFact[] {
   if (task.status === 'done') return task.completed_on ? [{ field: 'status', text: `done ${relativeDate(task.completed_on, context.today)}`, label: `Done ${task.completed_on}` }] : [];
   const facts: TaskFact[] = [];
   if (task.scheduled && !(context.listed && task.scheduled === context.date)) {
-    const late = task.scheduled < context.date;
+    const late = task.scheduled < context.date && task.scheduled < context.today;
     const time = context.timeShown ? '' : clock(task.scheduled_time);
     facts.push({ field: 'schedule', text: `${late ? 'since ' : ''}${relativeDate(task.scheduled, context.today)}${time}`, label: `Scheduled ${task.scheduled}${clock(task.scheduled_time)}`, late });
   }
   if (task.deadline) {
-    const late = task.deadline < context.date;
+    const late = task.deadline < context.date && task.deadline < context.today;
+    const remaining = daysBetween(context.date, task.deadline);
+    const warning = !late && task.warning_days !== null && remaining >= 0 && remaining <= task.warning_days;
     const listedDay = context.listed && task.deadline === context.date;
     const time = listedDay && context.timeShown ? '' : clock(task.deadline_time);
-    facts.push({ field: 'deadline', text: listedDay ? `due${time}` : `due ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${task.deadline}${clock(task.deadline_time)}`, late });
+    facts.push({ field: 'deadline', text: listedDay ? `due${time}` : `due ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${task.deadline}${clock(task.deadline_time)}`, late, warning });
   }
   if (task.priority) facts.push({ field: 'priority', text: priorityNames[task.priority], label: `${priorityNames[task.priority]} priority`, priority: task.priority });
   if (task.repeater) {

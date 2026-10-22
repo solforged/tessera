@@ -12,3 +12,7 @@
 .date-picker-quick-picks { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .date-picker-actions { display: flex; flex: 1; justify-content: space-between; gap: var(--space-8); }
 .date-picker .date-picker-error { margin: 0; font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
+
+@media (pointer: coarse) {
+  :is(.popup, .popup-exit).date-picker { overflow: auto; overscroll-behavior: contain; }
+}

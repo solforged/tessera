@@ -255,7 +255,7 @@ function TaskSourceRow(props: {
     </button>
     <span class="agenda-row-meta" classList={{ 'agenda-row-meta-lone': lonePriority() }}>
       <Show when={!props.timetable && time()}><span class="agenda-time">{time()}</span></Show>
-      <For each={facts().filter(fact => !fact.priority)}>{fact => <span classList={{ 'agenda-late': !!fact.late }} title={fact.label}>{fact.text}</span>}</For>
+      <For each={facts().filter(fact => !fact.priority)}>{fact => <span classList={{ 'agenda-late': !!fact.late, 'agenda-warning': !!fact.warning }} title={fact.label}>{fact.text}</span>}</For>
       <Show when={unfinished() && props.row.task.priority}><Button class="agenda-priority" data-priority={props.row.task.priority} label={`Priority: ${priorityLabel(props.row.task.priority)}`} title={`Priority: ${priorityLabel(props.row.task.priority)} (P)`} disabled={busy() || props.disabled} aria-haspopup="menu" aria-expanded={menu()?.kind === 'priority'} onClick={event => setMenu({ kind: 'priority', anchor: event.currentTarget })}>{priorityLabel(props.row.task.priority)}</Button></Show>
       {/* A project the row already names as its source page is not repeated among the facts. */}
       <Show when={props.row.project_id !== props.pageId && props.row.project_id !== props.row.source.page.id ? props.row.project_id : null}>{id => <span><BlockText text={props.notebook.lookup(id())()?.text ?? ''} notebook={props.notebook} interactive={false} /></span>}</Show>
@@ -266,8 +266,8 @@ function TaskSourceRow(props: {
     </Show>
     <Show when={props.plan && unfinished()}>
       <span class="agenda-row-actions">
-        <Show when={props.row.task.scheduled !== today()}><Button disabled={busy() || props.disabled} title="Schedule for today (T)" onClick={() => reschedule(today())}>Today</Button></Show>
-        <Show when={props.row.task.scheduled !== tomorrow()}><Button disabled={busy() || props.disabled} title="Schedule for tomorrow (M)" onClick={() => reschedule(tomorrow())}>Tomorrow</Button></Show>
+        <Show when={props.row.task.scheduled !== today()}><Button disabled={busy() || props.disabled} title="Schedule for today (T)" onClick={() => reschedule(today())}><span aria-hidden="true">→</span>Today</Button></Show>
+        <Show when={props.row.task.scheduled !== tomorrow()}><Button disabled={busy() || props.disabled} title="Schedule for tomorrow (M)" onClick={() => reschedule(tomorrow())}><span aria-hidden="true">→</span>Tomorrow</Button></Show>
         <Button class="agenda-row-pick" icon="calendar" label="Reschedule…" shortcut="S" disabled={busy() || props.disabled} onClick={event => setPicking(event.currentTarget)} />
       </span>
     </Show>

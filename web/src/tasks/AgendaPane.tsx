@@ -120,6 +120,24 @@ export function AgendaPane(props: AgendaPaneProps) {
   let scroll!: HTMLDivElement;
   const [narrowWeek, setNarrowWeek] = createSignal(false);
   const [showAllHours, setShowAllHours] = createSignal(false);
+  const toggleWeekHours = () => {
+    const calendar = scroll.querySelector<HTMLElement>('.week-calendar-scroll');
+    const column = calendar?.querySelector<HTMLElement>('.week-calendar-time-column');
+    if (!calendar || !column) { setShowAllHours(value => !value); return; }
+    const start = Number(calendar.dataset.startHour);
+    const end = Number(calendar.dataset.endHour);
+    const hourHeight = column.getBoundingClientRect().height / (end - start);
+    const topHour = start + calendar.scrollTop / hourHeight;
+    // Keep the civil hour below the sticky all-day rail, not the old pixel offset.
+    setShowAllHours(value => !value);
+    requestAnimationFrame(() => {
+      if (!calendar.isConnected) return;
+      const nextStart = Number(calendar.dataset.startHour);
+      const nextEnd = Number(calendar.dataset.endHour);
+      const nextHourHeight = column.getBoundingClientRect().height / (nextEnd - nextStart);
+      calendar.scrollTop = (topHour - nextStart) * nextHourHeight;
+    });
+  };
   onMount(() => {
     const resize = new ResizeObserver(entries => setNarrowWeek(entries[0]!.contentRect.width < 600));
     resize.observe(scroll);
@@ -345,11 +363,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     const yearStart = new Date(thursday);
     yearStart.setUTCMonth(0, 1);
     const week = Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
-    const format = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
-    const startDate = new Date(`${first}T12:00:00Z`);
-    const endDate = new Date(`${last}T12:00:00Z`);
-    const end = first.slice(0, 7) === last.slice(0, 7) ? endDate.getUTCDate() : `${format.format(endDate)} ${endDate.getUTCDate()}`;
-    return `W${week} · ${format.format(startDate)} ${startDate.getUTCDate()}–${end}`;
+    return `W${week} · ${first} – ${last}`;
   });
   const changeDay = (input: string) => {
     const parsed = parseTaskDate(input, date());
@@ -401,7 +415,7 @@ export function AgendaPane(props: AgendaPaneProps) {
   return <div ref={scroll} class="agenda-pane" data-pane={props.pane} aria-label="Agenda and tasks" tabIndex={props.active ? 0 : -1} onKeyDown={historyKeydown} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onScroll={() => props.onViewChange({ ...view(), query: copyTaskQuery(query()), scroll: scroll.scrollTop })}>
     <div class="agenda-content">
       <header class="agenda-toolbar">
-        <div class="agenda-heading"><p>Agenda</p><h1><Show when={mode() !== 'tasks'} fallback="Tasks"><button type="button" class="agenda-title-date" aria-label={`Choose date, ${spokenJournalDate(date())}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'date'} onClick={event => setPopup({ kind: 'date', anchor: event.currentTarget })}>{mode() === 'week' ? weekTitle() : spokenJournalDate(date())}</button></Show></h1></div>
+        <div class="agenda-heading"><p>Agenda</p><h1><Show when={mode() !== 'tasks'} fallback="Tasks"><button type="button" class="agenda-title-date" aria-label={`Choose date, ${spokenJournalDate(date())}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'date'} onClick={event => setPopup({ kind: 'date', anchor: event.currentTarget })}>{mode() === 'week' ? weekTitle() : relativeDate(date(), props.notebook.todayDate())}</button></Show></h1></div>
         <Show when={mode() !== 'tasks'}><div class="agenda-date" role="group" aria-label={mode() === 'week' ? 'Displayed week' : 'Displayed date'}>
           <Button icon="left" label={mode() === 'week' ? 'Previous week' : 'Previous day'} disabled={busy() || !previousDate()} onClick={() => { const previous = previousDate(); if (previous) changeDay(previous); }} />
           <Button disabled={busy()} onClick={() => changeDay(props.notebook.todayDate())}>Today</Button>
@@ -412,7 +426,7 @@ export function AgendaPane(props: AgendaPaneProps) {
         <Button aria-pressed={mode() === 'agenda'} disabled={busy()} onClick={() => { setStripStart(date()); update({ mode: 'agenda', scroll: 0 }); }}>Day</Button>
         <Button aria-pressed={mode() === 'week'} disabled={busy()} onClick={() => { setStripStart(mondayWeekStart(date()) ?? date()); update({ mode: 'week', scroll: 0 }); }}>Week</Button>
         <Button aria-pressed={mode() === 'tasks'} disabled={busy()} onClick={() => update({ mode: 'tasks', scroll: 0 })}>Tasks</Button>
-        <Show when={mode() === 'week' && !narrowWeek()}><span class="agenda-week-hours"><Button aria-pressed={showAllHours()} onClick={() => setShowAllHours(value => !value)}>{showAllHours() ? 'Hide early and late hours' : 'Show all hours'}</Button></span></Show>
+        <Show when={mode() === 'week' && !narrowWeek()}><span class="agenda-week-hours"><Button aria-pressed={showAllHours()} onClick={toggleWeekHours}>{showAllHours() ? 'Hide early and late hours' : 'Show all hours'}</Button></span></Show>
       </div>
       <div class="agenda-mode-content">
       <Show when={mode() === 'agenda'}><AgendaWeekStrip dates={stripDates()} date={date()} today={props.notebook.todayDate()} rows={weekRows()} loading={weekLoading()} disabled={busy()} onSelect={date => update({ date, scroll: 0 })} /></Show>
@@ -459,8 +473,8 @@ export function AgendaPane(props: AgendaPaneProps) {
         <Show when={mode() === 'agenda'} fallback={<TaskSourceRows rows={rows()} date={date()} pageId={dayPage()} sections={query().filter.sort === 'outline'} notebook={props.notebook} history={taskHistory} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />}>
           <overdueMove.Notice />
           <Show when={dayGroups().overdue.length}>
-            <section class="agenda-day-section" aria-label="Overdue">
-              <AgendaSectionHeading name="Overdue" count={dayGroups().overdue.length} late>
+            <section class="agenda-day-section" aria-label={date() > props.notebook.todayDate() ? 'Before this day' : 'Overdue'}>
+              <AgendaSectionHeading name={date() > props.notebook.todayDate() ? 'Before this day' : 'Overdue'} count={dayGroups().overdue.length} late={date() <= props.notebook.todayDate()}>
                 <span class="agenda-section-actions">
                   <Button class="bordered" disabled={busy() || loading()} aria-haspopup="menu" aria-expanded={overdueMenuOpen()} onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Move overdue tasks', items: [
                     { label: 'To today', disabledReason: !movableTo(dayGroups().overdue, props.notebook.todayDate()).length ? 'All tasks are already scheduled for today.' : undefined, action: () => overdueMove.move(dayGroups().overdue, props.notebook.todayDate()) },

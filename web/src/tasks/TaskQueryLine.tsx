@@ -48,9 +48,17 @@ export function TaskQueryLine(props: TaskQueryLineProps) {
   };
   return <div class="task-query-line">
     <Show when={focused()} fallback={<div class="task-query-chips" role="group" aria-label="Task query" tabIndex={props.disabled ? -1 : 0} onFocus={event => { if (event.target === event.currentTarget) edit(); }} onClick={edit}>
-      <For each={terms()}>{term => <span class="task-query-chip" classList={{ 'task-query-invalid': result().errors.some(error => error.start === term.start) }}>
-        <span>{term.term}</span><Button disabled={props.disabled} label={`Remove ${term.term}`} onClick={event => { event.stopPropagation(); remove(term.start, term.end); }}>×</Button>
-      </span>}</For>
+      <For each={terms()}>{term => {
+        const label = createMemo(() => {
+          if (!term.term.startsWith('[[')) return term.term;
+          const parsed = parseTaskQueryLine(term.term, props.context);
+          const project = parsed.query.filter.project_id;
+          return !parsed.errors.length && project ? props.context.projectTitle(project) ?? term.term : term.term;
+        });
+        return <span class="task-query-chip" title={term.term} classList={{ 'task-query-invalid': result().errors.some(error => error.start === term.start) }}>
+          <span>{label()}</span><Button disabled={props.disabled} label={`Remove ${label()}`} onClick={event => { event.stopPropagation(); remove(term.start, term.end); }}>×</Button>
+        </span>;
+      }}</For>
       <Show when={!terms().length}><span class="task-query-placeholder">Filter tasks · is:todo @..fri #Book</span></Show>
     </div>}>
       <div class="task-query-editor">

@@ -102,11 +102,11 @@ export function RepeatPopup(props: { anchor: PopupAnchor; value: TaskState['repe
   };
   return <Popup anchor={props.anchor} label="Repeat" class="task-control-popup" fitContent onDismiss={() => { if (!busy()) props.onDismiss(); }}>
     <form class="task-control-form" aria-busy={busy()} onSubmit={event => { event.preventDefault(); void submit(); }}>
-      <label class="task-control-field">Mode<Button class="bordered" label={`Repeat mode: ${modeLabel()}`} disabled={blocked()} aria-haspopup="menu" aria-expanded={menu()?.kind === 'mode'} onClick={event => setMenu({ kind: 'mode', anchor: event.currentTarget })}>{modeLabel()}</Button></label>
+      <label class="task-control-field">Mode<Button class="bordered" label={`Repeat mode: ${modeLabel()}`} disabled={blocked()} aria-haspopup="menu" aria-expanded={menu()?.kind === 'mode'} onClick={event => setMenu({ kind: 'mode', anchor: event.currentTarget })}>{modeLabel()}<Icon name="down" /></Button></label>
       <Show when={mode()}>{value => <p class="task-control-note">{repeatHints[value()]}</p>}</Show>
       <Show when={mode() !== null}><div class="task-repeat-interval">
         <label class="task-control-field">Every<input class="input" inputmode="numeric" value={every()} disabled={blocked()} onInput={event => setEvery(event.currentTarget.value)} /></label>
-        <label class="task-control-field">Unit<Button class="bordered" label={`Repeat unit: ${unitLabels[unit()]}`} disabled={blocked()} aria-haspopup="menu" aria-expanded={menu()?.kind === 'unit'} onClick={event => setMenu({ kind: 'unit', anchor: event.currentTarget })}>{unitLabels[unit()]}</Button></label>
+        <label class="task-control-field">Unit<Button class="bordered" label={`Repeat unit: ${unitLabels[unit()]}`} disabled={blocked()} aria-haspopup="menu" aria-expanded={menu()?.kind === 'unit'} onClick={event => setMenu({ kind: 'unit', anchor: event.currentTarget })}>{unitLabels[unit()]}<Icon name="down" /></Button></label>
       </div></Show>
       <Show when={mode() !== null && props.firstDate}>{date => <p class="task-control-note">A repeat counts from a date, so this schedules the task for <span class="task-control-date">{date()}</span>.</p>}</Show>
       <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
