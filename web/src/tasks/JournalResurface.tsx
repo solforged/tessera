@@ -95,7 +95,7 @@ export function JournalResurface(props: JournalResurfaceProps) {
     <div class="resurface-heading">
       <h2 class="journal-section-heading"><Button class="journal-agenda-toggle" aria-expanded={!collapsed()} aria-controls={id} onClick={() => setCollapsed(!collapsed())}>
         <span class="journal-section-name">From your highlights</span>
-        <span class="agenda-summary">{!loaded() ? slow() ? 'Loading…' : '' : items().length ? `${Math.min(index() + 1, items().length)} of ${items().length}` : 'Nothing yet'}</span><span class="section-rule" /><Icon name="down" />
+        <span class="section-rule" /><span class="agenda-summary">{!loaded() ? slow() ? 'Loading…' : '' : items().length ? `${Math.min(index() + 1, items().length)} of ${items().length}` : 'Nothing yet'}</span><Icon name="down" />
       </Button></h2>
       <Show when={!collapsed() && items().length > 1}><nav class="resurface-navigation" aria-label="Resurfaced highlights">
         <Button icon="left" label="Previous highlight" disabled={pending() || index() === 0} onClick={() => setIndex(value => value - 1)} />

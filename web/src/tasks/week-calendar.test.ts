@@ -146,8 +146,8 @@ describe('week entries and time lanes', () => {
       row('due', { scheduled: null, scheduled_time: null }),
     ], calendarWeekDates('2026-10-06'));
     const layout = layoutWeekTimedEntries(entries);
-    expect(layout.map(item => [item.entry.row.source.block.id, item.minute, item.lane, item.lanes])).toEqual([
-      ['a', 540, 0, 3], ['b', 540, 1, 3], ['c', 555, 2, 3], ['d', 570, 0, 3], ['e', 600, 0, 1], ['late', 1439, 0, 1],
+    expect(layout.map(item => [item.entry.row.source.block.id, item.minute, item.lane, item.lanes, item.heightMinutes])).toEqual([
+      ['a', 540, 0, 3, 30], ['b', 540, 1, 3, 45], ['c', 555, 2, 3, 45], ['d', 570, 0, 3, 30], ['e', 600, 0, 1, 45], ['late', 1439, 0, 1, 45],
     ]);
     for (let left = 0; left < layout.length; left++) {
       for (let right = left + 1; right < layout.length; right++) {

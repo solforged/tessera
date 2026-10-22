@@ -117,8 +117,15 @@ export function DatePicker(props: DatePickerProps) {
     return parsed.ok ? parsed.date : null;
   });
   const planning = props.partialDates || props.presets === 'revisit' ? undefined : createMonthPlanningMarks(() => props.notebook, preview() ?? props.contextDate);
+  // The phone pane already stops above the bottom navigation and system safe area.
+  // Reuse that box so an anchored calendar clips its body rather than covering the navigation.
+  const bounds = () => {
+    if (!window.matchMedia('(pointer: coarse)').matches) return null;
+    const pane = (props.anchor instanceof HTMLElement ? props.anchor.closest('.pane') : null) ?? document.querySelector('.pane.active');
+    return pane?.getBoundingClientRect() ?? null;
+  };
 
-  return <Popup anchor={props.anchor} label={props.label} onDismiss={props.onDismiss} class="date-picker" fitContent>
+  return <Popup anchor={props.anchor} label={props.label} onDismiss={props.onDismiss} class="date-picker" fitContent bounds={bounds}>
     <form class="date-picker-form" aria-busy={busy()} onKeyDown={keydown} onCompositionStart={() => { composing = true; }} onCompositionEnd={() => { composing = false; }} onSubmit={event => { event.preventDefault(); if (!composing) apply(); }}>
       <div class="date-picker-body">
         <div class="date-picker-field">

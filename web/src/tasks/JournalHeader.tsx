@@ -7,13 +7,14 @@ import { shortSourceTitle } from '../outline/source';
 import { sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
 import type { OpenTarget } from '../shell/contract';
+import { agendaDaySummary } from '../shell/desk-counts';
 import { opensBeside } from '../shell/beside';
 import { BookMap } from '../ui/BookMap';
 import { bookChapters, chapterAt } from '../ui/book-map';
 import { Button } from '../ui/Button';
 import { spokenJournalDate } from './journal-date';
 import { JournalTrail } from './JournalTrail';
-import { groupAgenda, groupDayAgenda } from './task-labels';
+import { groupDayAgenda } from './task-labels';
 import { createClock } from './clock';
 import { TaskSourceRows } from './JournalAgenda';
 import { movableTo } from './reschedule';
@@ -73,14 +74,11 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
   const agendaSummary = createMemo(() => {
     const agenda = desk()?.agenda;
     if (!agenda) return null;
-    const groups = groupAgenda(agenda.items, props.date);
-    // Match the Agenda pane's Today section, excluding both Overdue and future warning dates.
-    const items = groups.planned.filter(item => item.task.status === 'doing'
-      || !!item.task.scheduled && item.task.scheduled <= props.date
-      || !!item.task.deadline && item.task.deadline <= props.date);
+    const summary = agendaDaySummary(agenda.items, props.date);
+    const items = summary.items;
     const clock = new Intl.DateTimeFormat('en-GB', { timeZone: props.notebook.settings()?.time_zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date());
     const next = items.filter(item => item.time && item.time >= clock).sort((a, b) => a.time!.localeCompare(b.time!))[0] ?? items.find(item => !item.time);
-    return { planned: items.length, overdue: groups.overdue.length, next };
+    return { planned: summary.planned, overdue: summary.overdue, next };
   });
   const progress = createMemo(() => {
     const book = reading();
@@ -148,12 +146,15 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
       <Show when={ledger() && dayGroups()}>{groups => <section id={ledgerId} class="today-ledger" data-task-rows aria-label="Today's tasks">
         <carried.Notice />
         <Show when={groups().overdue.length}>
-          <div class="today-carried">
+          <div class="today-carried" classList={{ 'today-carried-collapsed': !carriedOpen() }}>
             <Button class="today-carried-toggle" aria-expanded={carriedOpen()} onClick={() => setCarriedOpen(value => !value)}><span class="agenda-late">{groups().overdue.length} carried over</span><Icon name="down" /></Button>
             <span class="section-rule" />
             <Show when={movableTo(groups().overdue, props.date).length}><Button class="today-carried-move" onClick={() => carried.move(groups().overdue, props.date)}>Move to today</Button></Show>
           </div>
           <Show when={carriedOpen()}><TaskSourceRows rows={groups().overdue} date={props.date} notebook={props.notebook} timetable plan onOpen={props.onOpen} onChanged={() => {}} /></Show>
+        </Show>
+        <Show when={groups().overdue.length && (ledgerRows().elsewhere.length || ledgerRows().below)}>
+          <h2 class="agenda-section-heading"><span>Today</span><span class="section-rule" /><span class="agenda-summary">{ledgerRows().elsewhere.length + ledgerRows().below}</span></h2>
         </Show>
         <Show when={ledgerRows().elsewhere.length} fallback={<Show when={ledgerRows().below}><p class="agenda-message">{ledgerRows().below} planned in the journal below</p></Show>}>
           <TaskSourceRows rows={ledgerRows().elsewhere} date={props.date} notebook={props.notebook} timetable plan now={clock()} onOpen={props.onOpen} onChanged={() => {}} />

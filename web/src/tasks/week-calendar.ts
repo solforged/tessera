@@ -20,6 +20,7 @@ export interface TimedWeekEntry {
   minute: number;
   lane: number;
   lanes: number;
+  heightMinutes: number;
 }
 
 export interface IncompleteWeekRange {
@@ -119,21 +120,27 @@ export function weekTaskEntries(rows: readonly TaskRow[], dates: readonly (strin
     || left.key.localeCompare(right.key));
 }
 
-/** Cards last thirty visual minutes. Connected overlaps share equally sized lanes. */
+/** Thirty-minute overlaps share lanes; spare room lets cards show a second title line without covering the next card. */
 export function layoutWeekTimedEntries(entries: readonly WeekEntry[]): TimedWeekEntry[] {
   const timed = entries.filter(entry => entry.kind === 'scheduled' && entry.time !== null)
-    .map(entry => ({ entry, minute: timeMinutes(entry.time!), lane: 0, lanes: 1 }))
+    .map(entry => ({ entry, minute: timeMinutes(entry.time!), lane: 0, lanes: 1, heightMinutes: 30 }))
     .sort((left, right) => left.minute - right.minute || left.entry.key.localeCompare(right.entry.key));
   let group: TimedWeekEntry[] = [];
   let laneEnds: number[] = [];
   let groupEnd = -1;
-  const finishGroup = () => {
-    for (const item of group) item.lanes = laneEnds.length;
+  const finishGroup = (nextMinute = Infinity) => {
+    laneEnds.fill(nextMinute);
+    for (let index = group.length - 1; index >= 0; index--) {
+      const item = group[index]!;
+      item.lanes = laneEnds.length;
+      item.heightMinutes = Math.min(45, laneEnds[item.lane]! - item.minute);
+      laneEnds[item.lane] = item.minute;
+    }
     group = [];
     laneEnds = [];
   };
   for (const item of timed) {
-    if (item.minute >= groupEnd) finishGroup();
+    if (item.minute >= groupEnd) finishGroup(item.minute);
     let lane = laneEnds.findIndex(end => end <= item.minute);
     if (lane === -1) lane = laneEnds.length;
     item.lane = lane;

@@ -343,11 +343,11 @@ export function WeekCalendar(props: WeekCalendarProps) {
     <Show when={!loading() && !error() && !entries().length}><p class="agenda-message">No scheduled tasks or deadlines this week. Schedule a task from its source to see it here.</p></Show>
     <Show when={incomplete().length}><div class="agenda-error" role="status"><span>Some days exceed the task API limit. Not all planned tasks are shown.</span><ul><For each={incomplete()}>{range => <li>{range.date}: {range.shown} of {range.total} {statusLabels[range.status].toLocaleLowerCase()} {range.field === 'scheduled' ? 'scheduled tasks' : 'deadlines'} shown.</li>}</For></ul></div></Show>
     <p class="week-calendar-feedback" aria-live="polite" aria-atomic="true">{draggingId() ? drop() ? `Drop to schedule for ${dropLabel()}.` : 'Drop on an all-day column or a time slot.' : pendingCount() ? `Saving ${pendingCount() === 1 ? 'schedule' : `${pendingCount()} schedules`}…` : loading() ? fetchedRows().length ? 'Refreshing week…' : 'Loading scheduled tasks and deadlines…' : announcement()}</p>
-    <div ref={scroll} class="week-calendar-scroll" style={sheetStyle()} onScroll={updateDrop}>
+    <div ref={scroll} class="week-calendar-scroll" style={sheetStyle()} data-start-hour={hours().start} data-end-hour={hours().end} onScroll={updateDrop}>
       <div class="week-calendar-sheet">
         <div class="week-calendar-top">
           <div class="week-calendar-header"><span class="week-calendar-corner" title="24-hour time">24h</span><For each={dates()}>{(date, index) => <div class="week-calendar-day-header" classList={{ 'week-calendar-today': date === props.notebook.todayDate(), 'week-calendar-selected': date === props.date }} aria-current={date === props.notebook.todayDate() ? 'date' : undefined}>
-            <span>{weekdays[index()]}</span><strong>{date ? new Date(`${date}T12:00:00Z`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', timeZone: 'UTC' }) : 'Unavailable'}</strong>
+            <span>{date ? `${weekdays[index()]} ${Number(date.slice(8, 10))}` : 'Unavailable'}</span>
           </div>}</For></div>
           <div class="week-calendar-all-day"><span class="week-calendar-corner" title="All-day tasks and deadlines">All day</span><For each={dates()}>{(date, index) => {
             const keys = createMemo(() => days()[index()]!.allDay.map(entry => entry.key));
@@ -408,6 +408,8 @@ function WeekTaskCard(props: {
       top: `calc(var(--week-hour-height) * (${value.minute} - var(--week-start-minute)) / 60)`,
       left: `calc(100% / ${value.lanes} * ${value.lane} + var(--space-2))`,
       width: `calc(100% / ${value.lanes} - var(--space-4))`,
+      height: `min(calc(var(--week-hour-height) * ${value.heightMinutes} / 60 - var(--space-2)), var(--week-timed-card-height))`,
+      '--week-task-title-lines': value.heightMinutes === 45 ? 2 : 1,
     };
   });
   return <button type="button" class="week-calendar-task" classList={{ 'week-calendar-task-timed': !!props.position, 'week-calendar-task-done': completed(), 'week-calendar-task-late': late(), 'week-calendar-task-dragging': props.dragging }}
