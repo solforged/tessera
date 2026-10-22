@@ -552,23 +552,24 @@ impl Notebook {
                     &self.conn,
                     filter,
                     kind,
-                    defs.get(filter.field.as_str()).is_some_and(|field| {
-                        field.name != "project"
-                            && crate::built_in::task_field(&field.name).is_some()
-                    }),
+                    defs.get(filter.field.as_str())
+                        .is_some_and(|field| crate::built_in::task_field(&field.name).is_some()),
                 )
             })
             .collect::<Result<Vec<_>>>()?;
-        let present_owners = filters.iter().find_map(|filter| filter.owners.as_ref());
+        // Project also has authored entries outside tasks; these cannot narrow its projected task owners.
+        let present_owners = filters
+            .iter()
+            .filter(|filter| !filter.projected)
+            .find_map(|filter| filter.owners.as_ref());
         let owners = if present_owners.is_none()
             && query.r#type.is_none()
             && query.text.is_none()
             && !query.selects_notes()
             && entities.is_none()
             && !query.filters.iter().any(|filter| {
-                defs.get(filter.field.as_str()).is_some_and(|field| {
-                    field.name != "project" && crate::built_in::task_field(&field.name).is_some()
-                })
+                defs.get(filter.field.as_str())
+                    .is_some_and(|field| crate::built_in::task_field(&field.name).is_some())
             }) {
             let mut owners = HashSet::new();
             let mut entries = self.conn.prepare_cached(concat!(
@@ -840,44 +841,47 @@ impl<'a> PreparedFilter<'a> {
         kind: FieldKind,
         projected: bool,
     ) -> Result<Self> {
-        let owners =
-            if filter.op == FilterOp::Present && !filter.field.starts_with('@') && !projected {
-                let mut owners = HashSet::new();
-                let mut statement = conn.prepare_cached(concat!(
-                    hidden_blocks!(),
-                    "SELECT e.text, e.parent_id FROM links l
+        // Project is the projected relation: non-task atoms still use their authored entries.
+        let owners = if filter.op == FilterOp::Present
+            && !filter.field.starts_with('@')
+            && (!projected || kind == FieldKind::Instance)
+        {
+            let mut owners = HashSet::new();
+            let mut statement = conn.prepare_cached(concat!(
+                hidden_blocks!(),
+                "SELECT e.text, e.parent_id FROM links l
                  JOIN blocks e ON e.id = l.source_id
                  JOIN blocks o ON o.id = e.parent_id
                  WHERE l.target_id = ?1 AND e.deletion_id IS NULL AND o.deletion_id IS NULL
                  AND e.rowid NOT IN (SELECT rowid FROM hidden)"
-                ))?;
-                let mut cursor = statement.query([&filter.field])?;
-                while let Some(row) = cursor.next()? {
-                    let text = row.get_ref(0)?.as_str().map_err(|error| {
-                        rusqlite::Error::FromSqlConversionFailure(
-                            0,
-                            rusqlite::types::Type::Text,
-                            Box::new(error),
-                        )
-                    })?;
-                    if crate::fields::reference(text) != Some(filter.field.as_str()) {
-                        continue;
-                    }
-                    let owner = row.get_ref(1)?.as_str().map_err(|error| {
-                        rusqlite::Error::FromSqlConversionFailure(
-                            1,
-                            rusqlite::types::Type::Text,
-                            Box::new(error),
-                        )
-                    })?;
-                    if !owners.contains(owner) {
-                        owners.insert(owner.to_owned());
-                    }
+            ))?;
+            let mut cursor = statement.query([&filter.field])?;
+            while let Some(row) = cursor.next()? {
+                let text = row.get_ref(0)?.as_str().map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        0,
+                        rusqlite::types::Type::Text,
+                        Box::new(error),
+                    )
+                })?;
+                if crate::fields::reference(text) != Some(filter.field.as_str()) {
+                    continue;
                 }
-                Some(owners)
-            } else {
-                None
-            };
+                let owner = row.get_ref(1)?.as_str().map_err(|error| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Text,
+                        Box::new(error),
+                    )
+                })?;
+                if !owners.contains(owner) {
+                    owners.insert(owner.to_owned());
+                }
+            }
+            Some(owners)
+        } else {
+            None
+        };
         Ok(Self {
             filter,
             owners,
@@ -906,7 +910,10 @@ impl<'a> PreparedFilter<'a> {
         })
     }
     fn matches(&self, row: &QueryRow) -> bool {
-        let (empty, matched) = if self.filter.field.starts_with('@') || self.projected {
+        let projected = self.filter.field.starts_with('@')
+            || self.projected
+                && (!self.instance || row.attributes.contains_key(&self.filter.field));
+        let (empty, matched) = if projected {
             let values = row
                 .attributes
                 .get(&self.filter.field)
@@ -949,7 +956,14 @@ impl<'a> PreparedFilter<'a> {
             return true;
         }
         match self.filter.op {
-            FilterOp::Present if self.filter.field.starts_with('@') || self.projected => !empty,
+            FilterOp::Present if projected => {
+                !empty
+                    || self.instance
+                        && self
+                            .owners
+                            .as_ref()
+                            .is_some_and(|owners| owners.contains(&row.block.block.id))
+            }
             FilterOp::Present => self
                 .owners
                 .as_ref()

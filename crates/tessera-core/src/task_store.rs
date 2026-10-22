@@ -374,7 +374,9 @@ macro_rules! capability_rows {
              (SELECT COUNT(*) FROM card_units c WHERE c.source_block_id = b.id AND c.active = 1 AND c.key LIKE 'tpl:%') AS template_cards,
              q.state AS quote_state, b.text,
              EXISTS(SELECT 1 FROM spreads sp WHERE sp.block_id=b.id AND sp.active=1) AS spread,
-             CASE WHEN b.kind = 'page' THEN b.title_key END AS tag_key
+             CASE WHEN b.kind = 'page' THEN b.title_key END AS tag_key,
+             (SELECT COALESCE(SUM(w.ended_at - w.started_at), 0) FROM work_sessions w
+              WHERE w.block_id = b.id AND w.ended_at IS NOT NULL AND w.reversed = 0) AS logged_work_ms
              FROM blocks b LEFT JOIN tasks t ON t.block_id = b.id
              LEFT JOIN projects p ON p.block_id = b.id
              LEFT JOIN quotes q ON q.block_id = b.id "
@@ -433,6 +435,7 @@ fn capability_at(row: &rusqlite::Row<'_>) -> rusqlite::Result<BlockCapabilities>
         image: None,
         occlusion: None,
         history,
+        logged_work_ms: row.get(11)?,
         reviewed_cards,
         template_cards: row.get::<_, i64>(6)? as usize,
         source: None,

@@ -542,6 +542,16 @@ impl Notebook {
                 field.owners = task_counts[index] as usize;
             }
         }
+        if let Some(index) = fields
+            .iter()
+            .position(|field| field.definition.name == "project")
+        {
+            for owner in crate::task_query::project_memberships(&self.conn)?.into_keys() {
+                if owners.insert((index, owner)) {
+                    fields[index].owners += 1;
+                }
+            }
+        }
         let mut templates = self.conn.prepare_cached(concat!(
             hidden_blocks!(),
             "SELECT f.field_id, b.id, b.text FROM type_fields f
@@ -716,6 +726,8 @@ impl Notebook {
         let mut owner_id = String::new();
         let mut entry_id = String::new();
         let mut entry_empty = false;
+        let mut seen_project_owners = HashSet::new();
+        let mut seen_project_values = HashMap::<String, HashSet<String>>::new();
         while let Some(row) = cursor.next()? {
             let entry_text: String = row.get(5)?;
             if reference(&entry_text) != Some(id) {
@@ -730,6 +742,9 @@ impl Notebook {
             let entry: String = row.get(4)?;
             if owner.id != owner_id {
                 owner_id.clone_from(&owner.id);
+                if detail.field.definition.name == "project" {
+                    seen_project_owners.insert(owner.id.clone());
+                }
                 detail.owners_total += 1;
                 if detail.owners.len() < limit {
                     detail.owners.push(FieldOwnerValues {
@@ -801,6 +816,20 @@ impl Notebook {
             {
                 detail.option_uses[index].uses += 1;
             }
+            if detail.field.definition.name == "project"
+                && let Reading::Value {
+                    target: Some(target),
+                    ..
+                } = &reading
+            {
+                if let Some(values) = seen_project_values.get_mut(&owner.id) {
+                    if !values.contains(target) {
+                        values.insert(target.clone());
+                    }
+                } else {
+                    seen_project_values.insert(owner.id.clone(), HashSet::from([target.clone()]));
+                }
+            }
             let value = FieldValue {
                 id: row.get(6)?,
                 text,
@@ -860,6 +889,19 @@ impl Notebook {
             }
         }
         detail.empty_total += usize::from(entry_empty);
+        if detail.field.definition.name == "project" {
+            for (owner, projects) in crate::task_query::project_memberships(&self.conn)? {
+                let authored = seen_project_values.get(&owner);
+                for project in projects {
+                    if !authored.is_some_and(|values| values.contains(&project)) {
+                        detail.values_total += 1;
+                    }
+                }
+                if seen_project_owners.insert(owner) {
+                    detail.owners_total += 1;
+                }
+            }
+        }
         if let Some(path) = task_path {
             detail.owners_total = self.conn.query_row(
                 concat!(
@@ -956,9 +998,12 @@ pub(crate) fn constrained_reading(
         let targets = serde_json::json!(definition.targets).to_string();
         let matches: bool = conn
             .prepare_cached(
-                "SELECT EXISTS(SELECT 1 FROM memberships m JOIN blocks ty ON ty.id = m.type_id
-             WHERE m.block_id = ?1 AND m.type_id IN (SELECT value FROM json_each(?2))
-             AND ty.deletion_id IS NULL AND ty.archived = 0)
+                "SELECT EXISTS(SELECT 1 FROM blocks ty
+             WHERE ty.id IN (SELECT value FROM json_each(?2))
+             AND ty.deletion_id IS NULL AND ty.archived = 0
+             AND (EXISTS(SELECT 1 FROM memberships m WHERE m.block_id = ?1 AND m.type_id = ty.id)
+                 OR (ty.kind = 'page' AND ty.title_key = 'project'
+                     AND EXISTS(SELECT 1 FROM projects p WHERE p.block_id = ?1 AND p.active = 1))))
              OR (?3 IN (SELECT value FROM json_each(?2))
                  AND EXISTS(SELECT 1 FROM sources WHERE block_id = ?1 AND active = 1))",
             )?

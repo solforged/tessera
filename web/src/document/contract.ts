@@ -62,6 +62,7 @@ export interface BlockState {
   readonly occlusion: Occlusion | null;
   readonly mergeProtected: boolean;
   readonly reviewedCards: boolean;
+  readonly loggedWorkMs: number;
   readonly templateCards?: number;
   /** Present on a source page's root. */
   readonly source: SourceRecord | null;

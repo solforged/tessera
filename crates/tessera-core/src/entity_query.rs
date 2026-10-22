@@ -387,7 +387,7 @@ impl Notebook {
                 }
             }
             QuerySource::Tasks => {
-                let mut outer = crate::task_query::ancestry_projects(&self.conn)?;
+                let mut projects = crate::task_query::project_memberships(&self.conn)?;
                 for row in
                     crate::task_query::visible_tasks(&self.conn, None, crate::TaskProjectVia::Both)?
                 {
@@ -395,14 +395,10 @@ impl Notebook {
                     if row.task.status.is_none() {
                         continue;
                     }
-                    let enclosing = outer.remove(&row.source.block.id).unwrap_or_default();
+                    let memberships = projects.remove(&row.source.block.id).unwrap_or_default();
                     let attrs = entities.entry(row.source.block.id).or_default();
                     task_attributes(attrs, &row.task);
-                    // The task's own project leads; enclosing projects follow, as a project's task query includes them.
-                    if let Some(id) = row.project_id {
-                        instance(attrs, "@project", &id, &titles);
-                    }
-                    for id in enclosing {
+                    for id in memberships {
                         instance(attrs, "@project", &id, &titles);
                     }
                 }
@@ -563,27 +559,48 @@ impl Notebook {
             .collect();
         let task_fields: Vec<_> = crate::fields::definitions(&self.conn)?
             .into_iter()
-            .filter(|field| {
-                field.name != "project" && crate::built_in::task_field(&field.name).is_some()
-            })
+            .filter(|field| crate::built_in::task_field(&field.name).is_some())
             .map(|field| {
                 let key = format!("@{}", field.name);
                 (field.id, key)
             })
             .collect();
+        let mut projects = if source != QuerySource::Tasks
+            && task_fields.iter().any(|(_, key)| key == "@project")
+            && notes
+                .values()
+                .any(|caps| caps.task.as_ref().is_some_and(|task| task.status.is_some()))
+        {
+            crate::task_query::project_memberships(&self.conn)?
+        } else {
+            HashMap::new()
+        };
+        let titles = if projects.is_empty() {
+            HashMap::new()
+        } else {
+            self.query_titles()?
+        };
         for row in rows {
             let attrs = &mut row.attributes;
+            let task = notes
+                .get(&row.block.block.id)
+                .and_then(|caps| caps.task.as_ref());
             for attribute in &metadata {
                 attrs.entry(attribute.key.clone()).or_default();
             }
-            if let Some(task) = notes
-                .get(&row.block.block.id)
-                .and_then(|caps| caps.task.as_ref())
+            if let Some(task) = task
                 && source != QuerySource::Tasks
             {
                 task_attributes(attrs, task);
+                for project in projects.remove(&row.block.block.id).unwrap_or_default() {
+                    instance(attrs, "@project", &project, &titles);
+                }
             }
             for (id, key) in &task_fields {
+                // Project remains an authored relation on non-task atoms.
+                if key == "@project" && !task.is_some_and(|task| task.status.is_some()) {
+                    continue;
+                }
                 let values = attrs.get(key).cloned().unwrap_or_default();
                 attrs.insert(id.clone(), values);
             }

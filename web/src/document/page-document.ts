@@ -44,7 +44,7 @@ export interface DocumentHost {
 }
 type MutableBlockState = { -readonly [K in keyof BlockState]: BlockState[K] } & { history: boolean };
 interface Cell { state: MutableBlockState; set: SetStoreFunction<MutableBlockState> }
-const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, keptCopy: block.kept_copy, manual_types: [], task: null, project: null, position: null, relation: null, question: null, quote: null, image: null, occlusion: null, assessment: null, mergeProtected: false, reviewedCards: false, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
+const stateOf = (block: Block): BlockState => ({ id: block.id, kind: block.kind, parentId: block.parent_id, pageId: block.page_id, text: block.text, heading: block.heading, archived: block.archived, keptCopy: block.kept_copy, manual_types: [], task: null, project: null, position: null, relation: null, question: null, quote: null, image: null, occlusion: null, assessment: null, mergeProtected: false, reviewedCards: false, loggedWorkMs: 0, source: null, citations: [], revision: block.revision, pending: false, conflict: null });
 /** The reference or tag holding `offset` strictly inside it, where Enter must not cut. */
 const splitToken = (text: string, offset: number) =>
   textTokens(text).find(token => (token.kind === 'reference' || token.kind === 'tag') && offset > token.start && offset < token.end);
@@ -180,7 +180,7 @@ export class Document implements PageDocument {
   isResolving(id: string) { return this.resolving.has(id); }
   private put(block: Block, pending = false, manual_types = this.cells.get(block.id)?.state.manual_types ?? this.baseManualTypes.get(block.id) ?? [], capability = this.capabilities(block.id)) {
     const cell = this.cells.get(block.id);
-    const sidecar = { task: capability.task, project: capability.project, position: capability.position ?? null, relation: capability.relation ?? null, spread: capability.spread ?? false, question: capability.question ?? null, quote: capability.quote ?? null, assessment: capability.assessment ?? null, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards, templateCards: capability.template_cards ?? 0 };
+    const sidecar = { task: capability.task, project: capability.project, position: capability.position ?? null, relation: capability.relation ?? null, spread: capability.spread ?? false, question: capability.question ?? null, quote: capability.quote ?? null, assessment: capability.assessment ?? null, source: capability.source ?? null, citations: capability.citations ?? [], history: capability.history, mergeProtected: capability.merge_protected, reviewedCards: capability.reviewed_cards, loggedWorkMs: capability.logged_work_ms ?? 0, templateCards: capability.template_cards ?? 0 };
     const image = capability.image ?? null;
     this.trackInvestigation(capability);
     this.markArchived(block.id, block.archived);
@@ -210,7 +210,7 @@ export class Document implements PageDocument {
   }
   capabilities(id: string, base = false): BlockCapabilities {
     const cell = !base && this.cells.get(id)?.state;
-    const value = cell ? { block_id: id, built_in_tag: this.baseCapabilities.get(id)?.built_in_tag ?? false, task: cell.task, project: cell.project, position: cell.position, relation: cell.relation, spread: cell.spread ?? false, question: cell.question, quote: cell.quote, image: cell.image, occlusion: cell.occlusion, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards, template_cards: cell.templateCards ?? 0 } : this.baseCapabilities.get(id);
+    const value = cell ? { block_id: id, built_in_tag: this.baseCapabilities.get(id)?.built_in_tag ?? false, task: cell.task, project: cell.project, position: cell.position, relation: cell.relation, spread: cell.spread ?? false, question: cell.question, quote: cell.quote, image: cell.image, occlusion: cell.occlusion, assessment: cell.assessment, source: cell.source, citations: cell.citations, history: cell.history, merge_protected: cell.mergeProtected, reviewed_cards: cell.reviewedCards, logged_work_ms: cell.loggedWorkMs, template_cards: cell.templateCards ?? 0 } : this.baseCapabilities.get(id);
     // Most blocks have no capabilities; a fresh empty value needs no defensive copy.
     return value ? JSON.parse(JSON.stringify(value)) as BlockCapabilities : emptyCapabilities(id);
   }
@@ -243,7 +243,7 @@ export class Document implements PageDocument {
     value.merge_protected = value.task !== null || value.project !== null || Boolean(value.image || value.position || value.relation || value.spread || value.question || value.assessment) || value.history || value.reviewed_cards;
     if (!base) this.trackInvestigation(value);
     if (base) this.baseCapabilities.set(value.block_id, value);
-    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, relation: value.relation ?? null, spread: value.spread ?? false, question: value.question ?? null, quote: value.quote ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0, pending: true });
+    else this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, relation: value.relation ?? null, spread: value.spread ?? false, question: value.question ?? null, quote: value.quote ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, loggedWorkMs: value.logged_work_ms ?? 0, templateCards: value.template_cards ?? 0, pending: true });
     if (!base) this.cells.get(value.block_id)?.set({ image: value.image ?? null, occlusion: value.occlusion ?? null });
   }
   private guardMerge(id: string) {
@@ -270,7 +270,7 @@ export class Document implements PageDocument {
       if (!this.baseBlocks.has(value.block_id) && !this.cells.has(value.block_id)) continue;
       this.baseCapabilities.set(value.block_id, structuredClone(value));
       this.syncGeneration++;
-      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, relation: value.relation ?? null, spread: value.spread ?? false, question: value.question ?? null, quote: value.quote ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0 });
+      this.cells.get(value.block_id)?.set({ task: value.task, project: value.project, position: value.position ?? null, relation: value.relation ?? null, spread: value.spread ?? false, question: value.question ?? null, quote: value.quote ?? null, assessment: value.assessment ?? null, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, loggedWorkMs: value.logged_work_ms ?? 0, templateCards: value.template_cards ?? 0 });
       this.cells.get(value.block_id)?.set({ image: value.image ?? null, occlusion: value.occlusion ?? null });
       this.trackInvestigation(value);
       received.add(value.block_id);
@@ -1102,7 +1102,7 @@ export class Document implements PageDocument {
       if (saved && !pending.has(id) && !cell.state.conflict && !this.resolving.has(id)) {
         const value = this.capabilities(id, true);
         this.markArchived(id, saved.archived);
-        cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [], task: value.task, project: value.project, position: value.position ?? null, relation: value.relation ?? null, spread: value.spread ?? false, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, templateCards: value.template_cards ?? 0 });
+        cell.set({ text: saved.text, heading: saved.heading, archived: saved.archived, parentId: saved.parent_id, manual_types: this.baseManualTypes.get(id) ?? [], task: value.task, project: value.project, position: value.position ?? null, relation: value.relation ?? null, spread: value.spread ?? false, source: value.source ?? null, citations: value.citations ?? [], history: value.history, mergeProtected: value.merge_protected, reviewedCards: value.reviewed_cards, loggedWorkMs: value.logged_work_ms ?? 0, templateCards: value.template_cards ?? 0 });
       }
       this.host.publish(this.snapshot(id));
     }

@@ -35,7 +35,7 @@ export type CapabilityAction =
 export function isCapabilityAction(action: Action): action is CapabilityAction {
   return ['task', 'project', 'position', 'relation', 'spread', 'question', 'quote', 'image', 'occlusion', 'assessment', 'source', 'cite', 'uncite', 'citationTriage', 'highlightColor', 'citationRange', 'completeTask', 'reverseTaskCompletion', 'startWork', 'stopWork', 'workNote', 'workState'].includes(action.kind);
 }
-export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id: id, built_in_tag: false, task: null, project: null, position: null, relation: null, question: null, quote: null, assessment: null, source: null, citations: [], history: false, merge_protected: false, reviewed_cards: false });
+export const emptyCapabilities = (id: string): BlockCapabilities => ({ block_id: id, built_in_tag: false, task: null, project: null, position: null, relation: null, question: null, quote: null, assessment: null, source: null, citations: [], history: false, logged_work_ms: 0, merge_protected: false, reviewed_cards: false });
 export function questionStatus(state: QuestionState, acceptedLive: boolean): QuestionStatus {
   return state.parked ? 'parked' : state.unsettled ? 'unsettled' : acceptedLive ? 'answered' : 'open';
 }

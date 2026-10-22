@@ -147,6 +147,55 @@ fn assert_validation(error: Error, expected_index: usize) {
 }
 
 #[test]
+fn capabilities_sum_only_ended_non_reversed_work_and_publish_updates() {
+    let (_dir, mut nb) = fixture();
+    assert_eq!(nb.capabilities(&id(11)).unwrap().logged_work_ms, 0);
+    assert_eq!(nb.capabilities(&id(12)).unwrap().logged_work_ms, 0);
+
+    for (value, started_at, ended_at, total) in [
+        (100, 1_000, 3_601_000, 3_600_000),
+        (101, 4_000_000, 9_400_000, 9_000_000),
+        (102, 10_000_000, 11_000_000, 10_000_000),
+    ] {
+        let beginning = start(&nb, 11, value, started_at);
+        apply(&mut nb, vec![beginning]);
+        let running = session(&nb, 11, value);
+        let ending = stop(&nb, &running, ended_at, "");
+        let stopped = apply(&mut nb, vec![ending]);
+        assert_eq!(stopped.capabilities[0].block_id, id(11));
+        assert_eq!(stopped.capabilities[0].logged_work_ms, total);
+    }
+
+    let reversed = session(&nb, 11, 102);
+    let reversing = state(&nb, &reversed, reversed.ended_at, true);
+    let removed = apply(&mut nb, vec![reversing]);
+    assert_eq!(removed.capabilities[0].logged_work_ms, 9_000_000);
+
+    let beginning = start(&nb, 11, 103, 12_000_000);
+    let started = apply(&mut nb, vec![beginning]);
+    assert_eq!(started.capabilities[0].logged_work_ms, 9_000_000);
+    assert_eq!(nb.work_sessions(&id(11)).unwrap().len(), 4);
+    let capability = nb.capabilities(&id(11)).unwrap();
+    assert_eq!(capability.logged_work_ms, 9_000_000);
+    assert_eq!(
+        nb.page(&id(1))
+            .unwrap()
+            .capabilities
+            .into_iter()
+            .find(|value| value.block_id == id(11))
+            .unwrap(),
+        capability
+    );
+    assert_eq!(nb.capabilities(&id(12)).unwrap().logged_work_ms, 0);
+
+    let first = session(&nb, 11, 100);
+    let deleting = state(&nb, &first, first.ended_at, true);
+    let deleted = apply(&mut nb, vec![deleting]);
+    assert_eq!(deleted.capabilities[0].logged_work_ms, 5_400_000);
+    assert_eq!(nb.capabilities(&id(11)).unwrap().logged_work_ms, 5_400_000);
+}
+
+#[test]
 fn one_clock_per_notebook_across_connections_without_task_status_changes() {
     let (dir, mut nb) = fixture();
     let waiting = TaskState {
