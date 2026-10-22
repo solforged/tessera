@@ -92,7 +92,7 @@
 /* Notebooks: each known notebook with its folder in mono; Open on the right, Forget waiting for hover. */
 .settings-pane .settings-label p.notebooks-path { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .notebooks-actions { display: inline-flex; align-items: center; gap: var(--space-12); }
-@media (hover: hover) { .notebooks-entry:not(:hover, :focus-within) .notebooks-forget { opacity: 0; } }
+@media (hover: hover) { .notebooks-entry:not(:hover, :focus-within):not(:has(.settings-aside)) .notebooks-forget { opacity: 0; } }
 .notebooks-path-input.input { display: block; width: 100%; max-width: 56ch; margin-top: var(--space-8); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .notebooks-add { align-items: end; }
 

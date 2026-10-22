@@ -7,6 +7,7 @@ import { DatePicker } from '../tasks/DatePicker';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import type { CommandRegistry, OpenTarget, PaneId, RevisitsViewState } from '../shell/contract';
+import { opensBeside } from '../shell/beside';
 import { changeRevisit, createRevisits, revisitKind } from './revisits';
 import './revisits.css';
 
@@ -84,7 +85,10 @@ export function NotesReview(props: RevisitsPaneProps) {
       <Show when={history()}><Button disabled={busy()} onClick={() => { void travel(); }}>{undone() ? 'Redo revisit' : 'Undo revisit'}</Button></Show>
     </header>
     <Show when={queue.error() || error()}><p class="pane-error" role="alert">{queue.error() || error()}</p></Show>
-    <Show when={queue.rows().length} fallback={<p class="empty-state">Nothing to revisit. Set Revisit on an atom or question to bring it here on its revisit date.</p>}>
+    <Show when={queue.rows().length} fallback={<div class="revisit-empty">
+      <p class="empty-state">Nothing to revisit. Set a Revisit date on a note or question and it appears here.</p>
+      <Button onClick={event => props.onOpen({ kind: 'index', key: 'question' }, opensBeside(event))}>Open Questions</Button>
+    </div>}>
       <nav class="revisit-queue" aria-label="Due revisits"><For each={groups()}>{([date, rows]) => <section class="revisit-date-group" aria-label={date}>
         <h2 class="revisit-section-head"><span>{date}</span><span class="section-rule" /><span class="revisit-group-count">{rows.length}</span></h2>
         <For each={rows}>{row => <Button aria-pressed={current()?.block.block.id === row.block.block.id} disabled={busy()} onClick={() => props.onViewChange({ ...props.view, revisitId: row.block.block.id })}>

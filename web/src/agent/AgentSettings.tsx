@@ -92,8 +92,8 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
   const update = (patch: Partial<Draft>) => setDraft(value => value && { ...value, ...patch });
 
   const Form = (form: { value: Draft }) => <form ref={formElement} class="agent-provider-form" noValidate onSubmit={event => { event.preventDefault(); void submit(); }}>
-    <Show when={!form.value.id}><div class="agent-presets" role="group" aria-label="Fill in a provider">
-      <For each={presets}>{preset => <Button class="bordered" aria-pressed={form.value.base_url === preset.base_url} onClick={() => update({ name: preset.label, protocol: preset.protocol, base_url: preset.base_url })}>{preset.label}</Button>}</For>
+    <Show when={!form.value.id}><div class="agent-presets mode-tabs" role="group" aria-label="Fill in a provider">
+      <For each={presets}>{preset => <Button aria-pressed={form.value.base_url === preset.base_url} onClick={() => update({ name: preset.label, protocol: preset.protocol, base_url: preset.base_url })}>{preset.label}</Button>}</For>
     </div></Show>
     <label><span>Name</span><span class="agent-input-field"><input class="input" value={form.value.name} onInput={event => update({ name: event.currentTarget.value })} required aria-invalid={!!fieldErrors().name} aria-describedby={fieldErrors().name ? `${props.id}-name-error` : undefined} />
       <Show when={fieldErrors().name}>{error => <span class="error agent-field-error" id={`${props.id}-name-error`} role="alert">{error()}</span>}</Show>

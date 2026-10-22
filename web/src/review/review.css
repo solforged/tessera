@@ -82,14 +82,21 @@
 .review-forecast header > span { color: var(--faint); font: var(--apparatus); white-space: nowrap; }
 .review-forecast-bars { display: grid; grid-template-columns: repeat(14, minmax(0, 1fr)); gap: var(--space-4); margin-top: var(--space-16); }
 .review-landing .review-forecast-bars { margin-top: var(--section-item-gap); }
-.review-forecast-bars > div { display: flex; flex-direction: column; align-items: stretch; gap: var(--space-4); min-width: 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; }
-.review-forecast-bars span { min-width: 0; overflow: hidden; white-space: nowrap; text-align: center; font-size: calc(var(--text-apparatus) - 1px); }
+.review-forecast-day { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: var(--space-4); min-width: 0; min-height: var(--target-size); padding: 0; border: 0; border-radius: 0; background: transparent; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.review-forecast-day > span:not(.review-forecast-track) { min-width: 0; overflow: hidden; white-space: nowrap; text-align: center; font-size: var(--text-apparatus); }
+.review-forecast-week-start::before { content: ''; position: absolute; inset-block: 0; inset-inline-start: calc(-1 * var(--space-4) / 2); border-inline-start: var(--rule-width) solid var(--line); pointer-events: none; }
 .review-forecast-track { display: flex; align-items: flex-end; height: var(--space-48); }
 .review-forecast-track > i { display: block; width: 100%; background: color-mix(in srgb, var(--faint) 45%, transparent); }
 .review-forecast-bars { padding-bottom: var(--space-4); border-bottom: var(--rule-width) solid var(--line); }
-.review-forecast-today, .review-forecast-today > span { color: var(--accent); }
-.review-forecast-today .review-forecast-track > i { background: var(--accent); }
 .review-forecast-empty .review-forecast-track > i { min-height: var(--rule-width); background: var(--line); }
+.review-forecast-selected { color: var(--accent); }
+.review-forecast-selected .review-forecast-track > i { background: var(--accent); }
+.review-forecast-day:hover { color: var(--text); }
+.review-forecast-day:hover .review-forecast-track { background: var(--hover); }
+.review-forecast-caption { margin: var(--space-8) 0 0; min-height: 1lh; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+@media (pointer: coarse) {
+  .review-forecast-day, .review-cards .review-show-all.button { min-height: var(--touch-target); }
+}
 .review-decks table { width: 100%; border-collapse: collapse; }
 .review-decks :is(th, td) { border-bottom: 1px solid var(--line); padding: var(--space-8); text-align: left; }
 .review-decks :is(th, td):not(:first-child) { width: 12%; font: var(--apparatus); font-variant-numeric: tabular-nums; }
@@ -98,6 +105,9 @@
 .review-ledger-deck.button.selected { background: transparent; color: var(--accent); }
 .review-decks table { margin-top: var(--section-item-gap); }
 .review-cards h2 { display: flex; align-items: center; gap: var(--space-8); margin-bottom: var(--section-item-gap); }
+.review-cards-empty { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-8); margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.review-show-all.button { min-height: var(--target-size); padding-inline: 0; border: 0; border-radius: 0; background: none; color: var(--text); font-weight: var(--weight-body); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: var(--space-4); }
+.review-show-all.button:hover:not(:disabled) { background: none; color: var(--accent); text-decoration-color: var(--accent); }
 .review-queue-row.button { display: flex; justify-content: space-between; width: 100%; min-height: var(--target-size); gap: var(--space-16); padding: var(--space-8) 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; text-align: left; font-weight: var(--weight-body); }
 .review-queue-text { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 .review-queue-front, .review-queue-source { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
