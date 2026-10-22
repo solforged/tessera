@@ -1,5 +1,5 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
-import type { LibraryRow, SourceView } from '../api/types';
+import type { Citation, LibraryRow, SourceView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { isFrontMatter, sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
@@ -13,18 +13,25 @@ import { displayTitle } from '../outline/names';
 
 // Cards remount whenever Reading now leaves and returns with the tab. The last source each one read lets it come back
 // as it was, rather than rebuilding its chapter line and map from the list row, while the request refreshes it.
-const sources = new Map<string, SourceView>();
+interface ReadingSource { source: SourceView; highlights: { at: number; color: Citation['color'] }[] }
+const sources = new Map<string, ReadingSource>();
 
 /** A Reading source's actual chapter and position, with requests owned by the mounted card. */
 export function ReadingCard(props: { row: LibraryRow; notebook: NotebookClient; selected?: boolean; onOpen(beside: boolean): void }) {
-  const [source, setSource] = createSignal<SourceView | undefined>(sources.get(props.row.page.id));
+  const cached = sources.get(props.row.page.id);
+  const [source, setSource] = createSignal<SourceView | undefined>(cached?.source);
+  const [highlights, setHighlights] = createSignal<ReadingSource['highlights']>(cached?.highlights ?? []);
   const [error, setError] = createSignal('');
   createEffect(() => {
     const id = props.row.page.id;
     props.notebook.changeSequence();
     const controller = new AbortController();
-    void props.notebook.api.source(id, controller.signal).then(view => {
-      if (!controller.signal.aborted) { sources.set(id, view); setSource(view); setError(''); }
+    void Promise.all([
+      props.notebook.api.source(id, controller.signal),
+      props.notebook.api.highlights({ source_id: id, limit: null }, controller.signal),
+    ]).then(([view, highlights]) => {
+      const marks = highlights.rows.flatMap(row => row.citation.snapshot_id === view.source.current_snapshot_id && row.citation.position !== undefined ? [{ at: row.citation.position, color: row.color }] : []);
+      if (!controller.signal.aborted) { sources.set(id, { source: view, highlights: marks }); setSource(view); setHighlights(marks); setError(''); }
     }, reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
   });
@@ -44,10 +51,9 @@ export function ReadingCard(props: { row: LibraryRow; notebook: NotebookClient; 
       </span>
     </span>
     {/* The map and its figures span the card under the cover, so the time left reads on one line. */}
-    <Show when={length() > 0} fallback={<span class="book-map library-reading-map-pending" aria-hidden="true" />}><BookMap chapters={chapters()} length={length()} at={at()} /></Show>
+    <Show when={length() > 0} fallback={<span class="book-map library-reading-map-pending" aria-hidden="true" />}><BookMap chapters={chapters()} length={length()} at={at()} highlights={highlights()} /></Show>
     <span class="library-reading-position">
-      {/* The chapter line above names what the time is left in, so the figure fits beside the percentage. */}
-      <span><Show when={current()?.chapter.title ? current() : null}>{value => <span title={`${timeLeft(value().chapter.end - at())} left in chapter`}>{timeLeft(value().chapter.end - at())} left</span>}</Show></span>
+      <span><Show when={current()?.chapter.title ? current() : null} fallback={<Show when={length() > 0}>{timeLeft(length() - at())} left in book</Show>}>{value => <span>{timeLeft(value().chapter.end - at())} in chapter</span>}</Show></span>
       <span>{formatProgress(progress())}</span>
     </span>
     <Show when={error()}><span class="library-error" role="alert">{error()}</span></Show>

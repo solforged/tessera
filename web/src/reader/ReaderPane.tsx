@@ -80,6 +80,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const [allContents, setContents] = createSignal<TocEntry[]>([]);
   const [total, setTotal] = createSignal(0);
   const [firstVisible, setFirstVisible] = createSignal(0);
+  const [atEnd, setAtEnd] = createSignal(false);
   const [titleHeight, setTitleHeight] = createSignal(0);
   const [version, setVersion] = createSignal(0);
   const [loading, setLoading] = createSignal(true);
@@ -214,24 +215,24 @@ export function ReaderPane(props: ReaderPaneProps) {
     const length = currentSnapshot()?.text_length ?? 0;
     return length ? (passages.get(ordinal)?.start ?? 0) / length : 0;
   };
+  /** At the scroll boundary the whole text is read, not just the first passage still visible above it. */
+  const here = createMemo(() => { version(); return atEnd() ? currentSnapshot()?.text_length ?? 0 : passages.get(firstVisible())?.start ?? 0; });
   /** The reading position. */
-  const position = createMemo(() => { version(); return share(firstVisible()); });
+  const position = createMemo(() => here() / (currentSnapshot()?.text_length || 1));
   /** The book as a map of chapters by character offset, the reading point on it and the highlights along it. */
   const mapChapters = createMemo(() => bookChapters(contents(), currentSnapshot()?.text_length ?? 0));
-  const here = createMemo(() => { version(); return passages.get(firstVisible())?.start ?? 0; });
   /** The chapter being read, as paged reading and the book map count chapters (`chapterEntries`). */
-  const chapter = createMemo(() => chapterAt(sections(), total(), firstVisible()));
-  /** Characters left in the chapter and in the text, from the start of the passage being read; null until known. */
+  const chapter = createMemo(() => chapterAt(sections(), total(), atEnd() ? total() - 1 : firstVisible()));
+  /** Characters left in the chapter and in the text; null until known. */
   const chapterLeft = createMemo(() => {
     version();
-    const here = passages.get(firstVisible())?.start, end = chapter().end;
+    const end = chapter().end;
     const until = end >= total() ? currentSnapshot()?.text_length : passages.get(end)?.start;
-    return here === undefined || until === undefined ? null : until - here;
+    return until === undefined ? null : Math.max(0, until - here());
   });
   const bookLeft = createMemo(() => {
-    version();
-    const here = passages.get(firstVisible())?.start, length = currentSnapshot()?.text_length;
-    return here === undefined || !length ? null : length - here;
+    const length = currentSnapshot()?.text_length;
+    return !length ? null : Math.max(0, length - here());
   });
   // The next chapter's first passage says where this one ends.
   createEffect(() => { const end = chapter().end; if (end < total() && !passages.has(end)) void loadPage(end); });
@@ -425,6 +426,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     batch(() => {
       setSelection(null); setFlash(null); setSnapshot(id); setChunk(null);
       setContents([]);
+      setAtEnd(false);
       setFirstVisible(0);
       setTotal(source()?.snapshots.find(value => value.id === id)?.passage_count ?? 0);
       setVersion(value => value + 1);
@@ -861,6 +863,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (disposed || restoring) return;
     const range = visibleRange();
     if (range) {
+      setAtEnd(!paged() && total() > 0 && passages.has(total() - 1) && scroll.clientHeight > 0 && scroll.scrollHeight - scroll.clientHeight - scroll.scrollTop <= 1);
       setFirstVisible(range.ordinal);
       props.onViewChange({ snapshotId: snapshot(), ordinal: range.ordinal, offset: range.offset });
       if (!suppressed && userScroll) pendingPosition = { snapshotId: snapshot(), ordinal: range.ordinal };
@@ -1648,16 +1651,16 @@ export function ReaderPane(props: ReaderPaneProps) {
       <div class="reader-folio">
         <span class="reader-folio-name"><Show when={chapterName()}><SectionLabel title={chapterEntry()!.title} /></Show></span>
         <Show when={jumpReturn()}>{back => <Button class="reader-folio-return" icon="left" onClick={() => { void returnFromJump(); }}><span>Back to {back().label}</span></Button>}</Show>
-        <span class="reader-folio-time" hidden={!!jumpReturn()}><Show when={chapterLeft() !== null}>{timeLeft(chapterLeft()!)} left</Show><Show when={paged() && !loading()}>{chapterLeft() !== null ? ' · ' : ''}p. {pageIndex() + 1} of {pageCount()}</Show></span>
-        <Button class="reader-folio-book" label="Reading progress" aria-haspopup="dialog" disabled={!mapChapters().length} onClick={event => setPopup({ kind: 'progress', anchor: event.currentTarget })}>
-          {formatProgress(position())}<Show when={bookLeft() !== null}> · {timeLeft(bookLeft()!)}</Show>
+        <span class="reader-folio-time" hidden={!!jumpReturn()}><Show when={chapterLeft() !== null}>{atEnd() ? 'Finished' : `${timeLeft(chapterLeft()!)} left`}</Show><Show when={paged() && !loading()}>{chapterLeft() !== null ? ' · ' : ''}p. {pageIndex() + 1} of {pageCount()}</Show></span>
+        <Button class="reader-folio-book" label="Reading progress" aria-haspopup="dialog" disabled={!mapChapters().length} title={!mapChapters().length ? 'No chapter positions available' : undefined} onClick={event => setPopup({ kind: 'progress', anchor: event.currentTarget })}>
+          {formatProgress(position())}<Show when={bookLeft() !== null}> · {atEnd() ? 'Finished' : timeLeft(bookLeft()!)}</Show>
         </Button>
       </div>
     </div>
     <Show when={popup()}>{state => <>
       <Show when={state().kind === 'settings'}><ReaderSettingsPopup anchor={state().anchor} sheet={coarsePointer.matches} room={textRoom()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'progress'}><ProgressCard anchor={state().anchor} sheet={coverReading()} chapters={mapChapters()} length={currentSnapshot()?.text_length ?? 0} at={here()} highlights={marks()}
-        added={source()?.source.added_at ?? null} onDismiss={() => setPopup(null)}
+        added={source()?.source.added_at ?? null} today={props.notebook.todayDate()} onDismiss={() => setPopup(null)}
         onJump={chapter => { const entry = contents().find(value => value.start === chapter.start && value.ordinal !== null); if (entry) void openSection(entry); else setPopup(null); }} /></Show>
       <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" title="Reader actions" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Contents" placeholder="Find a section" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={Math.max(0, toc().indexOf(currentSection()!))}

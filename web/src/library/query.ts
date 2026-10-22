@@ -59,7 +59,7 @@ export function sourceStateOperation(row: LibraryRow, state: ReadingState): Oper
 }
 
 export function sourceByline(row: Pick<LibraryRow, 'creators' | 'site' | 'published'>): string {
-  return row.creators.map(value => referenceValue(value).name).join(', ') || row.site || '';
+  return row.creators.map(value => referenceValue(value).name).join(' · ') || row.site || '';
 }
 
 /** The ledger's author column: first author, else editor, else the site. The stored creators are unchanged. */

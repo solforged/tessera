@@ -15,8 +15,13 @@
 .reader-folio-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
 .reader-folio-name .reader-section-title { font-size: var(--text-control); }
 .reader-folio-time { flex-shrink: 0; }
-/* A half pane has no room for the chapter's name beside the times; the toolbar names it there. */
-@container (max-width: 460px) { .reader-folio-name { display: none; } }
+/* Narrow folios keep the chapter rather than silently dropping the reader's place; long times get a second line. */
+@container (max-width: 460px) {
+  .reader-folio { display: grid; grid-template-columns: minmax(8ch, 1fr) auto; gap: var(--space-2) var(--space-8); height: auto; min-height: var(--row-height); }
+  .reader-folio-name { grid-column: 1; }
+  .reader-folio-book.button { grid-column: 2; grid-row: 1; }
+  .reader-folio-time, .reader-folio-return.button { grid-column: 1 / -1; grid-row: 2; }
+}
 /* After a jump the way back takes the chapter's time left, in the folio that always shows, so it covers no text and never moves the page. */
 .reader-folio-return.button { flex: 0 1 auto; min-width: 0; height: auto; min-height: 0; margin-left: calc(-1 * var(--space-4)); padding: var(--space-2) var(--space-4); color: var(--accent); font: inherit; letter-spacing: inherit; }
 .reader-folio-return.button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -157,6 +162,11 @@
 /* A new highlight draws its band under the words once, left to right, as the pen would; across lines it runs line by line. */
 .reader-highlight-ink { animation: ink var(--motion-ink) var(--motion-ease) both; }
 @keyframes ink { from { background-size: 0% 100%; } to { background-size: 100% 100%; } }
+/* The first-line pseudo-element repaints inline backgrounds in small caps. An inset ink band stays on the
+   highlight itself, including its first-line fragment, and clones across the rest of the opening paragraph. */
+.reader-first .reader-highlight { background-image: none; box-shadow: inset 0 -0.45em 0 var(--band); }
+.reader-first .reader-highlight-ink { animation-name: opening-ink; }
+@keyframes opening-ink { from { box-shadow: inset 0 -0.45em 0 transparent; } to { box-shadow: inset 0 -0.45em 0 var(--band); } }
 .reader-highlight-yellow,
 .reader-highlight-green,
 .reader-highlight-blue,
@@ -179,8 +189,8 @@
 .reader-toc-check { display: flex; flex: 0 0 var(--space-16); }
 .reader-highlight-entry { display: flex; align-items: center; gap: var(--space-8); min-width: 0; width: 100%; }
 .reader-highlight-quote, .reader-highlight-section { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.reader-highlight-quote { flex: 0 1 auto; font-family: var(--font-display); font-variation-settings: var(--optical-quote); }
-.reader-highlight-section { flex: 0 2 auto; min-width: 0; max-width: 35%; margin-left: auto; color: var(--faint); }
+.reader-highlight-quote { flex: 1 1 0; min-width: 0; font-family: var(--font-display); font-variation-settings: var(--optical-quote); }
+.reader-highlight-section { flex: 0 0 12ch; min-width: 0; margin-left: auto; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 @media (max-width: 599px) {
   .reader-highlight-entry { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--space-8); row-gap: var(--space-2); padding-block: var(--space-4); }
   .reader-highlight-entry > .highlight-color-dot { grid-row: 1 / 3; }

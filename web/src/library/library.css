@@ -7,6 +7,7 @@
 /* The same three primary tabs leave secondary and saved views in More. */
 .library-toolbar > .library-primary-tabs { overflow: visible; gap: var(--space-8); }
 .library-tabs > .button { white-space: nowrap; }
+@media (pointer: coarse) { .library-tabs > .button { min-height: var(--touch-target); } }
 .library-primary-tabs > [data-library-tab] { flex: none; }
 .library-tabs-more.button { flex: 0 1 auto; min-width: 0; margin-left: auto; }
 .library-tabs-more > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -56,9 +57,9 @@
 .library-row { display: flex; align-items: center; min-height: var(--row-height); gap: var(--space-4); border-bottom: 1px solid var(--line); transition: background-color var(--motion-fast) var(--motion-ease); content-visibility: auto; contain-intrinsic-size: auto var(--row-height); }
 /* Rows contain their paint, so rings sit inside the row. */
 .library-row :focus-visible { outline-offset: -2px; }
-.library-row-open.button { display: flex; flex: 1; min-width: 0; height: var(--row-height); justify-content: flex-start; gap: var(--space-8); text-align: left; font-weight: var(--weight-body); }
+.library-row-open.button { display: flex; flex: 1; min-width: 0; height: auto; min-height: var(--row-height); justify-content: flex-start; gap: var(--space-8); text-align: left; font-weight: var(--weight-body); }
 .library-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-family: var(--font-display); font-size: var(--text-library-title); font-variation-settings: var(--optical-quote); }
-.library-byline { flex: 0 1000 auto; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 45%; margin-right: auto; }
+.library-byline { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; flex: 0 1000 auto; min-width: 0; color: var(--muted); overflow: hidden; white-space: normal; max-width: 45%; margin-right: auto; }
 .library-row > .button:last-child { opacity: 0; }
 .library-row:hover > .button:last-child, .library-row:focus-within > .button:last-child, .library-row > .button[aria-expanded="true"]:last-child { opacity: 1; }
 .library-start-reading.button { position: absolute; top: 50%; right: calc(var(--row-height) + var(--space-4)); transform: translateY(-50%); background: var(--raised); opacity: 0; }
@@ -106,9 +107,9 @@
 .library-job-actions { display: flex; }
 .library-job-error { flex-basis: 100%; padding-left: calc(var(--row-height) + var(--space-4) + var(--space-8)); padding-bottom: var(--space-8); }
 /* The processing desk shares the pane width between a reading-order queue and the full cited passage. With no highlights there is no desk, so Highlights keeps the other tabs' measure. */
-.library-highlight-desk .library-scroll > .library-main { max-width: calc(var(--measure) * 2); margin-inline: auto; }
+.library-highlight-desk:has(.library-highlights-workbench) .library-scroll > .library-main { max-width: calc(var(--measure) * 2); margin-inline: auto; }
 /* The desk's controls span the desk, while the tab strip above keeps its place from the other tabs. */
-.library-pane.library-highlight-desk .library-toolbar > .library-controls { max-width: calc(var(--measure) * 2); margin-inline: auto; }
+.library-pane.library-highlight-desk:has(.library-highlights-workbench) .library-toolbar > .library-controls { max-width: calc(var(--measure) * 2); margin-inline: auto; }
 .library-highlights-tab .library-scroll { display: block; overflow: hidden; }
 .library-highlights-tab .library-main { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .library-highlights-tab .library-rows { display: flex; flex: 1; flex-direction: column; min-height: 0; }
@@ -123,7 +124,7 @@
 .library-highlight.button[aria-current="true"] { background: var(--selection); box-shadow: inset 2px 0 var(--accent); }
 .library-highlight.button:focus-visible { outline-offset: -2px; }
 .library-highlight-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); padding: var(--space-8); font: var(--apparatus); color: var(--faint); }
-.library-highlight-heading .button { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); font: var(--weight-source-title) var(--text-body)/var(--line-source-title) var(--font-display); letter-spacing: 0; }
+.library-highlight-heading .button { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--text); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .library-highlight-chapter { margin: 0; padding: var(--space-12) var(--space-16) var(--space-4); color: var(--muted); font: var(--apparatus); }
 .library-highlight-details { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-8); }
 .library-highlight-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; color: var(--text); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -143,6 +144,7 @@
 .library-passage-context { margin-top: var(--space-24); }
 .library-passage-context h3 { margin: 0 0 var(--space-8); color: var(--faint); font: var(--apparatus); }
 .library-passage-context p { margin: 0; color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); white-space: pre-wrap; overflow-wrap: anywhere; }
+.library-passage-context p + p { margin-top: var(--space-16); }
 .library-highlight-dock { display: flex; flex: none; flex-direction: column; gap: var(--space-8); padding: var(--space-12) var(--space-16); border-top: 1px solid var(--line); background: var(--canvas); }
 .library-passage-pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .library-highlight-primary { display: grid; grid-template-columns: minmax(0, 1.35fr) repeat(2, minmax(0, 1fr)) var(--target-size); gap: var(--space-8); }
@@ -267,7 +269,7 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
 .library-reading-rule { display: block; height: var(--space-2); background: linear-gradient(var(--accent), var(--accent)) no-repeat 0 0 / var(--progress, 0%) 100%; }
 .library-reading-rule.library-reading-started { background-color: var(--line); }
 .library-book-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: var(--space-4); color: var(--text); font-family: var(--font-display); font-size: var(--text-library-title); line-height: var(--line-source-title); font-variation-settings: var(--optical-quote); }
-.library-book-byline { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+.library-book-byline { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: normal; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .library-book-apparatus { display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .library-book-apparatus .library-siglum { width: auto; }
 .library-book-highlights { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--muted); }
@@ -313,7 +315,7 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
 .library-up-next-book.button { display: flex; justify-content: flex-start; gap: var(--space-12); width: 100%; padding: var(--space-8) 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; font-weight: var(--weight-body); }
 .library-up-next-book > span:last-child { display: flex; flex: 1; flex-direction: column; align-items: flex-start; min-width: 0; }
 .library-up-next-book .library-title { max-width: 100%; }
-.library-up-next-book .library-book-byline { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.library-up-next-book .library-book-byline { max-width: 100%; }
 /* Groups: a sticky heading in the reading face over each run of rows or covers, its count in the apparatus. */
 .library-rows-grouped { border-top: 0; }
 .library-group + .library-group { margin-top: var(--space-16); }
