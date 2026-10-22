@@ -166,7 +166,7 @@ export function SourceHeader(props: {
       <div class="outline-source-info">
         <Show when={metadata().subtitle && !props.doc.root()?.text.includes(metadata().subtitle!)}><p class="outline-source-subtitle">{metadata().subtitle}</p></Show>
         <div class="outline-source-summary">
-          <For each={creators()}>{creator => <Show when={creator.id} fallback={<span class="outline-source-creator">{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</span>}>{id => <Button class="outline-source-creator outline-reference" onClick={event => props.onOpen({ kind: 'page', pageId: id() }, opensBeside(event))}>{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</Button>}</Show>}</For>
+          <span><For each={creators()}>{(creator, index) => <>{index() > 0 ? ' · ' : ''}<Show when={creator.id} fallback={<span class="outline-source-creator">{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</span>}>{id => <Button class="outline-source-creator outline-reference" onClick={event => props.onOpen({ kind: 'page', pageId: id() }, opensBeside(event))}>{creator.name}{creator.role === 'editor' ? ' (ed.)' : creator.role === 'translator' ? ' (trans.)' : ''}</Button>}</Show></>}</For></span>
           <span>{imprint()}</span>
         </div>
       </div>
@@ -193,7 +193,7 @@ export function SourceHeader(props: {
     <Show when={props.highlights}><div class="outline-source-highlight-toolbar">
       <h2>Highlights <span>· {props.highlights!.total}</span></h2>
       <Show when={props.highlights!.total > 0}><div class="outline-source-highlight-controls">
-        <div class="outline-source-highlight-colors" role="group" aria-label="Highlight colours"><For each={highlightColors}>{color => <Button class="icon-only" aria-label={`Filter ${color} highlights`} aria-pressed={props.colors.includes(color)} onClick={() => props.onColors(props.colors.includes(color) ? props.colors.filter(value => value !== color) : [...props.colors, color])}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /></Button>}</For></div>
+        <div class="outline-source-highlight-colors" role="group" aria-label="Highlight colors"><For each={[...highlightColors, 'none']}>{color => <Button class="icon-only" aria-label={color === 'none' ? 'No color' : `Filter ${color} highlights`} title={color === 'none' ? 'No color' : `Filter ${color} highlights`} aria-pressed={props.colors.includes(color)} onClick={() => props.onColors(props.colors.includes(color) ? props.colors.filter(value => value !== color) : [...props.colors, color])}>{color === 'none' ? <span class="library-highlight-color-bar" style={{ '--highlight-bar': 'var(--faint)' }} aria-hidden="true" /> : <span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" />}</Button>}</For></div>
         <Button class="outline-source-group" aria-haspopup="menu" onClick={event => setMenu({ anchor: event.currentTarget, label: 'Group highlights', items: [
           { label: 'By chapter', checked: props.grouped, action: () => props.onGrouped(true) },
           { label: 'Reading order', checked: !props.grouped, action: () => props.onGrouped(false) },

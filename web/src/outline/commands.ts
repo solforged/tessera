@@ -23,6 +23,7 @@ import { deskTarget } from '../desk/query';
 import { pageTableTarget } from '../table/query';
 import { deleteFieldOptions, optionImpact } from '../fields/commands';
 import { plural } from '../sync/state';
+import { typeKeys } from '../fields/templates';
 
 export function createOutlineCommands(context: Pick<OutlineContext,
   | 'doc' | 'editing' | 'commitFieldEntry' | 'props' | 'selected'
@@ -53,7 +54,10 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   function openTable(beside: boolean) {
     if (doc.root()?.kind !== 'page' || context.fields()?.page_id === props.pageId) return;
     if (editing()) commitFieldEntry(editing()!, false);
-    props.onOpen(pageTableTarget(props.pageId, !!doc.root()?.project), beside);
+    const root = doc.root()!;
+    const collection = props.notebook.roots().find(page => page.text.trim().toLocaleLowerCase() === 'collection');
+    const isCollection = !root.source && typeKeys(root.text, root.manual_types).some(key => key === 'collection' || key === collection?.id.toLowerCase());
+    props.onOpen(isCollection ? { kind: 'library', tab: 'collections', collection: props.pageId } : pageTableTarget(props.pageId, !!root.project), beside);
   }
   function openSelected(beside: boolean, id = selected()) {
     if (!id) return;
@@ -244,7 +248,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     { id: 'fold', title: 'Fold / unfold children', section: 'View', keys: ['←/→', 'h/l'], run: () => fold(selected() ?? undefined) },
     { id: 'zoom', title: 'Zoom into atom', section: 'Navigation', keys: ['⌘.', 'Space z'], run: () => selected() && zoomTo(selected()) },
     { id: 'zoom-out', title: 'Zoom out', section: 'Navigation', keys: ['⌘⇧.'], disabledReason: () => zoom() ? undefined : 'Already at the top of this outline.', run: zoomOut },
-    { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], run: () => openSelected(true, selected()) },
+    { id: 'open-beside', title: 'Open selected target beside', section: 'Navigation', keys: ['⌃⇧O'], disabledReason: () => props.besideReason, run: () => { if (!props.besideReason) openSelected(true, selected()); } },
     { id: 'copy-reference', title: 'Copy atom reference', section: 'Editing', run: () => selected() && copy(`[[${selected()}]]`) },
     { id: 'make-image', title: 'Insert image', section: 'Editing', run: () => context.chooseImage(selected() ?? zoom() ?? doc.pageId) },
     { id: 'edit-occlusion', title: 'Edit image masks', section: 'Editing', disabledReason: () => selected() && doc.block(selected()!)?.image ? undefined : 'Add an image before drawing masks.', run: () => selected() && context.editOcclusion(selected()!) },

@@ -1,6 +1,6 @@
 .backlink-group { padding-block: var(--space-8); }
 .backlink-group + .backlink-group { border-top: var(--rule-width) solid var(--line); }
-.backlink-group-heading { display: flex; align-items: baseline; gap: var(--space-8); margin: 0 0 var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.backlink-group-heading { display: flex; align-items: baseline; gap: var(--space-8); margin: 0 0 var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .backlink-group-heading > .button { flex: 1; min-width: 0; justify-content: flex-start; padding: 0; border: 0; background: transparent; color: var(--muted); font: inherit; letter-spacing: inherit; text-align: left; text-transform: inherit; overflow-wrap: anywhere; }
 .backlink-group-heading > .button:hover { color: var(--accent); }
 .backlink-entry + .backlink-entry { margin-top: var(--space-12); }
@@ -26,3 +26,30 @@
 .mention-breadcrumb.button { display: block; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: left; text-transform: uppercase; }
 .mention-breadcrumb.button:hover { color: var(--accent); }
 .mention-link.button { flex: none; align-self: flex-end; font-size: var(--text-meta); }
+
+.related-section:has(> .related-section-heading) { border-top: 0; padding-top: 0; }
+.related-section-heading, .related-section > summary.related-section-heading { display: flex; align-items: center; gap: var(--space-8); width: 100%; min-height: var(--target-size); margin: 0; padding: 0; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.related-section > summary.related-section-heading > span { margin: 0; font: inherit; }
+.related-section > summary.related-section-heading > .related-section-name { color: var(--muted); }
+.related-section-heading > .related-section-count { color: var(--faint); }
+.related-section-heading > .section-rule { min-width: var(--space-16); }
+.related-section-heading > .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); transition: rotate var(--motion-fast) var(--motion-ease); }
+.related-section:not([open]) > .related-section-heading > .icon { rotate: -90deg; }
+.related-section > summary.related-section-heading::-webkit-details-marker { display: none; }
+.related-section-empty { margin-top: var(--section-item-gap); }
+.related-section-empty > .related-section-heading > .section-rule { visibility: hidden; }
+.related-section-empty > :not(summary) { display: none; }
+.collection-source-list { list-style: none; margin: 0; padding: 0; }
+.collection-source-list > li + li { border-top: var(--rule-width) solid var(--line); }
+.collection-source.button { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); width: 100%; min-width: 0; padding: var(--space-8) 0; border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; white-space: normal; }
+.collection-source-title { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: var(--space-4); overflow-wrap: anywhere; }
+.collection-source.button:hover .collection-source-title { color: var(--accent); text-decoration-color: var(--accent); }
+.collection-source-byline { color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
+.collection-sources-state { margin-block: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.outline-source[data-placeholder] { position: relative; }
+.outline-source[data-placeholder]::before { content: attr(data-placeholder); position: absolute; inset-block-start: 0; inset-inline-start: 0; color: var(--faint); font-family: var(--font-body); pointer-events: none; }
+.outline-header-actions > .outline-table-quiet.button { color: var(--faint); }
+.outline-header-actions > .outline-table-quiet.button:hover { color: var(--accent); }
+@media (pointer: coarse) {
+  .collection-source.button, .backlink-group-heading > .button, .related-section > summary.related-section-heading { min-height: var(--touch-target); }
+}

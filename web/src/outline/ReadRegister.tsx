@@ -44,7 +44,7 @@ export function ReadRegister(props: { register: Register; doc: PageDocument; not
     </div>;
   }
   return <div class="reading-register">
-    <div class="reading-opening"><For each={props.register.opening}>{props.row}</For></div>
+    <div class="reading-opening"><For each={props.register.opening}>{id => <div class="reading-outline-row" style={{ '--read-depth': props.doc.outline.depth(id) }}>{props.row(id)}</div>}</For></div>
     <div class="reading-section-head">
       <Show when={props.register.sectionId} fallback={<Show when={props.register.slips.length}><h2 class="reading-register-heading">Perspectives</h2></Show>}>{id => props.row(id())}</Show>
       <Show when={isReadingSubject(props.doc)}><div class="reading-register-actions"><span class="reading-counts">{readingCounts(props.register.slips)}</span><Show when={props.register.slips.length > 1}><Button onClick={props.onCompare}>Compare</Button></Show><Button onClick={event => props.onAddReading(event.currentTarget)}>Add perspective</Button></div></Show>
@@ -79,6 +79,6 @@ export function ReadRegister(props: { register: Register; doc: PageDocument; not
         <For each={group.questions}>{question => <ReadingVerdict questionId={question.id} named={group.questions.length > 1} />}</For>
       </div>}</For>
     </section></Show>
-    <For each={props.register.remaining}>{props.row}</For>
+    <For each={props.register.remaining}>{id => <div class="reading-outline-row" style={{ '--read-depth': props.doc.outline.depth(id) }}>{props.row(id)}</div>}</For>
   </div>;
 }

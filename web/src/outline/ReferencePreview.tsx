@@ -111,8 +111,30 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
   let holdTimer = 0;
   let heldLink: HTMLElement | null = null;
 
+  // Value pickers and other active panels own the pointer and keyboard until they close.
+  const blocked = () => !!document.querySelector('.popup:not(.reference-preview), .popup-inline, [data-value-editor]');
+  const dismiss = () => {
+    clearTimeout(pending);
+    pending = 0;
+    clearTimeout(closing);
+    clearTimeout(holdTimer);
+    holding = null;
+    heldLink = null;
+    setStack([]);
+    setPinned(new Set<number>());
+  };
+  const dismissIfBlocked = () => { if ((pending || holding || stack().length) && blocked()) dismiss(); };
+  const click = (event: MouseEvent) => {
+    clearTimeout(pending);
+    pending = 0;
+    clearTimeout(holdTimer);
+    holding = null;
+    if (!(event.target instanceof Element) || !event.target.closest('.reference-preview')) dismiss();
+  };
+
   const truncate = (depth: number) => { if (stack().length > depth) setStack(entries => entries.slice(0, depth)); };
   const open = (entry: Omit<Entry, 'key'>, depth: number) => {
+    if (blocked()) { dismiss(); return; }
     clearTimeout(closing);
     setStack(entries => [...entries.slice(0, depth), { ...entry, citation: entry.citation ?? entry.link?.hasAttribute('data-citation'), locator: entry.locator ?? entry.link?.dataset.locator, key: ++serial }]);
   };
@@ -144,14 +166,15 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
   const over = (event: PointerEvent) => {
     if (event.pointerType !== 'mouse') return;
     const link = (event.target as Element).closest?.<HTMLElement>('.outline-reference');
-    if (!link) return;
+    if (!link || blocked()) return;
     clearTimeout(closing);
     if (stack().some(entry => (entry.currentLink?.() ?? entry.link) === link)) return;
     const id = referenceId(link);
     if (!id) return;
     clearTimeout(pending);
     pending = window.setTimeout(() => {
-      if (!link.isConnected || !link.matches(':hover')) return;
+      pending = 0;
+      if (blocked() || !link.isConnected || !link.matches(':hover')) return;
       const depth = stack().findIndex(entry => entry.panel?.contains(link)) + 1;
       const pane = (link.closest<HTMLElement>('[data-pane]')?.dataset.pane as PaneId | undefined) ?? stack()[depth - 1]?.pane ?? null;
       open({ id, ...lineAnchor(link, pointer.y), pane, keyboard: false }, depth);
@@ -161,6 +184,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     const link = (event.target as Element).closest?.('.outline-reference');
     if (!link || link.contains(event.relatedTarget as Node | null)) return;
     clearTimeout(pending);
+    pending = 0;
     if (stack().length) scheduleClose();
   };
   const move = (event: PointerEvent) => { pointer = { x: event.clientX, y: event.clientY }; };
@@ -168,8 +192,9 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
   const cancelHold = () => { clearTimeout(holdTimer); holding = null; };
   const touchOpen = (link: HTMLElement, y: number) => {
     const id = referenceId(link);
-    if (!id || !link.isConnected || heldLink?.dataset.reference === id) return;
+    if (blocked() || !id || !link.isConnected || heldLink?.dataset.reference === id) return;
     clearTimeout(pending);
+    pending = 0;
     heldLink = link;
     const depth = stack().findIndex(entry => entry.panel?.contains(link)) + 1;
     const pane = (link.closest<HTMLElement>('[data-pane]')?.dataset.pane as PaneId | undefined) ?? stack()[depth - 1]?.pane ?? null;
@@ -177,6 +202,9 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
   };
   const touchStart = (event: PointerEvent) => {
     cancelHold();
+    clearTimeout(pending);
+    pending = 0;
+    if (blocked()) { dismiss(); return; }
     heldLink = null;
     if (event.pointerType !== 'touch' || !event.isPrimary) return;
     // Leave the editor's reference widgets and ambiguous-name picker alone.
@@ -232,6 +260,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
   const keydown = (event: KeyboardEvent) => {
     if (event.isComposing) return;
     const top = stack().at(-1);
+    if ((top || event.code === 'Space' && event.altKey) && blocked()) { dismiss(); return; }
     if (event.code === 'Space' && event.altKey && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
       if (top?.keyboard) { event.preventDefault(); event.stopPropagation(); truncate(stack().length - 1); return; }
       const entry = keyboardEntry();
@@ -256,6 +285,10 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
 
   onMount(() => {
     void document.fonts.ready.then(() => setFontsReady(true));
+    const panels = new MutationObserver(dismissIfBlocked);
+    panels.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-value-editor'] });
+    onCleanup(() => panels.disconnect());
+    document.addEventListener('focusin', dismissIfBlocked);
     document.addEventListener('pointerover', over);
     document.addEventListener('pointerout', out);
     document.addEventListener('pointermove', move, { passive: true });
@@ -265,11 +298,14 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     document.addEventListener('pointercancel', touchEnd, true);
     document.addEventListener('contextmenu', touchContext, true);
     document.addEventListener('click', touchClick, true);
+    document.addEventListener('click', click, true);
     document.addEventListener('keydown', keydown, true);
   });
   onCleanup(() => {
     clearTimeout(pending); clearTimeout(closing);
     cancelHold();
+    document.removeEventListener('focusin', dismissIfBlocked);
+    document.removeEventListener('click', click, true);
     document.removeEventListener('pointerover', over);
     document.removeEventListener('pointerout', out);
     document.removeEventListener('pointermove', move);

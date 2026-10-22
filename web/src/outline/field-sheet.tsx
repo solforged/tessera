@@ -378,8 +378,7 @@ export function createFieldSheet(context: Pick<OutlineContext,
     return <Show when={root() || missing().length} fallback={<Controls />}><div class="field-slots" classList={{ 'field-slots-root': root() }} data-field-owner={area.state.owner} style={{ '--slot-depth': area.state.depth }} onPointerEnter={() => setHovered(area.state.owner)} onPointerLeave={() => setHovered(null)}>
       <For each={missing()}>{id => <Show when={definitionsById().get(id)}>{field => <button type="button" class="field-slot" aria-label={`Add ${fieldLabel(field())} value`} onClick={event => choose(area.state.owner, event.currentTarget, field())}>
         <span class="field-slot-label"><Icon name="field" /><span>{fieldLabel(field())}</span></span>
-        {/* A page's empty slot says it can be filled rather than reading as missing metadata. */}
-        <span class="field-slot-value"><Show when={field().kind === 'checkbox'} fallback={<Show when={root()}><span class="field-slot-add" aria-hidden="true">Add…</span></Show>}><span class="field-checkbox" aria-hidden="true" /></Show></span>
+        <span class="field-slot-value"><span class="field-slot-add" aria-hidden="true">Add…</span></span>
       </button>}</Show>}</For>
       <Controls />
     </div></Show>;

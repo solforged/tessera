@@ -24,7 +24,7 @@ export function IncomingRelationLine(props: RelationProps & { rows: readonly Rel
         const text = holder ? props.notebook.lookup(holder)()?.text : props.notebook.lookup(source.id)()?.text ?? source.text;
         return plainText(text ?? '', id => props.notebook.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom');
       });
-      return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span>{incomingRelationLabels[row.kind]} <Button onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: row.source.block.page.id, blockId: source.kind === 'block' ? source.id : undefined }, opensBeside(event)); }}>{label()}</Button></span></>;
+      return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span>{incomingRelationLabels[row.kind]} <Button aria-label={`Open ${label()}`} onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: row.source.block.page.id, blockId: source.kind === 'block' ? source.id : undefined }, opensBeside(event)); }}>{label()}</Button></span></>;
     }}</For>
   </div></Show>;
 }
@@ -51,7 +51,7 @@ export function IncomingFieldLine(props: RelationProps & { rows: readonly Incomi
   return <Show when={groups().length}><div class="relation-line incoming-fields" onMouseDown={event => event.stopPropagation()}>
     <For each={groups()}>{(group, index) => {
       const shown = () => expanded().has(group.id) ? group.owners : group.owners.slice(0, ownersShown);
-      return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span><span class="incoming-field-name" title={`Values of ${group.name} that link here`}>← {group.name}</span> <For each={shown()}>{(owner, at) => <><Show when={at() > 0}><span aria-hidden="true">, </span></Show><Button title={owner.id === owner.page_id ? owner.page_title : `In ${owner.page_title}`} onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: owner.page_id, blockId: owner.id === owner.page_id ? undefined : owner.id }, opensBeside(event)); }}>{label(owner)}</Button></>}</For>
+      return <><Show when={index() > 0}><span aria-hidden="true"> · </span></Show><span><span class="incoming-field-name" title={`Values of ${group.name} that link here`}>← {group.name}</span> <For each={shown()}>{(owner, at) => <><Show when={at() > 0}><span aria-hidden="true">, </span></Show><Button aria-label={`Open ${label(owner)}`} title={owner.id === owner.page_id ? owner.page_title : `In ${owner.page_title}`} onClick={event => { event.stopPropagation(); props.onOpen({ kind: 'page', pageId: owner.page_id, blockId: owner.id === owner.page_id ? undefined : owner.id }, opensBeside(event)); }}>{label(owner)}</Button></>}</For>
         <Show when={shown().length < group.owners.length}> <Button onClick={event => { event.stopPropagation(); setExpanded(previous => new Set(previous).add(group.id)); }}>{`+${group.owners.length - shown().length} more`}</Button></Show></span></>;
     }}</For>
   </div></Show>;

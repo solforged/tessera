@@ -224,6 +224,15 @@
 .choice-value .editor-host .cm-content { min-height: var(--line-meta); }
 .outline-value-text { padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font: inherit; line-height: inherit; text-align: left; vertical-align: top; cursor: pointer; }
 .outline-value-text:hover { background: transparent; color: inherit; }
+.outline-value-cell { display: inline-flex; align-items: center; vertical-align: top; min-width: 0; max-width: 100%; min-height: var(--line-body); }
+.choice-value .static-text:has(> .outline-value-cell) { padding-block: 0; }
+.outline-field-values { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4) var(--space-8); min-height: var(--line-body); }
+.outline-field-values > .outline-value-cell:not([data-value-kind="choice"], [data-value-kind="instance"]) + .outline-value-cell::before { content: '·'; margin-right: var(--space-8); color: var(--faint); }
+.outline-row .outline-value-edit { opacity: 0; pointer-events: none; }
+.outline-row:is(:hover, :focus-within, .row-selected) .outline-value-edit { opacity: 1; pointer-events: auto; }
+.outline-value-edit .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+.inline-field-value:is([data-value-kind="date"], [data-value-kind="number"]) .static-text,
+.outline-value-cell:is([data-value-kind="date"], [data-value-kind="number"]) > .outline-value-text { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
 .outline-reading-problem { text-decoration: underline dotted var(--warning); text-underline-offset: var(--space-4); }
 /* Every owner's missing template fields stay below its last entry, independent of selection.
    Slots span the canvas so the anchor row's hover and selection stay on its own line. */
@@ -239,7 +248,7 @@
 .field-slot-label .icon { flex: none; width: var(--target-size); height: var(--icon-size-small); margin-block: calc((var(--target-size) - var(--icon-size-small)) / 2); }
 /* Blank values keep a full-width hit target without pretending to contain a value. */
 .field-slot-value { flex: 1; min-width: 0; min-height: var(--target-size); }
-.field-empty-value { display: block; width: 100%; min-height: var(--target-size); padding: 0; border: 0; background: transparent; font: inherit; cursor: text; }
+.field-empty-value { display: block; width: 100%; min-height: var(--target-size); padding: 0; border: 0; background: transparent; font: inherit; text-align: left; cursor: text; }
 .field-area-controls { position: absolute; right: 0; bottom: var(--space-2); display: flex; align-items: center; gap: var(--space-8); min-height: var(--row-height); pointer-events: none; }
 .field-area-add, .field-area-hidden { display: inline-flex; align-items: center; gap: var(--space-4); padding: 0 var(--space-4); min-height: var(--target-size); border: 0; border-radius: var(--radius-control); background: var(--canvas); color: var(--faint); font: inherit; font-size: var(--text-meta); cursor: pointer; pointer-events: auto; }
 .field-area-controls:not(.field-area-root, .field-area-active):not(:hover, :focus-within) .field-area-add { visibility: hidden; pointer-events: none; }
@@ -260,14 +269,20 @@
 .outline-source-line:has(> .outline-capability-metadata > :only-child):not(:has(.outline-citation-local)) > .outline-source { flex-grow: 0; }
 .outline-capability-metadata { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
 .outline-capability-metadata .outline-planning { display: inline-flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+/* Tasks reserve a trailing gutter for facts, rather than adding a selected planning-only line. */
+.outline-row[data-task-status] > .outline-body > .outline-source-line { flex-wrap: nowrap; }
+.outline-row[data-task-status] > .outline-body > .outline-source-line > .outline-source { flex: 1 1 0; }
+.outline-row[data-task-status] > .outline-body > .outline-source-line > .outline-capability-metadata { flex: 0 1 auto; min-width: 0; max-width: 40%; }
 /* A card count is a count: apparatus mono, like every other number the notebook reports. */
 .outline-capability-metadata .outline-card-count { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
 .outline-card-decks { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); }
 /* Task facts are the machine's: dates, progress and the running clock in apparatus mono. Missed plans take the danger colour. */
-.outline-capability-metadata :is(.outline-task-facts, .outline-task-progress) { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.outline-capability-metadata :is(.outline-task-facts, .outline-task-progress, .outline-task-logged) { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
 .outline-capability-metadata .outline-task-facts { display: inline-flex; align-items: center; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); }
 .outline-capability-metadata .outline-task-progress { display: inline-flex; align-items: center; padding: 0 var(--space-4); color: var(--faint); }
 .outline-task-late { color: var(--danger); }
+.outline-capability-metadata .outline-task-logged { color: var(--faint); white-space: nowrap; }
+.outline-task-warning { color: var(--warning); }
 .outline-task-priority { color: var(--faint); }
 .outline-task-priority[data-priority="high"] { color: var(--danger); }
 /* An unplanned open task offers Plan only where the pointer or selection is, so a list of todos does not repeat it.
@@ -326,7 +341,7 @@
 .outline-source-highlight-controls { display: flex; align-items: center; gap: var(--space-8); margin-left: auto; margin-right: calc(-1 * var(--space-8)); }
 .outline-source-highlight-colors { display: flex; align-items: center; gap: var(--space-4); }
 .outline-source-highlight-colors .highlight-color-dot { width: var(--space-8); height: var(--space-8); }
-.outline-source-highlight-colors [aria-pressed="true"] .highlight-color-dot { outline: var(--space-2) solid var(--text); outline-offset: var(--space-2); }
+.outline-source-highlight-colors [aria-pressed="true"] :is(.highlight-color-dot, .library-highlight-color-bar) { outline: var(--space-2) solid var(--text); outline-offset: var(--space-2); }
 .outline-source-group.button { color: var(--muted); font-weight: var(--weight-body); }
 .source-highlights-start { flex-wrap: wrap; }
 .outline-highlights-label { flex: 0 0 calc(100% - var(--gutter) - var(--indent-width)); margin: var(--space-24) 0 var(--space-4) calc(var(--gutter) + var(--indent-width)); color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
@@ -459,10 +474,8 @@
   .source-cover-actions .outline-source-read { flex: 1; }
   .app.keyboard-open .source-cover-actions { bottom: var(--bottom-inset); }
 }
-/* A journal's checkbox takes its bullet slot, so tasks and prose keep the same text edge. */
-.outline-pane:has(.journal-header) .outline-row[data-task-status] > .row-bullet { display: none; }
-/* Journal fields annotate the line above: the name shrinks to its own width in quiet mono, so the value sits beside it. */
-.outline-pane:has(.journal-header) .outline-field-label { flex: 0 1 auto; width: auto; max-width: 40%; align-items: center; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+/* Journal fields keep the same value column even when an entry wraps or is being edited. */
+.outline-pane:has(.journal-header) .outline-field-label { align-items: center; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .outline-pane:has(.journal-header) .outline-field-label:hover { color: var(--muted); }
 .outline-reference.outline-reference-ambiguous,
 :is(.outline-body, .outline-value-pill, .table-value-pill) .outline-reference.outline-reference-ambiguous { color: var(--warning); text-decoration-line: underline; text-decoration-style: dotted; text-decoration-color: var(--warning); }
@@ -485,7 +498,7 @@
 /* A page's own fields read as a specimen block under the imprint: names in faint mono apparatus without the field glyph,
    values at control size, a dotted hairline between rows. Nested fields sit inside prose and keep the outline's voice;
    journal days and the reading register set fields their own way. */
-.outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"])::after { content: ""; position: absolute; left: var(--gutter); right: 0; bottom: 0; border-bottom: var(--rule-width) dotted var(--line); pointer-events: none; }
+.outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"]):not([data-field-end="false"])::after { content: ""; position: absolute; left: var(--gutter); right: 0; bottom: 0; border-bottom: var(--rule-width) dotted var(--line); pointer-events: none; }
 .outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"], [data-field-role="prose"]) > .outline-field-label,
 .outline-pane:not(:has(.journal-header, .reading-register)) .field-slots-root .field-slot-label { color: var(--faint); font: var(--apparatus); line-height: var(--line-control); letter-spacing: var(--tracking-apparatus); }
 .outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"] > .outline-field-label { align-self: baseline; padding-top: var(--rule-width); }
@@ -498,7 +511,21 @@
 .field-slots-root .field-area-add { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 /* On phones the name stacks over its value; both start on the title edge and the hairline spans the row. */
 @media (max-width: 599px) {
-  .outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"])::after { left: 0; }
+  .outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"]):not([data-field-end="false"])::after { left: 0; }
   .outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"]) > .outline-field-label { min-height: 0; padding-top: var(--space-8); }
   .outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"]) > .outline-body { margin-left: 0; }
+}
+@media (pointer: coarse) {
+  /* Padding grows the hit area; the pill's own surface stays at its compact reading height. */
+  .inline-field-value { min-height: calc(var(--touch-target) + 2 * var(--space-2)); }
+  .outline-value-cell, .outline-field-values { min-height: var(--touch-target); }
+  .choice-value .static-text { min-height: var(--touch-target); padding-block: 0; }
+  button.outline-value-pill { position: relative; isolation: isolate; min-height: var(--touch-target); padding-block: calc((var(--touch-target) - var(--line-meta) - 2 * var(--rule-width)) / 2); border-color: transparent; background: transparent; }
+  button.outline-value-pill::before { content: ''; position: absolute; z-index: -1; inset-inline: calc(-1 * var(--rule-width)); inset-block: calc((var(--touch-target) - var(--line-meta) - 2 * var(--rule-width)) / 2 - var(--rule-width)); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: var(--raised); pointer-events: none; }
+  .outline-value-text { display: inline-flex; align-items: center; min-height: var(--touch-target); padding-block: calc((var(--touch-target) - var(--line-body)) / 2); }
+  .outline-row > .outline-field-label,
+  .outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"]) > .outline-field-label { align-items: center; align-self: flex-start; min-height: var(--touch-target); padding-block: calc((var(--touch-target) - var(--line-body)) / 2); }
+  .outline-field-label .icon { margin-block: 0; }
+  .outline-row .outline-value-edit { width: var(--touch-target); height: var(--touch-target); min-width: var(--touch-target); opacity: 1; pointer-events: auto; }
+  .field-empty-value, .field-slot, .field-slot-value { min-height: var(--touch-target); }
 }
