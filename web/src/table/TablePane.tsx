@@ -3,7 +3,7 @@ import { For, Show, createEffect, createMemo, createResource, createRoot, create
 import type { JSX } from 'solid-js';
 import { ulid } from 'ulid';
 import { api } from '../api/client';
-import type { QueryAttributeValue, FieldDefinition, FieldKind, Fields, FieldValue, NoteIndex, Operation, Query, QueryResult, QueryRow, SortKey, Type, View } from '../api/types';
+import type { QueryAttributeValue, FieldDefinition, FieldKind, Fields, FieldValue, Filter, NoteIndex, Operation, Query, QueryResult, QueryRow, SortKey, Type, View } from '../api/types';
 import type { NotebookClient, PageDocument, RelationPickIntent } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
 import { titleKey } from '../document/title-key';
@@ -64,7 +64,7 @@ type PopupState = { kind: 'menu'; anchor: HTMLElement; items: MenuItem[]; label:
   | { kind: 'value'; anchor: HTMLElement; row: QueryRow; field: FieldDefinition; value?: FieldValue }
   | { kind: 'task-field'; anchor: HTMLElement; row: QueryRow; field: FieldDefinition; doc: PageDocument }
   | null;
-const titleWidthLimits = { min: 170, max: 340, default: 240 };
+const titleWidthLimits = { min: 170, max: 340, default: 340 };
 const clampTitleWidth = (width: number | undefined) => Number.isFinite(width) ? Math.max(titleWidthLimits.min, Math.min(titleWidthLimits.max, width!)) : titleWidthLimits.default;
 const refsColumn = '$refs';
 const membersLabel = (count: number) => `${count.toLocaleString()} ${count === 1 ? 'member' : 'members'}`;
@@ -240,7 +240,7 @@ function TableContent(props: TablePaneProps) {
     const width = resizingWidths()[id] ?? query().columns?.find(column => column.key === id)?.width;
     if (width) return `${width}px`;
     const kind = fieldById(id)?.kind;
-    return kind === 'text' || kind === 'url' ? 'var(--table-source-width)' : kind === 'number' || kind === 'checkbox' || kind === 'date' ? 'var(--table-compact-width)' : 'var(--table-field-width)';
+    return id === sourceField()?.id ? 'var(--table-source-width)' : kind === 'number' || kind === 'checkbox' || kind === 'date' ? 'var(--table-compact-width)' : 'var(--table-field-width)';
   };
   createEffect(() => {
     setFocused(retainCell(untrack(focused), navigableRows(), visibleColumns()));
@@ -295,6 +295,7 @@ function TableContent(props: TablePaneProps) {
     return [...new Set([...selected, ...sorted])].flatMap(id => { const field = fieldById(id); return field ? [field] : []; });
   };
   const changed = () => !!saved() && !queriesEqual(query(), saved()!.query);
+  const labelFilter = (filter: Filter) => plainText(filterLabel(filter, pickerFields(), props.notebook, query().field_names), id => props.notebook.lookup(id));
   const title = () => { const kind = typeKind(); return kind ? kindLabel(kind) : type()?.plural ?? (query().type ? autoPlural(props.notebook.lookup(query().type!)()?.text ?? '') : query().source ? sourceName(query().source) : ''); };
   const queryParts = createMemo(() => query().filters.length + query().sort.length + (query().group ? 1 : 0) + (query().text ? 1 : 0) + (query().source && query().source !== 'notes' ? 1 : 0) + (query().links?.length ?? 0) + (query().from?.length ?? 0) + (query().cites?.length ?? 0));
   const summary = createMemo(() => {
@@ -305,7 +306,7 @@ function TableContent(props: TablePaneProps) {
     `${canAppend() ? `${(result()?.rows.length ?? 0).toLocaleString()} of ` : ''}${count.toLocaleString()} ${noun.toLocaleLowerCase()}`,
     ...(query().text ? [`“${query().text}”`] : []),
     ...(['links', 'from', 'cites'] as const).flatMap(key => (query()[key] ?? []).map(id => `${key} ${props.notebook.lookup(id)()?.text ?? 'Loading…'}`)),
-    ...query().filters.map(filter => filterLabel(filter, pickerFields(), props.notebook, query().field_names)),
+    ...query().filters.map(labelFilter),
     ...(query().sort.length ? [`sorted by ${query().sort.map(labelSort).join(', ')}`] : []),
     ...(query().group ? [`by ${fieldName(query().group!.key)}`] : []),
     ].join(' · ');
@@ -835,7 +836,7 @@ function TableContent(props: TablePaneProps) {
       </div>
       <Show when={definitions() && (query().sort.length || query().filters.length)}><div class="table-query-chips">
         <For each={query().sort}>{(key, index) => <span class="table-chip"><span class="table-sort-priority">{index() + 1}</span>{labelSort(key)}<Show when={index() > 0}><Button label={`Make ${labelSort(key)} higher priority`} onClick={() => { const sort = [...query().sort]; [sort[index() - 1], sort[index()]] = [sort[index()]!, sort[index() - 1]!]; updateQuery({ ...query(), sort }); }}>←</Button></Show><Button label={`Remove ${labelSort(key)}`} onClick={() => updateQuery(removeSort(query(), index()))}>×</Button></span>}</For>
-        <For each={query().filters}>{(filter, index) => <span class="table-chip">{filterLabel(filter, pickerFields(), props.notebook, query().field_names)}<Button label={`Remove ${filterLabel(filter, pickerFields(), props.notebook, query().field_names)}`} onClick={() => updateQuery(removeFilter(query(), index()))}>×</Button></span>}</For>
+        <For each={query().filters}>{(filter, index) => <span class="table-chip" title={filter.value ?? undefined}>{labelFilter(filter)}<Button label={`Remove ${labelFilter(filter)}`} onClick={() => updateQuery(removeFilter(query(), index()))}>×</Button></span>}</For>
       </div></Show>
   </>;
   onMount(() => {

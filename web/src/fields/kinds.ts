@@ -1,4 +1,5 @@
 import type { FieldKind } from '../api/types';
+import type { MenuItem } from '../ui/Menu';
 
 export const fieldKinds = ['text', 'number', 'date', 'span', 'checkbox', 'choice', 'instance', 'url', 'identifier'] as const;
 export const partialDatePlaceholder = 'Year (1–9999), YYYY-MM or YYYY-MM-DD';
@@ -15,14 +16,26 @@ export const kindLabels: Record<FieldKind, string> = {
   identifier: 'Identifier',
 };
 
+export const formatMenuNote = 'Changing format leaves value text unchanged.';
+
+/** Format choices and their explanations stay the same in every definition editor. */
+export function formatMenuItems(current: FieldKind, select: (kind: FieldKind) => void): MenuItem[] {
+  return fieldKinds.map(kind => ({
+    label: kindLabels[kind],
+    secondary: kind === 'span' ? 'A range of dates, such as 1914–1918' : undefined,
+    checked: kind === current,
+    action: () => select(kind),
+  }));
+}
+
 /** A kind as a word inside a sentence: lowercase, except for the URL initialism. */
 export function kindNoun(kind: FieldKind): string {
   return kind === 'url' ? 'URL' : kindLabels[kind].toLowerCase();
 }
 
-/** A field's name as people read it: built-ins are stored lowercase (`status`) but read in sentence case. */
+/** Built-ins keep their canonical lowercase names; user fields keep the casing they were given. */
 export function fieldLabel(field: { name: string; built_in?: boolean }): string {
-  return field.built_in ? field.name.charAt(0).toLocaleUpperCase() + field.name.slice(1) : field.name;
+  return field.name;
 }
 
 /** Why a field name is refused; creation and rename share syntax and notebook-wide uniqueness. */

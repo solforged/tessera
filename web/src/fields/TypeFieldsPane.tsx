@@ -42,6 +42,12 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
   });
   const title = createMemo(() => data.latest?.type.page.text ?? props.notebook.lookup(props.typeId)()?.text ?? 'Tag');
   const registerName = createMemo(() => data.latest?.kind ? kindLabel(data.latest.kind) : data.latest?.type.plural || autoPlural(title()));
+  const tableCount = createMemo(() => {
+    const value = data.latest;
+    // Capability registers include active atoms without authored tag memberships.
+    return value?.kind && ['task', 'question', 'source', 'project'].includes(value.kind.key)
+      ? value.kind.count : value?.type.members;
+  });
   createEffect(() => {
     if (!data.latest || restored) return;
     restored = true;
@@ -53,7 +59,7 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
         <div class="fields-register"><Button class="type-fields-crumb" onClick={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}>{registerName()}</Button></div>
         <div class="type-fields-title"><h1><Show when={data.latest?.kind}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>{registerName()}</h1></div>
       </header>
-      <TypeModeTabs active="fields" indexCount={data.latest?.kind?.count} tableCount={data.latest?.type.members} fieldsCount={data.latest?.type.fields.length}
+      <TypeModeTabs active="fields" indexCount={data.latest?.kind?.count} tableCount={tableCount()} fieldsCount={data.latest?.type.fields.length}
         cardsCount={data.latest?.type.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: props.typeId }, opensBeside(event))}
         onIndex={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}
         onTable={event => props.onOpen({ kind: 'table', typeId: props.typeId, viewId: null, query: typeQuery(props.typeId) }, opensBeside(event))}

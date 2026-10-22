@@ -3,7 +3,7 @@ import { Portal } from 'solid-js/web';
 import type { Block, FieldDefinition, FieldKind, Filter, FilterOp } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { instancePages, relationMembers } from '../fields/instances';
-import { completeNames, targetLabel } from '../outline/names';
+import { completeNames, plainText, targetLabel } from '../outline/names';
 import { kindLabels, partialDatePlaceholder } from '../fields/kinds';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -50,7 +50,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
     const members = await relationMembers(props.notebook, field.targets);
     return [...members.pages, ...members.blocks.map(row => row.block)];
   });
-  const label = (block: Block) => block.kind === 'page' ? block.text : targetLabel(block.text, id => props.notebook.lookup(id)) || 'Empty atom';
+  const label = (block: Block) => (block.kind === 'page' ? plainText(block.text, id => props.notebook.lookup(id)) : targetLabel(block.text, id => props.notebook.lookup(id))) || 'Empty atom';
   const [names] = createResource(() => identity() && pages() ? { pages: pages()!, query: query() } : false, async ({ pages, query }) => {
     const names = await completeNames(props.notebook, query, pages);
     const other = pages.filter(block => block.kind !== 'page');
@@ -65,7 +65,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
       return props.onNewField && query().trim() && !exact ? [...matching, { kind: 'new-field', name: query().trim() }] : matching;
     }
     if (step() === 'op') return filterOperators(definition()?.kind).filter(candidate => filterOperatorLabel(candidate, definition()?.kind).includes(needle())).map(candidate => ({ kind: 'op', op: candidate }));
-    if (identity()) return (names()?.rows ?? []).map(match => ({ kind: 'value', value: match.page.id, label: match.alias ? `${match.alias} · ${match.page.text}` : label(match.page) }));
+    if (identity()) return (names()?.rows ?? []).map(match => ({ kind: 'value', value: match.page.id, label: match.alias ? `${match.alias} · ${label(match.page)}` : label(match.page) }));
     const options = definition()?.options ?? [];
     const choices = options.filter(option => option.text.toLocaleLowerCase().includes(needle())).map((option): FilterRow => ({ kind: 'value', value: definition()?.id.startsWith('@') ? option.id : option.text, label: option.text }));
     if (definition()?.kind === 'choice') return choices;
@@ -116,7 +116,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
     row={row => row.kind === 'field' ? <><Icon name="field" /><span class="picker-text">{row.name}</span><span class="picker-meta">{kindLabels[row.type]}</span></>
       : row.kind === 'new-field' ? <><Icon name="plus" /><span class="picker-text">New field “{row.name}”</span></>
         : row.kind === 'op' ? <span class="picker-text">{filterOperatorLabel(row.op, definition()?.kind)}</span>
-          : <span class="picker-text">{row.label}</span>} />}>
+          : <span class="picker-text" title={row.value}>{plainText(row.label, id => props.notebook.lookup(id))}</span>} />}>
     <Portal><div class="table-sheet-shade" aria-hidden="true" onPointerDown={props.onDismiss} /></Portal>
     <Popup anchor={props.anchor} placement="sheet" class="table-filter-sheet" label="Filters" onDismiss={props.onDismiss} autofocus={false} style={{ '--bottom-nav-height': getComputedStyle(props.anchor).getPropertyValue('--bottom-nav-height') || '0px' }}>
       <div class="table-popup-heading">Filters<Button onClick={props.onDismiss}>Cancel</Button></div>
@@ -127,7 +127,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
       <input class="input table-filter-input" aria-label={placeholder()} placeholder={placeholder()} value={query()} onInput={event => { const value = event.currentTarget.value; setQuery(value); if (step() === 'value') setDraftValue(identity() || definition()?.kind === 'choice' ? undefined : value.trim() || undefined); }} />
       <div class="table-filter-options" classList={{ 'table-filter-choices': step() === 'value' && definition()?.kind === 'choice' }}>
         <For each={rows()}>{row => <Button class="bordered" classList={{ selected: row.kind === 'value' && draftValue() === row.value }} aria-pressed={row.kind === 'value' ? draftValue() === row.value : undefined} disabled={busy()} onClick={() => pick(row)}>
-          <span>{row.kind === 'field' ? row.name : row.kind === 'new-field' ? `New field “${row.name}”` : row.kind === 'op' ? filterOperatorLabel(row.op, definition()?.kind) : row.label}</span><Show when={row.kind === 'value' && draftValue() === row.value}><Icon name="check" /></Show>
+          <span title={row.kind === 'value' ? row.value : undefined}>{row.kind === 'field' ? row.name : row.kind === 'new-field' ? `New field “${row.name}”` : row.kind === 'op' ? filterOperatorLabel(row.op, definition()?.kind) : plainText(row.label, id => props.notebook.lookup(id))}</span><Show when={row.kind === 'value' && draftValue() === row.value}><Icon name="check" /></Show>
         </Button>}</For>
       </div>
       <Show when={definition()?.kind === 'date' && (op() === 'lt' || op() === 'gt')}><label class="table-column-choice"><input type="checkbox" checked={orEmpty()} onChange={event => setOrEmpty(event.currentTarget.checked)} />Or empty</label></Show>

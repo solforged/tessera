@@ -7,6 +7,7 @@ import type { OpenTarget } from '../shell/contract';
 import { BlockText } from '../outline/BlockText';
 import { questionLabels } from '../outline/Questions';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
 import { createSettledChanges } from '../ui/loading';
 import { NoteFind } from './NoteFind';
 import { attributeDefinitions } from '../table/attributes';
@@ -52,9 +53,10 @@ export function QuestionLedger(props: { notebook: NotebookClient; newQuestion?(m
   });
   const open = (row: QuestionRow, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.kind === 'block' ? row.block.block.id : undefined }, opensBeside(event));
   return <div class="index-pane question-ledger" role="region" tabIndex={0} aria-label="Questions index" onFocusIn={props.onActivate}><div class="index-sheet">
-    <p class="index-eyebrow">Inquiry ledger</p><div class="index-head"><h1>Questions</h1><Show when={visible() && all()}><span class="index-tally">{visible()!.length} of {all()!.length} questions</span></Show></div>
-    <Show when={all()}>{rows => props.newQuestion?.(rows().filter(row => row.block.block.kind === 'page').map(row => ({ id: row.block.block.id })))}</Show>
-    <div class="mode-tabs tab-strip" role="tablist" aria-label="Question state"><For each={tabs}>{state => <Button role="tab" aria-selected={tab() === state} onClick={() => setTab(state)}>{state}</Button>}</For></div>
+    <p class="index-eyebrow">Inquiry ledger</p><div class="index-head"><h1><Icon name="question-open" />Questions</h1><Show when={visible() && all()}><span class="index-tally">{visible()!.length} of {all()!.length} questions</span></Show>
+      <Show when={all()}>{rows => props.newQuestion?.(rows().filter(row => row.block.block.kind === 'page').map(row => ({ id: row.block.block.id })))}</Show>
+    </div>
+    <div class="question-inquiry-tabs mode-tabs tab-strip" role="tablist" aria-label="Question state"><For each={tabs}>{state => <Button role="tab" aria-selected={tab() === state} onClick={() => setTab(state)}>{state}</Button>}</For></div>
     <NoteFind query={query()} plural="Questions" notebook={props.notebook} onChange={setQuery} />
     <Show when={query().filters.length}><div class="table-query-chips"><For each={query().filters}>{(filter, at) => <span class="table-chip">{filterLabel(filter, attributeDefinitions('questions'), props.notebook)}<Button label="Remove filter" onClick={() => setQuery(removeFilter(query(), at()))}>×</Button></span>}</For></div></Show>
     <Show when={questions.error || all.error || matches.error}><p class="error" role="alert">Couldn't load questions · {String(questions.error || all.error || matches.error)}</p></Show>
