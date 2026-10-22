@@ -9,7 +9,7 @@
 .index-tally { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .index-head .required-gap { color: var(--accent); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .index-needs { display: block; margin-top: var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.index-head:has(+ :is(.type-mode-tabs, .index-queue-tabs, .index-source-tabs)) { margin-bottom: var(--page-title-gap); }
+.index-head:has(+ :is(.type-mode-tabs, .index-queue-tabs, .index-source-tabs, .question-inquiry-tabs)) { margin-bottom: var(--page-title-gap); }
 .index-sheet > .type-mode-tabs, .index-queue-tabs, .index-source-tabs { margin-bottom: var(--page-head-gap); }
 .index-letters { flex-wrap: nowrap; gap: 0; margin: var(--space-12) 0 var(--space-16); overflow-x: auto; }
 .index-letters > .button { flex: none; min-width: var(--space-24); padding-inline: var(--space-4); justify-content: center; }
@@ -19,7 +19,7 @@
 .index-group h2, .index-queue-group h2 { display: flex; align-items: center; gap: var(--section-item-gap); margin: 0 0 var(--section-item-gap); break-after: avoid; color: var(--danger); font: var(--apparatus); font-weight: var(--weight-body); }
 .index-group-count { color: var(--faint); font-variant-numeric: tabular-nums; }
 .index-entry { display: block; width: 100%; padding: var(--space-4) 0 var(--space-12); border: 0; border-radius: var(--radius-control); background: none; color: var(--text); text-align: left; overflow-wrap: anywhere; cursor: pointer; break-inside: avoid; }
-.index-entry-title { display: block; font: var(--weight-display-heading) var(--text-h2)/var(--line-h3) var(--font-display); }
+.index-entry-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font: var(--weight-display-heading) var(--text-h2)/var(--line-h3) var(--font-display); }
 .index-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: var(--space-4); color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
 .index-apparatus { display: block; margin: var(--space-4) 0 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; }
 .index-entry:not(.index-cross-reference):hover .index-entry-title, .index-source-title:hover { color: var(--accent); }

@@ -1,7 +1,7 @@
 /* Type registers and saved views. Layout is in docs/design.md under "Tables and views". */
-.table-pane { --table-field-width: calc(var(--apparatus-width) - var(--space-48)); --table-source-width: calc(var(--apparatus-width) + var(--space-48)); --table-compact-width: calc(3 * var(--space-48)); --table-refs-width: calc(var(--space-48) + var(--space-16)); --table-register-width: calc(var(--measure) + var(--apparatus-width) - var(--space-16)); display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; max-width: 100%; padding: var(--page-top-space) var(--pane-inset) 0; outline: none; container-type: inline-size; container-name: table-pane; }
-.table-register { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; width: min(100%, max(var(--table-register-width), var(--table-width))); margin-inline: auto; }
-.table-header { display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0; width: 100%; gap: var(--page-title-gap); padding-bottom: var(--page-title-gap); }
+.table-pane { --table-field-width: calc(var(--apparatus-width) - var(--space-48)); --table-source-width: calc(var(--apparatus-width) + var(--space-48)); --table-compact-width: calc(3 * var(--space-48)); --table-refs-width: calc(var(--space-48) + var(--space-16)); display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; max-width: 100%; padding: var(--page-top-space) var(--pane-inset) 0; outline: none; container-type: inline-size; container-name: table-pane; }
+.table-register { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; width: 100%; margin-inline: auto; }
+.table-header { display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0; gap: var(--page-title-gap); padding-bottom: var(--page-title-gap); }
 .table-heading { min-width: 0; }
 .table-heading h1 { margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); }
 .table-title.button { justify-content: flex-start; max-width: 100%; min-width: 0; padding: 0; font-family: var(--font-display); font-size: inherit; line-height: inherit; font-weight: var(--weight-title); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
@@ -14,7 +14,7 @@
 .table-view-status .required-gap::before { content: "· "; color: var(--faint); }
 .table-needed { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .table-columns-button { margin-left: auto; color: var(--muted); }
-.table-register > .type-mode-tabs { width: 100%; }
+.table-register > :is(.table-header, .type-mode-tabs, .table-toolbar, .table-query-chips, .table-footer, .note-find) { width: min(100%, var(--measure)); margin-inline: auto; }
 .table-toolbar { display: flex; align-items: center; flex-shrink: 0; flex-wrap: wrap; width: 100%; gap: var(--space-8); padding-block: var(--page-head-gap); }
 .table-toolbar .table-search { width: calc(var(--apparatus-width) + var(--space-8)); max-width: 100%; min-width: 0; min-height: var(--row-height); font-size: var(--text-control); line-height: var(--line-control); }
 .table-query-controls { display: flex; flex: 1; gap: var(--space-8); }
@@ -121,6 +121,12 @@
 .table-card-title.button { justify-content: flex-start; width: 100%; padding: 0; border: 0; text-align: left; font-family: var(--font-display); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-display-heading); font-variation-settings: var(--optical-heading); }
 .table-card-text { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .table-card-arrow { margin-left: auto; flex: none; color: var(--faint); }
+.table-card-status { flex: none; display: inline-flex; align-items: center; color: var(--muted); }
+.table-card-finished .table-card-text { color: var(--faint); text-decoration: line-through; text-decoration-color: var(--line); }
+.table-card-facts { display: flex; flex-wrap: wrap; gap: var(--space-4) var(--space-12); margin-top: var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.table-card-facts > span { min-width: 0; overflow-wrap: anywhere; }
+.table-card-facts .table-card-late, .table-card-facts .table-card-priority-high { color: var(--danger); }
+.table-card-facts .table-card-warning { color: var(--warning); }
 .table-card-fields { display: flex; align-items: center; flex-wrap: wrap; gap: var(--section-item-gap) var(--space-12); margin-top: var(--section-item-gap); }
 .table-card-field { display: flex; align-items: center; min-width: var(--target-size); min-height: var(--target-size); max-width: 100%; cursor: pointer; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 .table-card-field:focus-visible { outline: var(--focus-ring); }
@@ -152,7 +158,7 @@
     .table-card-group .table-popup-count { order: 3; color: var(--faint); }
     .table-card-group .icon, .table-card-arrow, .table-card-grouped-field { display: none; }
     .table-card { padding: calc(var(--space-8) + var(--space-2)) 0 var(--space-12); }
-    .table-card-title.button { min-height: 0; font-size: calc(var(--text-h2) - var(--rule-width)); line-height: var(--line-body); }
+    .table-card-title.button { min-height: var(--touch-target); font-size: calc(var(--text-h2) - var(--rule-width)); line-height: var(--line-body); }
     .table-card-fields { margin-top: var(--space-2); gap: 0 var(--space-12); }
     .table-card-field { min-height: 0; min-width: 0; overflow: hidden; }
     .table-card-field-name { flex: none; margin-right: calc(var(--space-4) + var(--space-2)); }

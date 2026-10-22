@@ -73,10 +73,10 @@ export function IndexDirectory(props: IndexPaneProps) {
   return <div ref={scroll} class="index-pane index-directory" role="region" tabIndex={0} aria-label="Index" aria-busy={index.loading} data-pane-pending={!index.latest && !index.error ? '' : undefined} onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
     <div class="index-sheet">
       <p class="index-eyebrow">Index</p>
-      <div class="index-head"><h1>Index</h1><Show when={index.latest}>{list => <span class="index-tally">{tally(list().kinds.length, 'tag')}</span>}</Show></div>
+      <div class="index-head"><h1>Index</h1><Show when={index.latest}>{list => <span class="index-tally">{tally(list().notes, 'atom')} · {tally(list().kinds.length, 'type')}</span>}</Show></div>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load the index · {String(index.error)}</p></Show>
-      <Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading tags…</p></Show>}>{list =>
-        <Show when={list().kinds.length} fallback={<p class="empty-state">No tags yet.</p>}>
+      <Show when={index.latest} fallback={<Show when={slow()}><p class="empty-state" role="status">Loading types…</p></Show>}>{list =>
+        <Show when={list().kinds.length} fallback={<p class="empty-state">No types yet.</p>}>
           <div class="index-directory-list"><For each={['notes', 'sources', 'work', 'tags', 'loose'] as const}>{shelf => <><For each={list().kinds.filter(kind => kind.shelf === shelf)}>{kind =>
             <div class="index-directory-row">
               <Icon name={noteKindIcon(kind)} />
@@ -356,7 +356,7 @@ function KindIndexPane(props: IndexPaneProps) {
                   }}>
                     <input class="index-queue-check" type="checkbox" aria-label={`Select ${note.title}`} checked={filingSelection().has(note.id)} onClick={event => { event.stopPropagation(); selectForFiling(note, event.shiftKey); event.currentTarget.checked = filingSelection().has(note.id); }} />
                     <button class="index-queue-note" type="button" data-open-page={note.id} data-open-label={note.title} aria-pressed={selectedNote()?.id === note.id} onClick={event => { if (event.metaKey || event.ctrlKey || event.shiftKey) return; setSelected(note.id); if (cover()) openNote(note, event); }}>
-                      <span class="index-entry-title">{note.title}</span>
+                      <span class="index-entry-title" title={note.title}>{note.title}</span>
                       <Show when={preview(note)} fallback={<span class="index-preview index-blank-preview">{summary(note)?.referenced_from.length ? `Referenced by ${summary(note)!.referenced_from.map(page => page.title).join(' · ')}` : 'No text yet'}</span>}><span class="index-preview">{preview(note)}</span></Show>
                       <span class="index-apparatus">{apparatus(summary(note))}</span>
                     </button>
@@ -395,7 +395,7 @@ function KindIndexPane(props: IndexPaneProps) {
                 <For each={group.entries}>{entry => entry.kind === 'note' ? <div class="index-selectable" classList={{ selected: picked().includes(entry.note.id) }}>
                   <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${entry.note.title}`} checked={picked().includes(entry.note.id)} onClick={event => toggleSelection(entry.note.id, event.shiftKey)} /></label>
                   <button type="button" class="index-entry" data-open-page={entry.note.page_id} data-open-block={entry.note.id !== entry.note.page_id ? entry.note.id : undefined} data-open-label={entry.note.title} onClick={event => selectOrOpen(entry.note, event)}>
-                    <span class="index-entry-title">{entryTitle(entry.note)}</span><Show when={needs(entry.note.id)}>{names => <span class="index-needs">needs {names()}</span>}</Show><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
+                    <span class="index-entry-title" title={entryTitle(entry.note)}>{entryTitle(entry.note)}</span><Show when={needs(entry.note.id)}>{names => <span class="index-needs">needs {names()}</span>}</Show><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
                     <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <Show when={value().field || value().block_count || value().backlinks}><span class="index-apparatus">{[value().field ? plainText(value().field!.value, lookup) : '', value().block_count ? tally(value().block_count, 'prose atom') : value().backlinks ? tally(value().backlinks, 'backlink') : ''].filter(Boolean).join(' · ')}</span></Show>}</Show>}>
                       <Show when={collectionCounts.latest?.get(entry.note.id) != null}><span class="index-apparatus">{tally(collectionCounts.latest!.get(entry.note.id)!, 'source')}</span></Show>
                     </Show>

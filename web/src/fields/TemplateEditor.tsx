@@ -11,7 +11,7 @@ import { Menu } from '../ui/Menu';
 import { FieldPicker } from './FieldPicker';
 import { LinksToPopup } from './LinksToPopup';
 import { changeFieldKind, createTemplateField, renameField, setFieldTargets } from './commands';
-import { fieldKinds, fieldLabel, kindLabels, kindNoun } from './kinds';
+import { fieldLabel, formatMenuItems, formatMenuNote, kindLabels, kindNoun } from './kinds';
 import { TypePresentation } from './TypePresentation';
 import { requiredIds, requiredReason } from './required';
 import { entryAnchor } from './templates';
@@ -161,12 +161,12 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
       <Show when={template().length} fallback={<p class="template-note">Fields added here become this tag’s table columns and wait as empty slots on its atoms.</p>}>
         <table class="template-field-table">
           <colgroup><col class="template-name-column" /><col class="template-kind-column" /><col class="template-usage-column" /><col class="template-actions-column" /></colgroup>
-          <thead><tr><th scope="col">Name</th><th scope="col">Format</th><th scope="col" class="template-field-usage">Atoms</th><th scope="col"><span class="visually-hidden">Field actions</span></th></tr></thead>
+          <thead><tr><th scope="col">Name</th><th scope="col">Format</th><th scope="col" class="template-field-usage" title="Atoms using this field across the notebook">Uses</th><th scope="col"><span class="visually-hidden">Field actions</span></th></tr></thead>
           <tbody><For each={template()}>{(id, index) => <Show when={byId().get(id)}>{field => <tr>
             <td><Show when={renaming()?.id === id} fallback={<><Button class="template-definition" title={`Open ${fieldLabel(field())} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'field', fieldId: id }, opensBeside(event))}>{fieldLabel(field())}</Button><Show when={field().built_in}> <span class="template-built-in">built-in</span></Show><Show when={required().has(id)}> <span class="template-required" title={requiredReason(props.type, fieldLabel(field()))}>required</span></Show></>}>
               <form class="template-rename" onSubmit={event => { event.preventDefault(); void rename(); }}><input class="input" aria-label={`New name for ${fieldLabel(field())}`} value={renaming()!.text} onInput={event => setRenaming({ id, text: event.currentTarget.value })} onKeyDown={event => { if (event.key === 'Escape') { event.preventDefault(); setRenaming(null); } }} onBlur={() => { if (renaming()?.id === id) void rename(); }} ref={input => queueMicrotask(() => { input.focus(); input.select(); })} /></form>
             </Show></td>
-            <td class="template-field-kind"><Button class="template-kind" aria-haspopup="menu" aria-expanded={kindMenu()?.id === id} aria-label={`Format for ${fieldLabel(field())}: ${kindSummary(field())}`} disabled={busy() || !!taskFieldName(field())} onClick={event => setKindMenu({ id, anchor: event.currentTarget })}>{kindSummary(field())} <Show when={!taskFieldName(field())}><Icon name="down" /></Show></Button></td>
+            <td class="template-field-kind"><Button class="template-kind" aria-haspopup="menu" aria-expanded={kindMenu()?.id === id} aria-label={`Format for ${fieldLabel(field())}: ${kindSummary(field())}`} title={taskFieldName(field()) ? 'Built-in task fields keep their format' : undefined} disabled={busy() || !!taskFieldName(field())} onClick={event => setKindMenu({ id, anchor: event.currentTarget })}>{kindSummary(field())} <Show when={!taskFieldName(field())}><Icon name="down" /></Show></Button></td>
             <td class="template-field-usage"><Show when={summaries().get(id)?.owners} fallback={<span title="No atom uses this field yet">Unused</span>}><Button title={`Atoms using ${fieldLabel(field())}: ${summaries().get(id)!.owners} · ${besideHint}`} onClick={event => props.onOpen({ kind: 'table', typeId: null, viewId: null, query: { type: null, text: null, filters: [{ field: id, op: 'present', value: null }], sort: [], limit: null } }, opensBeside(event))}>{summaries().get(id)!.owners}</Button></Show></td>
             <td>{fieldActions(id, index())}</td>
           </tr>}</Show>}</For></tbody>
@@ -191,8 +191,8 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
     <Show when={kindMenu()}>{menu => <Show when={byId().get(menu().id)}>{field => {
       // The menu closes before an item runs, so items keep their own copy of the row they belong to.
       const { anchor } = menu(); const current = field();
-      return <Menu anchor={anchor} label={`Format for ${fieldLabel(current)}`} onDismiss={() => setKindMenu(null)} items={[
-        ...fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === current.kind, action: () => { if (kind !== current.kind) void changeKind(current, kind, false); } })),
+      return <Menu anchor={anchor} label={`Format for ${fieldLabel(current)}`} header={<p class="menu-note">{formatMenuNote}</p>} onDismiss={() => setKindMenu(null)} items={[
+        ...formatMenuItems(current.kind, kind => { if (kind !== current.kind) void changeKind(current, kind, false); }),
         ...(current.kind === 'instance' ? [{ label: 'Links to…', divider: true, action: () => setLinksMenu({ id: current.id, anchor }) }] : []),
         ...(current.kind === 'choice' ? [{ label: 'Options…', divider: true, action: () => props.onOpen({ kind: 'field', fieldId: current.id, section: 'options' }, false) }] : []),
         { label: 'Open field definition', divider: current.kind !== 'instance' && current.kind !== 'choice', action: () => props.onOpen({ kind: 'field', fieldId: current.id }, false) },
