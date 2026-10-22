@@ -17,7 +17,7 @@ One toolbar line sits at the reading measure and spans the spread in [Pages](#pa
 5. Full screen.
 6. An actions menu: Open source, then reader shortcuts with their keys, including the five highlight colors and page-turn keys in Pages. Commands that need a selection say so.
 
-Progress sits at the foot, under the text. The [book map](#book-map) sits above one mono line: the chapter's numeral and italic title, its time left, and `N% · time left in the book` at the right. The last item opens the [progress card](#progress-card). The chapter name is absent in front matter and in a foot narrower than 460 px, where the toolbar names it. In Pages, the foot spans the spread as the toolbar does.
+Progress sits at the foot, under the text. The [book map](#book-map) sits above one mono line: the chapter's numeral and italic title, its time left, and `N% · time left in the book` at the right. The last item opens the [progress card](#progress-card). The chapter name is absent in front matter. In a foot narrower than 460 px, a shortened chapter label remains in a two-line folio rather than disappearing. In Pages, the foot spans the spread as the toolbar does.
 
 The text fades over 24 px under the toolbar and 48 px above the foot, so no line is cut through its letters.
 
@@ -35,6 +35,8 @@ The title page has:
 - A gilt Begin at link to the first opening: `Begin at Preface`, `Begin at chapter I`.
 
 The file's own cover image at the start is not drawn again. A split title, parenthetical edition and recorded creator byline immediately repeating the title page are not drawn again either. Highlights keep their passages visible.
+
+Creator names join with ` · `, matching Library and source headers.
 
 ## Chapters
 
@@ -97,6 +99,8 @@ On touch, settings open as a bottom sheet. Width shows only where Narrow is narr
 
 Contents opens on the current section, marked with a check, when no persistent margin is visible. With the margin visible, Contents focuses its current entry (or the first entry before reading begins) instead of opening a duplicate floating list. The Highlights picker lists each highlight's color, quote and section. Choosing a highlight reveals its marked words, including when its paragraph spans page breaks. In Scroll, citation jumps leave the marked line below the top fade. Find marks matches, counts passages and labels each result with its passage number and section.
 
+The Highlights picker's section column stays 12ch wide beside the quote. Clicking a highlight already in the text keeps the reader's scroll position. Highlight bands remain visible on chapter-opening first lines.
+
 On the touch cover, Contents and Highlights open as bottom sheets without focusing the query field or opening the keyboard. Contents keeps the current entry in view. Reader picker choices and progress chapter rows are at least 44 px high on touch. On narrow screens, highlight locations sit below their quotes rather than sharing a line.
 
 Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty. Inferred spine entries leave out isolated epigraph quotations rather than turning their prose into chapter titles. A passage's tooltip names its number and section: `Passage 37 · Chapter 1`.
@@ -121,7 +125,7 @@ Search matches arrive as structured text parts. Literal source brackets, includi
 
 ## Progress
 
-Progress anywhere, in library rows, the source header or the reader, is one number: the share of the text before the first passage on screen, rounded down, `<1%` once started.
+Progress anywhere, in library rows, the source header or the reader, is one number: the share of the text before the first passage on screen, rounded down, `<1%` once started. At the end of the book, the reader reports 100% and Finished instead of time remaining.
 
 Until the saved position is restored, the text, the foot line and the Contents label are not drawn and the running head stays quiet, so the start of the book does not flash before the jump. The reading position saves while scrolling. Leaving or hiding the reader saves the latest eligible position without waiting for the scrolling pause. Opening from a citation scrolls to its marked words and flashes them without counting as reading.
 
@@ -140,7 +144,7 @@ The book map is the same as on the source page and the [Library's reading cards]
 
 The card shows, in order:
 
-1. `N% of the book`, with the number in Piazzolla; the chapter by name, `4 · Deus Vult!, 43% through`, with nothing in front matter; and the date the book was added in mono at the right.
+1. `N% of the book`, with the number in Piazzolla; the chapter by name, `4 · Deus Vult!, 43% through`, with nothing in front matter; and Added in mono at the right. Added uses the shared civil-date rule: `today`, `tomorrow` and `yesterday`, weekday and day only within the current Monday–Sunday week, and ISO otherwise.
 2. The map at double height, with Start, the highlight count and End beneath it.
 3. Left in chapter and Left in book, with their numbers in Piazzolla.
 4. The current chapter and the next five as rows. Each has its numeral and title as the toolbar names it and its length in minutes. The current one has a gilt edge and reads `N min left`.

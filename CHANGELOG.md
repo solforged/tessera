@@ -6,9 +6,36 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ## Unreleased
 
+### Changed
+
+- Showed logged work beside task rows as a quiet duration chip that opens their work sessions, excluding the running clock and reversed sessions.
+- Settled civil dates: today, tomorrow and yesterday stay words, weekday and day serve only inside the current Monday–Sunday week, and every other date reads ISO across task facts, work sessions, backlink rubrics, the reader's Added line, Review's next card and the Week header.
+- Colored deadlines inside their warning window with the warning tone, kept danger for genuinely late plans, and headed a future day's earlier work `Before this day` instead of `Overdue`.
+- Shared one agenda count between the sidebar badge and the Today tile, and made the badge tooltip spell it out (`6 to do: 4 today · 2 overdue`).
+- Lowercased built-in task field names (`status`, `deadline`, `project`) in the field bed, Fields, templates and tables, and sentence-cased generated labels such as `New book…`.
+- Gave collection pages a Sources members section and routed their Table to the Library collection view; collection memberships no longer repeat as prose backlinks.
+- Resolved the built-in `project` field for inherited projects, so task tables, the Project definition's Used by and its filters agree with the Tasks view.
+- Reworked the search palette: content before a Definitions group, kind glyphs per row, a `No matching atoms` line, `Choose a type…` as the second create action and compact field previews; search scopes and agent provider presets became mode tabs.
+- Kept the sidebar's primary navigation fixed above an independently scrolling index, and moved the saved-view pin out of the view button's focus ring.
+- Normalized related-content sections (Backlinks, Cited in, Unlinked mentions, From your highlights) to the mono section head, and collapsed zero-count sections into one quiet line.
+- Moved relation pills to open their target, with a pencil (always visible on touch) and F2 to edit; multi-value fields render inside one row; empty fields of every kind share the `Add…` cue; date and number values read in mono.
+- Let tasks' status glyph take the bullet slot when bullets are shown, and kept Plan inline on wrapped tasks.
+- Made Review's forecast bars tappable with an ISO date and count caption, a week divider and a first-day label; a finished deck now says `No cards due · Show all N cards`; Revisits' empty state names notes and questions and offers Open Questions.
+- Kept register headings and tabs on the page measure while the grid widens, weighted the Title column, and gave phone register cards status glyphs and task facts.
+- Added a `No color` highlight filter, separated multiple creators with ` · `, showed highlight dots on the Library Reading map, labelled chapter time `in chapter`, and spelled `Color` throughout the highlight filters.
+- Raised coarse-pointer hit areas to 44 px for pane chrome, mode tabs, library tabs, calendar cells and field controls without enlarging their visuals, and kept the date picker above the bottom navigation.
+- Opened in place instead of beside when two panes cannot fit, and disabled Open beside with `Needs a wider window`.
+
 ### Fixed
 
 - Routed Android launcher shortcuts through a throwaway activity, so New note, New task, New question and Add to library open the capture slip in the running app and keep an open draft instead of restarting Tessera.
+- Restored the flag and question glyphs in project and question pane headers.
+- Kept the Week grid's visible hour when toggling Show all hours, let timed cards use two lines and sized the all-day rail to its content.
+- Stopped the reader scrolling when an existing highlight is clicked, made highlights visible on the opening small-caps line, reported the end of a book as finished, and stabilized the highlight picker's section column.
+- Started the Highlights desk's passage context at the rest of the highlighted paragraph, kept color facet counts stable, and returned empty results to the page measure.
+- Suppressed reference previews while a value editor is open, and showed the Opening navigator only after the title leaves the viewport.
+- Aligned journal Attendees continuation values, named the pane sidebar toggle Hide/Show sidebar, gave truncated breadcrumbs tooltips, explained the disabled Compare tab and built-in field formats, and showed the expected path for a missing workshop.
+- Showed `Table 16` on the Tasks Fields tab, clamped long index titles, counted the Index as atoms and types, labelled template usage `Uses`, aligned the Questions heading with other type pages and shared one format menu across Fields surfaces.
 
 ## 0.5.1, 2026-10-23
 

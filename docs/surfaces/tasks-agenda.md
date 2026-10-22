@@ -25,19 +25,19 @@ Statuses are Todo, Doing, Waiting (an hourglass), Done and Canceled. Task state,
 
 ### Task field bed
 
-A task keeps its checkbox and compact planning facts at rest. Focus reveals one field bed, in Task template order, with Status, Scheduled, Deadline, Priority, Repeat and Project beside user fields and `+ Field`. Plan task opens this bed; status, planning shortcuts and clicks on facts open the corresponding field editor. Tab moves through the fields and Escape returns to the compact row. There is no separate planning slip.
+A task keeps its checkbox and compact planning facts at rest. Focus reveals one field bed, in Task template order, with `status`, `scheduled`, `deadline`, `priority`, `repeat` and `project` beside user fields and `+ Field`. Plan task opens this bed; status, planning shortcuts and clicks on facts open the corresponding field editor. Tab moves through the fields and Escape returns to the compact row. There is no separate planning slip.
 
-Status opens its menu; choosing Done uses completion, so repeats advance and Undo restores the occurrence. Scheduled and Deadline use the date picker with optional time, and the deadline editor owns the warning lead. Priority uses its choice menu and Repeat uses the existing repeat editor. Removing an optional template slot leaves any existing value visible and does not change Agenda.
+`status` opens its menu; choosing Done uses completion, so repeats advance and Undo restores the occurrence. `scheduled` and `deadline` use the date picker with optional time, and the deadline editor owns the warning lead. `priority` uses its choice menu and `repeat` uses the repeat editor. Its Mode and Unit menus carry chevrons. Removing an optional template slot leaves any existing value visible and does not change Agenda.
 
-Project opens a searchable, title-ordered picker; choosing a project replaces the task's explicit Project field in one undo step, and None removes it. A name that matches no project exactly adds `New project “Name”`, which makes a project page of that title (or makes an existing page of that title a project) and assigns the task to it.
+`project` opens a searchable, title-ordered picker; choosing a project replaces the task's explicit `project` field in one undo step, and None removes it. A name that matches no project exactly adds `New project “Name”`, which makes a project page of that title (or makes an existing page of that title a project) and assigns the task to it.
 
-An appointment shows Scheduled plus fields the person adds. Make task adds todo and the task template around the same atom without changing its date or parent. Work sessions stay in their own control.
+An appointment shows `scheduled` plus fields the person adds. Make task adds todo and the task template around the same atom without changing its date or parent. Work sessions stay in their own control.
 
 On a narrow touch screen, the field bed is one bottom sheet headed Task fields and the atom's title. Labels stack over values with fingertip-sized targets. Dates edit inline; a richer picker replaces the contents and Back to fields returns to the same field. The footer offers Add field and reads Each change saves to this atom.
 
 ## Dates and times
 
-Planning facts use `today`, `tomorrow` and `yesterday`, then weekday and day within six days of today (`Fri 16`), and ISO dates beyond that (`2026-11-02`). Missed schedules prefix the date with `since`; deadlines prefix it with `due`. The full civil date stays in the tooltip and accessible label.
+Planning facts use the shared `relativeDate` civil-date rule: `today`, `tomorrow` and `yesterday`, then weekday and day only within today's Monday–Sunday week (`Thu 22`), and ISO dates otherwise (`2026-11-02`). Missed schedules prefix the date with `since`; deadlines prefix it with `due`. A plan is late only when it precedes both the displayed date and civil today. A deadline inside its inclusive warning window uses `--warning`; late facts keep `--danger`. The full civil date stays in the tooltip and accessible label.
 
 ### Date suggestions
 
@@ -66,7 +66,7 @@ A multi-word query that matches no date is prose (`@sam about the report`). The 
 
 ### Date picker
 
-Date pickers pair the text field with a Monday-start month grid shared with the [journal calendar](journal.md#period-ledgers). A picker that fits neither above nor below its trigger sits over it, inside the window.
+Date pickers pair the text field with a Monday-start month grid shared with the [journal calendar](journal.md#period-ledgers). A picker that fits neither above nor below its trigger sits over it, inside the window. On touch it stays inside the pane above bottom navigation, with 44 px calendar cells.
 
 | Calendar mark | Appearance and meaning |
 |---|---|
@@ -93,7 +93,7 @@ A running work session requires an explicit stop, with Stop and complete offered
 
 ### Work sessions
 
-Work sessions open from the row's running clock, the atom menu and the palette; `Space w` and `/clock` start or stop the clock without opening them. The popup is headed `Work` and the task's text. Its clock leads: a large mono `h:mm:ss` (the running session's elapsed time in `--status-doing`, otherwise the task's total), what it counts (`Since 12:58 · 0:21:14 in total`, `3 sessions in total`, `No work logged yet`), then one bordered action: Start, Start again or Stop.
+Work sessions open from the row's running clock or `h:mm logged` chip, the atom menu and the palette; `Space w` and `/clock` start or stop the clock without opening them. The logged chip counts stopped, unreversed sessions only. The popup is headed `Work` and the task's text. Its clock leads: a large mono `h:mm:ss` (the running session's elapsed time in `--status-doing`, otherwise the task's total), what it counts (`Since 12:58 · 0:21:14 in total`, `3 sessions in total`, `No work logged yet`), then one bordered action: Start, Start again or Stop.
 
 A running session's note is a one-line field under the clock; past sessions follow newest first on hairlines, each `today 12:58–13:19`, its duration and its note. Notes belong to the session record, not the outline, and save on Enter, when focus leaves them, and with Stop. Stop keeps focus in the note, so the note travels with it. The popup keeps its place when its trigger disappears, as when Stop removes the row's clock.
 
@@ -107,7 +107,7 @@ The task API's optional `project_via: "field"` filter restricts results to expli
 
 ## Agenda destination
 
-The Agenda destination keeps an Agenda kicker above its title. Day has a spoken date heading with Previous day / Today / Next day alongside it. Week uses a week number and compact range (`W43 · Oct 19–25`) with Previous week / Today / Next week. Both date headings open the journal's calendar; picking a day moves there, and its Today returns to today. Tasks has a plain Tasks title with no date navigation.
+The Agenda destination keeps an Agenda kicker above its title. Day has a spoken date heading with Previous day / Today / Next day alongside it. Week uses a week number and ISO range (`W43 · 2026-10-19 – 2026-10-25`) with Previous week / Today / Next week. Both date headings open the journal's calendar; picking a day moves there, and its Today returns to today. Tasks has a plain Tasks title with no date navigation.
 
 Day / Week / Tasks sit beneath on the shared ruled tab baseline. On the wide Week grid, the hour-window toggle sits at the right end of this same row; it is absent from Day, Tasks and the narrow Week ledger.
 
@@ -163,17 +163,19 @@ Choosing a condition replaces the picker with its editor at the same trigger. Ch
 
 Named task views store the `TaskQuery`, never the line's spelling, and preserve its date context. Pane history restores the query across Agenda, Week, Tasks and reload; relative dates become absolute dates when applied.
 
+Saved task view project conditions show the resolved project title rather than its stored identity.
+
 ## Day
 
 ### Rows
 
-Day rows have a fixed left mono time gutter, blank for untimed work, then the status glyph and source text, with muted page provenance and a separate rescheduling slot at the right. Journal provenance reads Journal rather than repeating the stored ISO date; the full page title remains in its tooltip and accessible name.
+Day rows have a fixed left mono time gutter, blank for untimed work, then the status glyph and source text, with page provenance and a separate rescheduling slot at the right. Provenance uses holder links in ink with a hairline underline and gilt hover. Journal provenance reads Journal rather than repeating the stored ISO date; the full page title remains in its tooltip and accessible name.
 
-Planning facts share the task's line. A lone priority trails the text. Dates and other facts keep the right edge. They omit dates implied by a day group and a project the row already names as its provenance, and show a carried schedule only as `since Tue 6`, not also an ISO date. Task-query rows retain their compact status, source and trailing planning layout.
+Planning facts share the task's line. A lone priority trails the text. Dates and other facts keep the right edge. They omit dates implied by a day group and a project the row already names as its provenance, and show a carried schedule only as `since 2026-10-06`, not also a second date. Earlier work on a future displayed day has no `since` prefix unless it is also before civil today. Task-query rows retain their compact status, source and trailing planning layout.
 
-Below a 600 px pane width, Day, Week ledger and [Today ledger](journal.md#agenda-tile) rows use two lines. The first keeps the clock, status and task title, clamped only after two text lines. The second starts at the text column with non-wrapping mono facts, then provenance and the calendar at the right. One-line Today and Day titles fit in a row under 72 px on touch, using the shared 32 px touch targets. Wider touch rows and their completion/source controls remain at least 44 px high. The cover's content insets are equal.
+Below a 600 px pane width, Day, Week ledger and [Today ledger](journal.md#agenda-tile) rows use two lines. The first keeps the clock, status and task title, clamped only after two text lines. The second starts at the text column with non-wrapping mono facts, then provenance and the calendar at the right. One-line Today and Day titles fit in a row under 72 px on touch. Calendar actions keep 44 px touch targets. Wider touch rows and their completion/source controls remain at least 44 px high. The cover's content insets are equal.
 
-The whole row takes the hover fill and long task text clamps at two lines. Planning uses the same facts as outline rows, with carried or missed dates in `--danger`.
+The whole row takes the hover fill and long task text clamps at two lines. Planning uses the same facts as outline rows, with late facts in `--danger` and deadline warnings in `--warning`.
 
 The glyph completes on the displayed agenda date, including from lookahead, or reopens a finished task in Tasks. Right-click or ⌘⇧Enter on a focused row opens the shared status menu. The priority word opens the same priority choices as the Planning slip, including None. High is danger; medium and low stay faint. Tab reaches both controls and P opens priority from a focused row. Completed history shows a static check and never edits the live task.
 
@@ -183,7 +185,7 @@ Completing, reopening or triaging a row uses its source page's undo history. ⌘
 
 Planned rows reschedule without dragging:
 
-- Quiet mono Today and Tomorrow and a calendar button occupy their own reserved trailing slot, each omitted when it would change nothing. On fine pointers their ink brightens on hover or focus, without hiding provenance or moving the columns. Tab reaches the actions.
+- Quiet mono Today and Tomorrow and a calendar button occupy their own reserved trailing slot, each omitted when it would change nothing. They use no opacity fade. On fine pointers their ink brightens on hover or focus, without hiding provenance or moving the columns. Tab reaches the actions.
 - On touch or in a pane under 600 px only the calendar button shows. Narrow rows keep it visible at the right of the second line.
 
 | Focused-row key | Action |
@@ -205,7 +207,7 @@ Day groups canonical tasks in this order:
 
 | Group | Content and appearance |
 |---|---|
-| Overdue | Carried schedules and missed deadlines, in `--danger` |
+| Overdue, or Before this day on a future date | Earlier schedules and deadlines; only facts before civil today use `--danger` and the `since` prefix |
 | Today, or Planned on other days | The displayed day's plans and work in progress |
 | Next 7 days | On desktop and unfolded screens; the seven civil days after the displayed date |
 
@@ -223,11 +225,11 @@ Week shows the displayed date's Monday-start week. Previous week, Next week and 
 
 The heading, shared tabs and drop feedback keep the same 760 px measure and alignment across Day, Week and Tasks.
 
-The all-day strip holds untimed scheduled tasks and deadlines labeled Due. Each card leads with its status glyph in the status color, then the time or Due in mono. The strip grows to fit its tallest day up to roughly four two-line cards, using the shared type and spacing tokens; days with more cards scroll within the strip.
+The all-day strip holds untimed scheduled tasks and deadlines labeled Due. Each card leads with its status glyph in the status color, then the time or Due in mono. The strip sizes to its tallest day's content, capped at three rows; days with more cards scroll within the strip.
 
 In the week containing today, unfinished tasks with a missed schedule or deadline before the week's first day also appear as Overdue cards in today's all-day lane. Overdue plans from earlier days of this same week keep their red card on their original day and are not repeated in today's lane. The narrow week ledger follows the same rule: those tasks list under today with their `since` facts, and its summary line adds `· N overdue`.
 
-Timed scheduled tasks sit in an hourly grid, initially scrolled to 08:00 or the earliest earlier task. The default hour window is 06:00–22:00 and expands to include any task outside it. Show all hours at the right of the tab row opens 00:00–24:00; its pressed state and label change to Hide early and late hours. A live gilt now line and dot cross today's timed column at the current time when it falls inside the shown window. Overlapping times use separate lanes.
+Timed scheduled tasks sit in an hourly grid, initially scrolled to 08:00 or the earliest earlier task. Column dates (`Thu 22`) and hour labels are mono. Timed cards may take two text lines. The default hour window is 06:00–22:00 and expands to include any task outside it. Show all hours at the right of the tab row opens 00:00–24:00; its pressed state and label change to Hide early and late hours. Toggling keeps the visible hour in place. A live gilt now line and dot cross today's timed column at the current time when it falls inside the shown window. Overlapping times use separate lanes.
 
 At an Agenda container width below 600 px, Week becomes a seven-day ledger on one scroll axis, including narrow desktop splits. Mono weekdays, serif numerals, hairlines and faint open counts head Day's canonical task rows. Today's numeral and now rule are gilt. Untimed work leads each day, followed by chronological timed rows regardless of status; elapsed clocks sit above the now rule and future clocks below it. Empty days take one line. Days before today fold to a done count and any open count, and expand on tap.
 

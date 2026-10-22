@@ -52,7 +52,7 @@ Each request opens the creation slip on its kind: Atom and Task into Today, Ques
 
 ## Journal dates
 
-Journal days present a spoken date such as Tuesday, October 13 beneath a short mono period trail: `2026 · Oct · W42`. Agenda's date heading and journal backlink groups speak dates the same way (`Tuesday, October 13, 2026`). One module forms these dates, so their shape can become a setting.
+Journal days present a spoken date such as Tuesday, October 13 beneath a short mono period trail: `2026 · Oct · W42`. Agenda's Day heading speaks dates the same way (`Tuesday, October 13, 2026`). Backlink rubrics and compact dates use the shared `relativeDate` civil-date rule: `today`, `tomorrow` and `yesterday`, weekday and day only within the current Monday–Sunday week, and ISO otherwise.
 
 The latest navigation request wins in its pane. Previous and next step from a pending journal date, and a superseded lookup does not create a missing journal. Before a new journal root is committed, missing reference reads show quiet zero counts rather than unavailable sections; successful reads still show real backlinks, and related sections refresh when the root becomes committed.
 
@@ -71,7 +71,7 @@ The period trail keeps even visible gaps around its separators. Touch hit areas 
 | Quarter | Its three months; a narrow quarter stacks its months |
 | Year | Twelve months in four columns, two on the cover |
 
-On touch, mini months are whole-month buttons with non-interactive day overviews. Choosing one opens the full month with day targets at least 40 px square. Touch mini-month overviews reserve six calendar rows and align at the top so neighboring months share their title and weekday baselines. Fine-pointer mini months retain direct day buttons.
+On touch, mini months are whole-month buttons with non-interactive day overviews. Choosing one opens the full month with 44 px day targets. Touch mini-month overviews reserve six calendar rows and align at the top so neighboring months share their title and weekday baselines. Fine-pointer mini months retain direct day buttons.
 
 ### Written-day marks
 
@@ -97,7 +97,7 @@ Make project on a journal block makes it a [project page](tasks-agenda.md#projec
 
 Today alone leads with Agenda, Review and Reading tiles above the Journal rule and writable outline.
 
-Journal days' own sections head as H2s in Piazzolla at `--text-h2` (18 / 26) in `--text`. From your highlights keeps the hairline rule, its mono state and its chevron, because the rule ends in them. Journal is the name alone. Both are `h2` elements.
+Journal heads in Piazzolla at `--text-h2` (18 / 26) in `--text`, with the name alone. From your highlights uses the shared mono section head with its hairline rule, state and chevron. Both are `h2` elements.
 
 Desktop and unfolded Today tiles are at least 120 px tall, enough for the tallest loaded Reading content including the book map, and grow with their content. Their placeholders keep the same height. The three desktop tiles reserve their loaded height while requests show quiet placeholders.
 
@@ -105,11 +105,11 @@ A journal narrower than 640 px uses one ruled list of compact Agenda, Review and
 
 ### Agenda tile
 
-Agenda counts the items in the [Agenda pane's Today section](tasks-agenda.md#groups) separately from Overdue and shows the next timed or untimed item. A task without authored text reads `Empty task`, as in Agenda rows. Its chevron folds today's tasks open beneath the tiles, open by default and remembered per device.
+Agenda counts the items in the [Agenda pane's Today section](tasks-agenda.md#groups) separately from Overdue and shows the next timed or untimed item. The tile and sidebar use the shared `agendaDaySummary`. The sidebar badge sums planned and overdue work, with a tooltip such as `6 to do: 4 today · 2 overdue`. A task without authored text reads `Empty task`, as in Agenda rows. Its chevron folds today's tasks open beneath the tiles, open by default and remembered per device.
 
-That ledger uses the [Day rows](tasks-agenda.md#rows), with their time gutter, completion, [rescheduling keys and now rule](tasks-agenda.md#rescheduling), and ends in `Open agenda ›`. Tasks written in this journal are left out, since the outline below already shows them with their plan: a muted `N more in the journal below` follows the rows, or `N planned in the journal below` replaces Nothing planned today. Carried work collapses to one `N carried over` line in `--danger` that expands in place, with Move to today at its end and the [same Undo line](tasks-agenda.md#groups).
+That ledger uses the [Day rows](tasks-agenda.md#rows), with their time gutter, completion, [rescheduling keys and now rule](tasks-agenda.md#rescheduling), and ends in `Open agenda ›`. Tasks written in this journal are left out, since the outline below already shows them with their plan: a muted `N more in the journal below` follows the rows, or `N planned in the journal below` replaces Nothing planned today. Carried work collapses to one `N carried over` line in `--danger` with a closing hairline. It expands in place, with Move to today at its end and the [same Undo line](tasks-agenda.md#groups). When carried work precedes today's tasks, a mono Today heading separates the day's rows.
 
-The ledger keeps provenance visible beside a reserved rescheduling slot, including on hover and keyboard focus. Below a 600 px pane width, titles have the full first line after the status and optional clock gutter, with up to two text lines before truncation. Mono facts, provenance and the right-aligned calendar share the second line, indented to the task text. One-line titles keep rows under 72 px on touch. The ledger omits its clock gutter when none of its rows has a time.
+The ledger keeps provenance visible beside a reserved rescheduling slot, including on hover and keyboard focus. Provenance uses holder links in ink with a hairline underline and gilt hover. Today, Tomorrow and calendar actions stay quiet without opacity fades. Deadline facts inside the warning window use `--warning`; late facts keep `--danger`. Below a 600 px pane width, titles have the full first line after the status and optional clock gutter, with up to two text lines before truncation. Mono facts, provenance and the right-aligned calendar share the second line, indented to the task text. One-line titles keep rows under 72 px on touch. The ledger omits its clock gutter when none of its rows has a time.
 
 When no tasks are planned, the Agenda tile says Nothing planned today once; the open ledger keeps only Open agenda, without a duplicate empty message or reserved empty-row height.
 

@@ -19,7 +19,7 @@ Sections use the same mono numbered heads as field definitions, in this order:
 5. Agent changes.
 6. About.
 
-Under 600 px (a split pane or the Fold cover), the header tightens. Controls stack under their descriptions except the switch, the time-zone trigger fills the width, and the Reader display aside is dropped. Paths wrap after slashes, not inside folder names.
+Under 600 px (a split pane or the Fold cover), the header tightens. Controls stack under their descriptions except the switch, and the time-zone trigger fills the width. Paths wrap after slashes, not inside folder names. Pane chrome and mode tabs keep 44 px touch targets.
 
 ## Preferences
 
@@ -31,13 +31,13 @@ Preferences contains Theme, Vim keys, Ask before deleting views, Journal day and
 | Workshop switches | Hairline track with a muted knob. On, the track fills gilt and the knob slides across in canvas. |
 | Ask before deleting views | On by default; applies to Library, task and table views. |
 | Journal day | A bordered trigger shows the city and current UTC offset, with Device when it follows the device zone. Its picker opens below the trigger, lists canonical cities and offsets with faint searchable IANA ids, and always includes UTC. |
-| Reader display | Only says that typeface, size, measure and layout are set in the reader, beside the text. |
+| Reader display | The description begins `In the reader:` and says typeface, size, measure and layout are set beside the text. There is no separate aside. |
 
 ## Workshops
 
-The list contains every registered workshop and every workshop folder found inside `~/.local/share/tessera/workshops`, or its XDG data override. Names use the folder name with its first letter capitalized; the default is Main. The one in use has a mono Open scope. A place line appears only for workshops outside that folder or sharing a name; shared names show the full path.
+The list contains every registered workshop and every workshop folder found inside `~/.local/share/tessera/workshops`, or its XDG data override. Names use the folder name with its first letter capitalized; the default is Main. The one in use has a mono Open scope. A place line appears for workshops outside that folder, sharing a name or missing their folder; shared names show the full path.
 
-Other workshops offer Open and, except for the default, Forget. Forget drops the registry entry, not the folder. A workshop still in the workshops folder appears again when the list loads. A listed workshop whose folder is gone reads Folder missing.
+Other workshops offer Open and, except for the default, Forget. Forget drops the registry entry, not the folder. A workshop still in the workshops folder appears again when the list loads. A listed workshop whose folder is gone reads Folder missing and shows its expected path. A missing default workshop also explains that its folder can be moved back or opened from its new location.
 
 Open or create accepts a name such as `reading`, an absolute path, or a home-relative path such as `~/Documents/reading`. Names resolve inside the workshops folder. Open uses an existing workshop; New starts an empty one in a new or empty folder. Switching covers the window with `Opening <name>…` in mono until it reloads. Commands lists available workshops as `Switch to workshop: <name>`. The sidebar switcher opens the same workshops.
 
@@ -49,7 +49,7 @@ Delete opens an inline Delete? confirmation with Cancel and Confirm. The newest 
 
 Backup actions disable together while working, refresh the list when complete, and report failures in Settings' error slot.
 
-Backup and agent-change timestamps use local ISO dates with 24-hour time, such as `2026-10-20 06:51`.
+Backup and agent-change timestamps use local ISO dates with 24-hour time in mono, such as `2026-10-20 06:51`.
 
 ## Backups in the browser
 
@@ -84,6 +84,8 @@ Both sides list what sync kept for the person, under a Needs review disclosure w
 ## Agent
 
 Models edit in place. Speaks uses the shared menu, missing Name, Address and Model values show inline errors, and the form saves with Save model. An invalid address also shows its reason inline. Keys remain optional so local servers work without one.
+
+Provider presets use the shared mode tabs, scrolling horizontally when needed.
 
 ## Agent changes
 

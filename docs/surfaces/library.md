@@ -23,10 +23,10 @@ Tabs, Browse values, sorting and search answer at once in the toolbar, while the
 
 ### List
 
-Rows read as a ledger on one 28 px line:
+Rows read as a ledger at least 28 px high:
 
-- A leading slot holds a book or article glyph in `--faint`. A 28 px row cannot show a cover legibly, so covers appear in the Shelf, Reading now and the phone ledger's taller rows.
-- Every tab uses the same row: the mono siglum, gilt on hover, then title and a muted ragged byline (creators, else site), which truncates before the title.
+- A leading slot holds a book or article glyph in `--faint`. A compact row cannot show a cover legibly, so covers appear in the Shelf, Reading now and the phone ledger's taller rows.
+- Every tab uses the same row: the mono siglum, gilt on hover, then title and a muted ragged byline (creators, else site). Creators join with ` · `. Bylines wrap to two lines and keep the full text in a tooltip.
 - Trailing fixed-width mono columns show state in views spanning states, year, progress and the unprocessed highlight count, so figures line up across tabs. Inside a year group the year column steps aside, because the heading already says it. Inbox rows offer Start reading on hover or focus, always visible without hover; it changes the source's state to Reading.
 
 Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows `Finished 2026-10-19` using its ISO state-change date, never a percentage or a second Finished label. State-specific tabs omit the redundant state column.
@@ -49,7 +49,7 @@ The shelf is a grid of 2:3 covers at least `--shelf-cover-width` wide, sharing a
 
 - The reader's 2 px position rule, with its `--line` track only once reading has started.
 - The title in Piazzolla on up to two lines.
-- The byline in `--muted`.
+- The byline in `--muted`, clamped to two lines with its full text in a tooltip.
 - One mono apparatus line in `--faint`: siglum (gilt on hover), state in views spanning states, year, progress (none once finished) and the unprocessed highlight count.
 
 A source without a cover gets a placeholder on `--surface` with only its centered gilt siglum. The caption carries its title; the same placeholder is used on the shelf, Reading now and collection previews.
@@ -102,7 +102,7 @@ The Works heading and shelf share the page title's left edge. Works and its coun
 Reading now appears only on the unsearched, unfiltered Reading tab, with one card for every Reading source, including books not yet started, in the toolbar's sort order. The cards are the list: they replace the rows in the ungrouped List layout, while Shelf shows the covers and a grouping shows grouped rows instead. The touch cover layout keeps Reading cards in either layout and with grouping, without duplicate rows below Up next. A search, filter or saved view brings the rows back on every layout. All lists each source once, without a Reading now card above it. Each card reads top-down:
 
 - Its real cover or spine tile, 56 px wide, beside the title on up to two lines, the author and the current chapter (`4 · Deus Vult!`; `Not started` before any reading, `Reading position` in front matter). Cards use a wider two-column measure so short articles retain their identities; authors and chapter labels also wrap to two lines instead of clipping to one.
-- Under the cover, spanning the card, the segmented chapter map, then `N min left` inside a named chapter (the full `N min left in chapter` on hover) and the book's percentage on one line. The maps sit at the cards' feet, level across a row. Until the source's contents load, a plain track holds the map's place, so the card never grows.
+- Under the cover, spanning the card, the segmented chapter map with highlight dots, then `N min left in chapter` and the book's percentage on one line. Outside a named chapter the time reads `N min left in book`. The maps sit at the cards' feet, level across a row. Until the source's contents load, a plain track holds the map's place, so the card never grows.
 
 Coverless articles omit the spine tile on Reading cards, leaving that width to their title and creators rather than an empty cover.
 
@@ -227,13 +227,15 @@ Highlights is a processing desk: a reading-order queue and selected passage shar
 
 Sources retain newest-highlight order. Each source's passages retain ordinal and selection-offset order, including distinct overlapping selections. Queue previews clamp to three lines, marked by a 2 px color bar, with the actual paragraph, date, note count and filing page in mono. A quotation that supplies its own chapter title does not repeat that title above it.
 
-The detail shows the full frozen quotation, preserves rewritten block prose, and fetches the following passage from the citation's snapshot without moving the reading position. Filing tags appear once as metadata. Adding a tag alone does not repeat the quotation, here or in the source outline.
+The detail shows the full frozen quotation, preserves rewritten block prose, and fetches context from the citation's snapshot without moving the reading position. Passage continues starts with the rest of the highlighted paragraph after the selection, then following passages. Filing tags appear once as metadata. Adding a tag alone does not repeat the quotation, here or in the source outline.
 
 Markdown export keeps the frozen evidence, authored highlight text, filing tags and child notes. An unchanged quotation appears once; tags or commentary appended to it follow the evidence without repeating the quotation.
 
 On the cover, tapping a queue row opens a dedicated passage state with Back to highlights, Previous and Next. The scrollable passage sits above an always-visible action dock, clear of the bottom nav.
 
-Color and tag filters open a labeled sheet; No color matches unassigned citations. Color counts appear only for the loaded, unfiltered rows, never as whole-workshop facets, and a truncated queue names its loaded count. The sheet's footer holds Clear filters and a primary `Show N highlights` that carries the match count. With no highlights in the workshop, Filters and the source and section pickers step aside, leaving Unprocessed and All above the empty message.
+The phone queue keeps its source heading even when only one source matches.
+
+Color and tag filters open a labeled sheet; No color matches unassigned citations. Color facet counts ignore the selected colors while retaining the other filters, so alternatives stay visible even when the current color has no matches. A chapter scope counts its loaded section rows; a truncated queue names its loaded count. The sheet's footer holds Clear filters and a primary `Show N highlights` that carries the match count. With no highlights in the workshop, Filters and the source and section pickers step aside, leaving Unprocessed and All above the empty message. Color controls and menus use the spelling Color.
 
 ### Dock and keys
 
@@ -277,11 +279,13 @@ When processing empties the scoped queue, Undo stays in the Highlights toolbar s
 | Empty Unprocessed queue in a workshop that still has highlights | "No unprocessed highlights." |
 | Empty color or tag filter | "No highlights match these filters." |
 
+Empty results and their controls stay on the page measure rather than reserving the two-column workbench width.
+
 ## Source pages
 
 ### Header and reading progress
 
-A source page puts the current snapshot's cover beside its title, with author chips followed by one mono imprint line: siglum, format, publisher and year, omitting absent values. The cover opens the reader.
+A source page puts the current snapshot's cover beside its title, with creators joined by ` · ` followed by one mono imprint line: siglum, format, publisher and year, omitting absent values. The cover opens the reader.
 
 In panes below 600 px, coverless articles omit the empty spine tile and give the title and imprint the whole width. Books and articles with real covers keep the cover rail; Read remains available in the reading controls.
 
@@ -332,7 +336,7 @@ Shown metadata fields use the ordinary field rows. Languages show their English 
 
 ### Source highlights
 
-Highlights has its live total, individually spaced color filters using the highlight tokens, then a separated By chapter control which can switch to Reading order.
+Highlights has its live total, individually spaced color filters using the highlight tokens, including a No color chip for unassigned citations, then a separated By chapter control which can switch to Reading order.
 
 Highlights follow reading order with their notes beneath. Each chapter heading carries its title and matching count. A 2 px color bar marks the left edge of each full-width quote, with its paragraph number at the right in mono and no trailing color dot.
 
