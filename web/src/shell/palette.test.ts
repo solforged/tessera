@@ -59,6 +59,23 @@ describe('palette ranking', () => {
     expect(paletteRows(rows, 'nanoGPT')).toEqual(rows.map(hit => ({ kind: 'hit', hit })));
     expect(paletteRows([], 'nanoGPT')).toEqual([]);
   });
+
+  test('definition pages follow content, including prose, without changing order within either group', () => {
+    const definition = page('book-type', 'Book');
+    const otherDefinition = page('concept-type', 'Concept');
+    const prose = hit('prose', 'A note about books', research);
+    const definitions = new Set([definition.id, otherDefinition.id]);
+    expect(paletteRows([
+      { block: definition, page: definition }, { block: research, page: research },
+      { block: otherDefinition, page: otherDefinition }, { block: links, page: links }, prose,
+    ], '', undefined, definitions)).toEqual([
+      { kind: 'hit', hit: { block: research, page: research } },
+      { kind: 'hit', hit: { block: links, page: links } },
+      { kind: 'hit', hit: prose },
+      { kind: 'hit', hit: { block: definition, page: definition } },
+      { kind: 'hit', hit: { block: otherDefinition, page: otherDefinition } },
+    ]);
+  });
 });
 
 describe('find match text', () => {

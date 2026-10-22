@@ -1,12 +1,12 @@
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from 'solid-js';
 import { highlightMatches } from '../library/query';
 import { api } from '../api/client';
-import type { Block, BlockInPage, Citation, HighlightRow, LibraryRow, PageView, PassageHit, PassagePage, SourceView } from '../api/types';
+import type { Block, BlockInPage, Citation, FieldDefinition, HighlightRow, LibraryRow, NoteKind, PageView, PassageHit, PassagePage, SourceView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
 import { BlockTree, type TreeRow } from '../outline/BlockTree';
 import { cachedExactPage } from '../outline/completion';
-import { createPageIcon } from '../outline/source';
+import { createPageIcon, valueLabel } from '../outline/source';
 import { Icon } from '../ui/Icon';
 import { ResourceImage } from '../library/ResourceImage';
 import { Picker } from '../ui/Picker';
@@ -24,6 +24,8 @@ import type { PopupAnchor } from '../ui/Popup';
 import { typeSpelling } from '../outline/type-completion';
 import { textTokens } from '../document/text-tokens';
 import { displayTitle } from '../outline/names';
+import { noteKindIcon } from '../notes/kinds';
+import { fieldEntryId, matchFieldEntry, typeQuery } from '../table/query';
 
 type CreateEntry = { kind: 'create'; action: 'source' | 'question' | 'page' | 'choose' | 'tag'; title: string; text?: string };
 type Entry = SearchEntry | { kind: 'command'; command: Command } | CreateEntry
@@ -33,12 +35,12 @@ type FindScope = 'Everything' | 'Highlights' | 'Books' | 'Pages';
 function createLabel(entry: CreateEntry): string {
   if (entry.action === 'source') return `Add “${entry.title}” to library`;
   if (entry.action === 'tag') return `Create an atom with ${entry.title}`;
-  if (entry.action === 'choose') return `Create “${entry.title}” as…`;
+  if (entry.action === 'choose') return 'Choose a type…';
   return `Create ${entry.action} “${entry.title}”`;
 }
 
 /** Find or create pages, search blocks, or prefix commands with `>`. Tab drills into a result's children. */
-export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'search' | 'commands'; commands: CommandRegistry; notebook: NotebookClient; onDismiss(): void; onRestoreFocus(): void; onOpen(target: OpenTarget, beside: boolean): void; onCreate(request: CreateRequest, anchor?: PopupAnchor): void }) {
+export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'search' | 'commands'; commands: CommandRegistry; notebook: NotebookClient; noteKinds?: readonly NoteKind[]; onDismiss(): void; onRestoreFocus(): void; onOpen(target: OpenTarget, beside: boolean): void; onCreate(request: CreateRequest, anchor?: PopupAnchor): void }) {
   const capturedCommands = props.commands.list().map(command => command.capture?.() ?? command);
   const sections = new Map<Command['section'], Command[]>();
   for (const command of capturedCommands) {
@@ -66,6 +68,24 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const [library] = createResource(async () => props.notebook.api.library({ limit: 500 }, initialRequests.signal));
   const [highlights] = createResource(async () => props.notebook.api.highlights({ limit: 500 }, initialRequests.signal));
   const books = createMemo(() => new Map((library()?.rows ?? []).map(row => [row.page.id, row])));
+  const [fields] = createResource(() => mode() === 'search' ? props.notebook.changeSequence() : false, () => props.notebook.api.fields(initialRequests.signal));
+  // One registry projection supplies every result's identity, rather than a kinds request per row.
+  const [identities] = createResource(() => mode() === 'search' ? props.notebook.changeSequence() : false, () => props.notebook.api.query({ ...typeQuery(null), source: 'notes', columns: [{ key: '@kind' }] }, initialRequests.signal));
+  const pageKinds = createMemo(() => new Map((identities()?.rows ?? []).map(row => [row.block.page.id, row.attributes?.['@kind']?.map(value => value.text) ?? []])));
+  const kindsByKey = createMemo(() => new Map((props.noteKinds ?? []).map(kind => [kind.key, kind])));
+  const definitions = createMemo(() => new Set([
+    ...(props.noteKinds ?? []).flatMap(kind => kind.type_id ? [kind.type_id] : []),
+    ...(fields() ? [fields()!.page_id, ...fields()!.fields.map(field => field.id)] : []),
+  ]));
+  const isDefinition = (entry: Entry) => entry.kind === 'hit' && definitions().has(entry.hit.page.id) || entry.kind === 'more' && definitions().has(entry.page.id);
+  const resultKind = (pageId: string) => {
+    const definition = props.noteKinds?.find(kind => kind.type_id === pageId);
+    if (definition) return definition;
+    for (const key of pageKinds().get(pageId) ?? []) {
+      const kind = kindsByKey().get(key);
+      if (kind && kind.key !== 'unfiled') return kind;
+    }
+  };
   const previewMedia = window.matchMedia('(min-width: 840px)');
   const [wide, setWide] = createSignal(previewMedia.matches);
   const updateWidth = () => setWide(previewMedia.matches);
@@ -153,7 +173,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       || findScope() === 'Pages' && !books().has(hit.page.id);
     if (exact && allowed({ block: exact, page: exact })) result.push({ kind: 'hit', hit: { block: exact, page: exact } });
     const remaining = rows.filter(hit => hit.block.id !== exact?.id && !shownHighlightBlocks.has(hit.block.id) && allowed(hit));
-    result.push(...(parent ? remaining.map((hit): Entry => ({ kind: 'hit', hit })) : paletteRows(remaining, title)));
+    result.push(...(parent ? remaining.map((hit): Entry => ({ kind: 'hit', hit })) : paletteRows(remaining, title, undefined, definitions())));
     if (!parent && (findScope() === 'Everything' || findScope() === 'Books')) {
       const shown = new Set(result.filter((entry): entry is Extract<Entry, { kind: 'hit' }> => entry.kind === 'hit' && entry.hit.block.id === entry.hit.page.id).map(entry => entry.hit.page.id));
       for (const hit of passageHits()) {
@@ -164,6 +184,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
         }
       }
     }
+    if (!parent) result.sort((a, b) => Number(isDefinition(a)) - Number(isDefinition(b)));
     if (!parent && title && !exact && (findScope() === 'Everything' || findScope() === 'Pages')) {
       const tag = textTokens(title);
       if (tag.length === 1 && tag[0]?.kind === 'tag') {
@@ -252,10 +273,16 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     if (!error() && entry) pick(entry, pending.beside || entry.kind === 'create' && pending.shift);
   });
   const pageGroupLabel = createMemo(() => {
-    const pageResults = entries().filter(entry => entry.kind === 'hit' || entry.kind === 'more');
+    const pageResults = entries().filter(entry => (entry.kind === 'hit' || entry.kind === 'more') && !isDefinition(entry));
     return pageResults.length && pageResults.every(entry => entry.kind === 'hit' && entry.hit.block.id === entry.hit.page.id && books().has(entry.hit.page.id)) ? 'Books' : 'Atoms';
   });
-  const group = (entry: Entry) => entry.kind === 'highlight' ? 'Highlights' : entry.kind === 'passage' ? 'In your books' : entry.kind === 'create' ? undefined : pageGroupLabel();
+  const noMatches = createMemo(() => !entries().some(entry => entry.kind !== 'create'));
+  const group = (entry: Entry) => {
+    if (entry.kind === 'highlight') return 'Highlights';
+    if (entry.kind === 'passage') return 'In your books';
+    if (entry.kind === 'create') return !busy() && !error() && noMatches() ? 'No matching atoms' : undefined;
+    return isDefinition(entry) ? 'Definitions' : pageGroupLabel();
+  };
   const groupCounts = createMemo(() => {
     const counts: Record<string, number> = {};
     for (const entry of entries()) {
@@ -267,7 +294,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const sectionsWithCounts = (entry: Entry) => {
     if (entry.kind === 'command') return entry.command.section === 'Page' ? 'This atom' : entry.command.section;
     const label = group(entry);
-    return label ? `${label} · ${groupCounts()[label]}${entry.kind === 'passage' ? ' passages' : ''}` : undefined;
+    return label === 'No matching atoms' ? label : label ? `${label} · ${groupCounts()[label]}${entry.kind === 'passage' ? ' passages' : ''}` : undefined;
   };
   return <Picker<Entry> anchor={props.anchor} placement="top" width={mode() === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${mode() === 'search' ? 'palette-search' : ''}`} onDismiss={props.onDismiss}
     style={{ '--visual-viewport-height': `${viewportSize().height}px`, '--visual-viewport-top': `${viewportSize().top}px` }}
@@ -275,9 +302,9 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     inputRef={input => { queryInput = input; }}
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
     queryActions={<Button class="find-cancel" onClick={props.onDismiss}>Cancel</Button>}
-    preview={<Show when={mode() === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
+    preview={<Show when={mode() === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} fields={fields()?.fields ?? []} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
     onSelect={setSelectedEntry}
-    status={<><Show when={mode() === 'search'}><div class="find-scopes" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); queryInput?.focus({ preventScroll: true }); }}>{value === 'Pages' ? 'Atoms' : value}</Button>}</For></div></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
+    status={<><Show when={mode() === 'search'}><div class="find-scopes mode-tabs tab-strip" role="group" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); queryInput?.focus({ preventScroll: true }); }}>{value === 'Pages' ? 'Atoms' : value}</Button>}</For></div></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
     items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'more' ? `more:${entry.page.id}` : entry.kind === 'command' ? entry.command.id : entry.kind === 'highlight' ? entry.row.citation.id : entry.kind === 'passage' ? entry.hit.passage.id : `create:${entry.action}`}
     section={sectionsWithCounts}
     disabledReason={entry => creating() ? 'Creating atom…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}
@@ -290,9 +317,9 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       else if (entry?.kind === 'more') more(entry.page);
       return true;
     }}
-    busy={busy()} error={error()} empty={mode() === 'search' ? 'No results.' : 'No matching commands.'}
+    busy={busy()} error={error()} empty={mode() === 'search' ? 'No matching atoms' : 'No matching commands.'}
     row={(entry, selected) => entry.kind === 'hit'
-      ? <HitRow hit={entry.hit} query={text()} notebook={props.notebook} selected={selected} book={books().get(entry.hit.page.id)} />
+      ? <HitRow hit={entry.hit} query={text()} notebook={props.notebook} selected={selected} book={books().get(entry.hit.page.id)} noteKind={resultKind(entry.hit.page.id)} />
       : entry.kind === 'more' ? <><Icon name="page" /><span class="picker-text">+{entry.count} more in {displayTitle(entry.page.text, id => props.notebook.lookup(id))}</span></>
       : entry.kind === 'highlight' ? <><span class={`find-color highlight-color-${entry.row.color ?? 'none'}`} style={{ background: entry.row.color ? `var(--highlight-${entry.row.color})` : 'transparent', 'box-shadow': entry.row.color ? undefined : 'inset 0 0 0 1px var(--faint)' }} /><span class="find-result"><span class="find-quote"><MatchText text={entry.row.citation.quote} query={text()} /></span><small>Highlight · {location(entry.row.citation.source_id, entry.row.citation.ordinal, entry.row.citation.chapter_title)}</small></span></>
       : entry.kind === 'passage' ? <><span class="find-paragraph" aria-hidden="true">¶</span><span class="find-result"><span class="find-quote"><For each={entry.hit.snippet_parts}>{part => <Show when={part.match} fallback={part.text}><mark>{part.text}</mark></Show>}</For></span><small>{location(entry.hit.source_id, entry.hit.passage.ordinal)}</small></span></>
@@ -300,11 +327,11 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
         : <><Icon name="plus" /><span class="picker-text">{createLabel(entry)}</span><Show when={selected && (entry.action === 'page' || entry.action === 'question')}><kbd class="picker-hint picker-create-hint">⇧↵ beside</kbd></Show></>} />;
 }
 
-function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient; selected: boolean; book?: LibraryRow }) {
+function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient; selected: boolean; book?: LibraryRow; noteKind?: NoteKind }) {
   const isPage = () => props.hit.block.id === props.hit.page.id;
   const icon = createPageIcon(props.notebook, () => props.hit.block);
   return <>
-    <Icon name={icon()} />
+    <Icon name={isPage() && props.noteKind ? noteKindIcon(props.noteKind) : icon()} />
     <span class="picker-text find-result"><span classList={{ 'find-snippet': !isPage() }}><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{displayTitle(props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text, id => props.notebook.lookup(id))}</small></Show><Show when={isPage() && props.book}>{book => <small>Book · {Math.round(book().progress * 100)}% · {book().highlights} highlights</small>}</Show></span>
     <Show when={isPage() && props.hit.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>
     <Show when={props.selected}><kbd class="picker-hint">{besideKey}↵ beside</kbd></Show>
@@ -324,15 +351,36 @@ function MatchText(props: { text: string; query: string }) {
   return <For each={segments()}>{segment => <Show when={segment.match} fallback={segment.text}><mark>{segment.text}</mark></Show>}</For>;
 }
 
-function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookClient; book?: LibraryRow }) {
+function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookClient; fields: readonly FieldDefinition[]; book?: LibraryRow }) {
   const [content, setContent] = createSignal<{
-    title: string; location?: string; cover?: { snapshotId: string; href: string }; lines?: string[];
+    title: string; location?: string; cover?: { snapshotId: string; href: string };
     page?: PageView; targetId?: string; passages?: PassagePage; citation?: Citation;
   }>();
   const [loading, setLoading] = createSignal(false);
   const [error, setError] = createSignal('');
   let body: HTMLDivElement | undefined;
   const previewBlocks = createMemo(() => new Map(content()?.page?.rows.map(row => [row.block.id, row.block]) ?? []));
+  const previewLines = createMemo(() => {
+    const page = content()?.page;
+    if (!page || content()?.targetId) return [];
+    const definitions = new Map(props.fields.map(field => [field.id, field]));
+    const lines: ({ kind: 'field'; name: string; values: string[] } | { kind: 'prose'; text: string })[] = [];
+    for (let index = 0; index < page.rows.length && lines.length < 8; index++) {
+      const row = page.rows[index]!;
+      if (row.block.archived) continue;
+      const definition = definitions.get(fieldEntryId(row.block.text) ?? '');
+      const inline = definition ? null : matchFieldEntry(row.block.text);
+      if (!definition && !inline) { lines.push({ kind: 'prose', text: row.block.text }); continue; }
+      const values = inline?.value ? [valueLabel(inline.value, id => props.notebook.lookup(id))] : [];
+      while (index + 1 < page.rows.length && page.rows[index + 1]!.depth > row.depth) {
+        const value = page.rows[++index]!;
+        if (!value.block.archived && value.block.text.trim()) values.push(valueLabel(value.block.text, id => props.notebook.lookup(id)));
+      }
+      const name = definition ? definition.built_in ? definition.name.toLowerCase() : definition.name : inline!.name;
+      lines.push({ kind: 'field', name, values });
+    }
+    return lines;
+  });
   const outlineRows = createMemo<TreeRow[]>(() => {
     const value = content();
     if (!value?.page || !value.targetId) return [];
@@ -375,7 +423,7 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
         const targetId = entry.kind === 'hit' && entry.hit.block.id !== page.root.id ? entry.hit.block.id : undefined;
         return {
           title: displayTitle(page.root.text, id => props.notebook.lookup(id)), cover: props.book?.cover ? { snapshotId: props.book.source.current_snapshot_id ?? '', href: props.book.cover } : undefined,
-          ...(targetId ? { page, targetId } : { lines: page.rows.slice(0, 8).map(row => row.block.text) }),
+          page, targetId,
         };
       }
       const sourceId = entry.kind === 'passage' ? entry.hit.source_id : entry.row.citation.source_id;
@@ -407,10 +455,12 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
     <Show when={content()}>{value => <>
       <header class="find-preview-header">{/* Covers are paths inside a book, served through its snapshot. */}<Show when={value().cover}>{cover => <ResourceImage snapshotId={cover().snapshotId} href={cover().href} alt="" />}</Show><div><h2>{value().title}</h2><Show when={value().location}><small>{value().location}</small></Show></div></header>
       <div ref={body} class="find-preview-prose">
-        <Show when={value().page}>
+        <Show when={value().targetId}>
           <BlockTree rows={outlineRows()} block={id => previewBlocks().get(id)} notebook={props.notebook} interactive={false} highlight={props.query} />
         </Show>
-        <For each={value().lines}>{line => <p><BlockText text={line} notebook={props.notebook} interactive={false} highlight={props.query} /></p>}</For>
+        <For each={previewLines()}>{line => line.kind === 'field'
+          ? <div class="find-preview-field"><span class="find-preview-field-name">{line.name}</span><span><For each={line.values}>{(value, index) => <>{index() > 0 ? ' · ' : ''}<MatchText text={value} query={props.query} /></>}</For></span></div>
+          : <p><BlockText text={line.text} notebook={props.notebook} interactive={false} highlight={props.query} /></p>}</For>
         <Show when={value().passages}>{page => {
           const ordinals = new Map(page().passages.map(passage => [passage.id, passage.ordinal]));
           const citations = value().citation ? [value().citation!] : page().citations;
@@ -422,6 +472,6 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
       </div>
       <footer class="find-preview-keys"><kbd>↵ {value().passages ? 'Open in the book' : 'Open atom'}</kbd><kbd>{besideKey}↵ Beside</kbd></footer>
     </>}</Show>
-    <Show when={!content() && !loading() && !error()}><p class="empty-state">{props.entry?.kind === 'create' ? props.entry.action === 'choose' ? `Choose a tag for “${props.entry.title}”` : createLabel(props.entry) : 'Select a result to preview it.'}</p></Show>
+    <Show when={!content() && !loading() && !error()}><p class="empty-state">{props.entry?.kind === 'create' ? props.entry.action === 'choose' ? 'Choose a type for the new atom' : createLabel(props.entry) : 'Select a result to preview it.'}</p></Show>
   </aside>;
 }

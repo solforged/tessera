@@ -137,7 +137,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .global-search > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rail-end > .button { flex-shrink: 0; }
 /* Sidebar rows share one left edge; document controls stay in their panes. */
-.sidebar { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; width: var(--sidebar-width); min-height: 0; padding: var(--space-12) var(--space-8); overflow-y: auto; transition: transform var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease), visibility 0s; }
+.sidebar { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; width: var(--sidebar-width); min-height: 0; padding: var(--space-12) var(--space-8); overflow: hidden; transition: transform var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease), visibility 0s; }
 .sidebar .button { position: relative; width: 100%; justify-content: flex-start; min-height: var(--row-height); padding: 0 var(--space-8); gap: var(--space-8); border-left: calc(2 * var(--rule-width)) solid transparent; overflow: hidden; white-space: nowrap; color: var(--muted); font-weight: var(--weight-body); }
 .sidebar .button::before { content: ''; position: absolute; inset: 0 auto 0 0; width: calc(2 * var(--rule-width)); background: var(--accent); opacity: 0; pointer-events: none; transition: opacity var(--motion-ui) var(--motion-ease); }
 .sidebar .button.selected::before { opacity: 1; }
@@ -148,7 +148,9 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .sidebar .button.selected { background: var(--selection); color: var(--text); }
 .sidebar .button.selected > .icon { color: var(--accent); }
 /* The desk: four landmarks, each with its live state at the right. */
-.primary-navigation { display: flex; flex-direction: column; }
+.primary-navigation { display: flex; flex-direction: column; flex: none; }
+.sidebar-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding-bottom: var(--space-8); }
+.sidebar-masthead, .sidebar-foot { flex: none; }
 .primary-navigation .button { color: var(--text); }
 .primary-navigation .button > .icon { color: var(--muted); }
 .sidebar .button > .desk-count { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
@@ -179,14 +181,13 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
    workshop is never taken for the usual one; long names shorten. Sync lives in the rail's sync mark. */
 .notebook-switcher-name { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
 .notebook-switcher-name.notebook-switcher-other { color: var(--warning); }
-/* The pin floats over the row's end, so a selected view spans the full row like pages do. */
-.sidebar-view { position: relative; display: flex; align-items: center; }
-.sidebar-view > .view-link { flex: 1; min-width: 0; }
-.sidebar-view:hover > .view-link, .sidebar-view:focus-within > .view-link { padding-right: calc(var(--row-height) + var(--space-4)); }
-.sidebar-view > .view-pin { position: absolute; right: var(--space-2); flex: none; opacity: 0; transition: opacity var(--motion-fast) var(--motion-ease); }
+/* A saved view and its pin have separate slots, so each focus ring encloses only its own control. */
+.sidebar-view { position: relative; display: flex; align-items: center; gap: var(--space-2); }
+.sidebar-view > .view-link { flex: 1; min-width: 0; width: auto; }
+.sidebar-view > .view-pin { flex: 0 0 var(--row-height); width: var(--row-height); padding-inline: 0; justify-content: center; opacity: 0; transition: opacity var(--motion-fast) var(--motion-ease); }
 .sidebar-view:hover > .view-pin, .sidebar-view:focus-within > .view-pin { opacity: 1; }
 /* Without hover the pin would stay invisible yet tappable. */
-@media (hover: none) { .sidebar-view > .view-link { padding-right: calc(var(--row-height) + var(--space-4)); } .sidebar-view > .view-pin { opacity: 1; } }
+@media (hover: none) { .sidebar-view > .view-pin { opacity: 1; } }
 /* Saved views hang under the kind whose type they list, on a hairline elbow. */
 .index-views .sidebar-view { position: relative; padding-left: calc(var(--space-24) + var(--space-4)); }
 .index-views .sidebar-view::before { content: ""; position: absolute; left: calc(var(--space-12) + var(--space-2)); top: 0; bottom: 50%; width: var(--space-8); border-left: var(--rule-width) solid var(--line); border-bottom: var(--rule-width) solid var(--line); }
@@ -401,7 +402,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 .palette-search .picker-hint { display: none; }
 .palette-search .picker-create-hint { display: block; }
 .palette-search .picker-text { white-space: normal; }
-.palette-search .picker-section { color: var(--faint); text-transform: uppercase; letter-spacing: var(--tracking-notebook); }
+.palette-search .picker-section { color: var(--faint); }
 .find-result { display: block; flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .find-result small, .find-preview-header small { display: block; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 /* Quotes and book passages are someone else's words, in the serif; your own blocks keep the writing voice. */
@@ -410,10 +411,8 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 .find-color { width: var(--space-8); height: var(--space-8); border-radius: var(--radius-pill); }
 .find-paragraph { width: var(--icon-size); color: var(--faint); font: var(--apparatus); }
 .palette-search mark { background: var(--text-selection); color: var(--accent); font-weight: inherit; }
-/* Scope chips are filters, not destination tabs; selected chips have a gilt outline. */
-.find-scopes { grid-row: 2; display: flex; gap: var(--space-4); padding: var(--space-4) var(--space-12) var(--space-8); border-bottom: 1px solid var(--line); }
-.find-scopes > .button { min-height: var(--target-size); border: 1px solid var(--line); border-radius: var(--radius-pill); color: var(--muted); padding: var(--space-2) var(--space-8); font-weight: var(--weight-body); }
-.find-scopes > .button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
+.find-scopes.mode-tabs { grid-row: 2; gap: var(--space-12); padding: 0 var(--space-12); }
+.find-scopes > .button { flex: none; padding: var(--space-4) 0; font-weight: var(--weight-body); }
 .find-cancel { display: none; }
 /* Preview text follows the result's voice; source identifiers and keys stay apparatus. */
 .find-preview { grid-column: 2; grid-row: 1 / -1; min-width: 0; overflow: auto; padding: var(--space-16) var(--space-24); border-left: 1px solid var(--line); }
@@ -422,6 +421,9 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 .find-preview-header h2 { margin: 0; font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); font-variation-settings: var(--optical-heading); }
 .find-preview-prose { font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); text-align: left; }
 .find-preview-prose p { margin: 0 0 var(--space-12); }
+.find-preview-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-12); padding-block: var(--space-4); font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
+.find-preview-field-name { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.find-preview-field + p { margin-top: var(--space-12); }
 .find-highlight { box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .find-preview-keys { display: flex; flex-wrap: wrap; gap: var(--space-16); padding-block: var(--space-12); border-top: 1px solid var(--line); }
 .find-preview-block { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
@@ -474,6 +476,10 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .save-banner { padding: 8px 12px; flex-wrap: wrap; }
   .save-banner details { max-width: 100%; }
   .undo-toast { bottom: 12px; }
+}
+@media (pointer: coarse) {
+  .pane-header .button, .mode-tabs > .button, .depth-stop { min-height: var(--touch-target); }
+  .pane-header .button:has(> .icon:only-child), .depth-stop { min-width: var(--touch-target); }
 }
 /* The cover screen, a touch screen under 600 px: the rail gives way to a bottom nav within thumb reach, the sidebar
    opens from the pane header, and a book's breadcrumb is its title alone. */

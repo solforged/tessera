@@ -90,7 +90,7 @@ export type OpenTarget =
   | { kind: 'field'; fieldId: string; previewKind?: FieldKind; section?: 'options' | 'targets' }
   | { kind: 'cards'; typeId: string; applyId?: string }
   | { kind: 'settings'; section?: 'notebooks' | 'devices' | 'agent'; deviceId?: string | null }
-  | { kind: 'library'; tab?: LibraryTab; add?: boolean; details?: readonly string[] }
+  | { kind: 'library'; tab?: LibraryTab; collection?: string; add?: boolean; details?: readonly string[] }
   /** Read a source. `at` is a passage ID to scroll to; `citationId` flashes that citation's range and does not count as reading. */
   | { kind: 'reader'; sourceId: string; snapshotId?: string; at?: string; citationId?: string }
   /** The perspectives filed under a subject, side by side. */
@@ -137,6 +137,8 @@ export interface OutlinePaneProps {
   onNoteKinds?(kinds: NoteKind[] | undefined): void;
   /** Open a page or block, here or in the other pane. */
   onOpen(target: OpenTarget, beside: boolean): void;
+  /** Why opening beside is unavailable at the current pane width. */
+  besideReason?: string;
   /** This pane holds keyboard focus. */
   active: boolean;
   onActivate(): void;
