@@ -30,7 +30,7 @@ Rows stay on one line: the kind's glyph in `--faint`, the name at control size, 
 
 An empty built-in kind that has a saved view keeps that row, still without a count. The Questions menu stays off until that kind has visible members or a saved view. Each other type and Unfiled are listed only while they have titled notes or tagged non-page blocks. The distinct-note total never includes inline atoms.
 
-The Index heading opens a bounded directory in the same order, with explicit note, source or `N tagged` counts. Tag-only rows open their [member table](fields-tables.md#tables-and-views) directly; other kinds open their finding aid. A saved view sits under the kind whose type it lists, on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
+The Index heading opens a bounded directory in the same order, headed `N atoms · M types`, with explicit note, source or `N tagged` counts. Tag-only rows open their [member table](fields-tables.md#tables-and-views) directly; other kinds open their finding aid. A saved view sits under the kind whose type it lists, on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
 
 Fields is a fixed row, not a kind. Its field glyph and definition count come from the index read, separate from the tag registry. It closes the Notes shelf in both destinations and opens the [Fields register](fields-tables.md#fields-register). Its sidebar row reads selected while the global register is active; a tag's Fields tab still selects that tag instead.
 
@@ -47,6 +47,8 @@ Titles sit under rubric letters with a hairline and a distinct-note count:
 | 840 px or wider | Three. |
 | Below 840 px | Two. |
 | Below 600 px | One. |
+
+Long titles clamp to three lines and keep the full title in a tooltip.
 
 Each note shows two lines of its first populated standfirst field, else its first non-field prose block, then one populated template field and its nonempty visible prose-block count in mono. Field entries and their descendants, headings, blank blocks and archived subtrees do not count as prose. Zero prose counts are omitted; a note without prose shows a nonzero ordinary backlink count instead, or no apparatus if neither exists. The Collections finding aid instead shows its member-source count in mono, using the same Library collection query as the collection cards. A title without prose has no empty preview. The batched index read derives this apparatus without a page read per row. A whole-kind alphabetical visit uses that read directly; filtered and grouped queries still use the query engine, and populated field choices load when Group or Filters opens.
 
@@ -72,7 +74,7 @@ Their chips use the same attribute labels as entity views: Resolved and Revisit 
 
 ### Questions ledger
 
-Questions opens a ledger rather than the alphabetical finding aid. Its ruled tabs are Active, Recurrent, Due, Answered, Parked and All, kept on one horizontally scrolling line in narrow panes. Active includes questions that are active or recurrent; Due selects non-parked questions whose revisit date has arrived. Each tab reads the same state filter from `/api/questions`. Find in Questions uses the finding aid's words, link/source predicates and Revisit/Resolved chips, intersected with the selected state; it includes inline questions and preserves program grouping.
+Questions opens a ledger rather than the alphabetical finding aid. Its heading, tally and create action align like other type pages, with a question glyph beside Questions. Its ruled tabs are Active, Recurrent, Due, Answered, Parked and All, kept on one horizontally scrolling line in narrow panes. Active includes questions that are active or recurrent; Due selects non-parked questions whose revisit date has arrived. Each tab reads the same state filter from `/api/questions`. Find in Questions uses the finding aid's words, link/source predicates and Revisit/Resolved chips, intersected with the selected state; it includes inline questions and preserves program grouping.
 
 Questions are grouped by their top-level program, with branches below it. Inline questions show their containing page and open their original block. The tally and sidebar count include inline questions. Each row shows state, perspective count, current assessment's first line and date, or No current answer, then the next revisit date. No progress percentage is shown.
 
@@ -90,6 +92,8 @@ An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, 
 A tag-only type's index has no notes but does have members. It says `No atoms filed as Italian word.`, counts the blocks it tags, and offers Open table.
 
 Every built-in kind except Sources, and every user type with an index, offers New person…, New question… and so on, in the empty state or beside the finding aid's tally. The shared creation slip locks that kind. Creation files the page and inserts its first body block as one acknowledged batch, creating the kind's type page too when missing, then opens its unzoomed Outline with the body caret live. Shift+Enter opens beside; Shift+⌘Enter creates another without leaving the slip. On coarse layouts with two visible panes, creation from an index or ledger opens beside by default. An existing title files that page instead, or opens it when already of the kind, without forcing an editing caret. The type's own title is refused.
+
+Generated create labels use sentence case for built-in and notebook-defined types, such as `New book…`.
 
 New task uses that same slip to append a task atom to Today or the chosen page rather than creating a titled task page; its active capability is enough to include it in Tasks.
 
@@ -137,13 +141,21 @@ A missing view keeps the remembered name with Relink… and Remove embed. Undoin
 
 Sources is a bibliography, not a second reading shelf. It shows siglum, source title and author byline; stable person references open that page, while unlinked or bracketed names read as plain names without wiki syntax. One mono apparatus line combines format, publisher, publication year when stored, citation key and nonzero highlight/page-backlink counts. Entries use 12 px vertical padding. Open source atoms is the default; actions sit inline with the apparatus, revealed on hover or focus and always visible on touch. Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
 
+Collection pages show member sources in a Sources section. Their Table opens the Library collection view.
+
 ## Note header
 
 A note at its top level shows its kinds above the title in rubric mono capitals, separated by a faint slash (`PERSON / ECONOMIST`). Each opens that kind's finding aid.
 
+Type breadcrumbs use the plural. Truncated breadcrumbs keep their full label in a tooltip. Project and question pane headers carry flag and question glyphs.
+
 The note waits for its kinds and alias fields before appearing. Its title, aliases and opening rows appear together; background refreshes keep the current note visible. Offline, cached notes remain visible and editable without that metadata. Reconnecting refreshes the note's apparatus and the sidebar Index. New notes remain visible and editable while creation is pending; their service-only apparatus and Find and reference previews wait for the root's acknowledgment, showing empty or loading states rather than missing-block errors.
 
 The title wraps within its available header width, including unbroken names and URLs, without overlapping the header actions. Tag tokens in the title do not display: a behavior tag is its glyph before the title and any other tag a pill after it, and the pane breadcrumb, sidebar, Index, Library and Find read the same tagless title.
+
+The Opening navigator appears only after the title leaves the viewport, with 24 px hysteresis. A fresh page's empty root reads `Start writing…`. Read keeps each child's inset at its outline depth.
+
+Page fields use two columns: label and value. Empty fields of every kind show `Add…`. Multiple values of one field share a row; dates and numbers use mono. Relation pills open their target with an `Open …` label. A pencil appears on hover or focus, and always on touch, to edit the value; F2 also edits. When bullets are shown, a task's status glyph takes the bullet slot and Plan stays inline.
 
 A note with aliases shows them under the title: `ALSO` in faint mono, then the aliases in italic Piazzolla at the quote size, separated by faint dots. Then one mono line reads `Created 2026-10-06` in the workshop's time zone, without the note's ID at any width, then Revisit. Revisit is muted, reads `Revisit 2026-11-12` once a date is set and turns gilt when that date is due; a resolved note reads Resolved. The gloss follows as the first row.
 
@@ -159,9 +171,13 @@ Tags… lists Add tag… and a Remove action for each manual membership, on file
 
 Compare remains a projection tab and palette command, and Undo and Redo remain palette commands and shortcuts rather than menu rows. On coarse phones the menu becomes a bottom sheet with Close, 44 px rows and Back for drill-ins; it scrolls on shorter screens.
 
+An unavailable Compare tab explains the reason in its tooltip.
+
 The Revisit menu sets a date with Revisit in a week, Revisit in a month, Revisit in three months, a calendar date or No revisit date. Resolve clears the date and marks the note resolved; Reopen returns it to working. Editing alone never reopens it. The latest action offers Undo revisit, then Redo revisit after undo.
 
 The Backlinks section appears and its count refreshes when incoming links change, including links to the note's own blocks. It reports the full count after removing links already represented as perspectives or works, groups sources by referring page, shows the first 100 when open, and offers Load more for each further batch. Unlinked mentions of the title and aliases follow it; see [Backlinks](../design.md#backlinks).
+
+Backlinks, Cited in, Unlinked mentions and Linked to this atom use mono section heads with a rule and faint count. Zero results collapse to one quiet line. Journal backlink rubrics use the shared civil-date rule: `today`, `tomorrow` and `yesterday`, weekday and day only within the current Monday–Sunday week, and ISO otherwise.
 
 ## Deleted pages
 
@@ -172,6 +188,8 @@ Deleting a page retains its identity, blocks and deletion event. The toast and U
 ## Reference previews
 
 Resting on an inline reference opens its read-only slip at the hovered line, including links in the standfirst and fields. The slip prefers below the link, flips above when that side has more room, and remains inside the originating pane and visible viewport. Its content and fonts load before it is measured and shown; it fades in without moving or resizing. Refreshing a reference label keeps the same anchor rather than reopening the slip.
+
+Reference previews stay closed while a field value editor is open.
 
 Pinning with ⌘ or Pin expands the slip to its perspectives and permits scrolling. Open and Beside retain the originating pane; nested references open further slips within that pane. A passive preview leaves global navigation shortcuts available and closes when the pane navigates; focusing its controls gives the card keyboard ownership until it is closed.
 

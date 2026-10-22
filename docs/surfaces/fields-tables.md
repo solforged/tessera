@@ -23,6 +23,7 @@ The inspector shows the name, Open atom, the kind, Hide, a Reading line for date
 - Template pills open their type table.
 - Format reads as muted text and shows its menu chevron on row hover or focus.
 - Used by opens the distinct owning blocks, including entries with no values. A field no block uses says Unused in `--faint`.
+- The built-in `project` field includes inherited projects in Used by, owner counts and tables, not only explicit entries.
 - ⌘-click opens any of these beside the index (Ctrl-click off Mac).
 - Narrow panes scroll the table horizontally with Name held in place.
 
@@ -65,6 +66,8 @@ Creating a definition always uses a new block ID. Blank outline rows under Field
 
 Changing kind opens an interpretation map on the field page before applying. Register rows, the inspector and a note's field menu open the same map. It lists every distinct written value and its use count under Mapped values, Readable as written, or Ambiguous or unreadable.
 
+The directory, field definition and template use one shared format menu with descriptions and the note `Changing format leaves value text unchanged.` Disabled built-in formats explain `Built-in task fields keep their format`.
+
 Choice rows have an editable option name and a mapping checkbox. Existing options are reused; different written values can share one name. Unchecking a row leaves it as written. Relation rows propose a page only when its title or alias matches exactly and uniquely. Choose atom adjusts the target; Create atom explicitly requests creation during Apply and files the page under the field's only Links to type, or makes it a source when that is Source. Blocks are chosen by hand after the change. Other kinds show their readings, including inclusive year bounds for Span.
 
 Apply changes the kind and all reviewed mappings in one undoable edit. Unmapped values stay as written and show a problem when unreadable. Owners and child atoms stay in place. Cancel writes nothing.
@@ -89,14 +92,14 @@ Open, it shows the same field rows as the type's Fields tab, described below. Ad
 
 ### Field rows
 
-The type page and the Fields tab list a template with one row design: Name, Format and right-aligned Atoms in template order. Built-in field names read in sentence case without changing their stored names. A name opens its field page. Format has a faint menu chevron and reads as Relation → Person, Group for a relation, any atom when it has no Links to types, and as Choice · 3 options for a choice field. Format opens a menu of the nine kinds, then Links to… for a relation, Options… for a choice and Open field definition.
+The type page and the Fields tab list a template with one row design: Name, Format and right-aligned Uses in template order. Uses counts distinct owning atoms across the notebook, including empty entries, with a tooltip explaining its notebook-wide scope. Built-in task field names stay lowercase. A name opens its field page. Format has a faint menu chevron and reads as Relation → Person, Group for a relation, any atom when it has no Links to types, and as Choice · 3 options for a choice field. Format opens the shared menu of nine kinds with descriptions, then Links to… for a relation, Options… for a choice and Open field definition.
 
 - A kind every value already reads as applies in place, as a field with no values always does. Otherwise the field page opens its kind review for that kind.
 - Links to… opens the same Links to chooser as the field page.
 - Rename, Move up, Move down and Remove appear on hover or focus and remain visible on coarse pointers. Rename edits the name in the row; Enter or leaving the input saves it and Escape cancels. A built-in field's Rename is disabled, and a name another field holds is refused, since merging belongs on the field page.
 - A required field reads `required` after its name, and its Remove is disabled with the reason, such as Books require author. The field menu's Templates… and the table's column menu disable their Remove from template the same way.
 - Each rename, kind change and Links to change reports itself beside Add field, such as rank links to Person, with an Undo while it is the latest change.
-- Task's built-in fields have a quiet mono `built-in` mark here only. Status also reads `required`; it alone cannot be removed from the Task template. Built-in task names, formats and global deletion are protected. Repeat reads Repeat, while Scheduled and Deadline read Date + time.
+- Task's built-in fields have a quiet mono `built-in` mark here only. `status` also reads `required`; it alone cannot be removed from the Task template. Built-in task names, formats and global deletion are protected. `repeat` has Repeat format, while `scheduled` and `deadline` have Date + time format.
 
 Under the list, a gap line appears only when at least one missing field has Hide set to Never. It reads `19 empty fields on 7 people`, using the tag's plural noun, with Fill missing fields. This gives each affected atom an empty entry for every template field it lacks, placed in template order, in one workshop command. Undo beside the result removes the entries it added that are still empty; an entry that gained a value or a note stays. Changing the template never rewrites atoms.
 
@@ -106,13 +109,15 @@ The type's Fields tab opens its field template as a third in-pane view, with the
 
 Add field and Fill missing fields keep the type page's editing behavior. The eyebrow shows only the tag's register name, such as People, linking to its index. The field count appears in the Fields tab, not again beside the title. Where there is no type-page menu, Icon and name… is a quiet control at the end of the editing toolbar. The global Fields register remains separate.
 
+While Fields is open, the Table tab shows the register's member count, including active task, question, source and project atoms without written type memberships.
+
 ## Field bed
 
 An owner's populated fields stay visible at rest. Standfirst sentences lead, without labels. Attributes and citation fields share a compact label and value column; citation references show siglum · locator. Prose fields follow at full width. A page's empty template slots stay visible under its heading; a nested owner's empty template and recipe slots stay quiet until it or one of its fields is focused. On phones, labels stack above values and long text wraps within the measure.
 
-Tasks are the exception at rest: only their checkbox and compact facts show. Focusing the atom reveals a single bed for task-backed and user fields, in Task template order. Filled fields remain after removing their slot. Status, Scheduled, Deadline, Priority and Repeat write the task record, and Project writes its existing relation entry, with an ancestor fallback marked inherited. An appointment shows Scheduled plus fields the person adds and Make task. On the touch cover the same bed is one sheet with inline date editing, never a second stacked popup.
+Tasks are the exception at rest: only their checkbox and compact facts show. Focusing the atom reveals a single bed for task-backed and user fields, in Task template order. Filled fields remain after removing their slot. `status`, `scheduled`, `deadline`, `priority` and `repeat` write the task record, and `project` writes its existing relation entry, with an ancestor fallback marked inherited. An appointment shows `scheduled` plus fields the person adds and Make task. On the touch cover the same bed is one sheet with inline date editing, never a second stacked popup.
 
-A value click, or Enter on a selected field, begins filling that owner. Tab and Shift-Tab move through its fields and missing slots in template or recipe order; reaching a missing slot creates its entry and value. Shift-Enter adds a newline. Enter on an empty value leaves for the owner's next ordinary row. While its value picker has a query or an arrow-key highlight, Enter picks instead. Escape leaves without moving. Outside filling mode, Tab and Shift-Tab retain outline indent and outdent. Each value keeps its ordinary undo history.
+A value click, or Enter on a selected field, begins filling that owner. Relation pills instead open their target; a pencil on hover or focus, always visible on touch, or F2 edits them. Multiple values share one row, and every empty field keeps the two-column label and `Add…` presentation. Date and number values use mono. Tab and Shift-Tab move through fields and missing slots in template or recipe order; reaching a missing slot creates its entry and value. Shift-Enter adds a newline. Enter on an empty value leaves for the owner's next ordinary row. While its value picker has a query or an arrow-key highlight, Enter picks instead. Escape leaves without moving. Outside filling mode, Tab and Shift-Tab retain outline indent and outdent. Each value keeps its ordinary undo history.
 
 Every field commit returns keyboard ownership to its value editor, its selected value row or the next slot, never the page body. Accepting a Choice or Relation keeps filling mode active, so Tab still advances without changing the value's parent. Tab commits a valid Date draft before moving; an invalid draft stays open with its error. At either end of the owner's slots, Tab keeps the current row selected. Undo and Redo restore a controlled value's row without reopening its picker.
 
@@ -130,7 +135,7 @@ A table is a query shown as rows. New view… in the sidebar or Commands asks fo
 
 ### Register and header
 
-The heading, mode strip, toolbar, grid and footer share a centered 984 px register (`--measure + --apparatus-width - --space-16`). It widens only when the visible fields need more room and never exceeds the pane's inset width. They keep one left edge rather than centering a narrower heading inside a wider grid. A many-column grid scrolls horizontally inside that register with the title held at the left.
+The heading, mode strip, toolbar, query chips and footer stay centered on the page's `--measure`. The grid uses the available pane width and scrolls horizontally on its own, with the title held at the left. More columns never widen or shift the heading and controls.
 
 The type and Register sit in quiet apparatus above a Piazzolla view name. Its menu lists all members of the source or type and its saved views, then Save as view…, Rename and Delete separately. A checkmark means the current query and recipe equal that row's saved query, not merely that the view is open. When they differ, the open row shows faint mono Modified; Save changes updates a saved view in one undoable edit, and Revert changes restores its saved query and recipe. The footer offers Undo after saving; ⌘Z and ⌘⇧Z also undo and redo the update. The one-line purpose under the name edits in place.
 
@@ -161,6 +166,8 @@ The source chip, Search rows, Filters, Sort, Group and Columns align to the regi
 Sort, Group and Filters list the type template's fields first, then built-in attributes, then the workshop's other fields. Sort and Group head each run with its section and check the fields in use; choosing a sorted field again flips its direction. Filters names each field's kind at the row's end.
 
 Filter and sort chips wait for field definitions before naming their fields, so loading does not briefly label a saved field as missing.
+
+Filter chips show resolved target titles rather than stored references or IDs.
 
 Filters offer conditions by kind. Choice and Relation offer **is**, **is not**, **has a value** and **is empty**; Choice selects an existing option, while Relation selects a member of the field's target types. Text, URL and Identifier also offer **contains** and **has the field**; Number and Date add **>**, **≥**, **<** and **≤**. Checkbox offers **is checked** and **is not checked**. **Has the field** means an entry exists, even blank; **has a value** means at least one authored value is nonblank, including problem readings; **is empty** means none is nonblank. Presence is offered separately on scalar kinds, not on Choice, Relation or Checkbox. Relation filters store target IDs and their chips follow current labels. A legacy unresolved value is marked in the picker and needs a target selection.
 
@@ -211,7 +218,7 @@ Columns past the right edge fade under the rows. `+N ›` at the header's end co
 
 Enter or double-click edits a single plain text, number, URL or identifier value inline. A cell with one value or none of kind choice, relation or date opens that kind's [value editor](../design.md#field-entries) on the cell, and a checkbox cell toggles on click or Space, keeping focus. Editing a missing field creates its entry on that owner, including a position, question or highlight block. Choosing an option writes a reference to that option, as in `Field:: [[option]]`. This works for non-template columns too. Pills follow the outline: a choice pill opens its options and a relation pill opens its target. ⌘-click opens either beside (Ctrl-click off Mac). Cells with more than one value open the field's source outline beside the table. Task attribute cells use the same task editors as the bed; other attribute cells are read-only.
 
-Tasks offer user fields in Columns, Filters and Sort beside Status, Scheduled, Deadline, Priority, Repeat and Project. Editing a user field changes the same entry shown under the atom. The legacy `@due` column still reads and edits Deadline; saved recipes need no migration.
+Tasks offer user fields in Columns, Filters and Sort beside `status`, `scheduled`, `deadline`, `priority`, `repeat` and `project`. The built-in `project` field resolves explicit and inherited membership. Editing a user field changes the same entry shown under the atom. The legacy `@due` column still reads and edits `deadline`; saved recipes need no migration.
 
 Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value and returns focus to its cell before saving finishes. An immediate undo follows that save. Leaving with Tab or a click commits without taking focus back from the new target.
 
@@ -235,7 +242,7 @@ Columns start with the type template's fields, then fields present on all member
 
 New entity views start with the source's key attributes, its standfirst fields, then fields filled on at least a quarter of the first result's rows. There are at most six starting columns, including Title and derived Refs. Perspectives start with Holder and Subject; Questions with State, Perspectives, Last assessed and Revisit; Sources with Creator; Highlights with Source. Saved recipes keep their chosen columns.
 
-Columns hides or restores attributes, fields and derived Refs. Title only starts a compact selection. Find columns narrows the choices without changing the recipe. Column headers drag into order; their menus also offer Move left and Move right. A header's hover band and click target fill its column to within 4 px of each rule. Dragging a header's edge resizes it. The sticky title stays first and is 170 to 340 px wide, 240 by default. Chosen columns and widths belong to the query recipe and never change the type template. Search and filtering retain them. Older views without a recipe start with their existing pane-local visibility.
+Columns hides or restores attributes, fields and derived Refs. Title only starts a compact selection. Find columns narrows the choices without changing the recipe. Column headers drag into order; their menus also offer Move left and Move right. A header's hover band and click target fill its column to within 4 px of each rule. Dragging a header's edge resizes it. The sticky title stays first and is weighted more heavily than ordinary fields: 170 to 340 px wide, 340 by default. Chosen columns and widths belong to the query recipe and never change the type template. Search and filtering retain them. Older views without a recipe start with their existing pane-local visibility.
 
 With text in Find columns, Only these selects the matching columns together, keeping widths and order for columns already selected.
 
@@ -267,6 +274,8 @@ An empty result names the source and the conditions that excluded its rows. Clea
 On coarse pointers below 600 px of available pane width, compact ledger rows replace the grid without lateral scrolling. The title and mode tabs scroll away with the rows. One mono summary beneath the title describes the count, conditions, sorts and grouping; a changed saved recipe ends with Modified in gilt. An empty purpose stays hidden; Add purpose… in the title menu opens its editor, and a set purpose remains below the title.
 
 Notes and tagged blocks share the same ordered list, with the counted apparatus divider only for mixed membership. Each row shows its Piazzolla title and `in <page title>` beneath a block title, named once per run of blocks from one page. Gloss values clamp to two lines without their labels. Choice and instance pills also omit labels; other values retain mono labels on one line. The grouped field hides inside its own groups, whose counted hairline headings stick while scrolling. The whole row opens the note, with field taps still opening their canonical entries and refs opening the destination list.
+
+Task cards lead with the status glyph and show compact planning facts, including deadline warnings and late dates. Finished task titles recede with a strike-through.
 
 A fixed bar above the bottom navigation holds Find in the type's plural and Query N. N counts active text, link conditions, filters, sorts, grouping and a non-default source. Query opens a bottom sheet containing the existing finder, source, filters, sort, group, layout, columns and Phone card fields controls. Save changes and Revert changes appear at its foot when a saved view differs, and remain in the title menu. Done closes the sheet. Pagination, load errors and Undo remain available at the end of the rows.
 

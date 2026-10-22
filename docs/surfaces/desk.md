@@ -6,6 +6,8 @@ The desk follows a question through its perspectives to their sources. It uses t
 
 Open research desk is in Commands and the sidebar's Questions menu. Open in desk in a question's menu selects that question. A saved desk opens with the other saved views.
 
+Open beside opens in place when the window cannot fit two panes. Explicit beside menu entries disable with `Needs a wider window`.
+
 ## Linked columns
 
 At a pane width of at least 840 px, three ruled columns share the pane:
