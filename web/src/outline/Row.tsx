@@ -2,13 +2,14 @@ import { opensBeside } from '../shell/beside';
 import { For, Match, Show, Switch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import type { Accessor, Component } from 'solid-js';
 import type { VirtualItem } from '@tanstack/solid-virtual';
+import type { FieldDefinition } from '../api/types';
 import { fieldEntryId, matchFieldEntry } from '../table/query';
 import { linkedCitation, setLinkedCitation } from '../library/highlights';
 import { highlightProse } from '../library/query';
 import { cardSubject, occlusionCards, parseCardText } from '../review/card-text';
 import { TaskStatusButton } from '../tasks/TaskControls';
 import { createTaskProjects } from '../projects/task-project';
-import { RunningClock } from '../tasks/WorkSessions';
+import { RunningClock, workDuration } from '../tasks/WorkSessions';
 import { isFinished, taskFacts } from '../tasks/task-labels';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -45,7 +46,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'inlineFields' | 'baseDepth' | 'positionSource' | 'sourceDetails' | 'virtualizer'
   | 'hosts' | 'props' | 'folds' | 'selectedSet' | 'editing'
   | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu' | 'holderMenu' | 'fieldMenu'
-  | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach'
+  | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach' | 'setSelected'
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
   | 'openImage'
@@ -61,11 +62,12 @@ export function createOutlineRows(context: Pick<OutlineContext,
   const quoteStatus = createQuoteStatus(doc, props.notebook);
   const taskProjects = createTaskProjects(doc, props.notebook);
   /**
-   * A task's trailing facts: subtask progress, a running clock, then planning in mono, which opens its field bed.
+   * A task's trailing facts: subtask progress, running or logged work, then planning in mono, which opens its field bed.
    * An open task with no plan offers Plan only while its row is hovered or selected; a finished one says when it was done.
    */
   function TaskSummary(propsTask: { id: string }) {
     const task = () => doc.block(propsTask.id)?.task;
+    const logged = () => doc.block(propsTask.id)?.loggedWorkMs ?? 0;
     const facts = createMemo(() => { const value = task(); return value ? taskFacts(value, { date: contextDate(), today: props.notebook.todayDate() }) : []; });
     const progress = createMemo(() => {
       let done = 0, total = 0;
@@ -91,10 +93,11 @@ export function createOutlineRows(context: Pick<OutlineContext,
     return <Show when={task()}>{value => <>
       <Show when={progress()}>{count => <span class="outline-task-progress" title={`${count().done} of ${count().total} subtasks done`}>{count().done}/{count().total}</span>}</Show>
       <Show when={running()}>{work => <RunningClock session={work()} onOpen={anchor => capabilities.open(propsTask.id, 'work', anchor)} />}</Show>
+      <Show when={!running() && logged() > 0}><Button class="outline-planning outline-task-logged" label={`${workDuration(logged()).slice(0, -3)} logged · open work sessions`} disabled={capabilities.busy(propsTask.id)} aria-haspopup="dialog" onClick={event => capabilities.open(propsTask.id, 'work', event.currentTarget)}>{workDuration(logged()).slice(0, -3)} logged</Button></Show>
       <Show when={!isFinished(value())} fallback={<For each={facts()}>{fact => <span class="outline-task-facts" title={fact.label}>{fact.text}</span>}</For>}>
         <Button class={`outline-planning outline-task-facts${facts().length ? '' : ' outline-plan-empty'}${advanced() ? ' outline-task-advanced' : ''}`} label={facts().length ? `Plan task: ${facts().map(fact => fact.label).join(', ')}` : 'Plan task'} disabled={capabilities.busy(propsTask.id)} aria-haspopup="dialog" onClick={event => capabilities.open(propsTask.id, 'task', event.currentTarget)}>
           <Show when={facts().length} fallback={<><Icon name="calendar" />Plan</>}>
-            <For each={facts()}>{fact => <span onClick={event => { event.stopPropagation(); capabilities.open(propsTask.id, fact.field, event.currentTarget); }}><Show when={fact.priority} fallback={<span classList={{ 'outline-task-late': !!fact.late }} title={fact.label}>{fact.text}</span>}>{priority => <span class="outline-task-priority" data-priority={priority()} title={fact.label}>{fact.text}</span>}</Show></span>}</For>
+            <For each={facts()}>{fact => <span onClick={event => { event.stopPropagation(); capabilities.open(propsTask.id, fact.field, event.currentTarget); }}><Show when={fact.priority} fallback={<span classList={{ 'outline-task-late': !!fact.late, 'outline-task-warning': !!fact.warning }} title={fact.label}>{fact.text}</span>}>{priority => <span class="outline-task-priority" data-priority={priority()} title={fact.label}>{fact.text}</span>}</Show></span>}</For>
           </Show>
         </Button>
       </Show>
@@ -120,7 +123,46 @@ export function createOutlineRows(context: Pick<OutlineContext,
     </Button>}</Show>;
   }
 
-  function Row(propsRow: { id: string; item?: Accessor<VirtualItem>; natural?: boolean }) {
+  /** A relation's link and edit action are distinct; every value keeps its actual block identity. */
+  function FieldValue(valueProps: { id: string; field: FieldDefinition }) {
+    const block = () => doc.block(valueProps.id);
+    const text = () => block()?.text ?? '';
+    const target = createMemo(() => valueProps.field.kind === 'instance' ? /^\[\[([^\]]+)\]\]$/.exec(text().trim())?.[1] : undefined);
+    const label = () => target() ? plainText(props.notebook.lookup(target()!)()?.text ?? text(), id => props.notebook.lookup(id)) : '';
+    const problem = createMemo(() => fieldValueProblem(valueProps.field, text()));
+    const edit = (anchor: HTMLElement) => {
+      context.setSelected(valueProps.id);
+      if (!openValueEditor(valueProps.id, anchor)) editAt(valueProps.id, text().length, true);
+    };
+    const open = async (beside: boolean) => {
+      const targetId = target();
+      if (!targetId) return;
+      try {
+        const target = props.notebook.lookup(targetId)() ?? await props.notebook.api.block(targetId);
+        props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside);
+      } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); }
+    };
+    const checked = () => valueProps.field.kind === 'checkbox' && text().trim() ? checkboxValue(text()) : null;
+    return <span class="outline-value-cell" data-value-kind={valueProps.field.kind}>
+      <Show when={checked() !== null} fallback={<>
+        <button type="button" class={!text().trim() ? 'field-empty-value' : valueProps.field.kind === 'choice' || valueProps.field.kind === 'instance' ? 'outline-value-pill text-button' : 'outline-value-text'}
+          classList={{ 'outline-reading-problem': !!problem() }} title={problem()} aria-label={target() ? `Open ${label()}` : `${text().trim() ? 'Edit' : 'Add'} ${valueProps.field.name} value`}
+          aria-haspopup={!target() && hasValueEditor(valueProps.field, text(), contextDate()) ? 'dialog' : undefined}
+          onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }}
+          onKeyDown={event => { if (event.key === 'F2') { event.preventDefault(); event.stopPropagation(); edit(event.currentTarget); } }}
+          onClick={event => { event.stopPropagation(); if (target()) void open(opensBeside(event)); else edit(event.currentTarget); }}>
+          <Show when={text().trim()} fallback={<span class="field-slot-add">Add…</span>}><BlockText text={text()} notebook={props.notebook} citationApparatus={fieldRole(valueProps.field) === 'citation'} interactive={false} /></Show>
+        </button>
+        <Show when={target()}><button type="button" class="outline-value-edit icon-button" aria-label={`Edit ${valueProps.field.name} value`} title={`Edit ${valueProps.field.name} value (F2)`} aria-haspopup="dialog"
+          onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => { event.stopPropagation(); edit(event.currentTarget); }}><Icon name="edit" /></button></Show>
+      </>}>
+        <button type="button" role="checkbox" class="field-checkbox" aria-checked={!!checked()} aria-label={valueProps.field.name}
+          onMouseDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); sheet.toggle(valueProps.id, checked()!); }}><Show when={checked()}><Icon name="check" /></Show></button>
+      </Show>
+    </span>;
+  }
+
+  function Row(propsRow: { id: string; item?: Accessor<VirtualItem>; natural?: boolean; placeholder?: string }) {
     const id = () => propsRow.id;
     const block = () => doc.block(id());
     const children = () => doc.outline.children(id()).length > 0;
@@ -136,19 +178,20 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const labelled = () => { const index = indices().get(id()) ?? 0; return !index || doc.outline.parentOf(ids()[index - 1]!) !== parent(); };
     // A known entry with no live values reads as its label and an empty slot until it is edited.
     const emptyEntry = () => { doc.archivedVersion(); return !!field() && editing() !== id() && !doc.outline.children(id()).some(child => !doc.isArchived(child)); };
-    const checked = () => inline() && valueField()?.kind === 'checkbox' && editing() !== id() ? checkboxValue(block()?.text ?? '') : null;
+    const checked = () => inline() && valueField()?.kind === 'checkbox' && block()?.text.trim() && editing() !== id() ? checkboxValue(block()?.text ?? '') : null;
     const depth = () => (inline() ? doc.outline.depth(parent()) : doc.outline.depth(id())) - baseDepth();
     const pill = () => valueField()?.kind === 'choice' || valueField()?.kind === 'instance';
     const controlledValue = () => hasValueEditor(valueField(), block()?.text ?? '', contextDate());
     const valueProblem = createMemo(() => fieldValueProblem(valueField(), block()?.text ?? ''));
-    const valueTarget = createMemo(() => /^\[\[([^\]]+)\]\]$/.exec(block()?.text.trim() ?? '')?.[1]);
-    const openValueTarget = async (beside: boolean) => {
-      const targetId = valueTarget();
-      if (!targetId) return;
-      try {
-        const target = props.notebook.lookup(targetId)() ?? await props.notebook.api.block(targetId);
-        props.onOpen({ kind: 'page', pageId: target.page_id, ...(target.kind === 'block' ? { blockId: target.id } : {}) }, beside);
-      } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); }
+    const groupedValues = createMemo(() => {
+      if (!inline()) return [];
+      doc.archivedVersion();
+      const values = doc.outline.children(parent()).filter(value => !doc.isArchived(value));
+      return values.length > 1 && values[0] === id() && values.slice(1).every(value => !indices().has(value)) ? values : [];
+    });
+    const fieldEnd = () => {
+      const next = ids()[(indices().get(id()) ?? -1) + 1];
+      return !next || doc.outline.parentOf(next) !== parent();
     };
     const rowSources = createMemo(() => {
       // A row inside a reading leaves the source mark to the reading's holder line, and no row repeats a mark.
@@ -217,14 +260,17 @@ export function createOutlineRows(context: Pick<OutlineContext,
     onMount(() => { if (!propsRow.natural) virtualizer.measureElement(row); });
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     function StaticText() {
-      return <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} deletedHolder={block()?.position?.deleted_holder} citationApparatus={fieldRole(valueField()) === 'citation'} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)} /></Show><Show when={!block()?.text && !inline() && ids().length === 1}><span class="empty-block">Start writing</span></Show></div>;
+      return <div class="static-text"><span classList={{ 'outline-value-pill': pill() && !!block()?.text, 'outline-reading-problem': !!valueProblem() }} title={valueProblem()}><BlockText text={displayText()} blockId={id()} onError={setMessage} cards field={field()} deletedHolder={block()?.position?.deleted_holder} citationApparatus={fieldRole(valueField()) === 'citation'} notebook={props.notebook} onOpen={props.onOpen} onReferenceMenu={referenceMenu} selection={selectedOffsets(id())} /></span><Show when={!block()?.text.trim() && inline()}><button type="button" class="field-empty-value" aria-label={`Add ${valueField()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => editAt(id(), 0, true)}><span class="field-slot-add">Add…</span></button></Show></div>;
     }
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.natural ? undefined : propsRow.item!().index} data-block-id={id()} role="treeitem" aria-level={propsRow.natural ? 1 : depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline() || emptyEntry(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
       data-task-status={block()?.task?.status}
       data-holder={block()?.position?.holder_id ?? undefined}
       data-field-role={inline() ? fieldRole(valueField()) : field() ? fieldRole(field()) : undefined}
+      data-value-kind={(inline() ? valueField() : field())?.kind}
+      data-field-end={inline() ? String(fieldEnd()) : undefined}
+      data-value-editor={inline() && editing() === id() ? '' : undefined}
       data-question-status={block()?.question?.status} data-accepted={block()?.assessment ? String(block()!.assessment!.accepted) : undefined} data-aporia={block()?.assessment?.state.aporia ? 'true' : undefined}
       onPointerEnter={() => { setLinkedCitation(block()?.citations[0]?.id ?? null); if (!propsRow.natural) sheet.hover(id()); }} onPointerLeave={() => { setLinkedCitation(null); sheet.hover(null); }}
       style={{ transform: propsRow.natural ? undefined : `translateY(${propsRow.item!().start - margin()}px)`, '--depth': propsRow.natural ? 0 : depth(), '--quote-color': localCitation()?.color ? `var(--highlight-${localCitation()!.color})` : 'var(--faint)' }}>
@@ -234,7 +280,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       <Show when={rowSources().length}><span class="row-sigla"><For each={rowSources()}>{source => <span class="row-siglum" title={props.notebook.lookup(source)()?.text}>{sigla().get(source)}</span>}</For></span></Show>
       <button type="button" class="row-menu icon-button" aria-label="Atom actions" onPointerDown={event => drag.start(event, id())} onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
-      <Show when={!inline() && !emptyEntry()}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()), 'row-card-mark': cardMark() }} aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into atom'} aria-haspopup={cardMark() ? 'dialog' : undefined} onPointerDown={event => drag.start(event, id())} onMouseDown={event => { if (cardMark()) event.preventDefault(); }} onClick={event => cardMark() ? cardControl?.open(event.currentTarget) : zoomTo(id())}><Icon name={cardMark() ? 'card' : block()?.question ? 'question-open' : block()?.project ? 'flag' : block()?.source ? 'library' : 'bullet'} /></button></Show>
+      <Show when={!inline() && !emptyEntry() && !block()?.task?.status}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()), 'row-card-mark': cardMark() }} aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into atom'} aria-haspopup={cardMark() ? 'dialog' : undefined} onPointerDown={event => drag.start(event, id())} onMouseDown={event => { if (cardMark()) event.preventDefault(); }} onClick={event => cardMark() ? cardControl?.open(event.currentTarget) : zoomTo(id())}><Icon name={cardMark() ? 'card' : block()?.question ? 'question-open' : block()?.project ? 'flag' : block()?.source ? 'library' : 'bullet'} /></button></Show>
       <Show when={inline()}><Show when={labelled()} fallback={<span class="outline-field-label" aria-hidden="true" />}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={event => context.fieldMenu(id(), event.currentTarget)}><Icon name="field" /><span>{valueField()?.name}</span></button></Show></Show>
       <Show when={emptyEntry()}><button type="button" class="outline-field-label" title={field()?.name} onClick={event => context.fieldMenu(id(), event.currentTarget)}><Icon name="field" /><span>{field()?.name}</span></button></Show>
       <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onRestoreFocus={restoreFocus} onChange={status => capabilities.status(id(), status)} /></Show>
@@ -252,21 +298,16 @@ export function createOutlineRows(context: Pick<OutlineContext,
         </figure>}</Show>
         <div class="outline-source-line">
         <Show when={block()?.relation}>{relation => <span class="relation-label">{relationLabels[relation().kind]}<Show when={relation().problem}>{problem => <span class="relation-problem" role="img" aria-label={problem()} title={problem()}><Icon name="warning" /></span>}</Show></span>}</Show>
-        <div class="outline-source">
+        <div class="outline-source" data-placeholder={propsRow.placeholder}>
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
         <Show when={editing() !== id() && (!block()?.image || !!block()?.text)}><Switch>
           <Match when={target()}><Quote id={id()} target={target()!} doc={doc} notebook={props.notebook} status={quoteStatus().get(id())} onOpen={props.onOpen} /></Match>
-          <Match when={checked() !== null || emptyEntry() && field()?.kind === 'checkbox'}>
-            <button type="button" role="checkbox" class="field-checkbox" aria-checked={!!checked()} aria-label={(valueField() ?? field())?.name} onMouseDown={event => event.stopPropagation()} onClick={() => checked() === null ? sheet.fill(id()) : sheet.toggle(id(), checked()!)}><Show when={checked()}><Icon name="check" /></Show></button>
+          <Match when={groupedValues().length}><div class="outline-field-values"><For each={groupedValues()}>{value => <FieldValue id={value} field={valueField()!} />}</For></div></Match>
+          <Match when={emptyEntry()}><button type="button" class="field-empty-value" aria-label={`Add ${field()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => sheet.fill(id())}><span class="field-slot-add">Add…</span></button></Match>
+          <Match when={checked() !== null}>
+            <button type="button" role="checkbox" class="field-checkbox" aria-checked={!!checked()} aria-label={valueField()?.name} onMouseDown={event => event.stopPropagation()} onClick={() => sheet.toggle(id(), checked()!)}><Show when={checked()}><Icon name="check" /></Show></button>
           </Match>
-          <Match when={emptyEntry()}><button type="button" class="field-empty-value" aria-label={`Add ${field()?.name} value`} onMouseDown={event => event.stopPropagation()} onClick={() => sheet.fill(id())} /></Match>
-          <Match when={controlledValue()}>
-            <div class="static-text"><button type="button" class={!block()?.text ? 'field-empty-value' : pill() ? 'outline-value-pill text-button' : 'outline-value-text'} classList={{ 'outline-reading-problem': !!valueProblem() }} title={valueProblem()} aria-label={`Edit ${valueField()?.name} value`} aria-haspopup={valueField()?.kind !== 'instance' ? 'dialog' : undefined}
-              onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }}
-              onClick={event => { event.stopPropagation(); if (valueTarget() && (valueField()?.kind === 'instance' || opensBeside(event))) void openValueTarget(opensBeside(event)); else openValueEditor(id(), event.currentTarget); }}>
-              <Show when={block()?.text}><BlockText text={displayText()} notebook={props.notebook} citationApparatus={fieldRole(valueField()) === 'citation'} interactive={false} /></Show>
-            </button></div>
-          </Match>
+          <Match when={controlledValue()}><div class="static-text"><FieldValue id={id()} field={valueField()!} /></div></Match>
           <Match when={viewEmbed()}><ViewEmbed reference={viewEmbed()!} notebook={props.notebook} onOpen={props.onOpen} onReplace={text => apply({ kind: 'text', id: id(), text }, false)} onRemove={() => apply({ kind: 'delete', ids: [id()] }, false)} /></Match>
           <Match when={embed()}><Show keyed when={embed()}>{target => <Embed target={target} notebook={props.notebook} onOpen={props.onOpen} fallback={<StaticText />} />}</Show></Match>
           <Match when><StaticText /></Match>

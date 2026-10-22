@@ -17,7 +17,7 @@ export function PlainValueInput(props: {
   onInput(text: string): void; onCommit(returnFocus: boolean): void; onCancel(): void;
 }) {
   const placeholders = { date: partialDatePlaceholder, url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
-  return <textarea class={`input ${props.class ?? ''}`} aria-label={`Edit ${props.field ? fieldLabel(props.field) : 'field'} value`}
+  return <textarea class={`input ${props.class ?? ''}`} data-value-editor aria-label={`Edit ${props.field ? fieldLabel(props.field) : 'field'} value`}
     placeholder={props.field && props.field.kind in placeholders ? placeholders[props.field.kind as keyof typeof placeholders] : undefined}
     inputmode={props.field?.kind === 'number' ? 'decimal' : props.field?.kind === 'url' ? 'url' : undefined}
     rows={Math.min(8, Math.max(1, (props.text.match(/\n/g)?.length ?? 0) + 1))} value={props.text}

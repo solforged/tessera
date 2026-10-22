@@ -13,7 +13,8 @@
 .reading-opening { margin-bottom: var(--space-8); }
 /* Read edits values in place; adding fields and filling template slots stay in Outline. */
 .reading-register :is(.field-slots, .field-area-controls) { display: none; }
-.reading-opening > .outline-row { margin-bottom: var(--space-4); }
+.reading-opening > .reading-outline-row { margin-bottom: var(--space-4); }
+.reading-outline-row { padding-inline-start: calc(var(--read-depth) * var(--indent-width)); min-width: 0; }
 
 /* Counts and actions are apparatus: the count faint, the actions muted until hovered. On the register they share
    the section heading's line and wrap below it when the pane is narrow. */
@@ -106,7 +107,7 @@
 .embedded-comparison { display: flex; flex: 1; min-height: 0; }
 /* The section line occupies the page's top space and sticks there, so it never moves the title or the text. */
 .section-navigator { position: sticky; top: calc(-1 * var(--page-top-space)); z-index: 3; display: flex; align-items: center; height: var(--page-top-space); max-width: var(--measure); margin: calc(-1 * var(--page-top-space)) auto 0; background: var(--canvas); box-shadow: calc(-1 * var(--gutter)) 0 0 var(--canvas); visibility: hidden; opacity: 0; transition: opacity var(--motion-ui) var(--motion-ease), visibility 0s linear var(--motion-ui); }
-/* At the top the title names the place; the line appears once the page scrolls. */
+/* At the top the title names the place; the line appears only after the heading has scrolled out. */
 .section-navigator-shown { visibility: visible; opacity: 1; transition: opacity var(--motion-ui) var(--motion-ease); }
 .section-navigator > .button { font: var(--apparatus); color: var(--muted); padding: 0; min-height: var(--page-top-space); }
 @media (max-width: 599px) {

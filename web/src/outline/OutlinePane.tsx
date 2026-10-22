@@ -392,7 +392,7 @@ function Pane(props: OutlinePaneProps) {
       const name = sourceFieldName(untrack(() => block?.text ?? ''), definitionsById());
       if (name && isCatalogueField(name)) return showFields;
       const citation = block?.citations.find(value => value.source_id === props.pageId);
-      return !citation || !colors.length || !!citation.color && colors.includes(citation.color);
+      return !citation || !colors.length || colors.includes(citation.color ?? 'none');
     });
     // Authored non-catalogue fields keep their normal outline position; only source-owned groups reorder.
     const ordinary = new Set(shown.filter(id => doc.outline.parentOf(id) === props.pageId && untrack(() => {
@@ -484,19 +484,47 @@ function Pane(props: OutlinePaneProps) {
     }
     return result;
   }, undefined, { equals: (a, b) => a.size === b.size && [...a].every(id => b.has(id)) });
-  // Read lines inline field values up with their label as Outline does, so their entry rows drop out.
-  const readView = createMemo(() => {
-    const view = register(), inline = inlineFields();
-    return inline.size ? { ...view, opening: view.opening.filter(id => !inline.has(id)), remaining: view.remaining.filter(id => !inline.has(id)) } : view;
-  });
-  // Inline entries only drop out of the unfolded list, so selection changes never re-walk the outline.
-  const ids = createMemo(() => {
-    if (reading()) {
-      const view = readView();
-      return [...view.opening, ...(view.sectionId ? [view.sectionId] : []), ...view.slips.flatMap(slip => readingSlipRows(doc, slip, readDisclosures())), ...view.disagreements.flatMap(group => readingDisagreementRows(doc, group, readDisclosures())), ...view.remaining];
+  // Compact fields share one row at rest; selecting or editing a value restores its full row identity.
+  const groupedFieldContinuations = createMemo(() => {
+    const inline = inlineFields(), visible = unfoldedSet(), known = definitionsById();
+    const active = new Set([editing(), selected()]);
+    const row = rowRange(), text = textRange();
+    const ranges = [row ? [row.anchor, row.head] : null, text ? [text.anchor.id, text.head.id] : null].flatMap(range => {
+      if (!range) return [];
+      const a = doc.outline.indexOf(range[0]!), b = doc.outline.indexOf(range[1]!);
+      return a < 0 || b < 0 ? [] : [[Math.min(a, b), Math.max(a, b)]];
+    });
+    const omitted = new Set<string>();
+    for (const candidate of fieldCandidates()) {
+      if (!inline.has(candidate.id) || !['attribute', 'citation'].includes(fieldRole(known.get(fieldEntryId(doc.block(candidate.id)?.text ?? '') ?? '')))) continue;
+      const values = candidate.values()?.filter(id => visible.has(id) && !doc.isArchived(id)) ?? [];
+      if (values.length < 2 || values.some(id => {
+        const block = doc.block(id), index = doc.outline.indexOf(id);
+        return active.has(id) || ranges.some(([a, b]) => index >= a! && index <= b!) || !block
+          || block.task || block.project || block.question || block.assessment || block.position || block.relation
+          || block.quote || block.image || block.occlusion || block.keptCopy || block.manual_types.length || block.citations.length || block.templateCards;
+      })) continue;
+      for (const id of values.slice(1)) omitted.add(id);
     }
+    return omitted;
+  }, undefined, { equals: (a, b) => a.size === b.size && [...a].every(id => b.has(id)) });
+  // Read and Outline omit exactly the same continuation values.
+  const readView = createMemo(() => {
+    const view = register(), inline = inlineFields(), continuations = groupedFieldContinuations();
+    return inline.size ? { ...view, opening: view.opening.filter(id => !inline.has(id) && !continuations.has(id)), remaining: view.remaining.filter(id => !inline.has(id) && !continuations.has(id)) } : view;
+  });
+  // Selection does not re-walk the outline just to expand a compact value list.
+  const outlinedRows = createMemo(() => {
     const inline = inlineFields(), visible = unfoldedIds();
     return fieldBedRows(doc, inline.size ? visible.filter(id => !inline.has(id)) : visible, definitionsById(), zoom() ?? props.pageId);
+  });
+  const ids = createMemo(() => {
+    const continuations = groupedFieldContinuations();
+    if (reading()) {
+      const view = readView();
+      return [...view.opening, ...(view.sectionId ? [view.sectionId] : []), ...view.slips.flatMap(slip => readingSlipRows(doc, slip, readDisclosures())), ...view.disagreements.flatMap(group => readingDisagreementRows(doc, group, readDisclosures())), ...view.remaining].filter(id => !continuations.has(id));
+    }
+    return outlinedRows().filter(id => !continuations.has(id));
   });
   const indices = createMemo(() => new Map(ids().map((id, index) => [id, index])));
   const baseDepth = createMemo(() => zoom() ? doc.outline.depth(zoom()!) : 0);
@@ -548,7 +576,7 @@ function Pane(props: OutlinePaneProps) {
     || (!doc.root()?.source || sourceApparatusReady() && (!!zoom() || !!(sourceHighlights.error || sourceHighlights())))
       && (!isNote() || !!(fields.error || fields.latest) && !!(noteKinds.error || noteKinds.latest)));
   createEffect(() => { if (pageReady()) setPageRevealed(true); });
-  const filedElsewhere = createMemo(() => (sourceHighlights.error ? [] : sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId && (!sourceColors().length || !!row.color && sourceColors().includes(row.color)))
+  const filedElsewhere = createMemo(() => (sourceHighlights.error ? [] : sourceHighlights()?.rows ?? []).filter(row => row.block.page.id !== props.pageId && (!sourceColors().length || sourceColors().includes(row.color ?? 'none')))
     .sort((a, b) => a.citation.ordinal - b.citation.ordinal || a.citation.start.offset - b.citation.start.offset));
   const sourceDetails = createMemo(() => {
     const fields = new Map<string, string>();
@@ -558,7 +586,7 @@ function Pane(props: OutlinePaneProps) {
     const counts = new Map<string, number>();
     for (const row of sourceHighlights.error ? [] : sourceHighlights()?.rows ?? []) {
       const title = row.citation.chapter_title;
-      if (row.block.page.id === props.pageId && title && (!sourceColors().length || !!row.color && sourceColors().includes(row.color))) counts.set(title, (counts.get(title) ?? 0) + 1);
+      if (row.block.page.id === props.pageId && title && (!sourceColors().length || sourceColors().includes(row.color ?? 'none'))) counts.set(title, (counts.get(title) ?? 0) + 1);
     }
     let chapter: string | null | undefined;
     for (const id of unfoldedIds().filter(id => doc.outline.parentOf(id) === props.pageId)) {
@@ -663,8 +691,12 @@ function Pane(props: OutlinePaneProps) {
   function scrolled() {
     if (scroll && list) {
       setLongPage(scroll.scrollHeight > scroll.clientHeight);
-      setScrolledAway(scroll.scrollTop > 0);
-      const top = scroll.getBoundingClientRect().top + (navigator?.offsetHeight ?? 0);
+      const viewportTop = scroll.getBoundingClientRect().top;
+      const titleBottom = heading?.querySelector<HTMLElement>('.outline-title')?.getBoundingClientRect().bottom
+        ?? heading?.querySelector('h1')?.getBoundingClientRect().bottom ?? viewportTop + 25;
+      // Reveal when the title leaves; retain the navigator until it returns 24px into view.
+      setScrolledAway(previous => previous ? titleBottom <= viewportTop + 24 : titleBottom < viewportTop);
+      const top = viewportTop + (navigator?.offsetHeight ?? 0);
       const rows = [...list.querySelectorAll<HTMLElement>('[data-block-id]')].map(row => ({ row, rect: row.getBoundingClientRect() })).filter(({ rect }) => rect.top <= top);
       const row = rows.find(({ rect }) => rect.bottom > top)?.row ?? rows.sort((a, b) => b.rect.top - a.rect.top)[0]?.row;
       let id = row?.dataset.blockId;
@@ -1384,11 +1416,18 @@ function Pane(props: OutlinePaneProps) {
   });
   const drag = createOutlineDrag(context);
   const images = createOutlineImages(context);
-  const { related, relatedError, relatedLoading, apparatus, holders, holderRelations, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations } = createOutlineRelated(context);
+  const { related, relatedError, relatedLoading, apparatus, holders, holderRelations, linkedPages, isCollection, CollectionSources, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations } = createOutlineRelated(context);
   const holderBoundary = createMemo(() => !zoom() && related()?.heldReadings.length
     ? ids().find(id => doc.outline.parentOf(id) === props.pageId && !!doc.block(id)?.heading) : undefined);
   const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, RowRelations, openValueEditor,
     row => <Show when={holderBoundary() === row.id}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>, DiscoveryHints);
+  const emptyRootBlock = createMemo(() => {
+    if (zoom() || doc.root()?.kind !== 'page' || doc.root()?.source || doc.outline.size() !== 1) return undefined;
+    const id = doc.outline.idAt(0), block = doc.block(id);
+    return block && !doc.isArchived(id) && doc.outline.parentOf(id) === props.pageId && !block.text
+      && !block.heading && !block.task && !block.position && !block.relation && !block.question
+      && !block.assessment && !block.quote && !block.image && !block.citations.length && !block.manual_types.length ? id : undefined;
+  });
   const { CapabilityPopups } = createCapabilityPopups(context);
   const projectSummary = createProjectSummary({ doc, notebook: props.notebook, date: contextDate, onOpen: props.onOpen, onEdit: anchor => capabilities.open(props.pageId, 'project', anchor) });
   createEffect(on(() => props.projection, () => {
@@ -1719,7 +1758,7 @@ function Pane(props: OutlinePaneProps) {
           <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} title={pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>
         }</Show><Button onClick={closeTitle}>Cancel</Button>
       </Show>
-      <Show when={doc.root()?.kind === 'page' && !doc.root()?.source && !fields.error && fields() && fields()?.page_id !== props.pageId}><div class="outline-header-actions"><Button icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(opensBeside(event))}>Table<Show when={!doc.root()?.project && !type.error && (type()?.members ?? 0) > 0}><span class="table-member-count">{type()?.members}</span></Show></Button></div></Show>
+      <Show when={doc.root()?.kind === 'page' && !doc.root()?.source && !fields.error && fields() && fields()?.page_id !== props.pageId}><div class="outline-header-actions"><Button class={emptyRootBlock() ? 'outline-table-quiet' : undefined} icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(opensBeside(event))}>Table<Show when={isCollection() ? related()?.collection?.total : !doc.root()?.project && !type.error && type()?.members}>{count => <span class="table-member-count">{count()}</span>}</Show></Button></div></Show>
       </div>
       </Show>
       <Show when={isNote()}><NoteAliases doc={doc} fields={definitions()} onEdit={entry => {
@@ -1776,21 +1815,21 @@ function Pane(props: OutlinePaneProps) {
     <div ref={list} class="outline-list" style={{ height: reading() ? undefined : `${listHeight()}px` }}>
       <Show when={reading()} fallback={<>
       <Show when={drag.indicator() ?? images.indicator()}>{drop => <div class="outline-drop-indicator" aria-hidden="true" data-drop-depth={drop().depth - baseDepth()} data-drop-edge={drop().edge} style={{ top: `${drop().top}px`, left: `${drop().left}px` }} />}</Show>
-      <For each={foldGroups().before}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
+      <For each={foldGroups().before}>{id => <Row id={id} item={() => virtualItems().get(id)!} placeholder={emptyRootBlock() === id ? 'Start writing…' : undefined} />}</For>
       <div ref={foldChildren} class="outline-motion-group" style={{ opacity: foldMotion()?.opening ? 0 : undefined }}>
-        <For each={foldGroups().children}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
+        <For each={foldGroups().children}>{id => <Row id={id} item={() => virtualItems().get(id)!} placeholder={emptyRootBlock() === id ? 'Start writing…' : undefined} />}</For>
       </div>
       <div ref={foldFollowing} class="outline-motion-group" style={{ transform: foldMotion()?.opening ? `translateY(${foldMotion()!.beforeSize - virtualizer.getTotalSize()}px)` : undefined }}>
-        <For each={foldGroups().after}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</For>
+        <For each={foldGroups().after}>{id => <Row id={id} item={() => virtualItems().get(id)!} placeholder={emptyRootBlock() === id ? 'Start writing…' : undefined} />}</For>
       </div>
       <div ref={foldEditor} class="outline-motion-group" style={{ transform: foldMotion()?.opening && foldMotion()!.afterIds.includes(editing()!) ? `translateY(${foldMotion()!.beforeSize - virtualizer.getTotalSize()}px)` : undefined }}>
-        <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} />}</Show>
+        <Show keyed when={editing() && virtualItems().has(editing()!) ? editing() : null}>{id => <Row id={id} item={() => virtualItems().get(id)!} placeholder={emptyRootBlock() === id ? 'Start writing…' : undefined} />}</Show>
       </div>
       </>}>
         <ReadRegister register={readView()} doc={doc} notebook={props.notebook} disclosures={readDisclosures()} onDisclosure={key => {
           setReadDisclosures(previous => { const next = new Set(previous); next.has(key) ? next.delete(key) : next.add(key); return next; });
           scheduleReport(); requestAnimationFrame(scrolled);
-        }} row={id => <Row id={id} natural />} onCompare={() => props.onProjection?.('compare')} onAddReading={anchor => openRelation(props.pageId, 'reading', anchor)}
+        }} row={id => <Row id={id} natural placeholder={emptyRootBlock() === id ? 'Start writing…' : undefined} />} onCompare={() => props.onProjection?.('compare')} onAddReading={anchor => openRelation(props.pageId, 'reading', anchor)}
           onWriteAssessment={id => apply({ kind: 'writeAssessment', parentId: id, assessedOn: props.notebook.todayDate() }, true)}
           onOpenReading={(id, beside) => beside ? props.onOpen({ kind: 'page', pageId: props.pageId, blockId: id }, true) : zoomTo(id)}
           siglum={id => { const source = positionSource(id); return source ? sigla().get(source) : undefined; }} />
@@ -1806,6 +1845,7 @@ function Pane(props: OutlinePaneProps) {
     </section></Show>
     <Show when={!zoom() && sourceHighlights.error}><p class="library-error" role="alert">{String(sourceHighlights.error)}</p></Show>
     <Show when={doc.root()?.source && fields.error}><p class="library-error" role="alert">{String(fields.error)}</p></Show>
+    <Show when={doc.status() === 'ready' && !zoom() && isCollection()}><CollectionSources /></Show>
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add an atom</button></Show>
     <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><Show when={doc.root()!.text === props.notebook.todayDate()}><ResearchToRevisit notebook={props.notebook} onOpen={props.onOpen} /></Show><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>

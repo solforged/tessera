@@ -3,21 +3,24 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, onCl
 import type { Block, Mention, ReferenceGroup } from '../api/types';
 import { api } from '../api/client';
 import { loadWorks } from '../library/PersonWorks';
+import { sourceByline } from '../library/query';
 import type { OutlineIndex } from '../document/outline-index';
 import { linkMentionEdit } from '../document/link-mention';
 import { isStableReference, textTokens } from '../document/text-tokens';
 import { documentReady } from '../tasks/JournalAgenda';
-import { journalDayLabel } from '../tasks/journal-date';
+import { relativeDate } from '../tasks/task-labels';
 import { BlockBreadcrumb, BlockText } from './BlockText';
 import { plainText } from './names';
 import { BacklinkSource, BlockReferenceCount } from './Backlinks';
 import type { OutlineContext } from './context';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
 import { createSettledChanges } from '../ui/loading';
 import { isVirtualJournal, readJournalRelated } from './related-reads';
 import { IncomingRelations } from './RelationLines';
 import type { HolderRelation } from './Apparatus';
 import { hasCitationDetail } from './source-reads';
+import { typeKeys } from '../fields/templates';
 
 export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'doc' | 'zoom' | 'zoomTo' | 'localPositions'>) {
   const { props, doc, zoom, zoomTo, localPositions } = context;
@@ -25,6 +28,12 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   let relatedRequests: AbortController | undefined;
   let countRequest: AbortController | undefined;
   const relatedVersion = createSettledChanges(props.notebook);
+  const isCollection = createMemo(() => {
+    const root = doc.root();
+    if (root?.kind !== 'page' || root.source) return false;
+    const collection = props.notebook.roots().find(page => page.text.trim().toLocaleLowerCase() === 'collection');
+    return typeKeys(root.text, root.manual_types).some(key => key === 'collection' || key === collection?.id.toLowerCase());
+  });
   const version = () => doc.root()?.kind === 'page' && doc.root()?.revision === 0 ? false
     : `${props.pageId}:${relatedVersion()}:${props.notebook.connection() === 'live'}:${isVirtualJournal(doc.root())}:${!!doc.root()?.question}`;
   const subjects = createMemo(() => {
@@ -45,27 +54,32 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   const countById = createMemo(() => new Map((counts.error ? [] : counts() ?? []).map(row => [row.block_id, row.count])));
   const [relatedResource] = createResource(() => {
     const current = version();
-    return current ? `${current}:${limit()}:${!!doc.root()?.source}:${subjects()}` : false;
+    return current ? `${current}:${limit()}:${!!doc.root()?.source}:${isCollection()}:${subjects()}` : false;
   }, async () => {
     relatedRequests?.abort();
     const requests = relatedRequests = new AbortController();
     const sourcePage = !!doc.root()?.source;
-    const [references, tagged, held, aboutSubjects, passages, branches] = await Promise.all([
-      readJournalRelated(api.pageReferences(props.pageId, sourcePage ? Number.MAX_SAFE_INTEGER : limit(), requests.signal), doc.root(), { total: 0, groups: [] }),
+    const collectionPage = isCollection();
+    const [references, tagged, held, aboutSubjects, passages, branches, collection, collectionValues] = await Promise.all([
+      readJournalRelated(api.pageReferences(props.pageId, sourcePage || collectionPage ? Number.MAX_SAFE_INTEGER : limit(), requests.signal), doc.root(), { total: 0, groups: [] }),
       api.members(props.pageId, undefined, requests.signal),
       api.positions({ holder: props.pageId }, requests.signal),
       Promise.all(subjects().split(',').map(subject => api.positions({ subject }, requests.signal))),
       sourcePage ? api.highlights({ source_id: props.pageId, limit: Number.MAX_SAFE_INTEGER }, requests.signal) : undefined,
       doc.root()?.question ? api.questions({ parent: props.pageId }, requests.signal) : Promise.resolve([]),
+      collectionPage ? props.notebook.api.library({ collection_id: props.pageId, sort: 'title', direction: 'asc', limit: null }, requests.signal) : undefined,
+      collectionPage ? props.notebook.api.collectionValues(props.pageId, requests.signal) : [],
     ]);
     const about = [...new Map(aboutSubjects.flatMap(result => result.rows).map(row => [row.block.block.id, row])).values()];
     // A position links its holder and often its subject, so it shows once, as a perspective, not again as a backlink.
     const positions = new Set([...held.rows, ...about].map(row => row.block.block.id));
     const branchIds = new Set(branches.map(row => row.block.block.id));
+    const membership = new Set(collectionValues.map(block => block.id));
     const rootLinks = references.groups.flatMap(group => group.sources.filter(row => row.targets.includes(props.pageId)).map(row => ({ source: row.source, page: group.page })));
     const works = await loadWorks(api, props.pageId, rootLinks, requests.signal);
     let filtered = 0;
     let backlinks = references.groups.map(group => ({ ...group, sources: group.sources.filter(row => {
+      if (membership.has(row.source.id)) { filtered++; return false; }
       if (sourcePage || !positions.has(row.source.id) && !works.creatorLinks.has(row.source.id) && !branchIds.has(row.source.id) && !branchIds.has(group.page.id)) return true;
       filtered++;
       return false;
@@ -92,6 +106,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     const citationTotal = cited.reduce((count, group) => count + group.sources.length, 0);
     return {
       works: works.rows,
+      collection,
       backlinks,
       cited,
       citationTotal,
@@ -163,7 +178,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   const [blockBacklinks] = createResource(() => zoom() && doc.block(zoom()!)?.revision !== 0 ? [zoom()!, relatedVersion(), limit()] as const : false,
     ([id, , count]) => api.backlinks(id, count));
   function Backlinks(section: { cited?: boolean }) {
-    const [open, setOpen] = createSignal(true);
+    const [expanded, setExpanded] = createSignal<boolean>();
     const [shown, setShown] = createSignal(100);
     const scoped = () => !!zoom() && !section.cited;
     const all = () => (section.cited ? related()?.cited : related()?.backlinks) ?? [];
@@ -187,8 +202,12 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     const pages = createMemo(() => [...groups().keys()]);
     const total = () => section.cited ? related()?.citationTotal ?? 0 : related()?.total ?? 0;
     const remaining = () => Math.max(0, total() - shown());
-    return <details class="related-section backlinks-section" open onToggle={event => setOpen(event.currentTarget.open)}>
-      <summary>{section.cited ? 'Cited in' : zoom() ? 'Linked to this atom' : 'Backlinks'} <span>{scoped() ? blockBacklinks.error ? 'Unavailable' : blockBacklinks()?.length ?? 'Loading…' : relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : total()}</span></summary>
+    const count = () => scoped() ? blockBacklinks()?.length ?? 0 : total();
+    const unavailable = () => scoped() ? blockBacklinks.error : relatedError();
+    const pending = () => scoped() ? blockBacklinks.loading && !blockBacklinks() : relatedResource.loading && !related();
+    const open = () => expanded() ?? (count() > 0 || !!unavailable());
+    return <details class="related-section backlinks-section" classList={{ 'related-section-empty': !count() && !unavailable() && !pending() }} open={open()} onToggle={event => setExpanded(event.currentTarget.open)}>
+      <summary class="related-section-heading"><span class="related-section-name">{!count() && !unavailable() && !pending() ? section.cited ? 'No citations yet' : zoom() ? 'No links to this atom yet' : 'No backlinks yet' : section.cited ? 'Cited in' : zoom() ? 'Linked to this atom' : 'Backlinks'}</span><span class="section-rule" aria-hidden="true" /><span class="related-section-count">{unavailable() ? 'Unavailable' : pending() ? 'Loading…' : count()}</span><Icon name="down" /></summary>
       <Show when={open()}>
         <Show when={scoped() ? blockBacklinks.error : relatedError()}><p role="alert">Couldn't load backlinks.</p></Show>
         <For each={pages()}>{pageId => {
@@ -197,15 +216,15 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
           const sources = createMemo(() => new Map(group().sources.map(row => [row.source.id, row])));
           const ids = createMemo(() => [...sources().keys()]);
           return <section class="backlink-group">
-            <h3 class="backlink-group-heading"><Button role="link" onClick={event => props.onOpen({ kind: 'page', pageId }, opensBeside(event))}>{page().kind === 'journal' ? journalDayLabel(page().text) : page().text}</Button><span>{ids().length}</span></h3>
+            <h3 class="backlink-group-heading"><Button role="link" onClick={event => props.onOpen({ kind: 'page', pageId }, opensBeside(event))}>{page().kind === 'journal' ? relativeDate(page().text, props.notebook.todayDate()) : page().text}</Button><span>{ids().length}</span></h3>
             <For each={ids()}>{id => <div class="backlink-entry">
               <BacklinkSource block={sources().get(id)!.source} page={group().page} notebook={props.notebook} onOpen={props.onOpen} />
               <For each={hiddenTargets(sources().get(id)!.source.text, sources().get(id)!.targets)}>{target => <Button class="backlink-target" onClick={() => zoomTo(target)}>→ {plainText(doc.block(target)?.text ?? props.notebook.lookup(target)()?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty atom'}</Button>}</For>
             </div>}</For>
           </section>;
         }}</For>
-        <Show when={!scoped() && remaining() > 0}><Button class="text-button" disabled={relatedResource.loading} onClick={() => { setShown(value => value + 100); if (!section.cited && (related()?.remaining ?? 0) > 0) setLimit(value => value + 100); }}>Load more ({remaining()} remaining)</Button></Show>
-        <Show when={scoped() && (blockBacklinks()?.length ?? 0) >= limit()}><Button class="text-button" disabled={blockBacklinks.loading} onClick={() => setLimit(value => value + 100)}>Load more backlinks</Button></Show>
+        <Show when={!scoped() && remaining() > 0}><Button class="text-button" disabled={relatedResource.loading} title={relatedResource.loading ? 'Loading backlinks…' : undefined} onClick={() => { setShown(value => value + 100); if (!section.cited && (related()?.remaining ?? 0) > 0) setLimit(value => value + 100); }}>Load more ({remaining()} remaining)</Button></Show>
+        <Show when={scoped() && (blockBacklinks()?.length ?? 0) >= limit()}><Button class="text-button" disabled={blockBacklinks.loading} title={blockBacklinks.loading ? 'Loading backlinks…' : undefined} onClick={() => setLimit(value => value + 100)}>Load more backlinks</Button></Show>
       </Show>
     </details>;
   }
@@ -243,8 +262,9 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
         setBusy(undefined);
       }
     }
-    return <details class="related-section unlinked-mentions" onToggle={event => setOpen(event.currentTarget.open)}>
-      <summary>Unlinked mentions <Show when={mentions() !== undefined || mentions.error || mentions.loading}><span>{mentions.error ? 'Unavailable' : mentions()?.total ?? 'Loading…'}</span></Show></summary>
+    const empty = () => mentions() !== undefined && !mentions.error && mentions()?.total === 0;
+    return <details class="related-section unlinked-mentions" classList={{ 'related-section-empty': empty() || !open() && mentions() === undefined && !mentions.error }} onToggle={event => setOpen(event.currentTarget.open)}>
+      <summary class="related-section-heading"><span class="related-section-name">{empty() ? 'No unlinked mentions yet' : 'Unlinked mentions'}</span><span class="section-rule" aria-hidden="true" /><Show when={mentions() !== undefined || mentions.error || mentions.loading}><span class="related-section-count">{mentions.error ? 'Unavailable' : mentions()?.total ?? 'Loading…'}</span></Show><Icon name="down" /></summary>
       <Show when={open()}>
         <Show when={mentions.error}><p role="alert">Couldn't load unlinked mentions.</p></Show>
         <Show when={error()}><p role="alert">{error()}</p></Show>
@@ -255,7 +275,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
             <div class="mention-body"><Button class="mention-breadcrumb" onClick={event => props.onOpen({ kind: 'page', pageId: row().page.id, blockId: id }, opensBeside(event))}><BlockBreadcrumb block={live() ?? row().block} notebook={props.notebook} /></Button>
               <BlockText text={live()?.text ?? row().block.text} blockId={id} notebook={props.notebook} onOpen={props.onOpen} highlight={row().term} />
             </div>
-            <Button class="text-button mention-link" disabled={!!busy()} onClick={() => void link(row())}>{busy() === id ? 'Linking…' : 'Link'}</Button>
+            <Button class="text-button mention-link" disabled={!!busy()} title={busy() ? 'Wait for the current mention to finish linking.' : undefined} onClick={() => void link(row())}>{busy() === id ? 'Linking…' : 'Link'}</Button>
           </div>;
         }}</For>
       </Show>
@@ -266,11 +286,11 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     const expanded = createMemo(() => propsRelated.expanded ?? open());
     const revealId = createMemo(() => propsRelated.rows.some(row => row.block.id === propsRelated.revealId) ? propsRelated.revealId : undefined);
     createEffect(() => { if (revealId()) { setOpen(true); propsRelated.onExpanded?.(true); } });
-    return <details class="related-section" open={expanded()} onToggle={event => {
+    return <details class="related-section" classList={{ 'related-section-empty': !propsRelated.rows.length && !relatedError() && !relatedResource.loading }} open={expanded()} onToggle={event => {
       const next = event.currentTarget.open;
       setOpen(next);
       if (next !== propsRelated.expanded) propsRelated.onExpanded?.(next);
-    }}><summary>{propsRelated.title} <span>{relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span></summary>
+    }}><summary class="related-section-heading"><span class="related-section-name">{propsRelated.title}</span><span class="section-rule" aria-hidden="true" /><span class="related-section-count">{relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span><Icon name="down" /></summary>
       <Show when={expanded()}>
       <Show when={!relatedError()} fallback={<p role="alert">Couldn't load related atoms.</p>}>
       <For each={propsRelated.rows}>{result => {
@@ -284,5 +304,24 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       </Show>
     </details>;
   }
-  return { related, relatedError, relatedLoading, apparatus, holders, holderRelations, linkedPages, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations };
+  function CollectionSources() {
+    const rows = createMemo(() => new Map((related()?.collection?.rows ?? []).map(row => [row.page.id, row])));
+    const ids = createMemo(() => [...rows().keys()]);
+    return <section class="related-sections collection-sources" aria-label="Sources">
+      <h2 class="related-section-heading"><span class="related-section-name">Sources</span><span class="section-rule" aria-hidden="true" /><span class="related-section-count">{relatedError() ? 'Unavailable' : related()?.collection?.total ?? 'Loading…'}</span></h2>
+      <Show when={!relatedError()} fallback={<p class="collection-sources-state" role="alert">Couldn't load collection sources.</p>}>
+        <Show when={related()?.collection} fallback={<p class="collection-sources-state" role="status">Loading sources…</p>}>
+          <ul class="collection-source-list"><For each={ids()}>{id => {
+            const row = () => rows().get(id)!;
+            return <li><Button class="collection-source" role="link" onClick={event => props.onOpen({ kind: 'page', pageId: id }, opensBeside(event))}>
+              <span class="collection-source-title"><BlockText text={row().page.text} notebook={props.notebook} interactive={false} /></span>
+              <Show when={sourceByline(row())}>{byline => <span class="collection-source-byline">{byline()}</span>}</Show>
+            </Button></li>;
+          }}</For></ul>
+          <Show when={!ids().length}><p class="collection-sources-state">No sources yet</p></Show>
+        </Show>
+      </Show>
+    </section>;
+  }
+  return { related, relatedError, relatedLoading, apparatus, holders, holderRelations, linkedPages, isCollection, CollectionSources, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations };
 }
