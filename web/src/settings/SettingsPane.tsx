@@ -235,8 +235,8 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
             onPick={value => { setZoneAnchor(null); setZoneQuery(''); void change('time_zone', value.id); }}
             row={value => <><Show when={value.id === zone()} fallback={<span class="icon" />}><Icon name="check" /></Show><span class="settings-zone-text"><span>{value.label}</span><span class="settings-zone-id">{value.id}{value.id === deviceZone ? ' · Device' : ''}</span></span></>} />}</Show>
           <div class="settings-row">
-            <div class="settings-label"><span class="settings-name">Reader display<span class="settings-scope">This device</span></span><p>Typeface, size, measure and Scroll or Pages are set in the reader, beside the text, so each change shows as you make it.</p></div>
-            <span class="settings-aside">In the reader</span>
+            <div class="settings-label"><span class="settings-name">Reader display<span class="settings-scope">This device</span></span><p>In the reader: typeface, size, measure and Scroll or Pages are set beside the text, so each change shows as you make it.</p></div>
+            <span />
           </div>
         </section>
         {DEMO && !ANDROID && <BrowserBackups id={sectionId('backups')} heading={heading(number('backups'), 'backups', 'Backups')} when={when} onError={setError} />}
@@ -246,11 +246,12 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           <For each={knownNotebooks()?.notebooks}>{entry => <div class="settings-row notebooks-entry" data-current={entry.current ? '' : undefined}>
             <div class="settings-label">
               <span class="settings-name">{notebookLabel(entry)}<Show when={entry.current}><span class="settings-scope">Open</span></Show></span>
-              <Show when={notebookPlace(entry)}>{place => <p class="settings-mono notebooks-path settings-path" title={entry.path}>{pathText(place())}</p>}</Show>
+              <Show when={!entry.available ? entry.display_path : notebookPlace(entry)}>{place => <p class="settings-mono notebooks-path settings-path" title={entry.path}>{pathText(place())}</p>}</Show>
+              <Show when={!entry.available && entry.default}><p>Move the folder back or open it from its new location below.</p></Show>
             </div>
             <Show when={!entry.current} fallback={<span />}>
               <span class="notebooks-actions">
-                <Show when={!entry.default}><Button class="notebooks-forget" disabled={forgetting() !== null} onClick={() => { void forget(entry.path); }}>Forget</Button></Show>
+                <Show when={!entry.default}><Button class="notebooks-forget" disabled={forgetting() !== null} title={forgetting() !== null ? 'Wait for the workshop list to finish updating.' : 'Remove from this list; the workshop folder is not deleted.'} onClick={() => { void forget(entry.path); }}>Forget</Button></Show>
                 <Show when={entry.available} fallback={<span class="settings-aside">Folder missing</span>}>
                   <Button class="bordered" disabled={notebookOpening() !== null} onClick={() => switchTo(entry.path, false, notebookLabel(entry))}>Open</Button>
                 </Show>
@@ -274,7 +275,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           <p class="settings-empty">This workshop is backed up once a day and before each update, unless nothing has changed. The newest three are kept, then one a day for a week and one a week for a month.</p>
           <div class="settings-row">
             <div class="settings-label"><span class="settings-name">Database and files</span><Show when={backups()}>{value => <>
-              <p role="status">{value().backups[0] ? `Last backup ${when(value().backups[0]!.created_at)}${unchanged() ? '; nothing has changed since' : ''}` : 'No backups yet.'}</p>
+              <p role="status"><Show when={value().backups[0]} fallback="No backups yet.">{backup => <>Last backup <time class="settings-mono" dateTime={new Date(backup().created_at).toISOString()}>{when(backup().created_at)}</time>{unchanged() ? '; nothing has changed since' : ''}</>}</Show></p>
               <p class="settings-mono">{value().backups.length} {value().backups.length === 1 ? 'backup' : 'backups'} · {size(value().store_size)}</p>
             </>}</Show></div>
             <Button class="bordered" disabled={backupBusy()} onClick={() => { setConfirmBackup(null); void backUp(); }}>{backingUp() ? 'Backing up…' : 'Back up now'}</Button>

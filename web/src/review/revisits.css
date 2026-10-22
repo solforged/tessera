@@ -1,6 +1,8 @@
 .notes-review { display: flex; flex-direction: column; min-height: 0; height: 100%; overflow: auto; scrollbar-gutter: stable; padding: 0 var(--pane-inset) var(--page-bottom-space); }
 .notes-review > :not(.revisit-outline) { width: 100%; max-width: var(--measure); margin-inline: auto; }
-.notes-review > .empty-state { margin-block: 0; }
+.revisit-empty .empty-state { margin-block: 0 var(--space-8); }
+.revisit-empty > .button { color: var(--muted); }
+.revisit-empty > .button:hover { color: var(--accent); }
 .notes-review-heading { display: flex; align-items: flex-end; gap: var(--space-8); padding: var(--page-top-space) 0 var(--page-head-gap); }
 .notes-review-heading h1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-12); margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 .notes-review-heading h1 > span, .revisit-meta, .note-revisit > span { color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
@@ -23,7 +25,7 @@
 .note-line .note-revisit > .button:is(:hover, [data-due]) { color: var(--accent); background: none; }
 @media (pointer: coarse) {
   .note-line { align-items: center; }
-  .note-line .note-revisit > .button { min-height: var(--target-size); }
+  .note-line .note-revisit > .button, .revisit-empty > .button { min-height: var(--touch-target); }
 }
 .research-revisits { margin-bottom: var(--section-gap); }
 .research-revisits > header { display: flex; align-items: baseline; gap: var(--space-12); color: var(--muted); font: var(--apparatus); }

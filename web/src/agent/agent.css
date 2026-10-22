@@ -71,9 +71,11 @@
 .agent-provider-form .input[aria-invalid="true"] { border-color: var(--danger); }
 .agent-protocol.button { justify-content: space-between; width: 100%; }
 .agent-protocol > .icon { color: var(--faint); }
-.agent-presets, .agent-form-actions, .agent-provider-form > .agent-clear-key { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
+.agent-presets, .agent-form-actions, .agent-provider-form > .agent-clear-key { grid-column: 1 / -1; }
+.agent-presets.mode-tabs { min-width: 0; overflow-x: auto; }
+.agent-presets.mode-tabs > .button { flex: none; white-space: nowrap; }
+.agent-form-actions, .agent-provider-form > .agent-clear-key { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
 .agent-provider-form > .agent-clear-key { grid-column: 2; color: var(--muted); }
-.agent-presets > .button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .agent-form-actions { justify-content: flex-end; }
 .agent-add-model.button { margin-top: var(--space-12); }
 
