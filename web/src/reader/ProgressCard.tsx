@@ -1,6 +1,8 @@
 import { For, Show, createMemo } from 'solid-js';
 import type { Citation } from '../api/types';
 import { formatProgress } from '../library/query';
+import { relativeDate } from '../tasks/task-labels';
+import { localDate } from '../ui/MonthGrid';
 import { BookMap } from '../ui/BookMap';
 import { Button } from '../ui/Button';
 import type { Chapter } from '../ui/book-map';
@@ -13,7 +15,7 @@ const NEXT_CHAPTERS = 5;
 
 /** A time left with its numbers set larger than its units: `17 h 31 min`. */
 function Duration(props: { characters: number }) {
-  return <For each={timeLeft(props.characters).split(/(\d+)/).filter(Boolean)}>{part => /^\d+$/.test(part) ? <b>{part}</b> : <span>{part}</span>}</For>;
+  return <For each={(props.characters <= 0 ? '0 min' : timeLeft(props.characters)).split(/(\d+)/).filter(Boolean)}>{part => /^\d+$/.test(part) ? <b>{part}</b> : <span>{part}</span>}</For>;
 }
 
 /**
@@ -22,7 +24,7 @@ function Duration(props: { characters: number }) {
  */
 export function ProgressCard(props: {
   anchor: HTMLElement; sheet: boolean; chapters: readonly Chapter[]; length: number; at: number;
-  highlights: readonly { at: number; color: Citation['color'] }[]; added: number | null;
+  highlights: readonly { at: number; color: Citation['color'] }[]; added: number | null; today: string;
   onJump(chapter: Chapter): void; onDismiss(): void;
 }) {
   // Front matter and text before the first chapter are stretches of the map, not chapters to name or list.
@@ -30,7 +32,7 @@ export function ProgressCard(props: {
   const chapterLine = () => {
     const chapter = current();
     if (!chapter?.title) return '';
-    const through = Math.floor((props.at - chapter.start) / Math.max(1, chapter.end - chapter.start) * 100);
+    const through = Math.max(0, Math.min(100, Math.floor((props.at - chapter.start) / Math.max(1, chapter.end - chapter.start) * 100)));
     return `${sectionLabel(chapter.title)}, ${through}% through`;
   };
   const ahead = createMemo(() => {
@@ -40,8 +42,7 @@ export function ProgressCard(props: {
   });
   const added = () => {
     if (props.added === null) return '';
-    const date = new Date(props.added);
-    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(date.getFullYear() === new Date().getFullYear() ? {} : { year: 'numeric' }) });
+    return relativeDate(localDate(new Date(props.added)), props.today);
   };
   return <Popup anchor={props.anchor} placement={props.sheet ? 'sheet' : 'anchor'} width={380} fitContent label="Reading progress" class="reader-progress-card" onDismiss={props.onDismiss}>
     <div class="progress-card-head">
@@ -66,7 +67,7 @@ export function ProgressCard(props: {
         <For each={ahead()}>{chapter => <li>
           <Button class="progress-card-chapter-row" aria-current={chapter === current() ? 'location' : undefined} onClick={() => props.onJump(chapter)}>
             <span>{sectionLabel(chapter.title)}</span>
-            <span class="progress-card-minutes">{chapter === current() ? `${timeLeft(chapter.end - props.at)} left` : timeLeft(chapter.end - chapter.start)}</span>
+            <span class="progress-card-minutes">{chapter === current() ? props.at >= chapter.end ? 'Finished' : `${timeLeft(chapter.end - props.at)} left` : timeLeft(chapter.end - chapter.start)}</span>
           </Button>
         </li>}</For>
       </ol>

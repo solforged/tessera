@@ -148,7 +148,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       <p class="highlight-menu-quote">{row.citation.quote}</p>
       <div class="highlight-menu-colors">
         <For each={[...highlightColors, null]}>{value => {
-          const label = value ? value[0]!.toUpperCase() + value.slice(1) : 'No colour';
+          const label = value ? value[0]!.toUpperCase() + value.slice(1) : 'No color';
           return <Button class="icon-only" aria-label={label} aria-pressed={color === value} data-menu-key={value ? String(highlightColors.indexOf(value) + 1) : '0'} onClick={() => { props.onDismiss(); setColor(value); }}>
             <span class={`highlight-color-dot ${value ? `highlight-color-${value}` : 'highlight-color-none'}`} aria-hidden="true" />
           </Button>;

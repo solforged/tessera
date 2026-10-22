@@ -70,7 +70,7 @@ test('source state edits preserve authored identifiers and use the owning revisi
 });
 
 test('bylines retain creators or site separately from the year column', () => {
-  expect(sourceByline({ creators: ['A. Author', 'B. Editor'], site: 'Journal', published: '2026-10-04' })).toBe('A. Author, B. Editor');
+  expect(sourceByline({ creators: ['A. Author', 'B. Editor'], site: 'Journal', published: '2026-10-04' })).toBe('A. Author · B. Editor');
   expect(sourceByline({ creators: ['A. Author'], site: null, published: null })).toBe('A. Author');
   expect(sourceByline({ creators: ['[[Arnold J. Toynbee]]'], site: null, published: null })).toBe('Arnold J. Toynbee');
   expect(sourceByline({ creators: [], site: 'karpathy.github.io', published: '2015-05-21' })).toBe('karpathy.github.io');

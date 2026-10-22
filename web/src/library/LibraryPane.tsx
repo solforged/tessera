@@ -248,20 +248,37 @@ export function LibraryPane(props: LibraryPaneProps) {
       if (!rows.length) setHighlightPassageOpen(false);
     }
   });
-  const [followingPassage, setFollowingPassage] = createSignal('');
+  const [followingPassage, setFollowingPassage] = createSignal<string[]>([]);
   const [followingError, setFollowingError] = createSignal('');
   const [followingLoading, setFollowingLoading] = createSignal(false);
   createEffect(on(() => {
     const row = selectedHighlight();
-    return row ? `${row.citation.snapshot_id}:${row.citation.ordinal}` : null;
+    return row ? `${row.citation.id}:${row.citation.snapshot_id}:${row.citation.end.passage_id}:${row.citation.end.offset}` : null;
   }, () => {
     const row = selectedHighlight();
-    setFollowingPassage(''); setFollowingError('');
+    setFollowingPassage([]); setFollowingError('');
     if (!row) { setFollowingLoading(false); return; }
     const controller = new AbortController();
     setFollowingLoading(true);
-    void props.notebook.api.passages(row.citation.snapshot_id, row.citation.ordinal + 1, 1, controller.signal).then(result => {
-      if (!controller.signal.aborted) { setFollowingPassage(result.passages[0]?.text ?? ''); setFollowingLoading(false); }
+    const continuation = async () => {
+      const citation = row.citation;
+      let page = await props.notebook.api.passages(citation.snapshot_id, citation.ordinal, citation.start.passage_id === citation.end.passage_id ? 2 : 32, controller.signal);
+      while (!controller.signal.aborted) {
+        const end = page.passages.findIndex(passage => passage.id === citation.end.passage_id);
+        if (end >= 0) {
+          const passage = page.passages[end]!;
+          let next = page.passages[end + 1];
+          if (!next && passage.ordinal + 1 < page.total) next = (await props.notebook.api.passages(citation.snapshot_id, passage.ordinal + 1, 1, controller.signal)).passages[0];
+          return [passage.text.slice(citation.end.offset), next?.text ?? ''].filter(text => text.trim());
+        }
+        const last = page.passages.at(-1);
+        if (!last || last.ordinal + 1 >= page.total) throw new Error('The highlighted passage could not be found.');
+        page = await props.notebook.api.passages(citation.snapshot_id, last.ordinal + 1, 32, controller.signal);
+      }
+      return [];
+    };
+    void continuation().then(passages => {
+      if (!controller.signal.aborted) { setFollowingPassage(passages); setFollowingLoading(false); }
     }, reason => {
       if (!controller.signal.aborted) { setFollowingError(reason instanceof Error ? reason.message : String(reason)); setFollowingLoading(false); }
     });
@@ -280,6 +297,26 @@ export function LibraryPane(props: LibraryPaneProps) {
   const [commandError, setCommandError] = createSignal('');
   const [saving, setSaving] = createSignal(false);
   const [refresh, setRefresh] = createSignal(0);
+  // Color facets ignore the selected colors but retain the other filters, so a zero-match choice never hides the alternatives.
+  const highlightFacetKey = createMemo(() => target().tab === 'highlights' ? JSON.stringify([target().unprocessedOnly, target().tags, highlightSource(), highlightChapter(), props.notebook.changeSequence(), refresh()]) : false);
+  const [highlightFacets] = createResource(highlightFacetKey, async key => {
+    const [unprocessed, tags, source_id, chapter] = JSON.parse(key) as [boolean, string[], string | null, string | null];
+    if (chapter !== null) {
+      // Sections are a local scope; only this case needs rows rather than the server's count-only query.
+      const result = await props.notebook.api.highlights({ unprocessed, tags, source_id, limit: null });
+      const counts = new Map<string, number>();
+      for (const row of result.rows) {
+        if (row.citation.chapter_title !== chapter) continue;
+        const color = row.color ?? 'none';
+        counts.set(color, (counts.get(color) ?? 0) + 1);
+      }
+      return counts;
+    }
+    return new Map(await Promise.all([...highlightColors, 'none'].map(async color => {
+      const result = await props.notebook.api.highlights({ unprocessed, tags, source_id, colors: [color], limit: 0 });
+      return [color, result.total] as const;
+    })));
+  });
   const [jobs, setJobs] = createSignal<IngestJob[]>([]);
   const [jobsError, setJobsError] = createSignal('');
   const [jobsRefresh, setJobsRefresh] = createSignal(0);
@@ -550,8 +587,8 @@ export function LibraryPane(props: LibraryPaneProps) {
       const actions = await highlightActions(row, `“${row.citation.quote}” · ${row.source_title}, ${row.citation.chapter_title ?? `¶${row.citation.ordinal + 1}`}`);
       if (!disposed && anchor.isConnected) setPopup({ kind: 'menu', anchor, label: 'Actions for highlight', items: [
         ...actions.secondaryItems,
-        { label: 'Colour', shortcut: '1–5', submenu: () => ({ title: 'Highlight colour', items: [...highlightColors, null].map(color => ({
-          label: color ? color[0]!.toUpperCase() + color.slice(1) : 'No colour',
+        { label: 'Color', shortcut: '1–5', submenu: () => ({ title: 'Highlight color', items: [...highlightColors, null].map(color => ({
+          label: color ? color[0]!.toUpperCase() + color.slice(1) : 'No color',
           shortcut: color ? String(highlightColors.indexOf(color) + 1) : undefined,
           key: color ? String(highlightColors.indexOf(color) + 1) : '0',
           checked: row.color === color, action: () => actions.setColor(color),
@@ -986,7 +1023,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Button class="library-row-open" data-library-row={row.page.id} data-open-page={row.page.id} data-open-label={row.page.text} onClick={event => openSource(target, opensBeside(event))} onKeyDown={event => rowKey(event, target)}>
           <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span>
           <span class="library-title">{displayTitle(row.page.text, lookup)}</span>
-          <span class="library-byline">{sourceByline(row)}</span>
+          <span class="library-byline" title={sourceByline(row)}>{sourceByline(row)}</span>
           <Show when={mixedStates() && (row.source.state !== 'finished' || row.source.state_changed_at == null)}><span class="library-count library-state">{stateLabels[row.source.state]}</span></Show>
           <Show when={group() !== 'year'}><span class="library-count library-year" aria-label="Published year">{row.published?.slice(0, 4)}</span></Show>
           <span class="library-progress" classList={{ 'library-progress-finished': row.source.state === 'finished' }}><Show when={row.source.state === 'finished'} fallback={<Show when={row.progress > 0} fallback={row.source.state === 'reading' ? 'Not started' : null}>
@@ -1008,7 +1045,7 @@ export function LibraryPane(props: LibraryPaneProps) {
             <SourceCover row={row} siglum={row.source.siglum} />
             <span class="library-reading-rule" classList={{ 'library-reading-started': row.progress > 0 }} style={{ '--progress': `${row.progress * 100}%` }} aria-hidden="true" />
             <span class="library-book-title">{displayTitle(row.page.text, lookup)}</span>
-            <span class="library-book-byline">{sourceByline(row)}</span>
+            <span class="library-book-byline" title={sourceByline(row)}>{sourceByline(row)}</span>
             <span class="library-book-apparatus">
               <span class="library-siglum" aria-hidden="true">{row.source.siglum}</span>
               <Show when={mixedStates()}><span class="library-book-state">{stateLabels[row.source.state]}</span></Show>
@@ -1040,13 +1077,13 @@ export function LibraryPane(props: LibraryPaneProps) {
           <h2>{row().source_title}</h2>
           <Show when={row().citation.chapter_title && row().citation.quote.trim() !== row().citation.chapter_title?.trim()}><p class="library-highlight-meta">{row().citation.chapter_title}</p></Show>
         </header>
-        <div ref={passageScroll} class="library-passage-scroll" classList={{ 'library-passage-has-context': !!followingPassage() }}>
+        <div ref={passageScroll} class="library-passage-scroll" classList={{ 'library-passage-has-context': followingPassage().length > 0 }}>
           <Show when={highlightProse(row().block.block.text) !== highlightProse(row().citation.quote)}><div class="library-highlight-authored"><BlockText text={highlightProse(row().block.block.text)} notebook={props.notebook} interactive={false} /></div></Show>
           <blockquote class="library-passage-quote" style={colorStyle()}>{row().citation.quote}</blockquote>
           <p class="library-highlight-meta">{highlightMeta(row(), props.notebook.settings()?.time_zone ?? 'UTC')} · {highlightActions.noteCount(row()) === undefined ? 'Loading atoms…' : highlightActions.noteCount(row()) ? `${highlightActions.noteCount(row())} ${highlightActions.noteCount(row()) === 1 ? 'atom' : 'atoms'}` : 'No atoms'}</p>
           <Show when={row().block.page.id !== row().citation.source_id}><Button class="library-highlight-filed" onClick={event => openSource({ kind: 'page', pageId: row().block.page.id, blockId: row().block.block.id }, opensBeside(event))}>In {row().block.page.text}</Button></Show>
           <Show when={row().tags.length}><div class="library-highlight-tags"><For each={row().tags}>{tag => <span class="outline-tag">#{tag}</span>}</For></div></Show>
-          <Show when={followingPassage()}><div class="library-passage-context"><h3>Passage continues</h3><p>{followingPassage()}</p></div></Show>
+          <Show when={followingPassage().length}><div class="library-passage-context"><h3>Passage continues</h3><For each={followingPassage()}>{passage => <p>{passage}</p>}</For></div></Show>
           <Show when={followingLoading()}><p class="library-highlight-meta" role="status">Loading passage…</p></Show>
           <Show when={followingError()}><p class="library-error" role="alert">{followingError()}</p></Show>
         </div>
@@ -1214,7 +1251,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={coverLayout() && upNext().length}><section class="library-up-next" aria-label="Up next">
           <h2 class="library-reading-heading">Up next · Inbox</h2>
           <For each={upNext()}>{row => <Button class="library-up-next-book" onClick={event => openSource({ kind: 'page', pageId: row.page.id }, opensBeside(event))} {...sourceLongPress(row, () => false)}>
-            <span class="library-siglum">{row.source.siglum}</span><span><span class="library-title">{displayTitle(row.page.text, lookup)}</span><span class="library-book-byline">{sourceByline(row)}</span></span>
+            <span class="library-siglum">{row.source.siglum}</span><span><span class="library-title">{displayTitle(row.page.text, lookup)}</span><span class="library-book-byline" title={sourceByline(row)}>{sourceByline(row)}</span></span>
           </Button>}</For>
         </section></Show>
       </Show>
@@ -1237,7 +1274,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                   <div class="library-highlight-queue-scroll">
                     <Show when={!highlightQueue().length}><div class="library-empty"><p>No matching highlights in this section.</p><Button onClick={() => { setHighlightSource(null); setHighlightChapter(null); }}>All sections</Button></div></Show>
                     <For each={scopedHighlightGroups()}>{group => <section class="library-highlight-group">
-                    <Show when={scopedHighlightGroups().length > 1}><div class="library-highlight-heading"><Button onClick={() => { setHighlightSource(group.sourceId); setHighlightChapter(null); }}>{group.title}</Button><span>{group.rows.length}</span></div></Show>
+                    <div class="library-highlight-heading"><Button title={group.title} onClick={() => { setHighlightSource(group.sourceId); setHighlightChapter(null); }}>{group.title}</Button><span class="section-rule" /><span>{group.rows.length}</span></div>
                     <For each={highlightChapters(group.rows).filter(chapter => highlightChapter() === null || chapter.title === highlightChapter())}>{chapter => <>
                       <Show when={highlightChapterHeading(chapter)}><h3 class="library-highlight-chapter">{highlightChapterHeading(chapter)}</h3></Show>
                       <div role="list"><For each={chapter.rows}>{row => <div role="listitem" onPointerEnter={() => setLinkedCitation(row.citation.id)} onPointerLeave={() => setLinkedCitation(null)}>
@@ -1325,7 +1362,8 @@ export function LibraryPane(props: LibraryPaneProps) {
         <header class="library-highlight-filter-head"><h2>Filter highlights</h2><Show when={!coverLayout()}><Button icon="close" label="Close filters" onClick={dismiss} /></Show></header>
         <h3 class="library-highlight-filter-label">Source</h3><Button class="bordered library-highlight-scope" aria-haspopup="listbox" onClick={() => { setBrowseQuery(''); setPopup({ kind: 'highlight-sources', anchor: state.anchor }); }}>{highlightGroups().find(group => group.sourceId === highlightSource())?.title ?? 'All sources'}<Icon name="down" /></Button>
         <h3 class="library-highlight-filter-label">Section</h3><Button class="bordered library-highlight-scope" aria-haspopup="listbox" onClick={() => { setBrowseQuery(''); setPopup({ kind: 'highlight-chapters', anchor: state.anchor }); }}>{highlightChapter() ?? 'All sections'}<Icon name="down" /></Button>
-        <h3 class="library-highlight-filter-label">Colour</h3><div class="library-highlight-filter-colors" role="group" aria-label="Highlight colours"><For each={[...highlightColors, 'none']}>{color => <Button class="bordered" aria-pressed={target().colors.includes(color)} onClick={() => toggleHighlightColor(color)}><span class="library-highlight-color-bar" style={{ '--highlight-bar': color === 'none' ? 'var(--faint)' : `var(--highlight-${color})` }} aria-hidden="true" />{color === 'none' ? 'No colour' : color[0]!.toUpperCase() + color.slice(1)}<Show when={!target().colors.length && !target().tags.length}><span class="library-count">{highlights()?.rows.filter(row => (row.color ?? 'none') === color).length ?? 0}</span></Show></Button>}</For></div>
+        <h3 class="library-highlight-filter-label">Color</h3><div class="library-highlight-filter-colors" role="group" aria-label="Highlight colors"><For each={[...highlightColors, 'none']}>{color => <Button class="bordered" aria-pressed={target().colors.includes(color)} onClick={() => toggleHighlightColor(color)}><span class="library-highlight-color-bar" style={{ '--highlight-bar': color === 'none' ? 'var(--faint)' : `var(--highlight-${color})` }} aria-hidden="true" />{color === 'none' ? 'No color' : color[0]!.toUpperCase() + color.slice(1)}<span class="library-count">{highlightFacets.loading && !highlightFacets.latest ? '…' : highlightFacets.error ? '—' : highlightFacets()?.get(color) ?? 0}</span></Button>}</For></div>
+        <Show when={highlightFacets.error}><p class="library-error" role="alert">{String(highlightFacets.error)}</p></Show>
         <h3 class="library-highlight-filter-label">Tags</h3><Show when={tagOptions().length} fallback={<p class="library-message">No tags on these highlights.</p>}><Button aria-haspopup="dialog" onClick={() => { setTagQuery(''); setPopup({ kind: 'tags', anchor: state.anchor }); }}>Choose tags<Icon name="down" /></Button><div class="library-highlight-filter-tags"><For each={target().tags}>{tag => <Button class="outline-tag" onClick={() => update({ tags: target().tags.filter(value => value !== tag), scroll: 0 })}>#{tag}<Icon name="close" /></Button>}</For></div></Show>
         <footer class="library-highlight-filter-footer"><Show when={highlightFilterCount()}><Button onClick={() => { setHighlightSource(null); setHighlightChapter(null); update({ colors: [], tags: [], scroll: 0 }); }}>Clear filters</Button></Show><Button class="bordered library-mark-processed" onClick={dismiss}>{loading() || !highlights() ? 'Show highlights' : `Show ${highlightQueue().length} ${highlightQueue().length === 1 ? 'highlight' : 'highlights'}`}</Button></footer>
       </Popup>;
