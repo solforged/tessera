@@ -96,10 +96,10 @@ Agents write through `POST /api/agent-changes`:
 
 Under the writer lock, the core plans ordinary operations from current state and commits one attributed batch. It creates missing target pages or days, links hand-written `[[Title]]` references and converts `Name:: value` shorthand by the editor's rules, creating missing field definitions.
 
-The same transaction stores the inverse in `agent_changes`: inverse operations based on the resulting block, card and deck revisions, plus the blocks, pages and field definitions created. Undo applies it as a new batch:
+Every committed batch appears in `/api/history` with its actor, origin, reason, summary and undo eligibility. Local batches whose operations all have safe inverses store them in `change_history` in the same transaction, built from targeted reads of each operation's block, card or deck just before it applies; agent plans also track the pages and field definitions they created. Batches with an operation that has no inverse (split, merge, review grades, ingestion, settings, views, definition edits) and remotely applied changes are listed without one. Undo commits another attributed batch and links both entries:
 
 - An intervening edit by anyone fails its revision check and refuses the undo.
-- Blocks, cards and decks touched only by later, undone agent changes count as unchanged, so changes undo newest first.
+- Blocks, cards and decks touched only by later change-and-undo pairs count as unchanged, so changes undo newest first; undoing an undo reactivates the earlier edit.
 - Created pages and field definitions are deleted only while nothing outside the change lives on them or links to them.
 
 `tessera mcp` wraps these endpoints and service reads as Model Context Protocol tools over stdio. Reads cover pages, search, tasks and agenda, cards and decks, typed queries, library and sync state. The service remains the only writer.

@@ -6,8 +6,14 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ## Unreleased
 
+### Added
+
+- Listed every change in Settings › History with its actor, time, summary and page, and made editor batches reversible from there: text, heading, move, create, delete, task, relation, revisit, card hold, deck and citation operations store an inverse when committed, undo links both entries, and undoing an undo brings the change back. `GET /api/history` and `POST /api/history/{seq}/undo` replace the agent-only list and undo routes; `tessera_recent_changes` and `tessera_undo` now cover the whole history.
+- Added Restore to every backup in Settings › Backups. Restore backs up the current workshop first, keeps the chosen restore point out of retention, then drains and restarts the service on the same workshop; the restore runs at startup under the service's lock, so an interrupted one finishes on the next start.
+
 ### Changed
 
+- Kept receipt blobs out of the change catch-up read's sort, so `changes_since` meets its 100 ms budget at 10,000 and 50,000 blocks, and paged HTTP and WebSocket catch-up at 500 events to match the client.
 - Showed logged work beside task rows as a quiet duration chip that opens their work sessions, excluding the running clock and reversed sessions.
 - Settled civil dates: today, tomorrow and yesterday stay words, weekday and day serve only inside the current Monday–Sunday week, and every other date reads ISO across task facts, work sessions, backlink rubrics, the reader's Added line, Review's next card and the Week header.
 - Colored deadlines inside their warning window with the warning tone, kept danger for genuinely late plans, and headed a future day's earlier work `Before this day` instead of `Overdue`.

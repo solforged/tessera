@@ -121,7 +121,20 @@ Measured in headless Brave against a release service and the 10,000-block bench 
 
 On the 50,000-block workshop the same Find opened with 384 rows sent 351 to 866 capability reads, which held `/api/search` back by about 5 s. Page icons now read source formats from one shared Sources index, reloaded only when a change adds, removes or reformats a source page.
 
-Remaining: every launch replays `/api/changes` from sequence 0; on the 50,000-block workshop that is 98 MB and about 1 s, and `tessera-bench` at 10,000 blocks misses the 100 ms `changes_since:0` budget (p95 189 ms in core, 214 ms over HTTP).
+A cold window has since read `/api/changes/head` first and subscribed from that cursor, with each cached page carrying its own replay floor, so launch no longer replays the journal from sequence 0.
+
+## Change reads, 2026-10-22
+
+`changes_since` joined every event's `committed` receipt against its revision rows before sorting, so SQLite's temporary sort carried each receipt once per revision: 503 kB of receipts became 122 MB of sort input on the 10,000-block workshop. The read now fetches event metadata in one query and revision and block rows in a second, keyed by the collected events, and keeps both orders. HTTP `/api/changes` and WebSocket catch-up now page 500 events, matching the client; each WebSocket message still carries one event.
+
+| Probe, 100 events | Before, core / HTTP p95 | After, core / HTTP p95 |
+|---|---|---|
+| 10,000 blocks, from 0 | 199 / 216 ms | 33 / 53 ms |
+| 10,000 blocks, from the midpoint | 99 / 93 ms | 17 / 26 ms |
+| 50,000 blocks, from 0 | 413 / 439 ms | 59 / 81 ms |
+| 50,000 blocks, from the midpoint | 417 / 444 ms | 57 / 82 ms |
+
+Twenty release runs each; the end probes stay under 1 ms. Remaining: `complete:cobalt` at 50,000 blocks measures 35 ms in core and 41 ms over HTTP against the 25 ms completion budget, the risk noted under spike 1.
 
 ## Spikes that decide the stack
 
