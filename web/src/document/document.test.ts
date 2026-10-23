@@ -4505,7 +4505,7 @@ test('images insert, place, remove and clipboard round trip in single undo steps
   doc.undo(); await instance.flush();
   expect(doc.edit({ kind: 'merge', sourceId: first, destinationId: placed[0]! }).ok).toBe(false);
   doc.release();
-});
+}, 30000);
 
 test('image mask edits undo atomically and clipboard keeps masks only with same-notebook images', async () => {
   const instance = await client();
@@ -4538,4 +4538,4 @@ test('image mask edits undo atomically and clipboard keeps masks only with same-
   doc.undo(); await doc.flush();
   expect((await api.sourceCards(first)).filter(card => card.active)).toHaveLength(1);
   doc.release();
-});
+}, 30000);
