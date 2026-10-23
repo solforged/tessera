@@ -180,6 +180,7 @@ impl Notebook {
                     COALESCE(h.summary,
                         CASE MAX(COALESCE(json_array_length(c.committed, '$.revisions'), 0),
                                  COALESCE(json_array_length(c.committed, '$.removed'), 0))
+                        WHEN 0 THEN COALESCE(c.reason, 'Changed the workshop')
                         WHEN 1 THEN '1 atom changed'
                         ELSE MAX(COALESCE(json_array_length(c.committed, '$.revisions'), 0),
                                  COALESCE(json_array_length(c.committed, '$.removed'), 0))
