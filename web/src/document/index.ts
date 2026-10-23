@@ -114,15 +114,15 @@ export class Notebook implements NotebookClient, DocumentHost {
   canUndoSetting = () => { this.revision[0](); return !this.settingsBusy() && this.settingUndo.length > 0; };
   canRedoSetting = () => { this.revision[0](); return !this.settingsBusy() && this.settingRedo.length > 0; };
   constructor(private options: NotebookOptions = {}) {
-    this.api = createApi(options.baseUrl);
-    this.subtreeCache = new SubtreeCache(this.api, block => this.publish(block, block.id, false, true));
-    const roots = createSignal<readonly Block[]>([]);
-    this.roots = roots[0];
-    this.setRoots = roots[1];
     // Each document lifetime owns a distinct outbox. Closed windows' drafts are
     // recovered under a Web Lock, rather than depending on restored sessionStorage.
     this.sessionId = options.sessionId ?? ulid();
     this.actorName = `tessera-web:${this.sessionId}`;
+    this.api = createApi(options.baseUrl, this.actorName);
+    this.subtreeCache = new SubtreeCache(this.api, block => this.publish(block, block.id, false, true));
+    const roots = createSignal<readonly Block[]>([]);
+    this.roots = roots[0];
+    this.setRoots = roots[1];
     this.ready = this.initialize().then(() => { this.initialized = true; this.touch(); });
     if (typeof window !== 'undefined') {
       window.addEventListener('online', this.online);

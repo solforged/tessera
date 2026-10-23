@@ -399,8 +399,8 @@ pub(super) fn tools() -> Value {
         },
         {
             "name": "tessera_recent_changes",
-            "title": "Recent agent changes",
-            "description": "Changes made through these tools by any agent, newest first, with their change numbers for tessera_undo.",
+            "title": "Recent history",
+            "description": "Workshop history from people, clients and agents, newest first, with change numbers for tessera_undo and whether undo is available.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -424,7 +424,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_undo",
             "title": "Undo a change",
-            "description": "Reverse one change made through these tools. Refused when a block or card it touched was changed since by someone else; undo later changes first. Pages and fields it created are kept while other blocks use them.",
+            "description": "Reverse one undoable history entry. Refused when a block or card it touched was changed since by someone else; undo later changes first. Pages and fields it created are kept while other blocks use them. The undo is another history entry and can itself be undone when reversible.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

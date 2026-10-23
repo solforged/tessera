@@ -729,7 +729,7 @@ fn membership_title_upgrade_preserves_unresolved_mentions_without_resurrecting_p
          ALTER TABLE changes DROP COLUMN change_id;
          ALTER TABLE changes DROP COLUMN origin;
          DROP TABLE provisional_pages;
-         DROP TABLE agent_changes;
+         DROP TABLE change_history;
          DROP TABLE memberships;
          CREATE TABLE memberships (
              block_id TEXT NOT NULL REFERENCES blocks(id),
@@ -1268,7 +1268,7 @@ fn manual_membership_migration_retains_authored_text_tags_and_unresolved_titles(
          ALTER TABLE changes DROP COLUMN change_id;
          ALTER TABLE changes DROP COLUMN origin;
          DROP TABLE provisional_pages;
-         DROP TABLE agent_changes;
+         DROP TABLE change_history;
          ALTER TABLE memberships RENAME TO modern_memberships;
          DROP INDEX memberships_type;
          DROP INDEX memberships_title;

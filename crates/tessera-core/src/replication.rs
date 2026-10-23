@@ -77,7 +77,7 @@ pub const TABLES: &[(&str, Replication)] = &[
     ("highlight_surfacings", Replication::Unlogged),
     ("replica", Replication::Local),
     ("ingest_jobs", Replication::Local),
-    ("agent_changes", Replication::Local),
+    ("change_history", Replication::Local),
     ("sync_replicas", Replication::Local),
     ("change_patches", Replication::Local),
     ("sync_hub", Replication::Local),

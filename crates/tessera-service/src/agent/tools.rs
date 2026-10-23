@@ -424,7 +424,7 @@ mod tests {
         let EventKind::Edit { seq, .. } = event else {
             panic!("expected edit");
         };
-        notebook.undo_agent_change(seq, &Actor::Person).unwrap();
+        notebook.undo_change(seq, &Actor::Person).unwrap();
         assert_eq!(notebook.block(child).unwrap().text, "Shared purpose");
         let (_, event) = execute(
             &mut notebook,

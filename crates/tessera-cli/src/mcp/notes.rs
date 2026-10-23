@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use anyhow::Context;
 use serde_json::Value;
 use tessera_core::{
-    AgentChange, AgentEdit, Block, BlockInPage, BlockKind, CardUnit, FieldsView, NoteTarget,
+    AgentEdit, Block, BlockInPage, BlockKind, CardUnit, FieldsView, HistoryEntry, NoteTarget,
     PageView, SettingsView, UndoReceipt,
 };
 
@@ -199,17 +199,21 @@ impl Session<'_> {
 
     pub(super) async fn recent_changes(&self, arguments: &Value) -> anyhow::Result<String> {
         let limit = integer(arguments, "limit")?.unwrap_or(20).to_string();
-        let changes: Vec<AgentChange> = self
+        #[derive(serde::Deserialize)]
+        struct History {
+            entries: Vec<HistoryEntry>,
+        }
+        let history: History = self
             .api()
             .await?
-            .get_with("/api/agent-changes", &[("limit", &limit)])
+            .get_with("/api/history", &[("limit", &limit)])
             .await?;
-        if changes.is_empty() {
-            return Ok("No agent changes yet.".into());
+        if history.entries.is_empty() {
+            return Ok("No history yet.".into());
         }
         let now = tessera_core::now_ms();
         let mut text = String::new();
-        for change in changes {
+        for change in history.entries {
             let who = match &change.actor {
                 tessera_core::Actor::Agent { name } | tessera_core::Actor::Client { name } => {
                     name.as_str()
@@ -225,6 +229,12 @@ impl Session<'_> {
             if let Some(by) = change.undone_by {
                 text.push_str(&format!(", undone by change {by}"));
             }
+            if let Some(seq) = change.undoes {
+                text.push_str(&format!(", undid change {seq}"));
+            }
+            if !change.undoable && change.undone_by.is_none() {
+                text.push_str(", no undo available");
+            }
             text.push('\n');
         }
         Ok(text)
@@ -236,15 +246,13 @@ impl Session<'_> {
             .api()
             .await?
             .post(
-                &format!("/api/agent-changes/{seq}/undo"),
+                &format!("/api/history/{seq}/undo"),
                 &serde_json::json!({ "actor": self.actor() }),
             )
             .await?;
-        // The undo's own number is an agent change number, which the receipt
-        // lacks; `committed.seq` counts every notebook change, so it is not it.
         let mut text = format!(
-            "Undid change {}; tessera_recent_changes lists the undo.",
-            receipt.undone
+            "Undid change {} as change {}; tessera_recent_changes lists the history.",
+            receipt.undone, receipt.committed.seq
         );
         if !receipt.kept_pages.is_empty() {
             text.push_str(&format!(

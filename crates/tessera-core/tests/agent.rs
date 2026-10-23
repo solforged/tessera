@@ -103,7 +103,15 @@ fn run(notebook: &mut Notebook, request: &AgentRequest) -> AgentReceipt {
     notebook.agent_edit(request).unwrap()
 }
 fn undo(notebook: &mut Notebook, seq: i64) -> Result<tessera_core::UndoReceipt, Error> {
-    notebook.undo_agent_change(seq, &Actor::Person)
+    notebook.undo_change(seq, &Actor::Person)
+}
+fn agent_history(notebook: &Notebook) -> Vec<tessera_core::HistoryEntry> {
+    notebook
+        .history(500, None)
+        .unwrap()
+        .into_iter()
+        .filter(|entry| entry.actor == agent())
+        .collect()
 }
 fn refused(result: Result<impl std::fmt::Debug, Error>, needle: &str) {
     match result {
@@ -140,7 +148,7 @@ fn a_missing_page_is_created_with_the_nested_outline_and_attributed() {
     assert_eq!(change.actor, agent());
     assert_eq!(change.reason.as_deref(), Some("summary"));
 
-    let listed = nb.agent_changes(10).unwrap();
+    let listed = agent_history(&nb);
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].seq, receipt.seq);
     assert_eq!(listed[0].actor, agent());
@@ -374,15 +382,12 @@ fn undoing_a_note_removes_its_blocks_and_the_pages_it_created_unless_in_use() {
     );
     assert!(nb.page_by_title("Arrakis").unwrap().is_none());
     assert!(matches!(nb.block(&arrakis), Err(Error::NotFound { .. })));
-    assert_eq!(
-        nb.agent_changes(10).unwrap()[0].undone_by,
-        Some(receipt.committed.seq)
-    );
+    assert_eq!(agent_history(&nb)[0].undone_by, Some(receipt.committed.seq));
     refused(undo(&mut nb, added.seq), "already undone");
-    assert!(matches!(
-        undo(&mut nb, receipt.committed.seq),
-        Err(Error::NotFound { .. })
-    ));
+    let undo_entry = nb.history(1, None).unwrap().remove(0);
+    assert_eq!(undo_entry.seq, receipt.committed.seq);
+    assert_eq!(undo_entry.undoes, Some(added.seq));
+    assert!(undo_entry.undoable);
 }
 
 #[test]
@@ -415,12 +420,7 @@ fn undo_refuses_after_someone_changes_or_extends_what_the_agent_wrote() {
     );
     refused(undo(&mut nb, extended.seq), "children added after");
     assert!(nb.block(&parent).is_ok());
-    assert!(
-        nb.agent_changes(10)
-            .unwrap()
-            .iter()
-            .all(|c| c.undone_by.is_none())
-    );
+    assert!(agent_history(&nb).iter().all(|c| c.undone_by.is_none()));
 }
 
 #[test]
@@ -647,7 +647,7 @@ fn a_rejected_request_writes_nothing() {
     );
     refused(nb.agent_edit(&note(page("Empty"), vec![])), "must contain");
     assert!(nb.page_by_title("Empty").unwrap().is_none());
-    assert!(nb.agent_changes(10).unwrap().is_empty());
+    assert!(agent_history(&nb).is_empty());
 }
 
 #[test]
@@ -1020,7 +1020,7 @@ fn created_decks_are_returned_stored_attributed_and_removed_on_undo() {
     assert_eq!(change.actor, agent());
     assert_eq!(change.reason.as_deref(), Some("summary"));
     assert_eq!(change.decks, vec![deck.id.clone()]);
-    let listed = nb.agent_changes(10).unwrap();
+    let listed = agent_history(&nb);
     assert_eq!(listed[0].summary, receipt.summary);
     assert!(listed[0].page.is_none());
     let undone = undo(&mut nb, receipt.seq).unwrap();
@@ -1048,7 +1048,7 @@ fn saving_existing_decks_refuses_stale_revisions() {
             if id == deck.id && expected == deck.revision - 1 && found == Some(deck.revision)
     ));
     assert_eq!(nb.deck(&deck.id).unwrap(), *deck);
-    assert_eq!(nb.agent_changes(10).unwrap().len(), 1);
+    assert_eq!(agent_history(&nb).len(), 1);
 }
 
 #[test]
@@ -1171,7 +1171,7 @@ fn deck_edits_reject_invalid_names_queries_and_missing_decks() {
         Err(Error::NotFound { id, .. }) if id == missing
     ));
     assert!(nb.decks().unwrap().is_empty());
-    assert!(nb.agent_changes(10).unwrap().is_empty());
+    assert!(agent_history(&nb).is_empty());
 }
 
 #[test]

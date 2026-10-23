@@ -221,7 +221,7 @@ impl ClonedSnapshot {
         // Deleting leaves free pages; VACUUM drops them so they are not sent.
         snapshot.execute_batch(
             "DELETE FROM sync_replicas; DELETE FROM change_patches; DELETE FROM sync_pending;
-             DELETE FROM sync_hub; DELETE FROM ingest_jobs; DELETE FROM agent_changes;
+             DELETE FROM sync_hub; DELETE FROM ingest_jobs; DELETE FROM change_history;
              DELETE FROM sync_pins; DELETE FROM sync_devices; DELETE FROM editor_events;
              DELETE FROM sqlite_sequence WHERE name = 'editor_events'; VACUUM;",
         )?;

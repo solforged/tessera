@@ -161,7 +161,7 @@ fn revisit_records_attribution_and_undo_restores_date_and_removes_event() {
             .unwrap()
             .is_empty()
     );
-    nb.undo_agent_change(receipt.seq, &Actor::Person).unwrap();
+    nb.undo_change(receipt.seq, &Actor::Person).unwrap();
     assert!(nb.revisit_events(&id(2)).unwrap().is_empty());
     let after = nb.capabilities(&id(2)).unwrap();
     assert_eq!(after.note, before.note);
@@ -243,7 +243,7 @@ fn first_proposal_uses_date_set_time_and_stale_undo_cannot_overwrite() {
     );
     let receipt = revisit(&mut nb, 1, RevisitAction::Revisited, None);
     revisit(&mut nb, 1, RevisitAction::Later, Some("2099-01-01"));
-    assert!(nb.undo_agent_change(receipt.seq, &Actor::Person).is_err());
+    assert!(nb.undo_change(receipt.seq, &Actor::Person).is_err());
     assert_eq!(
         nb.capabilities(&id(1))
             .unwrap()

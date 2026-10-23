@@ -63,6 +63,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/051_tag_identity.sql"),
     include_str!("../migrations/052_recipe_details.sql"),
     DISPLAY_TITLE_KEYS,
+    include_str!("../migrations/054_change_history.sql"),
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;

@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
-import type { Backups } from '../api/types';
+import type { Backups, HistoryEntry } from '../api/types';
 import { ANDROID, DEMO, EMBEDDED } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
@@ -10,11 +10,11 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { setThemePreference, themePreference } from '../shell/theme';
-import { size, sync } from '../sync/state';
+import { hubDevices, size, sync } from '../sync/state';
 import { backupLabel } from './backup';
 import { HubDevices, PhoneDevices } from './DevicesSection';
 import { BrowserBackups } from './BrowserBackups';
-import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, notebookPlace, openNotebook, workshopName, workshopsHome } from './notebooks';
+import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, notebookPlace, openNotebook, reloadNotebook, workshopName, workshopsHome } from './notebooks';
 import { AgentSettings } from '../agent/AgentSettings';
 import '../fields/field-page.css';
 import './settings.css';
@@ -34,24 +34,59 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     try { return await api.backups(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
-  const [agentChanges, { refetch: refreshAgentChanges }] = createResource(() => props.notebook.changeSequence(), async () => {
-    try { return await api.agentChanges(20); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
+  const [historyError, setHistoryError] = createSignal('');
+  const [hasMoreHistory, setHasMoreHistory] = createSignal(false);
+  const [loadingHistory, setLoadingHistory] = createSignal(false);
+  let historyGeneration = 0;
+  const [history, { refetch: refreshHistory, mutate: updateHistory }] = createResource(() => props.notebook.changeSequence(), async () => {
+    const generation = ++historyGeneration;
+    setHistoryError('');
+    try {
+      const entries = await props.notebook.api.history();
+      if (generation === historyGeneration) setHasMoreHistory(entries.length === 50);
+      return entries;
+    } catch (reason) {
+      if (generation === historyGeneration) setHistoryError(reason instanceof Error ? reason.message : String(reason));
+      return undefined;
+    }
   });
+  const showMoreHistory = async () => {
+    const before = history()?.at(-1)?.seq;
+    if (before === undefined || loadingHistory() || history.loading) return;
+    const generation = historyGeneration;
+    setLoadingHistory(true); setHistoryError('');
+    try {
+      const entries = await props.notebook.api.history(50, before);
+      if (generation !== historyGeneration) return;
+      updateHistory(values => [...(values ?? []), ...entries]);
+      setHasMoreHistory(entries.length === 50);
+    } catch (reason) {
+      if (generation === historyGeneration) setHistoryError(reason instanceof Error ? reason.message : String(reason));
+    } finally { setLoadingHistory(false); }
+  };
   const [undoing, setUndoing] = createSignal<number | null>(null);
-  const undoAgentChange = async (seq: number) => {
+  const undoChange = async (seq: number) => {
     if (undoing() !== null) return;
-    setUndoing(seq); setError('');
-    try { await api.undoAgentChange(seq); await refreshAgentChanges(); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
+    setUndoing(seq); setHistoryError('');
+    try { await props.notebook.api.undoChange(seq); await refreshHistory(); }
+    catch (reason) { setHistoryError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setUndoing(null); }
+  };
+  const historyActor = (entry: HistoryEntry) => {
+    const replica = sync.state()?.replica;
+    const remote = entry.origin && hubDevices.state()?.devices.find(device => device.id === entry.origin);
+    if (remote) return remote.name || 'Phone';
+    if (entry.origin && replica && entry.origin !== replica.device_id) return entry.origin;
+    if (entry.actor.kind === 'agent') return 'Agent';
+    return entry.actor.kind === 'person' || entry.actor.name.startsWith('tessera-web') ? 'You' : entry.actor.name;
   };
   const [backingUp, setBackingUp] = createSignal(false);
   const [removingBackups, setRemovingBackups] = createSignal(false);
+  const [restoringBackup, setRestoringBackup] = createSignal(false);
   const [confirmBackup, setConfirmBackup] = createSignal<string | null>(null);
   // Back up now with nothing changed since the newest backup makes none; the status says so.
   const [unchanged, setUnchanged] = createSignal(false);
-  const backupBusy = () => backingUp() || removingBackups();
+  const backupBusy = () => backingUp() || removingBackups() || restoringBackup();
   const otherBytes = createMemo(() => backups()?.others.reduce((total, other) => total + other.size, 0) ?? 0);
   const removeBackups = async (remove: () => Promise<Backups>) => {
     if (backupBusy()) return;
@@ -66,6 +101,19 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     try { const result = await api.createBackup(); updateBackups(result.backups); setUnchanged(!result.created); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBackingUp(false); }
+  };
+  const restoreBackup = async (name: string) => {
+    if (backupBusy()) return;
+    setRestoringBackup(true); setError('');
+    try {
+      const current = await api.notebook();
+      await api.restoreBackup(name);
+      setConfirmBackup(null);
+      await reloadNotebook(current.path, 'The restored workshop');
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : String(reason));
+      setRestoringBackup(false);
+    }
   };
   const [notebookPath, setNotebookPath] = createSignal('');
   const [forgetting, setForgetting] = createSignal<string | null>(null);
@@ -115,14 +163,13 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     ...(EMBEDDED ? [] : [{ key: 'notebooks', label: 'Workshops', count: knownNotebooks()?.notebooks.length ?? 0 }, { key: 'backups', label: 'Backups', count: backups()?.backups.length ?? 0 }]),
     ...(devices ? [{ key: 'devices', label: 'Devices', count: deviceCount() }] : []),
     ...(DEMO ? [] : [{ key: 'agent', label: 'Agent', count: 0 }]),
-    { key: 'agent-changes', label: 'Agent changes', count: agentChanges()?.length ?? 0 },
+    { key: 'history', label: 'History', count: history()?.length ?? 0 },
     { key: 'about', label: 'About', count: 0 },
   ]);
   const number = (key: string) => sections().findIndex(section => section.key === key) + 1;
   const sectionId = (key: string) => `settings-${key}-${props.pane}`;
   const [current, setCurrent] = createSignal('preferences');
   const [scrolled, setScrolled] = createSignal(false);
-  const [allChanges, setAllChanges] = createSignal(false);
   // A chosen section stays current until manual scrolling, since the last sections may not reach the header.
   const [chosen, setChosen] = createSignal<string | null>(null);
   const follow = () => {
@@ -148,8 +195,9 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     region.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
   };
   const when = (value: number) => {
-    const date = new Date(value), pad = (part: number) => String(part).padStart(2, '0');
-    return `${String(date.getFullYear()).padStart(4, '0')}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: zone(), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(value);
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(value => value.type === type)!.value;
+    return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`;
   };
   const heading = (index: number, key: string, label: string, aside?: JSX.Element) =>
     <h2 class="field-section-head" id={`${sectionId(key)}-heading`}><span class="field-rubric">{String(index).padStart(2, '0')}</span><span>{label}</span><span class="section-rule" />{aside}</h2>;
@@ -182,14 +230,14 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     const checkbox = region.querySelector<HTMLInputElement>(`#settings-${key}-${props.pane}`);
     if (checkbox) checkbox.checked = key === 'vim' ? props.notebook.vim() : props.notebook.confirmViewDelete();
   };
-  const history = async (redo: boolean) => {
+  const settingHistory = async (redo: boolean) => {
     try { if (redo) await props.notebook.redoSetting(); else await props.notebook.undoSetting(); }
     catch { /* The document displays the revision conflict or save error. */ }
   };
   return <div ref={region} class="settings-pane" tabIndex={0} aria-label="Settings" onScroll={() => { props.onViewChange({ scroll: region.scrollTop }); follow(); }} onWheel={release} onTouchStart={release} onKeyDown={event => {
     if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) release();
     if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z') {
-      event.preventDefault(); void history(event.shiftKey);
+      event.preventDefault(); void settingHistory(event.shiftKey);
     }
   }}>
     <div class="settings-layout">
@@ -197,8 +245,8 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         <header class="settings-header" data-scrolled={scrolled() ? '' : undefined}>
           <div class="settings-heading"><h1>Settings</h1></div>
           <span class="settings-status" role="status">{props.notebook.settingsMessage()}</span>
-          <Button icon="undo" label="Undo setting" shortcut="⌘Z" disabled={!props.notebook.canUndoSetting()} onClick={() => { void history(false); }} />
-          <Button icon="redo" label="Redo setting" shortcut="⌘⇧Z" disabled={!props.notebook.canRedoSetting()} onClick={() => { void history(true); }} />
+          <Button icon="undo" label="Undo setting" shortcut="⌘Z" disabled={!props.notebook.canUndoSetting()} onClick={() => { void settingHistory(false); }} />
+          <Button icon="redo" label="Redo setting" shortcut="⌘⇧Z" disabled={!props.notebook.canRedoSetting()} onClick={() => { void settingHistory(true); }} />
           <nav class="settings-index" aria-label="Settings sections">
             <For each={sections()}>{section => <button type="button" class="settings-index-item" data-section={section.key} aria-current={current() === section.key ? 'location' : undefined} onClick={() => reveal(section.key)}>
               <span>{section.label}</span><Show when={section.count > 0}><span class="settings-count">{section.count}</span></Show>
@@ -275,19 +323,24 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           <p class="settings-empty">This workshop is backed up once a day and before each update, unless nothing has changed. The newest three are kept, then one a day for a week and one a week for a month.</p>
           <div class="settings-row">
             <div class="settings-label"><span class="settings-name">Database and files</span><Show when={backups()}>{value => <>
-              <p role="status"><Show when={value().backups[0]} fallback="No backups yet.">{backup => <>Last backup <time class="settings-mono" dateTime={new Date(backup().created_at).toISOString()}>{when(backup().created_at)}</time>{unchanged() ? '; nothing has changed since' : ''}</>}</Show></p>
+              <p role="status"><Show when={!restoringBackup()} fallback="Restoring…"><Show when={value().backups[0]} fallback="No backups yet.">{backup => <>Last backup <time class="settings-mono" dateTime={new Date(backup().created_at).toISOString()}>{when(backup().created_at)}</time>{unchanged() ? '; nothing has changed since' : ''}</>}</Show></Show></p>
               <p class="settings-mono">{value().backups.length} {value().backups.length === 1 ? 'backup' : 'backups'} · {size(value().store_size)}</p>
             </>}</Show></div>
             <Button class="bordered" disabled={backupBusy()} onClick={() => { setConfirmBackup(null); void backUp(); }}>{backingUp() ? 'Backing up…' : 'Back up now'}</Button>
           </div>
-          <Show when={(backups()?.backups.length ?? 0) > 1}><details class="settings-more">
-            <summary><Icon name="right" />{backups()!.backups.length - 1} earlier {backups()!.backups.length === 2 ? 'backup' : 'backups'}</summary>
-            <ul><For each={backups()!.backups.slice(1)}>{backup => <li class="settings-backup-row">
-              <span>{backupLabel(backup)} · {size(backup.size)}</span>
-              <span class="settings-backup-actions"><Show when={confirmBackup() === backup.path} fallback={<Button class="danger" disabled={backupBusy()} onClick={() => setConfirmBackup(backup.path)}>Delete</Button>}>
-                <span class="settings-backup-question">Delete?</span>
+          <Show when={(backups()?.backups.length ?? 0) > 0}><details class="settings-more" open>
+            <summary><Icon name="right" />{backups()!.backups.length} stored {backups()!.backups.length === 1 ? 'backup' : 'backups'}</summary>
+            <ul><For each={backups()!.backups}>{(backup, index) => <li class="settings-backup-row">
+              <div><span>{backupLabel(backup)} · {size(backup.size)}{index() === 0 ? ' · newest' : ''}</span>
+                <Show when={confirmBackup() === `restore:${backup.path}`}><p class="settings-empty">Replace the workshop with this backup? A backup of the current workshop is taken first. Paired phones keep changes made since then until they sync again.</p></Show>
+              </div>
+              <span class="settings-backup-actions"><Show when={confirmBackup() === backup.path || confirmBackup() === `restore:${backup.path}`} fallback={<>
+                <Button disabled={backupBusy()} onClick={() => setConfirmBackup(`restore:${backup.path}`)}>Restore</Button>
+                <Show when={index() > 0}><Button class="danger" disabled={backupBusy()} onClick={() => setConfirmBackup(backup.path)}>Delete</Button></Show>
+              </>}>
+                <Show when={confirmBackup() === backup.path}><span class="settings-backup-question">Delete?</span></Show>
                 <Button disabled={backupBusy()} onClick={() => setConfirmBackup(null)}>Cancel</Button>
-                <Button class="bordered danger" disabled={backupBusy()} onClick={() => { void removeBackups(() => api.deleteBackup(backup.name)); }}>Confirm</Button>
+                <Button class="bordered danger" disabled={backupBusy()} onClick={() => { void (confirmBackup() === backup.path ? removeBackups(() => api.deleteBackup(backup.name)) : restoreBackup(backup.name)); }}>Confirm</Button>
               </Show></span>
             </li>}</For></ul>
           </details></Show>
@@ -310,24 +363,26 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           </Show>
         </section>}
         {!DEMO && <AgentSettings id={sectionId('agent')} heading={heading(number('agent'), 'agent', 'Agent')} />}
-        <section id={sectionId('agent-changes')} aria-labelledby={`${sectionId('agent-changes')}-heading`} aria-busy={undoing() !== null}>
-          {heading(number('agent-changes'), 'agent-changes', 'Agent changes')}
-          <Show when={agentChanges()}>{values => <Show when={values().length > 0} fallback={<p class="settings-empty">No agent changes yet. When an agent edits this workshop, each change appears here with its own Undo.</p>}>
+        <section id={sectionId('history')} aria-labelledby={`${sectionId('history')}-heading`} aria-busy={history.loading || loadingHistory() || undoing() !== null}>
+          {heading(number('history'), 'history', 'History')}
+          <Show when={historyError()}>{message => <p class="error" role="alert">{message()}</p>}</Show>
+          <Show when={history()}>{values => <Show when={values().length > 0} fallback={<p class="settings-empty">No changes yet. Edits to this workshop appear here with their author and Undo when available.</p>}>
             <ol class="settings-changes">
-              <For each={allChanges() ? values() : values().slice(0, 3)}>{change => <li class="settings-change" data-undone={change.undone_by === null ? undefined : ''}>
+              <For each={values()}>{change => <li class="settings-change" data-undone={change.undone_by === null ? undefined : ''}>
                 <div class="settings-label">
                   <span class="settings-name">{change.summary}</span>
-                  <p><span class="settings-mono">{change.actor.kind === 'person' ? 'Person' : change.actor.name} · <time dateTime={new Date(change.created_at).toISOString()}>{when(change.created_at)}</time></span>
+                  <p><span class="settings-mono">{historyActor(change)} · <time dateTime={new Date(change.created_at).toISOString()}>{when(change.created_at)}</time></span>
                     <Show when={change.page}>{page => <><span class="settings-mono"> · </span><button type="button" class="settings-page-link" title={`Open atom · ${besideHint}`} onClick={event => props.onOpen({ kind: 'page', pageId: page().id }, opensBeside(event))}>{page().text}</button></>}</Show>
+                    <Show when={change.undoes !== null}><span class="settings-mono"> · Undid change {change.undoes}</span></Show>
                   </p>
                 </div>
-                <Show when={change.undone_by === null} fallback={<span class="settings-aside">Undone</span>}>
-                  <Button class="bordered" disabled={undoing() !== null} onClick={() => { void undoAgentChange(change.seq); }}>{undoing() === change.seq ? 'Undoing…' : 'Undo'}</Button>
+                <Show when={change.undoable} fallback={<Show when={change.undone_by !== null}><span class="settings-aside">Undone</span></Show>}>
+                  <Button class="bordered" disabled={undoing() !== null || history.loading || loadingHistory()} onClick={() => { void undoChange(change.seq); }}>{undoing() === change.seq ? 'Undoing…' : 'Undo'}</Button>
                 </Show>
               </li>}</For>
             </ol>
-            <Show when={values().length > 3}>
-              <Button class="settings-show-more" aria-expanded={allChanges()} onClick={() => setAllChanges(value => !value)}><Icon name="right" />{allChanges() ? 'Show fewer' : `Show ${values().length - 3} earlier`}</Button>
+            <Show when={hasMoreHistory()}>
+              <Button class="settings-show-more" disabled={history.loading || loadingHistory() || undoing() !== null} onClick={() => { void showMoreHistory(); }}><Icon name="right" />{loadingHistory() ? 'Loading…' : 'Show more'}</Button>
             </Show>
           </Show>}</Show>
         </section>

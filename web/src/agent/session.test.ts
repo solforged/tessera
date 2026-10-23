@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeEach, expect, mock, test } from 'bun:test';
 import type * as Solid from 'solid-js';
-import type { AgentTurnEvents, StartAgentTurn, TurnEvent } from '../api/types';
+import type { Actor, AgentTurnEvents, StartAgentTurn, TurnEvent } from '../api/types';
 import type { AgentSession, DockMessage } from './session';
 
 // Dynamic imports are intentional here: mock Solid's SSR boundary before loading its consumers.
@@ -39,7 +39,7 @@ function session(notebook = 'notebook') {
   return createRoot(dispose => {
     disposers.push(dispose);
     const [id, setId] = createSignal<string | undefined>(notebook);
-    return { dock: createAgentSession(id), setId, dispose };
+    return { dock: createAgentSession(id, createApi('', `tessera-web:${notebook}`)), setId, dispose };
   });
 }
 async function until(ready: () => boolean) {
@@ -58,6 +58,7 @@ function service() {
   const starts: StartAgentTurn[] = [];
   const cancelled: string[] = [];
   const undos: number[] = [];
+  const undoActors: Actor[] = [];
   const polls: { after: number; signal?: AbortSignal | null; reply(value: AgentTurnEvents): void; fail(error: Error): void }[] = [];
   let refusal: string | undefined;
   let creation: Promise<Response> | undefined;
@@ -82,12 +83,15 @@ function service() {
       });
     }
     if (parsed.pathname.endsWith('/undo')) {
+      expect(parsed.pathname).toMatch(/^\/api\/history\/\d+\/undo$/);
+      const body: { actor: Actor } = JSON.parse(String(init.body));
+      undoActors.push(body.actor);
       undos.push(Number(parsed.pathname.split('/').at(-2)));
       return refusal ? Response.json({ error: { code: 'conflict', message: refusal } }, { status: 409 }) : Response.json({ undone: undos.at(-1), kept_pages: [], committed: {} });
     }
     throw new Error(`Unexpected request ${init.method} ${url}`);
   });
-  return { starts, cancelled, undos, polls,
+  return { starts, cancelled, undos, undoActors, polls,
     refuse(message: string) { refusal = message; },
     deferStart(promise: Promise<Response>) { creation = promise; },
     async reply(dock: AgentSession, events: TurnEvent[], done = false) {
@@ -186,6 +190,7 @@ test('marks show the newest un-undone change and undo failures retain their mark
   expect(await dock.undo(10)).toBe('This atom changed after the agent edit.');
   expect(dock.marks().get('b')).toEqual({ seq: 10, summary: 'First' });
   expect(server.undos).toEqual([11, 10]);
+  expect(server.undoActors).toEqual([{ kind: 'client', name: 'tessera-web:notebook' }, { kind: 'client', name: 'tessera-web:notebook' }]);
 });
 
 test('turn history excludes the current prompt and keeps earlier assistant text parts as separate paragraphs', async () => {

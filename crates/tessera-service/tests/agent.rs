@@ -58,6 +58,89 @@ fn embedded(dir: &std::path::Path) -> (Router, tessera_service::EmbeddedHandles)
     .unwrap()
 }
 
+#[tokio::test]
+async fn history_lists_editor_and_agent_writes_and_undoes_with_the_shared_shape() {
+    let dir = tempfile::tempdir().unwrap();
+    let (app, _) = embedded(dir.path());
+    let (status, added) = request(
+        &app,
+        "POST",
+        "/api/agent-changes",
+        json!({
+            "actor": {"kind":"agent", "name":"History test"},
+            "kind":"add_note", "target":{"kind":"page", "title":"History"},
+            "blocks":[{"text":"Original"}]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{added}");
+    let seq = added["seq"].as_i64().unwrap();
+    let block = added["blocks"][0]["id"].as_str().unwrap();
+    let (status, edited) = request(
+        &app,
+        "POST",
+        "/api/batches",
+        json!({
+            "actor":{"kind":"client", "name":"tessera-web:test"},
+            "operations":[{"op":"edit_text", "id":block, "base_revision":1, "text":"Edited"}]
+        }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{edited}");
+    let editor_seq = edited["seq"].as_i64().unwrap();
+    let (status, history) = request(&app, "GET", "/api/history?limit=1", Value::Null).await;
+    assert_eq!(status, StatusCode::OK, "{history}");
+    assert_eq!(history.as_object().unwrap().len(), 1);
+    assert_eq!(history["entries"].as_array().unwrap().len(), 1);
+    let entry: tessera_core::HistoryEntry =
+        serde_json::from_value(history["entries"][0].clone()).unwrap();
+    assert_eq!(entry.seq, editor_seq);
+    assert_eq!(history["entries"][0].as_object().unwrap().len(), 11);
+    assert_eq!(
+        entry.actor,
+        Actor::Client {
+            name: "tessera-web:test".into()
+        }
+    );
+    assert!(entry.undoable);
+    assert!(entry.change_id.is_some());
+    assert!(entry.origin.is_some());
+    assert_eq!(entry.page.as_ref().unwrap().text, "History");
+    assert_eq!(entry.undoes, None);
+    let (status, previous) = request(
+        &app,
+        "GET",
+        &format!("/api/history?limit=1&before={editor_seq}"),
+        Value::Null,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{previous}");
+    assert_eq!(previous["entries"][0]["seq"], seq);
+
+    let (status, undone) = request(
+        &app,
+        "POST",
+        &format!("/api/history/{editor_seq}/undo"),
+        json!({"actor":{"kind":"person"}}),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{undone}");
+    assert_eq!(undone["undone"], editor_seq);
+    assert_eq!(undone["kept_pages"], json!([]));
+    assert!(undone["committed"]["seq"].is_i64());
+    let (_, history) = request(&app, "GET", "/api/history?limit=2", Value::Null).await;
+    assert_eq!(history["entries"][0]["undoes"], editor_seq);
+    assert_eq!(
+        history["entries"][1]["undone_by"],
+        undone["committed"]["seq"]
+    );
+    assert_eq!(history["entries"][1]["undoable"], false);
+    let (status, _) = request(&app, "GET", "/api/agent-changes", Value::Null).await;
+    assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
+    let (status, _) = request(&app, "GET", "/api/history?before=invalid", Value::Null).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
 async fn save(app: &Router, protocol: &str, base: &str, key: Option<Value>) -> Value {
     let mut provider = json!({"id":"local","name":"Test provider","protocol":protocol,"base_url":base,"model":"model"});
     if let Some(key) = key {
@@ -471,7 +554,7 @@ async fn protocol_turn(protocol: &'static str) {
                 .collect::<Vec<_>>(),
             [("First note", 0), ("Child note", 1), ("Second note", 0)]
         );
-        let changes = notebook.agent_changes(10).unwrap();
+        let changes = notebook.history(10, None).unwrap();
         assert_eq!(
             changes[0].actor,
             Actor::Agent {

@@ -2,6 +2,7 @@ import { createComputed, createMemo, createSignal, onCleanup, untrack } from 'so
 import type { Accessor } from 'solid-js';
 import { ulid } from 'ulid';
 import { api } from '../api/client';
+import type { ApiClient } from '../api/client';
 import type { ContextRef, StartAgentTurn, ThreadMessage, TurnEvent } from '../api/types';
 
 export type AssistantPart =
@@ -34,7 +35,7 @@ function load(notebook: string | undefined): DockMessage[] {
   } catch { return []; }
 }
 
-export function createAgentSession(notebookId: Accessor<string | undefined>): AgentSession {
+export function createAgentSession(notebookId: Accessor<string | undefined>, client: ApiClient = api): AgentSession {
   const [messages, setMessages] = createSignal<DockMessage[]>([]);
   let notebook: string | undefined;
   let active: RunningTurn | undefined;
@@ -155,7 +156,7 @@ export function createAgentSession(notebookId: Accessor<string | undefined>): Ag
     async undo(seq) {
       const sourceNotebook = notebook;
       try {
-        await api.undoAgentChange(seq);
+        await client.undoChange(seq);
         if (notebook !== sourceNotebook || disposed) return null;
         update(thread => thread.map(message => message.role !== 'assistant' ? message : {
           ...message,
