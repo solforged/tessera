@@ -2,6 +2,17 @@
 
 Each stage ends with an exit test: a real task done in the running app. Stages are ordered, not dated.
 
+## Passes
+
+Stages describe what the product becomes. Passes are the order the remaining work is taken, decided on 2026-10-22 after a health check: the engine and tests are sound, stages 0 to 5 and 11 are done, and the cost of a lost edit now exceeds the cost of a missing feature.
+
+1. Stabilize. Ship each release to the Mac the same day, keep `mise run check` green under load, publish a current Android build and pair the Fold again, and fix the launcher-shortcut restart (issue 40).
+2. Trust before breadth. Run spike 5 (the eight-hour soak) and spike 4 (runtime and concurrency), replace the full `/api/changes` replay on launch with a cursor, add restore from Settings › Backups, and record history for every change, not only agents'. The leftovers of stage 8.
+3. Close the open stages. Stage 10: system types, the Form field, `is:` and `revisit:` predicates and State grouping. Stage 7: assessments that cite positions and passages. Stage 4: cards from field entries. Each has a mock or a settled model already.
+4. Capture, stage 6. The browser extension first, then feeds and newsletters, then providers.
+5. Perspectives, stage 9. PDFs first, then idea breakdowns and agent-assisted study.
+6. Polish between passes, as drivethroughs of the shipped build.
+
 ## 0. Foundations
 
 - One vocabulary and a first schema from the [domain model](domain-model.md).
