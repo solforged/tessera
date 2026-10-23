@@ -11,7 +11,8 @@ export interface Tracker { receipts: Receipt[]; pollsWhileLive: number; catchUpR
 export interface OutboxCounts { notebooks: number; pages: number; commands: number; tickets: number; blocks: number; capabilities: number; cachedPages: number }
 export interface HeapSample { used: number; total: number; nodes: number; listeners: number }
 export interface StorageSample { outbox: OutboxCounts; pagesOpened: number; mounted: number; domNodes: number }
-interface Probe { pending: number; live: boolean; recovering: boolean; observed: number; opened: string[] }
+interface KeySample { at: number; key: string; code: string; ctrlKey: boolean; shiftKey: boolean; metaKey: boolean; altKey: boolean; defaultPrevented: boolean; preventedAfterDispatch?: boolean; isComposing: boolean; targetTag: string | null; targetClass: string | null; blockingPopup?: string }
+interface Probe { pending: number; live: boolean; recovering: boolean; observed: number; opened: string[]; keys: KeySample[] }
 declare global { interface Window { __spike: Probe; __spikeAck(value: Receipt): Promise<void>; __spikePoll(live: boolean, recovering: boolean): Promise<void>; __spikeFailure(message: string): Promise<void> } }
 
 export function percentile(values: readonly number[], fraction: number) {
@@ -40,7 +41,19 @@ export async function instrument(context: BrowserContext, name: string, result: 
   });
   await context.exposeBinding('__spikeFailure', (_source, message: string) => { result.errors.push(`${name}: ${message}`); });
   await context.addInitScript(() => {
-    window.__spike = { pending: 0, live: false, recovering: false, observed: 0, opened: [] };
+    window.__spike = { pending: 0, live: false, recovering: false, observed: 0, opened: [], keys: [] };
+    window.addEventListener('keydown', event => {
+      if (!event.ctrlKey || !event.shiftKey) return;
+      const target = event.target instanceof Element ? event.target : null;
+      const sample: KeySample = {
+        at: Date.now(), key: event.key, code: event.code, ctrlKey: event.ctrlKey, shiftKey: event.shiftKey, metaKey: event.metaKey, altKey: event.altKey,
+        defaultPrevented: event.defaultPrevented, isComposing: event.isComposing, targetTag: target?.tagName ?? null, targetClass: target?.getAttribute('class') ?? null,
+        blockingPopup: document.querySelector('.popup:not(.reference-preview), .popup.reference-preview:focus-within')?.outerHTML.slice(0, 300),
+      };
+      window.__spike.keys.push(sample);
+      if (window.__spike.keys.length > 20) window.__spike.keys.shift();
+      setTimeout(() => { sample.preventedAfterDispatch = event.defaultPrevented; }, 0);
+    }, true);
     const original = window.fetch.bind(window);
     window.fetch = Object.assign(async (...args: Parameters<typeof window.fetch>) => {
       const input = args[0];

@@ -65,17 +65,18 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const [pendingPick, setPendingPick] = createSignal<{ query: string; scope: BlockInPage | undefined; filter: FindScope; beside: boolean; shift: boolean }>();
   const initialRequests = new AbortController();
   onCleanup(() => initialRequests.abort());
-  const [library] = createResource(async () => props.notebook.api.library({ limit: 500 }, initialRequests.signal));
-  const [highlights] = createResource(async () => props.notebook.api.highlights({ limit: 500 }, initialRequests.signal));
-  const books = createMemo(() => new Map((library()?.rows ?? []).map(row => [row.page.id, row])));
-  const [fields] = createResource(() => mode() === 'search' ? props.notebook.changeSequence() : false, () => props.notebook.api.fields(initialRequests.signal));
+  const live = createMemo(() => props.notebook.connection() === 'live');
+  const [library] = createResource(() => mode() === 'search' && live(), () => props.notebook.api.library({ limit: 500 }, initialRequests.signal));
+  const [highlights] = createResource(() => mode() === 'search' && live(), () => props.notebook.api.highlights({ limit: 500 }, initialRequests.signal));
+  const books = createMemo(() => new Map((library.error ? [] : library()?.rows ?? []).map(row => [row.page.id, row])));
+  const [fields] = createResource(() => mode() === 'search' && live() ? props.notebook.changeSequence() : false, () => props.notebook.api.fields(initialRequests.signal));
   // One registry projection supplies every result's identity, rather than a kinds request per row.
-  const [identities] = createResource(() => mode() === 'search' ? props.notebook.changeSequence() : false, () => props.notebook.api.query({ ...typeQuery(null), source: 'notes', columns: [{ key: '@kind' }] }, initialRequests.signal));
-  const pageKinds = createMemo(() => new Map((identities()?.rows ?? []).map(row => [row.block.page.id, row.attributes?.['@kind']?.map(value => value.text) ?? []])));
+  const [identities] = createResource(() => mode() === 'search' && live() ? props.notebook.changeSequence() : false, () => props.notebook.api.query({ ...typeQuery(null), source: 'notes', columns: [{ key: '@kind' }] }, initialRequests.signal));
+  const pageKinds = createMemo(() => new Map((identities.error ? [] : identities()?.rows ?? []).map(row => [row.block.page.id, row.attributes?.['@kind']?.map(value => value.text) ?? []])));
   const kindsByKey = createMemo(() => new Map((props.noteKinds ?? []).map(kind => [kind.key, kind])));
   const definitions = createMemo(() => new Set([
     ...(props.noteKinds ?? []).flatMap(kind => kind.type_id ? [kind.type_id] : []),
-    ...(fields() ? [fields()!.page_id, ...fields()!.fields.map(field => field.id)] : []),
+    ...(!fields.error && fields() ? [fields()!.page_id, ...fields()!.fields.map(field => field.id)] : []),
   ]));
   const isDefinition = (entry: Entry) => entry.kind === 'hit' && definitions().has(entry.hit.page.id) || entry.kind === 'more' && definitions().has(entry.page.id);
   const resultKind = (pageId: string) => {
@@ -96,7 +97,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const [passagesLoading, setPassagesLoading] = createSignal(false);
   const [passagesError, setPassagesError] = createSignal('');
   createEffect(() => {
-    const q = text(), ready = mode() === 'search' && q === debounced() && q.length >= 3
+    const q = text(), ready = mode() === 'search' && live() && q === debounced() && q.length >= 3
       && (findScope() === 'Everything' || findScope() === 'Books') && !scopes().length;
     setPassageHits([]); setPassagesError(''); setPassagesLoading(ready);
     if (!ready) return;
@@ -113,7 +114,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   createEffect(() => {
     const ids = [...new Set([
       ...passageHits().map(hit => hit.source_id),
-      ...(highlights()?.rows ?? []).filter(row => !!text() && highlightMatches(row, text())).map(row => row.citation.source_id),
+      ...(highlights.error ? [] : highlights()?.rows ?? []).filter(row => !!text() && highlightMatches(row, text())).map(row => row.citation.source_id),
     ])].filter(id => !sourceCache.has(id));
     if (!ids.length) return;
     const controller = new AbortController();
@@ -135,7 +136,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     const timer = setTimeout(() => { setDebounced(value); setScopes([]); }, 100);
     onCleanup(() => clearTimeout(timer));
   });
-  const [hits] = createResource(() => mode() === 'search' ? [debounced(), props.notebook.changeSequence()] as const : false, async ([q]): Promise<SearchHit[]> => {
+  const [hits] = createResource(() => mode() === 'search' ? [debounced(), props.notebook.changeSequence(), live()] as const : false, async ([q]): Promise<SearchHit[]> => {
     if (!q) return props.notebook.roots().map(root => ({ block: root, page: root }));
     const [pages, blocks] = await Promise.all([api.complete(q, 40), api.search(q)]);
     const roots = pages.filter(page => page.kind !== 'block').map(page => ({ block: page, page, alias: page.alias }));
@@ -145,9 +146,10 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const scope = () => scopes().at(-1);
   const [scopedPage] = createResource(() => {
     const id = scope()?.matching ? undefined : scope()?.page.id;
-    return id && props.notebook.lookup(id)()?.revision !== 0 ? id : undefined;
+    return live() && id && props.notebook.lookup(id)()?.revision !== 0 ? id : undefined;
   }, id => api.page(id));
   const commands = createMemo(() => {
+    if (mode() !== 'commands') return [];
     const search = text().toLocaleLowerCase();
     return orderedCommands.filter(command => (search || command.section !== 'Page' || !command.disabledReason?.())
       && [command.title, command.section === 'Page' ? 'This atom' : command.section, ...command.keywords ?? []].some(value => value.toLocaleLowerCase().includes(search)));
@@ -165,7 +167,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       ?? rows.find(hit => hit.block.kind === 'page' && titleKey(hit.block.text) === titleKey(title))?.block : null;
     const result: Entry[] = [];
     if (!parent && (findScope() === 'Everything' || findScope() === 'Highlights') && title) {
-      result.push(...(highlights()?.rows ?? []).filter(row => highlightMatches(row, title)).map((row): Entry => ({ kind: 'highlight', row })));
+      result.push(...(highlights.error ? [] : highlights()?.rows ?? []).filter(row => highlightMatches(row, title)).map((row): Entry => ({ kind: 'highlight', row })));
     }
     const shownHighlightBlocks = new Set(result.filter((entry): entry is Extract<Entry, { kind: 'highlight' }> => entry.kind === 'highlight').map(entry => entry.row.block.block.id));
     const allowed = (hit: BlockInPage) => parent || findScope() === 'Everything'
@@ -242,7 +244,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const busy = () => mode() === 'search' && (text() !== debounced() || hits.loading || scopedPage.loading || passagesLoading() || highlights.loading || library.loading);
   const error = () => {
     if (createError()) return createError();
-    const reason = mode() === 'search' ? hits.error ?? scopedPage.error ?? highlights.error ?? library.error : undefined;
+    const reason = mode() === 'search' ? hits.error ?? scopedPage.error ?? highlights.error ?? library.error ?? fields.error ?? identities.error : undefined;
     return reason ? `Couldn't search · ${String(reason?.message ?? reason)}` : passagesError() ? `Couldn't search book text · ${passagesError()}` : undefined;
   };
   const pick = (entry: Entry, beside: boolean) => {
@@ -302,7 +304,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     inputRef={input => { queryInput = input; }}
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
     queryActions={<Button class="find-cancel" onClick={props.onDismiss}>Cancel</Button>}
-    preview={<Show when={mode() === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} fields={fields()?.fields ?? []} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
+    preview={<Show when={mode() === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} fields={fields.error ? [] : fields()?.fields ?? []} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
     onSelect={setSelectedEntry}
     status={<><Show when={mode() === 'search'}><div class="find-scopes mode-tabs tab-strip" role="group" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); queryInput?.focus({ preventScroll: true }); }}>{value === 'Pages' ? 'Atoms' : value}</Button>}</For></div></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
     items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'more' ? `more:${entry.page.id}` : entry.kind === 'command' ? entry.command.id : entry.kind === 'highlight' ? entry.row.citation.id : entry.kind === 'passage' ? entry.hit.passage.id : `create:${entry.action}`}
