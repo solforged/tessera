@@ -9,7 +9,7 @@
         <intent
             android:action="dev.tessera.android.CAPTURE"
             android:targetPackage="dev.tessera.android"
-            android:targetClass="dev.tessera.android.MainActivity">
+            android:targetClass="dev.tessera.android.CaptureShortcutActivity">
             <extra android:name="dev.tessera.android.CREATE_KIND" android:value="note" />
         </intent>
     </shortcut>
@@ -21,7 +21,7 @@
         <intent
             android:action="dev.tessera.android.CAPTURE"
             android:targetPackage="dev.tessera.android"
-            android:targetClass="dev.tessera.android.MainActivity">
+            android:targetClass="dev.tessera.android.CaptureShortcutActivity">
             <extra android:name="dev.tessera.android.CREATE_KIND" android:value="task" />
         </intent>
     </shortcut>
@@ -33,7 +33,7 @@
         <intent
             android:action="dev.tessera.android.CAPTURE"
             android:targetPackage="dev.tessera.android"
-            android:targetClass="dev.tessera.android.MainActivity">
+            android:targetClass="dev.tessera.android.CaptureShortcutActivity">
             <extra android:name="dev.tessera.android.CREATE_KIND" android:value="question" />
         </intent>
     </shortcut>
@@ -45,7 +45,7 @@
         <intent
             android:action="dev.tessera.android.CAPTURE"
             android:targetPackage="dev.tessera.android"
-            android:targetClass="dev.tessera.android.MainActivity">
+            android:targetClass="dev.tessera.android.CaptureShortcutActivity">
             <extra android:name="dev.tessera.android.CREATE_KIND" android:value="source" />
         </intent>
     </shortcut>

@@ -543,7 +543,14 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     } catch (reason) { reportError(reason); }
   };
   const [creation, setCreation] = createSignal<{ request: CreateRequest; anchor?: PopupAnchor; pane: PaneId }>();
-  const openCreate = (request: CreateRequest, anchor?: PopupAnchor) => { setPopup(null); setTypesMenu(null); setCreation({ request, anchor, pane: active() }); };
+  const [createDirty, setCreateDirty] = createSignal(false);
+  const openCreate = (request: CreateRequest, anchor?: PopupAnchor) => { setPopup(null); setTypesMenu(null); setCreateDirty(false); setCreation({ request, anchor, pane: active() }); };
+  /** A shortcut or widget tap while a draft is open returns to that draft; only a request carrying text replaces it. */
+  const quickCreate = (request: CreateRequest) => {
+    if (!creation() || !createDirty() || request.text) { openCreate(request); return; }
+    const field = document.querySelector<HTMLElement>('.create-slip textarea, .create-slip input:not([type="file"])');
+    if (field) { field.blur(); field.focus(); }
+  };
   /** Saving or Escape leaves focus where the slip opened from. */
   const closeCreate = () => {
     setCreation(undefined);
@@ -675,7 +682,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   });
   installOpenedFiles(() => navigationId() !== null, () => open({ kind: 'library', tab: 'inbox' }, false, order()[0]), reportError);
   // ⌘E, the desktop menu and global shortcut, and Android's launcher shortcuts and share sheet.
-  installQuickCapture(() => navigationId() !== null, openCreate);
+  installQuickCapture(() => navigationId() !== null, quickCreate);
   // Caret and scroll reports change navigation on most keystrokes; storage writes trail them off the input path.
   let navigationWrite: { key: string; value: unknown } | null = null;
   let navigationTimer = 0;
@@ -1204,7 +1211,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         ]} />
       </Show>
     </>}</Show>
-    <Show keyed when={creation()}>{state => <CreateSlip notebook={notebook} request={state.request} anchor={state.anchor} onDismiss={closeCreate} onOpen={(target, beside) => open(target, beside, state.pane)} onNotice={showNotice} />}</Show>
+    <Show keyed when={creation()}>{state => <CreateSlip notebook={notebook} request={state.request} anchor={state.anchor} onDismiss={closeCreate} onOpen={(target, beside) => open(target, beside, state.pane)} onNotice={showNotice} onDraft={setCreateDirty} />}</Show>
     <ReferencePreviews notebook={notebook} navigationKey={`${active()}:${order().map(pane => sessions()[pane]?.generation ?? 0).join(':')}`} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
     <Show when={toastShown() && notice()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setToastHeld(true)} onPointerLeave={() => setToastHeld(false)} onFocusIn={() => setToastHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastHeld(false); }}><span>{value().message}</span><For each={value().actions}>{action => <Button disabled={noticeBusy()} onClick={() => void noticeAction(action)}>{action.label}</Button>}</For><Button icon="close" label="Dismiss notification" onClick={() => setToastShown(false)} /></div>}</Show>
     <NotebookOpening />

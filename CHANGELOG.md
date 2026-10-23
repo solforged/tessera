@@ -6,6 +6,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ## Unreleased
 
+### Fixed
+
+- Routed Android launcher shortcuts through a throwaway activity, so New note, New task, New question and Add to library open the capture slip in the running app and keep an open draft instead of restarting Tessera.
+
 ## 0.5.1, 2026-10-23
 
 ### Changed

@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createMemo, createResource, createSignal, onMount } from 'solid-js';
+import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { NotebookClient, CaptureReceipt } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { shortDay } from '../shell/desk-counts';
@@ -30,6 +30,8 @@ export interface CreateSlipProps {
   onCreated?(pageId: string): void;
   onNotice?(notice: CreateNotice): void;
   defaultBeside?: boolean;
+  /** Whether the slip holds typed text, so the shell can keep it over a blank capture request. */
+  onDraft?(dirty: boolean): void;
 }
 const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
 const primaryKinds: { kind: CreateKind; label: string }[] = [
@@ -84,6 +86,7 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
     setText(value);
     if (!chosen) changeKind(inferKind(value) ?? props.request.kind, false);
   }
+  createEffect(() => props.onDraft?.(text().trim().length > 0 || gist().trim().length > 0));
   onMount(() => {
     if (text() && !chosen) changeText(text());
     if (props.request.focus === 'kind' && !props.request.lockKind) queueMicrotask(() => {
