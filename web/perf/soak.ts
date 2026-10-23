@@ -10,7 +10,7 @@ import { report, table } from './lib/report';
 interface WindowRun { context: BrowserContext; page: Page; slot: number; generation: number; busy: boolean; recycling: boolean }
 interface Sample { elapsedMs: number; walBytes: number; windows: { slot: number; generation: number; heap: HeapSample; storage: StorageSample }[] }
 interface Checkpoint { elapsedMs: number; kind: string; revisions: RevisionCheck; check: { ok: boolean }; commands: number[] }
-interface WorkloadAction { elapsedMs: number; slot: number; generation: number; kind: string; target?: string; key?: string; finishedMs?: number; state?: string | null; error?: string }
+interface WorkloadAction { elapsedMs: number; slot: number; generation: number; kind: string; target?: string; key?: string; finishedMs?: number; state?: string | null; findRetry?: string; error?: string }
 
 async function findFailure(win: WindowRun, error: unknown) {
   const directory = join(root, 'web/perf/results');
@@ -34,6 +34,7 @@ const outcomes: Outcome[] = [];
 const samples: Sample[] = [];
 const checkpoints: Checkpoint[] = [];
 const actions: WorkloadAction[] = [];
+const findRetries = [0, 0];
 const windows: WindowRun[] = [];
 const tasks: Promise<void>[] = [];
 let browser: Browser | undefined;
@@ -79,7 +80,10 @@ try {
   outcomes.push(shortcutCheck);
   actions.push(shortcutAction);
   try {
-    await find(shortcutPage, corpus.pages[0]!.title);
+    await find(shortcutPage, corpus.pages[0]!.title, async error => {
+      findRetries[0]!++;
+      shortcutAction.findRetry = await findFailure(windows[0]!, error);
+    });
     shortcutCheck.pass = true;
     shortcutCheck.evidence = 'Ctrl+Shift+F opened Find with the journal caret before existing text, after Enter and ArrowUp.';
   } catch (error) {
@@ -155,7 +159,10 @@ try {
           action.kind = 'find';
           const target = corpus.pages[Math.floor(rng() * corpus.pages.length)]!;
           action.target = target.title;
-          await find(win.page, target.title);
+          await find(win.page, target.title, async error => {
+            findRetries[slot]!++;
+            action.findRetry = await findFailure(win, error);
+          });
         } else if (roll < .16) {
           action.kind = 'back-forward';
           await win.page.keyboard.press('Control+Shift+h');
@@ -264,6 +271,7 @@ const maxMounted = samples.length ? Math.max(...samples.flatMap(sample => sample
 outcomes.push(
   { scenario: 'Acknowledged revisions survived', pass: lost === 0, evidence: `${lost ?? 'not measured'} missing; ${tracking.receipts.length} receipts; change event membership and current revision floors checked` },
   { scenario: 'Integrity after crashes and at end', pass: checkpoints.length > 0 && checkpoints.every(checkpoint => checkpoint.check.ok), evidence: `${checkpoints.length} /api/check responses; ${forcedServiceCrashes} service crashes; ${forcedTabCrashes} context crashes` },
+  { scenario: 'Find chords retried', pass: findRetries.every(count => count === 0), evidence: findRetries.map((count, slot) => `window ${slot}: ${count}`).join('; ') },
   { scenario: 'Outboxes drained after restarts and at end', pass: checkpoints.length > 0 && checkpoints.every(checkpoint => checkpoint.commands.every(count => count === 0)), evidence: checkpoints.map(checkpoint => `${checkpoint.kind}: [${checkpoint.commands.join(', ')}]`).join('; ') || 'No checkpoint.' },
   { scenario: 'WAL bounded', pass: maxWal !== null && maxWal <= 64 * 1024 * 1024, evidence: `${maxWal === null ? 'not measured' : `${(maxWal / 1048576).toFixed(2)} MiB`} peak sampled (maximum 64 MiB)` },
   { scenario: 'Outbox page records bounded', pass: pagesExceeded.length === 0 && samples.length > 0, evidence: pagesExceeded.join('; ') || 'distinct cached pages never exceeded distinct pages opened per context; raw snapshot/patch counts retained in samples' },
@@ -275,4 +283,4 @@ const summary = table(['Runtime', 'Duration', 'Receipts', 'Lost revisions', 'Hea
   heapRows.map(row => row.growth === null ? 'not measured' : `${((row.growth - 1) * 100).toFixed(1)}%`).join(' / '),
   maxWal === null ? null : `${(maxWal / 1048576).toFixed(2)} MiB`, `${forcedServiceCrashes} / ${forcedTabCrashes}`, checkpoints.length,
 ]]);
-await report('soak', summary, { durationMs: timing.milliseconds, elapsedMs: start ? Date.now() - start : 0, smoke: timing.smoke, prngSeed, intervals: { serviceInterval, tabInterval, sampleInterval }, heapRows, samples, checkpoints, tracking, actions, forcedServiceCrashes, forcedTabCrashes, failure, subtreeCache: 'not exposed; mounted rows used as proxy' }, outcomes);
+await report('soak', summary, { durationMs: timing.milliseconds, elapsedMs: start ? Date.now() - start : 0, smoke: timing.smoke, prngSeed, intervals: { serviceInterval, tabInterval, sampleInterval }, heapRows, samples, checkpoints, tracking, actions, findRetries, forcedServiceCrashes, forcedTabCrashes, failure, subtreeCache: 'not exposed; mounted rows used as proxy' }, outcomes);

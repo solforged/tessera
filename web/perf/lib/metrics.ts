@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { chromium, webkit } from 'playwright-core';
+import { chromium, errors, webkit } from 'playwright-core';
 import type { Browser, BrowserContext, CDPSession, Page } from 'playwright-core';
 import type { Block, ChangeEvent, Committed, PageView } from '../../src/api/types';
 import { api, sleep } from './service';
@@ -101,9 +101,16 @@ export async function ready(page: Page, base: string) {
   await page.getByRole('button', { name: 'Find or create', exact: true }).waitFor();
   await page.waitForFunction(() => !!document.querySelector('.pane.active .outline-row') && window.__spike.live);
 }
-export async function find(page: Page, title: string) {
+export async function find(page: Page, title: string, retried?: (error: unknown) => Promise<void> | void) {
   await page.keyboard.press('Control+Shift+f');
-  await page.getByPlaceholder('Find or create an atom').fill(title);
+  const input = page.getByPlaceholder('Find or create an atom');
+  try { await input.waitFor({ timeout: 3000 }); }
+  catch (error) {
+    if (!(error instanceof errors.TimeoutError)) throw error;
+    await retried?.(error);
+    await page.keyboard.press('Control+Shift+f');
+  }
+  await input.fill(title);
   const result = page.locator('[role="option"]').filter({ hasText: title }).first();
   await result.waitFor();
   await result.click();
