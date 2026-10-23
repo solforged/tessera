@@ -8,7 +8,7 @@ import type { HeapSample, Outcome, RevisionCheck, StorageSample } from './lib/me
 import { report, table } from './lib/report';
 
 interface WindowRun { context: BrowserContext; page: Page; slot: number; generation: number; busy: boolean; recycling: boolean; pageErrors: { at: number; message: string }[] }
-interface Sample { elapsedMs: number; walBytes: number; windows: { slot: number; generation: number; heap: HeapSample; storage: StorageSample }[] }
+interface Sample { elapsedMs: number; walBytes: number; dbBytes: number; windows: { slot: number; generation: number; heap: HeapSample; storage: StorageSample }[] }
 interface Checkpoint { elapsedMs: number; kind: string; revisions: RevisionCheck; check: { ok: boolean }; commands: number[] }
 interface WorkloadAction { elapsedMs: number; slot: number; generation: number; kind: string; target?: string; key?: string; finishedMs?: number; state?: string | null; findRetry?: string; error?: string; fallback?: string }
 
@@ -43,6 +43,7 @@ const checkpoints: Checkpoint[] = [];
 const actions: WorkloadAction[] = [];
 const findRetries = [0, 0];
 const findFailures = [0, 0];
+const unreachableRows = [0, 0];
 const windows: WindowRun[] = [];
 const tasks: Promise<void>[] = [];
 let browser: Browser | undefined;
@@ -287,8 +288,14 @@ try {
         }
       } catch (error) {
         action.error = action.kind === 'find' && !win.recycling ? await findFailure(win, error) : String(error);
-        // Closing a context deliberately interrupts its current input action.
-        if (!win.recycling && windows[slot] === win) { tracking.errors.push(`window ${slot} generation ${win.generation}: ${action.error}`); stop = true; }
+        if (win.recycling || windows[slot] !== win) {
+          // Closing a context deliberately interrupts its current input action.
+        } else if (action.kind === 'type' && /detached|not attached/.test(action.error)) {
+          // A row the other window moved or split can stay unreachable across the bounded click attempts.
+          // That is counted, with the row's state captured, rather than ending an eight-hour run.
+          unreachableRows[slot]!++;
+          action.fallback = await win.page.evaluate(id => ({ present: !!document.querySelector(`.pane.active [data-block-id="${id}"]`), rows: document.querySelectorAll('.pane.active .outline-row[data-block-id]').length, state: document.querySelector('.pane.active .pane-save-state')?.getAttribute('data-state') }), action.target).then(value => JSON.stringify(value), error => String(error));
+        } else { tracking.errors.push(`window ${slot} generation ${win.generation}: ${action.error}`); stop = true; }
       } finally {
         action.finishedMs = Date.now() - start;
         if (!win.recycling) action.state = await win.page.locator('.pane.active .pane-save-state').getAttribute('data-state').catch(() => null);
@@ -326,7 +333,7 @@ try {
     if (Date.now() >= nextSample) {
       const windowSamples = [];
       for (const win of windows) windowSamples.push({ slot: win.slot, generation: win.generation, heap: await heap(win.page), storage: await storage(win.page) });
-      samples.push({ elapsedMs: Date.now() - start, walBytes: service.walBytes(), windows: windowSamples });
+      samples.push({ elapsedMs: Date.now() - start, walBytes: service.walBytes(), dbBytes: service.dbBytes(), windows: windowSamples });
       nextSample += sampleInterval;
     }
     await sleep(50);
@@ -336,7 +343,7 @@ try {
   await checkpoint('final');
   const windowSamples = [];
   for (const win of windows) windowSamples.push({ slot: win.slot, generation: win.generation, heap: await heap(win.page), storage: await storage(win.page) });
-  samples.push({ elapsedMs: Date.now() - start, walBytes: service.walBytes(), windows: windowSamples });
+  samples.push({ elapsedMs: Date.now() - start, walBytes: service.walBytes(), dbBytes: service.dbBytes(), windows: windowSamples });
 } catch (error) {
   failure = String(error);
   outcomes.push({ scenario: 'Soak workload completed', pass: false, evidence: failure });
@@ -348,14 +355,39 @@ try {
   await service?.kill();
   corpus.dispose();
 }
-const warmed = timing.smoke ? [timing.milliseconds / 4, timing.milliseconds / 2] : [30 * 60_000, 60 * 60_000];
-const finalFrom = timing.smoke ? timing.milliseconds * .75 : timing.milliseconds - 60 * 60_000;
+// Contexts are replaced every tabInterval, so growth is measured within each generation's life: a warmed median
+// from the second quarter of its life against a final median from its last 15 percent. The trend across
+// generations catches growth that survives a context replacement. The workload appends text to every block it
+// touches, so the workshop itself grows; the trend is allowed to follow the database, not exceed it.
+const dbAt = (elapsedMs: number) => samples.reduce((best, sample) => Math.abs(sample.elapsedMs - elapsedMs) < Math.abs(best.elapsedMs - elapsedMs) ? sample : best, samples[0]!).dbBytes;
 const heapRows = [0, 1].map(slot => {
-  const baseline = median(samples.filter(sample => sample.elapsedMs >= warmed[0]! && sample.elapsedMs <= warmed[1]!).flatMap(sample => sample.windows.filter(win => win.slot === slot).map(win => win.heap.used)));
-  const final = median(samples.filter(sample => sample.elapsedMs >= finalFrom).flatMap(sample => sample.windows.filter(win => win.slot === slot).map(win => win.heap.used)));
-  const growth = baseline && final ? final / baseline : null;
-  outcomes.push({ scenario: `Window ${slot} heap growth`, pass: growth !== null && growth <= 1.1, evidence: baseline === null || final === null ? 'Missing warmed or final sampling interval.' : `warmed ${(baseline / 1048576).toFixed(2)} MiB, final ${(final / 1048576).toFixed(2)} MiB, ratio ${growth?.toFixed(3)} (maximum 1.100)` });
-  return { slot, warmedBytes: baseline, finalBytes: final, growth };
+  const byGeneration = new Map<number, { elapsedMs: number; used: number }[]>();
+  const mib = (bytes: number) => `${(bytes / 1048576).toFixed(1)} MiB`;
+  for (const sample of samples) for (const win of sample.windows) {
+    if (win.slot !== slot) continue;
+    if (!byGeneration.has(win.generation)) byGeneration.set(win.generation, []);
+    byGeneration.get(win.generation)!.push({ elapsedMs: sample.elapsedMs, used: win.heap.used });
+  }
+  const generations = [...byGeneration.entries()].sort(([a], [b]) => a - b).flatMap(([generation, rows]) => {
+    if (rows.length < 8) return [];
+    const born = rows[0]!.elapsedMs, died = rows[rows.length - 1]!.elapsedMs, life = died - born;
+    const warmed = median(rows.filter(row => row.elapsedMs - born >= life * .25 && row.elapsedMs - born <= life * .4).map(row => row.used));
+    const final = median(rows.filter(row => row.elapsedMs - born >= life * .85).map(row => row.used));
+    return warmed && final ? [{ generation, warmed, final, growth: final / warmed, dbBytes: dbAt(died) }] : [];
+  });
+  const growth = median(generations.map(row => row.growth));
+  const worst = generations.length ? Math.max(...generations.map(row => row.growth)) : null;
+  // The first generation includes startup allocations, so the trend starts at the second one when there are three or more.
+  const base = generations.length > 2 ? generations[1]! : generations[0];
+  const last = generations[generations.length - 1];
+  const trend = base && last && generations.length >= 2 ? last.final / base.final : null;
+  const dbTrend = base && last && generations.length >= 2 && base.dbBytes ? last.dbBytes / base.dbBytes : null;
+  const lives = generations.map(row => `gen ${row.generation}: ${mib(row.warmed)} → ${mib(row.final)} (${row.growth.toFixed(3)})`).join('; ');
+  outcomes.push(
+    { scenario: `Window ${slot} heap growth within a context`, pass: growth !== null && growth <= 1.1, evidence: growth === null ? 'No context lived long enough for a warmed and a final interval.' : `median ratio ${growth.toFixed(3)}, worst ${worst!.toFixed(3)} across ${generations.length} generations (maximum 1.100); ${lives}` },
+    { scenario: `Window ${slot} heap trend across contexts`, pass: trend === null ? timing.smoke : trend <= Math.max(1.1, dbTrend ?? 1), evidence: trend === null ? `Fewer than two measured generations${timing.smoke ? '; a smoke run does not measure the trend' : ''}.` : `end-of-life heap ratio ${trend.toFixed(3)} from the second measured generation to the last, while the workshop grew ${dbTrend?.toFixed(3) ?? 'unmeasured'} (${mib(base!.dbBytes)} → ${mib(last!.dbBytes)}); maximum is the larger of 1.100 and the workshop ratio` },
+  );
+  return { slot, generations, growth, worst, trend, dbTrend };
 });
 const lost = checkpoints.length ? Math.max(...checkpoints.map(checkpoint => checkpoint.revisions.lost)) : null;
 const maxWal = samples.length ? Math.max(...samples.map(sample => sample.walBytes)) : null;
@@ -366,15 +398,16 @@ outcomes.push(
   { scenario: 'Integrity after crashes and at end', pass: checkpoints.length > 0 && checkpoints.every(checkpoint => checkpoint.check.ok), evidence: `${checkpoints.length} /api/check responses; ${forcedServiceCrashes} workload service crashes; ${regressionServiceCrashes} regression service crashes; ${forcedTabCrashes} context crashes` },
   { scenario: 'Find chords retried', pass: findRetries.every(count => count === 0), evidence: findRetries.map((count, slot) => `window ${slot}: ${count}`).join('; ') },
   { scenario: 'Find failed', pass: findFailures.every(count => count === 0), evidence: findFailures.map((count, slot) => `window ${slot}: ${count}`).join('; ') },
+  { scenario: 'Rows reachable for typing', pass: unreachableRows.every(count => count === 0), evidence: unreachableRows.map((count, slot) => `window ${slot}: ${count} rows stayed detached across three click attempts`).join('; ') },
   { scenario: 'Outboxes drained after restarts and at end', pass: checkpoints.length > 0 && checkpoints.every(checkpoint => checkpoint.commands.every(count => count === 0)), evidence: checkpoints.map(checkpoint => `${checkpoint.kind}: [${checkpoint.commands.join(', ')}]`).join('; ') || 'No checkpoint.' },
   { scenario: 'WAL bounded', pass: maxWal !== null && maxWal <= 64 * 1024 * 1024, evidence: `${maxWal === null ? 'not measured' : `${(maxWal / 1048576).toFixed(2)} MiB`} peak sampled (maximum 64 MiB)` },
   { scenario: 'Outbox page records bounded', pass: pagesExceeded.length === 0 && samples.length > 0, evidence: pagesExceeded.join('; ') || 'distinct cached pages never exceeded distinct pages opened per context; raw snapshot/patch counts retained in samples' },
   { scenario: 'Mounted cache proxy bounded', pass: maxMounted !== null && maxMounted <= 102, evidence: `${maxMounted ?? 'not measured'} mounted rows, maximum 102 (existing two-pane performance budget); SubtreeCache has no public size hook` },
   { scenario: 'Workload actions', pass: failure === null && tracking.errors.length === 0, evidence: tracking.errors.join('; ') || failure || 'Seeded editing, navigation and folding completed.' },
 );
-const summary = table(['Runtime', 'Duration', 'Receipts', 'Lost revisions', 'Heap growth w0 / w1', 'Peak WAL', 'Service / tab crashes', 'Checks'], [[
+const summary = table(['Runtime', 'Duration', 'Receipts', 'Lost revisions', 'Heap growth w0 / w1 (within, across)', 'Peak WAL', 'Service / tab crashes', 'Checks'], [[
   'chromium', `${(timing.milliseconds / 60000).toFixed(2)} min`, tracking.receipts.length, lost,
-  heapRows.map(row => row.growth === null ? 'not measured' : `${((row.growth - 1) * 100).toFixed(1)}%`).join(' / '),
+  heapRows.map(row => row.growth === null ? 'not measured' : `${((row.growth - 1) * 100).toFixed(1)}%, ${row.trend === null ? 'one generation' : `${((row.trend - 1) * 100).toFixed(1)}%`}`).join(' / '),
   maxWal === null ? null : `${(maxWal / 1048576).toFixed(2)} MiB`, `${forcedServiceCrashes + regressionServiceCrashes} / ${forcedTabCrashes}`, checkpoints.length,
 ]]);
-await report('soak', summary, { durationMs: timing.milliseconds, elapsedMs: start ? Date.now() - start : 0, smoke: timing.smoke, prngSeed, intervals: { serviceInterval, tabInterval, sampleInterval }, heapRows, samples, checkpoints, tracking, actions, findRetries, findFailures, forcedServiceCrashes, regressionServiceCrashes, forcedTabCrashes, failure, subtreeCache: 'not exposed; mounted rows used as proxy' }, outcomes);
+await report('soak', summary, { durationMs: timing.milliseconds, elapsedMs: start ? Date.now() - start : 0, smoke: timing.smoke, prngSeed, intervals: { serviceInterval, tabInterval, sampleInterval }, heapRows, samples, checkpoints, tracking, actions, findRetries, findFailures, unreachableRows, forcedServiceCrashes, regressionServiceCrashes, forcedTabCrashes, failure, subtreeCache: 'not exposed; mounted rows used as proxy' }, outcomes);

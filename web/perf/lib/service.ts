@@ -71,4 +71,8 @@ export class Service {
     const path = join(this.workshop, 'notebook.db-wal');
     return existsSync(path) ? statSync(path).size : 0;
   }
+  dbBytes() {
+    const path = join(this.workshop, 'notebook.db');
+    return existsSync(path) ? statSync(path).size + this.walBytes() : 0;
+  }
 }

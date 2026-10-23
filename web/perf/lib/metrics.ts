@@ -135,7 +135,13 @@ export async function find(page: Page, title: string, retried?: (error: unknown)
 }
 export async function typeMarker(page: Page, blockId: string, marker: string) {
   const row = page.locator(`.pane.active [data-block-id="${blockId}"] .outline-body`);
-  await row.click();
+  // The other window may move or split this row between resolving and clicking; a moved row remounts.
+  // Playwright retries a detached target until its own timeout, so bound each attempt and re-resolve.
+  for (let attempt = 1; ; attempt++) {
+    try { await row.click({ timeout: 3000 }); break; } catch (error) {
+      if (attempt === 3) throw error;
+    }
+  }
   const editor = page.locator('.pane.active .cm-content');
   await editor.waitFor();
   await editor.focus();

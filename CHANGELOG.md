@@ -10,7 +10,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 - Listed every change in Settings › History with its actor, time, summary and page, and made editor batches reversible from there: text, heading, move, create, delete, task, relation, revisit, card hold, deck and citation operations store an inverse when committed, undo links both entries, and undoing an undo brings the change back. `GET /api/history` and `POST /api/history/{seq}/undo` replace the agent-only list and undo routes; `tessera_recent_changes` and `tessera_undo` now cover the whole history.
 - Added Restore to every backup in Settings › Backups. Restore backs up the current workshop first, keeps the chosen restore point out of retention, then drains and restarts the service on the same workshop; the restore runs at startup under the service's lock, so an interrupted one finishes on the next start.
-- Added the spike 4 concurrency harness (`bun web/perf/concurrency.ts`) and the spike 5 soak harness (`bun web/perf/soak.ts`) under `web/perf/`, and recorded the first spike 4 run in [performance](docs/performance.md#spike-4-result-runtime-and-concurrency-2026-10-22).
+- Added the spike 4 concurrency harness (`bun web/perf/concurrency.ts`) and the spike 5 soak harness (`bun web/perf/soak.ts`) under `web/perf/`, and recorded the first runs of both in [performance](docs/performance.md#spike-4-result-runtime-and-concurrency-2026-10-22).
 
 ### Changed
 
