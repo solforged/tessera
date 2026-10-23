@@ -628,8 +628,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       else return;
       event.preventDefault(); event.stopPropagation();
     };
-    window.addEventListener('keydown', onKey);
-    onCleanup(() => window.removeEventListener('keydown', onKey));
+    // Reserved shell chords precede CodeMirror's macOS Ctrl+Shift Emacs bindings.
+    window.addEventListener('keydown', onKey, true);
+    onCleanup(() => window.removeEventListener('keydown', onKey, true));
     // Prefetching after startup keeps first paint lean without delaying the first open of each pane.
     const prefetch = () => { for (const load of Object.values(paneModules)) void load().catch(() => undefined); };
     const idle = typeof requestIdleCallback === 'function' ? requestIdleCallback(prefetch, { timeout: 4000 }) : window.setTimeout(prefetch, 2000);
