@@ -8,6 +8,7 @@ import { report, table } from './lib/report';
 interface WindowRun { context: BrowserContext; page: Page; slot: number; generation: number; busy: boolean; recycling: boolean }
 interface Sample { elapsedMs: number; walBytes: number; windows: { slot: number; generation: number; heap: HeapSample; storage: StorageSample }[] }
 interface Checkpoint { elapsedMs: number; kind: string; revisions: RevisionCheck; check: { ok: boolean }; commands: number[] }
+interface WorkloadAction { elapsedMs: number; slot: number; generation: number; kind: string; target?: string; key?: string; finishedMs?: number; state?: string | null; error?: string }
 
 const timing = duration(8 * 60);
 Service.preflight();
@@ -17,12 +18,14 @@ const tracking = tracker();
 const outcomes: Outcome[] = [];
 const samples: Sample[] = [];
 const checkpoints: Checkpoint[] = [];
+const actions: WorkloadAction[] = [];
 const windows: WindowRun[] = [];
 const tasks: Promise<void>[] = [];
 let browser: Browser | undefined;
 let service: Service | undefined;
 let stop = false;
 let pause = false;
+let pauseNavigation = false;
 let start = 0;
 let forcedServiceCrashes = 0;
 let forcedTabCrashes = 0;
@@ -49,10 +52,46 @@ try {
   start = Date.now();
   tracking.startedAt = start;
   const deadline = start + timing.milliseconds;
+  async function resolveConflicts(win: WindowRun) {
+    const review = win.page.getByRole('button', { name: 'Review conflict', exact: true });
+    while (await review.count()) {
+      const action: WorkloadAction = { elapsedMs: Date.now() - start, slot: win.slot, generation: win.generation, kind: 'resolve-conflict' };
+      actions.push(action);
+      try {
+        await review.click();
+        const panel = win.page.locator('.pane.active .conflict-panel').first();
+        await panel.locator('pre').nth(1).waitFor();
+        const [local, remote] = await panel.locator('pre').allTextContents();
+        if (local === undefined || remote === undefined) throw new Error('Conflict did not expose both text versions.');
+        const row = panel.locator('xpath=ancestor::*[@data-block-id][1]');
+        action.target = (await row.getAttribute('data-block-id'))!;
+        // The workload appends whole markers. Preserve both append-only tails,
+        // cutting the common prefix at a word boundary, never inside a marker.
+        let prefix = 0;
+        while (prefix < local.length && local[prefix] === remote[prefix]) prefix++;
+        prefix = local.lastIndexOf(' ', prefix - 1) + 1;
+        const merged = remote.includes(local) ? remote : local.includes(remote) ? local : `${remote} ${local.slice(prefix)}`;
+        await panel.getByRole('button', { name: 'Edit merged text', exact: true }).click();
+        const editor = row.locator('.cm-content');
+        await editor.focus();
+        await win.page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
+        await win.page.keyboard.insertText(merged);
+        await panel.getByRole('button', { name: 'Use edited text', exact: true }).click();
+        await win.page.waitForFunction(id => !document.querySelector(`.pane.active [data-block-id="${id}"] .conflict-label`), action.target);
+      } catch (error) { action.error = String(error); throw error; }
+      finally { action.finishedMs = Date.now() - start; }
+    }
+  }
   async function checkpoint(kind: string) {
-    await Promise.all(windows.map(async win => {
-      try { await drained(win.page); } catch (error) { tracking.errors.push(String(error)); }
-    }));
+    // Writers are paused here. Resolve intentional overlapping edits before
+    // requiring their commands to drain, just as a user must in the app.
+    for (const win of windows) {
+      try {
+        await win.page.waitForFunction(() => window.__spike.live);
+        await resolveConflicts(win);
+        await drained(win.page);
+      } catch (error) { tracking.errors.push(String(error)); }
+    }
     const revisions = await verify(base, tracking.receipts);
     const check = await api<{ ok: boolean }>(base, '/api/check');
     const commands = await Promise.all(windows.map(async win => (await storage(win.page)).outbox.commands));
@@ -65,17 +104,38 @@ try {
       const win = windows[slot]!;
       if (pause || win.recycling) { await sleep(25); continue; }
       win.busy = true;
+      const action: WorkloadAction = { elapsedMs: Date.now() - start, slot, generation: win.generation, kind: 'pending' };
+      actions.push(action);
       try {
+        if (await win.page.getByRole('button', { name: 'Review conflict', exact: true }).count()) {
+          action.kind = 'review-conflicts';
+          await resolveConflicts(win);
+          continue;
+        }
         const roll = rng();
+        // Find and journal navigation need the service; keep their selected
+        // actions queued across the injected outage while local typing continues.
+        if (roll < .20 && pauseNavigation) {
+          win.busy = false;
+          while (!stop && (pauseNavigation || pause)) await sleep(25);
+          if (stop || win.recycling || windows[slot] !== win) continue;
+          win.busy = true;
+        }
         if (roll < .12) {
-          await find(win.page, corpus.pages[Math.floor(rng() * corpus.pages.length)]!.title);
+          action.kind = 'find';
+          const target = corpus.pages[Math.floor(rng() * corpus.pages.length)]!;
+          action.target = target.title;
+          await find(win.page, target.title);
         } else if (roll < .16) {
+          action.kind = 'back-forward';
           await win.page.keyboard.press('Control+Shift+h');
           await win.page.keyboard.press('Control+Shift+l');
         } else if (roll < .20) {
+          action.kind = 'journal';
           await win.page.keyboard.press('Control+Shift+j');
           await win.page.locator('.pane.active .outline-row').first().waitFor();
         } else if (roll < .25) {
+          action.kind = 'fold';
           const fold = win.page.locator('.pane.active .row-fold:not(:disabled)').first();
           if (await fold.count()) {
             await fold.click();
@@ -86,13 +146,23 @@ try {
           const rows = await win.page.locator('.pane.active .outline-row[data-block-id]').evaluateAll(elements => elements.map(element => element.getAttribute('data-block-id')!));
           if (!rows.length) throw new Error('No editable rows in the active pane.');
           const id = rows[Math.floor(rng() * Math.min(rows.length, 8))]!;
+          action.kind = 'type';
+          action.target = id;
           await typeMarker(win.page, id, `soak_${slot}_${++marker}_end`);
-          if (roll > .78) await win.page.keyboard.press(['Enter', 'Tab', 'Shift+Tab', 'Alt+ArrowUp'][Math.floor(rng() * 4)]!);
+          if (roll > .78) {
+            action.key = ['Enter', 'Tab', 'Shift+Tab', 'Alt+ArrowUp'][Math.floor(rng() * 4)]!;
+            await win.page.keyboard.press(action.key);
+          }
         }
       } catch (error) {
+        action.error = String(error);
         // Closing a context deliberately interrupts its current input action.
         if (!win.recycling && windows[slot] === win) { tracking.errors.push(String(error)); stop = true; }
-      } finally { win.busy = false; }
+      } finally {
+        action.finishedMs = Date.now() - start;
+        if (!win.recycling) action.state = await win.page.locator('.pane.active .pane-save-state').getAttribute('data-state').catch(() => null);
+        win.busy = false;
+      }
       await sleep(300 + Math.floor(rng() * 250));
     }
   })());
@@ -103,13 +173,15 @@ try {
     if (Date.now() >= nextService && deadline - Date.now() > 3000) {
       // Kill on an actual submitted request, rather than hoping a sleep overlaps the debounce.
       await Promise.race(windows.map(win => win.page.waitForRequest(request => new URL(request.url()).pathname === '/api/batches' && request.method() === 'POST', { timeout: 15_000 })));
+      pauseNavigation = true;
       await service.kill('SIGKILL');
       forcedServiceCrashes++;
       await sleep(1500);
       pause = true;
-      while (windows.some(win => win.busy)) await sleep(10);
       await service.restart();
+      while (windows.some(win => win.busy)) await sleep(10);
       await checkpoint('service restart');
+      pauseNavigation = false;
       pause = false;
       nextService += serviceInterval;
     }
@@ -158,14 +230,14 @@ const heapRows = [0, 1].map(slot => {
 });
 const lost = checkpoints.length ? Math.max(...checkpoints.map(checkpoint => checkpoint.revisions.lost)) : null;
 const maxWal = samples.length ? Math.max(...samples.map(sample => sample.walBytes)) : null;
-const pagesExceeded = samples.flatMap(sample => sample.windows.filter(win => win.storage.outbox.pages > win.storage.pagesOpened).map(win => `at ${(sample.elapsedMs / 60000).toFixed(2)} min window ${win.slot}: ${win.storage.outbox.pages} records / ${win.storage.pagesOpened} pages opened`));
+const pagesExceeded = samples.flatMap(sample => sample.windows.filter(win => win.storage.outbox.cachedPages > win.storage.pagesOpened).map(win => `at ${(sample.elapsedMs / 60000).toFixed(2)} min window ${win.slot}: ${win.storage.outbox.cachedPages} cached pages (${win.storage.outbox.pages} snapshot/patch records) / ${win.storage.pagesOpened} pages opened`));
 const maxMounted = samples.length ? Math.max(...samples.flatMap(sample => sample.windows.map(win => win.storage.mounted))) : null;
 outcomes.push(
   { scenario: 'Acknowledged revisions survived', pass: lost === 0, evidence: `${lost ?? 'not measured'} missing; ${tracking.receipts.length} receipts; change event membership and current revision floors checked` },
   { scenario: 'Integrity after crashes and at end', pass: checkpoints.length > 0 && checkpoints.every(checkpoint => checkpoint.check.ok), evidence: `${checkpoints.length} /api/check responses; ${forcedServiceCrashes} service crashes; ${forcedTabCrashes} context crashes` },
   { scenario: 'Outboxes drained after restarts and at end', pass: checkpoints.length > 0 && checkpoints.every(checkpoint => checkpoint.commands.every(count => count === 0)), evidence: checkpoints.map(checkpoint => `${checkpoint.kind}: [${checkpoint.commands.join(', ')}]`).join('; ') || 'No checkpoint.' },
   { scenario: 'WAL bounded', pass: maxWal !== null && maxWal <= 64 * 1024 * 1024, evidence: `${maxWal === null ? 'not measured' : `${(maxWal / 1048576).toFixed(2)} MiB`} peak sampled (maximum 64 MiB)` },
-  { scenario: 'Outbox page records bounded', pass: pagesExceeded.length === 0 && samples.length > 0, evidence: pagesExceeded.join('; ') || 'pages records never exceeded distinct pages opened per context' },
+  { scenario: 'Outbox page records bounded', pass: pagesExceeded.length === 0 && samples.length > 0, evidence: pagesExceeded.join('; ') || 'distinct cached pages never exceeded distinct pages opened per context; raw snapshot/patch counts retained in samples' },
   { scenario: 'Mounted cache proxy bounded', pass: maxMounted !== null && maxMounted <= 102, evidence: `${maxMounted ?? 'not measured'} mounted rows, maximum 102 (existing two-pane performance budget); SubtreeCache has no public size hook` },
   { scenario: 'Workload actions', pass: failure === null && tracking.errors.length === 0, evidence: tracking.errors.join('; ') || failure || 'Seeded editing, navigation and folding completed.' },
 );
@@ -174,4 +246,4 @@ const summary = table(['Runtime', 'Duration', 'Receipts', 'Lost revisions', 'Hea
   heapRows.map(row => row.growth === null ? 'not measured' : `${((row.growth - 1) * 100).toFixed(1)}%`).join(' / '),
   maxWal === null ? null : `${(maxWal / 1048576).toFixed(2)} MiB`, `${forcedServiceCrashes} / ${forcedTabCrashes}`, checkpoints.length,
 ]]);
-await report('soak', summary, { durationMs: timing.milliseconds, elapsedMs: start ? Date.now() - start : 0, smoke: timing.smoke, prngSeed, intervals: { serviceInterval, tabInterval, sampleInterval }, heapRows, samples, checkpoints, tracking, forcedServiceCrashes, forcedTabCrashes, failure, subtreeCache: 'not exposed; mounted rows used as proxy' }, outcomes);
+await report('soak', summary, { durationMs: timing.milliseconds, elapsedMs: start ? Date.now() - start : 0, smoke: timing.smoke, prngSeed, intervals: { serviceInterval, tabInterval, sampleInterval }, heapRows, samples, checkpoints, tracking, actions, forcedServiceCrashes, forcedTabCrashes, failure, subtreeCache: 'not exposed; mounted rows used as proxy' }, outcomes);

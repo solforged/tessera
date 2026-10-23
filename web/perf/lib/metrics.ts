@@ -8,7 +8,7 @@ export type Runtime = 'chromium' | 'webkit';
 export interface Outcome { scenario: string; pass: boolean; evidence: string }
 export interface Receipt { window: string; at: number; elapsed: number; committed: Pick<Committed, 'seq' | 'revisions'> }
 export interface Tracker { receipts: Receipt[]; pollsWhileLive: number; catchUpRequests: number; startedAt: number | null; polls: { window: string; at: number; live: boolean; recovering: boolean; startup: boolean }[]; errors: string[] }
-export interface OutboxCounts { notebooks: number; pages: number; commands: number; tickets: number; blocks: number; capabilities: number }
+export interface OutboxCounts { notebooks: number; pages: number; commands: number; tickets: number; blocks: number; capabilities: number; cachedPages: number }
 export interface HeapSample { used: number; total: number; nodes: number; listeners: number }
 export interface StorageSample { outbox: OutboxCounts; pagesOpened: number; mounted: number; domNodes: number }
 interface Probe { pending: number; live: boolean; recovering: boolean; observed: number; opened: string[] }
@@ -129,6 +129,10 @@ export async function outbox(page: Page): Promise<OutboxCounts> {
     request.onupgradeneeded = () => { request.transaction?.abort(); connection.reject(new Error('Outbox database does not exist.')); };
     const db = await connection.promise;
     try {
+      const pageKeys = Promise.withResolvers<IDBValidKey[]>();
+      const pageRequest = db.transaction('pages').objectStore('pages').getAllKeys();
+      pageRequest.onsuccess = () => pageKeys.resolve(pageRequest.result);
+      pageRequest.onerror = () => pageKeys.reject(pageRequest.error);
       const counts = await Promise.all(stores.map(store => {
         const count = Promise.withResolvers<number>();
         const request = db.transaction(store).objectStore(store).count();
@@ -136,7 +140,10 @@ export async function outbox(page: Page): Promise<OutboxCounts> {
         request.onerror = () => count.reject(request.error);
         return count.promise;
       }));
-      return Object.fromEntries(stores.map((store, index) => [store, counts[index]!])) as unknown as OutboxCounts;
+      // A page snapshot and its ordered structural patches share notebook:pageId.
+      // Keep raw store counts, but do not mistake each patch for another cached page.
+      const cachedPages = new Set((await pageKeys.promise).map(key => String(key).split(':').slice(0, 2).join(':'))).size;
+      return { ...Object.fromEntries(stores.map((store, index) => [store, counts[index]!])), cachedPages } as OutboxCounts;
     } finally { db.close(); }
   });
 }

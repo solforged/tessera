@@ -136,6 +136,28 @@ A cold window has since read `/api/changes/head` first and subscribed from that 
 
 Twenty release runs each; the end probes stay under 1 ms. Remaining: `complete:cobalt` at 50,000 blocks measures 35 ms in core and 41 ms over HTTP against the 25 ms completion budget, the risk noted under spike 1.
 
+## Spike 4 result: runtime and concurrency, 2026-10-22
+
+`bun web/perf/concurrency.ts --minutes 3` (see `web/perf/README.md`) ran a release service on a 60-page, 9,000-block workshop with four headless windows, two on the same page, each typing every 300 ms and making a structural edit every 3 s, plus an agent note and a background batch every 500 ms, on Playwright Chromium and Playwright WebKit over HTTP. Tauri's WKWebView was not driven; WebKit over HTTP stands in for it. Every 30 s one window went offline for 5 s while the others kept writing.
+
+| Measure | Budget | Chromium | WebKit |
+|---|---|---|---|
+| Small batch commit, round trip p50 / p95 | 50 ms p95 | 82 / 164 ms | 121 / 282 ms |
+| Probe edit visible in the other window p50 / p95 | 100 ms p95 | 94 / 2,325 ms | 133 / 2,292 ms |
+| Reconnect to converged page and drained outbox p95 | none | 1.3 s | 1.2 s |
+| Acknowledged edits lost | 0 | 0 of 1,762 | 0 of 1,280 |
+| `/api/changes` requests while the stream was open | 0 | 16 | 0 |
+
+What it settled:
+
+- **Durability holds.** No acknowledged receipt was missing from the server after three minutes of contention and offline cycles on either runtime, and every reconnect converged to the server's page without a reload.
+- **Commit latency misses under eighteen writers per second.** The service serializes every batch behind one connection, so a typing window waits for the agent, the probe and three other windows. The median is fine; the tail is three to five times the budget. A single writer commits in under 3 ms over HTTP (spike 1).
+- **Propagation is bimodal.** Half the probes arrived within budget. The tail sits at a steady 2.3 s on about a tenth of the probes, the share that structural edits make of the receiving page's traffic; the likely path is that a restructured page reloads rather than patching, and the reload waits behind the window's own pending edits. The harness does not yet attribute each slow probe, so this is the hypothesis to test first.
+- **Concurrent structural edits can be refused.** On WebKit, window 1's move was rejected with `after must be a live sibling of the new parent` after another window restructured the same page, and the rejected command stayed in its outbox as kept data. The client sends moves against siblings it last saw; it does not re-anchor them after a remote restructure.
+- Chromium made 16 `/api/changes` requests while the harness considered the stream open; WebKit, with the same offline cycles, made none. Whether these were reconnect catch-ups that the harness mis-timed or true polling is not yet attributed.
+
+Decisions: keep the single writer and the WebSocket stream; they lost nothing. Before four-window editing is a supported shape, the service needs a short write queue so a window's commit does not wait for every other writer's transaction, structural events for a page that is being edited locally must patch instead of reload, and moves must re-anchor against the current siblings before they are sent. These are stage 8 work after this pass.
+
 ## Spikes that decide the stack
 
 Each runs before the matching feature is built. Each can overturn a choice in [architecture](architecture.md).
