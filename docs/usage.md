@@ -183,7 +183,7 @@ These backups share one store at `~/.local/share/tessera/backups/<workshop id>/<
 
 Retention runs after every backup attempt that creates a snapshot or finds it unchanged. It keeps the three newest backups, plus the newest in each of seven UTC calendar days including today, plus the newest in each seven-day window for days 8 through 35. A backup can satisfy more than one tier. Explicit command-line destinations below are separate from this store and its retention.
 
-Settings › Backups shows the latest time, backup count and store size beside Database and files, with Back up now. Store size counts each linked file once. Earlier backups fold into a disclosure with Delete. Other workshops lists stores for other workshop IDs, including workshops no longer registered; Delete removes that ID's backups, not its live workshop. Both deletion actions ask for confirmation. There is no Keep the latest 10 control.
+Settings › Backups shows the latest time, backup count and store size beside Database and files, with Back up now. Store size counts each linked file once. Every backup, including the newest, offers Restore with confirmation; earlier backups fold into a disclosure and also offer Delete. Restore first backs up the current workshop unless nothing has changed, keeps the chosen restore point out of retention, writes a `restore.pending` marker beside the database and drains and restarts the service on the same workshop and ports; the restore itself runs at startup under the service's own lock, so an interrupted restore finishes on the next start and a missing or invalid source is discarded with a warning. The window shows Restoring… until the service answers again; `/api/notebook` answers `503 switching` while it drains. Paired phones keep changes made since the backup until they sync again. Other workshops lists stores for other workshop IDs, including workshops no longer registered; Delete removes that ID's backups, not its live workshop. Both deletion actions ask for confirmation. There is no Keep the latest 10 control.
 
 | Endpoint | Result |
 |---|---|
@@ -191,6 +191,7 @@ Settings › Backups shows the latest time, backup count and store size beside D
 | `POST /api/backups` | `{created, backups}`; `created` is false when unchanged, and `backups` is the full listing envelope. |
 | `DELETE /api/backups/{name}` | Deletes one backup and returns the listing envelope. The newest backup is kept. |
 | `DELETE /api/backups/others/{workshop_id}` | Deletes another workshop ID's backup store and returns the listing envelope. |
+| `POST /api/backups/{name}/restore` | `202 {restoring, backup, safety}` and restarts on the restored workshop; `safety` is the pre-restore backup, or null when unchanged. `409 conflict` during a backup or switch; `404 not_found` for a missing backup or a service started with `--workshop`. |
 
 The manual prune route is removed. Sync recovery copies are separate from this store; only the newest copy of each kind is kept.
 
@@ -302,9 +303,9 @@ Written text follows the editor's syntax:
 
 Each write is one change attributed to the agent by its MCP client name. Open windows show it at once.
 
-- `tessera_recent_changes` lists agent changes; `tessera_undo` reverses one.
-- Settings › Agent changes also lists them, with an Undo button.
-- Undo refuses to overwrite anyone's later edit, so undo changes newest first.
+- `tessera_recent_changes` lists the workshop's history, from people, windows and agents alike; `tessera_undo` reverses one entry.
+- Settings › History lists the same entries with the actor, time, summary and page, and an Undo button where the change has a stored inverse. Editor batches whose operations all have inverses (text, headings, moves, creates, deletes, tasks, relations, revisits, card holds, decks and citations) are reversible; batches with a split, merge, review grade, ingestion, settings or definition change are listed without Undo. Changes applied from another device are listed with their origin and cannot be undone here.
+- Undo refuses to overwrite anyone's later edit, so undo changes newest first. Undoing an undo brings the change back.
 - A page or field created by the change stays while other blocks use it.
 
 ### Clients without MCP
@@ -314,8 +315,8 @@ Agents without MCP use the same endpoints:
 | Endpoint | Action |
 |---|---|
 | `POST /api/agent-changes` | Write a change, using a body like the example below. |
-| `GET /api/agent-changes` | List changes. |
-| `POST /api/agent-changes/{seq}/undo` | Undo a change, with `{"actor": …}`. |
+| `GET /api/history?limit=&before=` | List history entries, newest first; `before` pages by sequence. |
+| `POST /api/history/{seq}/undo` | Undo an entry, with `{"actor": …}`. |
 | `GET /api/agent/providers` | List configured providers without their keys. |
 | `PUT /api/agent/providers` | Save providers and the default provider. |
 | `POST /api/agent/providers/{id}/test` | Test a provider with a short request. |

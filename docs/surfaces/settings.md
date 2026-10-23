@@ -16,7 +16,7 @@ Sections use the same mono numbered heads as field definitions, in this order:
 2. Workshops and Backups on the Mac; only Backups in the browser build; neither on the phone.
 3. Devices.
 4. Agent.
-5. Agent changes.
+5. History.
 6. About.
 
 Under 600 px (a split pane or the Fold cover), the header tightens. Controls stack under their descriptions except the switch, and the time-zone trigger fills the width. Paths wrap after slashes, not inside folder names. Pane chrome and mode tabs keep 44 px touch targets.
@@ -87,9 +87,9 @@ Models edit in place. Speaks uses the shared menu, missing Name, Address and Mod
 
 Provider presets use the shared mode tabs, scrolling horizontally when needed.
 
-## Agent changes
+## History
 
-Agent changes shows the newest three, newest first: the summary, then the agent and time in mono and the page as a quiet link that turns gilt on hover. Undo waits for hover where there is hover; Show N earlier unfolds the rest. An undone change reads muted, with Undone in place of the button.
+History lists the newest fifty changes, newest first: the summary, then the actor and ISO time in mono and the page as a quiet link that turns gilt on hover. The actor reads You for this person's windows, Agent for agents, the device name for synced changes and the client name otherwise. Undo waits for hover where there is hover; Show more fetches the next fifty. An undone change reads muted, with Undone in place of the button, and an undo entry names the change it undid. A refused undo shows its reason inline.
 
 ## About
 
