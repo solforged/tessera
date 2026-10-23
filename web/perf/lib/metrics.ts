@@ -107,7 +107,11 @@ export async function find(page: Page, title: string) {
   const result = page.locator('[role="option"]').filter({ hasText: title }).first();
   await result.waitFor();
   await result.click();
-  await page.locator('.pane.active .outline-row').first().waitFor();
+  await page.waitForFunction(title =>
+    document.querySelector('.pane.active .outline-title')?.textContent?.trim() === title
+      && !document.querySelector('.pane.active [data-pane-pending]')
+      && !!document.querySelector('.pane.active .outline-row'),
+  title);
 }
 export async function typeMarker(page: Page, blockId: string, marker: string) {
   const row = page.locator(`.pane.active [data-block-id="${blockId}"] .outline-body`);

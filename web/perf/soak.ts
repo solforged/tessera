@@ -1,5 +1,7 @@
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Browser, BrowserContext, Page } from 'playwright-core';
-import { api, Service, sleep } from './lib/service';
+import { api, root, Service, sleep } from './lib/service';
 import { seed } from './lib/seed';
 import { drained, duration, find, heap, instrument, launch, median, open, random, ready, storage, tracker, typeMarker, verify } from './lib/metrics';
 import type { HeapSample, Outcome, RevisionCheck, StorageSample } from './lib/metrics';
@@ -9,6 +11,19 @@ interface WindowRun { context: BrowserContext; page: Page; slot: number; generat
 interface Sample { elapsedMs: number; walBytes: number; windows: { slot: number; generation: number; heap: HeapSample; storage: StorageSample }[] }
 interface Checkpoint { elapsedMs: number; kind: string; revisions: RevisionCheck; check: { ok: boolean }; commands: number[] }
 interface WorkloadAction { elapsedMs: number; slot: number; generation: number; kind: string; target?: string; key?: string; finishedMs?: number; state?: string | null; error?: string }
+
+async function findFailure(win: WindowRun, error: unknown) {
+  const directory = join(root, 'web/perf/results');
+  mkdirSync(directory, { recursive: true });
+  const screenshot = join(directory, `soak-find-${Date.now()}-window-${win.slot}-generation-${win.generation}.png`);
+  const screenshotError = await win.page.screenshot({ path: screenshot, fullPage: true }).then(() => null, error => String(error));
+  const state = await win.page.evaluate(() => ({
+    activeElement: document.activeElement?.outerHTML.slice(0, 2000),
+    overlays: [...document.querySelectorAll('.popup, [role="dialog"], [role="listbox"], .conflict-panel, .cm-tooltip, .save-banner')].map(element => ({ tag: element.tagName, class: element.className, role: element.getAttribute('role'), label: element.getAttribute('aria-label'), text: element.textContent?.slice(0, 2000) })),
+    inputs: [...document.querySelectorAll('input')].map(element => ({ placeholder: element.placeholder, label: element.getAttribute('aria-label') })),
+  })).catch(error => ({ captureError: String(error) }));
+  return `${String(error)}\nFind state: ${JSON.stringify({ screenshot: screenshotError ? null : screenshot, screenshotError, ...state })}`;
+}
 
 const timing = duration(8 * 60);
 Service.preflight();
@@ -25,7 +40,6 @@ let browser: Browser | undefined;
 let service: Service | undefined;
 let stop = false;
 let pause = false;
-let pauseNavigation = false;
 let start = 0;
 let forcedServiceCrashes = 0;
 let forcedTabCrashes = 0;
@@ -49,6 +63,30 @@ try {
     return { context, page, slot, generation, busy: false, recycling: false };
   }
   for (let slot = 0; slot < 2; slot++) windows.push(await createWindow(slot, 0));
+  // Regression: macOS CodeMirror binds Ctrl+Shift+F to forward selection.
+  // A split followed by ArrowUp leaves the caret before text, where that
+  // binding used to consume Find before the shell's bubbling listener ran.
+  const shortcutPage = windows[0]!.page;
+  await shortcutPage.keyboard.press('Control+Shift+j');
+  await shortcutPage.locator('.pane.active .journal-date').waitFor();
+  const journalRow = shortcutPage.locator('.pane.active .outline-row[data-block-id]').first();
+  await journalRow.waitFor();
+  await typeMarker(shortcutPage, (await journalRow.getAttribute('data-block-id'))!, 'soak_find_shortcut_end');
+  await shortcutPage.keyboard.press('Enter');
+  await shortcutPage.keyboard.press('ArrowUp');
+  const shortcutCheck: Outcome = { scenario: 'Find shortcut after a journal split', pass: false, evidence: 'Find did not complete.' };
+  const shortcutAction: WorkloadAction = { elapsedMs: 0, slot: 0, generation: 0, kind: 'find-shortcut-regression', target: corpus.pages[0]!.title };
+  outcomes.push(shortcutCheck);
+  actions.push(shortcutAction);
+  try {
+    await find(shortcutPage, corpus.pages[0]!.title);
+    shortcutCheck.pass = true;
+    shortcutCheck.evidence = 'Ctrl+Shift+F opened Find with the journal caret before existing text, after Enter and ArrowUp.';
+  } catch (error) {
+    shortcutAction.error = await findFailure(windows[0]!, error);
+    shortcutCheck.evidence = shortcutAction.error;
+    throw error;
+  }
   start = Date.now();
   tracking.startedAt = start;
   const deadline = start + timing.milliseconds;
@@ -113,14 +151,6 @@ try {
           continue;
         }
         const roll = rng();
-        // Find and journal navigation need the service; keep their selected
-        // actions queued across the injected outage while local typing continues.
-        if (roll < .20 && pauseNavigation) {
-          win.busy = false;
-          while (!stop && (pauseNavigation || pause)) await sleep(25);
-          if (stop || win.recycling || windows[slot] !== win) continue;
-          win.busy = true;
-        }
         if (roll < .12) {
           action.kind = 'find';
           const target = corpus.pages[Math.floor(rng() * corpus.pages.length)]!;
@@ -133,6 +163,7 @@ try {
         } else if (roll < .20) {
           action.kind = 'journal';
           await win.page.keyboard.press('Control+Shift+j');
+          await win.page.locator('.pane.active .journal-date').waitFor();
           await win.page.locator('.pane.active .outline-row').first().waitFor();
         } else if (roll < .25) {
           action.kind = 'fold';
@@ -155,9 +186,9 @@ try {
           }
         }
       } catch (error) {
-        action.error = String(error);
+        action.error = action.kind === 'find' && !win.recycling ? await findFailure(win, error) : String(error);
         // Closing a context deliberately interrupts its current input action.
-        if (!win.recycling && windows[slot] === win) { tracking.errors.push(String(error)); stop = true; }
+        if (!win.recycling && windows[slot] === win) { tracking.errors.push(`window ${slot} generation ${win.generation}: ${action.error}`); stop = true; }
       } finally {
         action.finishedMs = Date.now() - start;
         if (!win.recycling) action.state = await win.page.locator('.pane.active .pane-save-state').getAttribute('data-state').catch(() => null);
@@ -173,7 +204,6 @@ try {
     if (Date.now() >= nextService && deadline - Date.now() > 3000) {
       // Kill on an actual submitted request, rather than hoping a sleep overlaps the debounce.
       await Promise.race(windows.map(win => win.page.waitForRequest(request => new URL(request.url()).pathname === '/api/batches' && request.method() === 'POST', { timeout: 15_000 })));
-      pauseNavigation = true;
       await service.kill('SIGKILL');
       forcedServiceCrashes++;
       await sleep(1500);
@@ -181,7 +211,6 @@ try {
       await service.restart();
       while (windows.some(win => win.busy)) await sleep(10);
       await checkpoint('service restart');
-      pauseNavigation = false;
       pause = false;
       nextService += serviceInterval;
     }

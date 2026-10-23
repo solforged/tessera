@@ -36,6 +36,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Kept Find and other shell shortcuts ahead of the editor's macOS control-key motions, so Find opens from the middle of journal and page text as well as at the end.
 - Routed Android launcher shortcuts through a throwaway activity, so New note, New task, New question and Add to library open the capture slip in the running app and keep an open draft instead of restarting Tessera.
 - Restored the flag and question glyphs in project and question pane headers.
 - Kept the Week grid's visible hour when toggling Show all hours, let timed cards use two lines and sized the all-day rail to its content.
