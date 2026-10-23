@@ -158,6 +158,31 @@ What it settled:
 
 Decisions: keep the single writer and the WebSocket stream; they lost nothing. Before four-window editing is a supported shape, the service needs a short write queue so a window's commit does not wait for every other writer's transaction, structural events for a page that is being edited locally must patch instead of reload, and moves must re-anchor against the current siblings before they are sent. These are stage 8 work after this pass.
 
+## Spike 5 result: soak, 2026-10-23
+
+`bun web/perf/soak.ts --hours 8` ran a release service on the same 60-page corpus with two Chromium windows typing, splitting, indenting, folding, finding and visiting the journal every 300 to 550 ms, the service killed with SIGKILL on a submitted batch every 10 minutes, and a window's context closed and replaced every 20 minutes. The longest run reached 300 of 480 minutes before a workload action timed out (a row the other window had moved stayed detached through Playwright's 15 s click retry); the harness now bounds that click and counts it instead of stopping.
+
+| Measure | Budget | Five hours |
+|---|---|---|
+| Acknowledged edits lost | 0 | 0 of 63,596 receipts, checked at 31 restarts and at the end |
+| `/api/check` after each forced crash | ok | 31 of 31 |
+| Outbox commands after each restart and at the end | 0 | 0 in both windows at all 31 checkpoints |
+| WAL peak | 64 MiB | 4.6 MiB |
+| Mounted rows | 102 | 52 |
+| Cached pages per context | pages opened | never exceeded |
+| Used heap within one 20-minute context, minutes 5 to 8 against 17 to 20 | 1.10 | median 1.17 and 1.16 across eight generations per window; worst 1.49 |
+| End-of-life heap, second to eighth generation | 1.10 | 1.20 and 1.25, with the workshop growing the whole time |
+| Text conflicts resolved by the harness | none expected | 8 on the shared journal |
+
+What it settled:
+
+- **Nothing acknowledged was lost through thirty forced service crashes and fifteen context replacements**, and every outbox drained to zero after every restart. Durability under crashes is not the risk.
+- **Heaps are small and grow with the pages a window has visited.** A context ends its 20 minutes at 45 to 63 MiB after opening about 50 of the 60 pages; the growth from minute 5 to minute 20 is the client's block and capability caches filling, and the rise across generations follows the workshop, whose block texts the workload lengthens with every edit (63,596 appended markers). Neither is a leak, but the 10 percent budget as written does not fit a workload that keeps opening new pages and growing the data. The harness now measures per generation and allows the cross-generation trend to follow the database size; a second eight-hour run against those criteria is the next measurement.
+- **Three product bugs surfaced on the way and are fixed**: CodeMirror's macOS keymap took Ctrl+Shift+F before the shell saw it when the caret had text to its right; opening Find threw while `/api/fields` could not be read, because command availability was evaluated for a mode that never shows commands; and a search issued during an outage stayed stale after reconnection.
+- **Concurrent structural edits can be refused**, as in spike 4: one run kept a `move` whose `after` sibling the other window had already moved, and that window's outbox held the rejected command until a person would settle it. This is the stage 8 re-anchoring item.
+
+Decisions: the crash and restart design stands. The soak budget for heap becomes a per-context ratio plus a trend allowed to follow the workshop; a run must reach eight hours under those criteria before the soak counts as passed.
+
 ## Spikes that decide the stack
 
 Each runs before the matching feature is built. Each can overturn a choice in [architecture](architecture.md).
