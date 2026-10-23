@@ -1,6 +1,8 @@
 use std::path::Path;
 
-use tessera_core::{Actor, Batch, Notebook, NotebookOwnership, Operation, backup, restore};
+use tessera_core::{
+    Actor, Batch, Notebook, NotebookOwnership, Operation, backup, restore, restore_with,
+};
 
 const PAGE: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
 const BLOCK: &str = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
@@ -80,6 +82,47 @@ fn restore_round_trip_preserves_notebook() {
         notebook.info().unwrap().id
     );
     assert_copy(&notebook, &restored, &sha);
+}
+
+#[test]
+fn restore_with_replaces_the_database_under_the_held_service_lock() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("source");
+    let (notebook, sha) = seed(&source);
+    let saved = root.path().join("backup");
+    backup(&source, &saved).unwrap();
+    let destination = root.path().join("destination");
+    let old_id = Notebook::open(&destination).unwrap().info().unwrap().id;
+    let ownership = NotebookOwnership::acquire(&destination, 4397).unwrap();
+    let lock = destination.join("service.lock");
+    let contents = std::fs::read(&lock).unwrap();
+    std::fs::write(destination.join("restore.pending"), b"pending").unwrap();
+
+    let restored = restore_with(&ownership, &saved, &destination, true).unwrap();
+    assert_ne!(restored.id, old_id);
+    assert_eq!(restored.id, notebook.info().unwrap().id);
+    assert_eq!(std::fs::read(&lock).unwrap(), contents);
+    assert!(NotebookOwnership::acquire(&destination, 0).is_err());
+    assert!(destination.join("restore.pending").exists());
+    assert_copy(&notebook, &destination, &sha);
+    drop(ownership);
+    NotebookOwnership::acquire(&destination, 0).unwrap();
+}
+
+#[test]
+fn pending_restore_is_ignored_by_empty_destinations_and_snapshots() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("source");
+    let (notebook, sha) = seed(&source);
+    std::fs::write(source.join("restore.pending"), b"pending").unwrap();
+    let store = root.path().join("store");
+    let saved = tessera_core::backup_to_store(&source, &store).unwrap();
+    assert!(!saved.path.join("restore.pending").exists());
+    let destination = root.path().join("destination");
+    std::fs::create_dir(&destination).unwrap();
+    std::fs::write(destination.join("restore.pending"), b"pending").unwrap();
+    restore(&saved.path, &destination, false).unwrap();
+    assert_copy(&notebook, &destination, &sha);
 }
 
 #[test]
@@ -191,6 +234,48 @@ fn store_backups_skip_unchanged_state_and_keep_edits_and_new_objects() {
         edited.manifest.database_sha256
     );
     assert_eq!(object.manifest.object_count, 2);
+}
+
+#[test]
+fn safety_snapshot_preserves_its_selected_restore_point_during_retention() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join("workshop");
+    let store = root.path().join("backups");
+    let (mut notebook, _) = seed(&source);
+    let first = tessera_core::backup_to_store(&source, &store).unwrap();
+    let directory = first.path.parent().unwrap();
+    for index in 1..=3 {
+        let path = directory.join(format!("old-{index}"));
+        let mut manifest = backup(&source, &path).unwrap();
+        manifest.created_at = index;
+        std::fs::write(
+            path.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+    }
+    notebook
+        .apply(&Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: vec![Operation::EditText {
+                id: BLOCK.into(),
+                base_revision: 1,
+                text: "Saved before restoring".into(),
+            }],
+        })
+        .unwrap();
+    let selected = directory.join("old-1");
+    let safety = tessera_core::backup_to_store_preserving(&source, &store, &selected).unwrap();
+    assert!(safety.created);
+    assert!(safety.path.join("manifest.json").is_file());
+    assert!(selected.join("manifest.json").is_file());
+    assert!(!directory.join("old-2").exists());
+    assert_eq!(
+        Notebook::open(selected).unwrap().block(BLOCK).unwrap().text,
+        "Retained block"
+    );
 }
 
 #[cfg(unix)]

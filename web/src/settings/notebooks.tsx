@@ -54,23 +54,28 @@ export async function openNotebook(notebook: NotebookClient, path: string, creat
       await wait.promise;
     }
     const opened = await api.openNotebook(path, create);
-    const deadline = Date.now() + 30_000;
-    while (Date.now() < deadline) {
-      const wait = Promise.withResolvers<void>();
-      setTimeout(wait.resolve, 250);
-      await wait.promise;
-      try {
-        if ((await api.notebook()).path === opened.path) { location.reload(); return; }
-      } catch (error) {
-        // The service refuses this window's notebook once the new one serves; the client reloads.
-        if (error instanceof ApiError && error.code === 'notebook_changed') return;
-      }
-    }
-    throw new Error(`${label} did not open within 30 seconds. Reload the window to see which workshop is open.`);
+    await reloadNotebook(opened.path, label);
   } catch (error) {
     setOpening(null);
     throw error;
   }
+}
+
+/** Wait through the drain and restart before reloading, including same-workshop restores. */
+export async function reloadNotebook(path: string, label: string): Promise<void> {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    const wait = Promise.withResolvers<void>();
+    setTimeout(wait.resolve, 250);
+    await wait.promise;
+    try {
+      if ((await api.notebook()).path === path) { location.reload(); return; }
+    } catch (error) {
+      // "switching" and connection failures mean the old service is still draining.
+      if (error instanceof ApiError && error.code === 'notebook_changed') return;
+    }
+  }
+  throw new Error(`${label} did not open within 30 seconds. Reload the window to see which workshop is open.`);
 }
 
 /** Palette commands to switch to each other notebook on the list. */

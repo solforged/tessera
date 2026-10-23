@@ -276,6 +276,189 @@ fn cli_backup_and_restore_round_trip_while_service_runs() {
     service.stop();
 }
 
+#[tokio::test]
+async fn app_restore_reopens_the_workshop_and_recovers_a_pending_restore() {
+    let root = tempfile::tempdir().unwrap();
+    let source = root.path().join(".local/share/tessera/workshops/main");
+    let mut service = Service::spawn(isolated(root.path(), None));
+    let before = serving(&service.host, &source).await;
+    let client = reqwest::Client::new();
+    let base = format!("http://{}", service.host);
+    let first_page = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+    let second_page = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
+    for (id, title) in [(first_page, "Before backup"), (second_page, "After backup")] {
+        client
+            .post(format!("{base}/api/batches"))
+            .json(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: vec![Operation::CreatePage {
+                    id: id.into(),
+                    title: title.into(),
+                }],
+            })
+            .send()
+            .await
+            .unwrap()
+            .error_for_status()
+            .unwrap();
+        if id == first_page {
+            client
+                .post(format!("{base}/api/backups"))
+                .send()
+                .await
+                .unwrap()
+                .error_for_status()
+                .unwrap();
+        }
+    }
+    let backups: serde_json::Value = client
+        .get(format!("{base}/api/backups"))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let first = backups["backups"][0].clone();
+    let name = first["name"].as_str().unwrap();
+    let response = client
+        .post(format!("{base}/api/backups/{name}/restore"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    let restored: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(restored["restoring"], true);
+    assert_eq!(restored["backup"], first);
+    assert!(restored["safety"].is_object());
+    let after = serving(&service.host, &source).await;
+    assert_eq!(after["id"], before["id"]);
+    assert_eq!(after["path"], before["path"]);
+    assert!(!source.join("restore.pending").exists());
+    assert_eq!(
+        client
+            .get(format!("{base}/api/blocks/{first_page}"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::OK
+    );
+    assert_eq!(
+        client
+            .get(format!("{base}/api/blocks/{second_page}"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::NOT_FOUND
+    );
+    let backups: serde_json::Value = client
+        .get(format!("{base}/api/backups"))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(
+        backups["backups"]
+            .as_array()
+            .unwrap()
+            .contains(&restored["safety"])
+    );
+    let safety_path = Path::new(restored["safety"]["path"].as_str().unwrap());
+    assert!(safety_path.join("manifest.json").is_file());
+    assert!(!safety_path.join("restore.pending").exists());
+
+    // Even the newest backup is a valid restore point.
+    let newest = backups["backups"][0]["name"].as_str().unwrap();
+    let response = client
+        .post(format!("{base}/api/backups/{newest}/restore"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    serving(&service.host, &source).await;
+    assert_eq!(
+        client
+            .get(format!("{base}/api/blocks/{second_page}"))
+            .send()
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::OK
+    );
+    service.stop();
+
+    // A crash after publishing the marker must finish the restore on next launch.
+    let marker = source.join("restore.pending");
+    std::fs::write(
+        &marker,
+        serde_json::to_vec(&serde_json::json!({
+            "source": first["path"],
+            "requested_at": tessera_core::now_ms(),
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    for action in ["info", "check"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_tessera"))
+            .arg("--workshop")
+            .arg(&source)
+            .arg(action)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let mut restarted = Service::spawn(isolated(root.path(), None));
+    assert_eq!(serving(&restarted.host, &source).await["id"], before["id"]);
+    assert!(!marker.exists());
+    assert_eq!(
+        reqwest::get(format!("http://{}/api/blocks/{first_page}", restarted.host))
+            .await
+            .unwrap()
+            .status(),
+        reqwest::StatusCode::OK
+    );
+    assert_eq!(
+        reqwest::get(format!(
+            "http://{}/api/blocks/{second_page}",
+            restarted.host
+        ))
+        .await
+        .unwrap()
+        .status(),
+        reqwest::StatusCode::NOT_FOUND
+    );
+    assert!(safety_path.join("manifest.json").is_file());
+    restarted.stop();
+
+    std::fs::write(
+        &marker,
+        serde_json::to_vec(&serde_json::json!({
+            "source": root.path().join("missing-backup"),
+            "requested_at": tessera_core::now_ms(),
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    let mut recovered = Service::spawn(isolated(root.path(), None));
+    assert_eq!(serving(&recovered.host, &source).await["id"], before["id"]);
+    assert!(!marker.exists());
+    recovered.stop();
+}
+
 /// A service whose platform data directory, and so its notebook list, lives under `home`.
 fn isolated(home: &Path, notebook: Option<&Path>) -> Command {
     let home = std::fs::canonicalize(home).unwrap();
