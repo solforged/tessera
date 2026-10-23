@@ -32,6 +32,8 @@
 .settings-row, .settings-change { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-24); padding-block: var(--space-12); font-size: var(--text-control); line-height: var(--line-control); }
 .settings-row + .settings-row, .settings-change + .settings-change { border-top: var(--rule-width) solid var(--line); }
 .settings-row > :last-child, .settings-change > :last-child { justify-self: end; }
+/* A history row without Undo or Undone keeps its label in the first column. */
+.settings-change > .settings-label { justify-self: stretch; }
 .settings-label { min-width: 0; }
 .settings-name { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-8); color: var(--text); font-weight: var(--weight-control); }
 .settings-name label { cursor: pointer; }
@@ -75,7 +77,7 @@
   .settings-backup-row { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Agent changes: the newest three, newest first; Undo waits for hover where there is hover. */
+/* History: the newest fifty, newest first; Undo waits for hover where there is hover. */
 .settings-changes { margin: 0; padding: 0; list-style: none; }
 .settings-change .settings-name { font-weight: var(--weight-body); }
 .settings-change[data-undone] .settings-name { color: var(--muted); }

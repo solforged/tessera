@@ -178,9 +178,12 @@ impl Notebook {
             .prepare_cached(
                 "SELECT c.seq, c.change_id, c.origin, c.actor, c.reason, c.created_at,
                     COALESCE(h.summary,
-                        MAX(COALESCE(json_array_length(c.committed, '$.revisions'), 0),
-                            COALESCE(json_array_length(c.committed, '$.removed'), 0))
-                        || ' atoms changed'),
+                        CASE MAX(COALESCE(json_array_length(c.committed, '$.revisions'), 0),
+                                 COALESCE(json_array_length(c.committed, '$.removed'), 0))
+                        WHEN 1 THEN '1 atom changed'
+                        ELSE MAX(COALESCE(json_array_length(c.committed, '$.revisions'), 0),
+                                 COALESCE(json_array_length(c.committed, '$.removed'), 0))
+                             || ' atoms changed' END),
                     COALESCE(h.page_id, CASE
                         WHEN json_array_length(c.committed, '$.pages') = 1
                         THEN json_extract(c.committed, '$.pages[0]') END),

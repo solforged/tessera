@@ -373,7 +373,6 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
                   <span class="settings-name">{change.summary}</span>
                   <p><span class="settings-mono">{historyActor(change)} · <time dateTime={new Date(change.created_at).toISOString()}>{when(change.created_at)}</time></span>
                     <Show when={change.page}>{page => <><span class="settings-mono"> · </span><button type="button" class="settings-page-link" title={`Open atom · ${besideHint}`} onClick={event => props.onOpen({ kind: 'page', pageId: page().id }, opensBeside(event))}>{page().text}</button></>}</Show>
-                    <Show when={change.undoes !== null}><span class="settings-mono"> · Undid change {change.undoes}</span></Show>
                   </p>
                 </div>
                 <Show when={change.undoable} fallback={<Show when={change.undone_by !== null}><span class="settings-aside">Undone</span></Show>}>
