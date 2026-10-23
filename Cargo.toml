@@ -4,7 +4,7 @@ members = ["crates/tessera-core", "crates/tessera-ingest", "crates/tessera-servi
 exclude = ["vendor/sqlite-wasm-vfs"]
 
 [workspace.package]
-version = "0.5.0"
+version = "0.5.1"
 edition = "2024"
 license = "GPL-3.0-only"
 repository = "https://github.com/solforged/tessera"

@@ -6,6 +6,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ## Unreleased
 
+## 0.5.1, 2026-10-23
+
 ### Changed
 
 - Made page names ignore tags, so `[[Lab]]`, Find and agents reach `Lab #project` and a second Lab is refused as a duplicate. On upgrade, the newer of two pages that now share a name gets the first free `(2)`, `(3)` suffix.
@@ -13,6 +15,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 ### Fixed
 
 - Fixed phone reading: Reading now cards open the book at the saved position, Add atom on a bare highlight opens the note sheet, the reader's Back, settings and actions fit the width, jumps offer a way back, peeks no longer save a position, and each pane tab closes its own pane.
+- Drew the narrow-window outline depth dial as a muted header control, so on a source page it no longer reads as a highlight color swatch.
 
 ## 0.5.0, 2026-10-21
 
