@@ -193,7 +193,9 @@ fn canonical(path: &Path) -> PathBuf {
 fn listing(registry: &Registry, current: &Path) -> io::Result<Notebooks> {
     let stored = registry.load()?;
     let default = canonical(&registry.default);
-    let named_root = paths::workshops_dir().map(|path| canonical(&path));
+    // The default workshop lives in the workshops folder, so the registry names that folder itself and tests
+    // never read the machine's own.
+    let named_root = registry.default.parent().map(canonical);
     let mut paths = vec![default.clone()];
     for path in stored.notebooks.iter().map(|path| canonical(path)) {
         if !paths.contains(&path) {
