@@ -1002,7 +1002,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   });
   // The agent dock: its thread, the pages it reads (the panes in view, less any left out, plus dropped links) and
   // the rows it changed, which outline rows mark through AgentMarks.
-  const agentSession = createAgentSession(() => navigationId() ?? undefined);
+  const agentSession = createAgentSession(() => navigationId() ?? undefined, notebook.api);
   const agentMarks = { mark: (id: string) => agentSession.marks().get(id), undo: (seq: number) => agentSession.undo(seq) };
   const [dock, setDock] = createSignal(!DEMO && localStorage.getItem('tessera.agent.dock') === 'open');
   function toggleDock(show = !dock()) {

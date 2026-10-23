@@ -486,17 +486,17 @@ fn agent_kind_changes_and_removal_undo_without_overwriting_later_edits() {
     let added = nb
         .agent_edit(&request(Some(RelationKind::Supports)))
         .unwrap();
-    nb.undo_agent_change(added.seq, &Actor::Person).unwrap();
+    nb.undo_change(added.seq, &Actor::Person).unwrap();
     assert!(nb.capabilities(&id(13)).unwrap().relation.is_none());
     nb.agent_edit(&request(Some(RelationKind::Disputes)))
         .unwrap();
     let changed = nb
         .agent_edit(&request(Some(RelationKind::Qualifies)))
         .unwrap();
-    nb.undo_agent_change(changed.seq, &Actor::Person).unwrap();
+    nb.undo_change(changed.seq, &Actor::Person).unwrap();
     assert_eq!(info(&nb, 13).kind, RelationKind::Disputes);
     let removed = nb.agent_edit(&request(None)).unwrap();
-    nb.undo_agent_change(removed.seq, &Actor::Person).unwrap();
+    nb.undo_change(removed.seq, &Actor::Person).unwrap();
     assert_eq!(info(&nb, 13).kind, RelationKind::Disputes);
     let unchanged = nb
         .agent_edit(&request(Some(RelationKind::Disputes)))
@@ -506,7 +506,7 @@ fn agent_kind_changes_and_removal_undo_without_overwriting_later_edits() {
         .agent_edit(&request(Some(RelationKind::Answers)))
         .unwrap();
     edit(&mut nb, 13, "Later authored text");
-    assert!(nb.undo_agent_change(changed.seq, &Actor::Person).is_err());
+    assert!(nb.undo_change(changed.seq, &Actor::Person).is_err());
     assert_eq!(info(&nb, 13).kind, RelationKind::Answers);
     assert_eq!(nb.block(&id(13)).unwrap().text, "Later authored text");
 }

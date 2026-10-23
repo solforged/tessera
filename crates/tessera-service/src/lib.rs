@@ -67,10 +67,10 @@ use serde::Deserialize;
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 use serde::Serialize;
 use tessera_core::{
-    Actor, AgentChange, AgentReceipt, AgentRequest, Backlink, Batch, Block, BlockInPage,
-    ChangeEvent, CheckReport, Committed, Completion, FieldDetail, FieldKind, FieldsView, KindIndex,
-    NameMatch, NoteIndex, NoteKind, Notebook, NotebookInfo, PageView, QueryResult, SettingsView,
-    TypeInfo, UndoReceipt, View,
+    Actor, AgentReceipt, AgentRequest, Backlink, Batch, Block, BlockInPage, ChangeEvent,
+    CheckReport, Committed, Completion, FieldDetail, FieldKind, FieldsView, HistoryEntry,
+    KindIndex, NameMatch, NoteIndex, NoteKind, Notebook, NotebookInfo, PageView, QueryResult,
+    SettingsView, TypeInfo, UndoReceipt, View,
 };
 use tessera_core::{IncomingFieldValue, PageReferences, ReferenceCount, UnlinkedMentions};
 use tokio::sync::broadcast;
@@ -472,8 +472,9 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/check", get(check_notebook))
         .route("/api/check/repair", post(repair_notebook))
         .route("/api/batches", post(apply))
-        .route("/api/agent-changes", get(agent_changes).post(agent_edit))
-        .route("/api/agent-changes/{seq}/undo", post(undo_agent_change));
+        .route("/api/agent-changes", post(agent_edit))
+        .route("/api/history", get(history))
+        .route("/api/history/{seq}/undo", post(undo_change));
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     let routes = routes.merge(replica::routes());
     routes
@@ -490,6 +491,7 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
     let requested_port = config.port;
     let (notebook, mut ownership) = tokio::task::spawn_blocking(move || {
         let ownership = NotebookOwnership::acquire(&dir, requested_port)?;
+        apply_pending_restore(&ownership, &dir)?;
         let notebook = Notebook::open(&dir)
             .with_context(|| format!("cannot open workshop {}", dir.display()))?;
         Ok::<_, anyhow::Error>((notebook, ownership))
@@ -582,6 +584,76 @@ pub async fn serve(config: Config) -> anyhow::Result<Option<Restart>> {
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[derive(Deserialize, Serialize)]
+struct PendingRestore {
+    source: PathBuf,
+    requested_at: i64,
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+fn apply_pending_restore(
+    ownership: &NotebookOwnership,
+    workshop: &std::path::Path,
+) -> anyhow::Result<()> {
+    let marker = workshop.join("restore.pending");
+    let bytes = match std::fs::read(&marker) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error.into()),
+    };
+    let restored = (|| -> anyhow::Result<_> {
+        let pending: PendingRestore = serde_json::from_slice(&bytes)?;
+        anyhow::ensure!(
+            pending.source.is_absolute() && pending.source.join("manifest.json").is_file(),
+            "the restore source must be an absolute backup directory with manifest.json"
+        );
+        let _: tessera_core::BackupManifest =
+            serde_json::from_reader(std::fs::File::open(pending.source.join("manifest.json"))?)?;
+        tessera_core::restore_with(ownership, &pending.source, workshop, true)?;
+        Ok(pending)
+    })();
+    std::fs::remove_file(&marker)?;
+    std::fs::File::open(workshop)?.sync_all()?;
+    match restored {
+        Ok(pending) => tracing::info!(
+            source = %pending.source.display(),
+            requested_at = pending.requested_at,
+            "workshop restored from backup"
+        ),
+        Err(error) => {
+            tracing::warn!(%error, "discarded an invalid pending restore; opening the workshop")
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+fn write_pending_restore(workshop: &std::path::Path, source: PathBuf) -> std::io::Result<()> {
+    use std::io::Write;
+
+    let marker = workshop.join("restore.pending");
+    let temporary = workshop.join("restore.pending.tmp");
+    let result = (|| {
+        let mut file = std::fs::File::create(&temporary)?;
+        serde_json::to_writer(
+            &mut file,
+            &PendingRestore {
+                source,
+                requested_at: tessera_core::now_ms(),
+            },
+        )?;
+        file.write_all(b"\n")?;
+        file.sync_all()?;
+        std::fs::rename(&temporary, marker)?;
+        std::fs::File::open(workshop)?.sync_all()
+    })();
+    if result.is_err() {
+        let _ = std::fs::remove_file(temporary);
+    }
+    result
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 /// Refuse a window's request meant for another notebook, named by the `X-Tessera-Notebook`
 /// header or, for the change stream, the `notebook` query parameter. A switch or a replica
 /// reclone changes the notebook behind a port; an old window must not write into the new one.
@@ -644,6 +716,18 @@ fn shutdown_signal() -> std::io::Result<impl Future<Output = ()>> {
 }
 
 async fn notebook_info(State(state): State<AppState>) -> Result<Json<NotebookInfo>, ApiError> {
+    #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+    if state
+        .switcher
+        .as_ref()
+        .is_some_and(|switcher| switcher.request.borrow().is_some())
+    {
+        return Err(ApiError::new(
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            "switching",
+            "The workshop is reopening.",
+        ));
+    }
     run(&state, |notebook| notebook.info()).await.map(Json)
 }
 
@@ -718,6 +802,7 @@ fn backup_routes() -> Router<AppState> {
     Router::new()
         .route("/api/backups", get(backups).post(create_backup))
         .route("/api/backups/{name}", axum::routing::delete(delete_backup))
+        .route("/api/backups/{name}/restore", post(restore_backup))
         .route(
             "/api/backups/others/{workshop_id}",
             axum::routing::delete(delete_other_backups),
@@ -757,6 +842,14 @@ struct Backups {
 struct CreatedBackup {
     created: bool,
     backups: Backups,
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[derive(Serialize)]
+struct RestoringBackup {
+    restoring: bool,
+    backup: BackupInfo,
+    safety: Option<BackupInfo>,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -813,23 +906,29 @@ fn valid_workshop_id(id: &str) -> bool {
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+fn backup_info(
+    path: PathBuf,
+    manifest: tessera_core::BackupManifest,
+) -> Result<BackupInfo, ApiError> {
+    Ok(BackupInfo {
+        name: path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned(),
+        size: backup_size(&path, true)?,
+        path,
+        created_at: manifest.created_at,
+        object_count: manifest.object_count,
+    })
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 fn list_backups(store: &std::path::Path, info: &NotebookInfo) -> Result<Backups, ApiError> {
     let backups = tessera_core::finished_backups(store, &info.id)
         .map_err(ApiError::from)?
         .into_iter()
-        .map(|(path, manifest)| {
-            Ok(BackupInfo {
-                name: path
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-                    .into_owned(),
-                size: backup_size(&path, true)?,
-                path,
-                created_at: manifest.created_at,
-                object_count: manifest.object_count,
-            })
-        })
+        .map(|(path, manifest)| backup_info(path, manifest))
         .collect::<Result<Vec<_>, ApiError>>()?;
     let mut others = Vec::new();
     match std::fs::read_dir(store) {
@@ -920,6 +1019,73 @@ async fn delete_backup(
         }
         std::fs::remove_dir_all(&backups[index].path).map_err(ApiError::internal)?;
         list_backups(&store, &info).map(Json)
+    })
+    .await
+    .map_err(ApiError::internal)?
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+async fn restore_backup(
+    State(state): State<AppState>,
+    name: Result<Path<String>, PathRejection>,
+) -> Result<(axum::http::StatusCode, Json<RestoringBackup>), ApiError> {
+    let Path(name) = name.map_err(ApiError::from)?;
+    validate_backup_name(&name)?;
+    let switcher = state.switcher.clone().ok_or_else(|| {
+        ApiError::new(
+            axum::http::StatusCode::NOT_FOUND,
+            "not_found",
+            "This service cannot restore while serving a workshop by path.",
+        )
+    })?;
+    let conflict = || {
+        ApiError::new(
+            axum::http::StatusCode::CONFLICT,
+            "conflict",
+            "A backup or workshop switch is already running.",
+        )
+    };
+    let guard = state
+        .backup
+        .clone()
+        .try_lock_owned()
+        .map_err(|_| conflict())?;
+    let transition = switcher
+        .transition
+        .clone()
+        .try_lock_owned()
+        .map_err(|_| conflict())?;
+    if switcher.request.borrow().is_some() {
+        return Err(conflict());
+    }
+    let store = backup_store(&state)?;
+    let info = run(&state, |notebook| notebook.info()).await?;
+    tokio::task::spawn_blocking(move || {
+        // Both guards outlive cancellation, including publishing the restart request.
+        let (_guard, _transition) = (guard, transition);
+        let backup = list_backups(&store, &info)?
+            .backups
+            .into_iter()
+            .find(|backup| backup.name == name)
+            .ok_or_else(ApiError::not_found)?;
+        let saved = tessera_core::backup_to_store_preserving(&info.path, &store, &backup.path)
+            .map_err(ApiError::internal)?;
+        let safety = if saved.created {
+            Some(backup_info(saved.path, saved.manifest)?)
+        } else {
+            None
+        };
+        let source = std::fs::canonicalize(&backup.path).map_err(ApiError::internal)?;
+        write_pending_restore(&info.path, source).map_err(ApiError::internal)?;
+        switcher.request.send_replace(Some(info.path));
+        Ok((
+            axum::http::StatusCode::ACCEPTED,
+            Json(RestoringBackup {
+                restoring: true,
+                backup,
+                safety,
+            }),
+        ))
     })
     .await
     .map_err(ApiError::internal)?
@@ -1035,11 +1201,17 @@ struct TextQuery {
     limit: usize,
 }
 
+const CHANGES_PAGE_SIZE: usize = 500;
+
+fn default_changes_limit() -> usize {
+    CHANGES_PAGE_SIZE
+}
+
 #[derive(Deserialize)]
 struct ChangesQuery {
     #[serde(default)]
     after: i64,
-    #[serde(default = "default_limit")]
+    #[serde(default = "default_changes_limit")]
     limit: usize,
 }
 
@@ -1540,9 +1712,11 @@ async fn change_stream(
 async fn catch_up(socket: &mut WebSocket, state: &AppState, after: &mut i64) -> Result<(), ()> {
     loop {
         let cursor = *after;
-        let changes = run(state, move |notebook| notebook.changes_since(cursor, 100))
-            .await
-            .map_err(|_| ())?;
+        let changes = run(state, move |notebook| {
+            notebook.changes_since(cursor, CHANGES_PAGE_SIZE)
+        })
+        .await
+        .map_err(|_| ())?;
         if changes.is_empty() {
             return Ok(());
         }
@@ -1636,14 +1810,26 @@ async fn agent_edit(
     .map(Json)
 }
 
-async fn agent_changes(
+#[derive(Deserialize)]
+struct HistoryQuery {
+    #[serde(default = "default_limit")]
+    limit: usize,
+    before: Option<i64>,
+}
+
+#[derive(serde::Serialize)]
+struct HistoryResponse {
+    entries: Vec<HistoryEntry>,
+}
+
+async fn history(
     State(state): State<AppState>,
-    query: Result<Query<Limit>, QueryRejection>,
-) -> Result<Json<Vec<AgentChange>>, ApiError> {
-    let Query(Limit { limit }) = query.map_err(ApiError::from)?;
-    run(&state, move |notebook| notebook.agent_changes(limit))
+    query: Result<Query<HistoryQuery>, QueryRejection>,
+) -> Result<Json<HistoryResponse>, ApiError> {
+    let Query(HistoryQuery { limit, before }) = query.map_err(ApiError::from)?;
+    run(&state, move |notebook| notebook.history(limit, before))
         .await
-        .map(Json)
+        .map(|entries| Json(HistoryResponse { entries }))
 }
 
 #[derive(Deserialize)]
@@ -1651,7 +1837,7 @@ struct UndoRequest {
     actor: Actor,
 }
 
-async fn undo_agent_change(
+async fn undo_change(
     State(state): State<AppState>,
     path: Result<Path<i64>, PathRejection>,
     body: Result<Json<UndoRequest>, JsonRejection>,
@@ -1660,7 +1846,7 @@ async fn undo_agent_change(
     let Json(UndoRequest { actor }) = body.map_err(ApiError::from)?;
     let changes = state.changes.clone();
     run(&state, move |notebook| {
-        let mut receipt = notebook.undo_agent_change(seq, &actor)?;
+        let mut receipt = notebook.undo_change(seq, &actor)?;
         editor_receipt(notebook, &changes, &mut receipt.committed)?;
         Ok(receipt)
     })

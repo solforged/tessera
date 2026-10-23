@@ -37,6 +37,20 @@ export type Actor =
   | { kind: 'agent'; name: string }
   | { kind: 'client'; name: string };
 
+export interface HistoryEntry {
+  seq: number;
+  change_id: string | null;
+  origin: string | null;
+  actor: Actor;
+  reason: string | null;
+  created_at: number;
+  summary: string;
+  page: Block | null;
+  undoable: boolean;
+  undone_by: number | null;
+  undoes: number | null;
+}
+
 export interface ProviderView {
   id: string;
   name: string;
@@ -285,6 +299,7 @@ export interface BackupInfo { path: string; name: string; created_at: number; ob
 export interface OtherBackups { workshop_id: string; count: number; size: number; newest_at: number | null; path: string }
 export interface Backups { backups: BackupInfo[]; store_size: number; others: OtherBackups[] }
 export interface CreatedBackup { created: boolean; backups: Backups }
+export interface RestoringBackup { restoring: true; backup: BackupInfo; safety: BackupInfo | null }
 /**
  * A workshop the switcher knows. `available` is false when its folder no longer holds a workshop; `display_path`
  * writes the home folder as `~`; `named` marks one made by name in the workshops folder.

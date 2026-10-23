@@ -15,6 +15,7 @@ pub mod check;
 mod entity_query;
 mod error;
 mod fields;
+mod history;
 mod image_store;
 pub mod library;
 mod library_export;
@@ -65,14 +66,11 @@ mod task_store;
 mod unlogged;
 mod work_store;
 
-pub use agent::{
-    AgentChange, AgentCitation, AgentEdit, AgentReceipt, AgentRequest, NoteBlock, NoteTarget,
-    UndoReceipt,
-};
+pub use agent::{AgentCitation, AgentEdit, AgentReceipt, AgentRequest, NoteBlock, NoteTarget};
 pub use aliases::{Completion, NameMatch};
 pub use backup::{
-    BackupManifest, StoredBackup, backup, backup_directory, backup_to_store, finished_backups,
-    restore,
+    BackupManifest, StoredBackup, backup, backup_directory, backup_to_store,
+    backup_to_store_preserving, finished_backups, restore, restore_with,
 };
 pub use capabilities::ImageRef;
 pub use capabilities::{
@@ -96,6 +94,7 @@ pub use card_templates::{
 pub use check::CheckReport;
 pub use error::{Error, Result};
 pub use fields::SOURCE_TARGET;
+pub use history::{HistoryEntry, UndoReceipt};
 pub use image_store::image_type;
 pub use migrate::SCHEMA_VERSION;
 pub use model::{

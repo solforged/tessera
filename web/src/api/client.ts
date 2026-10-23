@@ -1,6 +1,7 @@
+import { ulid } from 'ulid';
 import { DEMO, EMBEDDED } from '../demo/mode';
 import type {
-  Actor,
+  HistoryEntry,
   ImageRef,
   IncomingFieldValue,
   AgentProviders,
@@ -18,6 +19,7 @@ import type {
   UnlinkedMentions,
   Backups,
   CreatedBackup,
+  RestoringBackup,
   PairingCode,
   PairingStatus,
   SyncConflicts,
@@ -94,15 +96,6 @@ import type {
 
 export type ExportFormat = 'bibtex' | 'csl' | 'markdown';
 
-export interface AgentChange {
-  seq: number;
-  actor: Actor;
-  reason: string | null;
-  created_at: number;
-  summary: string;
-  page: Block | null;
-  undone_by: number | null;
-}
 
 export interface UndoReceipt {
   undone: number;
@@ -216,6 +209,7 @@ export interface ApiClient {
   backups(signal?: AbortSignal): Promise<Backups>;
   createBackup(signal?: AbortSignal): Promise<CreatedBackup>;
   deleteBackup(name: string, signal?: AbortSignal): Promise<Backups>;
+  restoreBackup(name: string, signal?: AbortSignal): Promise<RestoringBackup>;
   deleteOtherBackups(workshopId: string, signal?: AbortSignal): Promise<Backups>;
   /** The Mac service only: known notebooks, and switching the service to one. */
   notebooks(signal?: AbortSignal): Promise<KnownNotebooks>;
@@ -235,8 +229,8 @@ export interface ApiClient {
   joinHub(url: string, code: string, name: string, signal?: AbortSignal): Promise<SyncState>;
   reclone(signal?: AbortSignal): Promise<SyncState>;
   syncConflicts(signal?: AbortSignal): Promise<SyncConflicts>;
-  agentChanges(limit?: number, signal?: AbortSignal): Promise<AgentChange[]>;
-  undoAgentChange(seq: number, signal?: AbortSignal): Promise<UndoReceipt>;
+  history(limit?: number, before?: number, signal?: AbortSignal): Promise<HistoryEntry[]>;
+  undoChange(seq: number, signal?: AbortSignal): Promise<UndoReceipt>;
   agentProviders(signal?: AbortSignal): Promise<AgentProviders>;
   saveAgentProviders(body: SaveAgentProviders, signal?: AbortSignal): Promise<AgentProviders>;
   testAgentProvider(id: string, signal?: AbortSignal): Promise<{ ok: true }>;
@@ -348,9 +342,9 @@ export interface ApiClient {
   exportQuery(format: ExportFormat, query: LibraryQuery, signal?: AbortSignal): Promise<Blob>;
 }
 
-type NativeMethod = 'service' | 'backups' | 'createBackup' | 'deleteBackup' | 'deleteOtherBackups' | 'notebooks' | 'openNotebook' | 'forgetNotebook' | 'queueUrl' | 'syncDevices' | 'setSharing' | 'forgetDevice' | 'startPairing' | 'pairingStatus' | 'cancelPairing';
+type NativeMethod = 'service' | 'backups' | 'createBackup' | 'deleteBackup' | 'restoreBackup' | 'deleteOtherBackups' | 'notebooks' | 'openNotebook' | 'forgetNotebook' | 'queueUrl' | 'syncDevices' | 'setSharing' | 'forgetDevice' | 'startPairing' | 'pairingStatus' | 'cancelPairing';
 
-export function createApi(base = ''): ApiClient {
+export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiClient {
   const get = <T>(path: string, signal?: AbortSignal) => request<T>(base, 'GET', path, undefined, signal);
   const agentRequest = <T>(method: 'GET' | 'PUT' | 'POST', path: string, body?: unknown, signal?: AbortSignal): Promise<T> =>
     DEMO ? Promise.reject(new ApiError('The agent requires the Tessera app or local service.', 400, 'unsupported'))
@@ -363,6 +357,7 @@ export function createApi(base = ''): ApiClient {
       backups: (signal?: AbortSignal) => get<Backups>('/backups', signal),
       createBackup: (signal?: AbortSignal) => request<CreatedBackup>(base, 'POST', '/backups', undefined, signal),
       deleteBackup: (name: string, signal?: AbortSignal) => request<Backups>(base, 'DELETE', `/backups/${segment(name)}`, undefined, signal),
+      restoreBackup: (name: string, signal?: AbortSignal) => request<RestoringBackup>(base, 'POST', `/backups/${segment(name)}/restore`, undefined, signal),
       deleteOtherBackups: (workshopId: string, signal?: AbortSignal) => request<Backups>(base, 'DELETE', `/backups/others/${segment(workshopId)}`, undefined, signal),
       notebooks: (signal?: AbortSignal) => get<KnownNotebooks>('/notebooks', signal),
       openNotebook: (path: string, create: boolean, signal?: AbortSignal) => request<{ path: string }>(base, 'POST', '/notebooks/open', { path, create }, signal),
@@ -375,8 +370,8 @@ export function createApi(base = ''): ApiClient {
       pairingStatus: (signal?: AbortSignal) => get<PairingStatus>('/sync/pairing', signal),
       cancelPairing: (signal?: AbortSignal) => request<void>(base, 'DELETE', '/sync/pairing', undefined, signal),
     } : {}),
-    agentChanges: (limit = 50, signal?: AbortSignal) => get<AgentChange[]>(`/agent-changes${query({ limit })}`, signal),
-    undoAgentChange: (seq: number, signal?: AbortSignal) => request<UndoReceipt>(base, 'POST', `/agent-changes/${seq}/undo`, { actor: { kind: 'person' } }, signal),
+    history: async (limit = 50, before?: number, signal?: AbortSignal) => (await get<{ entries: HistoryEntry[] }>(`/history${query({ limit, before })}`, signal)).entries,
+    undoChange: (seq: number, signal?: AbortSignal) => request<UndoReceipt>(base, 'POST', `/history/${seq}/undo`, { actor: { kind: 'client', name: actorName } }, signal),
     agentProviders: (signal?: AbortSignal) => agentRequest<AgentProviders>('GET', '/agent/providers', undefined, signal),
     saveAgentProviders: (body: SaveAgentProviders, signal?: AbortSignal) => agentRequest<AgentProviders>('PUT', '/agent/providers', body, signal),
     testAgentProvider: (id: string, signal?: AbortSignal) => agentRequest<{ ok: true }>('POST', `/agent/providers/${segment(id)}/test`, undefined, signal),

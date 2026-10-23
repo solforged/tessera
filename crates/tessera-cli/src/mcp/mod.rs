@@ -42,7 +42,7 @@ tessera_relations reads explicitly authored supports, disputes, qualifies and an
 tessera_library reads books and articles and tessera_cite links blocks to their passages. \
 tessera_sync tells whether your edits have reached the workshop's hub. Every write is one \
 change attributed to you and can be reversed with tessera_undo; tessera_recent_changes lists \
-them.";
+the workshop history.";
 
 pub async fn serve(notebook: &Path) -> anyhow::Result<()> {
     let mut lines = tokio::io::BufReader::new(tokio::io::stdin()).lines();

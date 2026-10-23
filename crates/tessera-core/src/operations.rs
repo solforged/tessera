@@ -118,6 +118,21 @@ impl Notebook {
             HashSet::new()
         };
         let mut field_changes = crate::fields::FieldChanges::default();
+        let mut history = local
+            .then(|| crate::history::Capture::for_batch(batch))
+            .flatten();
+        let inverse_targets = if history.is_some()
+            && batch.operations.len() > 1
+            && batch.operations.iter().any(|op| {
+                matches!(
+                    op,
+                    Operation::Move { .. } | Operation::Delete { .. } | Operation::Restore { .. }
+                )
+            }) {
+            crate::history::inverse_targets(&tx, &operations)?
+        } else {
+            HashSet::new()
+        };
         let mut engine = Engine {
             tx: &tx,
             object_dir: &self.dir,
@@ -147,6 +162,9 @@ impl Notebook {
             text_rewrites: Vec::new(),
             rewrite_positions: HashMap::new(),
             op_index: 0,
+            inverse_targets,
+            inverse_root: None,
+            inverse_bumps: Vec::new(),
         };
         for (index, operation) in batch.operations.iter().enumerate() {
             engine.op_index = index;
@@ -167,9 +185,58 @@ impl Notebook {
                 let owners = field_changes.derive(&tx)?;
                 engine.derive_templates(owners)?;
             }
+            if history.is_some() && matches!(operation, Operation::SetCardHeld { .. }) {
+                engine.derive_cards()?;
+            }
+            let before = history
+                .as_mut()
+                .map(|history| history.before(&tx, operation))
+                .transpose()?
+                .flatten();
+            engine.inverse_root = match operation {
+                Operation::Move { id, .. }
+                | Operation::Delete { id, .. }
+                | Operation::Restore { id, .. }
+                    if before.is_some() =>
+                {
+                    Some(id.as_str())
+                }
+                _ => None,
+            };
             engine
                 .operation(operation, index)
                 .map_err(|error| indexed(error, index))?;
+            engine.inverse_root = None;
+            if let Some((mut step, revision)) = before {
+                let after = match &step {
+                    crate::history::Step::CardHeld { .. } => {
+                        engine.cards.get(step.id()).map(|row| row.revision)
+                    }
+                    crate::history::Step::DeckCreated { .. }
+                    | crate::history::Step::DeckSaved { .. }
+                    | crate::history::Step::DeckDeleted { .. } => {
+                        engine.decks.get(step.id()).map(|row| row.revision)
+                    }
+                    _ => engine
+                        .positions
+                        .get(step.id())
+                        .map(|position| engine.revisions[position.position].revision),
+                };
+                if after.is_some_and(|after| after > revision) {
+                    if let crate::history::Step::Restore { deletion_id, .. } = &mut step {
+                        *deletion_id = engine.deletions.last().cloned();
+                    }
+                    if !engine.inverse_bumps.is_empty() {
+                        history.as_mut().expect("local capture").steps.push(
+                            crate::history::Step::Advance {
+                                ids: std::mem::take(&mut engine.inverse_bumps),
+                            },
+                        );
+                    }
+                    history.as_mut().expect("local capture").steps.push(step);
+                }
+            }
+            engine.inverse_bumps.clear();
         }
         engine.derive_tags()?;
         engine.cleanup_provisional_pages()?;
@@ -260,6 +327,9 @@ impl Notebook {
                 serde_json::to_string(&views).expect("view IDs serialize")
             ],
         )?;
+        if let Some(history) = history {
+            history.record(&tx, batch, &committed)?;
+        }
         record(&tx, &committed)?;
         crate::reads::record_editor_event(&tx, seq, false)?;
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -524,6 +594,9 @@ struct Engine<'a, 'conn> {
     task_views: BTreeMap<String, Revision>,
     library_views: BTreeMap<String, Revision>,
     positions: HashMap<String, Touched>,
+    inverse_targets: HashSet<String>,
+    inverse_root: Option<&'a str>,
+    inverse_bumps: Vec<String>,
     deletions: Vec<String>,
     removed: HashSet<String>,
     pruned_pages: Vec<crate::PrunedPage>,
@@ -560,6 +633,9 @@ impl Engine<'_, '_> {
     }
 
     fn record_revision(&mut self, id: &str, revision: i64) {
+        if self.inverse_root.is_some_and(|root| root != id) && self.inverse_targets.contains(id) {
+            self.inverse_bumps.push(id.to_owned());
+        }
         if let Some(position) = self.rewrite_positions.get(id) {
             self.text_rewrites[*position].revision = revision;
         }
