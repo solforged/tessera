@@ -618,77 +618,82 @@ impl Notebook {
     }
 
     pub fn changes_since(&self, seq: i64, limit: usize) -> Result<Vec<ChangeEvent>> {
-        let mut statement = self.conn.prepare_cached(concat!(
-            "SELECT c.seq, c.actor, c.reason, c.created_at, c.restructured_pages, json_extract(r.value, '$.id'), ",
+        let mut statement = self.conn.prepare_cached(
+            "SELECT seq, actor, reason, created_at, restructured_pages, views, committed
+             FROM editor_events WHERE seq > ?1 ORDER BY seq LIMIT ?2",
+        )?;
+        // Keep receipt blobs out of the revision join and its sort. One receipt
+        // can name thousands of blocks, but its metadata is needed only once.
+        let mut blocks = self.conn.prepare_cached(concat!(
+            "SELECT json_extract(r.value, '$.id'), ",
             block_columns!("b"),
-            ", b.deletion_id, c.views, c.committed
-             FROM (SELECT * FROM editor_events WHERE seq > ?1 ORDER BY seq LIMIT ?2) c
-             LEFT JOIN json_each(c.committed, '$.revisions') r
-             LEFT JOIN blocks b ON b.id = json_extract(r.value, '$.id') ORDER BY c.seq, r.key",
+            ", b.deletion_id FROM json_each(?1, '$.revisions') r
+             LEFT JOIN blocks b ON b.id = json_extract(r.value, '$.id') ORDER BY r.key",
         ))?;
         let mut cursor = statement.query(params![seq, sql_limit(limit)])?;
         let mut changes: Vec<ChangeEvent> = Vec::new();
         while let Some(row) = cursor.next()? {
-            let seq = row.get(0)?;
-            if changes.last().is_none_or(|change| change.seq != seq) {
-                let actor: String = row.get(1)?;
-                let pages: String = row.get(4)?;
-                let committed: Committed = serde_json::from_str(&row.get::<_, String>(18)?)
-                    .map_err(|error| validation(format!("invalid stored result: {error}")))?;
-                changes.push(ChangeEvent {
-                    seq,
-                    actor: serde_json::from_str(&actor)
-                        .map_err(|error| validation(format!("invalid stored actor: {error}")))?,
-                    reason: row.get(2)?,
-                    created_at: row.get(3)?,
-                    blocks: Vec::new(),
-                    removed: Vec::new(),
-                    restructured_pages: serde_json::from_str(&pages)
-                        .map_err(|error| validation(format!("invalid stored pages: {error}")))?,
-                    pages: committed.pages,
-                    views: serde_json::from_str(&row.get::<_, String>(17)?)
-                        .map_err(|error| validation(format!("invalid stored view IDs: {error}")))?,
-                    settings: committed
-                        .settings
-                        .into_iter()
-                        .map(|setting| setting.key)
-                        .collect(),
-                    capabilities: committed.capabilities,
-                    cards: committed.cards.into_iter().map(|card| card.id).collect(),
-                    work_sessions: committed
-                        .work_sessions
-                        .into_iter()
-                        .map(|session| session.id)
-                        .collect(),
-                    review_sessions: committed
-                        .review_sessions
-                        .into_iter()
-                        .map(|session| session.id)
-                        .collect(),
-                    decks: committed.decks.into_iter().map(|deck| deck.id).collect(),
-                    task_views: committed
-                        .task_views
-                        .into_iter()
-                        .map(|view| view.id)
-                        .collect(),
-                    library_views: committed
-                        .library_views
-                        .into_iter()
-                        .map(|view| view.id)
-                        .collect(),
-                });
-            }
-            if let Some(id) = row.get::<_, Option<String>>(5)? {
-                let change = changes.last_mut().expect("change exists");
-                if change.views.contains(&id) {
-                    continue;
-                }
-                if row.get::<_, Option<String>>(6)?.is_none()
-                    || row.get::<_, Option<String>>(16)?.is_some()
-                {
-                    change.removed.push(id);
-                } else {
-                    change.blocks.push(block_at(row, 6)?);
+            let actor: String = row.get(1)?;
+            let pages: String = row.get(4)?;
+            let receipt: String = row.get(6)?;
+            let committed: Committed = serde_json::from_str(&receipt)
+                .map_err(|error| validation(format!("invalid stored result: {error}")))?;
+            changes.push(ChangeEvent {
+                seq: row.get(0)?,
+                actor: serde_json::from_str(&actor)
+                    .map_err(|error| validation(format!("invalid stored actor: {error}")))?,
+                reason: row.get(2)?,
+                created_at: row.get(3)?,
+                blocks: Vec::new(),
+                removed: Vec::new(),
+                restructured_pages: serde_json::from_str(&pages)
+                    .map_err(|error| validation(format!("invalid stored pages: {error}")))?,
+                pages: committed.pages,
+                views: serde_json::from_str(&row.get::<_, String>(5)?)
+                    .map_err(|error| validation(format!("invalid stored view IDs: {error}")))?,
+                settings: committed
+                    .settings
+                    .into_iter()
+                    .map(|setting| setting.key)
+                    .collect(),
+                capabilities: committed.capabilities,
+                cards: committed.cards.into_iter().map(|card| card.id).collect(),
+                work_sessions: committed
+                    .work_sessions
+                    .into_iter()
+                    .map(|session| session.id)
+                    .collect(),
+                review_sessions: committed
+                    .review_sessions
+                    .into_iter()
+                    .map(|session| session.id)
+                    .collect(),
+                decks: committed.decks.into_iter().map(|deck| deck.id).collect(),
+                task_views: committed
+                    .task_views
+                    .into_iter()
+                    .map(|view| view.id)
+                    .collect(),
+                library_views: committed
+                    .library_views
+                    .into_iter()
+                    .map(|view| view.id)
+                    .collect(),
+            });
+            let mut revisions = blocks.query([&receipt])?;
+            let change = changes.last_mut().expect("change exists");
+            while let Some(row) = revisions.next()? {
+                if let Some(id) = row.get::<_, Option<String>>(0)? {
+                    if change.views.contains(&id) {
+                        continue;
+                    }
+                    if row.get::<_, Option<String>>(1)?.is_none()
+                        || row.get::<_, Option<String>>(11)?.is_some()
+                    {
+                        change.removed.push(id);
+                    } else {
+                        change.blocks.push(block_at(row, 1)?);
+                    }
                 }
             }
         }
