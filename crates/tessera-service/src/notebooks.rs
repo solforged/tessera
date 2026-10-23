@@ -113,7 +113,8 @@ impl Registry {
 pub(crate) struct Switcher {
     registry: Registry,
     remember: bool,
-    request: watch::Sender<Option<PathBuf>>,
+    pub(crate) request: watch::Sender<Option<PathBuf>>,
+    pub(crate) transition: Arc<tokio::sync::Mutex<()>>,
 }
 
 impl Switcher {
@@ -126,6 +127,7 @@ impl Switcher {
             registry,
             remember,
             request,
+            transition: Arc::new(tokio::sync::Mutex::new(())),
         })
     }
 }
@@ -332,6 +334,13 @@ async fn open(
 ) -> Result<(StatusCode, Json<Opening>), ApiError> {
     let Json(request) = body.map_err(ApiError::from)?;
     let switcher = switcher(&state)?;
+    let guard = switcher.transition.clone().try_lock_owned().map_err(|_| {
+        ApiError::new(
+            StatusCode::CONFLICT,
+            "switching",
+            "Another workshop is already opening.",
+        )
+    })?;
     if switcher.request.borrow().is_some() {
         return Err(ApiError::new(
             StatusCode::CONFLICT,
@@ -343,6 +352,8 @@ async fn open(
     let current = current_path(&state).await?;
     let worker = Arc::clone(&switcher);
     let path = tokio::task::spawn_blocking(move || {
+        // A cancelled request must not let another transition overtake this one.
+        let _guard = guard;
         let path = prepare(&target, request.create, &current)?;
         let mut stored = worker.registry.load().map_err(ApiError::internal)?;
         // Keep the notebook being left on the list, so the switcher can come back to it.
@@ -355,12 +366,12 @@ async fn open(
             stored.current = Some(path.clone());
         }
         worker.registry.save(&stored).map_err(ApiError::internal)?;
+        tracing::info!(path = %path.display(), "switching workshop");
+        worker.request.send_replace(Some(path.clone()));
         Ok::<_, ApiError>(path)
     })
     .await
     .map_err(ApiError::internal)??;
-    tracing::info!(path = %path.display(), "switching workshop");
-    switcher.request.send_replace(Some(path.clone()));
     Ok((StatusCode::ACCEPTED, Json(Opening { path })))
 }
 

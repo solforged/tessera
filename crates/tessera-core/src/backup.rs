@@ -145,7 +145,20 @@ pub fn backup_to_store(
     notebook: impl AsRef<Path>,
     store: impl AsRef<Path>,
 ) -> Result<StoredBackup> {
-    let notebook = fs::canonicalize(notebook.as_ref())?;
+    store_backup(notebook.as_ref(), store.as_ref(), None)
+}
+
+/// Take a safety snapshot without pruning the backup about to be restored.
+pub fn backup_to_store_preserving(
+    notebook: impl AsRef<Path>,
+    store: impl AsRef<Path>,
+    preserve: &Path,
+) -> Result<StoredBackup> {
+    store_backup(notebook.as_ref(), store.as_ref(), Some(preserve))
+}
+
+fn store_backup(notebook: &Path, store: &Path, preserve: Option<&Path>) -> Result<StoredBackup> {
+    let notebook = fs::canonicalize(notebook)?;
     let id: String = {
         let conn = Connection::open_with_flags(
             notebook.join(DATABASE_FILE),
@@ -156,7 +169,6 @@ pub fn backup_to_store(
             r.get(0)
         })?
     };
-    let store = store.as_ref();
     let directory = backup_directory(store, &id)?;
     fs::create_dir_all(&directory)?;
     if !fs::symlink_metadata(&directory)?.is_dir() {
@@ -171,7 +183,7 @@ pub fn backup_to_store(
         && previous.object_count == manifest.object_count
     {
         stage.close()?;
-        prune_store(store, &id, now_ms())?;
+        prune_store(store, &id, now_ms(), preserve)?;
         return Ok(StoredBackup {
             path,
             manifest: previous,
@@ -200,7 +212,7 @@ pub fn backup_to_store(
     };
     fs::rename(stage.path(), &path)?;
     File::open(&directory)?.sync_all()?;
-    prune_store(store, &id, now_ms())?;
+    prune_store(store, &id, now_ms(), preserve)?;
     Ok(StoredBackup {
         path,
         manifest,
@@ -231,7 +243,7 @@ fn retained_backups(timestamps: &[i64], now: i64) -> BTreeSet<usize> {
     keep
 }
 
-fn prune_store(store: &Path, id: &str, now: i64) -> Result<()> {
+fn prune_store(store: &Path, id: &str, now: i64, preserve: Option<&Path>) -> Result<()> {
     let backups = finished_backups(store, id)?;
     let timestamps: Vec<_> = backups
         .iter()
@@ -239,7 +251,7 @@ fn prune_store(store: &Path, id: &str, now: i64) -> Result<()> {
         .collect();
     let keep = retained_backups(&timestamps, now);
     for (index, (path, _)) in backups.into_iter().enumerate() {
-        if !keep.contains(&index) {
+        if !keep.contains(&index) && preserve != Some(path.as_path()) {
             fs::remove_dir_all(path)?;
         }
     }
@@ -270,7 +282,19 @@ pub fn restore(
     force: bool,
 ) -> Result<NotebookInfo> {
     let (source, destination) = directories(source.as_ref(), destination.as_ref())?;
-    let _ownership = NotebookOwnership::acquire(&destination, 0)?;
+    let ownership = NotebookOwnership::acquire(&destination, 0)?;
+    restore_with(&ownership, source, destination, force)
+}
+
+/// Restore while the caller holds destination ownership and no open database.
+/// Keep that ownership alive until the replacement has finished migrating.
+pub fn restore_with(
+    _ownership: &NotebookOwnership,
+    source: impl AsRef<Path>,
+    destination: impl AsRef<Path>,
+    force: bool,
+) -> Result<NotebookInfo> {
+    let (source, destination) = directories(source.as_ref(), destination.as_ref())?;
     if !force {
         require_empty(&destination)?;
     }
@@ -314,7 +338,8 @@ fn directories(source: &Path, destination: &Path) -> Result<(PathBuf, PathBuf)> 
 
 fn require_empty(directory: &Path) -> Result<()> {
     for entry in fs::read_dir(directory)? {
-        if entry?.file_name() != "service.lock" {
+        let name = entry?.file_name();
+        if name != "service.lock" && name != "restore.pending" {
             return Err(validation(
                 "Destination is not empty; restore requires --force.",
             ));
@@ -512,7 +537,7 @@ mod tests {
                 .set_modified(SystemTime::UNIX_EPOCH + Duration::from_millis((now - age) as u64))
                 .unwrap();
         }
-        prune_store(root.path(), id, now).unwrap();
+        prune_store(root.path(), id, now, None).unwrap();
         assert!(!directory.join("old").exists());
         assert!(!directory.join("boundary").exists());
         assert!(directory.join("recent").exists());
