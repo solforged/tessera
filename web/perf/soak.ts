@@ -197,6 +197,8 @@ try {
       const action: WorkloadAction = { elapsedMs: Date.now() - start, slot: win.slot, generation: win.generation, kind: 'resolve-conflict' };
       actions.push(action);
       try {
+        // Resolution is a command like any other; offline it only queues, and the label stays until the ack.
+        await win.page.waitForFunction(() => window.__spike.live, undefined, { timeout: 60_000 });
         await review.click();
         const panel = win.page.locator('.pane.active .conflict-panel').first();
         await panel.locator('pre').nth(1).waitFor();
@@ -216,8 +218,13 @@ try {
         await win.page.keyboard.press(process.platform === 'darwin' ? 'Meta+a' : 'Control+a');
         await win.page.keyboard.insertText(merged);
         await panel.getByRole('button', { name: 'Use edited text', exact: true }).click();
-        await win.page.waitForFunction(id => !document.querySelector(`.pane.active [data-block-id="${id}"] .conflict-label`), action.target);
-      } catch (error) { action.error = String(error); throw error; }
+        await win.page.waitForFunction(id => !document.querySelector(`.pane.active [data-block-id="${id}"] .conflict-label`), action.target, { timeout: 30_000 });
+      } catch (error) {
+        const panel = await win.page.locator('.pane.active .conflict-panel').first().evaluate(element => element.outerHTML.slice(0, 1500)).catch(() => 'no conflict panel');
+        const state = await win.page.locator('.pane.active .pane-save-state').evaluate(element => element.outerHTML.slice(0, 500)).catch(() => 'no save state');
+        action.error = `${String(error)}\nconflict panel: ${panel}\nsave state: ${state}`;
+        throw error;
+      }
       finally { action.finishedMs = Date.now() - start; }
     }
   }
@@ -355,25 +362,32 @@ try {
   await service?.kill();
   corpus.dispose();
 }
-// Contexts are replaced every tabInterval, so growth is measured within each generation's life: a warmed median
-// from the second quarter of its life against a final median from its last 15 percent. The trend across
-// generations catches growth that survives a context replacement. The workload appends text to every block it
-// touches, so the workshop itself grows; the trend is allowed to follow the database, not exceed it.
+// Contexts are replaced every tabInterval, so growth is measured within each generation's life. A context is
+// warmed once it has opened most of the pages it will ever open, since every new page adds to the client's
+// caches by design; the warmed median runs from that point to 40 percent of its life, or over the second
+// quarter when saturation comes later, and is compared with the median of its last 15 percent. The trend
+// across generations catches growth that survives a context replacement. The workload appends text to every
+// block it touches, so the workshop itself grows; the trend is allowed to follow the database, not exceed it.
 const dbAt = (elapsedMs: number) => samples.reduce((best, sample) => Math.abs(sample.elapsedMs - elapsedMs) < Math.abs(best.elapsedMs - elapsedMs) ? sample : best, samples[0]!).dbBytes;
 const heapRows = [0, 1].map(slot => {
-  const byGeneration = new Map<number, { elapsedMs: number; used: number }[]>();
+  const byGeneration = new Map<number, { elapsedMs: number; used: number; pagesOpened: number }[]>();
   const mib = (bytes: number) => `${(bytes / 1048576).toFixed(1)} MiB`;
   for (const sample of samples) for (const win of sample.windows) {
     if (win.slot !== slot) continue;
     if (!byGeneration.has(win.generation)) byGeneration.set(win.generation, []);
-    byGeneration.get(win.generation)!.push({ elapsedMs: sample.elapsedMs, used: win.heap.used });
+    byGeneration.get(win.generation)!.push({ elapsedMs: sample.elapsedMs, used: win.heap.used, pagesOpened: win.storage.pagesOpened });
   }
   const generations = [...byGeneration.entries()].sort(([a], [b]) => a - b).flatMap(([generation, rows]) => {
     if (rows.length < 8) return [];
     const born = rows[0]!.elapsedMs, died = rows[rows.length - 1]!.elapsedMs, life = died - born;
-    const warmed = median(rows.filter(row => row.elapsedMs - born >= life * .25 && row.elapsedMs - born <= life * .4).map(row => row.used));
+    const opened = rows[rows.length - 1]!.pagesOpened;
+    const saturated = rows.find(row => row.pagesOpened >= opened * .8)?.elapsedMs ?? died;
+    let warmedRows = rows.filter(row => row.elapsedMs >= saturated && row.elapsedMs - born <= life * .4);
+    const basis = warmedRows.length >= 2 ? 'after opening 80 percent of its pages' : 'second quarter of its life';
+    if (warmedRows.length < 2) warmedRows = rows.filter(row => row.elapsedMs - born >= life * .25 && row.elapsedMs - born <= life * .4);
+    const warmed = median(warmedRows.map(row => row.used));
     const final = median(rows.filter(row => row.elapsedMs - born >= life * .85).map(row => row.used));
-    return warmed && final ? [{ generation, warmed, final, growth: final / warmed, dbBytes: dbAt(died) }] : [];
+    return warmed && final ? [{ generation, warmed, final, growth: final / warmed, basis, pagesOpened: opened, dbBytes: dbAt(died) }] : [];
   });
   const growth = median(generations.map(row => row.growth));
   const worst = generations.length ? Math.max(...generations.map(row => row.growth)) : null;
@@ -382,7 +396,7 @@ const heapRows = [0, 1].map(slot => {
   const last = generations[generations.length - 1];
   const trend = base && last && generations.length >= 2 ? last.final / base.final : null;
   const dbTrend = base && last && generations.length >= 2 && base.dbBytes ? last.dbBytes / base.dbBytes : null;
-  const lives = generations.map(row => `gen ${row.generation}: ${mib(row.warmed)} → ${mib(row.final)} (${row.growth.toFixed(3)})`).join('; ');
+  const lives = generations.map(row => `gen ${row.generation}: ${mib(row.warmed)} → ${mib(row.final)} (${row.growth.toFixed(3)}, warmed ${row.basis}, ${row.pagesOpened} pages opened)`).join('; ');
   outcomes.push(
     { scenario: `Window ${slot} heap growth within a context`, pass: growth !== null && growth <= 1.1, evidence: growth === null ? 'No context lived long enough for a warmed and a final interval.' : `median ratio ${growth.toFixed(3)}, worst ${worst!.toFixed(3)} across ${generations.length} generations (maximum 1.100); ${lives}` },
     { scenario: `Window ${slot} heap trend across contexts`, pass: trend === null ? timing.smoke : trend <= Math.max(1.1, dbTrend ?? 1), evidence: trend === null ? `Fewer than two measured generations${timing.smoke ? '; a smoke run does not measure the trend' : ''}.` : `end-of-life heap ratio ${trend.toFixed(3)} from the second measured generation to the last, while the workshop grew ${dbTrend?.toFixed(3) ?? 'unmeasured'} (${mib(base!.dbBytes)} → ${mib(last!.dbBytes)}); maximum is the larger of 1.100 and the workshop ratio` },

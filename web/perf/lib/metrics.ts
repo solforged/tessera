@@ -184,11 +184,24 @@ export async function drained(page: Page, timeout = 30_000) {
     if (saved && (await outbox(page)).commands === 0) return;
     await sleep(25);
   }
-  const evidence = await page.evaluate(() => ({
-    probe: window.__spike,
-    states: [...document.querySelectorAll('.pane-save-state')].map(element => ({ state: element.getAttribute('data-state'), message: element.getAttribute('title') })),
-    alerts: [...document.querySelectorAll('[role="alert"]')].map(element => element.textContent),
-  }));
+  const evidence = await page.evaluate(async () => {
+    const connection = Promise.withResolvers<IDBDatabase>();
+    const request = indexedDB.open('tessera-outbox-v1');
+    request.onsuccess = () => connection.resolve(request.result);
+    request.onerror = () => connection.reject(request.error);
+    const db = await connection.promise;
+    const rows = Promise.withResolvers<unknown[]>();
+    const all = db.transaction('commands').objectStore('commands').getAll();
+    all.onsuccess = () => rows.resolve(all.result);
+    all.onerror = () => rows.reject(all.error);
+    const commands = await rows.promise.finally(() => db.close());
+    return {
+      probe: { ...window.__spike, keys: undefined },
+      states: [...document.querySelectorAll('.pane-save-state')].map(element => ({ state: element.getAttribute('data-state'), message: element.getAttribute('title') })),
+      alerts: [...document.querySelectorAll('[role="alert"]')].map(element => element.textContent),
+      commands: JSON.stringify(commands).slice(0, 4000),
+    };
+  });
   throw new Error(`Outbox did not drain: ${JSON.stringify({ ...evidence, outbox: await outbox(page) })}`);
 }
 
@@ -228,7 +241,9 @@ export async function converged(page: Page, base: string, pageId: string) {
 const sessions = new WeakMap<Page, CDPSession>();
 export async function heap(page: Page): Promise<HeapSample> {
   let session = sessions.get(page);
-  if (!session) { session = await page.context().newCDPSession(page); await session.send('Performance.enable'); sessions.set(page, session); }
+  if (!session) { session = await page.context().newCDPSession(page); await session.send('Performance.enable'); await session.send('HeapProfiler.enable'); sessions.set(page, session); }
+  // Used heap without a collection mostly measures when V8 last ran one; collect first so samples compare live objects.
+  await session.send('HeapProfiler.collectGarbage');
   const result = await session.send('Performance.getMetrics');
   const values = Object.fromEntries(result.metrics.map((metric: { name: string; value: number }) => [metric.name, metric.value]));
   return { used: values.JSHeapUsedSize ?? 0, total: values.JSHeapTotalSize ?? 0, nodes: values.Nodes ?? 0, listeners: values.JSEventListeners ?? 0 };
