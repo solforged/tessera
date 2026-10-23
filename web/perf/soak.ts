@@ -1,16 +1,16 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Browser, BrowserContext, Page } from 'playwright-core';
+import type { Browser, BrowserContext, Page, Route } from 'playwright-core';
 import { api, root, Service, sleep } from './lib/service';
 import { seed } from './lib/seed';
 import { drained, duration, find, heap, instrument, launch, median, open, random, ready, storage, tracker, typeMarker, verify } from './lib/metrics';
 import type { HeapSample, Outcome, RevisionCheck, StorageSample } from './lib/metrics';
 import { report, table } from './lib/report';
 
-interface WindowRun { context: BrowserContext; page: Page; slot: number; generation: number; busy: boolean; recycling: boolean }
+interface WindowRun { context: BrowserContext; page: Page; slot: number; generation: number; busy: boolean; recycling: boolean; pageErrors: { at: number; message: string }[] }
 interface Sample { elapsedMs: number; walBytes: number; windows: { slot: number; generation: number; heap: HeapSample; storage: StorageSample }[] }
 interface Checkpoint { elapsedMs: number; kind: string; revisions: RevisionCheck; check: { ok: boolean }; commands: number[] }
-interface WorkloadAction { elapsedMs: number; slot: number; generation: number; kind: string; target?: string; key?: string; finishedMs?: number; state?: string | null; findRetry?: string; error?: string }
+interface WorkloadAction { elapsedMs: number; slot: number; generation: number; kind: string; target?: string; key?: string; finishedMs?: number; state?: string | null; findRetry?: string; error?: string; fallback?: string }
 
 async function findFailure(win: WindowRun, error: unknown) {
   const directory = join(root, 'web/perf/results');
@@ -19,10 +19,17 @@ async function findFailure(win: WindowRun, error: unknown) {
   const screenshotError = await win.page.screenshot({ path: screenshot, fullPage: true }).then(() => null, error => String(error));
   const state = await win.page.evaluate(() => ({
     activeElement: document.activeElement?.outerHTML.slice(0, 2000),
+    activeAncestry: (() => {
+      const ancestors = [];
+      for (let element = document.activeElement; element; element = element.parentElement) ancestors.push({ tag: element.tagName, id: element.id, class: element.getAttribute('class') });
+      return ancestors;
+    })(),
+    popups: [...document.querySelectorAll('.popup')].map(element => element.outerHTML.slice(0, 300)),
+    keys: window.__spike.keys,
     overlays: [...document.querySelectorAll('.popup, [role="dialog"], [role="listbox"], .conflict-panel, .cm-tooltip, .save-banner')].map(element => ({ tag: element.tagName, class: element.className, role: element.getAttribute('role'), label: element.getAttribute('aria-label'), text: element.textContent?.slice(0, 2000) })),
     inputs: [...document.querySelectorAll('input')].map(element => ({ placeholder: element.placeholder, label: element.getAttribute('aria-label') })),
   })).catch(error => ({ captureError: String(error) }));
-  return `${String(error)}\nFind state: ${JSON.stringify({ screenshot: screenshotError ? null : screenshot, screenshotError, ...state })}`;
+  return `${String(error)}\nFind state: ${JSON.stringify({ screenshot: screenshotError ? null : screenshot, screenshotError, ...state, pageErrors: win.pageErrors })}`;
 }
 
 const timing = duration(8 * 60);
@@ -35,6 +42,7 @@ const samples: Sample[] = [];
 const checkpoints: Checkpoint[] = [];
 const actions: WorkloadAction[] = [];
 const findRetries = [0, 0];
+const findFailures = [0, 0];
 const windows: WindowRun[] = [];
 const tasks: Promise<void>[] = [];
 let browser: Browser | undefined;
@@ -44,6 +52,7 @@ let pause = false;
 let start = 0;
 let forcedServiceCrashes = 0;
 let forcedTabCrashes = 0;
+let regressionServiceCrashes = 0;
 let failure: string | null = null;
 // Smoke runs compress fault and sample intervals, but use the same workload and assertions.
 const serviceInterval = timing.smoke ? Math.min(600_000, timing.milliseconds / 3) : 600_000;
@@ -58,10 +67,39 @@ try {
     const context = await browser!.newContext({ viewport: { width: 1440, height: 900 } });
     await instrument(context, `window-${slot}-generation-${generation}`, tracking);
     const page = await context.newPage();
+    const pageErrors: WindowRun['pageErrors'] = [];
+    page.on('pageerror', error => {
+      pageErrors.push({ at: Date.now(), message: error.stack ?? String(error) });
+      if (pageErrors.length > 20) pageErrors.shift();
+    });
     await ready(page, base);
     const fixture = corpus.pages[slot]!;
     await open(page, fixture.id, fixture.blocks[slot]!);
-    return { context, page, slot, generation, busy: false, recycling: false };
+    return { context, page, slot, generation, busy: false, recycling: false, pageErrors };
+  }
+  async function reloadTarget(win: WindowRun, target: typeof corpus.pages[number]) {
+    const opened = await win.page.evaluate(() => window.__spike.opened);
+    await ready(win.page, base);
+    await win.page.evaluate(opened => { window.__spike.opened = [...new Set([...opened, ...window.__spike.opened])]; }, opened);
+    await open(win.page, target.id, target.blocks[0]);
+  }
+  async function findOrReload(win: WindowRun, target: typeof corpus.pages[number], action: WorkloadAction) {
+    try {
+      await find(win.page, target.title, async error => {
+        findRetries[win.slot]!++;
+        action.findRetry = await findFailure(win, error);
+      });
+      return true;
+    } catch (error) {
+      if (win.recycling) throw error;
+      findFailures[win.slot]!++;
+      action.error = await findFailure(win, error);
+      // The shell has no HTTP page route: reload its base, then use its public
+      // open event to restore the requested target in the same browser context.
+      await reloadTarget(win, target);
+      action.fallback = `Reloaded ${base} and opened ${target.id}`;
+      return false;
+    }
   }
   for (let slot = 0; slot < 2; slot++) windows.push(await createWindow(slot, 0));
   // Regression: macOS CodeMirror binds Ctrl+Shift+F to forward selection.
@@ -79,17 +117,75 @@ try {
   const shortcutAction: WorkloadAction = { elapsedMs: 0, slot: 0, generation: 0, kind: 'find-shortcut-regression', target: corpus.pages[0]!.title };
   outcomes.push(shortcutCheck);
   actions.push(shortcutAction);
+  shortcutCheck.pass = await findOrReload(windows[0]!, corpus.pages[0]!, shortcutAction);
+  shortcutCheck.evidence = shortcutCheck.pass
+    ? 'Ctrl+Shift+F opened Find with the journal caret before existing text, after Enter and ArrowUp.'
+    : shortcutAction.error!;
+  const fieldsCheck: Outcome = { scenario: 'Find and commands with unavailable fields', pass: false, evidence: 'Failed-field lookup regression did not complete.' };
+  const fieldsAction: WorkloadAction = { elapsedMs: 0, slot: 0, generation: 0, kind: 'find-fields-regression', target: corpus.pages[0]!.title };
+  outcomes.push(fieldsCheck);
+  actions.push(fieldsAction);
+  const failFields = (route: Route) => route.abort('failed');
+  await shortcutPage.route('**/api/fields', failFields);
   try {
-    await find(shortcutPage, corpus.pages[0]!.title, async error => {
-      findRetries[0]!++;
-      shortcutAction.findRetry = await findFailure(windows[0]!, error);
+    const rejected = shortcutPage.waitForEvent('requestfailed', { predicate: request => new URL(request.url()).pathname === '/api/fields' });
+    await typeMarker(shortcutPage, corpus.pages[0]!.blocks[0]!, 'soak_fields_failure_end');
+    await rejected;
+    await shortcutPage.evaluate(() => {
+      const settled = Promise.withResolvers<void>();
+      requestAnimationFrame(() => requestAnimationFrame(() => settled.resolve()));
+      return settled.promise;
     });
-    shortcutCheck.pass = true;
-    shortcutCheck.evidence = 'Ctrl+Shift+F opened Find with the journal caret before existing text, after Enter and ArrowUp.';
+    await shortcutPage.keyboard.press('Control+Shift+p');
+    const commandInput = shortcutPage.getByPlaceholder('Find a command');
+    await commandInput.fill('>Open as table');
+    await shortcutPage.getByText('Field definitions are unavailable.', { exact: true }).waitFor();
+    await shortcutPage.keyboard.press('Escape');
+    await commandInput.waitFor({ state: 'hidden' });
+    await find(shortcutPage, corpus.pages[0]!.title, error => { throw error; });
+    fieldsCheck.pass = true;
+    fieldsCheck.evidence = 'A failed /api/fields read left Find usable and Open as table disabled with its unavailable reason.';
   } catch (error) {
-    shortcutAction.error = await findFailure(windows[0]!, error);
-    shortcutCheck.evidence = shortcutAction.error;
-    throw error;
+    fieldsAction.error = await findFailure(windows[0]!, error);
+    fieldsCheck.evidence = fieldsAction.error;
+  } finally {
+    await shortcutPage.unroute('**/api/fields', failFields);
+    await reloadTarget(windows[0]!, corpus.pages[0]!);
+  }
+  const reconnectQuery = corpus.pages[1]!.title;
+  const reconnectCheck: Outcome = { scenario: 'Find query recovered after service restart', pass: false, evidence: 'Search did not resume.' };
+  const reconnectAction: WorkloadAction = { elapsedMs: 0, slot: 0, generation: 0, kind: 'find-reconnect-regression', target: reconnectQuery };
+  outcomes.push(reconnectCheck);
+  actions.push(reconnectAction);
+  let serviceStopped = false;
+  try {
+    await service.kill('SIGKILL');
+    serviceStopped = true;
+    regressionServiceCrashes++;
+    await shortcutPage.waitForFunction(() => !window.__spike.live);
+    const failedSearch = shortcutPage.waitForEvent('requestfailed', { predicate: request => {
+      const url = new URL(request.url());
+      return url.pathname === '/api/search' && url.searchParams.get('q') === reconnectQuery;
+    } });
+    await shortcutPage.keyboard.press('Control+Shift+f');
+    await shortcutPage.getByPlaceholder('Find or create an atom').fill(reconnectQuery);
+    await failedSearch;
+    await Promise.all([
+      shortcutPage.waitForResponse(response => {
+        const url = new URL(response.url());
+        return response.ok() && url.pathname === '/api/search' && url.searchParams.get('q') === reconnectQuery;
+      }),
+      service.restart().then(() => { serviceStopped = false; }),
+    ]);
+    await shortcutPage.locator('[role="option"]').filter({ hasText: reconnectQuery }).first().waitFor();
+    reconnectCheck.pass = true;
+    reconnectCheck.evidence = 'The unchanged query refetched successfully after reconnect, without another chord or keystroke.';
+  } catch (error) {
+    reconnectAction.error = await findFailure(windows[0]!, error);
+    reconnectCheck.evidence = reconnectAction.error;
+  } finally {
+    if (serviceStopped) await service.restart();
+    await reloadTarget(windows[0]!, corpus.pages[0]!);
   }
   start = Date.now();
   tracking.startedAt = start;
@@ -159,10 +255,7 @@ try {
           action.kind = 'find';
           const target = corpus.pages[Math.floor(rng() * corpus.pages.length)]!;
           action.target = target.title;
-          await find(win.page, target.title, async error => {
-            findRetries[slot]!++;
-            action.findRetry = await findFailure(win, error);
-          });
+          await findOrReload(win, target, action);
         } else if (roll < .16) {
           action.kind = 'back-forward';
           await win.page.keyboard.press('Control+Shift+h');
@@ -270,8 +363,9 @@ const pagesExceeded = samples.flatMap(sample => sample.windows.filter(win => win
 const maxMounted = samples.length ? Math.max(...samples.flatMap(sample => sample.windows.map(win => win.storage.mounted))) : null;
 outcomes.push(
   { scenario: 'Acknowledged revisions survived', pass: lost === 0, evidence: `${lost ?? 'not measured'} missing; ${tracking.receipts.length} receipts; change event membership and current revision floors checked` },
-  { scenario: 'Integrity after crashes and at end', pass: checkpoints.length > 0 && checkpoints.every(checkpoint => checkpoint.check.ok), evidence: `${checkpoints.length} /api/check responses; ${forcedServiceCrashes} service crashes; ${forcedTabCrashes} context crashes` },
+  { scenario: 'Integrity after crashes and at end', pass: checkpoints.length > 0 && checkpoints.every(checkpoint => checkpoint.check.ok), evidence: `${checkpoints.length} /api/check responses; ${forcedServiceCrashes} workload service crashes; ${regressionServiceCrashes} regression service crashes; ${forcedTabCrashes} context crashes` },
   { scenario: 'Find chords retried', pass: findRetries.every(count => count === 0), evidence: findRetries.map((count, slot) => `window ${slot}: ${count}`).join('; ') },
+  { scenario: 'Find failed', pass: findFailures.every(count => count === 0), evidence: findFailures.map((count, slot) => `window ${slot}: ${count}`).join('; ') },
   { scenario: 'Outboxes drained after restarts and at end', pass: checkpoints.length > 0 && checkpoints.every(checkpoint => checkpoint.commands.every(count => count === 0)), evidence: checkpoints.map(checkpoint => `${checkpoint.kind}: [${checkpoint.commands.join(', ')}]`).join('; ') || 'No checkpoint.' },
   { scenario: 'WAL bounded', pass: maxWal !== null && maxWal <= 64 * 1024 * 1024, evidence: `${maxWal === null ? 'not measured' : `${(maxWal / 1048576).toFixed(2)} MiB`} peak sampled (maximum 64 MiB)` },
   { scenario: 'Outbox page records bounded', pass: pagesExceeded.length === 0 && samples.length > 0, evidence: pagesExceeded.join('; ') || 'distinct cached pages never exceeded distinct pages opened per context; raw snapshot/patch counts retained in samples' },
@@ -281,6 +375,6 @@ outcomes.push(
 const summary = table(['Runtime', 'Duration', 'Receipts', 'Lost revisions', 'Heap growth w0 / w1', 'Peak WAL', 'Service / tab crashes', 'Checks'], [[
   'chromium', `${(timing.milliseconds / 60000).toFixed(2)} min`, tracking.receipts.length, lost,
   heapRows.map(row => row.growth === null ? 'not measured' : `${((row.growth - 1) * 100).toFixed(1)}%`).join(' / '),
-  maxWal === null ? null : `${(maxWal / 1048576).toFixed(2)} MiB`, `${forcedServiceCrashes} / ${forcedTabCrashes}`, checkpoints.length,
+  maxWal === null ? null : `${(maxWal / 1048576).toFixed(2)} MiB`, `${forcedServiceCrashes + regressionServiceCrashes} / ${forcedTabCrashes}`, checkpoints.length,
 ]]);
-await report('soak', summary, { durationMs: timing.milliseconds, elapsedMs: start ? Date.now() - start : 0, smoke: timing.smoke, prngSeed, intervals: { serviceInterval, tabInterval, sampleInterval }, heapRows, samples, checkpoints, tracking, actions, findRetries, forcedServiceCrashes, forcedTabCrashes, failure, subtreeCache: 'not exposed; mounted rows used as proxy' }, outcomes);
+await report('soak', summary, { durationMs: timing.milliseconds, elapsedMs: start ? Date.now() - start : 0, smoke: timing.smoke, prngSeed, intervals: { serviceInterval, tabInterval, sampleInterval }, heapRows, samples, checkpoints, tracking, actions, findRetries, findFailures, forcedServiceCrashes, regressionServiceCrashes, forcedTabCrashes, failure, subtreeCache: 'not exposed; mounted rows used as proxy' }, outcomes);
