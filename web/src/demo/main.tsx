@@ -15,8 +15,11 @@ import { installInstalledWindow } from './installed';
 import { persistOwnNotebook } from './offline';
 import type { Notebook } from '../document';
 import { NotebookHandoff } from './takeover';
+import { installIosViewport } from '../ui/ios-viewport';
 import '../styles.css';
 import './demo.css';
+
+installIosViewport();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element.');

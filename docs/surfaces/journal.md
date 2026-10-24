@@ -132,6 +132,14 @@ Front matter and unresolved contents use whole-book time left instead of inventi
 
 Touch journals keep only the bullet left of the text, with the heading and the right edge at the pane inset. Task status replaces the bullet rather than adding a second indent. Nested rows retain the same depth increment and atom actions no longer narrow the row when selected.
 
+Visiting or returning to a journal on a coarse pointer selects its saved row without restoring the text caret or opening the keyboard. Desktop keeps caret restoration. An explicit create-and-edit request still opens the editor.
+
+On touch, holding an outline row for half a second opens the same Atom actions sheet as its menu button. Moving to scroll cancels the hold. Rows at rest suppress the native text callout and selection flash; holding inside a row already being edited keeps native text selection.
+
+On the cover, editing with the keyboard open shows Outdent, Indent and Done immediately above the keyboard. Indent and Outdent use the outline's structural commands without dismissing the keyboard. Done leaves the row selected and dismisses the keyboard. The bar follows the visual viewport and stays hidden on wider layouts.
+
+All app entries limit text-focus zoom on iOS, including iPadOS with a desktop user agent, while preserving iOS pinch zoom. Android and desktop keep their original viewport settings so Android pinch zoom remains available.
+
 ## From your highlights
 
 Below the outline, From your highlights shows one resurfaced highlight at a time with an `N of M` counter and previous/next controls, preserving Open, Keep, Mute and the device's collapse preference. Keep reserves its checkmark's room, so the actions do not reflow when checked. No reading-session duration, pace or finish estimate is shown.
