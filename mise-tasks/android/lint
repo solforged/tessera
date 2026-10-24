@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Run Clippy on the Android app"
-#MISE depends=["android:pages"]
+#MISE depends=["mobile:pages"]
 # Needs an NDK: NDK_HOME, or the newest one in the SDK at ANDROID_HOME.
 set -euo pipefail
 
@@ -8,4 +8,4 @@ source "$MISE_PROJECT_ROOT/mise-tasks/android/ndk.sh"
 # The NDK ships one x86_64 toolchain directory per OS; macOS runs it on arm64.
 bin="$NDK_HOME/toolchains/llvm/prebuilt/$(uname -s | tr '[:upper:]' '[:lower:]')-x86_64/bin"
 export CC_aarch64_linux_android="$bin/aarch64-linux-android24-clang" AR_aarch64_linux_android="$bin/llvm-ar"
-cargo clippy -p tessera-android --target aarch64-linux-android --locked -- -D warnings
+cargo clippy -p tessera-mobile --target aarch64-linux-android --locked -- -D warnings

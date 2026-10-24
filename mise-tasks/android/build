@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #MISE description="Build the Android app; arguments go to `tauri android build`"
-#MISE depends=["android:pages"]
+#MISE depends=["mobile:pages"]
 #MISE tools={java="temurin-21", android-sdk="23.0"}
 # Without arguments, builds a debug APK for arm64 phones under
-# crates/tessera-android/gen/android/app/build/outputs/apk. mise provides the
+# crates/tessera-mobile/gen/android/app/build/outputs/apk. mise provides the
 # JDK and the Android SDK; the SDK must hold an NDK, or NDK_HOME must name one.
 # The app takes the workspace version, which also sets its versionCode.
 set -euo pipefail
 
 source "$MISE_PROJECT_ROOT/mise-tasks/android/ndk.sh"
 version=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$MISE_PROJECT_ROOT/Cargo.toml")
-bun install --cwd crates/tessera-android --frozen-lockfile --silent
+bun install --cwd crates/tessera-mobile --frozen-lockfile --silent
 if [ $# -eq 0 ]; then
   set -- --debug --target aarch64 --apk
 fi
-bun run --silent --cwd crates/tessera-android tauri android build --ci --config "{\"version\":\"$version\"}" "$@"
+bun run --silent --cwd crates/tessera-mobile tauri android build --ci --config "{\"version\":\"$version\"}" "$@"

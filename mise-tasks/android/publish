@@ -59,9 +59,9 @@ fi
 # The worktree's mise.toml is this repository's, at another path, and Gradle's
 # configuration cache can still name the main checkout.
 mise trust --quiet "$src/mise.toml"
-rm -rf "$src/crates/tessera-android/gen/android/.gradle/configuration-cache"
+rm -rf "$src/crates/tessera-mobile/gen/android/.gradle/configuration-cache"
 CARGO_INCREMENTAL=0 mise --cd "$src" run --quiet android:build >/dev/null
-apk="$src/crates/tessera-android/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
+apk="$src/crates/tessera-mobile/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk"
 
 source "$root/mise-tasks/android/ndk.sh"
 strip=$(find "$NDK_HOME/toolchains/llvm/prebuilt" -path '*/bin/llvm-strip' | head -n 1)

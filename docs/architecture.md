@@ -2,7 +2,7 @@
 
 Tessera is a local Rust service that owns one SQLite workshop, plus a browser editor and other clients that talk to it. The prototype's measurements show that its slow paths came from doing page-sized work per edit, not from its framework, SQLite or HTTP. So the stack stays familiar and the work per edit gets small.
 
-The main processes and how they connect. The service on the Mac owns the workshop and is the hub that replicas sync with, including other Macs (not drawn). The Android app and the browser demo each run `tessera-core` in their own process.
+The main processes and how they connect. The service on the Mac owns the workshop and is the hub that replicas sync with, including other Macs (not drawn). The phone app and the browser demo each run `tessera-core` in their own process.
 
 ```mermaid
 flowchart TB
@@ -18,8 +18,8 @@ flowchart TB
     end
     DB[("`notebook.db`<br/>SQLite")]
     Objects[("objects/<br/>original files")]
-    subgraph Phone["Android app"]
-        AndroidPage["Editor WebView"] -->|"Tauri IPC"| AndroidHost["tessera-android<br/>embedded router + core"]
+    subgraph Phone["Android and iOS app"]
+        AndroidPage["Editor WebView"] -->|"Tauri IPC"| AndroidHost["tessera-mobile<br/>embedded router + core"]
         AndroidHost --> AndroidDB[("private workshop")]
     end
     subgraph Demo["Browser demo"]
@@ -49,7 +49,7 @@ flowchart TB
 | Text editing | CodeMirror 6, one active editor per pane, with its Vim extension | Real Vim motions and IME handling without writing a text engine |
 | Outline rendering | Plain DOM rows, virtualized with TanStack Virtual for Solid | Bounded memory, mount time and layout cost on large pages |
 | Drafts | IndexedDB outbox of pending operations | Asynchronous, incremental, no quota cliff at a few megabytes |
-| Packaging | Browser, plus a Tauri macOS app that wraps the same pages and updates itself, and a Tauri Android app that runs the workshop in process | The macOS app adds a window, menus and signed updates; the service stays the single owner, so the CLI and agents work with the window closed. A phone has no service to own its workshop, so the Android app is the owner |
+| Packaging | Browser, plus a Tauri macOS app that wraps the same pages and updates itself, and a Tauri Android and iOS app that runs the workshop in process | The macOS app adds a window, menus and signed updates; the service stays the single owner, so the CLI and agents work with the window closed. A phone has no service to own its workshop, so the phone app is the owner |
 
 Each choice has a spike that can overturn it. See [performance](performance.md).
 
@@ -131,13 +131,13 @@ Updates come from `latest.json` on the latest GitHub release, signed with a mini
 
 The window has no native title bar. It uses the overlay title bar style, and the page's rail takes its place: Tauri's drag script moves and zooms the window from `data-tauri-drag-region`, which `capabilities/main.json` allows for the splash page and the loopback service origin, and nothing else. An initialization script marks every page with `data-window-controls="inset"` before it paints, and the window switches it to `hidden` in full screen, where macOS hides the window buttons.
 
-## Android app
+## Phone app
 
-`crates/tessera-android` is a Tauri 2 Android app. It opens a workshop in private app data and holds the ownership lock for the process lifetime. Recreated activities reuse that workshop rather than open a second writer.
+`crates/tessera-mobile` is a Tauri 2 app for Android and iOS. It opens a workshop in private app data and holds the ownership lock for the process lifetime. Recreated activities reuse that workshop rather than open a second writer.
 
 `tessera_service::embedded_router` builds the workshop and library routes, as for the browser demo's worker. It omits host and origin policy, assets, backups, service details and WebSocket.
 
-`web/src/android/transport.ts` sends requests over Tauri IPC. Bodies travel as base64 because Android IPC carries only JSON. Replies are raw frames of status, content type and body.
+`web/src/mobile/transport.ts` sends requests over Tauri IPC. Bodies travel as base64 because Android IPC carries only JSON. Replies are raw frames of status, content type and body.
 
 Changes arrive on a Tauri channel. Like WebSocket, `stream_changes` subscribes before catching up from history and returns when the page closes the stream or reloads. Nothing listens on a port, so other phone apps cannot reach the workshop.
 
@@ -193,13 +193,13 @@ A stale operation fails without writing. Clean remote changes merge into the loc
 
 ## Repository layout
 
-Arrows are local Cargo path dependencies, from dependent to dependency. Dashed arrows are build-time links: `embed-web` compiles `web/dist` into the service, the Android app ships `web/dist-android`, and the macOS app bundles the `tessera` binary.
+Arrows are local Cargo path dependencies, from dependent to dependency. Dashed arrows are build-time links: `embed-web` compiles `web/dist` into the service, the phone app ships `web/dist-mobile`, and the macOS app bundles the `tessera` binary.
 
 ```mermaid
 flowchart LR
     CLI["tessera-cli"]
     Desktop["tessera-desktop<br/>macOS"]
-    Android["tessera-android<br/>Android"]
+    Android["tessera-mobile<br/>Android and iOS"]
     Bench["tessera-bench"]
     Wasm["tessera-web<br/>wasm worker crate"]
     Service["tessera-service"]
@@ -218,7 +218,7 @@ flowchart LR
     Service --> Core
     Ingest --> Core
     Service -. "embed-web: web/dist" .-> Web
-    Android -. "web/dist-android" .-> Web
+    Android -. "web/dist-mobile" .-> Web
     Desktop -. "bundles the tessera binary" .-> CLI
 ```
 
@@ -227,7 +227,7 @@ crates/tessera-core      domain model, migrations, operations
 crates/tessera-service   HTTP and WebSocket service
 crates/tessera-cli       command line
 crates/tessera-desktop   macOS app: window, launch agent handover, updates
-crates/tessera-android   Android app: workshop in process, pages over IPC
+crates/tessera-mobile    Android and iOS app: workshop in process, pages over IPC
 crates/tessera-bench     corpus generator and backend budget checks
 crates/tessera-ingest    extractors for EPUB books and web articles
 crates/tessera-web       browser demo: core and service routes in a WASM worker

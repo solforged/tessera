@@ -170,4 +170,4 @@ Progress: determinism and identity, the replica protocol on loopback, and object
 
 ## Not planned
 
-Collaboration, an iOS app, plugin and schema builders, graph visualization and autonomous background agents. Each may come later; none blocks daily use.
+Collaboration, plugin and schema builders, graph visualization and autonomous background agents. Each may come later; none blocks daily use.

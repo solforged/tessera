@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+#MISE description="Build the iOS app; arguments go to `tauri ios build`"
+#MISE depends=["mobile:pages"]
+# Without arguments, builds a debug IPA for iPhones at
+# crates/tessera-mobile/gen/apple/build/arm64/Tessera.ipa, signed for the
+# development team in tauri.ios.conf.json. Needs Xcode with its iOS platform,
+# xcodegen and CocoaPods. With several Apple Development certificates,
+# TESSERA_IOS_SIGNING_IDENTITY names the one to sign with.
+# The app takes the workspace version.
+set -euo pipefail
+
+version=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$MISE_PROJECT_ROOT/Cargo.toml")
+bun install --cwd crates/tessera-mobile --frozen-lockfile --silent
+# Xcode's Rust build phase does not see mise's rustup settings, so rustup's
+# cargo proxy finds no toolchain there; put the pinned toolchain first instead.
+PATH="$(dirname "$(rustup which cargo)"):$PATH"
+if [ $# -eq 0 ]; then
+  set -- --debug --target aarch64
+fi
+if [ -n "${TESSERA_IOS_SIGNING_IDENTITY:-}" ]; then
+  # Xcode's automatic signing otherwise picks any certificate of the team.
+  xcconfig="$(mktemp -d)/signing.xcconfig"
+  trap 'rm -rf "$(dirname "$xcconfig")"' EXIT
+  printf 'CODE_SIGN_IDENTITY = %s\nCODE_SIGN_IDENTITY[sdk=iphoneos*] = %s\n' \
+    "$TESSERA_IOS_SIGNING_IDENTITY" "$TESSERA_IOS_SIGNING_IDENTITY" >"$xcconfig"
+  export XCODE_XCCONFIG_FILE="$xcconfig"
+fi
+bun run --silent --cwd crates/tessera-mobile tauri ios build --ci --config "{\"version\":\"$version\"}" "$@"

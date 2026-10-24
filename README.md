@@ -94,6 +94,7 @@ For a running workshop without installation, open the [browser demo](https://tes
 
 - **macOS app:** download the [latest release](https://github.com/solforged/tessera/releases/latest), drag Tessera into Applications and follow the [first-launch steps](docs/usage.md#macos-app).
 - **Android app:** [build and install an arm64 APK](docs/usage.md#android-app) on a phone with USB debugging enabled.
+- **iOS app:** [build and install a development IPA](docs/usage.md#ios-app) on an iPhone with Developer Mode on.
 - **Command line:** [build with mise](docs/usage.md#command-line), then run `tessera install` on macOS or `tessera serve` on Linux.
 
 ## Acknowledgments

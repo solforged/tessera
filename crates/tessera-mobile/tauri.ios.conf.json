@@ -1,0 +1,9 @@
+{
+  "identifier": "dev.tessera.ios",
+  "bundle": {
+    "iOS": {
+      "developmentTeam": "27RJPPNS27",
+      "minimumSystemVersion": "17.0"
+    }
+  }
+}

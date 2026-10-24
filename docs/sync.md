@@ -216,7 +216,7 @@ The phone sends the code and its name, receiving a random key. The hub stores it
 
 Forget deletes the device row, revoking its key and retiring its replicas. The forgotten phone reports `unpaired` and offers Pair again. Its new key registers a temporary replica that sends only the phone's outbox and unlogged rows, never its log received from the hub. The phone then clones the hub again.
 
-One HTTP client serves the command line and Android app. It uses rustls with bundled webpki roots, which accept Tailscale's Let's Encrypt certificates, and permits plain HTTP only to loopback.
+One HTTP client serves the command line and phone app. It uses rustls with bundled webpki roots, which accept Tailscale's Let's Encrypt certificates, and permits plain HTTP only to loopback.
 
 The service runner syncs one replica at a time:
 

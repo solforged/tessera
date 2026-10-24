@@ -1,6 +1,6 @@
 import { Show, createSignal } from 'solid-js';
 import { api } from '../api/client';
-import { ANDROID, DEMO, EMBEDDED } from '../demo/mode';
+import { DEMO, EMBEDDED, MOBILE } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { hubDevices, plural, replica, sync } from '../sync/state';
@@ -31,7 +31,7 @@ export function NotebookSwitcher(props: { notebook: NotebookClient; onOpen(targe
         action: () => { void api.runSync().then(sync.set, props.onError); } },
       { section: 'Sync', label: 'Devices', secondary: copy.hub_name ?? undefined, action: () => devices(copy.device_id) },
     ];
-    if (ANDROID) return [{ section: 'Sync', label: "Use my Mac's workshop…", action: () => devices() }];
+    if (MOBILE) return [{ section: 'Sync', label: "Use my Mac's workshop…", action: () => devices() }];
     const count = hubDevices.state()?.devices.length ?? 0;
     return [count
       ? { section: 'Sync', label: 'Devices', secondary: plural(count, 'device'), action: () => devices() }

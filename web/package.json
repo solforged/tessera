@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:demo": "tsc --noEmit -p tsconfig.demo.json && vite build --mode demo",
-    "build:android": "tsc --noEmit && vite build --mode android",
+    "build:mobile": "tsc --noEmit && vite build --mode mobile",
     "typecheck": "tsc --noEmit",
     "test": "bun test src"
   },

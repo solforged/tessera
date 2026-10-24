@@ -45,7 +45,7 @@ Opening an EPUB from Finder imports it into the workshop and shows the Library. 
 
 ## Android app
 
-[`crates/tessera-android`](../crates/tessera-android) is a Tauri 2 app for Android phones and foldables. Its workshop lives in private app storage; pages reach it over Tauri's IPC, with no listening port. A paired phone copies the Mac's workshop and syncs with it. An unpaired phone keeps a workshop of its own. Web articles, backups and service details are omitted.
+[`crates/tessera-mobile`](../crates/tessera-mobile) is a Tauri 2 app for Android phones, foldables and iPhones. Its workshop lives in private app storage; pages reach it over Tauri's IPC, with no listening port. A paired phone copies the Mac's workshop and syncs with it. An unpaired phone keeps a workshop of its own. Web articles, backups and service details are omitted.
 
 ### Import and capture
 
@@ -61,7 +61,7 @@ Build a debug APK for arm64 and install it on a phone with USB debugging enabled
 
 ```sh
 mise run android:build
-adb install -r crates/tessera-android/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
+adb install -r crates/tessera-mobile/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
 ```
 
 mise supplies the JDK and Android SDK. The SDK needs an NDK (`sdkmanager --install 'ndk;<version>'`), or `NDK_HOME` must name one.
@@ -72,7 +72,7 @@ Extra arguments go to `tauri android build`. For a release APK:
 mise run android:build --target aarch64 --apk
 ```
 
-It is signed when `TESSERA_ANDROID_KEYSTORE` names a keystore with a `tessera` key and `TESSERA_ANDROID_KEYSTORE_PASSWORD` unlocks it. The Gradle project in `crates/tessera-android/gen/android` is committed; `tauri android init` regenerates it.
+It is signed when `TESSERA_ANDROID_KEYSTORE` names a keystore with a `tessera` key and `TESSERA_ANDROID_KEYSTORE_PASSWORD` unlocks it. The Gradle project in `crates/tessera-mobile/gen/android` is committed; `tauri android init` regenerates it.
 
 ### Tailnet download
 
@@ -85,6 +85,35 @@ The signing key comes from the first available source:
 1. `TESSERA_ANDROID_KEYSTORE` and `TESSERA_ANDROID_KEYSTORE_PASSWORD`.
 2. `~/.android/tessera-release.jks`, with its password in the login Keychain under service `tessera-android-release-keystore`.
 3. The 1Password item "Tessera Android release key".
+
+## iOS app
+
+The iOS app runs the same pages and workshop as the Android app. Library → Add opens the iOS file picker. Opening EPUBs from other apps, sharing to Tessera and the home screen shortcuts are Android only.
+
+### Build and install
+
+Build a debug IPA and install it on an iPhone connected over USB or the local network. Run these commands from the repository root:
+
+```sh
+mise run ios:build
+xcrun devicectl device install app --device <UDID> crates/tessera-mobile/gen/apple/build/arm64/Tessera.ipa
+```
+
+`xcrun devicectl list devices` lists the UDIDs. The build needs Xcode with its iOS platform (`xcodebuild -downloadPlatform iOS`), plus xcodegen and CocoaPods (`brew install xcodegen cocoapods`). It signs for the development team in `crates/tessera-mobile/tauri.ios.conf.json`. When the keychain holds several Apple Development certificates for that team, `TESSERA_IOS_SIGNING_IDENTITY` names the one to use, for example `"Apple Development: sol@sowilo.io (82673GC873)"`.
+
+Before the first install on a new phone:
+
+1. Turn on Developer Mode on the phone (Settings › Privacy & Security › Developer Mode), which restarts it.
+2. Register the phone with the team. `tauri ios build` cannot do this, so run Xcode's build once with the phone connected. The Rust step fails because the Tauri CLI is not running, but the phone stays registered:
+
+   ```sh
+   xcodebuild -project crates/tessera-mobile/gen/apple/tessera-mobile.xcodeproj -scheme tessera-mobile_iOS \
+     -destination id=<UDID> -allowProvisioningUpdates -allowProvisioningDeviceRegistration build
+   ```
+
+3. After installing, trust the certificate on the phone (Settings › General › VPN & Device Management) before the first launch.
+
+Extra arguments go to `tauri ios build`. The Xcode project in `crates/tessera-mobile/gen/apple` is committed. `tauri ios init` regenerates it but drops two hand edits: the camera usage string in `Info.plist`, which the pairing scanner needs, and the app icons, which are cut from `crates/tessera-desktop/icons/icon.svg` without the rounded tile because iOS masks the corners itself.
 
 ## Browser app
 
