@@ -421,6 +421,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 .find-scopes.mode-tabs { grid-row: 2; gap: var(--space-12); padding: 0 var(--space-12); }
 .find-scopes > .button { flex: none; padding: var(--space-4) 0; font-weight: var(--weight-body); }
 .find-cancel { display: none; }
+.find-title { display: none; }
 /* Preview text follows the result's voice; source identifiers and keys stay apparatus. */
 .find-preview { grid-column: 2; grid-row: 1 / -1; min-width: 0; overflow: auto; padding: var(--space-16) var(--space-24); border-left: 1px solid var(--line); }
 .find-preview-header { display: flex; align-items: center; gap: var(--space-12); margin-bottom: var(--space-16); }
@@ -444,15 +445,17 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 }
 /* The cover's finder occupies the IME-resized viewport; the best match is closest to the bottom field. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .palette { top: calc(var(--visual-viewport-top, 0px) + var(--top-inset)) !important; left: 0 !important; width: 100% !important; max-width: none; height: calc(var(--visual-viewport-height, 100dvh) - var(--bottom-inset) - var(--top-inset)); max-height: none !important; display: flex; flex-direction: column; border: 0; border-radius: 0; background: var(--canvas); overflow: hidden; }
+  .palette { --find-top-gap: calc(var(--top-inset) + var(--space-12)); top: calc(var(--visual-viewport-top, 0px) + var(--find-top-gap)) !important; left: 0 !important; width: 100% !important; max-width: none; height: calc(var(--visual-viewport-height, 100dvh) - var(--bottom-inset) - var(--find-top-gap)); max-height: calc(var(--visual-viewport-height, 100dvh) - var(--bottom-inset) - var(--find-top-gap)) !important; display: flex; flex-direction: column; border: 0; border-radius: var(--radius-popup) var(--radius-popup) 0 0; background: var(--canvas); overflow: hidden; }
+  .palette > .find-title { display: block; order: 0; flex: none; margin: 0; padding: var(--space-12) var(--space-16); border-bottom: 1px solid var(--line); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
   .palette > .picker-list { order: 1; flex: 1; display: flex; flex-direction: column-reverse; min-height: 0; padding: var(--space-8); }
   .palette .picker-group { display: flex; flex-direction: column-reverse; flex: none; }
   .palette .picker-section { order: 1; border-top: 0; border-bottom: 1px solid var(--line); margin: var(--space-8) 0 var(--space-4); }
-  .palette .picker-row { flex: none; min-height: var(--target-size); padding-block: var(--space-12); }
+  .palette .picker-row { flex: none; min-height: var(--touch-target); padding-block: var(--space-12); }
   .palette > .find-scopes { order: 2; flex: none; overflow-x: auto; padding-block: var(--space-8); }
   .palette > .picker-query { order: 3; position: static; flex: none; border-top: 1px solid var(--line); border-bottom: 0; background: var(--raised); padding: var(--space-8) var(--space-12); gap: var(--space-8); }
-  .palette .picker-input { min-height: var(--target-size); border: 1px solid var(--accent); border-radius: var(--radius-popup); padding-inline: var(--space-12); }
-  .palette .find-cancel { display: inline-flex; color: var(--muted); }
+  .palette::before, .palette:not(.palette-search) > .picker-query::before { display: none; }
+  .palette .picker-input { min-height: var(--touch-target); border: 1px solid var(--accent); border-radius: var(--radius-popup); padding-inline: var(--space-12); }
+  .palette .find-cancel { display: inline-flex; min-height: var(--touch-target); color: var(--muted); }
   .palette > .scope-bar { order: 2; }
 }
 @media (max-width: 1047px) {
