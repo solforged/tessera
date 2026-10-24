@@ -19,6 +19,8 @@ export interface CreateRequest {
   into?: CreateInto;
   /** Index, table and ledger buttons fix the kind; the slip hides its kind row. */
   lockKind?: boolean;
+  /** Agenda presets a task's schedule without changing its journal destination; typed dates still take precedence. */
+  scheduledDate?: string;
   /** Find's “as…” action starts at the kind chooser instead of the draft. */
   focus?: 'kind';
 }

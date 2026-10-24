@@ -1460,6 +1460,13 @@ function DirectoryPane(props: { view: DirectoryViewState; atomCount?: number; re
 
 function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: number; neighbour: boolean; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; renderDirectory(): JSX.Element; atomCount?: number; directoryReady: boolean; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; fieldName(id: string): string; noteKind?: IndexKind; noteKinds?: NoteKind[]; besideReason?: string; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onCreate(request: CreateRequest, anchor?: PopupAnchor): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
   const current = () => props.session().entries[props.session().index]!;
+  const coverQuery = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
+  const [cover, setCover] = createSignal(coverQuery.matches);
+  onMount(() => {
+    const changed = () => setCover(coverQuery.matches);
+    coverQuery.addEventListener('change', changed);
+    onCleanup(() => coverQuery.removeEventListener('change', changed));
+  });
   const pageId = createMemo(() => pageIdOf(current()));
   const readerTarget = () => current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined;
   // A reader keeps its source page open so the header's projection tabs can describe it.
@@ -1470,6 +1477,8 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   const [librarySave, setLibrarySave] = createSignal<{ state: 'saved' | 'saving' | 'error'; message: string }>({ state: 'saved', message: '' });
   const paneGeneration = createMemo(() => props.session().generation);
   createEffect(() => { paneGeneration(); setLibrarySave({ state: 'saved', message: '' }); });
+  const [kindCreate, setKindCreate] = createSignal<{ label: string; run(anchor: HTMLElement): void }>();
+  createEffect(() => { paneGeneration(); setKindCreate(undefined); });
   const [menu, setMenu] = createSignal<HTMLElement | null>(null);
   const [copyMessage, setCopyMessage] = createSignal('');
   createEffect(() => { pageId(); setCopyMessage(''); });
@@ -1629,14 +1638,34 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       if (result && !result.ok) setCopyMessage(result.reason);
     } } satisfies MenuItem] : []),
   ];
+  const pageInfo = () => props.notebook.roots().find(page => page.id === pageId());
+  const createdDate = () => {
+    const page = pageInfo();
+    return page ? new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(page.created_at) : '';
+  };
+  // A phone keeps the title in its bar; projection and depth remain explicit, checked choices here.
+  const viewItems = (): MenuItem[] => [
+    ...(['read', 'outline', 'compare'] as const).map(value => ({
+      label: value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare',
+      section: 'Projection', checked: projection() === value,
+      disabledReason: value === 'read' ? projectionReason(value) : value === 'compare' ? compareReason() : undefined,
+      action: () => setProjection(value),
+    })),
+    ...(dialPlace() ? depthStops.map(stop => ({
+      label: depthLabels[stop], section: 'Depth', icon: `depth-${stop}` as const,
+      checked: depth() === stop, disabledReason: projection() === 'outline' ? undefined : 'Depth applies to Outline',
+      action: () => outlineCommand(`depth-${stop}`)?.run(),
+    })) : []),
+  ];
   const items = (): MenuItem[] => [
+    ...(cover() && projectionTabsShown() ? [{ label: 'View', icon: 'rows', submenu: () => ({ title: 'View', items: viewItems() }) } satisfies MenuItem] : []),
     { label: 'Copy reference', icon: 'link', action: () => { void copyPage(true); } },
     ...(titled() ? [
       { label: 'Rename', icon: 'edit', divider: true, action: props.onRename },
       { label: 'Merge into…', icon: 'merge', disabledReason: pageMergeDisabledReason(root(), doc()?.capabilities(pageId()!)), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } },
     ] satisfies MenuItem[] : []),
     { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', divider: !titled(), action: props.onPin },
-    { label: 'Open beside', icon: 'panes', disabledReason: props.besideReason, action: props.onPageBeside },
+    ...(!cover() ? [{ label: 'Open beside', icon: 'panes', disabledReason: props.besideReason, action: props.onPageBeside } satisfies MenuItem] : []),
     ...(titled() ? [{ label: 'Description…', icon: 'note', divider: true, submenu: () => ({ title: 'Description', items: [
       { label: 'Gloss', icon: 'edit', disabledReason: outlineCommand('gloss')?.disabledReason?.(), action: () => outlineCommand('gloss')?.run() },
       { label: 'Add alias', icon: 'edit', disabledReason: outlineCommand('alias')?.disabledReason?.(), action: () => outlineCommand('alias')?.run() },
@@ -1655,6 +1684,9 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
     ] }) },
     { label: 'Delete atom…', icon: 'trash', divider: true, danger: true, disabledReason: builtInTagReason(root()?.text ?? '', doc()?.capabilities(pageId()!), 'delete'), action: () => props.onDelete(menuButton) },
+    ...(cover() && pageInfo() ? [{ label: 'Info', icon: 'note', divider: true, submenu: () => ({ title: 'Info', items: [
+      { label: 'Copy ID', icon: 'link', secondary: pageInfo()!.id, action: () => { void copyPage(false); } },
+    ], note: `Created ${createdDate()}` }) } satisfies MenuItem] : []),
   ];
   // The place or kind the pane shows, in the same glyphs the sidebar uses.
   const kindIcon = (): IconName => {
@@ -1677,7 +1709,15 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     const kind = target.kind;
     return kind === 'agenda' ? 'agenda' : kind === 'review' ? 'review' : kind === 'library' || kind === 'reader' ? 'library' : kind === 'table' ? 'table' : kind === 'fields' || kind === 'field' ? 'field' : kind === 'settings' ? 'settings' : kind === 'compare' ? 'compare' : 'page';
   };
-  const tabRoot = () => ['agenda', 'review', 'library'].includes(current().target.kind) || root()?.kind === 'journal' && root()?.text === props.notebook.todayDate() && !outlineView().zoom;
+  const tabRoot = () => (!cover() || props.session().index === 0) && (['agenda', 'review', 'library'].includes(current().target.kind) || root()?.kind === 'journal' && root()?.text === props.notebook.todayDate() && !outlineView().zoom);
+  const showNew = () => cover() && (current().target.kind === 'index' ? !!kindCreate() : tabRoot() && (current().target.kind === 'agenda' || root()?.kind === 'journal'));
+  const newLabel = () => current().target.kind === 'index' ? kindCreate()?.label ?? 'New' : current().target.kind === 'agenda' ? 'New task' : 'New';
+  const create = (anchor: HTMLElement) => {
+    if (current().target.kind === 'index') kindCreate()?.run(anchor);
+    else props.onCreate(current().target.kind === 'agenda'
+      ? { kind: 'task', text: '', into: { kind: 'journal' }, lockKind: true, scheduledDate: (current().view as AgendaViewState).date }
+      : blankCapture());
+  };
   return <section class="pane" classList={{ active: props.active, immersive: props.immersive, folded: props.folded }} style={{ 'flex-grow': props.grow }} data-pane={props.pane} data-page-style={pageStyle()} aria-label={`Pane ${props.number}`} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
     <header class="pane-header" classList={{ 'pane-scrolled': scrolled(), 'pane-tab-root': tabRoot() }}>
       <Show when={tabRoot()}><Button class="pane-index" icon="contents" label="Index" onClick={() => props.onOpen({ kind: 'directory' }, false)}><span>Index</span></Button></Show>
@@ -1716,7 +1756,8 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Show when={current().target.kind === 'field' ? current().target as Extract<OpenTarget, { kind: 'field' }> : undefined}>{target => <>
         <nav class="pane-breadcrumbs" aria-label="Field breadcrumbs"><Button title="Fields" onClick={event => props.onOpen({ kind: 'fields' }, opensBeside(event))}>Fields</Button><span class="breadcrumb-separator">/</span><Button title={props.fieldName(target().fieldId)} onClick={event => props.onOpen({ kind: 'field', fieldId: target().fieldId }, opensBeside(event))}>{props.fieldName(target().fieldId)}</Button></nav>
       </>}</Show>
-      <Show when={current().target.kind !== 'library' && current().target.kind !== 'reader'}><Button class="pane-new" icon="plus" label="New" aria-haspopup="dialog" onClick={() => props.onCreate(blankCapture())} /></Show>
+      <Show when={showNew()}><Button class="pane-new" icon="plus" label={newLabel()} aria-haspopup="dialog" onClick={event => create(event.currentTarget)} /></Show>
+      <Show when={cover() && current().target.kind === 'directory'}><Button class="pane-settings" icon="settings" label="Settings" onClick={() => props.onOpen({ kind: 'settings' }, false)} /></Show>
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Atom menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
@@ -1731,7 +1772,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Match when={current().target.kind === 'directory'}><DirectoryPane view={snapshotView(current().view) as DirectoryViewState} atomCount={props.atomCount} ready={props.directoryReady} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }}>{props.renderDirectory()}</DirectoryPane></Match>
       <Match when={current().target.kind === 'compare' ? current().target as Extract<OpenTarget, { kind: 'compare' }> : undefined}>{target => <ComparePane subjectId={target().subjectId} view={snapshotView(current().view) as CompareViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
       <Match when={current().target.kind === 'spread' ? current().target as Extract<OpenTarget, { kind: 'spread' }> : undefined}>{target => <SpreadPane noteIds={target().noteIds} notebook={props.notebook} onActivate={props.onActivate} onChange={noteIds => props.onTargetChange({ kind: 'spread', noteIds })} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} />}</Match>
-      <Match when={current().target.kind === 'index' ? current().target as Extract<OpenTarget, { kind: 'index' }> : undefined}>{target => <IndexPane kindKey={target().key} neighbour={props.neighbour} kind={props.noteKind} view={snapshotView(current().view) as IndexViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeletePages={props.onDeleteSources} onSpread={(noteIds, beside) => { if (generation === props.session().generation) props.onOpen({ kind: 'spread', noteIds }, beside); }} />}</Match>
+      <Match when={current().target.kind === 'index' ? current().target as Extract<OpenTarget, { kind: 'index' }> : undefined}>{target => <IndexPane kindKey={target().key} neighbour={props.neighbour} kind={props.noteKind} view={snapshotView(current().view) as IndexViewState} notebook={props.notebook} onActivate={props.onActivate} onNewAction={action => { if (generation === props.session().generation) setKindCreate(action); }} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeletePages={props.onDeleteSources} onSpread={(noteIds, beside) => { if (generation === props.session().generation) props.onOpen({ kind: 'spread', noteIds }, beside); }} />}</Match>
       <Match when={current().target.kind === 'agenda'}><AgendaPane pane={props.pane} view={snapshotView(current().view) as AgendaViewState} notebook={props.notebook} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'review'}><ReviewPane pane={props.pane} view={snapshotView(current().view) as ReviewViewState} notebook={props.notebook} commands={props.commands} active={props.active} onActivate={props.onActivate} onCreate={props.onCreate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'revisits'}><NotesReview pane={props.pane} view={snapshotView(current().view) as RevisitsViewState} notebook={props.notebook} commands={props.commands} active={props.active} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
@@ -1747,7 +1788,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
         onBack={() => { if (props.session().index > 0) props.onTravel(-1); else props.onOpen({ kind: 'page', pageId: (current().target as Extract<OpenTarget, { kind: 'reader' }>).sourceId }, false); }} /></Match>
     </Switch>}</Show></div>
     <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Atom actions" title="Atom actions" context={root()?.kind === 'page' ? displayTitle(root()!.text, id => props.notebook.lookup(id)) : root()?.text} items={items()} onDismiss={() => setMenu(null)} header={
-      <Show when={props.notebook.roots().find(page => page.id === pageId())}>{page => <div class="page-menu-info">
+      <Show when={!cover() && pageInfo()}>{page => <div class="page-menu-info">
         <b>{page().id}</b>
         <Button class="bordered" onClick={() => { void copyPage(false); }}>{copyMessage() === 'Copied ID' ? 'Copied' : 'Copy ID'}</Button>
         <span>Created {new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(page().created_at)}</span>

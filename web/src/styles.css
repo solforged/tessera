@@ -505,17 +505,19 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .pane-content::before, .pane-content::after { display: none; }
   .pane-header { padding-inline: var(--space-12); gap: var(--space-4); border-bottom: 0; box-shadow: none; transition: box-shadow var(--motion-ui) var(--motion-ease); }
   .pane-header.pane-scrolled { box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); }
-  .pane-header :is(.pane-index, .pane-back, .pane-new, .page-menu-button, .journal-date) { flex: none; height: var(--touch-target); min-height: var(--touch-target); }
-  .pane-header :is(.pane-back, .pane-new, .page-menu-button, .journal-date) { width: var(--touch-target); min-width: var(--touch-target); padding: 0; justify-content: center; }
+  .pane-header :is(.pane-index, .pane-back, .pane-new, .pane-settings, .page-menu-button, .journal-date) { flex: none; height: var(--touch-target); min-height: var(--touch-target); }
+  .pane-header :is(.pane-back, .pane-new, .pane-settings, .page-menu-button, .journal-date) { width: var(--touch-target); min-width: var(--touch-target); padding: 0; justify-content: center; }
   .pane-header .pane-index { border-radius: var(--radius-pill); padding: 0 var(--space-12); }
-  .pane-header :is(.pane-back, .pane-new, .page-menu-button) { border-radius: var(--radius-pill); }
+  .pane-header :is(.pane-back, .pane-new, .pane-settings, .page-menu-button, .journal-date) { border-radius: var(--radius-pill); }
   .pane-navigation { margin: 0; }
   .pane-tab-root .pane-navigation, .pane-navigation .pane-forward, .pane-back:disabled, .journal-navigation .button:not(.journal-date) { display: none; }
-  .app .pane-header:has(.page-projection-tabs) .pane-navigation { display: flex; }
+  .app .pane-header:not(.pane-tab-root) .pane-navigation { display: flex; }
+  .pane-header :is(.page-projection-tabs, .depth-dial) { display: none; }
   .pane-breadcrumbs { flex: 1 1 0; min-width: 0; justify-content: center; color: var(--text); font: var(--weight-heading) var(--text-control)/var(--line-control) var(--font-body); letter-spacing: normal; text-align: center; opacity: 0; transition: opacity var(--motion-ui) var(--motion-ease); }
   .pane-scrolled .pane-breadcrumbs { opacity: 1; }
   .pane-breadcrumbs .button:last-child { min-width: 0; max-width: 100%; text-align: center; }
   .pane-save-state:has(.save-dot) { display: none; }
+  :is(.popup, .popup-exit).popup-sheet::before { content: none; }
   .bottom-nav { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: flex-start; gap: calc(var(--space-8) + var(--space-2)); height: var(--bottom-nav-height); padding: 0 var(--space-16) var(--space-8); }
   .bottom-tabs { display: flex; flex: 1; min-width: 0; height: calc(var(--bottom-nav-height) - var(--space-8)); padding: var(--space-4); border-radius: var(--radius-pill); }
   .bottom-tabs > .button { position: relative; flex: 1; min-width: 0; flex-direction: column; justify-content: center; gap: var(--space-2); height: 100%; padding: 0; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); }
@@ -523,7 +525,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .bottom-find.button { flex: none; width: calc(var(--bottom-nav-height) - var(--space-8)); height: calc(var(--bottom-nav-height) - var(--space-8)); padding: 0; border: 0; border-radius: var(--radius-pill); }
   .bottom-find.selected { color: var(--accent); }
   .bottom-nav-badge { position: absolute; top: var(--space-2); right: var(--space-4); min-width: var(--space-16); padding-inline: var(--space-2); border-radius: var(--radius-pill); background: var(--danger); color: var(--canvas); font: var(--weight-control) var(--text-apparatus)/var(--line-apparatus) var(--font-body); font-variant-numeric: tabular-nums; }
-  :is(.bottom-tabs, .bottom-find.button, .pane-header .pane-index, .pane-header .pane-back, .pane-header .pane-new, .pane-header .page-menu-button) { background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%); backdrop-filter: blur(var(--glass-blur)) saturate(160%); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--glass-edge); }
+  :is(.bottom-tabs, .bottom-find.button, .pane-header .pane-index, .pane-header .pane-back, .pane-header .pane-new, .pane-header .pane-settings, .pane-header .page-menu-button, .pane-header .journal-date) { background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%); backdrop-filter: blur(var(--glass-blur)) saturate(160%); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--glass-edge); }
   .app.keyboard-open .bottom-nav, .app.is-immersive .bottom-nav, .app.is-reading .bottom-nav { display: none; }
   /* A book reads edge to edge, under its own masthead rather than the pane header. */
   .app.is-reading .pane.active > .pane-header { display: none; }
@@ -552,7 +554,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .directory-pane .sidebar-foot > .button { flex: none; min-width: 0; width: 100%; }
 }
 @media (max-width: 599px) and (pointer: coarse) and (prefers-reduced-transparency: reduce) {
-  :is(.bottom-tabs, .bottom-find.button, .pane-header .pane-index, .pane-header .pane-back, .pane-header .pane-new, .pane-header .page-menu-button) { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  :is(.bottom-tabs, .bottom-find.button, .pane-header .pane-index, .pane-header .pane-back, .pane-header .pane-new, .pane-header .pane-settings, .pane-header .page-menu-button, .pane-header .journal-date) { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mode-tabs > .tab-rule, .sidebar .button::before { transition: none; }
