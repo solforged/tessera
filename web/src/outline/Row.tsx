@@ -257,6 +257,27 @@ export function createOutlineRows(context: Pick<OutlineContext,
       onCleanup(() => window.clearTimeout(timer));
     }));
     let row!: HTMLDivElement;
+    let holdTimer = 0;
+    let holding: { pointer: number; x: number; y: number } | undefined;
+    let held = false;
+    const cancelHold = () => { clearTimeout(holdTimer); holding = undefined; };
+    const touchStart = (event: PointerEvent) => {
+      cancelHold();
+      held = false;
+      if (event.pointerType !== 'touch' || !event.isPrimary || editing() === id()
+        || (event.target as Element).closest('button, a, input, textarea, [role="button"], [contenteditable], [data-block-id]') !== row) return;
+      holding = { pointer: event.pointerId, x: event.clientX, y: event.clientY };
+      holdTimer = window.setTimeout(() => {
+        if (!holding || editing() === id()) return;
+        held = true;
+        cancelHold();
+        blockMenu(id(), row);
+      }, 500);
+    };
+    const touchMove = (event: PointerEvent) => {
+      if (holding?.pointer === event.pointerId && Math.hypot(event.clientX - holding.x, event.clientY - holding.y) > 10) cancelHold();
+    };
+    onCleanup(cancelHold);
     onMount(() => { if (!propsRow.natural) virtualizer.measureElement(row); });
     onCleanup(() => { const host = hosts.get(id()); if (host && row.contains(host)) hosts.delete(id()); });
     function StaticText() {
@@ -272,6 +293,11 @@ export function createOutlineRows(context: Pick<OutlineContext,
       data-field-end={inline() ? String(fieldEnd()) : undefined}
       data-value-editor={inline() && editing() === id() ? '' : undefined}
       data-question-status={block()?.question?.status} data-accepted={block()?.assessment ? String(block()!.assessment!.accepted) : undefined} data-aporia={block()?.assessment?.state.aporia ? 'true' : undefined}
+      onPointerDown={touchStart} onPointerMove={touchMove} onPointerUp={cancelHold} onPointerCancel={cancelHold}
+      on:touchend={{ passive: false, handleEvent: event => { if (held) { event.preventDefault(); held = false; } } }}
+      on:mousedown={{ capture: true, handleEvent: event => { if (held) { event.preventDefault(); event.stopPropagation(); } } }}
+      on:click={{ capture: true, handleEvent: event => { if (held) { event.preventDefault(); event.stopPropagation(); held = false; } } }}
+      onContextMenu={event => { if (editing() !== id() && (holding || held)) event.preventDefault(); }}
       onPointerEnter={() => { setLinkedCitation(block()?.citations[0]?.id ?? null); if (!propsRow.natural) sheet.hover(id()); }} onPointerLeave={() => { setLinkedCitation(null); sheet.hover(null); }}
       style={{ transform: propsRow.natural ? undefined : `translateY(${propsRow.item!().start - margin()}px)`, '--depth': propsRow.natural ? 0 : depth(), '--quote-color': localCitation()?.color ? `var(--highlight-${localCitation()!.color})` : 'var(--faint)' }}>
       <RowPrelude id={id()} />

@@ -6,7 +6,10 @@ import '@fontsource-variable/piazzolla/standard-italic.css';
 import { render } from 'solid-js/web';
 import { App } from './shell/App';
 import { CaptureWindow } from './capture/CaptureSheet';
+import { installIosViewport } from './ui/ios-viewport';
 import './styles.css';
+
+installIosViewport();
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element.');

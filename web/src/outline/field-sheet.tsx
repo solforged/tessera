@@ -355,7 +355,8 @@ export function createFieldSheet(context: Pick<OutlineContext,
   }
   function Area(area: { state: PlacedSheet }) {
     if (doc.block(area.state.owner)?.task) {
-      const focused = () => dismissedTask() !== area.state.owner && (taskRequest()?.owner === area.state.owner || area.state.owner === props.pageId || selected() === area.state.owner || editing() === area.state.owner);
+      const focused = () => dismissedTask() !== area.state.owner && (taskRequest()?.owner === area.state.owner
+        || !window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches && (area.state.owner === props.pageId || selected() === area.state.owner || editing() === area.state.owner));
       return <Show when={focused()}><div class="field-slots task-field-slots" style={{ '--slot-depth': area.state.depth }} data-field-owner={area.state.owner}>
         <TaskFieldBed notebook={props.notebook} doc={doc} id={area.state.owner} fields={definitions()} template={area.state.template}
           contextDate={doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate()} sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches}

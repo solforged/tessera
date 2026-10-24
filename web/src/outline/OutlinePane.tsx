@@ -1,6 +1,7 @@
 import { opensBeside } from '../shell/beside';
 import { CardSummary } from './CardSummary';
 import { For, Show, batch, createEffect, createMemo, createResource, createSignal, lazy, mapArray, on, onCleanup, onMount, untrack, type Setter } from 'solid-js';
+import { Portal } from 'solid-js/web';
 import { createVirtualizer, defaultRangeExtractor } from '@tanstack/solid-virtual';
 import type { Block, FieldDefinition, PositionQuestion } from '../api/types';
 import { api } from '../api/client';
@@ -163,6 +164,9 @@ function Pane(props: OutlinePaneProps) {
   };
   const [editing, setEditing] = createSignal<string | null>(initial.caret?.id ?? null);
   const [editorFocused, setEditorFocused] = createSignal(false);
+  const editingBarVisible = () => props.active && editorFocused() && !!editing()
+    && window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches && viewport().height < screen.height * 0.7;
+  let editingBar: HTMLDivElement | undefined;
   const [selected, setSelected] = createSignal<string | null>(initial.caret?.id ?? null);
   const [rowRange, setRowRange] = createSignal<RowRange | null>(null);
   const [textRange, setTextRange] = createSignal<TextRange | null>(null);
@@ -233,6 +237,7 @@ function Pane(props: OutlinePaneProps) {
   let anchorFrame = 0;
   const [scrollAnchor, setScrollAnchor] = createSignal<ViewState['scroll']>(null);
   let scrollReveal: { id: string; epoch: number; caret: boolean } | null = null;
+  let pendingOutlineReveal = initial.reveal;
   let scrollingFrame = false;
   let scrollStable = 0;
   let previousScrollHeight = -1;
@@ -755,8 +760,9 @@ function Pane(props: OutlinePaneProps) {
     if (target) {
       // Test the caret against the viewport it would have after anchoring, then make only one scroll write.
       const shift = offset - before;
+      const bottom = Math.min(bounds.bottom, viewport().bottom - (editingBar?.offsetHeight ?? 0));
       if (target.top - shift < bounds.top) offset += target.top - shift - bounds.top;
-      else if (target.bottom - shift > bounds.bottom) offset += Math.min(target.bottom - shift - bounds.bottom, target.top - shift - bounds.top);
+      else if (target.bottom - shift > bottom) offset += Math.min(target.bottom - shift - bottom, target.top - shift - bounds.top);
       offset = Math.max(0, Math.min(maximum, offset));
     }
     if (Math.abs(offset - before) > .5) scroll.scrollTop = offset;
@@ -768,7 +774,13 @@ function Pane(props: OutlinePaneProps) {
     scrollStable = scroll.scrollTop === before && scroll.scrollHeight === previousScrollHeight && (!valid || target) ? scrollStable + 1 : 0;
     previousScrollHeight = scroll.scrollHeight;
     if (scrollStable < 2) anchorFrame = requestAnimationFrame(settleScroll);
-    else { cancelScroll(); scheduleReport(); }
+    else {
+      if (pendingOutlineReveal && !reading() && rowAnchor(pendingOutlineReveal)) {
+        highlightReading(pendingOutlineReveal);
+        pendingOutlineReveal = undefined;
+      }
+      cancelScroll(); scheduleReport();
+    }
   }
   createEffect(on(viewport, () => {
     const id = editing();
@@ -1570,10 +1582,19 @@ function Pane(props: OutlinePaneProps) {
   });
   createEffect(() => { const enabled = props.vim; if (editor) { editor.configure(enabled); props.onVimMode(enabled ? editing() ? editor.mode() : 'outline' : null); } });
   createEffect(() => { const byId = definitionsById(), byName = definitionsByName(); editor?.configureFields(id => byId.get(id)?.name, name => byName.get(name.toLowerCase())?.kind); });
+  createEffect(on(() => props.active, active => {
+    if (active || !window.matchMedia('(pointer: coarse)').matches) return;
+    focusEpoch++;
+    focusRequest = null;
+    if (editor?.view.hasFocus) editor.view.contentDOM.blur();
+    setEditorFocused(false);
+    setEditing(null);
+  }, { defer: true }));
   createEffect(() => {
     if (doc.status() !== 'ready' || !pageReady() || !scroll || !editor) return;
     if (restoring) {
       restoring = false;
+      if (initial.reveal && !reading()) revealRow(initial.reveal);
       const saved = initial.caret;
       if (doc.root()?.kind !== 'journal') {
         const id = saved && doc.block(saved.id) && indices().has(saved.id) ? saved.id : null;
@@ -1618,7 +1639,9 @@ function Pane(props: OutlinePaneProps) {
         if (id && inlineFields().has(doc.outline.parentOf(id))) setSelected(id);
         else first = id ? { id, offset: 0 } : null;
       }
-      if (first && saved && !initial.edit) {
+      // A touch visit selects its remembered or empty row without opening the keyboard.
+      // Explicit creation/edit requests still begin editing; the shell strips them from touch history.
+      if (first && !initial.edit && (saved || window.matchMedia('(pointer: coarse)').matches)) {
         setEditing(null);
         setSelected(first.id);
         setCaret(first);
@@ -1877,6 +1900,13 @@ function Pane(props: OutlinePaneProps) {
     <images.ImagePopups />
   </div>
     <Show when={props.projection === 'compare'}><div class="embedded-comparison"><ComparePane subjectId={props.pageId} view={props.view.compare ?? { scroll: 0 }} notebook={props.notebook} onActivate={props.onActivate} onOpen={props.onOpen} onViewChange={compare => props.onViewChange({ ...props.view, compare })} /></div></Show>
+    <Show when={editingBarVisible()}><Portal><div ref={editingBar} class="outline-editing-bar" role="toolbar" aria-label="Outline editing"
+      style={{ top: `${viewport().bottom}px`, left: `${viewport().left}px`, width: `${viewport().width}px` }}
+      onPointerDown={event => event.preventDefault()} onMouseDown={event => event.preventDefault()}>
+      <Button disabled={composition()} onClick={() => apply({ kind: 'outdent', ids: roots() }, true)}>Outdent</Button>
+      <Button disabled={composition()} onClick={() => apply({ kind: 'indent', ids: roots() }, true)}>Indent</Button>
+      <Button class="outline-editing-done" onClick={() => { const id = editing(); editor?.view.contentDOM.blur(); if (id) rowFocus(id, false, true); }}>Done</Button>
+    </div></Portal></Show>
     <div class="outline-notices">
       <Show when={notice()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setNoticeHeld(true)} onPointerLeave={() => setNoticeHeld(false)} onFocusIn={() => setNoticeHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNoticeHeld(false); }}>
         <span>{value().label}</span>
