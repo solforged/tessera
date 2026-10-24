@@ -50,6 +50,7 @@ type DeckCounts = { id: string | null; name: string; due: number; new: number; a
 const selections = Object.keys(selectionLabels) as CardSelection[];
 /** A touch screen has no Enter key to aim, so the landing leaves focus alone instead of ringing its button. */
 const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)');
+const coverLayout = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
 
 function deckRows(saved: readonly Deck[], tags: readonly TagDeck[]): DeckChoice[] {
   const superseded = new Set(saved.flatMap(deck => {
@@ -102,6 +103,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   const [picker, setPicker] = createSignal<HTMLElement | null>(null);
   const [search, setSearch] = createSignal('');
   const [actions, setActions] = createSignal<HTMLElement | null>(null);
+  const [sessionActions, setSessionActions] = createSignal<HTMLElement | null>(null);
   const [composer, setComposer] = createSignal<HTMLElement | null>(null);
   const [editor, setEditor] = createSignal<{ anchor: HTMLElement; deck: Deck | null } | null>(null);
   const [deletion, setDeletion] = createSignal<{ anchor: HTMLElement; deck: Deck } | null>(null);
@@ -276,7 +278,8 @@ function CardReviewPane(props: ReviewPaneProps) {
       if (disposed || version !== generation) return;
       if (!requestedSession && recover) {
         recover = false;
-        currentSession = openReviewSession(savedSessions, requestedDeck) ?? null;
+        // A phone tab opens the overview; saved sessions stay available through Open reviews.
+        currentSession = coverLayout.matches ? null : openReviewSession(savedSessions, requestedDeck) ?? null;
         if (currentSession) {
           setSessionId(currentSession.id); publish();
           return;
@@ -596,9 +599,15 @@ function CardReviewPane(props: ReviewPaneProps) {
   }
 
   const deckName = createMemo(() => scope() ?? (deckId() ? nameForDeck(deckId()!) ?? 'Unavailable deck' : 'All cards'));
+  const progressLabel = () => `${Math.min(gradedCount() + 1, gradedCount() + rows().length)} of ${gradedCount() + rows().length}`;
   const emptyWorkshop = () => !session() && ready() && inventory() === 0;
   return <div class="review-pane" classList={{ 'review-session-active': sessionActive(), 'review-session-done': done() }} data-pane={props.pane} role="region" aria-label="Review" tabIndex={0} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
     <Show when={!emptyWorkshop()}><div class="review-head">
+      <Show when={sessionActive()}><header class="review-glass-bar" aria-label="Review session">
+        <Button class="review-session-close" disabled={locked() || loading() || !!readError()} onClick={() => void closeSession('finished', { deckId: deckId(), sessionId: null, selection: selection() })}>Close</Button>
+        <div class="review-glass-title"><h1>{deckName()}</h1><span class="review-progress-label">{ready() ? progressLabel() : 'Loading cards…'}</span></div>
+        <Button icon="more" label="Session actions" aria-haspopup="menu" aria-expanded={!!sessionActions()} disabled={locked() || loading()} onClick={event => setSessionActions(event.currentTarget)} />
+      </header></Show>
       <header class="review-header">
         <div ref={heading} class="review-heading">
           <div class="review-register">Review</div>
@@ -611,7 +620,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       </header>
       <Show when={session()}><div class="review-toolbar">
         <Show when={sessionActive() && ready()}><div class="review-session-progress">
-          <span class="review-progress-label">{Math.min(gradedCount() + 1, gradedCount() + rows().length)} of {gradedCount() + rows().length}</span>
+          <span class="review-progress-label">{progressLabel()}</span>
           <GradeStrip grades={grades()} remaining={rows().length} />
         </div></Show>
       </div></Show>
@@ -643,7 +652,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                 query().selection === 'due' ? '' : `${counts().due ?? 0} due now`,
                 `${Math.max(0, value().due_review + value().due_new - (counts().due ?? 0))} later today`,
               ].filter(Boolean).join(' · ')}</p>
-              <Button ref={startButton} class="review-start" disabled={locked() || loading() || !!readError()} onClick={() => void start()}>Review {rows().length} {rows().length === 1 ? 'card' : 'cards'} <kbd>Space</kbd></Button>
+              <Button ref={startButton} class="review-start" disabled={locked() || loading() || !!readError()} onClick={() => void start()}><span class="review-cover-label">Start</span><span class="review-desktop-label">Review {rows().length} {rows().length === 1 ? 'card' : 'cards'} <kbd>Space</kbd></span></Button>
             </Show>
             <Show when={!rows().length && value().held_cards}><p class="review-held">{value().held_cards} {value().held_cards === 1 ? 'card is' : 'cards are'} paused or marked Not yet. Start or resume them from their source atoms.</p></Show>
           </section>
@@ -712,6 +721,10 @@ function CardReviewPane(props: ReviewPaneProps) {
         <Button class="review-end" disabled={locked() || loading() || !!readError()} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing(event.currentTarget); }}>End review</Button>
       </Show>
     </footer></Show>
+    <Show keyed when={sessionActions()}>{anchor => <Menu anchor={anchor} label="Session actions" title="Session actions" onDismiss={() => setSessionActions(null)} items={[
+      { label: 'Undo last grade', disabledReason: undoDisabled() ? latestGrade() ? 'Wait for the review to finish loading or saving.' : 'Grade a card first.' : undefined, action: () => void undoGrade() },
+      { label: 'End review', disabledReason: locked() || loading() || !!readError() ? 'Wait for the review to finish loading or saving.' : undefined, action: () => { setCommandError(''); setClosing(anchor); } },
+    ]} />}</Show>
     <Show keyed when={composer()}>{anchor => <CardComposer anchor={anchor} where={`${shortDay(props.notebook.todayDate())} · end of journal`} onSave={createCard} onDismiss={() => setComposer(null)} />}</Show>
     <Show keyed when={picker()}>{anchor => <Picker<ReviewSession> anchor={anchor} label="Open reviews" query={search()} onQuery={setSearch} placeholder="Find a review" items={sessionChoices()} key={value => value.id} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); requestMove({ deckId: value.deck_id, sessionId: value.id }, anchor); }} row={value => <><Icon name={value.id === sessionId() ? 'check' : 'page'} /><span class="picker-text">{sessionLabel(value)}</span></>} empty="No open reviews." />}</Show>
     <Show keyed when={selectedDeck() && actions()}>{anchor => <Menu anchor={anchor} label="Deck actions" onDismiss={() => setActions(null)} items={[

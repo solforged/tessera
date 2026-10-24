@@ -39,6 +39,7 @@
 .review-card-grade-again .review-card-grade-label { color: var(--danger); }
 /* The cover gives each grade a full thumb target in a two-by-two block. */
 @media (max-width: 599px) and (pointer: coarse) {
+  .review-card-kind { text-transform: none; }
   .review-card-grades { grid-template-columns: repeat(2, minmax(0, 1fr)); flex: none; }
   .review-card-grade { min-height: calc(var(--space-48) + var(--space-24)); }
   .review-card-grade:nth-child(3) { border-left-color: transparent; }
