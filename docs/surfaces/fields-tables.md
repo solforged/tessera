@@ -105,7 +105,7 @@ Under the list, a gap line appears only when at least one missing field has Hide
 
 ## Type fields tab
 
-The type's Fields tab opens its field template as a third in-pane view, with the same Index, Table, Fields and Cards strip. All four tabs, the table title and the pane title read the kind as the sidebar does: its glyph and plural, or the spelling you wrote for a tag that only marks blocks (`#essay` titles `essay`, not `essays`), and Index, Fields and Cards share one left edge. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists the template in the [field rows](#field-rows) the type page uses. Usage counts are workshop-wide distinct owners, including empty entries.
+The type's Fields tab opens its field template as a third in-pane view, with the same List, Table, Fields and Cards strip. All four tabs, the table title and the pane title read the kind as the sidebar does: its glyph and plural, or the spelling you wrote for a tag that only marks blocks (`#essay` titles `essay`, not `essays`), and List, Fields and Cards share one left edge. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists the template in the [field rows](#field-rows) the type page uses. Usage counts are workshop-wide distinct owners, including empty entries.
 
 Add field and Fill missing fields keep the type page's editing behavior. The eyebrow shows only the tag's register name, such as People, linking to its index. The field count appears in the Fields tab, not again beside the title. Where there is no type-page menu, Icon and name… is a quiet control at the end of the editing toolbar. The global Fields register remains separate.
 
@@ -143,7 +143,7 @@ A saved view with a detached or deleted field names the remembered field and off
 
 A type with a required field that some rows lack adds `· 3 need author` after the member count, counted within the table's own query. It adds that field's `is empty` filter to the filters already set. An empty required cell reads faint mono `needed`.
 
-A type shares `Index N`, `Table N`, `Fields N` and `Cards N` tabs with its [index](notes.md#finding-aid) and template registers. Index and Table count the query retained when switching modes, not the unfiltered type total; Index counts notes only. Fields switches the same pane to that type's ordered template; its type crumb opens the ordinary type page.
+A type shares `List N`, `Table N`, `Fields N` and `Cards N` tabs with its [finding aid](notes.md#finding-aid) and template registers. List and Table count the query retained when switching modes, not the unfiltered type total; List counts notes only. Fields switches the same pane to that type's ordered template; its type crumb opens the ordinary type page.
 
 ### Delete view
 
@@ -277,6 +277,8 @@ Notes and tagged blocks share the same ordered list, with the counted apparatus 
 
 Task cards lead with the status glyph and show compact planning facts, including deadline warnings and late dates. Finished task titles recede with a strike-through.
 
-A fixed bar above the bottom navigation holds Find in the type's plural and Query N. N counts active text, link conditions, filters, sorts, grouping and a non-default source. Query opens a bottom sheet containing the existing finder, source, filters, sort, group, layout, columns and Phone card fields controls. Save changes and Revert changes appear at its foot when a saved view differs, and remain in the title menu. Done closes the sheet. Pagination, load errors and Undo remain available at the end of the rows.
+Find in the type's plural and the table options button sit in one row immediately below the mode tabs on the cover (a viewport below 600 px with a coarse pointer), matching List's search position. The repeated register eyebrow and in-page New action are hidden on this layout. A narrow pane in a wider touch window retains the fixed Find and Query bar above bottom navigation. Its count includes active text, link conditions, filters, sorts, grouping and a non-default source.
+
+The options button opens a bottom sheet containing the existing finder, source, filters, sort, group, layout, columns and Phone card fields controls. Save changes and Revert changes appear at its foot when a saved view differs, and remain in the title menu. Done closes the sheet. Pagination, load errors and Undo remain available at the end of the rows.
 
 Columns chooses Phone card fields; every sort field is always included except the field already named by its group heading. A view without a card recipe uses the first visible non-empty choice and Source or first reference, falling back to other visible values. Filters uses its own sheet with 44 px targets and an explicit Apply. Draft selections leave the rows and totals unchanged; saving the named view remains separate. Saving and reopening restore columns, widths, sort priority, grouping, collapsed headings, card fields and purpose, including after a reload. At least 600 px of pane width and fine pointers retain the existing header, toolbar and grid.

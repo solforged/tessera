@@ -15,7 +15,7 @@ export interface TypeModeTabsProps {
 /** A type's finding aid, member table and template share one navigation strip. */
 export function TypeModeTabs(props: TypeModeTabsProps) {
   return <div class="type-mode-tabs mode-tabs tab-strip" data-mode-panel=":scope > :first-child" role="group" aria-label="Tag view">
-    <Button aria-pressed={props.active === 'index'} onClick={props.onIndex}>Index <span class="faint">{props.indexCount}</span></Button>
+    <Button aria-pressed={props.active === 'index'} onClick={props.onIndex}>List <span class="faint">{props.indexCount}</span></Button>
     <Button aria-pressed={props.active === 'table'} onClick={props.onTable}>Table <span class="faint">{props.tableCount}</span></Button>
     {/* Fields and Cards count the type's template, not its members' entries, so an empty template shows no count. */}
     <Button aria-pressed={props.active === 'fields'} onClick={props.onFields} title="Fields in this tag's template">Fields <span class="faint">{props.fieldsCount || ''}</span></Button>
