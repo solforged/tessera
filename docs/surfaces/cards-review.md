@@ -46,9 +46,13 @@ Cards follows the deck ledger with a mono section head, rule and total. It lists
 
 Start takes focus on a mouse-and-keyboard device, but touch leaves it alone and the pane has no focus ring. Today's Review tile starts the due queue directly, or lands on the caught-up state when empty. That request is consumed once; sidebar and palette navigation keep the landing.
 
+On the cover layout, the Review tab opens the deck overview rather than implicitly resuming a saved open session. Due counts remain in the deck ledger and Start begins the selected queue. Open reviews explicitly resumes an unfinished session; reload and pane history still preserve an explicitly selected session. Larger layouts keep their automatic recovery of an open review.
+
 ### Session progress
 
 A session replaces the landing with one segment per card in the progress toolbar. Its grades survive reload. The deck title keeps its landing size and stays static; deck actions and Open reviews leave the session.
+
+During a live cover session, the shell pane header steps aside for the session's glass top bar. Close finishes the session and returns directly to the selected deck's overview, preserving every committed grade. The bar names the deck and the current card, such as `1 of 9`; its Session actions menu offers Undo last grade and End review. The segmented progress strip remains below the bar.
 
 | Card state or grade | Segment appearance |
 | --- | --- |
@@ -66,7 +70,7 @@ A completed or explicitly closed session with at least one review keeps its coun
 
 The card reads as a quiet sheet on the page rather than a boxed panel. Its column is capped at the page measure with 48 px of breathing room above it, placing its prompt in the upper third. It has no rubric mark. Its top rule turns gilt only on fine-pointer keyboard focus; touch hides this rule, leaving the progress strip alone.
 
-One mono line heads every card: the source at the left, then the kind in faint capitals (`FORWARD`, `REVERSE`, `CLOZE`, `MULTI-LINE`, `LIST`, `DESCRIPTOR`, `OCCLUSION`) and Card actions at the right. A cloze or occlusion card is numbered (`CLOZE 2`, `OCCLUSION 2`) only when its block makes more than one. A cited card's source shows siglum, title, chapter and paragraph and opens that citation. ⌘-click opens it beside (Ctrl-click off Mac). An uncited card's source path opens its block. Card actions holds the same open action, Edit card, which opens the canonical block, and Reset progress, which requires a revealed answer and confirmation. On an occlusion card, Edit card also opens the mask editor.
+One mono line heads every card: the source at the left, then the kind in faint capitals (`FORWARD`, `REVERSE`, `CLOZE`, `MULTI-LINE`, `LIST`, `DESCRIPTOR`, `OCCLUSION`) and Card actions at the right. The cover layout keeps these kind labels in sentence case instead. A cloze or occlusion card is numbered (`CLOZE 2`, `OCCLUSION 2`) only when its block makes more than one. A cited card's source shows siglum, title, chapter and paragraph and opens that citation. ⌘-click opens it beside (Ctrl-click off Mac). An uncited card's source path opens its block. Card actions holds the same open action, Edit card, which opens the canonical block, and Reset progress, which requires a revealed answer and confirmation. On an occlusion card, Edit card also opens the mask editor.
 
 Cards beneath a highlight inherit the nearest ancestor citation when they have none of their own. Their source line identifies the book and location, not the ancestor quotation. The cited passage and following sentence wait for reveal.
 
@@ -81,7 +85,7 @@ Once revealed, a cited card shows prose following its quotation from the snapsho
 | Layout | Behavior |
 | --- | --- |
 | Unfolded touch screen at least 900 px wide | The card sits left and its passage sits right with the citation highlighted. The passage waits for reveal so it cannot give the answer away. |
-| Cover | The bottom nav and session footer step aside during a live session. Tapping non-control card space reveals. Interval-bearing grades form the sole bottom bar in a two-by-two block. Undo last grade and End review live in Card actions. The footer and bottom nav return on Done. |
+| Cover | The bottom nav, shell pane header and session footer step aside during a live session. Its glass bar offers Close back to the overview, deck name, progress and Session actions. Tapping non-control card space reveals. Interval-bearing grades form the sole bottom bar in a two-by-two block. Undo last grade and End review remain in Card actions as well. The footer and bottom nav return on Done. |
 | Larger layouts | Review history stays available. |
 
 Good is ringed in gilt as the default, and Space or Enter selects it after reveal; 1–4 remain available. Again's label is rubric.
