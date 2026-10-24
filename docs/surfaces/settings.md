@@ -21,9 +21,13 @@ Sections use the same mono numbered heads as field definitions, in this order:
 
 Under 600 px (a split pane or the Fold cover), the header tightens. Controls stack under their descriptions except the switch, and the time-zone trigger fills the width. Paths wrap after slashes, not inside folder names. Pane chrome and mode tabs keep 44 px touch targets.
 
+On the cover layout (under 600 px with a coarse pointer), section names stay in the scroll instead of a horizontal chip row. This avoids clipped names and leaves more room for the settings themselves. Each section forms an inset group on `--raised`, with token spacing and rounded corners, a plain sentence-case heading and hairlines between rows. Controls and disclosures keep `--touch-target` hit areas. The title, save status, Undo and Redo stay above the groups; desktop and wider layouts keep their existing section index.
+
 ## Preferences
 
 Preferences contains Theme, Vim keys, Ask before deleting views, Journal day and Reader display. Each row has its name, a mono scope (This device or Workshop) and one muted sentence on the left, with its control flush right. Rows divide with hairlines.
+
+Vim keys is hidden with a coarse pointer, without changing its saved workshop value or the desktop setting.
 
 | Control | Presentation and behavior |
 | --- | --- |

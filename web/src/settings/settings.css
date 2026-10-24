@@ -114,3 +114,22 @@
   .settings-select.button { width: 100%; }
   .settings-row .settings-aside { display: none; }
 }
+
+@media (pointer: coarse) {
+  .settings-vim { display: none; }
+}
+
+/* The cover keeps all section names in the scroll, not in a clipped second navigation row. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .settings-index { display: none; }
+  .settings-main > section { padding: var(--space-16); border-radius: var(--space-12); background: var(--raised); }
+  .settings-main > section + section { margin-top: var(--space-16); }
+  .settings-pane .field-section-head { margin-bottom: var(--space-8); font: var(--weight-control) var(--text-control)/var(--line-control) var(--font-body); letter-spacing: normal; }
+  .settings-pane .field-section-head > :is(.field-rubric, .section-rule) { display: none; }
+  .settings-row, .settings-change { min-height: var(--touch-target); column-gap: var(--space-12); }
+  .settings-main > section > .settings-row:last-child { padding-bottom: 0; }
+  .settings-pane .button, .settings-more summary { min-height: var(--touch-target); }
+  .settings-switch::before { inset-block: calc((var(--switch-height) - var(--touch-target)) / 2); }
+  .settings-pane dl { grid-template-columns: minmax(0, 1fr); gap: var(--space-4); }
+  .settings-pane dd + dt { margin-top: var(--space-12); }
+}
