@@ -46,12 +46,11 @@ targets:
       path: tessera-mobile_iOS/Info.plist
       properties:
         LSRequiresIPhoneOS: true
+        NSCameraUsageDescription: Tessera scans the pairing code from your Mac.
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-          - UIInterfaceOrientationLandscapeLeft
-          - UIInterfaceOrientationLandscapeRight
         UISupportedInterfaceOrientations~ipad:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationPortraitUpsideDown

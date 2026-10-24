@@ -90,6 +90,8 @@ The signing key comes from the first available source:
 
 The iOS app runs the same pages and workshop as the Android app. Library → Add opens the iOS file picker. Opening EPUBs from other apps, sharing to Tessera and the home screen shortcuts are Android only.
 
+iPhones stay in portrait; iPads keep their portrait and landscape layouts. The native web form toolbar (Previous, Next and Done) is hidden above the keyboard. The outline editor provides its own Indent, Outdent and Done controls without changing text input or the pairing camera.
+
 ### Build and install
 
 Build a debug IPA and install it on an iPhone connected over USB or the local network. Run these commands from the repository root:
@@ -113,7 +115,23 @@ Before the first install on a new phone:
 
 3. After installing, trust the certificate on the phone (Settings › General › VPN & Device Management) before the first launch.
 
-Extra arguments go to `tauri ios build`. The Xcode project in `crates/tessera-mobile/gen/apple` is committed. `tauri ios init` regenerates it but drops two hand edits: the camera usage string in `Info.plist`, which the pairing scanner needs, and the app icons, which are cut from `crates/tessera-desktop/icons/icon.svg` without the rounded tile because iOS masks the corners itself.
+Extra arguments go to `tauri ios build`. To build and launch in an Apple silicon simulator:
+
+```sh
+mise run ios:build -- --debug --target aarch64-sim
+xcrun simctl boot <SIMULATOR-UDID>
+xcrun simctl bootstatus <SIMULATOR-UDID> -b
+xcrun simctl install <SIMULATOR-UDID> crates/tessera-mobile/gen/apple/build/arm64-sim/Tessera.app
+xcrun simctl launch <SIMULATOR-UDID> dev.tessera.ios
+```
+
+`xcrun simctl list devices available` lists simulators. The simulator does not need a device provisioning profile.
+
+The Xcode project in `crates/tessera-mobile/gen/apple` is committed. `project.yml` keeps the iPhone orientation limit and camera usage string when `xcodegen generate` rebuilds the project and its plist. `Sources/tessera-mobile/main.mm` hides only the web form accessory, leaving native keyboard and camera views alone.
+
+The same native entry point sends `tessera:status-bar-tap` to the page when iOS asks the outer web view to scroll to the top. The shell keeps the outer document one pixel from the top so UIKit delivers that callback, then scrolls the active pane instead. Other scroll delegate methods still reach WebKit.
+
+`tauri ios init` replaces these hand edits as well as the app icons, which are cut from `crates/tessera-desktop/icons/icon.svg` without the rounded tile because iOS masks the corners itself. Preserve those changes when regenerating the project.
 
 ## Browser app
 
