@@ -262,7 +262,7 @@ function TaskSourceRow(props: {
     </span>
     </div>
     <Show when={props.timetable && props.row.source.page.id !== props.pageId}>
-      <button type="button" class="agenda-provenance" aria-label={`Open source, ${props.row.source.page.text}`} title={props.row.source.page.text} onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, opensBeside(event))}>{props.row.source.page.kind === 'journal' ? 'Journal' : props.row.source.page.text}</button>
+      <button type="button" class="agenda-provenance" aria-label={`Open source, ${props.row.source.page.text}`} title={props.row.source.page.text} onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, ...(window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches ? { revealId: props.row.source.block.id } : { blockId: props.row.source.block.id }) }, opensBeside(event))}>{props.row.source.page.kind === 'journal' ? 'Journal' : props.row.source.page.text}</button>
     </Show>
     <Show when={props.plan && unfinished()}>
       <span class="agenda-row-actions">

@@ -394,12 +394,6 @@ export function AgendaPane(props: AgendaPaneProps) {
       revealedTask?.style.removeProperty('outline');
       revealedTask = row;
       row.scrollIntoView({ block: 'nearest' });
-      const capture = scroll.querySelector<HTMLElement>('.agenda-add');
-      if (capture && getComputedStyle(capture).position === 'fixed') {
-        const gap = Number.parseFloat(getComputedStyle(scroll).getPropertyValue('--space-8')) || 0;
-        const obscured = row.getBoundingClientRect().bottom - capture.getBoundingClientRect().top + gap;
-        if (obscured > 0) scroll.scrollTop += obscured;
-      }
       row.style.outline = 'var(--rule-width) solid var(--accent)';
       revealTimer = window.setTimeout(() => { row.style.removeProperty('outline'); revealedTask = undefined; }, 1500);
     });
@@ -415,7 +409,8 @@ export function AgendaPane(props: AgendaPaneProps) {
   return <div ref={scroll} class="agenda-pane" data-pane={props.pane} aria-label="Agenda and tasks" tabIndex={props.active ? 0 : -1} onKeyDown={historyKeydown} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onScroll={() => props.onViewChange({ ...view(), query: copyTaskQuery(query()), scroll: scroll.scrollTop })}>
     <div class="agenda-content">
       <header class="agenda-toolbar">
-        <div class="agenda-heading"><p>Agenda</p><h1><Show when={mode() !== 'tasks'} fallback="Tasks"><button type="button" class="agenda-title-date" aria-label={`Choose date, ${spokenJournalDate(date())}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'date'} onClick={event => setPopup({ kind: 'date', anchor: event.currentTarget })}>{mode() === 'week' ? weekTitle() : relativeDate(date(), props.notebook.todayDate())}</button></Show></h1></div>
+        <div class="agenda-heading agenda-cover-heading"><p><Show when={mode() !== 'tasks'} fallback="Tasks"><button type="button" class="agenda-title-date" aria-label={`Choose date, ${spokenJournalDate(date())}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'date'} onClick={event => setPopup({ kind: 'date', anchor: event.currentTarget })}>{mode() === 'week' ? weekTitle() : spokenJournalDate(date())}</button></Show></p><h1>Agenda</h1></div>
+        <div class="agenda-heading agenda-desktop-heading"><p>Agenda</p><h1><Show when={mode() !== 'tasks'} fallback="Tasks"><button type="button" class="agenda-title-date" aria-label={`Choose date, ${spokenJournalDate(date())}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'date'} onClick={event => setPopup({ kind: 'date', anchor: event.currentTarget })}>{mode() === 'week' ? weekTitle() : relativeDate(date(), props.notebook.todayDate())}</button></Show></h1></div>
         <Show when={mode() !== 'tasks'}><div class="agenda-date" role="group" aria-label={mode() === 'week' ? 'Displayed week' : 'Displayed date'}>
           <Button icon="left" label={mode() === 'week' ? 'Previous week' : 'Previous day'} disabled={busy() || !previousDate()} onClick={() => { const previous = previousDate(); if (previous) changeDay(previous); }} />
           <Button disabled={busy()} onClick={() => changeDay(props.notebook.todayDate())}>Today</Button>
