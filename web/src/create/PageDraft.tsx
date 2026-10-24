@@ -53,7 +53,7 @@ export function PageDraft(props: {
   const found = () => existing.latest?.title === query() ? existing.latest.id ?? undefined : undefined;
   const [kinds] = createResource(() => found() || false, key => props.notebook.api.noteKinds(key));
   const member = () => !!found() && (props.kind === 'note' || kinds()?.some(kind => kind.key === (props.noteKind?.key ?? props.kind)));
-  const typePage = () => mode() === 'type' && titleKey(query()) === titleKey(props.noteKind?.name ?? '');
+  const typePage = () => mode() === 'type' && !!props.noteKind && titleKey(query()) === titleKey(props.noteKind.name);
   const matches = createMemo(() => query() ? (similar() ?? []).filter(row => row.id !== found()).slice(0, 4) : []);
   const fit = () => { title.style.height = 'auto'; title.style.height = `${title.scrollHeight}px`; };
   onMount(() => { fit(); title.focus(); title.setSelectionRange(title.value.length, title.value.length); });
