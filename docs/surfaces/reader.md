@@ -17,6 +17,8 @@ One toolbar line sits at the reading measure and spans the spread in [Pages](#pa
 5. Full screen.
 6. An actions menu: Open source, then reader shortcuts with their keys, including the five highlight colors and page-turn keys in Pages. Commands that need a selection say so.
 
+On the touch cover screen, the toolbar splits into two glass surfaces using the shell's glass tokens. The top navigation bar has a circular Back button, the book title centered and ellipsized, then circular `Aa` and actions buttons. Back returns through the pane's history to the Library when opened there. A bottom capsule above the home indicator holds Contents with the current section, Highlights with its count and Find in source. The book map and foot line lift above that capsule while the controls show, without moving the reading text. With reduced transparency, the glass surfaces use `--raised`.
+
 Progress sits at the foot, under the text. The [book map](#book-map) sits above one mono line: the chapter's numeral and italic title, its time left, and `N% · time left in the book` at the right. The last item opens the [progress card](#progress-card). The chapter name is absent in front matter. In a foot narrower than 460 px, a shortened chapter label remains in a two-line folio rather than disappearing. In Pages, the foot spans the spread as the toolbar does.
 
 The text fades over 24 px under the toolbar and 48 px above the foot, so no line is cut through its letters.
@@ -105,7 +107,7 @@ Contents opens on the current section, marked with a check, when no persistent m
 
 The Highlights picker's section column stays 12ch wide beside the quote. Clicking a highlight already in the text keeps the reader's scroll position. Highlight bands remain visible on chapter-opening first lines.
 
-On the touch cover, Contents and Highlights open as bottom sheets without focusing the query field or opening the keyboard. Contents keeps the current entry in view. Reader picker choices and progress chapter rows are at least 44 px high on touch. On narrow screens, highlight locations sit below their quotes rather than sharing a line.
+On the touch cover, Contents, Highlights and Find open from the bottom capsule as bottom sheets. Contents and Highlights leave the query field unfocused so they do not open the keyboard; Find focuses its query. Contents keeps the current entry in view. Reader picker choices and progress chapter rows are at least 44 px high on touch. On narrow screens, highlight locations sit below their quotes rather than sharing a line.
 
 Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty. Inferred spine entries leave out isolated epigraph quotations rather than turning their prose into chapter titles. A passage's tooltip names its number and section: `Passage 37 · Chapter 1`.
 
@@ -198,7 +200,7 @@ Full screen, the corner-arrows button after `Aa` or `F`, turns the whole app win
 | Screen | Fade and return | Layout while faded |
 | --- | --- | --- |
 | Mouse | The toolbar and book map at the foot fade 2.5 s after the pointer rests and return when it moves. The line under the map stays. | Everything keeps its room, so the text never moves. |
-| Touch, in full screen or on the cover screen | A tap in the middle of the page, not on a highlight, link or button, fades or returns the toolbar and book map with the cover screen's masthead and pane tabs. | The pane tabs, masthead, toolbar and book map lie over the page, painted the screen's full width with the text fading into them. Once they fade, the page has the screen from the top band's top to the line under the map. |
+| Touch, in full screen or on the cover screen | A tap in the middle of the page, not on a highlight, link or button, fades or returns the controls and book map with the cover screen's navigation bar and pane tabs. | The controls overlay the reading text without reflowing it. On the cover screen, the glass navigation bar sits at the top and the reading-tools capsule at the bottom; the foot line lifts above the capsule while shown and returns to the screen's foot when hidden. On wider touch screens, the toolbar stays at the top with the text fading into its full-width band. |
 
 On Android the status and navigation bars leave and return with the active reader's controls, and a swipe from the screen's edge shows them for a moment. Inactive readers never hide the system bars or working-pane tabs. The native app keeps that bar mode through folding and keyboard changes. Closing a note after folding returns both bars to the reader's current mode. Full screen on a touch screen 600 px or wider also gives the page the status bar's room, and the toolbar returns below the bar. The cover screen keeps that room for its camera.
 

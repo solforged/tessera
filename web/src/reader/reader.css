@@ -48,14 +48,13 @@
 .progress-card-chapter-row[aria-current].button { color: var(--text); box-shadow: inset var(--space-2) 0 var(--accent); padding-left: var(--space-8); }
 .progress-card-minutes { flex-shrink: 0; }
 .reader-progress-card .progress-card-note { margin-top: var(--space-12); }
-/* The cover screen reads without the pane header: a back arrow and the book's name head the page, and full screen has nothing left to hide. */
+/* The cover screen replaces the pane header with its own navigation bar. */
 .reader-masthead { display: none; }
 @media (max-width: 599px) and (pointer: coarse) {
-  .reader-masthead { display: flex; align-items: center; gap: var(--space-4); width: calc(100% - 2 * var(--space-12)); max-width: var(--reader-measure); margin: 0 auto; padding-top: var(--space-8); }
-  .reader-masthead > .button { flex-shrink: 0; }
-  .reader-masthead h2 { min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
-  .reader-header .reader-full-screen { display: none; }
-  .reader-header { padding-top: var(--space-4); }
+  .reader-masthead { position: relative; display: flex; align-items: center; gap: var(--space-4); width: calc(100% - 2 * var(--space-12)); margin: 0 auto; padding-block: var(--space-4); }
+  .reader-masthead > .button { flex: none; width: var(--touch-target); height: var(--touch-target); padding: 0; justify-content: center; border: 0; border-radius: var(--radius-pill); }
+  .reader-masthead > .button:first-child { margin-right: auto; }
+  .reader-masthead h2 { position: absolute; left: 50%; translate: -50% 0; max-width: calc(100% - 4 * var(--touch-target) - 4 * var(--space-4)); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--weight-heading) var(--text-control)/var(--line-control) var(--font-body); text-align: center; }
 }
 /* On touch (the cover screen, or full screen on a touch screen) the masthead, toolbar and book map lie over the page rather than above it, so once they go the text has the whole screen; the page runs from the top band's top to the foot line. */
 .reader-chrome-over { display: grid; grid-template: auto auto minmax(0, 1fr) auto / minmax(0, 1fr); }
@@ -123,6 +122,24 @@
 .reader-chrome-hidden > :is(.reader-masthead, .reader-header), .reader-chrome-hidden .reader-foot > .reader-map { opacity: 0; pointer-events: none; }
 .reader-chrome-hidden > :is(.reader-masthead, .reader-header) { translate: 0 calc(-1 * var(--motion-distance)); }
 .reader-chrome-hidden .reader-foot > .reader-map { translate: 0 var(--motion-distance); }
+/* The cover's bottom capsule overlays the page. Its folio lifts clear of the controls without reflowing the text,
+   then returns to the screen's foot when the chrome leaves. The app already clears the home indicator. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .reader-chrome-over { position: relative; --reader-tools-clearance: calc(var(--touch-target) + 2 * var(--space-4) + var(--space-16)); }
+  .reader-chrome-over > .reader-header { position: absolute; inset-inline-start: 50%; bottom: var(--space-8); translate: -50% 0; width: calc(100% - 2 * var(--space-16)); max-width: none; margin: 0; padding: var(--space-4); border: 0; border-radius: var(--radius-pill); font-size: var(--text-control); }
+  .reader-chrome-over > .reader-header::after { display: none; }
+  .reader-header > .button { min-width: var(--touch-target); min-height: var(--touch-target); border: 0; border-radius: var(--radius-pill); }
+  .reader-header .reader-contents { flex: 1 1 0; min-width: 0; justify-content: flex-start; }
+  .reader-masthead > .button, .reader-chrome-over > .reader-header { background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%); backdrop-filter: blur(var(--glass-blur)) saturate(160%); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--glass-edge); }
+  .reader-chrome-over > .reader-header { border-image: none; }
+  .reader-chrome-hidden > .reader-header { translate: -50% var(--motion-distance); }
+  .reader-chrome-over > .reader-foot { transition: translate var(--motion-ui) var(--motion-ease); }
+  .reader-chrome-over:not(.reader-chrome-hidden) > .reader-foot { z-index: 2; translate: 0 calc(-1 * var(--reader-tools-clearance)); border-image: conic-gradient(var(--canvas) 0 0) fill 0 / 0 / 0 100vw; }
+  .reader-chrome-over:not(.reader-chrome-hidden) .reader-scroll { mask-image: linear-gradient(to bottom, transparent, var(--text) var(--space-24), var(--text) calc(100% - var(--reader-tools-clearance) - var(--space-48)), transparent calc(100% - var(--reader-tools-clearance))); }
+}
+@media (max-width: 599px) and (pointer: coarse) and (prefers-reduced-transparency: reduce) {
+  .reader-masthead > .button, .reader-chrome-over > .reader-header { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
 .reader-passage { margin: 0; color: var(--text); font-family: var(--reader-font); font-size: var(--reader-size); line-height: var(--reader-line); font-weight: var(--weight-body); font-variation-settings: var(--optical-reader); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* An opaque selection keeps inline highlight tints from changing its paint. */
 .reader-passage::selection, .reader-passage *::selection { background: var(--selection); color: var(--text); }
