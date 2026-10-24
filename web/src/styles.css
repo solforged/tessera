@@ -526,18 +526,27 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .app.is-reading .pane.active > .pane-header { display: none; }
   .app.is-reading .workspace { margin: 0; border: 0; border-radius: 0; background: var(--canvas); transition: none; }
   .undo-toast { bottom: calc(var(--bottom-nav-height) + var(--space-12) + var(--bottom-inset)); }
-  .directory-pane [data-phone-tab] { display: none; }
+  .directory-pane .directory-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-12); margin-bottom: var(--space-16); }
+  .directory-pane .directory-head > h1 { order: -1; }
+  .directory-pane .directory-head > p { margin: 0; }
   .directory-pane .button { min-height: var(--space-48); padding-inline: 0; border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; font-size: var(--text-h3); color: var(--text); }
   .directory-pane .button > .icon { color: var(--muted); }
-  .directory-pane .primary-navigation { border-top: var(--rule-width) solid var(--line); }
   .directory-pane .page-list { margin-top: var(--space-24); }
-  .directory-pane .page-list h2, .directory-pane .page-list > summary { min-height: var(--space-48); padding-inline: 0; }
-  .directory-pane .section-number { display: none; }
-  .directory-pane .index-shelf { padding-left: 0; text-transform: none; letter-spacing: var(--tracking-apparatus); }
-  .directory-pane .sidebar-view > .view-pin { flex-basis: var(--touch-target); width: var(--touch-target); }
-  .directory-pane .sidebar-foot { gap: var(--space-12); }
-  .directory-pane .sidebar-foot > .button { min-width: 0; border: 0; }
-  .directory-pane .sidebar-settings { width: auto; }
+  .directory-pane .index-list { margin-top: 0; }
+  .directory-pane .page-list h2, .directory-pane .page-list > summary { min-height: var(--touch-target); padding-inline: 0; }
+  .directory-pane .section-number, .directory-pane .section-rule { display: none; }
+  .directory-pane .page-list > summary > .icon { margin-left: auto; }
+  .directory-pane .index-shelf { margin-top: var(--space-24); padding-left: 0; text-transform: none; letter-spacing: var(--tracking-apparatus); }
+  .directory-pane .index-list > .index-shelf:first-child { margin-top: 0; }
+  .directory-empty-kinds { margin-top: var(--space-12); }
+  .directory-empty-kinds > summary { display: flex; align-items: center; justify-content: space-between; min-height: var(--touch-target); color: var(--muted); font: var(--apparatus); cursor: pointer; list-style: none; }
+  .directory-empty-kinds > summary::-webkit-details-marker { display: none; }
+  .directory-empty-kinds > summary .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+  .directory-empty-kinds:not([open]) > summary .icon { transform: rotate(-90deg); }
+  .directory-pane .sidebar-view { gap: 0; }
+  .directory-pane .directory-view-menu.button { flex: none; width: var(--touch-target); }
+  .directory-pane .sidebar-foot { flex-direction: column; align-items: stretch; gap: 0; }
+  .directory-pane .sidebar-foot > .button { flex: none; min-width: 0; width: 100%; }
 }
 @media (max-width: 599px) and (pointer: coarse) and (prefers-reduced-transparency: reduce) {
   :is(.bottom-tabs, .bottom-find.button, .pane-header .pane-index, .pane-header .pane-back, .pane-header .pane-new, .pane-header .page-menu-button) { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }

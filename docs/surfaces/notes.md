@@ -10,13 +10,13 @@ Index is a sidebar section after Pinned. Its count is the distinct notes filed, 
 
 | Shelf | Kinds |
 | --- | --- |
-| Notes | People, Groups, Concepts and Theses (types with those titles), then Questions (a capability), then the fixed Fields register row. |
+| Atoms | People, Groups, Concepts and Theses (types with those titles), then Questions (a capability), then the fixed Fields register row on desktop. |
 | Sources | Sources (a capability), Book, Article and Collection, and any other type most of whose notes are sources. |
 | Work | Tasks and Projects (capabilities), and any other type most of whose notes are projects. |
 | Tags | Every other type you made, including types that only tag blocks. |
 | Loose | Unfiled. |
 
-The service assigns each kind its shelf, so a type moves shelf only when most of its notes change capability. Saved spreads follow under their own Spreads head. A shelf with no listed rows leaves out its head; Notes always contains Fields.
+The service assigns each kind its shelf, so a type moves shelf only when most of its notes change capability. Saved spreads follow under their own Spreads head. A shelf with no listed rows leaves out its head; the desktop Atoms shelf always contains Fields.
 
 Rows stay on one line: the kind's glyph in `--faint`, the name at control size, and a bare mono count right. A kind with notes uses its plural. A tag that only marks blocks uses the spelling you wrote, so `#arabic` stays `arabic` unless you set a plural.
 
@@ -26,13 +26,15 @@ Rows stay on one line: the kind's glyph in `--faint`, the name at control size, 
 | Tasks, Questions, Projects and Sources | Every visible atom with the active capability, including inline atoms and behavior added without a written tag. Tasks excludes checkbox-free appointments. Their finding aids, tables and kind filters list the same set. |
 | Tag-only type | Tagged atoms. The row uses the tag's spelling, not an automatic plural. |
 | Fields | Live named definitions, including archived definitions, as in the Fields register. Always shown, including at zero. |
-| Empty built-in kind | The same row, named in `--faint` without a count, on its shelf, only when it has no visible members. Each name opens its finding aid. |
+| Empty built-in kind | On desktop, the same row, named in `--faint` without a count, on its shelf. On the touch cover, collected in one counted disclosure below the populated shelves. Each name opens its finding aid. |
 
 An empty built-in kind that has a saved view keeps that row, still without a count. The Questions menu stays off until that kind has visible members or a saved view. Each other type and Unfiled are listed only while they have titled notes or tagged non-page blocks. The distinct-note total never includes inline atoms.
 
-The Index heading opens a bounded directory in the same order, headed `N atoms · M types`, with explicit note, source or `N tagged` counts. Tag-only rows open their [member table](fields-tables.md#tables-and-views) directly; other kinds open their finding aid. A saved view sits under the kind whose type it lists, on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
+The sidebar's Index heading opens the all-atoms finding aid. Tag-only rows open their [member table](fields-tables.md#tables-and-views) directly; other kinds open their finding aid. On desktop, a saved view sits under the kind whose type it lists, on a hairline elbow and without its table glyph. The section refreshes with the desk counts and disappears rather than go stale when its request fails.
 
-Fields is a fixed row, not a kind. Its field glyph and definition count come from the index read, separate from the tag registry. It closes the Notes shelf in both destinations and opens the [Fields register](fields-tables.md#fields-register). Its sidebar row reads selected while the global register is active; a tag's Fields tab still selects that tag instead.
+On a touch screen under 600 px, the shell's Index button instead opens a pushed navigation page. Its head is Index with a quiet atom count, followed by plain shelf names. Revisits starts the Atoms group. All saved views, including pinned views, appear once in Views rather than under their kinds or Pinned; each view's actions menu offers Pin view or Unpin view, and New view comes last. Empty kinds fold into one row such as `3 empty kinds`: expanding it preserves access to unused destinations without making them full rows by default. Recent follows the views, and pinned pages keep their own section when present.
+
+Fields is a fixed row, not a kind. Its field glyph and definition count come from the index read, separate from the tag registry. It closes the desktop Atoms shelf and opens the [Fields register](fields-tables.md#fields-register). On the touch-cover Index page it moves to the foot, where the workshop switcher, Settings and Fields are full rows. Its sidebar row reads selected while the global register is active; a tag's Fields tab still selects that tag instead.
 
 Tags keep their page identity across renames. The sidebar, pills, table filters and tag decks read the current title by ID. Choosing an existing tag writes `#[[id|Title]]`; a new tag starts as `#Title` and normalizes on save. A missing tag page leaves a faint pill with its remembered name, not membership in another page that reuses that name.
 
