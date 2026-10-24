@@ -22,6 +22,8 @@ Revisits is its own pane, directly below Agenda in the sidebar and available thr
 
 An empty Revisits queue says `Nothing to revisit. Set a Revisit date on a note or question and it appears here.` Open Questions opens the Questions ledger.
 
+On the cover layout, the title, empty-state text, Open Questions and queue text share `--pane-inset` with Index and Library. The pane owns that inset; its body does not add the shared empty-state margin or button padding.
+
 Each item opens its ordinary outline inside Review; inline questions open zoomed. Sources, links and backlinks remain available. Revisited shows the proposed next date before confirmation, with the shared revisit picker to change or clear it. Later moves the date without an event. Resolve clears the date and resolves a note, or allows a question to resolve without accepting an assessment. Keep recurrent marks a question recurrent and records a revisit.
 
 After an action the next item opens. Undo revisit restores the prior date and state and removes the event from effective history. The control then offers Redo revisit. This history belongs to the queue action, not the next page's outline undo stack. There are no grades or streaks for this queue.
