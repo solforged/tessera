@@ -109,6 +109,8 @@ The task API's optional `project_via: "field"` filter restricts results to expli
 
 The Agenda destination keeps an Agenda kicker above its title. Day has a spoken date heading with Previous day / Today / Next day alongside it. Week uses a week number and ISO range (`W43 · 2026-10-19 – 2026-10-25`) with Previous week / Today / Next week. Both date headings open the journal's calendar; picking a day moves there, and its Today returns to today. Tasks has a plain Tasks title with no date navigation.
 
+On the cover, a date eyebrow and Agenda page title sit above the day or week stepper. The eyebrow opens the calendar; Tasks uses a Tasks eyebrow instead. Wider layouts keep their date-led heading.
+
 Day / Week / Tasks sit beneath on the shared ruled tab baseline. On the wide Week grid, the hour-window toggle sits at the right end of this same row; it is absent from Day, Tasks and the narrow Week ledger.
 
 Day's seven-day strip has no boxes:
@@ -122,7 +124,7 @@ Day's seven-day strip has no boxes:
 
 On Day, Add a task sits directly under the strip, so it stays in place however many tasks are overdue. It is [Add to today](journal.md#add-to-today) in its task form: it captures into today's journal, scheduled for the displayed day unless a complete plain-word suffix such as `mon 9am`, a trailing `@date`, or `by`/`due` names another plan.
 
-On the cover the field stays fixed above bottom navigation and moves down when the keyboard hides navigation. A live mono preview beneath the field shows the plan as a planning fact (`tomorrow 15:00`, `due Fri 16`) in `--calendar-scheduled`. An unmatched explicit `@` token warns in `--warning` that it stays in the text.
+On the cover, the inline field is hidden and the glass top bar's New button opens a task creation slip preset to the displayed day. It still captures into today's journal; typed dates override the preset. Elsewhere, a live mono preview beneath the inline field shows the plan as a planning fact (`tomorrow 15:00`, `due Fri 16`) in `--calendar-scheduled`. An unmatched explicit `@` token warns in `--warning` that it stays in the text.
 
 The preview shows exactly the first date suggestion that submission will use, including preset prefixes such as `@t` for Today. Protected references and code remain authored text.
 
@@ -170,6 +172,8 @@ Saved task view project conditions show the resolved project title rather than i
 ### Rows
 
 Day rows have a fixed left mono time gutter, blank for untimed work, then the status glyph and source text, with page provenance and a separate rescheduling slot at the right. Provenance uses holder links in ink with a hairline underline and gilt hover. Journal provenance reads Journal rather than repeating the stored ISO date; the full page title remains in its tooltip and accessible name.
+
+On the cover, a provenance tap opens the whole source page in Outline, scrolls to the task and briefly highlights it. It neither zooms into the task nor opens Task fields; a planning-field tap opens that sheet. Wider layouts keep their zoom-to-task provenance behavior.
 
 Planning facts share the task's line. A lone priority trails the text. Dates and other facts keep the right edge. They omit dates implied by a day group and a project the row already names as its provenance, and show a carried schedule only as `since 2026-10-06`, not also a second date. Earlier work on a future displayed day has no `since` prefix unless it is also before civil today. Task-query rows retain their compact status, source and trailing planning layout.
 

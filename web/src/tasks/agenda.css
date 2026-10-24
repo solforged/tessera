@@ -7,6 +7,7 @@
 .agenda-toolbar, .agenda-date { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); }
 .agenda-toolbar { align-items: flex-end; justify-content: flex-start; width: 100%; max-width: var(--measure); margin-inline: auto; gap: var(--space-8) var(--space-24); }
 .agenda-heading { min-width: 0; }
+.agenda-cover-heading { display: none; }
 .agenda-heading > p { margin: 0 0 var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .agenda-heading > h1 { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 .agenda-title-date { min-width: var(--target-size); min-height: var(--target-size); border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
@@ -329,17 +330,17 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > .agenda-provenance { grid-column: 2 / -1; }
   .agenda-row-timetable > .agenda-error, .agenda-row-timetable > .agenda-message { grid-row: 4; }
 }
-/* On the cover the capture field stays above navigation, and drops to the keyboard edge when navigation hides. */
+/* The cover keeps the page title above date navigation; New lives in the shell's top bar. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .agenda-pane:has(.agenda-add) { --agenda-capture-clearance: calc(var(--target-size) + 2 * var(--space-4) + 2 * var(--rule-width) + var(--space-12) + var(--bottom-inset)); padding-bottom: calc(var(--page-bottom-space) + var(--agenda-capture-clearance)); }
-  .agenda-pane:has(.agenda-add-preview) { padding-bottom: calc(var(--page-bottom-space) + var(--agenda-capture-clearance) + var(--space-4) + var(--line-apparatus)); }
+  .agenda-toolbar { flex-direction: column; align-items: flex-start; gap: var(--space-8); }
+  .agenda-desktop-heading { display: none; }
+  .agenda-cover-heading, .agenda-cover-heading > p { display: block; }
+  .agenda-cover-heading .agenda-title-date { color: var(--faint); font: inherit; letter-spacing: inherit; }
+  .agenda-date { margin-left: 0; }
+  .agenda-add { display: none; }
   .agenda-week-strip { grid-template-columns: repeat(7, minmax(var(--target-size), 1fr)); }
   .agenda-week-day.button { padding-inline: var(--space-4); }
   .agenda-lookahead { display: none; }
-  .pane.active .agenda-add { position: fixed; z-index: 20; left: calc(env(safe-area-inset-left) + var(--pane-inset)); right: calc(env(safe-area-inset-right) + var(--pane-inset)); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset) + var(--space-12)); margin: 0; padding: var(--space-4) var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); }
-  .pane:not(.active) .agenda-add { display: none; }
-  .app.keyboard-open .agenda-add { bottom: calc(var(--visual-viewport-bottom-gap, 0px) + var(--bottom-inset) + var(--space-8)); }
-  .agenda-add .capture-input { min-height: var(--target-size); border: 0; }
 }
 @media (pointer: coarse) {
   .agenda-title-date, .agenda-row-actions .button, .agenda-row-timetable > .agenda-provenance, .today-carried .button { min-height: var(--touch-target); }
