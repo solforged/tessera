@@ -66,13 +66,20 @@ export function installPhoneGestures(options: { cover(): boolean; canBack(): boo
   // UIKit only offers scroll-to-top when its outer scroll view is off zero.
   // The native delegate bridges that tap without moving this one-pixel sentinel.
   const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  let frame = 0;
-  createEffect(() => {
-    const sentinel = ios && options.cover();
-    document.documentElement.classList.toggle('phone-scroll-sentinel', sentinel);
+  let sentinel = false, frame = 0;
+  const arm = () => {
     cancelAnimationFrame(frame);
     if (sentinel) frame = requestAnimationFrame(() => window.scrollTo(0, 1));
-    else { clear(); window.scrollTo(0, 0); }
+  };
+  const outerScroll = () => { if (sentinel && window.scrollY === 0) arm(); };
+  window.addEventListener('load', arm);
+  window.addEventListener('pageshow', arm);
+  window.addEventListener('scroll', outerScroll, { passive: true });
+  createEffect(() => {
+    sentinel = ios && options.cover();
+    document.documentElement.classList.toggle('phone-scroll-sentinel', sentinel);
+    if (sentinel) arm();
+    else { cancelAnimationFrame(frame); clear(); window.scrollTo(0, 0); }
   });
   onCleanup(() => {
     clear();
@@ -83,5 +90,8 @@ export function installPhoneGestures(options: { cover(): boolean; canBack(): boo
     window.removeEventListener('touchend', end, true);
     window.removeEventListener('touchcancel', end, true);
     window.removeEventListener('tessera:status-bar-tap', options.scrollTop);
+    window.removeEventListener('load', arm);
+    window.removeEventListener('pageshow', arm);
+    window.removeEventListener('scroll', outerScroll);
   });
 }
