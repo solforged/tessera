@@ -79,8 +79,8 @@ export interface ViewState {
 }
 
 export type OpenTarget =
-  /** `blockId` zooms; `caretId` starts editing in Outline at `caretOffset` (default 0), unzoomed without `blockId`. A lone `blockId` selects that block. `readAt` opens unzoomed in Read and reveals that reading without editing. */
-  | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number; readAt?: string; editOcclusion?: boolean; journalPeriod?: 'week' | 'month' | 'quarter' | 'year' }
+  /** `blockId` zooms; `caretId` starts editing in Outline at `caretOffset` (default 0), unzoomed without `blockId`. A lone `blockId` selects that block. `readAt` opens unzoomed in Read; `revealId` reveals an outline row without selecting or editing it. */
+  | { kind: 'page'; pageId: string; blockId?: string; caretId?: string; caretOffset?: number; readAt?: string; revealId?: string; editOcclusion?: boolean; journalPeriod?: 'week' | 'month' | 'quarter' | 'year' }
   | { kind: 'table'; typeId: string | null; viewId: string | null; query: Query }
   | { kind: 'agenda'; date?: string; mode?: AgendaViewState['mode']; viewId?: string; query?: TaskQuery }
   /** `blockId` starts a review of that block's cards; `start` starts the due queue once. */
@@ -123,6 +123,18 @@ export type LibraryGroup = 'none' | 'author' | 'year' | 'decade' | 'publisher' |
 export interface LibraryViewState { view: string | null; collection?: string | null; tab: LibraryTab; text: string; sort: 'added' | 'title' | 'author' | 'year' | 'last_read' | 'progress'; filters: LibraryFilters; group: LibraryGroup; unprocessedOnly: boolean; colors: string[]; tags: string[]; scroll: number }
 /** `ordinal` is the top passage; `offset` its pixel offset from the pane's top. */
 export interface ReaderViewState { snapshotId: string | null; ordinal: number; offset: number }
+
+/** Phone tabs retain independent, JSON-serializable histories in each working pane. */
+export type PhoneTab = 'today' | 'agenda' | 'review' | 'library';
+export type PaneView = ViewState | TableViewState | DirectoryViewState | FieldsViewState | FieldViewState | SettingsViewState | AgendaViewState | ReviewViewState | RevisitsViewState | LibraryViewState | ReaderViewState | CompareViewState | IndexViewState;
+export interface HistoryEntry { target: OpenTarget; view: PaneView }
+export interface PaneHistory { entries: HistoryEntry[]; index: number }
+export interface PaneSession extends PaneHistory {
+  generation: number;
+  tab?: PhoneTab;
+  /** Inactive stacks; the active tab always uses the live entries/index above. */
+  tabs?: Partial<Record<PhoneTab, PaneHistory>>;
+}
 
 export interface OutlinePaneProps {
   pane: PaneId;
