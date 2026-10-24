@@ -16,6 +16,10 @@
   --line: #232c3b;      /* dividers */
   --control-border: #48546b;
 
+  --glass-fill: color-mix(in srgb, var(--raised) 62%, transparent);
+  --glass-edge: color-mix(in srgb, var(--text) 12%, transparent);
+  --glass-blur: 20px;
+  --glass-shadow: 0 8px 28px #00000040;
   /* Text. */
   --text: #e6e1d6;
   --muted: #a4a9b4;
@@ -180,6 +184,8 @@
   --text-selection: #a8761a40;
   --line: #ddd5c4;
   --control-border: #b3a890;
+  --glass-fill: color-mix(in srgb, var(--raised) 70%, transparent);
+  --glass-shadow: 0 8px 28px #3b2c1424;
 
   --text: #1f1b15;
   --muted: #5b554b;

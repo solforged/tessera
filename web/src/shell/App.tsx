@@ -1,5 +1,5 @@
 import { batch, createEffect, createMemo, createResource, createSignal, For, Index, lazy, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
-import type { Accessor } from 'solid-js';
+import type { Accessor, JSX } from 'solid-js';
 import { ulid } from 'ulid';
 import { api } from '../api/client';
 import type { Block, IndexKind, NoteKind, NotebookInfo, Shelf, Type, View } from '../api/types';
@@ -33,7 +33,7 @@ import { localDate } from '../ui/MonthGrid';
 import { createCommandRegistry } from './commands';
 import { deskCounts, shortDay } from './desk-counts';
 import { depthLabels, depthStops } from './contract';
-import type { AgendaViewState, Command, CommandRegistry, CompareViewState, Depth, FieldsViewState, FieldViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, RevisitsViewState, SettingsViewState, TableViewState, ViewState } from './contract';
+import type { AgendaViewState, Command, CommandRegistry, CompareViewState, Depth, DirectoryViewState, FieldsViewState, FieldViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, RevisitsViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import type { PagePresentation, PageProjection } from './contract';
 import { Palette } from './Palette';
 import { DeletedPages } from './DeletedPages';
@@ -99,7 +99,7 @@ const ComparePane = lazy(() => paneModules.compare().then(module => ({ default: 
 const IndexPane = lazy(() => paneModules.index().then(module => ({ default: module.IndexPane })));
 const SpreadPane = lazy(() => paneModules.spread().then(module => ({ default: module.SpreadPane })));
 
-type PaneView = ViewState | TableViewState | FieldsViewState | FieldViewState | SettingsViewState | AgendaViewState | ReviewViewState | RevisitsViewState | LibraryViewState | ReaderViewState | CompareViewState | IndexViewState;
+type PaneView = ViewState | TableViewState | DirectoryViewState | FieldsViewState | FieldViewState | SettingsViewState | AgendaViewState | ReviewViewState | RevisitsViewState | LibraryViewState | ReaderViewState | CompareViewState | IndexViewState;
 type HistoryEntry = { target: OpenTarget; view: PaneView };
 type PaneSession = { entries: HistoryEntry[]; index: number; generation: number };
 type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; pagePresentations?: Record<string, PagePresentation>; pageStyles?: Record<string, 'bullets' | 'prose'>; recent?: string[]; vim?: boolean; panes?: Record<PaneId, HistoryEntry>; order?: PaneId[]; widths?: Record<PaneId, number>; active?: PaneId };
@@ -137,6 +137,7 @@ function paneLabel(target: OpenTarget | undefined): string {
   if (target?.kind === 'cards') return 'Cards';
   if (target?.kind === 'spread') return 'Spread';
   if (target?.kind === 'revisits') return 'Revisits';
+  if (target?.kind === 'directory') return 'Index';
   if (target?.kind === 'table' && target.query.layout === 'desk') return 'Research desk';
   return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : target?.kind === 'library' ? 'Library' : target?.kind === 'reader' ? 'Reader' : target?.kind === 'compare' ? 'Compare' : target?.kind === 'index' ? 'Index' : 'Loading…';
 }
@@ -200,11 +201,14 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const [vimModes, setVimModes] = createSignal<Record<PaneId, VimMode>>({});
   const narrowQuery = window.matchMedia('(max-width: 1047px)');
   const [narrow, setNarrow] = createSignal(narrowQuery.matches);
+  const coverQuery = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
+  const [cover, setCover] = createSignal(coverQuery.matches);
   const [sidebar, setSidebar] = createSignal(false);
   const [sidebarCollapsed, setSidebarCollapsed] = createSignal(false);
-  const sidebarVisible = () => narrow() ? sidebar() : !sidebarCollapsed();
+  const sidebarVisible = () => !cover() && (narrow() ? sidebar() : !sidebarCollapsed());
   const toggleSidebar = () => {
-    if (narrow()) setSidebar(value => !value);
+    if (cover()) open({ kind: 'directory' });
+    else if (narrow()) setSidebar(value => !value);
     else setSidebarCollapsed(value => !value);
   };
   // Android resizes the WebView; browsers can resize only the visual viewport.
@@ -322,7 +326,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0, ...(target.blockId ? { blockId: target.blockId } : {}), ...(target.start ? { start: target.start } : {}) }
             : target.kind === 'revisits' ? { scroll: 0, revisitId: target.revisitId }
             : target.kind === 'index' ? { scroll: 0, noteQuery: target.query ? copyQuery(target.query) : undefined, viewId: target.viewId }
-              : target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'spread' ? { scroll: 0 }
+              : target.kind === 'directory' || target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'spread' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.collection ? 'collections' : target.tab ?? 'inbox', collection: target.collection ?? null, text: '', sort: 'added', filters: { people: [], decades: [], years: [], publishers: [], languages: [] }, group: 'none', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
                   : target.readAt ? { zoom: null, caret: { id: target.readAt, offset: 0 }, scroll: { id: target.readAt, offset: 0 }, folds: null, showArchived: false, projection: 'read', reveal: target.readAt }
@@ -477,7 +481,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   onCleanup(() => window.removeEventListener('popstate', historyMoved));
   const pin = (id: string) => setPinned(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]);
   const pinView = (id: string) => setPinnedViews(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]);
-  const openView = (view: View, beside = false) => open(view.query.note_kind && view.query.note_view?.layout === 'index' ? { kind: 'index', key: view.query.note_kind, viewId: view.id, query: copyQuery(view.query) } : { kind: 'table', typeId: view.query.type, viewId: view.id, query: copyQuery(view.query) }, beside);
+  const openView = (view: View, beside = false, owner = active()) => open(view.query.note_kind && view.query.note_view?.layout === 'index' ? { kind: 'index', key: view.query.note_kind, viewId: view.id, query: copyQuery(view.query) } : { kind: 'table', typeId: view.query.type, viewId: view.id, query: copyQuery(view.query) }, beside, owner);
   const showPalette = (kind: 'search' | 'commands') => setPopup({ kind, anchor: kind === 'search' ? searchButton : document.body, pane: active() });
   const chooseDate = (pane = active(), anchor: HTMLElement = document.querySelector<HTMLButtonElement>(`[data-pane="${pane}"] .journal-date`) ?? searchButton) => {
     setPopup({ kind: 'calendar', anchor, pane, date: journalDate(pane) });
@@ -579,6 +583,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const onNarrow = () => setNarrow(narrowQuery.matches);
     narrowQuery.addEventListener('change', onNarrow);
     onCleanup(() => narrowQuery.removeEventListener('change', onNarrow));
+    const onCover = () => { setCover(coverQuery.matches); if (coverQuery.matches) setSidebar(false); };
+    coverQuery.addEventListener('change', onCover);
+    onCleanup(() => coverQuery.removeEventListener('change', onCover));
     const onTabbed = () => setTabbed(tabbedQuery.matches);
     tabbedQuery.addEventListener('change', onTabbed);
     onCleanup(() => tabbedQuery.removeEventListener('change', onTabbed));
@@ -670,7 +677,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if (saved.target.kind === 'revisits' && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
-        } else if ((saved.target.kind === 'fields' || saved.target.kind === 'field' || saved.target.kind === 'cards' || saved.target.kind === 'settings' || saved.target.kind === 'compare' || saved.target.kind === 'index' || saved.target.kind === 'spread') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
+        } else if ((saved.target.kind === 'directory' || saved.target.kind === 'fields' || saved.target.kind === 'field' || saved.target.kind === 'cards' || saved.target.kind === 'settings' || saved.target.kind === 'compare' || saved.target.kind === 'index' || saved.target.kind === 'spread') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
           current = { target: targetFromView(saved), view: saved.target.kind === 'compare' || saved.target.kind === 'index' ? snapshotView(saved.view) : { scroll: saved.view.scroll } };
         } else if ((saved.target.kind === 'library' && 'tab' in saved.view) || (saved.target.kind === 'reader' && 'ordinal' in saved.view)) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
@@ -1051,6 +1058,59 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     };
     requestAnimationFrame(flash);
   }
+  // The sidebar and the phone's Index share rows, with opens owned by the pane showing them.
+  const renderNavigation = (owner: Accessor<PaneId>) => {
+    const onOpen = (target: OpenTarget, beside = false) => open(target, beside, owner());
+    const onOpenView = (view: View, beside: boolean) => openView(view, beside, owner());
+    return <>
+      <nav class="primary-navigation" aria-label="Workshop">
+        <Button data-phone-tab icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(owner(), opensBeside(event)); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>
+        <Button data-phone-tab icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={event => onOpen({ kind: 'agenda', date: journalDate(owner()) }, opensBeside(event))}><span>Agenda</span><Show when={(counts()?.planned ?? 0) + (counts()?.overdue ?? 0)}>{total => <span class={`desk-count ${counts()!.overdue ? 'late' : ''}`} title={`${total()} to do: ${counts()!.planned} today · ${counts()!.overdue} overdue`}>{total()}</span>}</Show></Button>
+        <Button icon="history" class={entry(active())?.target.kind === 'revisits' ? 'selected' : ''} aria-label={`Revisits · ${counts()?.revisits ?? 0} to revisit`} onClick={event => onOpen({ kind: 'revisits' }, opensBeside(event))}><span>Revisits</span><Show when={counts()?.revisits}>{due => <span class="desk-count" title={`${due()} to revisit`}>{due()}</span>}</Show></Button>
+        <Button data-phone-tab icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} aria-label={`Review · ${counts()?.cards ?? 0} cards`} onClick={event => onOpen({ kind: 'review' }, opensBeside(event))}><span>Review</span><Show when={counts()?.cards}>{due => <span class="desk-count" title={`${due()} cards`}>{due()}</span>}</Show></Button>
+        <Button data-phone-tab icon="library" class={entry(active())?.target.kind === 'library' ? 'selected' : ''} onClick={event => onOpen({ kind: 'library' }, opensBeside(event))}><span>Library</span><Show when={counts()?.highlights}>{highlights => <span class="desk-count" title={`${highlights()} unprocessed ${highlights() === 1 ? 'highlight' : 'highlights'}`}>{highlights()}</span>}</Show></Button>
+      </nav>
+      <div class="sidebar-scroll">
+      <Show when={pinnedRoots().length || pinnedViewList().length}><section class="page-list" aria-label="Pinned">
+        <h2><span class="section-number">{sectionNumber('pinned')}</span>Pinned<span class="section-rule" /><span class="section-count">{pinnedRoots().length + pinnedViewList().length}</span></h2>
+        <PageLinks roots={pinnedRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={onOpen} />
+        <ViewLinks views={pinnedViewList()} pinned activeId={activeViewId()} onOpen={onOpenView} onPin={pinView} />
+      </section></Show>
+      <Show when={index()?.kinds.length}><section class="page-list index-list" aria-label="Index">
+        <h2><span class="section-number">{sectionNumber('index')}</span><button type="button" class="index-directory-link" aria-current={activeKindKey() === 'all' ? 'page' : undefined} title="Open Index" onClick={event => onOpen({ kind: 'index', key: 'all' }, opensBeside(event))}>Index</button><span class="section-rule" /><Show when={index()!.notes}>{notes => <span class="section-count" title={`${notes().toLocaleString()} ${notes() === 1 ? 'atom' : 'atoms'} filed under ${index()!.kinds.length.toLocaleString()} ${index()!.kinds.length === 1 ? 'type' : 'types'}`}>{notes().toLocaleString()}</span>}</Show></h2>
+        {/* Kinds sit on shelves, as a finding aid's heads; kinds re-arrive as fresh objects after each change, so Index keeps rows mounted by position. */}
+        <For each={shelves}>{([shelf, label]) => <Show when={shelf === 'notes' || shelfKinds()[shelf]?.length}>
+          <h3 class="index-shelf">{label}</h3>
+          <Index each={shelfKinds()[shelf] ?? []}>{kind => <>
+            <div classList={{ 'index-question-heading': kind().key === 'question' }}>
+            <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kindLabel(kind())} onClick={event => onOpen(indexKindTarget(kind()), opensBeside(event))}><span>{kindLabel(kind())}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
+            <Show when={kind().key === 'question' && (kind().count || kind().tagged_block_count || otherViews().some(view => viewInKind(view, kind())))}><Button icon="more" label="Questions menu" aria-haspopup="menu" onClick={event => setQuestionsMenu(event.currentTarget)} /></Show>
+            </div>
+            <Show when={otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={onOpenView} onPin={pinView} /></div></Show>
+          </>}</Index>
+          <Show when={shelf === 'notes'}><Button class={`index-kind ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`} icon="field" title="Fields" aria-current={entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'page' : undefined} onClick={event => onOpen({ kind: 'fields' }, opensBeside(event))}><span>Fields</span><span class="desk-count">{index()!.fields.toLocaleString()}</span></Button></Show>
+        </Show>}</For>
+        <Show when={index()?.spreads.length}>
+          <h3 class="index-shelf">Spreads</h3>
+          <For each={index()?.spreads}>{spread => <Button class={`index-kind ${pageIdOf(entry(active())) === spread.id ? 'selected' : ''}`} icon="panes" title={spread.title} onClick={event => onOpen({ kind: 'page', pageId: spread.id }, opensBeside(event))}><span>{spread.title}</span></Button>}</For>
+        </Show>
+      </section></Show>
+      <section class="page-list" aria-label="Saved views">
+        <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{looseViews().length || ''}</span></h2>
+        <ViewLinks views={looseViews()} pinned={false} activeId={activeViewId()} onOpen={onOpenView} onPin={pinView} />
+        <Button icon="plus" onClick={event => setPopup({ kind: 'new-view', anchor: event.currentTarget, pane: owner() })}>New view…</Button>
+      </section>
+      <details class="page-list" open>
+        <summary><span class="section-number">{sectionNumber('recent')}</span>Recent<span class="section-rule" /><Icon name="down" /></summary>
+        <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Atoms you open appear here</p>}><PageLinks roots={recentRoots()} sourceIcons notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={onOpen} /></Show>
+      </details>
+      </div>
+      <div class="sidebar-foot">
+        <NotebookSwitcher notebook={notebook} onOpen={onOpen} onError={reportError} />
+        <Button icon="settings" label="Settings" class={`sidebar-settings ${entry(active())?.target.kind === 'settings' ? 'selected' : ''}`} onClick={event => onOpen({ kind: 'settings' }, opensBeside(event))}><span>Settings</span></Button>
+      </div>
+    </>;
+  };
   return <AgentMarks.Provider value={agentMarks}><div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${dock() ? 'has-dock' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`} style={{ '--visual-viewport-height': `${viewport().height}px`, '--visual-viewport-top': `${viewport().top}px`, '--visual-viewport-bottom-gap': `${Math.max(0, window.innerHeight - viewport().bottom)}px` }} onPointerDown={() => { focusEpoch++; }}>
     <header class="global-rail" aria-label="Global navigation" data-tauri-drag-region="deep">
       <div class="rail-start">
@@ -1068,61 +1128,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       </div>
     </header>
     <aside class="sidebar" aria-label="Workshop navigation" aria-hidden={!sidebarVisible()} inert={!sidebarVisible()}>
-      {/* On the cover screen the rail is hidden, so the overlay carries the oculus, wordmark and note count; the foot names the workshop. */}
-      <header class="sidebar-masthead">
-        <span class="wordmark" title={info()?.path}>Tessera</span>
-        <Button class="icon-only" icon="sidebar" label="Close sidebar" onClick={toggleSidebar} />
-        <Show when={index()}>{value => <span class="sidebar-masthead-count">{`${value().notes.toLocaleString()} ${value().notes === 1 ? 'atom' : 'atoms'}`}</span>}</Show>
-      </header>
-      <nav class="primary-navigation" aria-label="Workshop">
-        <Button icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(active(), opensBeside(event)); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>
-        <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={event => open({ kind: 'agenda', date: journalDate(active()) }, opensBeside(event))}><span>Agenda</span><Show when={(counts()?.planned ?? 0) + (counts()?.overdue ?? 0)}>{total => <span class={`desk-count ${counts()!.overdue ? 'late' : ''}`} title={`${total()} to do: ${counts()!.planned} today · ${counts()!.overdue} overdue`}>{total()}</span>}</Show></Button>
-        <Button icon="history" class={entry(active())?.target.kind === 'revisits' ? 'selected' : ''} aria-label={`Revisits · ${counts()?.revisits ?? 0} to revisit`} onClick={event => open({ kind: 'revisits' }, opensBeside(event))}><span>Revisits</span><Show when={counts()?.revisits}>{due => <span class="desk-count" title={`${due()} to revisit`}>{due()}</span>}</Show></Button>
-        <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} aria-label={`Review · ${counts()?.cards ?? 0} cards`} onClick={event => open({ kind: 'review' }, opensBeside(event))}><span>Review</span><Show when={counts()?.cards}>{due => <span class="desk-count" title={`${due()} cards`}>{due()}</span>}</Show></Button>
-        <Button icon="library" class={entry(active())?.target.kind === 'library' ? 'selected' : ''} onClick={event => open({ kind: 'library' }, opensBeside(event))}><span>Library</span><Show when={counts()?.highlights}>{highlights => <span class="desk-count" title={`${highlights()} unprocessed ${highlights() === 1 ? 'highlight' : 'highlights'}`}>{highlights()}</span>}</Show></Button>
-      </nav>
-      <div class="sidebar-scroll">
-      <Show when={pinnedRoots().length || pinnedViewList().length}><section class="page-list" aria-label="Pinned">
-        <h2><span class="section-number">{sectionNumber('pinned')}</span>Pinned<span class="section-rule" /><span class="section-count">{pinnedRoots().length + pinnedViewList().length}</span></h2>
-        <PageLinks roots={pinnedRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} />
-        <ViewLinks views={pinnedViewList()} pinned activeId={activeViewId()} onOpen={openView} onPin={pinView} />
-      </section></Show>
-      <Show when={index()?.kinds.length}><section class="page-list index-list" aria-label="Index">
-        <h2><span class="section-number">{sectionNumber('index')}</span><button type="button" class="index-directory-link" aria-current={activeKindKey() === 'all' ? 'page' : undefined} title="Open Index" onClick={event => open({ kind: 'index', key: 'all' }, opensBeside(event))}>Index</button><span class="section-rule" /><Show when={index()!.notes}>{notes => <span class="section-count" title={`${notes().toLocaleString()} ${notes() === 1 ? 'atom' : 'atoms'} filed under ${index()!.kinds.length.toLocaleString()} ${index()!.kinds.length === 1 ? 'type' : 'types'}`}>{notes().toLocaleString()}</span>}</Show></h2>
-        {/* Kinds sit on shelves, as a finding aid's heads; kinds re-arrive as fresh objects after each change, so Index keeps rows mounted by position. */}
-        <For each={shelves}>{([shelf, label]) => <Show when={shelf === 'notes' || shelfKinds()[shelf]?.length}>
-          <h3 class="index-shelf">{label}</h3>
-          <Index each={shelfKinds()[shelf] ?? []}>{kind => <>
-            <div classList={{ 'index-question-heading': kind().key === 'question' }}>
-            <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kindLabel(kind())} onClick={event => open(indexKindTarget(kind()), opensBeside(event))}><span>{kindLabel(kind())}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
-            <Show when={kind().key === 'question' && (kind().count || kind().tagged_block_count || otherViews().some(view => viewInKind(view, kind())))}><Button icon="more" label="Questions menu" aria-haspopup="menu" onClick={event => setQuestionsMenu(event.currentTarget)} /></Show>
-            </div>
-            <Show when={otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} /></div></Show>
-          </>}</Index>
-          <Show when={shelf === 'notes'}><Button class={`index-kind ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`} icon="field" title="Fields" aria-current={entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'page' : undefined} onClick={event => open({ kind: 'fields' }, opensBeside(event))}><span>Fields</span><span class="desk-count">{index()!.fields.toLocaleString()}</span></Button></Show>
-        </Show>}</For>
-        <Show when={index()?.spreads.length}>
-          <h3 class="index-shelf">Spreads</h3>
-          <For each={index()?.spreads}>{spread => <Button class={`index-kind ${pageIdOf(entry(active())) === spread.id ? 'selected' : ''}`} icon="panes" title={spread.title} onClick={event => open({ kind: 'page', pageId: spread.id }, opensBeside(event))}><span>{spread.title}</span></Button>}</For>
-        </Show>
-      </section></Show>
-      <section class="page-list" aria-label="Saved views">
-        <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{looseViews().length || ''}</span></h2>
-        <ViewLinks views={looseViews()} pinned={false} activeId={activeViewId()} onOpen={openView} onPin={pinView} />
-        <Button icon="plus" onClick={event => setPopup({ kind: 'new-view', anchor: event.currentTarget, pane: active() })}>New view…</Button>
-      </section>
-      <details class="page-list" open>
-        <summary><span class="section-number">{sectionNumber('recent')}</span>Recent<span class="section-rule" /><Icon name="down" /></summary>
-        <Show when={recentRoots().length} fallback={<p class="sidebar-empty">Atoms you open appear here</p>}><PageLinks roots={recentRoots()} sourceIcons notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={open} /></Show>
-      </details>
-      </div>
-      <div class="sidebar-foot">
-        <NotebookSwitcher notebook={notebook} onOpen={target => open(target)} onError={reportError} />
-        <Button icon="settings" label="Settings" class={`icon-only ${entry(active())?.target.kind === 'settings' ? 'selected' : ''}`} onClick={event => open({ kind: 'settings' }, opensBeside(event))} />
-      </div>
+      {renderNavigation(active)}
     </aside>
-    {/* The overlay sidebar covers the cover screen's own toggle; tapping beside it closes it. */}
-    <Show when={narrow() && sidebar()}><div class="sidebar-shade" aria-hidden="true" onClick={() => setSidebar(false)} /></Show>
+    <Show when={!cover() && narrow() && sidebar()}><div class="sidebar-shade" aria-hidden="true" onClick={() => setSidebar(false)} /></Show>
     <main class="workspace">
       <Show when={split()}><div class="pane-tabs"><div class="pane-tab-strip mode-tabs tab-strip" role="tablist" aria-label="Working panes"><For each={order()}>{(pane, position) => <><Button role="tab" aria-selected={active() === pane} onClick={() => { if (active() !== pane) { setActive(pane); focusPane(pane); } }}><span class="pane-tab-number">{position() + 1}</span><span class="pane-tab-title">{paneName(pane)}</span></Button><Button class="pane-tab-close" icon="close" label={`Close ${paneName(pane)}`} shortcut={active() === pane ? '⌃⇧X' : undefined} onClick={() => closePane(pane)} /></>}</For></div></div></Show>
       <Show when={error()}><div class="shell-error" role="alert"><Icon name="warning" /><span>{error()}</span><Button onClick={() => { if (offlineUnavailable()) { location.reload(); return; } setError(''); void today(); }}>Retry</Button></div></Show>
@@ -1140,7 +1148,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           noteKinds={index()?.kinds}
           onCreate={openCreate}
           besideReason={besideReason(pane)}
-          sidebarOpen={sidebarVisible()} onSidebar={toggleSidebar}
+          renderDirectory={() => renderNavigation(() => pane)} atomCount={index()?.notes} directoryReady={!!index() && !views.loading}
           onPagePresentation={(id, value) => setPagePresentations(previous => ({ ...previous, [id]: value }))}
           onActivate={() => setActive(pane)}
           onOpen={(target, beside) => open(target, beside, pane)}
@@ -1175,13 +1183,14 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     <SyncLifecycle notebook={notebook} anchor={syncAnchor()} onClose={() => setSyncAnchor(null)} onDevices={deviceId => open({ kind: 'settings', section: 'devices', deviceId })} />
     <SyncCover open={!!syncAnchor()} onOpen={setSyncAnchor} />
     <nav class="bottom-nav" aria-label="Workshop">
-      <Button icon="today" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={() => { void today(); }}><span>Today</span></Button>
-      <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={() => open({ kind: 'agenda', date: journalDate(active()) })}><span>Agenda</span></Button>
-      <Button icon="plus" class={creation() ? 'selected' : ''} aria-haspopup="dialog" aria-expanded={!!creation()} onClick={() => openCreate(blankCapture())}><span>New</span></Button>
-      <Button icon="find" class={popup()?.kind === 'search' ? 'selected' : ''} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={event => setPopup({ kind: 'search', anchor: event.currentTarget, pane: active() })}><span>Find</span></Button>
-      <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={() => open({ kind: 'review' })}><span>Review</span></Button>
-      <Button icon="library" class={entry(active())?.target.kind === 'library' || entry(active())?.target.kind === 'reader' ? 'selected' : ''} aria-haspopup="menu" aria-expanded={!!typesMenu()}
-        onClick={() => open({ kind: 'library' })} onContextMenu={event => { event.preventDefault(); void showTypes(event.currentTarget); }}><span>Library</span></Button>
+      <div class="bottom-tabs">
+        <Button icon="today" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={() => { void today(); }}><span>Today</span></Button>
+        <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={() => open({ kind: 'agenda', date: journalDate(active()) })}><span>Agenda</span><Show when={counts()?.overdue}>{count => <span class="bottom-nav-badge" aria-label={`${count()} overdue`}>{count()}</span>}</Show></Button>
+        <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={() => open({ kind: 'review' })}><span>Review</span></Button>
+        <Button icon="library" class={entry(active())?.target.kind === 'library' || entry(active())?.target.kind === 'reader' ? 'selected' : ''} aria-haspopup="menu" aria-expanded={!!typesMenu()}
+          onClick={() => open({ kind: 'library' })} onContextMenu={event => { event.preventDefault(); void showTypes(event.currentTarget); }}><span>Library</span></Button>
+      </div>
+      <Button icon="find" label="Find" class={`bottom-find ${popup()?.kind === 'search' ? 'selected' : ''}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={event => setPopup({ kind: 'search', anchor: event.currentTarget, pane: active() })} />
     </nav>
     <Show when={questionsMenu()}>{anchor => <Menu anchor={anchor()} label="Questions" onDismiss={() => setQuestionsMenu(undefined)} items={[
       { label: 'Open research desk', icon: 'panes', action: () => { setQuestionsMenu(undefined); open(deskTarget()); } },
@@ -1324,7 +1333,26 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
   </div></Show>;
 }
 
-function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: number; neighbour: boolean; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; sidebarOpen: boolean; onSidebar(): void; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; fieldName(id: string): string; noteKind?: IndexKind; noteKinds?: NoteKind[]; besideReason?: string; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onCreate(request: CreateRequest, anchor?: PopupAnchor): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
+function DirectoryPane(props: { view: DirectoryViewState; atomCount?: number; ready: boolean; children: JSX.Element; onViewChange(view: DirectoryViewState): void }) {
+  let root!: HTMLDivElement;
+  let restored = false;
+  const initialScroll = props.view.scroll;
+  // Kinds and saved views arrive separately; restoring earlier would clamp the position to a short page.
+  createEffect(() => {
+    if (restored || !props.ready) return;
+    const frame = requestAnimationFrame(() => { root.scrollTop = initialScroll; restored = true; });
+    onCleanup(() => cancelAnimationFrame(frame));
+  });
+  return <div ref={root} class="directory-pane" tabIndex={-1} onScroll={event => { if (restored) props.onViewChange({ scroll: event.currentTarget.scrollTop }); }}>
+    <header class="directory-head">
+      <p>{props.atomCount === undefined ? 'Loading…' : `${props.atomCount.toLocaleString()} ${props.atomCount === 1 ? 'atom' : 'atoms'}`}</p>
+      <h1>Index</h1>
+    </header>
+    {props.children}
+  </div>;
+}
+
+function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: number; neighbour: boolean; session: Accessor<PaneSession>; active: boolean; split: boolean; immersive: boolean; onImmersive(immersive: boolean): void; renderDirectory(): JSX.Element; atomCount?: number; directoryReady: boolean; notebook: NotebookClient; commands: CommandRegistry; vim: boolean; vimMode: VimMode; onVimMode(mode: VimMode): void; pinned: boolean; pagePresentations: Record<string, PagePresentation>; title?: string; fieldName(id: string): string; noteKind?: IndexKind; noteKinds?: NoteKind[]; besideReason?: string; onPagePresentation(id: string, value: PagePresentation): void; onActivate(): void; onOpen(target: OpenTarget, beside: boolean): void; onCreate(request: CreateRequest, anchor?: PopupAnchor): void; onTargetChange(target: OpenTarget): void; onPageBeside(): void; onViewChange(view: PaneView): void; onTravel(delta: number): void; onClose(): void; onChooseDate(anchor: HTMLElement): void; onShiftDate(delta: number): void; onPin(): void; onRename(): void; onDelete(anchor: HTMLElement, source?: boolean): void; onDeleteSources(sources: { id: string; title: string }[]): Promise<void>; onArchived(): void; onRestoreView(view: ViewState): void }) {
   const current = () => props.session().entries[props.session().index]!;
   const pageId = createMemo(() => pageIdOf(current()));
   const readerTarget = () => current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined;
@@ -1355,6 +1383,16 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   let content!: HTMLDivElement;
   const motionIdentity = createMemo(() => paneTargetIdentity(current().target));
   createPaneMotion(() => content, motionIdentity);
+  const [scrolled, setScrolled] = createSignal(false);
+  createEffect(() => { paneGeneration(); motionIdentity(); setScrolled(false); });
+  onMount(() => {
+    // Panes own their scroll containers; capture also sees scrolls from lazy-loaded surfaces.
+    const onScroll = (event: Event) => {
+      if (event.target instanceof HTMLElement) setScrolled(event.target.scrollTop > 48);
+    };
+    content.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    onCleanup(() => content.removeEventListener('scroll', onScroll, true));
+  });
   createEffect(() => {
     const id = docId(); setDoc(undefined); setPageKinds(undefined); if (!id) return;
     const document = props.notebook.open(id); setDoc(document);
@@ -1527,16 +1565,17 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     const target = current().target;
     if (target.kind === 'index') return noteKindIcon(props.noteKind ?? target.key);
     if (target.kind === 'spread') return 'panes';
+    if (target.kind === 'directory') return 'contents';
     if (target.kind === 'revisits') return 'history';
     if ((target.kind === 'fields' || target.kind === 'cards') && target.typeId) return noteKindIcon(props.noteKind ?? `type:${target.typeId}`);
     const kind = target.kind;
     return kind === 'agenda' ? 'agenda' : kind === 'review' ? 'review' : kind === 'library' || kind === 'reader' ? 'library' : kind === 'table' ? 'table' : kind === 'fields' || kind === 'field' ? 'field' : kind === 'settings' ? 'settings' : kind === 'compare' ? 'compare' : 'page';
   };
+  const tabRoot = () => ['agenda', 'review', 'library'].includes(current().target.kind) || root()?.kind === 'journal' && root()?.text === props.notebook.todayDate() && !outlineView().zoom;
   return <section class="pane" classList={{ active: props.active, immersive: props.immersive, folded: props.folded }} style={{ 'flex-grow': props.grow }} data-pane={props.pane} data-page-style={pageStyle()} aria-label={`Pane ${props.number}`} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
-    <header class="pane-header">
-      {/* The cover screen has no rail; its sidebar opens from here. */}
-      <Button class="pane-sidebar" icon="sidebar" label={props.sidebarOpen ? 'Hide sidebar' : 'Show sidebar'} aria-expanded={props.sidebarOpen} onClick={props.onSidebar} />
-      <div class="pane-navigation"><Button icon="left" label="Back" shortcut="⌃⇧H" disabled={props.session().index <= 0} onClick={() => props.onTravel(-1)} /><Button icon="right" label="Forward" shortcut="⌃⇧L" disabled={props.session().index >= props.session().entries.length - 1} onClick={() => props.onTravel(1)} /></div>
+    <header class="pane-header" classList={{ 'pane-scrolled': scrolled(), 'pane-tab-root': tabRoot() }}>
+      <Show when={tabRoot()}><Button class="pane-index" icon="contents" label="Index" onClick={() => props.onOpen({ kind: 'directory' }, false)}><span>Index</span></Button></Show>
+      <div class="pane-navigation"><Button class="pane-back" icon="left" label="Back" shortcut="⌃⇧H" disabled={props.session().index <= 0} onClick={() => props.onTravel(-1)} /><Button class="pane-forward" icon="right" label="Forward" shortcut="⌃⇧L" disabled={props.session().index >= props.session().entries.length - 1} onClick={() => props.onTravel(1)} /></div>
       <Icon class="pane-kind" name={kindIcon()} />
       <Show when={props.split}><span class="pane-number" aria-hidden="true">{props.number}</span></Show>
       <Show when={pageId()}>
@@ -1571,6 +1610,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Show when={current().target.kind === 'field' ? current().target as Extract<OpenTarget, { kind: 'field' }> : undefined}>{target => <>
         <nav class="pane-breadcrumbs" aria-label="Field breadcrumbs"><Button title="Fields" onClick={event => props.onOpen({ kind: 'fields' }, opensBeside(event))}>Fields</Button><span class="breadcrumb-separator">/</span><Button title={props.fieldName(target().fieldId)} onClick={event => props.onOpen({ kind: 'field', fieldId: target().fieldId }, opensBeside(event))}>{props.fieldName(target().fieldId)}</Button></nav>
       </>}</Show>
+      <Show when={current().target.kind !== 'library' && current().target.kind !== 'reader'}><Button class="pane-new" icon="plus" label="New" aria-haspopup="dialog" onClick={() => props.onCreate(blankCapture())} /></Show>
       <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Atom menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
@@ -1582,6 +1622,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Match when={current().target.kind === 'field'}><FieldPane target={current().target as Extract<OpenTarget, { kind: 'field' }>} view={snapshotView(current().view) as FieldViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'cards' ? current().target as Extract<OpenTarget, { kind: 'cards' }> : undefined}>{target => <CardTemplatesPane typeId={target().typeId} applyId={target().applyId} view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
       <Match when={current().target.kind === 'settings' ? current().target as Extract<OpenTarget, { kind: 'settings' }> : undefined}>{target => <SettingsPane pane={props.pane} view={snapshotView(current().view) as SettingsViewState} section={target().section} deviceId={target().deviceId} notebook={props.notebook} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
+      <Match when={current().target.kind === 'directory'}><DirectoryPane view={snapshotView(current().view) as DirectoryViewState} atomCount={props.atomCount} ready={props.directoryReady} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }}>{props.renderDirectory()}</DirectoryPane></Match>
       <Match when={current().target.kind === 'compare' ? current().target as Extract<OpenTarget, { kind: 'compare' }> : undefined}>{target => <ComparePane subjectId={target().subjectId} view={snapshotView(current().view) as CompareViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
       <Match when={current().target.kind === 'spread' ? current().target as Extract<OpenTarget, { kind: 'spread' }> : undefined}>{target => <SpreadPane noteIds={target().noteIds} notebook={props.notebook} onActivate={props.onActivate} onChange={noteIds => props.onTargetChange({ kind: 'spread', noteIds })} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} />}</Match>
       <Match when={current().target.kind === 'index' ? current().target as Extract<OpenTarget, { kind: 'index' }> : undefined}>{target => <IndexPane kindKey={target().key} neighbour={props.neighbour} kind={props.noteKind} view={snapshotView(current().view) as IndexViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} onDeletePages={props.onDeleteSources} onSpread={(noteIds, beside) => { if (generation === props.session().generation) props.onOpen({ kind: 'spread', noteIds }, beside); }} />}</Match>

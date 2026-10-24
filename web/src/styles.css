@@ -138,26 +138,26 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .rail-end > .button { flex-shrink: 0; }
 /* Sidebar rows share one left edge; document controls stay in their panes. */
 .sidebar { grid-column: 1; grid-row: 2; display: flex; flex-direction: column; width: var(--sidebar-width); min-height: 0; padding: var(--space-12) var(--space-8); overflow: hidden; transition: transform var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease), visibility 0s; }
-.sidebar .button { position: relative; width: 100%; justify-content: flex-start; min-height: var(--row-height); padding: 0 var(--space-8); gap: var(--space-8); border-left: calc(2 * var(--rule-width)) solid transparent; overflow: hidden; white-space: nowrap; color: var(--muted); font-weight: var(--weight-body); }
-.sidebar .button::before { content: ''; position: absolute; inset: 0 auto 0 0; width: calc(2 * var(--rule-width)); background: var(--accent); opacity: 0; pointer-events: none; transition: opacity var(--motion-ui) var(--motion-ease); }
-.sidebar .button.selected::before { opacity: 1; }
-.sidebar .button > .icon { color: var(--faint); }
+:is(.sidebar, .directory-pane) .button { position: relative; width: 100%; justify-content: flex-start; min-height: var(--row-height); padding: 0 var(--space-8); gap: var(--space-8); border-left: calc(2 * var(--rule-width)) solid transparent; overflow: hidden; white-space: nowrap; color: var(--muted); font-weight: var(--weight-body); }
+:is(.sidebar, .directory-pane) .button::before { content: ''; position: absolute; inset: 0 auto 0 0; width: calc(2 * var(--rule-width)); background: var(--accent); opacity: 0; pointer-events: none; transition: opacity var(--motion-ui) var(--motion-ease); }
+:is(.sidebar, .directory-pane) .button.selected::before { opacity: 1; }
+:is(.sidebar, .directory-pane) .button > .icon { color: var(--faint); }
 /* A flex button cannot ellipsize its own text; the label span can. */
-.sidebar .button > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.sidebar .button.icon-only { width: var(--row-height); padding: 0; justify-content: center; }
-.sidebar .button.selected { background: var(--selection); color: var(--text); }
-.sidebar .button.selected > .icon { color: var(--accent); }
+:is(.sidebar, .directory-pane) .button > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+:is(.sidebar, .directory-pane) .button.icon-only { width: var(--row-height); padding: 0; justify-content: center; }
+:is(.sidebar, .directory-pane) .button.selected { background: var(--selection); color: var(--text); }
+:is(.sidebar, .directory-pane) .button.selected > .icon { color: var(--accent); }
 /* The desk: four landmarks, each with its live state at the right. */
 .primary-navigation { display: flex; flex-direction: column; flex: none; }
 .sidebar-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain; padding-bottom: var(--space-8); }
-.sidebar-masthead, .sidebar-foot { flex: none; }
+.sidebar-foot { flex: none; }
 .primary-navigation .button { color: var(--text); }
 .primary-navigation .button > .icon { color: var(--muted); }
-.sidebar .button > .desk-count { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.sidebar .button > .desk-count.late { color: var(--danger); }
+:is(.sidebar, .directory-pane) .button > .desk-count { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+:is(.sidebar, .directory-pane) .button > .desk-count.late { color: var(--danger); }
 /* A built-in kind with nothing filed but a saved view keeps its row, named faintly and without a count. */
-.sidebar .index-kind.empty:not(.selected), .sidebar .index-kind.empty:not(.selected) > .icon { color: var(--faint); }
-.sidebar .index-kind.empty:not(.selected):hover { color: var(--muted); }
+:is(.sidebar, .directory-pane) .index-kind.empty:not(.selected), :is(.sidebar, .directory-pane) .index-kind.empty:not(.selected) > .icon { color: var(--faint); }
+:is(.sidebar, .directory-pane) .index-kind.empty:not(.selected):hover { color: var(--muted); }
 .journal-navigation { display: flex; align-items: center; flex-shrink: 0; gap: var(--space-2); margin-inline: var(--space-4); }
 /* Sections: a rubric numeral, the name, a hairline rule and a count. */
 .page-list { margin-top: var(--space-16); }
@@ -177,6 +177,8 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .sidebar-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: auto; padding-top: var(--space-8); border-top: var(--rule-width) solid var(--line); }
 .sidebar-foot > .button:first-child { flex: 1; width: auto; min-width: 0; }
 .sidebar-foot > .button.icon-only { flex: none; border-left: 0; }
+.sidebar .sidebar-settings { flex: none; width: var(--row-height); padding: 0; justify-content: center; border-left: 0; }
+.sidebar .sidebar-settings > span { display: none; }
 /* One line: the workshop's name. A workshop other than the default is named in the warning colour, so a test
    workshop is never taken for the usual one; long names shorten. Sync lives in the rail's sync mark. */
 .notebook-switcher-name { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
@@ -196,9 +198,14 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
    Heads align with the kind names. */
 .index-shelf { margin: var(--space-12) 0 var(--space-2); padding-left: calc(var(--space-8) + 2 * var(--rule-width)); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-notebook); text-transform: uppercase; }
 .index-list > h2 + .index-shelf { margin-top: var(--space-4); }
-/* The cover screen hides the rail, so the overlay opens on its masthead: oculus and wordmark, Close sidebar, and the
-   note count in mono beneath, over a hairline. Elsewhere the rail carries the first two. */
-.sidebar-masthead { display: none; }
+/* Index is a document on the phone; its foot follows the rows instead of docking to the shell. */
+.directory-pane { flex: 1; min-height: 0; overflow: auto; overscroll-behavior-y: contain; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); }
+.directory-pane:focus { outline: none; }
+.directory-head { margin-bottom: var(--page-head-gap); }
+.directory-head > p { margin: 0 0 var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.directory-head > h1 { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.directory-pane .sidebar-scroll { overflow: visible; }
+.directory-pane .sidebar-foot { margin-top: var(--space-24); }
 .workspace { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0 var(--space-12) var(--space-12) 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-workspace); background: var(--canvas); transition: margin-left var(--motion-ui) var(--motion-ease); }
 .sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
 .sidebar-collapsed .sidebar { visibility: hidden; pointer-events: none; opacity: 0; transform: translateX(-100%); transition-delay: 0s, 0s, var(--motion-ui); }
@@ -481,29 +488,56 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .pane-header .button, .mode-tabs > .button, .depth-stop { min-height: var(--touch-target); }
   .pane-header .button:has(> .icon:only-child), .depth-stop { min-width: var(--touch-target); }
 }
-/* The cover screen, a touch screen under 600 px: the rail gives way to a bottom nav within thumb reach, the sidebar
-   opens from the pane header, and a book's breadcrumb is its title alone. */
+/* On the cover, the document fills the screen and navigation stays within thumb reach. */
 @media not all and (max-width: 599px) and (pointer: coarse) {
-  .bottom-nav, .pane-sidebar { display: none; }
+  .bottom-nav, .pane-header .pane-index, .pane-header .pane-new { display: none; }
 }
 @media (max-width: 599px) and (pointer: coarse) {
-  .app { --bottom-nav-height: 56px; height: var(--visual-viewport-height, 100dvh); margin-top: var(--visual-viewport-top, 0px); grid-template-rows: minmax(0, 1fr) auto; }
-  .app > .global-rail, .pane-breadcrumbs .breadcrumb-library, .breadcrumb-library + .breadcrumb-separator { display: none; }
-  .workspace, .sidebar-collapsed .workspace { grid-row: 1; margin: var(--space-4) var(--space-4) 0; }
-  .sidebar { top: var(--top-inset); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset)); }
-  .sidebar-shade { inset: var(--top-inset) 0 calc(var(--bottom-nav-height) + var(--bottom-inset)); }
-  .bottom-nav { grid-column: 1 / -1; grid-row: 2; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); height: var(--bottom-nav-height); padding-inline: var(--space-4); }
-  .bottom-nav .button { flex-direction: column; justify-content: center; gap: var(--space-2); min-height: var(--target-size); height: 100%; padding: 0; border: 0; border-top: 2px solid transparent; border-radius: 0; background: transparent; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
-  .bottom-nav .button > .icon { color: var(--faint); }
-  .bottom-nav .button.selected { border-top-color: var(--accent); color: var(--text); }
-  .bottom-nav .button.selected > .icon { color: var(--accent); }
+  .app { --bottom-nav-height: 70px; --pane-header-height: 52px; height: var(--visual-viewport-height, 100dvh); margin-top: var(--visual-viewport-top, 0px); grid-template-rows: minmax(0, 1fr) auto; background: var(--canvas); }
+  .app > .global-rail, .app > .sidebar, .pane-breadcrumbs .breadcrumb-library, .breadcrumb-library + .breadcrumb-separator { display: none; }
+  .workspace, .sidebar-collapsed .workspace { grid-row: 1; margin: 0; border: 0; border-radius: 0; }
+  .pane-content::before, .pane-content::after { display: none; }
+  .pane-header { padding-inline: var(--space-12); gap: var(--space-4); border-bottom: 0; box-shadow: none; transition: box-shadow var(--motion-ui) var(--motion-ease); }
+  .pane-header.pane-scrolled { box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); }
+  .pane-header :is(.pane-index, .pane-back, .pane-new, .page-menu-button, .journal-date) { flex: none; height: var(--touch-target); min-height: var(--touch-target); }
+  .pane-header :is(.pane-back, .pane-new, .page-menu-button, .journal-date) { width: var(--touch-target); min-width: var(--touch-target); padding: 0; justify-content: center; }
+  .pane-header .pane-index { border-radius: var(--radius-pill); padding: 0 var(--space-12); }
+  .pane-header :is(.pane-back, .pane-new, .page-menu-button) { border-radius: var(--radius-pill); }
+  .pane-navigation { margin: 0; }
+  .pane-tab-root .pane-navigation, .pane-navigation .pane-forward, .pane-back:disabled, .journal-navigation .button:not(.journal-date) { display: none; }
+  .app .pane-header:has(.page-projection-tabs) .pane-navigation { display: flex; }
+  .pane-breadcrumbs { flex: 1 1 0; min-width: 0; justify-content: center; color: var(--text); font: var(--weight-heading) var(--text-control)/var(--line-control) var(--font-body); letter-spacing: normal; text-align: center; opacity: 0; transition: opacity var(--motion-ui) var(--motion-ease); }
+  .pane-scrolled .pane-breadcrumbs { opacity: 1; }
+  .pane-breadcrumbs .button:last-child { min-width: 0; max-width: 100%; text-align: center; }
+  .pane-save-state:has(.save-dot) { display: none; }
+  .bottom-nav { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: flex-start; gap: calc(var(--space-8) + var(--space-2)); height: var(--bottom-nav-height); padding: 0 var(--space-16) var(--space-8); }
+  .bottom-tabs { display: flex; flex: 1; min-width: 0; height: calc(var(--bottom-nav-height) - var(--space-8)); padding: var(--space-4); border-radius: var(--radius-pill); }
+  .bottom-tabs > .button { position: relative; flex: 1; min-width: 0; flex-direction: column; justify-content: center; gap: var(--space-2); height: 100%; padding: 0; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); }
+  .bottom-nav .bottom-tabs > .button.selected { background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--accent); }
+  .bottom-find.button { flex: none; width: calc(var(--bottom-nav-height) - var(--space-8)); height: calc(var(--bottom-nav-height) - var(--space-8)); padding: 0; border: 0; border-radius: var(--radius-pill); }
+  .bottom-find.selected { color: var(--accent); }
+  .bottom-nav-badge { position: absolute; top: var(--space-2); right: var(--space-4); min-width: var(--space-16); padding-inline: var(--space-2); border-radius: var(--radius-pill); background: var(--danger); color: var(--canvas); font: var(--weight-control) var(--text-apparatus)/var(--line-apparatus) var(--font-body); font-variant-numeric: tabular-nums; }
+  :is(.bottom-tabs, .bottom-find.button, .pane-header .pane-index, .pane-header .pane-back, .pane-header .pane-new, .pane-header .page-menu-button) { background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%); backdrop-filter: blur(var(--glass-blur)) saturate(160%); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--glass-edge); }
   .app.keyboard-open .bottom-nav, .app.is-immersive .bottom-nav, .app.is-reading .bottom-nav { display: none; }
   /* A book reads edge to edge, under its own masthead rather than the pane header. */
   .app.is-reading .pane.active > .pane-header { display: none; }
   .app.is-reading .workspace { margin: 0; border: 0; border-radius: 0; background: var(--canvas); transition: none; }
-  .undo-toast { bottom: calc(var(--bottom-nav-height) + 12px + var(--bottom-inset)); }
-  .sidebar-masthead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-2) var(--space-8); margin-bottom: var(--space-8); padding: var(--space-4) 0 var(--space-12) calc(var(--space-8) + 2 * var(--rule-width)); border-bottom: var(--rule-width) solid var(--line); }
-  .sidebar-masthead-count { grid-column: 1 / -1; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+  .undo-toast { bottom: calc(var(--bottom-nav-height) + var(--space-12) + var(--bottom-inset)); }
+  .directory-pane [data-phone-tab] { display: none; }
+  .directory-pane .button { min-height: var(--space-48); padding-inline: 0; border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; font-size: var(--text-h3); color: var(--text); }
+  .directory-pane .button > .icon { color: var(--muted); }
+  .directory-pane .primary-navigation { border-top: var(--rule-width) solid var(--line); }
+  .directory-pane .page-list { margin-top: var(--space-24); }
+  .directory-pane .page-list h2, .directory-pane .page-list > summary { min-height: var(--space-48); padding-inline: 0; }
+  .directory-pane .section-number { display: none; }
+  .directory-pane .index-shelf { padding-left: 0; text-transform: none; letter-spacing: var(--tracking-apparatus); }
+  .directory-pane .sidebar-view > .view-pin { flex-basis: var(--touch-target); width: var(--touch-target); }
+  .directory-pane .sidebar-foot { gap: var(--space-12); }
+  .directory-pane .sidebar-foot > .button { min-width: 0; border: 0; }
+  .directory-pane .sidebar-settings { width: auto; }
+}
+@media (max-width: 599px) and (pointer: coarse) and (prefers-reduced-transparency: reduce) {
+  :is(.bottom-tabs, .bottom-find.button, .pane-header .pane-index, .pane-header .pane-back, .pane-header .pane-new, .pane-header .page-menu-button) { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mode-tabs > .tab-rule, .sidebar .button::before { transition: none; }
