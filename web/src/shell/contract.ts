@@ -90,6 +90,8 @@ export type OpenTarget =
   | { kind: 'field'; fieldId: string; previewKind?: FieldKind; section?: 'options' | 'targets' }
   | { kind: 'cards'; typeId: string; applyId?: string }
   | { kind: 'settings'; section?: 'notebooks' | 'devices' | 'agent'; deviceId?: string | null }
+  /** The phone's full-page workshop navigation. */
+  | { kind: 'directory' }
   | { kind: 'library'; tab?: LibraryTab; collection?: string; add?: boolean; details?: readonly string[] }
   /** Read a source. `at` is a passage ID to scroll to; `citationId` flashes that citation's range and does not count as reading. */
   | { kind: 'reader'; sourceId: string; snapshotId?: string; at?: string; citationId?: string }
@@ -110,6 +112,7 @@ export interface TableViewState {
 export interface FieldsViewState { scroll: number }
 export interface FieldViewState { scroll: number }
 export interface SettingsViewState { scroll: number }
+export interface DirectoryViewState { scroll: number }
 export interface CompareViewState { scroll: number; comparison?: 'readings' | 'criteria'; chosen?: string[] | null; focusedQuestion?: string | null }
 export interface IndexViewState { scroll: number; noteQuery?: Query; viewId?: string | null }
 export interface AgendaViewState { date: string; mode: 'agenda' | 'week' | 'tasks'; query: TaskQuery; viewId: string | null; scroll: number }

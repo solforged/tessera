@@ -286,7 +286,7 @@ Settings › Agent lists the models: name, then mono kind, model and whether a k
 | Below 840 px | Working-pane tabs show one pane at a time, in the mode-tab style: rubric pane number, mono title, gilt rule under the current pane, and a close beside each tab that closes that pane |
 | Below 600 px | Find or create, Commands and Layout retain accessible labels on icon controls; workspace gutter shrinks to 4 px |
 
-While the sidebar is open, a shade in the shell color dims the workspace beside it. Tapping or clicking the shade closes the sidebar. On the cover screen the open sidebar covers its own toggle, so it opens on a masthead instead: the oculus and TESSERA wordmark with Close sidebar at the right, then the note count in mono apparatus, over a hairline. The foot's workshop switcher names the workshop, as on the desktop. Hidden navigation is inert immediately, including during its exit.
+While the sidebar is open, a shade in the shell color dims the workspace beside it. Tapping or clicking the shade closes the sidebar. Hidden navigation is inert immediately, including during its exit.
 
 Below 600 px:
 
@@ -294,9 +294,15 @@ Below 600 px:
 - Field labels stack above values, so long values keep the measure.
 - The [library search](surfaces/library.md) takes its own line above sort, export and add.
 
-The global rail stays visible in every layout except the cover screen (a touch screen under 600 px), where a six-column bottom nav replaces it: Today, Agenda, New, Find, Review and Library. New opens the shared creation sheet with Atom into Today selected; every target is at least `--target-size`. Today selects only today's journal, Agenda and Review select their own panes, New selects while the slip is open, and Find selects while its picker is open. Library selects only the Library pane or a reader; source pages, type indexes, tables, Fields and Settings select no primary place.
+The global rail stays visible in every layout except the cover screen (a touch screen under 600 px: phones and the Fold's cover), whose shell follows the phone's own conventions:
 
-The rail's sync status moves to a row above the nav, shown only while sync is not Synced. Library's long press lists the note types in use. The sidebar opens from a button at the start of the pane header, a book's breadcrumb is its title alone, and the nav steps aside while the keyboard is up. Unfolding brings the usual shell back around the same page.
+- **Edge to edge.** The page reaches the screen edges on `--canvas`, under the status bar and above the home indicator; the workspace frame, gutter and registration corners step aside.
+- **Navigation bar.** The pane header becomes a 52 px bar of 44 px glass controls. Its leading control is Index on a tab's landing (today's journal, Agenda, Review, Library) and Back everywhere else. The title shows only once the page has scrolled 48 px, when a hairline also appears under the bar. Journal days keep the calendar and drop previous and next day. New (`+`) sits before the page menu on every pane except Library, which has its own Add, and the reader. The quiet Saved dot is hidden; saving, offline and errors still speak.
+- **Bottom bar.** A floating glass capsule holds Today, Agenda, Review and Library, with Find in a separate glass circle at its right; the bar reserves 70 px above the home indicator. The current tab is gilt on a faint pill. Agenda carries a `--danger` badge with the overdue count. Today selects only today's journal, Agenda and Review their own panes, Library the Library pane or a reader, and Find while its picker is open. Library's long press lists the note types in use.
+- **Index page.** The sidebar's content (Revisits, pinned, the Index with its views, Views, Recent, then the workshop switcher and Settings at the end) is a page, opened by Index and pushed onto the pane's history, so Back returns to it. Today, Agenda, Review and Library are left out there because they are tabs. The drawer never opens on the cover screen; the sidebar command opens this page instead.
+- **Glass.** Glass controls use `--glass-fill` with a `--glass-blur` backdrop blur, `--glass-shadow` and a `--glass-edge` hairline. With reduced transparency they are solid `--raised`.
+
+The rail's sync status moves to a row above the bottom bar, shown only while sync is not Synced. A book's breadcrumb is its title alone, and the bottom bar steps aside while the keyboard is up, in a review session and while reading. Unfolding brings the usual shell back around the same page.
 
 ### Mac menus
 
