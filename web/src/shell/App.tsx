@@ -35,6 +35,9 @@ import { deskCounts, shortDay } from './desk-counts';
 import { depthLabels, depthStops } from './contract';
 import type { AgendaViewState, Command, CommandRegistry, CompareViewState, Depth, DirectoryViewState, FieldsViewState, FieldViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, RevisitsViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import type { PagePresentation, PageProjection } from './contract';
+import type { HistoryEntry, PaneHistory, PaneSession, PaneView, PhoneTab } from './contract';
+import { activatePhoneTab, adoptPhoneTab, passiveHistory, phoneTabs, popPhoneTab } from './phone-navigation';
+import { installPhoneGestures } from './phone-gestures';
 import { Palette } from './Palette';
 import { DeletedPages } from './DeletedPages';
 import { Shortcuts } from './Shortcuts';
@@ -99,10 +102,7 @@ const ComparePane = lazy(() => paneModules.compare().then(module => ({ default: 
 const IndexPane = lazy(() => paneModules.index().then(module => ({ default: module.IndexPane })));
 const SpreadPane = lazy(() => paneModules.spread().then(module => ({ default: module.SpreadPane })));
 
-type PaneView = ViewState | TableViewState | DirectoryViewState | FieldsViewState | FieldViewState | SettingsViewState | AgendaViewState | ReviewViewState | RevisitsViewState | LibraryViewState | ReaderViewState | CompareViewState | IndexViewState;
-type HistoryEntry = { target: OpenTarget; view: PaneView };
-type PaneSession = { entries: HistoryEntry[]; index: number; generation: number };
-type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; pagePresentations?: Record<string, PagePresentation>; pageStyles?: Record<string, 'bullets' | 'prose'>; recent?: string[]; vim?: boolean; panes?: Record<PaneId, HistoryEntry>; order?: PaneId[]; widths?: Record<PaneId, number>; active?: PaneId };
+type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; pagePresentations?: Record<string, PagePresentation>; pageStyles?: Record<string, 'bullets' | 'prose'>; recent?: string[]; vim?: boolean; panes?: Record<PaneId, HistoryEntry>; phone?: Record<PaneId, { tab: PhoneTab; stacks: Partial<Record<PhoneTab, PaneHistory>> }>; order?: PaneId[]; widths?: Record<PaneId, number>; active?: PaneId };
 type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 /** A drop replaces a pane, or inserts a new one at a position in the row. */
 type DropZone = { replace: PaneId } | { insert: number };
@@ -285,7 +285,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       const root = document.querySelector<HTMLElement>(`.pane[data-pane="${pane}"]`);
       if (!root) return;
       setActive(pane);
-      const editor = root.querySelector<HTMLElement>('.cm-content');
+      const editor = cover() ? null : root.querySelector<HTMLElement>('.cm-content');
       (editor?.getClientRects().length ? editor : root.querySelector<HTMLElement>('.review-card') ?? root.querySelector<HTMLElement>('.outline-pane, .table-pane, .research-desk, .fields-pane, .field-page-pane, .settings-pane, .agenda-pane, .review-pane'))?.focus({ preventScroll: true });
     });
   };
@@ -317,7 +317,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       return;
     }
     // Explicit caret, reading and journal ledger requests rebuild even when the same page is already open beside.
-    const samePage = target.kind === 'page' && !target.caretId && !target.readAt && !target.editOcclusion && !target.journalPeriod && current?.target.kind === 'page' && current.target.pageId === target.pageId && 'zoom' in current.view && current.view.zoom === (target.blockId ?? null);
+    const samePage = target.kind === 'page' && !target.caretId && !target.readAt && !target.revealId && !target.editOcclusion && !target.journalPeriod && current?.target.kind === 'page' && current.target.pageId === target.pageId && 'zoom' in current.view && current.view.zoom === (target.blockId ?? null);
     if (!beside || !samePage) {
       const date = target.kind === 'agenda' ? target.date ?? target.query?.context_date ?? todayDate() : '';
       const view: PaneView = restore ? snapshotView(restore) : target.kind === 'table'
@@ -329,6 +329,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
               : target.kind === 'directory' || target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'spread' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.collection ? 'collections' : target.tab ?? 'inbox', collection: target.collection ?? null, text: '', sort: 'added', filters: { people: [], decades: [], years: [], publishers: [], languages: [] }, group: 'none', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
+                  : target.revealId ? { zoom: null, caret: null, scroll: { id: target.revealId, offset: 0 }, folds: null, showArchived: false, projection: 'outline', reveal: target.revealId }
                   : target.readAt ? { zoom: null, caret: { id: target.readAt, offset: 0 }, scroll: { id: target.readAt, offset: 0 }, folds: null, showArchived: false, projection: 'read', reveal: target.readAt }
                     : { zoom: target.blockId ?? null, caret: target.caretId || target.blockId ? { id: target.caretId ?? target.blockId!, offset: target.caretOffset ?? 0 } : null, scroll: null, folds: null, showArchived: false, projection: target.caretId ? 'outline' : pagePresentations()[target.pageId]?.projection, ...(target.caretId ? { edit: true } : {}), ...(target.editOcclusion && target.blockId ? { editOcclusion: target.blockId } : {}) };
       // Editing needs its live caret now, not after the outgoing view-transition snapshot.
@@ -337,7 +338,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           if (target.kind === 'page' && target.readAt) setPagePresentations(values => ({ ...values, [target.pageId]: { ...values[target.pageId], projection: 'read' } }));
           setSessions(values => {
             const previous = values[pane] ?? emptySession();
-            const next = { entries: [...previous.entries.slice(0, previous.index + 1), { target, view }], index: previous.index + 1, generation: previous.generation + 1 };
+            const next = { ...previous, entries: [...previous.entries.slice(0, previous.index + 1), { target, view }], index: previous.index + 1, generation: previous.generation + 1 };
             return { ...values, [pane]: next };
           });
           if (!slot.existing) {
@@ -365,7 +366,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const session = values[pane]; const current = session?.entries[session.index]; if (!session || !current) return values;
     if ('zoom' in view && 'zoom' in current.view && view.zoom !== current.view.zoom) {
       const entries = [...session.entries.slice(0, session.index + 1), { target: current.target, view: copyView(view) }];
-      return { ...values, [pane]: { entries, index: session.index + 1, generation: session.generation + (restore ? 1 : 0) } };
+      return { ...values, [pane]: { ...session, entries, index: session.index + 1, generation: session.generation + (restore ? 1 : 0) } };
     }
     const entries = [...session.entries];
     entries[session.index] = { target: targetFromView({ target: current.target, view }), view: snapshotView(view) };
@@ -376,19 +377,22 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     entries[session.index] = { ...entries[session.index]!, target };
     return { ...values, [pane]: { ...session, entries } };
   });
-  const travel = (pane: PaneId, delta: number) => {
+  const travel = (pane: PaneId, delta: number, interactive = false) => {
     const session = sessions()[pane]; if (!session) return; const index = session.index + delta;
     if (index < 0 || index >= session.entries.length) return;
     pendingCaretInput.cancel();
     cancelNavigation(pane);
-    navigatePane(pane, delta < 0 ? 'back' : 'forward', () => {
+    const arrive = () => {
       // A second Back pressed before the first turn applied steps from where the first one lands.
       const latest = sessions()[pane]; if (!latest) return; const next = latest.index + delta;
       if (next < 0 || next >= latest.entries.length) return;
-      setSessions(values => ({ ...values, [pane]: { ...latest, index: next, generation: latest.generation + 1 } }));
+      const restored = cover() ? passiveHistory(latest) : latest;
+      setSessions(values => ({ ...values, [pane]: { ...restored, index: next, generation: latest.generation + 1 } }));
       setActive(pane); const pageId = pageIdOf(latest.entries[next]); if (pageId) remember(pageId);
       focusPane(pane);
-    }, pageIdOf(session.entries[index]) ?? pageIdOf(session.entries[session.index]));
+    };
+    if (interactive) arrive();
+    else navigatePane(pane, delta < 0 ? 'back' : 'forward', arrive, pageIdOf(session.entries[index]) ?? pageIdOf(session.entries[session.index]));
   };
   const journal = async (value: string | null, owner = active(), beside = false, journalPeriod?: Extract<OpenTarget, { kind: 'page' }>['journalPeriod']) => {
     beside = beside && canOpenBeside(owner);
@@ -407,6 +411,60 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   };
   const today = (pane = active(), beside = false) => journal(null, pane, beside);
   const shiftDate = (delta: number, pane = active()) => { const next = new Date(`${journalDate(pane)}T12:00:00`); next.setDate(next.getDate() + delta); void journal(localDate(next), pane); };
+  const scrollPaneTop = () => {
+    if (!cover()) return;
+    const content = document.querySelector<HTMLElement>(`.pane[data-pane="${CSS.escape(active())}"] > .pane-content`);
+    if (!content) return;
+    const scrollers = [...content.querySelectorAll<HTMLElement>('*')].filter(element => element.clientHeight > 0 && element.scrollHeight > element.clientHeight && /auto|scroll/.test(getComputedStyle(element).overflowY));
+    scrollers.sort((a, b) => b.clientWidth * b.clientHeight - a.clientWidth * a.clientHeight);
+    scrollers[0]?.scrollTo({ top: 0, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
+  };
+  const phoneTabFor = (session: PaneSession | undefined): PhoneTab => {
+    if (session?.tab) return session.tab;
+    for (let index = session?.index ?? -1; index >= 0; index--) {
+      const target = session!.entries[index]!.target;
+      if (target.kind === 'library' || target.kind === 'reader') return 'library';
+      if (target.kind === 'agenda' || target.kind === 'review') return target.kind;
+      if (target.kind === 'page' && notebook.roots().some(root => root.id === target.pageId && root.kind === 'journal' && root.text === todayDate())) return 'today';
+    }
+    return 'today';
+  };
+  let phoneToday: { date: string; id: Promise<string> } | undefined;
+  const phoneRoot = async (tab: PhoneTab): Promise<HistoryEntry> => {
+    if (tab === 'today') {
+      if (phoneToday?.date !== todayDate()) phoneToday = { date: todayDate(), id: notebook.today() };
+      return { target: { kind: 'page', pageId: await phoneToday.id }, view: { zoom: null, caret: null, scroll: null, folds: null, showArchived: false } };
+    }
+    if (tab === 'agenda') { const date = todayDate(); return { target: { kind: 'agenda', date }, view: { date, mode: 'agenda', query: createTaskQuery(date), viewId: null, scroll: 0 } }; }
+    if (tab === 'review') return { target: { kind: 'review' }, view: { deckId: null, sessionId: null, selection: null, scroll: 0 } };
+    return { target: { kind: 'library' }, view: { view: null, tab: 'inbox', collection: null, text: '', sort: 'added', filters: { people: [], decades: [], years: [], publishers: [], languages: [] }, group: 'none', unprocessedOnly: true, colors: [], tags: [], scroll: 0 } };
+  };
+  const preparePhone = async (pane: PaneId) => {
+    const session = sessions()[pane];
+    if (!session || session.tab) return;
+    const tab = phoneTabFor(session), root = await phoneRoot(tab);
+    setSessions(values => values[pane] && !values[pane].tab ? { ...values, [pane]: adoptPhoneTab(values[pane], tab, root) } : values);
+  };
+  let tabRequest = 0;
+  const selectPhoneTab = async (tab: PhoneTab) => {
+    const pane = active(), request = ++tabRequest;
+    pendingCaretInput.cancel(); const navigationRequest = cancelNavigation(pane); ++focusEpoch;
+    await preparePhone(pane);
+    const root = await phoneRoot(tab);
+    if (!cover() || request !== tabRequest || pane !== active() || navigationRequest !== navigationRequests[pane]) return;
+    const session = sessions()[pane];
+    if (!session) return;
+    if (session.tab === tab && session.index === 0) { scrollPaneTop(); return; }
+    setSessions(values => ({ ...values, [pane]: passiveHistory(session.tab === tab ? popPhoneTab(session) : activatePhoneTab(session, tab, root)) }));
+    setSidebar(false);
+  };
+  createEffect(() => { if (cover() && navigationId()) for (const pane of order()) void preparePhone(pane).catch(reportError); });
+  onMount(() => installPhoneGestures({
+    cover,
+    canBack: () => (sessions()[active()]?.index ?? 0) > 0 && entry(active())?.target.kind !== 'reader',
+    back: () => travel(active(), -1, true),
+    scrollTop: scrollPaneTop,
+  }));
   /** Moves focus to the next pane in the row, wrapping at its end. */
   const switchPane = () => {
     if (!split()) return;
@@ -663,11 +721,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         if (Array.isArray(stored.recent)) setRecent([...new Set(stored.recent)].filter(value => typeof value === 'string').slice(0, 10));
       });
       const restored: Record<PaneId, PaneSession> = {}, restoredOrder: PaneId[] = [];
-      // Before the row, navigation saved two slots, `main` and `side`, without an order; their key order is the row.
-      const savedOrder = Array.isArray(stored.order) ? stored.order.filter(value => typeof value === 'string') : Object.keys(stored.panes ?? {});
-      for (const pane of savedOrder.slice(0, MAX_PANES)) {
-        const saved = stored.panes?.[pane];
-        if (!saved?.target || !saved.view) continue;
+      const restoreEntry = async (saved: HistoryEntry | undefined): Promise<HistoryEntry | undefined> => {
+        if (!saved?.target || !saved.view) return;
         let current: HistoryEntry;
         if (saved.target.kind === 'table' && 'query' in saved.view && !('mode' in saved.view)) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
@@ -685,8 +740,32 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           const savedId = saved.target.pageId;
           const exists = notebook.roots().some(root => root.id === savedId);
           current = exists ? { target: targetFromView(saved), view: { ...copyView(saved.view), reveal: undefined } } : { target: { kind: 'page', pageId: await notebook.today() }, view: { zoom: null, caret: null, scroll: null, folds: null, showArchived: false } };
-        } else continue;
-        restored[pane] = { entries: [current], index: 0, generation: 1 };
+        } else return;
+        return current;
+      };
+      // Before the row, navigation saved two slots without an order.
+      const savedOrder = Array.isArray(stored.order) ? stored.order.filter(value => typeof value === 'string') : Object.keys(stored.panes ?? {});
+      for (const pane of savedOrder.slice(0, MAX_PANES)) {
+        const current = await restoreEntry(stored.panes?.[pane]);
+        if (!current) continue;
+        let session: PaneSession = { entries: [current], index: 0, generation: 1 };
+        const savedPhone = stored.phone?.[pane];
+        if (cover() && savedPhone && phoneTabs.includes(savedPhone.tab)) {
+          const stacks: Partial<Record<PhoneTab, PaneHistory>> = {};
+          for (const tab of phoneTabs) {
+            const stack = savedPhone.stacks?.[tab];
+            if (!stack || !Array.isArray(stack.entries) || !Number.isInteger(stack.index) || stack.index < 0 || stack.index >= stack.entries.length) continue;
+            const entries = await Promise.all(stack.entries.map(restoreEntry));
+            if (entries.some(entry => !entry)) continue;
+            stacks[tab] = { entries: entries as HistoryEntry[], index: stack.index };
+          }
+          const currentStack = stacks[savedPhone.tab];
+          if (currentStack) {
+            delete stacks[savedPhone.tab];
+            session = { ...session, ...currentStack, tab: savedPhone.tab, tabs: stacks };
+          }
+        }
+        restored[pane] = cover() ? passiveHistory(session) : session;
         restoredOrder.push(pane);
       }
       if (restoredOrder.length) {
@@ -713,12 +792,15 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   createEffect(() => {
     const id = navigationId(); if (!id) return;
     const panes: Record<PaneId, HistoryEntry> = {};
+    const phone: NonNullable<SavedNavigation['phone']> = {};
     for (const pane of order()) {
       const current = entry(pane);
       if (current) panes[pane] = current.target.kind === 'page' && 'zoom' in current.view
         ? { target: targetFromView(current), view: { ...copyView(current.view), reveal: undefined } } : current;
+      const session = sessions()[pane];
+      if (session?.tab) phone[pane] = { tab: session.tab, stacks: { ...session.tabs, [session.tab]: { entries: session.entries, index: session.index } } };
     }
-    navigationWrite = { key: `tessera.navigation.${id}`, value: { pinned: pinned(), pinnedViews: pinnedViews(), pagePresentations: pagePresentations(), recent: recent(), vim: vim(), panes, order: order(), widths: weights(), active: active() } };
+    navigationWrite = { key: `tessera.navigation.${id}`, value: { pinned: pinned(), pinnedViews: pinnedViews(), pagePresentations: pagePresentations(), recent: recent(), vim: vim(), panes, phone, order: order(), widths: weights(), active: active() } };
     clearTimeout(navigationTimer);
     navigationTimer = window.setTimeout(writeNavigation, 500);
   });
@@ -1208,13 +1290,13 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     <SyncCover open={!!syncAnchor()} onOpen={setSyncAnchor} />
     <nav class="bottom-nav" aria-label="Workshop">
       <div class="bottom-tabs">
-        <Button icon="today" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={() => { void today(); }}><span>Today</span></Button>
-        <Button icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={() => open({ kind: 'agenda', date: journalDate(active()) })}><span>Agenda</span><Show when={counts()?.overdue}>{count => <span class="bottom-nav-badge" aria-label={`${count()} overdue`}>{count()}</span>}</Show></Button>
-        <Button icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} onClick={() => open({ kind: 'review' })}><span>Review</span></Button>
-        <Button icon="library" class={entry(active())?.target.kind === 'library' || entry(active())?.target.kind === 'reader' ? 'selected' : ''} aria-haspopup="menu" aria-expanded={!!typesMenu()}
-          onClick={() => open({ kind: 'library' })} onContextMenu={event => { event.preventDefault(); void showTypes(event.currentTarget); }}><span>Library</span></Button>
+        <Button icon="today" class={phoneTabFor(sessions()[active()]) === 'today' ? 'selected' : ''} onClick={() => { void selectPhoneTab('today').catch(reportError); }}><span>Today</span></Button>
+        <Button icon="agenda" class={phoneTabFor(sessions()[active()]) === 'agenda' ? 'selected' : ''} onClick={() => { void selectPhoneTab('agenda').catch(reportError); }}><span>Agenda</span><Show when={counts()?.overdue}>{count => <span class="bottom-nav-badge" aria-label={`${count()} overdue`}>{count()}</span>}</Show></Button>
+        <Button icon="review" class={phoneTabFor(sessions()[active()]) === 'review' ? 'selected' : ''} onClick={() => { void selectPhoneTab('review').catch(reportError); }}><span>Review</span></Button>
+        <Button icon="library" class={phoneTabFor(sessions()[active()]) === 'library' ? 'selected' : ''} aria-haspopup="menu" aria-expanded={!!typesMenu()}
+          onClick={() => { void selectPhoneTab('library').catch(reportError); }} onContextMenu={event => { event.preventDefault(); void showTypes(event.currentTarget); }}><span>Library</span></Button>
       </div>
-      <Button icon="find" label="Find" class={`bottom-find ${popup()?.kind === 'search' ? 'selected' : ''}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={event => setPopup({ kind: 'search', anchor: event.currentTarget, pane: active() })} />
+      <Button icon="search" label="Find" class={`bottom-find ${popup()?.kind === 'search' ? 'selected' : ''}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={event => setPopup({ kind: 'search', anchor: event.currentTarget, pane: active() })} />
     </nav>
     <Show when={questionsMenu()}>{anchor => <Menu anchor={anchor()} label="Questions" onDismiss={() => setQuestionsMenu(undefined)} items={[
       { label: 'Open research desk', icon: 'panes', action: () => { setQuestionsMenu(undefined); open(deskTarget()); } },

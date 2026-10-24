@@ -497,6 +497,9 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 }
 @media (max-width: 599px) and (pointer: coarse) {
   .app { --bottom-nav-height: 70px; --pane-header-height: 52px; height: var(--visual-viewport-height, 100dvh); margin-top: var(--visual-viewport-top, 0px); grid-template-rows: minmax(0, 1fr) auto; background: var(--canvas); }
+  html.phone-scroll-sentinel, .phone-scroll-sentinel body { min-height: calc(100dvh + 1px); }
+  .phone-scroll-sentinel .app { position: fixed; inset: 0; }
+  .pane.phone-back-dragging { will-change: transform; user-select: none; box-shadow: var(--popup-shadow); }
   .app > .global-rail, .app > .sidebar, .pane-breadcrumbs .breadcrumb-library, .breadcrumb-library + .breadcrumb-separator { display: none; }
   .workspace, .sidebar-collapsed .workspace { grid-row: 1; margin: 0; border: 0; border-radius: 0; }
   .pane-content::before, .pane-content::after { display: none; }
