@@ -33,7 +33,7 @@ import { ReaderSettingsPopup, readerSettings, readerStyle } from './ReaderSettin
 import { ProgressCard } from './ProgressCard';
 import { chapterAt, pageChunk, timeLeft } from './paged';
 import type { PageChunk } from './paged';
-import { absorbedPassages, bookKeys, chapterOpenings, isFrontMatter, isProseExcerpt, repeatsBook, repeatsTitleDetails, sectionLabel, sectionName } from './openings';
+import { absorbedPassages, bookKeys, chapterOpenings, contentsTitle, isFrontMatter, isProseExcerpt, repeatsBook, sectionLabel, sectionName, titlePageWords } from './openings';
 import type { Opening } from './openings';
 import { mergeMembers, overlappingHighlights } from './highlight-merge';
 import './reader.css';
@@ -254,18 +254,19 @@ export function ReaderPane(props: ReaderPaneProps) {
    */
   const absorbed = createMemo(() => {
     version();
-    const highlighted = new Set<number>();
+    const highlighted = new Set<number>(), titleHighlighted = new Set<number>();
     for (const citation of citations()) {
       const from = ordinals.get(citation.start.passage_id), to = ordinals.get(citation.end.passage_id);
       if (from !== undefined) highlighted.add(from);
       if (to !== undefined) highlighted.add(to);
+      for (const ordinal of passages.keys()) if (ordinal >= (from ?? citation.ordinal) && ordinal <= (to ?? total() - 1)) titleHighlighted.add(ordinal);
     }
     const titleEntries = allContents().flatMap(entry => entry.ordinal !== null && repeatsBook(entry, book()) ? [entry.ordinal] : []);
     const metadata = currentSnapshot()?.metadata, page = details();
     const result = absorbedPassages(openings(), titleEntries, ordinal => passages.get(ordinal), ordinal => highlighted.has(ordinal), book(),
-      text => repeatsTitleDetails(text, [page.title ?? '', metadata?.title ?? ''], (page.creators.length ? page.creators : metadata?.creators ?? []).map(creator => creator.name)));
-    const cover = passages.get(0);
-    if (title() && titleCover() && cover?.kind === 'image' && cover.resource === currentSnapshot()?.metadata.cover && !highlighted.has(0)) result.hidden.add(0);
+      { contents: allContents(), total: total(), highlighted: titleHighlighted, quotesAreText: quotesAreText(), cover: title() && titleCover() ? metadata?.cover ?? null : null,
+        words: titlePageWords(page.title, metadata?.title, page.subtitle, metadata?.subtitle, page.publisher, metadata?.publisher,
+          ...page.creators.map(creator => creator.name), ...(metadata?.creators ?? []).map(creator => creator.name)) });
     return result;
   });
   /**
@@ -1615,7 +1616,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={textWidth() !== null && contents().length}>
         <nav ref={margin} class="reader-margin" aria-label="Contents">
           <For each={contents()}>{entry => <Button class="reader-margin-entry" aria-current={entry === currentSection() ? 'location' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}
-            onClick={() => { void openSection(entry); }}>{entry.title}</Button>}</For>
+            onClick={() => { void openSection(entry); }}>{contentsTitle(entry.title)}</Button>}</For>
         </nav>
       </Show>
       <div ref={scroll} class="reader-scroll" classList={{ 'reader-paged': paged() }} style={{ '--reader-frame-width': `${pageFrame().width}px` }} tabIndex={0} aria-label="Source passages" onScroll={scrolled}
@@ -1628,8 +1629,8 @@ export function ReaderPane(props: ReaderPaneProps) {
         </div>}>
           {/* A running head over each column, as in a printed book: the title over the left page, the chapter over the right. The title page, a chapter's opening page and a chapter still loading go without. */}
           <div class="reader-running-head" classList={{ 'reader-running-head-quiet': loading() || (pageIndex() === 0 && (openings().has(chunk()?.first ?? -1) || (chunk()?.first === 0 && !!title()))) }} aria-hidden="true" style={{ width: pageFrame().width ? `${pageFrame().width}px` : '100%', 'grid-template-columns': `repeat(${pageFrame().columns}, minmax(0, 1fr))`, 'column-gap': `${PAGE_GAP}px` }}>
-            <Show when={pageFrame().columns === 2}><span>{title()}</span></Show>
-            <span>{chapterName() || (pageFrame().columns === 2 ? '' : title())}</span>
+            <Show when={pageFrame().columns === 2}><span><i class="reader-section-title">{contentsTitle(title())}</i></span></Show>
+            <span><Show when={chapterName()} fallback={pageFrame().columns === 2 ? '' : <i class="reader-section-title">{contentsTitle(title())}</i>}><SectionLabel title={chapterEntry()!.title} /></Show></span>
           </div>
           <div ref={frame} class="reader-page-frame" style={{ width: `${pageFrame().width}px` }} onWheel={pageWheel}>
             <div ref={flow} class="reader-flow" style={{ 'column-count': pageFrame().columns, 'column-gap': `${PAGE_GAP}px` }}>
@@ -1664,10 +1665,10 @@ export function ReaderPane(props: ReaderPaneProps) {
         onJump={chapter => { const entry = contents().find(value => value.start === chapter.start && value.ordinal !== null); if (entry) void openSection(entry); else setPopup(null); }} /></Show>
       <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" title="Reader actions" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Contents" placeholder="Find a section" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={Math.max(0, toc().indexOf(currentSection()!))}
-        row={entry => <span class="reader-toc-entry" aria-current={entry === currentSection() ? 'true' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}><span class="reader-toc-check"><Show when={entry === currentSection()}><Icon name="check" /></Show></span><span>{entry.title}</span></span>}
+        row={entry => <span class="reader-toc-entry" aria-current={entry === currentSection() ? 'true' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}><span class="reader-toc-check"><Show when={entry === currentSection()}><Icon name="check" /></Show></span><span>{contentsTitle(entry.title)}</span></span>}
         onPick={entry => { void openSection(entry); }} empty="No sections" onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'highlights'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Highlights" placeholder="Find a highlight" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
-        row={row => <div class="reader-highlight-entry"><span class={`highlight-color-dot highlight-color-${row.citation.color ?? 'none'}`} aria-hidden="true" /><span class="reader-highlight-quote">{row.citation.quote}</span><span class="reader-highlight-section">{highlightLocation(row.citation, sections())}</span></div>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
+        row={row => <div class="reader-highlight-entry"><span class={`highlight-color-dot highlight-color-${row.citation.color ?? 'none'}`} aria-hidden="true" /><span class="reader-highlight-quote">{row.citation.quote}</span><span class="reader-highlight-section">{contentsTitle(highlightLocation(row.citation, sections()))}</span></div>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
         onPick={row => { void jumpHighlight(row.citation); }} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} header={(() => { const value = state(); return value.kind === 'menu' && value.Header ? <value.Header onDismiss={() => setPopup(null)} /> : undefined; })()} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}

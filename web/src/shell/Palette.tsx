@@ -16,6 +16,7 @@ import type { Command, CommandRegistry, OpenTarget, PaneId } from './contract';
 import { besideKey, opensBeside } from './beside';
 import { findMatchSegments, paletteRows, type SearchEntry, type SearchHit } from './palette-rows';
 import { citationRange, passageSegments } from '../reader/passages';
+import { contentsTitle } from '../reader/openings';
 import { titleKey } from '../document/title-key';
 import { pendingCaretInput } from './pending-caret';
 import { inferKind, type CreateRequest } from '../create/request';
@@ -129,7 +130,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const location = (sourceId: string, ordinal: number, chapter?: string | null) => {
     const source = sources().get(sourceId);
     const section = chapter ?? source?.toc.filter(entry => entry.ordinal !== null && entry.ordinal <= ordinal).at(-1)?.title;
-    return [books().get(sourceId)?.source.siglum ?? source?.source.siglum, section, `¶${ordinal + 1}`].filter(Boolean).join(' · ');
+    return [books().get(sourceId)?.source.siglum ?? source?.source.siglum, section ? contentsTitle(section) : null, `¶${ordinal + 1}`].filter(Boolean).join(' · ');
   };
   createEffect(() => {
     const value = text();
@@ -439,7 +440,7 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
       ]);
       const chapter = source.toc.filter(entry => entry.ordinal !== null && entry.ordinal <= ordinal).at(-1)?.title;
       return {
-        title: displayTitle(source.page.text, id => props.notebook.lookup(id)), location: [source.source.siglum, chapter, `¶${ordinal + 1}`].filter(Boolean).join(' · '),
+        title: displayTitle(source.page.text, id => props.notebook.lookup(id)), location: [source.source.siglum, chapter ? contentsTitle(chapter) : null, `¶${ordinal + 1}`].filter(Boolean).join(' · '),
         cover: (href => href ? { snapshotId, href } : undefined)(source.snapshots.find(snapshot => snapshot.id === snapshotId)?.metadata.cover),
         passages, citation,
       };

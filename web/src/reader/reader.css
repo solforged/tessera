@@ -13,7 +13,7 @@
 .reader-map > .reader-progress-rule { width: 100%; margin: 0; }
 .reader-folio { display: flex; align-items: center; gap: var(--space-16); height: var(--row-height); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .reader-folio-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
-.reader-folio-name .reader-section-title { font-size: var(--text-control); }
+.reader-folio-name .reader-section-title, .reader-running-head .reader-section-title { font-size: var(--text-control); }
 .reader-folio-time { flex-shrink: 0; }
 /* Narrow folios keep the chapter rather than silently dropping the reader's place; long times get a second line. */
 @container (max-width: 460px) {
@@ -109,7 +109,7 @@
   .reader-opening .reader-opening-part { margin-bottom: var(--space-4); }
 }
 /* Pages read as a printed spread: a running head over each column (the title left, the chapter right), dropped over a chapter's opening page, and a hairline spine between two columns. With a mouse the page arrows sit at the page edges; touch turns pages with edge taps. */
-.reader-running-head { display: grid; flex-shrink: 0; max-width: 100%; padding-bottom: var(--space-12); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; text-transform: uppercase; }
+.reader-running-head { display: grid; flex-shrink: 0; max-width: 100%; padding-bottom: var(--space-12); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; }
 .reader-running-head > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-running-head-quiet { visibility: hidden; }
 .reader-page-edge.button { position: absolute; top: 50%; translate: 0 -50%; color: var(--faint); }
