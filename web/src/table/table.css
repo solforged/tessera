@@ -186,6 +186,12 @@
 .table-query-sheet .popup-actions { position: sticky; bottom: 0; flex-wrap: wrap; background: var(--raised); padding-top: var(--space-12); }
 .table-query-sheet .popup-actions > .button { min-height: var(--touch-target); }
 @media (max-width: 599px) and (pointer: coarse) {
+  .table-register { padding-bottom: var(--page-bottom-space); }
+  .table-header > .button, .table-register-label { display: none; }
+  .table-heading h1 { margin-top: 0; }
+  .table-query-bar { position: static; left: auto !important; width: 100% !important; margin-block: var(--space-12); }
+  .table-query-label { display: none; }
+  .table-query-bar > .button { min-width: var(--touch-target); padding-inline: var(--space-8); }
   .table-filter-sheet { top: auto !important; bottom: calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)); max-height: calc(85dvh - var(--bottom-nav-height, 56px) - var(--bottom-inset)) !important; padding-bottom: var(--space-16); }
   .table-filter-sheet .button, .table-filter-input { min-height: calc(var(--space-48) - var(--space-4)); }
   .table-filter-sheet .popup-actions { position: sticky; bottom: 0; background: var(--raised); padding-top: var(--space-12); }

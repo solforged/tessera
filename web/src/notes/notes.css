@@ -2,6 +2,8 @@
 .index-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; outline: none; container: finding-aid / inline-size; }
 .index-sheet { max-width: calc(var(--measure) + 2 * var(--pane-inset)); margin-inline: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); }
 .index-eyebrow { margin: 0; color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.index-kind-eyebrow { text-transform: none; }
+.index-phone-control.button { display: none; }
 /* A title too long to share its line sends the tally and action to the next line instead of running under them. */
 .index-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-8) var(--space-16); margin: var(--page-eyebrow-gap) 0 var(--page-head-gap); }
 .index-head h1 { display: flex; align-items: baseline; gap: var(--space-12); flex: 1 1 auto; min-width: 0; margin: 0; font: var(--page-title-font); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
@@ -116,16 +118,27 @@
   .index-source-byline .button { display: inline-flex; min-height: var(--target-size); }
 }
 @media (max-width: 599px) and (pointer: coarse) {
-  /* Only the overlaid alphabetical dock needs extra clearance; the nav already has a grid row. */
-  .index-sheet:has(.index-letters) { padding-bottom: calc(var(--page-bottom-space) + var(--space-32) + var(--space-12) + var(--space-4) + var(--rule-width)); }
+  .index-head { margin-top: 0; }
+  .index-new-kind.button, .index-desktop-control.button { display: none; }
+  .index-phone-control.button { display: inline-flex; flex: none; min-height: var(--touch-target); min-width: var(--touch-target); }
+  .index-pane .note-find-line { flex-wrap: nowrap; }
+  .index-pane .note-find-input { min-width: 0; }
+  .index-pane .note-find-input > .input { min-height: var(--touch-target); }
+  .index-sheet:has(.index-letters) .index-columns { padding-right: var(--space-8); }
+  .index-pane:not(.index-selecting) .index-select-target { display: none; }
+  .index-selecting .index-select { opacity: 1; }
+  .index-selection { gap: var(--space-8); flex-wrap: wrap; }
+  .index-selection .button { min-height: var(--touch-target); }
+  .index-options-sheet > .button { width: 100%; justify-content: space-between; min-height: var(--touch-target); border-bottom: var(--rule-width) solid var(--line); border-radius: 0; }
   .index-group { position: relative; margin-bottom: var(--space-12); padding-left: var(--space-24); }
   .index-group h2 { position: absolute; inset: var(--space-8) auto auto 0; margin: 0; }
   .index-group h2 .section-rule, .index-group-count { display: none; }
   .index-entry { padding-block: var(--space-8) var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
   .index-entry-title { font-size: var(--text-h2); line-height: var(--line-h2); }
   .index-preview { font-size: var(--text-body); line-height: var(--line-body); }
-  .index-letters { position: fixed; z-index: 12; left: var(--space-4); right: var(--space-4); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset)); margin: 0; padding: var(--space-4) var(--space-12) 0; flex-wrap: nowrap; overflow-x: auto; background: var(--canvas); border-top: var(--rule-width) solid var(--line); mask-image: linear-gradient(to right, var(--text) calc(100% - var(--space-24)), transparent); }
-  .index-letters > .button { flex: 1 0 auto; padding-inline: var(--space-4); }
+  .index-letters.mode-tabs { position: sticky; z-index: 12; top: var(--space-8); float: right; display: flex; flex-direction: column; width: var(--touch-target); max-height: calc(100dvh - var(--bottom-nav-height) - var(--bottom-inset) - var(--pane-header-height) - var(--space-16)); margin: 0 calc(-1 * var(--pane-inset)) 0 0; padding: 0; overflow: auto; border: 0; background: var(--canvas); box-shadow: none; scrollbar-width: none; }
+  .index-letters > .button { flex: none; min-width: var(--touch-target); min-height: var(--touch-target); padding: 0; border: 0; }
+  .index-letters > .tab-rule { display: none; }
   .index-jump-label { display: none; }
   .pane:not(.active) .index-letters { display: none; }
   .index-queue-row { align-items: flex-start; padding-block: var(--space-12); }

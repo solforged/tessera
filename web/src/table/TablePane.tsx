@@ -350,7 +350,7 @@ function TableContent(props: TablePaneProps) {
         const [rows, pageType, index] = await Promise.all([api.query({ ...value, offset: 0 }, controller.signal), value.type ? api.type(value.type, controller.signal) : Promise.resolve(undefined), api.noteIndex(controller.signal)]);
         if (controller.signal.aborted) return;
         setType(pageType); setNoteIndex(index);
-        // A member table's Index tab opens this query narrowed to the type's notes, so it counts that narrower set.
+        // A member table's List tab opens this query narrowed to the type's notes, so it counts that narrower set.
         const kind = value.type && !value.note_kind ? index.kinds.find(kind => kind.type_id === value.type)?.key ?? `type:${value.type}` : null;
         if (!kind) setIndexTotal(undefined);
         else void api.query({ ...value, note_kind: kind, offset: 0, limit: 0 }, controller.signal).then(notes => { if (!controller.signal.aborted) setIndexTotal(notes.total); }, () => {});
@@ -878,11 +878,11 @@ function TableContent(props: TablePaneProps) {
         onIndex={event => props.onOpen({ kind: 'index', key: typeKind()?.key ?? `type:${typeId()}`, viewId: props.target.viewId, query: { ...copyQuery(query()), note_kind: typeKind()?.key ?? `type:${typeId()}`, note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, opensBeside(event))}
         onTable={event => props.onOpen({ kind: 'table', typeId: typeId(), viewId: props.target.viewId, query: copyQuery(query()) }, opensBeside(event))}
         onFields={event => props.onOpen({ kind: 'fields', typeId: typeId() }, opensBeside(event))} />}</Show>
-      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Atom view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, opensBeside(event))}>Index <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button></div></Show>
+      <Show when={query().note_kind && !query().type}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Atom view"><Button onClick={event => props.onOpen({ kind: 'index', key: query().note_kind!, viewId: props.target.viewId, query: { ...copyQuery(query()), note_view: { layout: 'index', grouping: query().note_view?.grouping ?? 'letter' } } }, opensBeside(event))}>List <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button><Button aria-pressed="true">Table <span class="faint">{missingFields().length ? undefined : result()?.total}</span></Button></div></Show>
       <Show when={!narrow()}>{queryToolbar()}</Show>
       <Show when={narrow()}><div class="table-query-bar" style={{ left: `${dockBounds().left}px`, width: `${dockBounds().width}px` }}>
         <label class="table-query-find"><Icon name="search" /><input class="input" aria-label={`Find in ${title() || 'atoms'}`} placeholder={`Find in ${title() || 'atoms'}…`} value={query().text ?? ''} onInput={event => { setSearch(event.currentTarget.value); updateQuery({ ...query(), text: event.currentTarget.value.trim() || null, offset: 0 }); }} /></label>
-        <Button class="bordered" aria-haspopup="dialog" aria-expanded={!!querySheet()} onClick={event => setQuerySheet(event.currentTarget)}><Icon name="query" />Query <span class="table-query-count">{queryParts()}</span></Button>
+        <Button class="bordered" aria-label="Table options" aria-haspopup="dialog" aria-expanded={!!querySheet()} onClick={event => setQuerySheet(event.currentTarget)}><Icon name="query" /><span class="table-query-label">Query</span> <span class="table-query-count">{queryParts()}</span></Button>
       </div></Show>
       <Show when={definitions() && missingFields().length}><MissingFields fields={missingFields()} busy={savingView()} onRemove={id => { void removeMissingField(id).catch(message); }} /></Show>
       <div class="table-scroll-frame">

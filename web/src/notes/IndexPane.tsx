@@ -1,5 +1,5 @@
 import { opensBeside, listOpensBeside } from '../shell/beside';
-import { createEffect, createMemo, createResource, createSignal, For, onMount, Show, Switch, Match, untrack } from 'solid-js';
+import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show, Switch, Match, untrack } from 'solid-js';
 import { ulid } from 'ulid';
 import type { IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query, View } from '../api/types';
 import { missingFilter } from '../fields/required';
@@ -40,6 +40,7 @@ interface IndexPaneProps {
   onViewChange(view: IndexViewState): void;
   onDeletePages?(pages: { id: string; title: string }[]): Promise<void>;
   onSpread?: (noteIds: string[], beside: boolean) => void;
+  onNewAction?(action: { label: string; run(anchor: HTMLElement): void } | undefined): void;
 }
 
 type NotePopup = { kind: 'menu' | 'file' | 'rename' | 'merge' | 'delete'; note: NoteEntry; notes?: NoteEntry[]; anchor: HTMLElement };
@@ -82,7 +83,7 @@ export function IndexDirectory(props: IndexPaneProps) {
               <Icon name={noteKindIcon(kind)} />
               <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>{kindLabel(kind)}</Button>
               <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, ['task', 'question', 'source', 'project'].includes(kind.key) ? kind.key : 'atom')}</span>
-              <Button class="index-directory-open" label={`Open ${kindLabel(kind)} ${tagOnly(kind) ? 'table' : 'index'}`} onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>Open {tagOnly(kind) ? 'table' : 'index'}<Icon name="right" /></Button>
+              <Button class="index-directory-open" label={`Open ${kindLabel(kind)} ${tagOnly(kind) ? 'table' : 'list'}`} onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>Open {tagOnly(kind) ? 'table' : 'list'}<Icon name="right" /></Button>
             </div>
           }</For><Show when={shelf === 'notes'}>
             <div class="index-directory-row">
@@ -142,6 +143,8 @@ function KindIndexPane(props: IndexPaneProps) {
   const [groupMenu, setGroupMenu] = createSignal<HTMLElement>();
   const [filterMenu, setFilterMenu] = createSignal<HTMLElement>();
   const [saveAnchor, setSaveAnchor] = createSignal<HTMLElement>();
+  const [optionsAnchor, setOptionsAnchor] = createSignal<HTMLElement>();
+  const [selecting, setSelecting] = createSignal(false);
   const [viewName, setViewName] = createSignal('');
   const [picked, setPicked] = createSignal<string[]>([]);
   let pickAnchor: string | undefined;
@@ -212,7 +215,7 @@ function KindIndexPane(props: IndexPaneProps) {
     } else { setPicked(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]); pickAnchor = id; }
   };
   const selectOrOpen = (note: NoteEntry, event: MouseEvent) => {
-    if (event.metaKey || event.ctrlKey || event.shiftKey) toggleSelection(note.id, event.shiftKey);
+    if ((cover() && selecting()) || event.metaKey || event.ctrlKey || event.shiftKey) toggleSelection(note.id, event.shiftKey);
     else openNote(note, event);
   };
   const openTable = (event: MouseEvent) => props.onOpen({ kind: 'table', typeId: query().type, viewId: props.view.viewId ?? null, query: noteTableQuery(query()) }, opensBeside(event));
@@ -293,7 +296,7 @@ function KindIndexPane(props: IndexPaneProps) {
   const jump = (value: string) => { setLetter(value); scroll.querySelector(`[data-letter="${value}"]`)?.scrollIntoView({ block: 'start' }); };
   const scrollChanged = () => {
     report();
-    const top = scroll.getBoundingClientRect().top;
+    const top = scroll.getBoundingClientRect().top + parseFloat(getComputedStyle(scroll).getPropertyValue('--page-top-space'));
     const visible = Array.from(scroll.querySelectorAll<HTMLElement>('[data-letter]')).find(group => group.getBoundingClientRect().bottom > top);
     if (visible) setLetter(visible.dataset.letter ?? '');
   };
@@ -305,29 +308,30 @@ function KindIndexPane(props: IndexPaneProps) {
     finally { setBusy(false); }
   };
 
-  return <div ref={scroll} class={`index-pane ${props.kindKey === 'unfiled' ? 'index-unfiled' : props.kindKey === 'source' ? 'index-sources' : ''}`} role="region" tabIndex={0} aria-label={`${title()} index`} aria-busy={index.loading || definitions.loading || matches.loading} data-pane-pending={pending() ? '' : undefined} onFocusIn={props.onActivate} onScroll={scrollChanged}>
+  return <div ref={scroll} class={`index-pane ${props.kindKey === 'unfiled' ? 'index-unfiled' : props.kindKey === 'source' ? 'index-sources' : ''}`} classList={{ 'index-selecting': selecting() }} role="region" tabIndex={0} aria-label={`${title()} list`} aria-busy={index.loading || definitions.loading || matches.loading} data-pane-pending={pending() ? '' : undefined} onFocusIn={props.onActivate} onScroll={scrollChanged}>
     <div class="index-sheet">
-      <p class="index-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : props.kindKey === 'source' ? 'Index · Bibliography' : 'Index'}</p>
+      <Show when={props.kindKey === 'unfiled' || props.kindKey === 'source'}><p class="index-eyebrow index-kind-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : 'Bibliography'}</p></Show>
       <div class="index-head"><h1><Icon name={noteKindIcon(props.kind ?? props.kindKey)} />{saved()?.name ?? title()}</h1>
         <Show when={count() != null && !missingFields().length}><span class="index-tally">{tally(count()!, ['task', 'question', 'source', 'project'].includes(props.kindKey) ? props.kindKey : 'atom')}</span></Show>
         <Show when={noteMode() && !missingFields().length}><RequiredGaps gaps={incomplete.latest?.map(field => ({ field_id: field.field_id, missing: field.owners.size }))} name={fieldName} onShow={showMissing} /></Show>
-        <Show when={groups().length}><NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} members={index.latest?.notes} /></Show>
+        <NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} onNewAction={props.onNewAction} members={index.latest?.notes} visible={!!groups().length} />
       </div>
       <Show when={typeId()}>{id => <TypeModeTabs active="index" indexCount={missingFields().length ? undefined : count()} tableCount={missingFields().length ? undefined : count()} fieldsCount={type()?.fields.length}
         cardsCount={type()?.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: id() }, opensBeside(event))}
         onIndex={() => { scroll.scrollTop = 0; }} onTable={openTable}
         onFields={event => props.onOpen({ kind: 'fields', typeId: id() }, opensBeside(event))} />}</Show>
       <Show when={noteMode()}>
-        <Show when={!typeId()}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Atom view"><Button aria-pressed="true">Index <span class="faint">{missingFields().length ? undefined : count()}</span></Button><Button onClick={openTable}>Table <span class="faint">{missingFields().length ? undefined : count()}</span></Button></div></Show>
+        <Show when={!typeId()}><div class="type-mode-tabs mode-tabs tab-strip" role="group" aria-label="Atom view"><Button aria-pressed="true">List <span class="faint">{missingFields().length ? undefined : count()}</span></Button><Button onClick={openTable}>Table <span class="faint">{missingFields().length ? undefined : count()}</span></Button></div></Show>
         <NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery}>
-          <Button class="bordered" aria-haspopup="menu" onClick={event => setGroupMenu(event.currentTarget)}>Group <Icon name="down" /></Button>
-          <Button class="bordered" onClick={event => setFilterMenu(event.currentTarget)}>Filters</Button>
-          <Button onClick={event => { setViewName(''); setSaveAnchor(event.currentTarget); }}>Save as view…</Button>
+          <Button class="bordered index-desktop-control" aria-haspopup="menu" onClick={event => setGroupMenu(event.currentTarget)}>Group <Icon name="down" /></Button>
+          <Button class="bordered index-desktop-control" onClick={event => setFilterMenu(event.currentTarget)}>Filters</Button>
+          <Button class="index-desktop-control" onClick={event => { setViewName(''); setSaveAnchor(event.currentTarget); }}>Save as view…</Button>
+          <Button class="bordered index-phone-control" icon="query" label="List options" aria-haspopup="dialog" aria-expanded={!!optionsAnchor()} onClick={event => setOptionsAnchor(event.currentTarget)} />
         </NoteFind>
         <Show when={definitions() && query().filters.length}><div class="table-query-chips"><For each={query().filters}>{(filter, at) => <span class="table-chip">{filterLabel(filter, [...noteAttributes, ...definitions()?.fields ?? []], props.notebook, query().field_names)}<Button label="Remove filter" onClick={() => updateQuery(removeFilter(query(), at()))}>×</Button></span>}</For></div></Show>
         <Show when={missingFields().length}><MissingFields fields={missingFields()} busy={busy()} onRemove={id => { void removeMissingField(id); }} /><p class="faint">Results paused; remove the missing field or undo its deletion.</p></Show>
         <Show when={error() || definitions.error}><p class="error" role="alert">{error() || String(definitions.error)}</p></Show>
-        <Show when={picked().length}><div class="index-selection" role="status"><span>{picked().length} selected</span><Show when={props.onSpread}><Button disabled={picked().length < 2 || picked().length > 5} title={picked().length < 2 || picked().length > 5 ? 'Select two to five atoms' : undefined} onClick={event => props.onSpread?.(picked(), opensBeside(event))}>Spread</Button></Show><Button onClick={() => setPicked([])}>Clear</Button></div></Show>
+        <Show when={picked().length || selecting()}><div class="index-selection" role="status"><span>{picked().length} selected</span><Show when={props.onSpread}><Button disabled={picked().length < 2 || picked().length > 5} title={picked().length < 2 || picked().length > 5 ? 'Select two to five atoms' : undefined} onClick={event => props.onSpread?.(picked(), opensBeside(event))}>Spread</Button></Show><Button onClick={() => setPicked([])}>Clear</Button><Show when={selecting()}><Button onClick={() => { setSelecting(false); setPicked([]); }}>Done</Button></Show></div></Show>
         <Show when={matches.error}><p class="error" role="alert">{String(matches.error)}</p></Show>
       </Show>
       <Show when={index.error}><p class="error" role="alert">Couldn’t load this index · {String(index.error)}</p></Show>
@@ -407,12 +411,20 @@ function KindIndexPane(props: IndexPaneProps) {
         </Switch>
       </Show></Show>
     </div>
+    <Show when={optionsAnchor()}>{anchor => <Popup anchor={anchor()} placement="sheet" class="index-options-sheet" label="List options" onDismiss={() => setOptionsAnchor(undefined)}>
+      <h2 class="table-popup-heading">List options</h2>
+      <Button aria-haspopup="menu" onClick={event => setGroupMenu(event.currentTarget)}>Group <Icon name="down" /></Button>
+      <Button aria-haspopup="dialog" onClick={event => setFilterMenu(event.currentTarget)}>Filters <span class="faint">{query().filters.length || ''}</span></Button>
+      <Button onClick={event => { setViewName(''); setSaveAnchor(event.currentTarget); }}>Save as view…</Button>
+      <Button onClick={() => { setSelecting(true); setOptionsAnchor(undefined); }}>Select atoms</Button>
+      <div class="popup-actions"><Button class="bordered" onClick={() => setOptionsAnchor(undefined)}>Done</Button></div>
+    </Popup>}</Show>
     <Show when={groupMenu()}>{anchor => <Menu anchor={anchor()} label="Group" onDismiss={() => setGroupMenu(undefined)} items={[
       ...Object.entries({ letter: 'Letter', source: 'Source cited', link: 'Atom linked', created: 'Created month' }).map(([key, label]) => ({ label, checked: grouping() === key, action: () => updateQuery({ ...query(), note_view: { layout: 'index', grouping: key } }) })),
       ...(kindFields() ?? []).map(field => ({ label: field.name, checked: grouping() === `field:${field.id}`, action: () => updateQuery({ ...query(), note_view: { layout: 'index', grouping: `field:${field.id}` } }) })),
     ]} />}</Show>
-    <Show when={filterMenu()}>{anchor => <FilterPopup anchor={anchor()} initialField="" fields={kindFields() ?? []} notebook={props.notebook} onDismiss={() => setFilterMenu(undefined)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setFilterMenu(undefined); }} />}</Show>
-    <Show when={saveAnchor()}>{anchor => <Popup anchor={anchor()} label="Save as view…" onDismiss={() => setSaveAnchor(undefined)}>
+    <Show when={filterMenu()}>{anchor => <FilterPopup anchor={anchor()} initialField="" fields={kindFields() ?? []} notebook={props.notebook} sheet={cover()} onDismiss={() => setFilterMenu(undefined)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setFilterMenu(undefined); }} />}</Show>
+    <Show when={saveAnchor()}>{anchor => <Popup anchor={anchor()} placement={cover() ? 'sheet' : 'anchor'} label="Save as view…" onDismiss={() => setSaveAnchor(undefined)}>
       <form onSubmit={event => { event.preventDefault(); void saveView(); }}><input class="input" aria-label="View name" placeholder="View name" value={viewName()} onInput={event => setViewName(event.currentTarget.value)} maxlength={120} />
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button onClick={() => setSaveAnchor(undefined)}>Cancel</Button><Button type="submit" class="bordered" disabled={busy() || !viewName().trim()}>Save</Button></div>
       </form>
@@ -443,7 +455,7 @@ function KindIndexPane(props: IndexPaneProps) {
 const startable: Record<string, 'type' | 'task' | 'question' | 'project'> = { person: 'type', group: 'type', concept: 'type', thesis: 'type', task: 'task', question: 'question', project: 'project' };
 
 /** An empty kind says how pages arrive in it and, for built-in kinds, starts one. */
-function EmptyKind(props: { kindKey: string; kind: NoteKind | IndexKind | undefined; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void }) {
+function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' | 'onOpen'>) {
   const mode = () => props.kind ? startable[props.kindKey] : undefined;
   // A type that only tags blocks has members, just none of them notes; its table lists them.
   const tagged = () => props.kind && 'tagged_block_count' in props.kind && tagOnly(props.kind) ? props.kind : undefined;
@@ -472,11 +484,13 @@ function EmptyKind(props: { kindKey: string; kind: NoteKind | IndexKind | undefi
   </div>;
 }
 
-function NewKindAction(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' | 'onOpen'> & { members?: { id: string }[] }) {
+function NewKindAction(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' | 'onOpen' | 'onNewAction'> & { members?: { id: string }[]; visible?: boolean }) {
   const [anchor, setAnchor] = createSignal<HTMLElement>();
   const mode = () => props.kind ? startable[props.kindKey] ?? (props.kind.type_id ? 'type' : undefined) : undefined;
+  createEffect(() => props.onNewAction?.(mode() ? { label: `New ${kindNoun(props.kind!)}`, run: setAnchor } : undefined));
+  onCleanup(() => props.onNewAction?.(undefined));
   return <>
-    <Show when={mode()}><Button class="bordered" icon="plus" aria-haspopup="dialog" onClick={event => setAnchor(event.currentTarget)}>New {kindNoun(props.kind!)}…</Button></Show>
+    <Show when={mode() && props.visible !== false}><Button class="bordered index-new-kind" icon="plus" aria-haspopup="dialog" onClick={event => setAnchor(event.currentTarget)}>New {kindNoun(props.kind!)}…</Button></Show>
     <Show when={anchor()}>{target => <CreateSlip request={{ kind: mode() === 'task' ? 'task' : mode() === 'question' ? 'question' : mode() === 'project' ? 'project' : `type:${props.kindKey}`, text: '', lockKind: true }} anchor={target()} notebook={props.notebook} onDismiss={() => setAnchor(undefined)} defaultBeside={window.matchMedia('(pointer: coarse)').matches && document.querySelectorAll('.panes > .pane:not(.folded)').length > 1} onOpen={props.onOpen} />}</Show>
   </>;
 }
