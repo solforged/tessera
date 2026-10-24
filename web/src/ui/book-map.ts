@@ -1,5 +1,5 @@
 import type { TocEntry } from '../api/types';
-import { isFrontMatter } from '../reader/openings';
+import { contentsTitle, isFrontMatter } from '../reader/openings';
 
 /** A stretch of the text by character offset: `start` up to, not including, `end`. */
 export interface Chapter { title: string; start: number; end: number }
@@ -41,7 +41,7 @@ export function bookChapters(toc: readonly TocEntry[], length: number): Chapter[
   const starts = chapterEntries(placed).sort((a, b) => a.start - b.start)
     .filter((entry, index, all) => index === all.length - 1 || entry.start < all[index + 1]!.start);
   if (!starts.length) return [{ title: '', start: 0, end: length }];
-  const chapters: Chapter[] = starts.map((entry, index) => ({ title: isFrontMatter(entry.title) ? '' : entry.title, start: entry.start, end: starts[index + 1]?.start ?? length }));
+  const chapters: Chapter[] = starts.map((entry, index) => ({ title: isFrontMatter(entry.title) ? '' : contentsTitle(entry.title), start: entry.start, end: starts[index + 1]?.start ?? length }));
   if (chapters[0]!.start > 0) chapters.unshift({ title: '', start: 0, end: chapters[0]!.start });
   return chapters;
 }

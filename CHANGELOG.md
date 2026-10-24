@@ -14,6 +14,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Showed contents titles in one display form across the reader, Find, Review and the palette: all-capital titles take title case, numbered-label-only entries open as one title (`Book Three`), the running head drops capitals for the foot's numeral and italic title, and the book's own title page is no longer drawn again after Tessera's.
 - Kept receipt blobs out of the change catch-up read's sort, so `changes_since` meets its 100 ms budget at 10,000 and 50,000 blocks, and paged HTTP and WebSocket catch-up at 500 events to match the client.
 - Named history entries that touched no atom (a created page, a settings change) by their reason or `Changed the workshop` instead of `0 atoms changed`.
 - Showed logged work beside task rows as a quiet duration chip that opens their work sessions, excluding the running clock and reversed sessions.

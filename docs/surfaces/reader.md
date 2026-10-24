@@ -34,7 +34,7 @@ The title page has:
 - The chapter count, using the shared chapter entries regardless of their language or numbering, and reading time in mono.
 - A gilt Begin at link to the first opening: `Begin at Preface`, `Begin at chapter I`.
 
-The file's own cover image at the start is not drawn again. A split title, parenthetical edition and recorded creator byline immediately repeating the title page are not drawn again either. Highlights keep their passages visible.
+The file's own cover image at the start is not drawn again. A split title, parenthetical edition and recorded creator byline immediately repeating the title page are not drawn again either. Contents sections named Cover, Title page, Title or Half title are not drawn, since the title page replaces them; an illustration in one that is not the cover stays, with the caption text that follows it. Before the first chapter, a line made mostly of words from the title, subtitle, creators (in either order) and publisher, with at most two other words, is not drawn, as `A Farewell To Arms Hemingway, Ernest`. Copyright, dedication and epigraph text stays. Highlights keep their passages visible.
 
 Creator names join with ` · `, matching Library and source headers.
 
@@ -54,13 +54,17 @@ Older inferred contents entries that name a lone paragraph by a truncated excerp
 
 Chapter openings come from the contents, not the file's heading markup, so every book opens its chapters the same way. Each chapter, except front matter and entries that only repeat the book's title, opens four lines down from the passage before, with:
 
-- A rubric mono label: `CHAPTER I`, `BOOK`, `INTRODUCTION`; none for an unnumbered section.
+- A rubric mono label: `CHAPTER I`, `BOOK ONE`, `INTRODUCTION`; none for an unnumbered section or an entry that is only a numbered label, whose whole entry is the title (`Book Three`, `Chapter 5`).
 - The title in Piazzolla at 2.1 times the reading size.
 - A gilt rubric rule.
 
 The first line of text takes small capitals. A chapter that starts at the same passage as its part has the part above it in `--faint` mono capitals, as `PART ONE · AN EXCESS OF GOOD FORTUNE`.
 
 Numerals are recognized as `Chapter 3`, `Book One`, `Part II`, or a bare upper-case Roman numeral or number before `.` or `:`. A title such as `I Remember` stays a title. Decorations around a title, such as `~Book One~`, are dropped.
+
+### Title case
+
+A contents title shows in one form wherever the reader, Find, Review or the palette names a section; the stored entry never changes. A title set entirely in capitals takes title case, with minor words (a, an, and, as, at, but, by, for, in, nor, of, on, or, the, to, up, via, with) lowercase except first and last: `THE FIRST BOOK` reads `The First Book`. Roman numerals stay capitals. A mixed-case title keeps its authored case, except that its first letter is capitalized and a word of five or more capitals inside it takes title case, so `concerning HIMSELF:` reads `Concerning Himself` while `NATO` stays. Trailing colons, semicolons, commas and a word's final period are dropped.
 
 ### Heading suppression
 
@@ -157,7 +161,7 @@ Pages lays the text out in columns the height of the pane and turns them a page 
 
 ### Running heads and openings
 
-A running head in centered mono `--faint` capitals sits over each column:
+A running head in centered `--faint` sits over each column, in the foot's vocabulary: a numeral in mono, the title in Piazzolla italic.
 
 | Page | Running head |
 | --- | --- |

@@ -2,6 +2,7 @@ import { For, Show } from 'solid-js';
 import type { ApiClient } from '../api/client';
 import type { CardRow, Citation, Passage, SourceView } from '../api/types';
 import { followOn } from '../reader/sentences';
+import { contentsTitle } from '../reader/openings';
 
 export interface ReviewSource {
   citation: Citation;
@@ -36,7 +37,7 @@ export async function reviewSource(api: ApiClient, row: CardRow): Promise<Review
   }
   const trailing = end < 0 ? '' : [passages[end]!.text.slice(citation.end.offset), ...passages.slice(end + 1).map(passage => passage.text)].join('\n\n').trim();
   const chapter = citation.chapter_title ?? page.toc.filter(entry => entry.ordinal !== null && entry.ordinal <= citation.ordinal).at(-1)?.title ?? null;
-  return { citation, source, chapter, passages: passages.slice(0, end < 0 ? passages.length : end + 3), following: followOn(trailing) };
+  return { citation, source, chapter: chapter ? contentsTitle(chapter) : null, passages: passages.slice(0, end < 0 ? passages.length : end + 3), following: followOn(trailing) };
 }
 
 /** A quiet reading half, without reader navigation or edits. The answer waits for reveal. */

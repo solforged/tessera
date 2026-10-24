@@ -10,13 +10,13 @@ export interface Opening {
   /** The contents entry as written, which heading lines that only restate it are matched against. */
   heading: string;
   /**
-   * `Chapter I`, `Book One`, `Part Two`; `Chapter` alone when the title is only a number; the section's word for a
+   * `Chapter I`, `Book One`, `Part Two` for an entry with a title; the section's word for a
    * titled introduction, appendix or the like (`Introduction: The Iron Law`); null otherwise.
    */
   label: string | null;
   /** The part this chapter opens, when the two start at the same passage: its entry as written and as drawn (`Part One · An Excess of Good Fortune`). */
   part: { heading: string; text: string } | null;
-  /** The title proper, without its numeral or section word; the numeral itself when the entry is only a number. */
+  /** The title proper, or the whole normalized entry when it is only a label and numeral. */
   title: string;
   /** How a sentence refers to the section: `chapter I`, `Book One`, `Introduction`, `Preface`. */
   name: string;
@@ -33,6 +33,24 @@ export const normalizeTitle = (text: string) => text.normalize('NFKD').replace(/
 const ROMAN = /^(?=[mdclxvi])m{0,3}(c[md]|d?c{0,3})(x[cl]|l?x{0,3})(i[xv]|v?i{0,3})$/;
 const ROMAN_VALUES: Record<string, number> = { i: 1, v: 5, x: 10, l: 50, c: 100, d: 500, m: 1000 };
 const WORDS = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
+const MINOR_WORDS: Record<string, true> = Object.fromEntries(['a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'in', 'nor', 'of', 'on', 'or', 'the', 'to', 'up', 'via', 'with'].map(word => [word, true]));
+const titleWord = (word: string) => word.toLocaleLowerCase().replace(/^\p{L}|(?<=^\p{L}['’])\p{L}/gu, letter => letter.toLocaleUpperCase());
+
+/** Display only: quiet shouting titles without rewriting authored mixed case, punctuation inside words or numerals. */
+export function contentsTitle(title: string): string {
+  const text = title.trim().replace(/^[~*•·◆◇\s]+|[~*•·◆◇\s]+$/gu, '').replace(/\s+/gu, ' ')
+    .replace(/(?:[:;,]\s*)+$/u, '').replace(/(\p{L}{2,})\.$/u, '$1').trimEnd();
+  const words = [...text.matchAll(/\p{L}+(?:['’]\p{L}+)*|\p{N}+/gu)];
+  const letters = words.filter(([word]) => !ROMAN.test(word.toLocaleLowerCase())).map(([word]) => word.replace(/[^\p{L}]/gu, '')).join('');
+  const shouting = letters.length >= 2 && letters === letters.toLocaleUpperCase();
+  let index = 0;
+  return text.replace(/\p{L}+(?:['’]\p{L}+)*|\p{N}+/gu, word => {
+    const at = index++, lower = word.toLocaleLowerCase();
+    if (ROMAN.test(lower) && (word === word.toLocaleUpperCase() || words.length === 1 || /^(?:chapter|book|part)$/i.test(words[at - 1]?.[0] ?? ''))) return word.toLocaleUpperCase();
+    if (shouting) return at > 0 && at < words.length - 1 && MINOR_WORDS[lower] && !/[.:–—]\s*$/.test(text.slice(0, words[at]!.index)) ? lower : titleWord(word);
+    return word.replace(/[^\p{L}]/gu, '').length >= 5 && word === word.toLocaleUpperCase() ? titleWord(word) : word;
+  }).replace(/\p{L}/u, letter => letter.toLocaleUpperCase());
+}
 /** Front matter keeps the file's own markup: it has no chapter to open, nor a name in the foot or progress. */
 const FRONT: Record<string, true> = Object.fromEntries(['cover', 'title page', 'title', 'half title', 'copyright', 'copyright page', 'contents', 'table of contents', 'illustrations', 'list of illustrations', 'abbreviations', 'list of abbreviations', 'dedication', 'epigraph', 'frontispiece', 'map', 'maps', 'list of maps', 'family tree', 'family trees', 'genealogy', 'genealogical table', 'genealogical tables', 'major characters', 'principal characters', 'cast of characters', 'dramatis personae', 'list of figures', 'list of tables', 'praise'].map(key => [key, true]));
 const ALSO_BY = /^(also by|other books by|other titles by|books by|by the same author)\b/;
@@ -69,7 +87,7 @@ const capitalized = (word: string) => word[0]!.toLocaleUpperCase() + word.slice(
  */
 function parse(title: string): Parsed {
   // Decorations around a title (`~Book One~`, `* 3 *`) are not part of it.
-  const text = title.trim().replace(/^[~*•·◆◇\s]+|[~*•·◆◇\s]+$/gu, '');
+  const text = contentsTitle(title);
   const named = text.match(/^(chapter|book|part)\s+([^\s.:]+)(?:[.:]|\s+[-–—])?\s*(.*)$/i);
   if (named) {
     const value = numberOf(named[2]!);
@@ -100,23 +118,26 @@ export function bookKeys(...titles: (string | null | undefined)[]): Set<string> 
   return keys;
 }
 
-/** Title-page-only repetitions: a split edition and a byline made from the recorded creators. */
-export function repeatsTitleDetails(text: string, titles: readonly string[], creators: readonly string[]): boolean {
-  const key = normalizeTitle(text);
-  if (titles.some(title => normalizeTitle(title.match(/\(([^()]*(?:edition|ed\.)[^()]*)\)\s*$/i)?.[1] ?? '') === key)) return !!key;
-  const names = text.replace(/^\s*by\s+/i, '').split(/\s+(?:and|&)\s+|,\s*/i).map(normalizeTitle);
-  const known = new Set(creators.map(normalizeTitle));
-  return names.length > 0 && names.every(name => !!name && known.has(name));
+/** Words a title page may repeat, independent of punctuation, creator order, or a connecting by/and. */
+export function titlePageWords(...details: (string | null | undefined)[]): Set<string> {
+  return new Set(details.flatMap(text => normalizeTitle(text ?? '').split(' ').filter(word => word && word !== 'by' && word !== 'and')));
+}
+
+/** Require a majority of recorded words so a short unrelated dedication cannot count as a byline. */
+export function repeatsTitlePage(text: string, words: ReadonlySet<string>): boolean {
+  const tokens = normalizeTitle(text).split(' ').filter(word => word && word !== 'by' && word !== 'and');
+  let known = 0, other = 0;
+  for (const token of tokens) { if (words.has(token)) known++; else other++; }
+  return known > other && other <= 2;
 }
 
 /** A contents entry that only repeats the book's title: a running head the file marked as navigation. */
 export const repeatsBook = (entry: { title: string }, book: ReadonlySet<string>) => book.has(normalizeTitle(entry.title));
 
 export function sectionName(title: string): SectionName {
-  const parsed = parse(title);
-  if (parsed.kind === null) return { numeral: null, title: parsed.rest };
-  if (parsed.kind !== 'chapter') return { numeral: null, title: parsed.rest || `${capitalized(parsed.kind)} ${parsed.numeral}` };
-  return parsed.rest ? { numeral: parsed.numeral, title: parsed.rest } : { numeral: null, title: `Chapter ${parsed.numeral}` };
+  const normalized = contentsTitle(title), parsed = parse(normalized);
+  if (parsed.kind === null || !parsed.rest) return { numeral: null, title: normalized };
+  return { numeral: parsed.kind === 'chapter' ? parsed.numeral : null, title: parsed.rest };
 }
 
 /** A section's name on one line, as the running head, the progress card and the library say it: `IV · The Idea of Chivalry`, `Chapter 5`. */
@@ -130,12 +151,16 @@ const SECTION_WORD = /^((?:introduction|preface|foreword|prologue|epilogue|after
 
 function opening(entry: TocEntry & { ordinal: number }): Opening {
   const parsed = parse(entry.title), at = { ordinal: entry.ordinal, heading: entry.title, part: null };
+  if (parsed.kind !== null && !parsed.rest) {
+    const title = contentsTitle(entry.title);
+    return { ...at, label: null, title, name: title };
+  }
   if (parsed.kind === null) {
     const word = parsed.rest.match(SECTION_WORD);
     return word ? { ...at, label: word[1]!, title: word[2]!, name: word[1]! } : { ...at, label: null, title: parsed.rest, name: parsed.rest };
   }
   const kind = capitalized(parsed.kind);
-  return { ...at, label: parsed.rest ? `${kind} ${parsed.numeral}` : kind, title: parsed.rest || parsed.numeral!, name: `${parsed.kind === 'chapter' ? 'chapter' : kind} ${parsed.numeral}` };
+  return { ...at, label: `${kind} ${parsed.numeral}`, title: parsed.rest, name: `${parsed.kind === 'chapter' ? 'chapter' : kind} ${parsed.numeral}` };
 }
 
 /**
@@ -185,15 +210,31 @@ export interface AbsorbedPassages {
   first: Set<number>;
 }
 
+export interface TitlePageAbsorption {
+  contents: readonly TocEntry[];
+  total: number;
+  words: ReadonlySet<string>;
+  cover: string | null;
+  /** All passages spanned by highlights, unlike opening headings which protect only endpoints. */
+  highlighted: ReadonlySet<number>;
+  /** Some EPUBs wrap all prose, including title pages, in blockquotes. */
+  quotesAreText?: boolean;
+}
+
+const TITLE_PAGE = /^(?:cover|title page|title|half title)$/;
+const KEEP_FRONT = /^(?:copyright(?: page)?|dedication|epigraph)$/;
+const KEEP_TITLE_TEXT = /^(?:copyright\b|dedication\b|epigraph\b)|©/i;
+
 /**
  * From each opening's first passage, the heading lines that only restate it, up to the next opening; from each entry
  * that repeats the book's title, the running heads that repeat it. A passage with a highlight, an image or anything
  * else ends the run. `passageAt` is undefined for passages not yet loaded, which also ends it until they arrive.
  */
 export function absorbedPassages(openings: ReadonlyMap<number, Opening>, titleEntries: readonly number[],
-  passageAt: (ordinal: number) => { kind: string; text: string } | undefined, highlighted: (ordinal: number) => boolean, book: ReadonlySet<string>,
-  titleDetails: (text: string) => boolean = () => false): AbsorbedPassages {
+  passageAt: (ordinal: number) => { kind: string; text: string; resource?: string | null } | undefined, highlighted: (ordinal: number) => boolean, book: ReadonlySet<string>,
+  titlePage?: TitlePageAbsorption): AbsorbedPassages {
   const hidden = new Set<number>(), first = new Set<number>();
+  const firstOpening = Math.min(...openings.keys());
   const walk = (start: number, repeats: (text: string) => boolean) => {
     for (let ordinal = start; ordinal < start + 6; ordinal++) {
       const passage = passageAt(ordinal);
@@ -203,15 +244,34 @@ export function absorbedPassages(openings: ReadonlyMap<number, Opening>, titleEn
     }
     return null;
   };
-  // A file's opening title page need not have its own contents entry. Skip only its leading cover images.
-  for (let ordinal = 0; ordinal < 6; ordinal++) {
-    const passage = passageAt(ordinal);
-    if (!passage) break;
-    if (passage.kind === 'image') continue;
-    if (book.has(normalizeTitle(passage.text))) walk(ordinal, text => book.has(normalizeTitle(text)) || titleDetails(text));
-    break;
+  if (titlePage) {
+    const entries = titlePage.contents.filter((entry): entry is TocEntry & { ordinal: number } => entry.ordinal !== null).sort((a, b) => a.ordinal - b.ordinal);
+    const firstChapter = entries.find(entry => !isFrontMatter(entry.title) && !repeatsBook(entry, book))?.ordinal ?? titlePage.total;
+    const until = Math.min(titlePage.total, firstChapter, firstOpening);
+    let entryIndex = -1, section = '', caption = false;
+    for (let ordinal = 0; ordinal < until; ordinal++) {
+      while (entries[entryIndex + 1] && entries[entryIndex + 1]!.ordinal <= ordinal) {
+        section = normalizeTitle(entries[++entryIndex]!.title);
+        caption = false;
+      }
+      const passage = passageAt(ordinal);
+      if (!passage) continue;
+      const protectedPassage = highlighted(ordinal) || titlePage.highlighted.has(ordinal) || KEEP_FRONT.test(section);
+      if (passage.kind === 'image') {
+        const cover = !!titlePage.cover && passage.resource === titlePage.cover;
+        // A retained illustration keeps its following caption until another image or contents section.
+        caption = TITLE_PAGE.test(section) && !cover;
+        if (cover && !protectedPassage) hidden.add(ordinal);
+        continue;
+      }
+      if (protectedPassage || caption) continue;
+      if (passage.kind === 'quote' && !titlePage.quotesAreText || KEEP_TITLE_TEXT.test(passage.text.trim())) continue;
+      if (/^(?:for|to)\b/i.test(passage.text.trim()) && !book.has(normalizeTitle(passage.text))) continue;
+      if (TITLE_PAGE.test(section) || repeatsTitlePage(passage.text, titlePage.words)) hidden.add(ordinal);
+    }
   }
-  for (const ordinal of titleEntries) if (!openings.has(ordinal)) walk(ordinal, text => book.has(normalizeTitle(text)) || titleDetails(text));
+  // Navigation can repeat the book's title later too, but it must never absorb another title-page byline there.
+  for (const ordinal of titleEntries) if (!openings.has(ordinal) && (!titlePage || ordinal >= firstOpening)) walk(ordinal, text => book.has(normalizeTitle(text)));
   for (const { ordinal, heading, part } of openings.values()) {
     const text = walk(ordinal, value => repeatsOpening(value, heading, book) || (!!part && repeatsOpening(value, part.heading, book)));
     if (text !== null && passageAt(text)?.kind !== 'image') first.add(text);
