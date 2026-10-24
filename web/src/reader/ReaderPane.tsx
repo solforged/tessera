@@ -156,7 +156,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     for (const passage of passages.values()) { if (passage.kind === 'quote') quotes++; else if (passage.kind === 'paragraph') plain++; }
     return quotes >= 12 && quotes > plain;
   });
-  let scroll!: HTMLDivElement, probe!: HTMLDivElement, header!: HTMLDivElement, frame: HTMLDivElement | undefined, flow: HTMLDivElement | undefined, margin: HTMLElement | undefined;
+  let scroll!: HTMLDivElement, probe!: HTMLDivElement, header!: HTMLDivElement, masthead!: HTMLDivElement, frame: HTMLDivElement | undefined, flow: HTMLDivElement | undefined, margin: HTMLElement | undefined;
   let pointerStart: { x: number; y: number; touch: boolean } | null = null, wheelTotal = 0, lastWheel = 0, lastTurn = 0, countFrame = 0;
   /** A finger dragging the page sideways in Pages: its offset and speed, once it has moved far enough to tell a swipe from a scroll. */
   let drag: { axis: 'x' | 'y' | null; offset: number; time: number; velocity: number } | null = null;
@@ -290,7 +290,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   function hideChrome() {
     if (popup() || selection()) return;
     const focused = document.activeElement;
-    if (focused instanceof HTMLElement && header.contains(focused)) {
+    if (focused instanceof HTMLElement && (header.contains(focused) || masthead.contains(focused))) {
       if (keyboardFocus) return;
       focused.blur();
     }
@@ -767,7 +767,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         const rect = characterRect(node, options.character - start);
         // Citation reveals clear the top fade; position restoration keeps its exact character anchor.
         const top = scroll.getBoundingClientRect().top;
-        const chrome = options.reveal && chromeOverlays() && !chromeHidden() ? Math.max(0, header.getBoundingClientRect().bottom - top) : 0;
+        const chrome = options.reveal && chromeOverlays() && !chromeHidden() ? Math.max(0, (coverReading() ? masthead : header).getBoundingClientRect().bottom - top) : 0;
         const inset = options.reveal ? chrome + cssValue('--space-24') + cssValue('--space-4') : 0;
         if (rect) scroll.scrollTop += rect.top - top - inset;
         break;
@@ -1586,12 +1586,16 @@ export function ReaderPane(props: ReaderPaneProps) {
   // itself loading rather than pending, and the leaf turns to its masthead while the text fades in where it lands.
   return <div class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden(), 'reader-chrome-over': chromeOverlays(), 'reader-loading': loading() }} data-pane-loading={loading() ? '' : undefined} style={readerStyle()} onPointerDown={props.onActivate}
     onFocusIn={props.onActivate} onPointerMove={pointerMoved}>
-    {/* The cover screen hides the pane header and bottom nav while reading; the book's name heads the page instead. */}
-    <div class="reader-masthead">
+    {/* The cover screen owns its glass navigation bar and keeps the reading tools at the foot. */}
+    <div ref={masthead} class="reader-masthead" onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
       <Button icon="left" label="Back" onClick={() => props.onBack()} />
-      <h2>{title() || 'Reader'}</h2>
+      <h2 title={title() || 'Reader'}>{title() || 'Reader'}</h2>
+      <Show when={coverReading()}>
+        <Button class="reader-settings-toggle" label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
+        <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => setPopup({ kind: 'actions', anchor: event.currentTarget })} />
+      </Show>
     </div>
-    <div ref={header} class="reader-header" style={{ 'max-width': spreadWidth() }} onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
+    <div ref={header} class="reader-header" role="toolbar" aria-label="Reading tools" style={{ 'max-width': spreadWidth() }} onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
       <Show when={noteReturn()}><Button icon="left" label="Back to footnote reference" onClick={() => { void returnFromFootnote(); }} /></Show>
       <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup={textWidth() === null ? 'dialog' : undefined} disabled={!contents().length} onClick={event => {
         if (textWidth() !== null && margin?.isConnected) {
@@ -1604,9 +1608,11 @@ export function ReaderPane(props: ReaderPaneProps) {
       }}><span><Show when={!loading() && currentSection()} fallback="Contents">{entry => <SectionLabel title={entry().title} />}</Show></span><Icon name="down" /></Button>
       <Button icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span>{sourceHighlights().length}</span></Show></Button>
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
-      <Button class="reader-settings-toggle" label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
-      <Button class="reader-full-screen" icon={props.immersive ? 'contract' : 'expand'} label={props.immersive ? 'Exit full screen' : 'Full screen'} shortcut={props.immersive ? 'F or Esc' : 'F'} onClick={() => props.onImmersive(!props.immersive)} />
-      <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => setPopup({ kind: 'actions', anchor: event.currentTarget })} />
+      <Show when={!coverReading()}>
+        <Button class="reader-settings-toggle" label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
+        <Button class="reader-full-screen" icon={props.immersive ? 'contract' : 'expand'} label={props.immersive ? 'Exit full screen' : 'Full screen'} shortcut={props.immersive ? 'F or Esc' : 'F'} onClick={() => props.onImmersive(!props.immersive)} />
+        <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => setPopup({ kind: 'actions', anchor: event.currentTarget })} />
+      </Show>
     </div>
     <Show when={error()}><p class="reader-error error" role="alert">{error()}</p></Show>
     <Show when={loading()}><p class="reader-status" role="status">Loading…</p></Show>
@@ -1671,7 +1677,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         row={row => <div class="reader-highlight-entry"><span class={`highlight-color-dot highlight-color-${row.citation.color ?? 'none'}`} aria-hidden="true" /><span class="reader-highlight-quote">{row.citation.quote}</span><span class="reader-highlight-section">{contentsTitle(highlightLocation(row.citation, sections()))}</span></div>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
         onPick={row => { void jumpHighlight(row.citation); }} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} header={(() => { const value = state(); return value.kind === 'menu' && value.Header ? <value.Header onDismiss={() => setPopup(null)} /> : undefined; })()} onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
+      <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
         status={<div class="reader-find-status"><span role="status">{hits().length} passages{morePassages() ? ' shown' : ''}</span><Show when={morePassages()}>{' '}<Button disabled={searching()} onClick={() => { void loadSearchPage(); }}>Load more passages</Button></Show></div>}
         row={hit => <span class="reader-search-entry"><span class="reader-search-snippet"><For each={hit.snippet_parts}>{part => part.match ? <mark class="reader-search-match">{part.text}</mark> : part.text}</For></span><span class="reader-highlight-section">Passage {hit.passage.ordinal + 1}<Show when={sectionAt(hit.passage.ordinal)}>{entry => <> · {sectionLabel(entry().title)}</>}</Show></span></span>} busy={searching() && !hits().length} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
         onPick={hit => { setPopup(null); const back = hit.snapshot_id === snapshot() ? returnMark() : null; switchSnapshot(hit.snapshot_id); void jump(hit.passage.ordinal).then(moved => { if (moved) offerReturn(back); }).catch(reason => { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); }); }}
