@@ -346,6 +346,7 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
 }
 /* The cover adds Up next below Reading cards without changing the shared heading. */
 @media (max-width: 599px) and (pointer: coarse) {
+  .library-cover-header > .button { min-width: var(--touch-target); min-height: var(--touch-target); }
   .library-pane:not(.library-search-open, .library-highlights-tab) .library-controls:not(:has(.library-selection-count)) { display: none; }
   .library-cover-reading .library-reading { padding-top: 0; }
   .library-cover-reading .library-reading > .library-reading-heading { display: none; }
