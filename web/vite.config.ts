@@ -7,14 +7,14 @@ import solid from 'vite-plugin-solid';
 
 export default defineConfig(({ mode }) => ({
   plugins: [solid(), ...(mode === 'demo' ? [demoOffline()] : [])],
-  define: { __TESSERA_DEMO__: mode === 'demo', __TESSERA_ANDROID__: mode === 'android' },
+  define: { __TESSERA_DEMO__: mode === 'demo', __TESSERA_MOBILE__: mode === 'mobile' },
   ...(mode === 'demo' ? {
     build: { outDir: 'dist-demo', rollupOptions: { input: 'demo.html' } },
     // The installable app's manifest and icons; not the native entry's offline worker.
     publicDir: 'public-demo',
     worker: { format: 'es' as const },
-  } : mode === 'android' ? {
-    build: { outDir: 'dist-android', rollupOptions: { input: 'android.html' } },
+  } : mode === 'mobile' ? {
+    build: { outDir: 'dist-mobile', rollupOptions: { input: 'mobile.html' } },
     publicDir: false,
   } : {}),
   server: {

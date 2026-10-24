@@ -5364,25 +5364,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tessera-android"
-version = "0.5.1"
-dependencies = [
- "axum",
- "base64 0.22.1",
- "parking_lot",
- "percent-encoding",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-barcode-scanner",
- "tessera-core",
- "tessera-service",
- "tokio",
- "tower",
-]
-
-[[package]]
 name = "tessera-bench"
 version = "0.5.1"
 dependencies = [
@@ -5484,6 +5465,25 @@ dependencies = [
  "thiserror 2.0.21",
  "url",
  "zip 6.0.0",
+]
+
+[[package]]
+name = "tessera-mobile"
+version = "0.5.1"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "parking_lot",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-barcode-scanner",
+ "tessera-core",
+ "tessera-service",
+ "tokio",
+ "tower",
 ]
 
 [[package]]

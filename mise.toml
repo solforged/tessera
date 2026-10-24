@@ -2,9 +2,9 @@
 # `mise tasks` lists the tasks. Longer tasks live in mise-tasks/.
 
 [tools]
-# The wasm32 target and llvm-tools build the browser demo; the Android target
-# builds the app.
-rust = { version = "stable", components = "rustfmt,clippy,llvm-tools", targets = "wasm32-unknown-unknown,aarch64-linux-android" }
+# The wasm32 target and llvm-tools build the browser demo; the Android and iOS
+# targets build the phone apps.
+rust = { version = "stable", components = "rustfmt,clippy,llvm-tools", targets = "wasm32-unknown-unknown,aarch64-linux-android,aarch64-apple-ios" }
 bun = "1.4"
 # Must match the wasm-bindgen crate in Cargo.lock.
 "github:wasm-bindgen/wasm-bindgen" = "0.2.129"
@@ -106,9 +106,9 @@ export AR_wasm32_unknown_unknown="$(rustc --print sysroot)/lib/rustlib/$(rustc -
 cargo clippy -p tessera-web -p tessera-service -p tessera-core --target wasm32-unknown-unknown --locked -- -D warnings
 """
 
-[tasks."android:pages"]
-description = "Build the Android app's pages into web/dist-android"
+[tasks."mobile:pages"]
+description = "Build the Android and iOS apps' pages into web/dist-mobile"
 depends = ["deps"]
-sources = ["web/src/**/*", "web/android.html", "web/package.json", "web/bun.lock", "web/vite.config.ts", "web/tsconfig.json"]
-outputs = ["web/dist-android/android.html"]
-run = "bun run --cwd web build:android"
+sources = ["web/src/**/*", "web/mobile.html", "web/package.json", "web/bun.lock", "web/vite.config.ts", "web/tsconfig.json"]
+outputs = ["web/dist-mobile/mobile.html"]
+run = "bun run --cwd web build:mobile"

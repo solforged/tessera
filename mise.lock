@@ -232,7 +232,7 @@ specifiers = ["stable"]
 
 [tools.rust.options]
 components = "clippy,llvm-tools,rustfmt"
-targets = "aarch64-linux-android,wasm32-unknown-unknown"
+targets = "aarch64-apple-ios,aarch64-linux-android,wasm32-unknown-unknown"
 
 [[tools.uv]]
 version = "0.13.0"

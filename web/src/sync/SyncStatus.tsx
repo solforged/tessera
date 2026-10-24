@@ -2,7 +2,7 @@ import { For, Match, Show, Switch, createEffect, createSignal, on, onCleanup, on
 import { Portal } from 'solid-js/web';
 import type { SyncState } from '../api/types';
 import { api } from '../api/client';
-import { ANDROID, DEMO } from '../demo/mode';
+import { DEMO, MOBILE } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -57,7 +57,7 @@ export function SyncLifecycle(props: { notebook: NotebookClient; anchor: HTMLEle
   onMount(() => {
     if (DEMO) return;
     void sync.refresh().then(state => {
-      if (ANDROID && state?.role === 'none' && !localStorage.getItem(SETUP_SEEN_KEY)) setSetup(true);
+      if (MOBILE && state?.role === 'none' && !localStorage.getItem(SETUP_SEEN_KEY)) setSetup(true);
     });
   });
   createEffect(on(() => props.notebook.changeSequence(), () => { if (!DEMO) void sync.refresh(); }, { defer: true }));
@@ -105,7 +105,8 @@ export function SyncFix(props: { health: SyncHealth; onError(message: string): v
   const [pairing, setPairing] = createSignal(false);
   const value = () => props.health;
   const download = () => downloadPage(value().role === 'replica' ? replica()?.hub_url : hubDevices.state()?.sharing.url);
-  const useDownload = () => value().behind === 'replica' && (ANDROID || /Android/.test(navigator.userAgent) || value().role === 'hub') && download();
+  // The download page offers the Android app; an iPhone updates from a build of its own.
+  const useDownload = () => value().behind === 'replica' && (/Android/.test(navigator.userAgent) || value().role === 'hub') && download();
   const act = async (action: () => Promise<SyncState>) => {
     if (running()) return;
     setRunning(true);

@@ -1,5 +1,5 @@
 import { Format, checkPermissions, requestPermissions, scan } from '@tauri-apps/plugin-barcode-scanner';
-import { ANDROID } from '../demo/mode';
+import { MOBILE } from '../demo/mode';
 
 export interface PairingTarget { url: string; code: string }
 
@@ -28,8 +28,10 @@ export async function scanPairing(): Promise<PairingTarget | null> {
   return parsePairingLink(result.content);
 }
 
-/** The name the Mac lists this device under: the phone's own name from MainActivity's bridge (Settings › About phone). */
+/** The name the Mac lists this device under: on Android, the phone's own name from MainActivity's bridge
+ * (Settings › About phone); iOS gives apps only the model. */
 export function deviceName(): string {
-  if (!ANDROID) return 'This computer';
-  return (window as Window & { TesseraDevice?: { name(): string } }).TesseraDevice?.name() || 'Android phone';
+  if (!MOBILE) return 'This computer';
+  return (window as Window & { TesseraDevice?: { name(): string } }).TesseraDevice?.name()
+    || /iPhone|iPad/.exec(navigator.userAgent)?.[0] || 'Android phone';
 }

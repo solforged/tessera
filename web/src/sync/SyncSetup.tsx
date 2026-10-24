@@ -1,6 +1,6 @@
 import { Show, createSignal } from 'solid-js';
 import { api, ApiError } from '../api/client';
-import { ANDROID } from '../demo/mode';
+import { MOBILE } from '../demo/mode';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import { deviceName, normalizeHubUrl, scanPairing } from './device';
@@ -51,11 +51,11 @@ export function SyncSetup(props: { again?: { url: string }; onDone(): void }) {
   const touch = window.matchMedia('(pointer: coarse)').matches;
   return <Popup anchor={document.body} placement={touch ? 'sheet' : 'top'} width={560} label={props.again ? 'Pair again' : 'Set up this device'} class="sync-setup" onDismiss={step() === 'joining' ? () => undefined : finish}>
     <header class="sync-setup-head">
-      <p class="sync-register">Workshop · {ANDROID ? 'this phone' : 'this device'}</p>
+      <p class="sync-register">Workshop · {MOBILE ? 'this phone' : 'this device'}</p>
       <h2>{props.again ? 'Pair with the Mac again' : 'Where is your workshop?'}</h2>
       <p>{props.again
-        ? `The Mac forgot this ${ANDROID ? 'phone' : 'device'}. Your notes and the changes waiting here go to the Mac once it pairs again.`
-        : `Choose how ${ANDROID ? 'this phone' : 'this device'} will use Tessera.`}</p>
+        ? `The Mac forgot this ${MOBILE ? 'phone' : 'device'}. Your notes and the changes waiting here go to the Mac once it pairs again.`
+        : `Choose how ${MOBILE ? 'this phone' : 'this device'} will use Tessera.`}</p>
     </header>
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
     <Show when={step() !== 'joining'} fallback={<p class="sync-joining" role="status"><span class="sync-dot" aria-hidden="true" />Pairing and copying your Mac’s workshop…</p>}>
@@ -63,10 +63,10 @@ export function SyncSetup(props: { again?: { url: string }; onDone(): void }) {
         <h3><span class="section-number">01</span>{props.again ? 'Pair with a new code' : "Use my Mac's workshop"}</h3>
         <p>{props.again
           ? 'Make a code on the Mac in Settings › Devices › Pair a phone.'
-          : `A copy of your Mac's workshop. This ${ANDROID ? 'phone' : 'device'} sends its changes to the Mac and gets the Mac's changes. Anything already here is added to the Mac's workshop first.`}</p>
+          : `A copy of your Mac's workshop. This ${MOBILE ? 'phone' : 'device'} sends its changes to the Mac and gets the Mac's changes. Anything already here is added to the Mac's workshop first.`}</p>
         <Show when={step() === 'type'} fallback={<>
           <div class="sync-actions">
-            <Show when={ANDROID}><Button class="bordered sync-primary" onClick={() => { void scanCode(); }}>Scan code</Button></Show>
+            <Show when={MOBILE}><Button class="bordered sync-primary" onClick={() => { void scanCode(); }}>Scan code</Button></Show>
             <Button class="bordered" onClick={() => setStep('type')}>Type code</Button>
           </div>
           <Show when={!props.again}><p class="sync-hint">Open Settings → Devices on the Mac to pair.</p></Show>
@@ -83,7 +83,7 @@ export function SyncSetup(props: { again?: { url: string }; onDone(): void }) {
       </section>
       <Show when={!props.again}>
         <section class="sync-choice">
-          <h3><span class="section-number">02</span>Start a workshop on this {ANDROID ? 'phone' : 'device'}</h3>
+          <h3><span class="section-number">02</span>Start a workshop on this {MOBILE ? 'phone' : 'device'}</h3>
           <p>A separate workshop. It does not sync with your Mac.</p>
           <div class="sync-actions"><Button class="bordered" onClick={finish}>Start a workshop</Button></div>
         </section>

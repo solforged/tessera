@@ -2,7 +2,7 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, onMo
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
 import type { Backups, HistoryEntry } from '../api/types';
-import { ANDROID, DEMO, EMBEDDED } from '../demo/mode';
+import { DEMO, EMBEDDED, MOBILE } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
 import { besideHint, opensBeside } from '../shell/beside';
@@ -155,11 +155,11 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   });
   let region!: HTMLDivElement;
   // Devices: the Mac shares and pairs; the phone copies. The browser demo does not sync.
-  const devices = !EMBEDDED || ANDROID;
+  const devices = !EMBEDDED || MOBILE;
   const [deviceCount, setDeviceCount] = createSignal(0);
   const sections = createMemo(() => [
     { key: 'preferences', label: 'Preferences', count: 0 },
-    ...(DEMO && !ANDROID ? [{ key: 'backups', label: 'Backups', count: 0 }] : []),
+    ...(DEMO && !MOBILE ? [{ key: 'backups', label: 'Backups', count: 0 }] : []),
     ...(EMBEDDED ? [] : [{ key: 'notebooks', label: 'Workshops', count: knownNotebooks()?.notebooks.length ?? 0 }, { key: 'backups', label: 'Backups', count: backups()?.backups.length ?? 0 }]),
     ...(devices ? [{ key: 'devices', label: 'Devices', count: deviceCount() }] : []),
     ...(DEMO ? [] : [{ key: 'agent', label: 'Agent', count: 0 }]),
@@ -287,7 +287,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
             <span />
           </div>
         </section>
-        {DEMO && !ANDROID && <BrowserBackups id={sectionId('backups')} heading={heading(number('backups'), 'backups', 'Backups')} when={when} onError={setError} />}
+        {DEMO && !MOBILE && <BrowserBackups id={sectionId('backups')} heading={heading(number('backups'), 'backups', 'Backups')} when={when} onError={setError} />}
         {!EMBEDDED && <section id={sectionId('notebooks')} aria-labelledby={`${sectionId('notebooks')}-heading`} aria-busy={notebookOpening() !== null}>
           {heading(number('notebooks'), 'notebooks', 'Workshops')}
           <Show when={workshopsHome()}>{home => <p class="settings-empty">Workshops made by name live in <span class="settings-mono settings-path">{pathText(home())}</span>. Opening one reloads this window.</p>}</Show>
@@ -358,7 +358,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           </details></Show>
         </section>}
         {devices && <section id={sectionId('devices')} aria-labelledby={`${sectionId('devices')}-heading`}>
-          <Show when={ANDROID || sync.state()?.role === 'replica'} fallback={<HubDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} onCount={setDeviceCount} notebook={props.notebook} deviceId={props.deviceId} onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)} />}>
+          <Show when={MOBILE || sync.state()?.role === 'replica'} fallback={<HubDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} onCount={setDeviceCount} notebook={props.notebook} deviceId={props.deviceId} onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)} />}>
             <PhoneDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} notebook={props.notebook} deviceId={props.deviceId} onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)} />
           </Show>
         </section>}

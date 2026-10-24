@@ -2,14 +2,14 @@
 /web/node_modules/
 /web/dist/
 /web/dist-demo/
-/web/dist-android/
+/web/dist-mobile/
 /web/src/demo/pkg/
 /crates/tessera-desktop/node_modules/
 /crates/tessera-desktop/binaries/
 /crates/tessera-desktop/gen/
-/crates/tessera-android/node_modules/
+/crates/tessera-mobile/node_modules/
 # The Gradle project in gen/android is committed; Tauri regenerates the schemas.
-/crates/tessera-android/gen/schemas/
+/crates/tessera-mobile/gen/schemas/
 /web/perf/results/*
 !/web/perf/results/*.md
 # Local development notebooks.

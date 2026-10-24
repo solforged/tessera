@@ -137,7 +137,7 @@ jobs:
           export TESSERA_ANDROID_KEYSTORE="$RUNNER_TEMP/tessera-release.jks"
           base64 -d <<<"$ANDROID_KEYSTORE" > "$TESSERA_ANDROID_KEYSTORE"
           NDK_HOME="$ANDROID_NDK_LATEST_HOME" mise run android:build --target aarch64 --apk
-          cp crates/tessera-android/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk \
+          cp crates/tessera-mobile/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk \
             "Tessera_${TAG#v}_aarch64.apk"
 
       - name: Upload release
