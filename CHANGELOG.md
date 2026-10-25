@@ -15,6 +15,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Kept one store backup a day for a week and one a week for four more, plus the newest, so at most 11 instead of 14. Backups taken before an update or a restore are marked as safety backups and kept for seven days beside those.
+- Showed a failed automatic backup's time and reason in Settings › Backups until a later backup succeeds, and warned when the workshop changed after a newest backup more than two days old. Stored backups now start closed, label safety backups, and Other workshops names each workshop backed up by this build instead of shortening its ID.
+
 - Rebuilt the phone shell (touch screens under 600 px, iPhone and the Fold's cover) around phone conventions: the page runs edge to edge without the pane frame or registration corners; the header is a glass navigation bar with Index on tab landings, Back elsewhere, a title that appears on scroll, and New; a floating glass capsule holds Today, Agenda, Review and Library with Find in its own circle; and the sidebar became an Index page pushed onto the pane's history instead of a drawer.
 - Showed contents titles in one display form across the reader, Find, Review and the palette: all-capital titles take title case, numbered-label-only entries open as one title (`Book Three`), the running head drops capitals for the foot's numeral and italic title, and the book's own title page is no longer drawn again after Tessera's.
 - Gave each phone tab its own Back history: Index and the pages opened from it belong to the tab you came from, which stays lit; switching tabs returns to the last page and reading position; tapping the current tab returns to its landing and then scrolls to the top; a swipe from the left edge goes Back; and on iOS a status-bar tap scrolls the page to the top. The Find circle shows a magnifier.

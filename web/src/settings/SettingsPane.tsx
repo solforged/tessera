@@ -11,7 +11,7 @@ import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { setThemePreference, themePreference } from '../shell/theme';
 import { hubDevices, size, sync } from '../sync/state';
-import { backupLabel } from './backup';
+import { backupLabel, backupStale } from './backup';
 import { HubDevices, PhoneDevices } from './DevicesSection';
 import { BrowserBackups } from './BrowserBackups';
 import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, notebookPlace, openNotebook, reloadNotebook, workshopName, workshopsHome } from './notebooks';
@@ -88,6 +88,11 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   const [unchanged, setUnchanged] = createSignal(false);
   const backupBusy = () => backingUp() || removingBackups() || restoringBackup();
   const otherBytes = createMemo(() => backups()?.others.reduce((total, other) => total + other.size, 0) ?? 0);
+  // The newest change's time tells a stale backup from an unchanged workshop.
+  const [latestChange] = createResource(() => !EMBEDDED && props.notebook.changeSequence(), async () => {
+    try { return (await props.notebook.api.history(1))[0]?.created_at; }
+    catch { return undefined; }
+  });
   const removeBackups = async (remove: () => Promise<Backups>) => {
     if (backupBusy()) return;
     setRemovingBackups(true); setError('');
@@ -330,13 +335,16 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
             <div class="settings-label"><span class="settings-name">Database and files</span><Show when={backups()}>{value => <>
               <p role="status"><Show when={!restoringBackup()} fallback="Restoring…"><Show when={value().backups[0]} fallback="No backups yet.">{backup => <>Last backup <time class="settings-mono" dateTime={new Date(backup().created_at).toISOString()}>{when(backup().created_at)}</time>{unchanged() ? '; nothing has changed since' : ''}</>}</Show></Show></p>
               <p class="settings-mono">{value().backups.length} {value().backups.length === 1 ? 'backup' : 'backups'} · {size(value().store_size)}</p>
+              <Show when={value().automatic_failure} fallback={<Show when={backupStale(value().backups[0]?.created_at, latestChange(), Date.now())}>
+                <p class="settings-warning" role="alert">The workshop has changed, but the newest backup is more than two days old.</p>
+              </Show>}>{failure => <p class="settings-warning" role="alert">The automatic backup failed at <time class="settings-mono" dateTime={new Date(failure().at).toISOString()}>{when(failure().at)}</time>: {failure().message}</p>}</Show>
             </>}</Show></div>
             <Button class="bordered" disabled={backupBusy()} onClick={() => { setConfirmBackup(null); void backUp(); }}>{backingUp() ? 'Backing up…' : 'Back up now'}</Button>
           </div>
-          <Show when={(backups()?.backups.length ?? 0) > 0}><details class="settings-more" open>
-            <summary><Icon name="right" />{backups()!.backups.length} stored {backups()!.backups.length === 1 ? 'backup' : 'backups'}</summary>
+          <Show when={(backups()?.backups.length ?? 0) > 0}><details class="settings-more">
+            <summary><Icon name="right" />Stored backups</summary>
             <ul><For each={backups()!.backups}>{(backup, index) => <li class="settings-backup-row">
-              <div><span>{backupLabel(backup)} · {size(backup.size)}{index() === 0 ? ' · newest' : ''}</span>
+              <div><span>{backupLabel(backup, when)} · {size(backup.size)}{index() === 0 ? ' · newest' : ''}</span>
                 <Show when={confirmBackup() === `restore:${backup.path}`}><p class="settings-empty">Replace the workshop with this backup? A backup of the current workshop is taken first. Paired phones keep changes made since then until they sync again.</p></Show>
               </div>
               <span class="settings-backup-actions"><Show when={confirmBackup() === backup.path || confirmBackup() === `restore:${backup.path}`} fallback={<>
@@ -353,7 +361,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           <Show when={backups()?.others.length}><details class="settings-more">
             <summary><Icon name="right" />Other workshops · {size(otherBytes())}</summary>
             <ul><For each={backups()!.others}>{other => <li class="settings-backup-row">
-              <span title={other.path}>{other.workshop_id.slice(0, 10)}… · {other.count} {other.count === 1 ? 'backup' : 'backups'}{other.newest_at === null ? '' : ` · newest ${when(other.newest_at)}`} · {size(other.size)}</span>
+              <span title={other.path}>{other.name ? workshopName(other.name) : `${other.workshop_id.slice(0, 10)}…`} · {other.count} {other.count === 1 ? 'backup' : 'backups'}{other.newest_at === null ? '' : ` · newest ${when(other.newest_at)}`} · {size(other.size)}</span>
               <span class="settings-backup-actions"><Show when={confirmBackup() === other.path} fallback={<Button class="danger" disabled={backupBusy()} onClick={() => setConfirmBackup(other.path)}>Delete</Button>}>
                 <span class="settings-backup-question">Delete all?</span>
                 <Button disabled={backupBusy()} onClick={() => setConfirmBackup(null)}>Cancel</Button>

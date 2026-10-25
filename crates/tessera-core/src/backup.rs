@@ -28,6 +28,10 @@ pub struct BackupManifest {
     /// Set on a backup that keeps the state an update or restore replaces.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub safety: Option<Safety>,
+    /// The workshop folder's name when backed up, so a forgotten workshop's
+    /// backups can still be named; absent in backups from older builds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workshop_name: Option<String>,
 }
 
 /// What a safety backup was taken before. Retention keeps these for a week.
@@ -81,6 +85,9 @@ pub fn backup(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> Result
         db_page_count,
         database_sha256,
         safety: None,
+        workshop_name: source
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned()),
     };
     fs::rename(
         stage.path().join(DATABASE_FILE),

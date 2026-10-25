@@ -158,7 +158,7 @@ pub(crate) struct AppState {
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     port: u16,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-    backup: Arc<tokio::sync::Mutex<()>>,
+    backup: BackupLock,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
     backup_store: Option<PathBuf>,
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -226,7 +226,7 @@ fn routers(
         changes: notifications,
         library,
         port,
-        backup: Arc::new(tokio::sync::Mutex::new(())),
+        backup: Arc::new(tokio::sync::Mutex::new(None)),
         backup_store,
         sync_port,
         pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
@@ -339,7 +339,7 @@ fn embedded_router_inner(
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         port: 0,
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-        backup: Arc::new(tokio::sync::Mutex::new(())),
+        backup: Arc::new(tokio::sync::Mutex::new(None)),
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
         backup_store,
         #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -825,6 +825,8 @@ struct BackupInfo {
 #[derive(Serialize)]
 struct OtherBackups {
     workshop_id: String,
+    /// The folder name recorded by its newest backup, when it recorded one.
+    name: Option<String>,
     count: usize,
     size: u64,
     newest_at: Option<i64>,
@@ -837,6 +839,20 @@ struct Backups {
     backups: Vec<BackupInfo>,
     store_size: u64,
     others: Vec<OtherBackups>,
+    /// The latest automatic backup's failure, until a later backup succeeds.
+    automatic_failure: Option<BackupFailure>,
+}
+
+/// Serializes store backups. It holds the latest automatic backup failure,
+/// which lives only in memory: a restart retries within two minutes.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+pub(crate) type BackupLock = Arc<tokio::sync::Mutex<Option<BackupFailure>>>;
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct BackupFailure {
+    pub(crate) at: i64,
+    pub(crate) message: String,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -948,6 +964,9 @@ fn list_backups(store: &std::path::Path, info: &NotebookInfo) -> Result<Backups,
                 let finished =
                     tessera_core::finished_backups(store, &id).map_err(ApiError::from)?;
                 others.push(OtherBackups {
+                    name: finished
+                        .first()
+                        .and_then(|(_, manifest)| manifest.workshop_name.clone()),
                     workshop_id: id,
                     count: finished.len(),
                     newest_at: finished.first().map(|(_, manifest)| manifest.created_at),
@@ -968,6 +987,7 @@ fn list_backups(store: &std::path::Path, info: &NotebookInfo) -> Result<Backups,
         backups,
         store_size: backup_size(&backup_directory(store, info)?, false)?,
         others,
+        automatic_failure: None,
     })
 }
 
@@ -977,8 +997,13 @@ async fn backups(State(state): State<AppState>) -> Result<Json<Backups>, ApiErro
     let guard = state.backup.clone().lock_owned().await;
     let info = run(&state, |notebook| notebook.info()).await?;
     tokio::task::spawn_blocking(move || {
-        let _guard = guard;
-        list_backups(&store, &info).map(Json)
+        let failure = guard.clone();
+        list_backups(&store, &info).map(|backups| {
+            Json(Backups {
+                automatic_failure: failure,
+                ..backups
+            })
+        })
     })
     .await
     .map_err(ApiError::internal)?
@@ -1007,7 +1032,6 @@ async fn delete_backup(
     let guard = state.backup.clone().lock_owned().await;
     let info = run(&state, |notebook| notebook.info()).await?;
     tokio::task::spawn_blocking(move || {
-        let _guard = guard;
         let backups = list_backups(&store, &info)?.backups;
         let index = backups
             .iter()
@@ -1021,7 +1045,12 @@ async fn delete_backup(
             ));
         }
         std::fs::remove_dir_all(&backups[index].path).map_err(ApiError::internal)?;
-        list_backups(&store, &info).map(Json)
+        list_backups(&store, &info).map(|backups| {
+            Json(Backups {
+                automatic_failure: guard.clone(),
+                ..backups
+            })
+        })
     })
     .await
     .map_err(ApiError::internal)?
@@ -1118,14 +1147,18 @@ async fn delete_other_backups(
         ));
     }
     tokio::task::spawn_blocking(move || {
-        let _guard = guard;
         let other = list_backups(&store, &info)?
             .others
             .into_iter()
             .find(|other| other.workshop_id == id)
             .ok_or_else(ApiError::not_found)?;
         std::fs::remove_dir_all(other.path).map_err(ApiError::internal)?;
-        list_backups(&store, &info).map(Json)
+        list_backups(&store, &info).map(|backups| {
+            Json(Backups {
+                automatic_failure: guard.clone(),
+                ..backups
+            })
+        })
     })
     .await
     .map_err(ApiError::internal)?
@@ -1144,8 +1177,10 @@ async fn create_backup(State(state): State<AppState>) -> Result<Json<CreatedBack
     let info = run(&state, |notebook| notebook.info()).await?;
     tokio::task::spawn_blocking(move || {
         // Keep the guard here so cancelling the HTTP request cannot release it early.
-        let _guard = guard;
+        let mut guard = guard;
         let backup = tessera_core::backup_to_store(&info.path, &store).map_err(ApiError::from)?;
+        // A backup that works answers the automatic one's failure.
+        *guard = None;
         Ok(Json(CreatedBackup {
             created: backup.created,
             backups: list_backups(&store, &info)?,
@@ -2190,7 +2225,7 @@ mod tests {
         let changes = broadcast::channel(32).0;
         let library =
             library::Library::start(notebook.clone(), changes.clone(), library::extract).unwrap();
-        let backup = Arc::new(tokio::sync::Mutex::new(()));
+        let backup = Arc::new(tokio::sync::Mutex::new(None));
         let app = Router::new()
             .route("/api/backups", post(create_backup))
             .with_state(AppState {
@@ -2239,6 +2274,61 @@ mod tests {
         assert!(backup.try_lock().is_ok());
     }
 
+    #[tokio::test]
+    async fn automatic_failures_list_until_a_backup_succeeds() {
+        async fn json(app: &Router, method: &str) -> serde_json::Value {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .method(method)
+                        .uri("/api/backups")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{method}");
+            let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            serde_json::from_slice(&bytes).unwrap()
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let notebook = Arc::new(Mutex::new(
+            Notebook::open(dir.path().join("notebook")).unwrap(),
+        ));
+        let changes = broadcast::channel(32).0;
+        let library =
+            library::Library::start(notebook.clone(), changes.clone(), library::extract).unwrap();
+        let backup = Arc::new(tokio::sync::Mutex::new(Some(BackupFailure {
+            at: 7,
+            message: "disk full".into(),
+        })));
+        let app = backup_routes().with_state(AppState {
+            notebook,
+            assets: None,
+            changes,
+            library,
+            port: 4396,
+            backup,
+            backup_store: Some(dir.path().join("backups")),
+            sync_port: 4501,
+            pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
+            sharing: Arc::new(tokio::sync::Mutex::new(())),
+            replica: Arc::default(),
+            sync_health: Arc::default(),
+            switcher: None,
+            agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
+        });
+        let listed = json(&app, "GET").await;
+        assert_eq!(
+            listed["automatic_failure"],
+            serde_json::json!({"at": 7, "message": "disk full"})
+        );
+        let created = json(&app, "POST").await;
+        assert!(created["backups"]["automatic_failure"].is_null());
+        assert!(json(&app, "GET").await["automatic_failure"].is_null());
+    }
+
     fn backup_fixture() -> (tempfile::TempDir, Router, NotebookInfo) {
         let dir = tempfile::tempdir().unwrap();
         let notebook = Arc::new(Mutex::new(
@@ -2254,7 +2344,7 @@ mod tests {
             changes,
             library,
             port: 4561,
-            backup: Arc::new(tokio::sync::Mutex::new(())),
+            backup: Arc::new(tokio::sync::Mutex::new(None)),
             backup_store: Some(dir.path().join("backups")),
             sync_port: 4562,
             pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
@@ -2280,6 +2370,7 @@ mod tests {
                 db_page_count: 1,
                 database_sha256: String::new(),
                 safety: None,
+                workshop_name: None,
             };
             std::fs::write(
                 path.join("manifest.json"),
@@ -2383,6 +2474,7 @@ mod tests {
             db_page_count: 1,
             database_sha256: String::new(),
             safety: None,
+            workshop_name: None,
         };
         std::fs::write(
             root.join("foreign/manifest.json"),

@@ -296,8 +296,8 @@ export interface ServiceInfo {
 }
 
 export interface BackupInfo { path: string; name: string; created_at: number; object_count: number; size: number; safety: 'update' | 'restore' | null }
-export interface OtherBackups { workshop_id: string; count: number; size: number; newest_at: number | null; path: string }
-export interface Backups { backups: BackupInfo[]; store_size: number; others: OtherBackups[] }
+export interface OtherBackups { workshop_id: string; name: string | null; count: number; size: number; newest_at: number | null; path: string }
+export interface Backups { backups: BackupInfo[]; store_size: number; others: OtherBackups[]; automatic_failure: { at: number; message: string } | null }
 export interface CreatedBackup { created: boolean; backups: Backups }
 export interface RestoringBackup { restoring: true; backup: BackupInfo; safety: BackupInfo | null }
 /**
