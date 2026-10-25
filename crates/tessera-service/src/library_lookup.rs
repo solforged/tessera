@@ -14,11 +14,81 @@ use tessera_core::{Notebook, image_type, library::*};
 pub(super) struct LookupRequest {
     query: String,
 }
+#[derive(Deserialize)]
+pub(super) struct LinkRequest {
+    url: String,
+}
+#[derive(Serialize)]
+pub(super) struct LinkPreview {
+    title: Option<String>,
+    site: Option<String>,
+}
 #[derive(Serialize)]
 pub(super) struct Preview {
     metadata: ExtractedMetadata,
     cover_url: Option<String>,
     provider: &'static str,
+}
+
+/// A pasted web address's page title and site, read only when a capture asks and never stored.
+pub(super) async fn link(Json(body): Json<LinkRequest>) -> Result<Json<LinkPreview>, ApiError> {
+    let address = body.url.trim();
+    if !(address.starts_with("http://") || address.starts_with("https://")) {
+        return Err(invalid("Enter a web address."));
+    }
+    #[cfg(not(any(
+        all(target_arch = "wasm32", target_os = "unknown"),
+        target_os = "android"
+    )))]
+    {
+        let metadata = native_link(address).await?;
+        Ok(Json(LinkPreview {
+            title: metadata.title,
+            site: metadata.site,
+        }))
+    }
+    #[cfg(any(
+        all(target_arch = "wasm32", target_os = "unknown"),
+        target_os = "android"
+    ))]
+    Err(invalid("Link titles are read by the desktop service."))
+}
+
+#[cfg(not(any(
+    all(target_arch = "wasm32", target_os = "unknown"),
+    target_os = "android"
+)))]
+async fn native_link(address: &str) -> Result<ExtractedMetadata, ApiError> {
+    let unreadable = || failed("the page could not be read");
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .redirect(reqwest::redirect::Policy::limited(5))
+        .user_agent("Tessera/0.1 (link preview)")
+        .build()
+        .map_err(network_error)?;
+    let mut response = client.get(address).send().await.map_err(network_error)?;
+    let html = response
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.contains("html"));
+    if !response.status().is_success() || !html {
+        return Err(unreadable());
+    }
+    let url = response.url().to_string();
+    // The title is in the head, so a large page is read only as far as its first mebibyte.
+    let mut bytes = Vec::new();
+    while let Some(chunk) = response.chunk().await.map_err(network_error)? {
+        bytes.extend_from_slice(&chunk);
+        if bytes.len() >= 1 << 20 {
+            break;
+        }
+    }
+    let html = String::from_utf8_lossy(&bytes).into_owned();
+    tokio::task::spawn_blocking(move || tessera_ingest::page_metadata(&html, &url))
+        .await
+        .map_err(|_| unreadable())?
+        .map_err(|_| unreadable())
 }
 
 pub(super) async fn lookup(

@@ -43,6 +43,7 @@ pub(crate) fn routes() -> Router<AppState> {
             get(collection_values),
         )
         .route("/api/library/lookup", post(lookup::lookup))
+        .route("/api/library/link", post(lookup::link))
         .route("/api/library/records/plan", post(lookup::record_plan))
         .route("/api/library/metadata", post(lookup::normalize_metadata))
         .route("/api/library/covers/{sha}", get(lookup::cover))

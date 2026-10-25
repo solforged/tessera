@@ -312,6 +312,8 @@ export interface ApiClient {
   library(value: LibraryQuery, signal?: AbortSignal): Promise<LibraryResult>;
   collectionValues(id: string, signal?: AbortSignal): Promise<Block[]>;
   lookup(query: string, signal?: AbortSignal): Promise<LookupPreview>;
+  /** A pasted web page's title and site, for a titled link; the desktop service reads the page. */
+  linkPreview(url: string, signal?: AbortSignal): Promise<{ title: string | null; site: string | null }>;
   normalizeMetadata(metadata: ExtractedMetadata): Promise<ExtractedMetadata>;
   planRecord(metadata: ExtractedMetadata, coverUrl?: string | null): Promise<IngestPlan>;
   uploadCover(file: Blob): Promise<string>;
@@ -476,6 +478,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
     library: (value: LibraryQuery, signal?: AbortSignal) => request<LibraryResult>(base, 'POST', '/library/query', value, signal),
     collectionValues: (id: string, signal?: AbortSignal) => get<Block[]>(`/library/collections/${encodeURIComponent(id)}/values`, signal),
     lookup: (query: string, signal?: AbortSignal) => request<LookupPreview>(base, 'POST', '/library/lookup', { query }, signal),
+    linkPreview: (url: string, signal?: AbortSignal) => request<{ title: string | null; site: string | null }>(base, 'POST', '/library/link', { url }, signal),
     normalizeMetadata: (metadata: ExtractedMetadata) => request<ExtractedMetadata>(base, 'POST', '/library/metadata', metadata),
     planRecord: (metadata: ExtractedMetadata, cover_url?: string | null) => request<IngestPlan>(base, 'POST', '/library/records/plan', { metadata, cover_url }),
     uploadCover: (file: Blob) => send<string>(`${base}/api/library/covers`, { method: 'POST', body: file, headers: notebookHeaders(base, { 'Content-Type': file.type }) }),

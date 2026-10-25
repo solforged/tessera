@@ -38,7 +38,8 @@ import { Embed } from './Embed';
 import { AgentMark } from '../agent/AgentMark';
 import { embedTarget } from './streams';
 import { ViewEmbed, viewEmbedTarget } from './ViewEmbed';
-import { MissingSections, SectionCapture } from './journal-sections';
+import { MissingSections, ReadingCreators, SectionCapture } from './journal-sections';
+import { requestCreate } from '../create/request';
 import type { JournalLayout } from './journal-sections';
 import { SectionHead } from '../ui/SectionHead';
 import { NotebookImage } from '../ui/NotebookImage';
@@ -48,7 +49,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'doc' | 'capabilities' | 'setMenu' | 'investigationItems' | 'definitionsById' | 'contextDate'
   | 'inlineFields' | 'baseDepth' | 'positionSource' | 'sourceDetails' | 'virtualizer'
   | 'hosts' | 'props' | 'folds' | 'selectedSet' | 'editing'
-  | 'coveredSet' | 'glossId' | 'margin' | 'sigla' | 'blockMenu' | 'holderMenu' | 'fieldMenu'
+  | 'coveredSet' | 'openRelation' | 'fileAll' | 'openPlanning' | 'glossId' | 'margin' | 'sigla' | 'blockMenu' | 'holderMenu' | 'fieldMenu'
   | 'fold' | 'zoomTo' | 'editAt' | 'restoreFocus' | 'pointerStart' | 'attach' | 'setSelected'
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
@@ -174,6 +175,15 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const notesHead = () => { const head = journal()?.notesHead; return head?.id === id() ? head.name : undefined; };
     const missingBefore = () => journal()?.missing.before.get(id());
     const captureTime = () => journal()?.times.get(id());
+    const inboxRow = () => !!journal()?.inbox.has(id());
+    const readingSource = () => journal()?.reading.get(id());
+    // A captured link reads as a link: one bare or titled web address.
+    const linkRow = () => /^(?:https?:\/\/\S+|\[[^\]\r\n]+\]\(https?:\/\/[^\s)]+\))$/i.test(block()?.text.trim() ?? '');
+    /** An Inbox link's site, shown after its title. */
+    const linkSite = () => {
+      if (!inboxRow() || !linkRow()) return undefined;
+      try { return new URL(/\((https?:[^\s)]+)\)$/.exec(block()!.text.trim())?.[1] ?? block()!.text.trim()).hostname.replace(/^www\./, ''); } catch { return undefined; }
+    };
     const target = createMemo(() => quoteTarget(block()?.text ?? ''));
     const field = createMemo(() => definitionsById().get(fieldEntryId(block()?.text ?? '') ?? ''));
     const parent = () => doc.outline.parentOf(id());
@@ -293,7 +303,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     }
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.natural ? undefined : propsRow.item!().index} data-block-id={id()} role="treeitem" aria-level={propsRow.natural ? 1 : depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-section-head': !!sectionHead(), 'row-banner': !!notesHead() || !!missingBefore(), 'row-captured': !!captureTime(), 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline() || emptyEntry(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      class="outline-row" classList={{ 'row-section-head': !!sectionHead(), 'row-banner': !!notesHead() || !!missingBefore(), 'row-captured': !!captureTime(), 'row-inbox': inboxRow(), 'row-link': !!linkSite(), 'row-reading-source': !!readingSource(), 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline() || emptyEntry(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
       data-task-status={block()?.task?.status}
       data-holder={block()?.position?.holder_id ?? undefined}
       data-field-role={inline() ? fieldRole(valueField()) : field() ? fieldRole(field()) : undefined}
@@ -319,7 +329,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       <Show when={rowSources().length}><span class="row-sigla"><For each={rowSources()}>{source => <span class="row-siglum" title={props.notebook.lookup(source)()?.text}>{sigla().get(source)}</span>}</For></span></Show>
       <button type="button" class="row-menu icon-button" aria-label="Atom actions" onPointerDown={event => drag.start(event, id())} onClick={event => blockMenu(id(), event.currentTarget)}><Icon name="more" /></button>
       <button type="button" class="row-fold icon-button" classList={{ 'fold-empty': !children(), folded: folds().has(id()) }} aria-label={folds().has(id()) ? 'Unfold children' : 'Fold children'} disabled={!children()} onClick={() => fold(id())}><Icon name="down" /></button>
-      <Show when={!inline() && !emptyEntry() && !block()?.task?.status}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()), 'row-card-mark': cardMark() }} aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into atom'} aria-haspopup={cardMark() ? 'dialog' : undefined} onPointerDown={event => drag.start(event, id())} onMouseDown={event => { if (cardMark()) event.preventDefault(); }} onClick={event => cardMark() ? cardControl?.open(event.currentTarget) : zoomTo(id())}><Icon name={cardMark() ? 'card' : block()?.question ? 'question-open' : block()?.project ? 'flag' : block()?.source ? 'library' : 'bullet'} /></button></Show>
+      <Show when={!inline() && !emptyEntry() && !block()?.task?.status}><button type="button" class="row-bullet icon-button" classList={{ 'bullet-collapsed': children() && folds().has(id()), 'row-card-mark': cardMark() }} aria-label={cardMark() ? `Cards: ${cardCount()}` : 'Zoom into atom'} aria-haspopup={cardMark() ? 'dialog' : undefined} onPointerDown={event => drag.start(event, id())} onMouseDown={event => { if (cardMark()) event.preventDefault(); }} onClick={event => cardMark() ? cardControl?.open(event.currentTarget) : zoomTo(id())}><Icon name={cardMark() ? 'card' : block()?.question ? 'question-open' : block()?.project ? 'flag' : block()?.source || readingSource() ? 'library' : linkRow() ? 'link' : 'bullet'} /></button></Show>
       <Show when={inline()}><Show when={labelled()} fallback={<span class="outline-field-label" aria-hidden="true" />}><button type="button" class="outline-field-label" title={valueField()?.name} onClick={event => context.fieldMenu(id(), event.currentTarget)}><Icon name="field" /><span>{valueField()?.name}</span></button></Show></Show>
       <Show when={emptyEntry()}><button type="button" class="outline-field-label" title={field()?.name} onClick={event => context.fieldMenu(id(), event.currentTarget)}><Icon name="field" /><span>{field()?.name}</span></button></Show>
       <Show when={block()?.task}><TaskStatusButton task={block()?.task ?? null} disabled={capabilities.busy(id())} onRestoreFocus={restoreFocus} onChange={status => capabilities.status(id(), status)} /></Show>
@@ -383,7 +393,22 @@ export function createOutlineRows(context: Pick<OutlineContext,
             <Show when={!editedConflicts().has(id())} fallback={<button type="button" onClick={() => doc.resolveConflict(id(), 'mine')}>Use edited text</button>}><button type="button" onClick={() => { setEditedConflicts(previous => new Set([...previous, id()])); editAt(id(), 0, true); }}>Edit merged text</button></Show></div>
         </div></Show>
       </div>
-      <Show when={sectionHead()}>{head => <span class="row-section-tail"><span class="section-rule" /><span class="section-head-count">{head().count}</span></span>}</Show>
+      <Show when={sectionHead()}>{head => <span class="row-section-tail"><span class="section-rule" /><span class="section-head-count">{head().count}</span>
+        <Show when={head().section.id === 'inbox' && journal()?.toFile.length}><span class="section-head-action"><Button onClick={event => context.fileAll(journal()!.toFile, event.currentTarget)}>File all…</Button></span></Show>
+        <Show when={head().section.id === 'reading' && head().today}><span class="section-head-action"><Button onClick={() => requestCreate({ kind: 'note', text: '', into: { kind: 'journal', section: head().section.id } })}>+ Note on…</Button></span></Show>
+      </span>}</Show>
+      <Show when={editing() !== id() ? readingSource() : undefined}>{source => <ReadingCreators notebook={props.notebook} sourceId={source()} text={block()?.text ?? ''} />}</Show>
+      <Show when={linkSite() && editing() !== id()}><span class="row-link-site">{linkSite()}</span></Show>
+      <Show when={inboxRow() && editing() !== id()}><span class="row-inbox-actions">
+        <Show when={journal()?.toFile.includes(id())}>
+          <Button class="bordered" onClick={() => {
+            if (!block()?.task?.status) capabilities.invoke(capabilities.status(id(), 'todo'));
+            context.openPlanning(id(), 'schedule');
+          }}>Plan</Button>
+          <Button class="bordered" aria-haspopup="listbox" onClick={event => context.openRelation(id(), 'integrate', event.currentTarget)}>File to…</Button>
+        </Show>
+        <Button class="bordered" icon="more" label="More" aria-haspopup="menu" onClick={event => blockMenu(id(), event.currentTarget)} />
+      </span></Show>
       <AgentMark id={id()} />
       <ReferenceCount id={id()} />
       <sheet.FieldSlots id={id()} />

@@ -1,9 +1,9 @@
-import { For, createMemo, createSignal } from 'solid-js';
+import { For, createMemo, createResource, createSignal } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { CaptureField } from '../capture/CaptureField';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { isFinished } from '../tasks/task-labels';
-import { isWritten, sectionTarget, writtenSections } from '../tasks/today-template';
+import { isWritten, readingRowSource, sectionTarget, writtenSections } from '../tasks/today-template';
 import type { TodaySection } from '../tasks/today-template';
 import { foldName } from './names';
 import { SectionHead } from '../ui/SectionHead';
@@ -11,7 +11,7 @@ import { embedTarget } from './streams';
 import './journal-sections.css';
 
 /** A written section's heading row, drawn as the shared section head. */
-export interface JournalSectionHead { section: TodaySection; count: string; capture: boolean }
+export interface JournalSectionHead { section: TodaySection; count: string; capture: boolean; today: boolean }
 
 export interface JournalLayout {
   today: boolean;
@@ -26,6 +26,11 @@ export interface JournalLayout {
   missing: { before: Map<string, TodaySection[]>; end: TodaySection[] };
   /** Inbox rows' creation clocks, top level only. */
   times: Map<string, string>;
+  /** Top-level Inbox rows, and those still to file: neither Integrate references nor finished tasks, in order. */
+  inbox: Set<string>;
+  toFile: string[];
+  /** Top-level Reading rows that stand for a source → that source. */
+  reading: Map<string, string>;
 }
 
 // The field that captured into a missing section hands focus to the field under the heading it wrote.
@@ -44,6 +49,9 @@ export function createJournalLayout(doc: PageDocument, notebook: NotebookClient,
     const heads = new Map<string, JournalSectionHead>();
     const found = new Set<string>();
     const times = new Map<string, string>();
+    const inbox = new Set<string>();
+    const toFile: string[] = [];
+    const reading = new Map<string, string>();
     let loose: string | undefined;
     const order = template.sections.filter(value => value.on && (isWritten(value) || value.id === 'notes')).map(value => value.id);
     const ranked: { id: string; rank: number }[] = [];
@@ -55,15 +63,21 @@ export function createJournalLayout(doc: PageDocument, notebook: NotebookClient,
       ranked.push({ id, rank: order.indexOf(section.id) });
       found.add(section.id);
       const children = doc.outline.children(id).filter(child => !doc.isArchived(child));
-      heads.set(id, { section, count: sectionCount(doc, section, children), capture: today && section.id === 'inbox' });
+      heads.set(id, { section, count: sectionCount(doc, section, children), capture: today && section.id === 'inbox', today });
       if (section.id === 'inbox') for (const child of children) {
+        inbox.add(child);
+        if (unfiled(doc, child)) toFile.push(child);
         const at = doc.createdAt(child);
         if (at !== undefined) times.set(child, clock().format(at));
+      }
+      if (section.id === 'reading') for (const child of children) {
+        const source = readingRowSource(doc.block(child)?.text ?? '');
+        if (source) reading.set(child, source);
       }
     }
     const notesName = template.sections.find(section => section.id === 'notes')?.name ?? 'Notes';
     return {
-      today, heads, times,
+      today, heads, times, inbox, toFile, reading,
       // Other days read as one outline unless they also hold section headings.
       notesHead: loose && (today || heads.size) ? { id: loose, name: notesName } : undefined,
       missing: placeMissing(today ? written.filter(section => !found.has(section.id)) : [], ranked, order),
@@ -83,10 +97,15 @@ function placeMissing(missing: TodaySection[], ranked: { id: string; rank: numbe
   return { before, end };
 }
 
+/** A row is filed once it is an Integrate reference or a finished task. */
+function unfiled(doc: PageDocument, id: string) {
+  const block = doc.block(id);
+  return !!block && !embedTarget(block.text) && !(block.task && isFinished(block.task));
+}
+
 function sectionCount(doc: PageDocument, section: TodaySection, children: readonly string[]): string {
   if (section.id === 'inbox') {
-    // A row is filed once it is an Integrate reference or a finished task.
-    const open = children.filter(id => { const block = doc.block(id); return !embedTarget(block?.text ?? '') && !(block?.task && isFinished(block.task)); }).length;
+    const open = children.filter(id => unfiled(doc, id)).length;
     return children.length ? `${children.length} · ${open} to file` : '';
   }
   if (section.id === 'reading') return children.length ? `${children.length} source${children.length === 1 ? '' : 's'}` : '';
@@ -117,4 +136,26 @@ export function MissingSections(props: { notebook: NotebookClient; sections: rea
     <SectionHead name={section.name} />
     <SectionCapture notebook={props.notebook} section={section} />
   </section>}</For>;
+}
+
+// Creators change rarely and a day holds few sources, so each source is read once per session.
+const creators = new Map<string, Promise<string>>();
+
+/** A Reading row's authors and the reader's position when it was written, in faint after its title. */
+export function ReadingCreators(props: { notebook: NotebookClient; sourceId: string; text: string }) {
+  // The position is the reference's locator, written when the row was: `[[id|title|position]]`.
+  const position = () => /^\[\[[^|\]]+\|[^|\]]*\|([^\]]+)\]\]$/.exec(props.text.trim())?.[1];
+  const [names] = createResource(() => props.sourceId, id => {
+    let names = creators.get(id);
+    if (!names) {
+      names = props.notebook.api.source(id).then(view => {
+        const snapshot = view.snapshots.find(value => value.id === view.source.current_snapshot_id) ?? view.snapshots[0];
+        return (snapshot?.metadata.creators ?? []).filter(creator => creator.role === 'author').map(creator => creator.name).join(', ');
+      }, () => '');
+      creators.set(id, names);
+    }
+    return names;
+  });
+  const line = () => [names(), position()].filter(Boolean).join(' · ');
+  return <>{line() ? <span class="row-reading-creators">{line()}</span> : null}</>;
 }

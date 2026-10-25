@@ -1,9 +1,41 @@
 .popup.create-slip, .popup-exit.create-slip { padding: 0; }
 .create-body { display: flex; flex-direction: column; min-width: 0; }
 .create-body .capture-head { flex-wrap: wrap; }
-.create-kinds { display: flex; flex-wrap: wrap; margin: var(--space-8) var(--space-16) 0; font: var(--apparatus); }
-.create-kinds [role="radio"] { border-radius: 0; border-bottom: var(--rule-width) solid transparent; font: var(--apparatus); }
-.create-kinds.mode-tabs > .button[aria-checked="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+/* The kind chip leads the line: its glyph, the kind in apparatus type and a chevron; it opens the kind menu. */
+.create-kind-line { display: flex; padding: var(--space-8) var(--space-16) 0; }
+.create-chip.button { flex: none; gap: var(--space-4); min-height: calc(var(--target-size) - var(--space-8)); margin-right: var(--space-8); padding: 0 var(--space-4) 0 var(--space-8); border-color: var(--line); border-radius: var(--radius-pill); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.create-chip.button:hover:not(:disabled), .create-chip.button[aria-expanded="true"] { border-color: var(--control-border); color: var(--text); }
+.create-chip > .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+.create-chip > .icon:last-child { color: var(--faint); }
+.capture-field .create-into, .capture-field .create-under { padding-inline: 0; }
+/* Reading's Under row: each source with a small cover, its short title and a faint reason. */
+.create-under { display: flex; align-items: flex-start; gap: var(--space-8); padding: var(--space-8) var(--space-16) 0; color: var(--faint); font: var(--apparatus); }
+.create-under > span { flex: none; padding-top: var(--space-8); }
+.create-under-options { display: flex; flex-wrap: wrap; gap: var(--space-4); min-width: 0; }
+.create-under-option.button { gap: var(--space-8); max-width: 200px; padding: var(--space-4) var(--space-8) var(--space-4) var(--space-4); border-color: var(--line); }
+.create-under-option.button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-tint); }
+.create-under-cover { display: grid; flex: none; place-items: center; width: 22px; height: 32px; overflow: hidden; border-radius: var(--radius-control); color: var(--faint); }
+.create-under-cover :is(img, .library-spine) { width: 100%; height: 100%; object-fit: cover; }
+.create-under-text { display: flex; flex-direction: column; min-width: 0; }
+.create-under-title { overflow: hidden; color: var(--text); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-display); text-overflow: ellipsis; white-space: nowrap; }
+.create-under-reason { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.create-under-other.button { align-self: center; color: var(--muted); font: var(--apparatus); }
+/* A Link's page title in Piazzolla with its site beneath in faint, and the Library opt-in. */
+.create-link { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--space-8); padding: var(--space-8) 0 0 calc(var(--icon-size) + var(--space-8)); }
+.create-link-preview { display: flex; flex-direction: column; min-width: 0; }
+.create-link-title { color: var(--text); font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-display); overflow-wrap: anywhere; }
+.create-link-pending { color: var(--faint); font: var(--apparatus); }
+.create-link-site { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.create-link-library { display: inline-flex; align-items: center; gap: var(--space-4); color: var(--muted); font-size: var(--text-meta); cursor: pointer; }
+/* Captured today: the last three lines, each with its mono time; choosing one opens it in Today. */
+.create-recent { margin-top: var(--space-12); }
+.create-recent h3 { margin: 0 0 var(--space-2); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.create-recent ul { margin: 0; padding: 0; list-style: none; }
+.create-recent button { display: flex; align-items: baseline; gap: var(--space-12); width: 100%; min-height: var(--target-size); padding: 0 var(--space-4); border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); text-align: left; cursor: pointer; }
+.create-recent button:hover, .create-recent button:focus-visible { background: var(--hover); color: var(--text); }
+.create-recent button:focus-visible { outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-offset)); }
+.create-recent-time { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; }
+.create-recent-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .create-into { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); padding: var(--space-8) var(--space-16) 0; color: var(--faint); font: var(--apparatus); }
 .create-into .button { font: inherit; }
 .create-into .button[aria-pressed="true"] { color: var(--accent); background: transparent; box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); border-radius: 0; }

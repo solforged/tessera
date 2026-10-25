@@ -6,10 +6,10 @@ import { parseCardText } from '../review/card-text';
  */
 
 /** Built-in kinds, or `type:<key>` for a note kind from the index (`type:person`, `type:concept`). */
-export type CreateKind = 'note' | 'question' | 'project' | 'task' | 'card' | 'source' | `type:${string}`;
+export type CreateKind = 'note' | 'question' | 'project' | 'task' | 'card' | 'link' | 'source' | `type:${string}`;
 
 /**
- * Where a note, question, task or card goes: a section of today's journal, a new titled page, or the end of an
+ * Where a note, question, task, card or link goes: a section of today's journal, a new titled page, or the end of an
  * existing page. A journal destination without a section means the workshop's capture section; `notes` is the end
  * of the journal, outside every section.
  */
@@ -29,10 +29,16 @@ export interface CreateRequest {
   focus?: 'kind';
 }
 
-const builtIn: Record<string, true> = { note: true, question: true, project: true, task: true, card: true, source: true };
+const builtIn: Record<string, true> = { note: true, question: true, project: true, task: true, card: true, link: true, source: true };
 
 export function isCreateKind(value: unknown): value is CreateKind {
   return typeof value === 'string' && (Object.hasOwn(builtIn, value) || /^type:\S+$/.test(value));
+}
+
+/** Surfaces outside the shell, such as Today's section heads, ask it to open the slip with this event. */
+export const createEvent = 'tessera-create';
+export function requestCreate(request: CreateRequest) {
+  window.dispatchEvent(new CustomEvent<CreateRequest>(createEvent, { detail: request }));
 }
 
 /** ⌘E and the plain capture shortcuts: a note at the end of today's journal. */
