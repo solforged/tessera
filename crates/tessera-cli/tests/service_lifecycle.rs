@@ -385,6 +385,10 @@ async fn app_restore_reopens_the_workshop_and_recovers_a_pending_restore() {
         .await
         .unwrap();
     assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    // Retention keeps one plain backup a day, so the first restore point may be
+    // gone; this restore's safety backup holds the same state.
+    let again: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(again["safety"]["safety"], "restore");
     serving(&service.host, &source).await;
     assert_eq!(
         client
@@ -402,7 +406,7 @@ async fn app_restore_reopens_the_workshop_and_recovers_a_pending_restore() {
     std::fs::write(
         &marker,
         serde_json::to_vec(&serde_json::json!({
-            "source": first["path"],
+            "source": again["safety"]["path"],
             "requested_at": tessera_core::now_ms(),
         }))
         .unwrap(),

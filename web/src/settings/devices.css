@@ -1,6 +1,7 @@
 /* Health grows inside each paired-device row. Review belongs to the notebook on both sides. */
 .settings-pane .devices-url { color: var(--text); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
 .settings-pane p.devices-hub { margin: var(--space-8) 0 var(--space-4); color: var(--muted); }
+.settings-pane .devices-hub .devices-url { color: inherit; }
 .devices-retained { margin: var(--space-12) 0 0; color: var(--muted); }
 .devices-pair { margin-top: var(--space-12); }
 .devices-disclosure { border-top: var(--rule-width) solid var(--line); }

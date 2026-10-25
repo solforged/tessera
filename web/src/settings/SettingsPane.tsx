@@ -16,7 +16,7 @@ import { HubDevices, PhoneDevices } from './DevicesSection';
 import { BrowserBackups } from './BrowserBackups';
 import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, notebookPlace, openNotebook, reloadNotebook, workshopName, workshopsHome } from './notebooks';
 import { AgentSettings } from '../agent/AgentSettings';
-import { deviceZone as currentDeviceZone, isoMinute, workshopZone, zoneAliases as aliases } from './time';
+import { deviceZone as currentDeviceZone, isoDate, isoMinute, workshopZone, zoneAliases as aliases } from './time';
 import '../fields/field-page.css';
 import './settings.css';
 import './devices.css';
@@ -234,10 +234,6 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
             items={zoneRows()} key={value => value.id} isCurrent={value => value.id === zone()} empty="No matching time zone."
             onPick={value => { setZoneAnchor(null); setZoneQuery(''); void change('time_zone', value.id); }}
             row={value => <><Show when={value.id === zone()} fallback={<span class="icon" />}><Icon name="check" /></Show><span class="settings-zone-text"><span>{value.label}</span><span class="settings-zone-id">{value.id}{value.id === deviceZone ? ' · Device' : ''}</span></span></>} />}</Show>
-          <div class="settings-row">
-            <div class="settings-label"><span class="settings-name">Reader display<span class="settings-scope">This device</span></span><p>In the reader: typeface, size, measure and Scroll or Pages are set beside the text, so each change shows as you make it.</p></div>
-            <span />
-          </div>
         </section>
         {DEMO && !MOBILE && <BrowserBackups id={sectionId('backups')} heading={heading(number('backups'), 'backups', 'Backups')} when={when} onError={setError} />}
         {!EMBEDDED && <section id={sectionId('notebooks')} aria-labelledby={`${sectionId('notebooks')}-heading`} aria-busy={notebookOpening() !== null}>
@@ -322,15 +318,24 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           {heading(number('about'), 'about', 'About')}
           <Show when={info()}>{value => <dl>
             <dt>Workshop</dt><dd class="settings-path">{pathText(value().path)}</dd>
-            <dt>Created</dt><dd>{new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(value().created_at)}</dd>
-            <dt>Id</dt><dd>{value().id}</dd>
+            <dt>Created</dt><dd>{isoDate(value().created_at, zone())}</dd>
+            {!EMBEDDED && <Show when={service()}>{service => <>
+              <dt>Version</dt><dd>{service().version}<Show when={service().build}>{build => <> · {build()}</>}</Show></dd>
+              {/* A missing launch agent needs the person; an installed one is a diagnostic. */}
+              <Show when={!service().launch_agent.installed}><dt>Launch agent</dt><dd>Not installed<span class="settings-hint">Opening Tessera.app installs it.</span></dd></Show>
+            </>}</Show>}
           </dl>}</Show>
-          {!EMBEDDED && <Show when={service()}>{value => <dl>
-            <dt>Version</dt><dd>{value().version}<Show when={value().build}>{build => <> · {build()}</>}</Show></dd>
-            <dt>URL</dt><dd class="settings-path">{pathText(`http://127.0.0.1:${value().port}`)}</dd>
-            <dt>Assets</dt><dd class="settings-path">{pathText(value().assets)}</dd>
-            <dt>Launch agent</dt><dd>{value().launch_agent.installed ? 'Installed' : 'Not installed'}<Show when={!value().launch_agent.installed}><span class="settings-hint">Opening Tessera.app installs it.</span></Show></dd>
-          </dl>}</Show>}
+          <Show when={info()}>{value => <details class="settings-more">
+            <summary><Icon name="right" />Diagnostics</summary>
+            <dl>
+              <dt>Id</dt><dd>{value().id}</dd>
+              {!EMBEDDED && <Show when={service()}>{service => <>
+                <dt>URL</dt><dd class="settings-path">{pathText(`http://127.0.0.1:${service().port}`)}</dd>
+                <dt>Assets</dt><dd class="settings-path">{pathText(service().assets)}</dd>
+                <Show when={service().launch_agent.installed}><dt>Launch agent</dt><dd>Installed</dd></Show>
+              </>}</Show>}
+            </dl>
+          </details>}</Show>
         </section>
       </div>
     </div>

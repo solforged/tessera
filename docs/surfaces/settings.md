@@ -26,7 +26,7 @@ The cover title, save status, Undo and Redo scroll away with the page, leaving o
 
 ## Preferences
 
-Preferences contains Theme, Vim keys, Ask before deleting views, Journal day and Reader display. Each row has its name, a mono scope (This device or Workshop) and one muted sentence on the left, with its control flush right. Rows divide with hairlines.
+Preferences contains Theme, Vim keys, Ask before deleting views and Journal day. Reader display is set beside the text in the reader, so Settings has no row for it. Each row has its name, a mono scope (This device or Workshop) and one muted sentence on the left, with its control flush right. Rows divide with hairlines.
 
 Vim keys is hidden with a coarse pointer, without changing its saved workshop value or the desktop setting.
 
@@ -36,7 +36,6 @@ Vim keys is hidden with a coarse pointer, without changing its saved workshop va
 | Workshop switches | Hairline track with a muted knob. On, the track fills gilt and the knob slides across in canvas. |
 | Ask before deleting views | On by default; applies to Library, task and table views. |
 | Journal day | A bordered trigger shows the city and current UTC offset, with Device when it follows the device zone. Its picker opens below the trigger, lists canonical cities and offsets with faint searchable IANA ids, and always includes UTC. |
-| Reader display | The description begins `In the reader:` and says typeface, size, measure and layout are set beside the text. There is no separate aside. |
 
 ## Workshops
 
@@ -100,6 +99,6 @@ History is its own pane in Settings' frame, opened from the Settings header or t
 
 ## About
 
-About shows the workshop's path, creation date and id, then the service's version, URL, assets and launch agent, as two mono lists, since they are read rarely and changed never.
+About shows the workshop's path, its creation date as an ISO date in the journal zone, and the service's version as one mono list. A closed Diagnostics disclosure holds the workshop id and the service's URL, assets and launch agent, since they are read rarely and changed never.
 
-An absent launch agent reads `Not installed`, with the faint explanation `Opening Tessera.app installs it.` No command-line setup is needed.
+An absent launch agent moves out of Diagnostics into the list and reads `Not installed`, with the faint explanation `Opening Tessera.app installs it.` No command-line setup is needed.
