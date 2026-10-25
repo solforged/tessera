@@ -325,7 +325,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         </section>}
         {!EMBEDDED && <section id={sectionId('backups')} aria-labelledby={`${sectionId('backups')}-heading`} aria-busy={backupBusy()}>
           {heading(number('backups'), 'backups', 'Backups')}
-          <p class="settings-empty">This workshop is backed up once a day and before each update, unless nothing has changed. The newest three are kept, then one a day for a week and one a week for a month.</p>
+          <p class="settings-empty">This workshop is backed up once a day and before each update, unless nothing has changed. One a day is kept for a week and one a week for a month, with the copies taken before an update or restore kept for a week.</p>
           <div class="settings-row">
             <div class="settings-label"><span class="settings-name">Database and files</span><Show when={backups()}>{value => <>
               <p role="status"><Show when={!restoringBackup()} fallback="Restoring…"><Show when={value().backups[0]} fallback="No backups yet.">{backup => <>Last backup <time class="settings-mono" dateTime={new Date(backup().created_at).toISOString()}>{when(backup().created_at)}</time>{unchanged() ? '; nothing has changed since' : ''}</>}</Show></Show></p>

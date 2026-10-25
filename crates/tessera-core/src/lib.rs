@@ -69,8 +69,8 @@ mod work_store;
 pub use agent::{AgentCitation, AgentEdit, AgentReceipt, AgentRequest, NoteBlock, NoteTarget};
 pub use aliases::{Completion, NameMatch};
 pub use backup::{
-    BackupManifest, StoredBackup, backup, backup_directory, backup_to_store,
-    backup_to_store_preserving, finished_backups, restore, restore_with,
+    BackupManifest, Safety, StoredBackup, backup, backup_before_update, backup_directory,
+    backup_to_store, backup_to_store_preserving, finished_backups, restore, restore_with,
 };
 pub use capabilities::ImageRef;
 pub use capabilities::{

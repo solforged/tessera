@@ -194,6 +194,17 @@ fn store_backups_skip_unchanged_state_and_keep_edits_and_new_objects() {
     let repeated = tessera_core::backup_to_store(&source, &store).unwrap();
     assert!(!repeated.created);
     assert_eq!(first.path, repeated.path);
+    assert_eq!(repeated.manifest.safety, None);
+    // An unchanged backup taken before an update marks the backup it reuses.
+    let update = tessera_core::backup_before_update(&source, &store).unwrap();
+    assert!(!update.created);
+    assert_eq!(update.path, first.path);
+    assert_eq!(
+        tessera_core::finished_backups(&store, &first.manifest.notebook_id).unwrap()[0]
+            .1
+            .safety,
+        Some(tessera_core::Safety::Update)
+    );
     assert_eq!(
         std::fs::read_dir(first.path.parent().unwrap())
             .unwrap()
@@ -218,12 +229,14 @@ fn store_backups_skip_unchanged_state_and_keep_edits_and_new_objects() {
         edited.manifest.database_sha256,
         first.manifest.database_sha256
     );
+    // Retention keeps one backup per day, but the pre-update one stays for a week.
     assert_eq!(
         std::fs::read_dir(first.path.parent().unwrap())
             .unwrap()
             .count(),
         2
     );
+    assert!(first.path.exists());
     notebook
         .put_object(b"new object without a database edit")
         .unwrap();
@@ -269,6 +282,7 @@ fn safety_snapshot_preserves_its_selected_restore_point_during_retention() {
     let selected = directory.join("old-1");
     let safety = tessera_core::backup_to_store_preserving(&source, &store, &selected).unwrap();
     assert!(safety.created);
+    assert_eq!(safety.manifest.safety, Some(tessera_core::Safety::Restore));
     assert!(safety.path.join("manifest.json").is_file());
     assert!(selected.join("manifest.json").is_file());
     assert!(!directory.join("old-2").exists());
@@ -346,8 +360,8 @@ fn skipped_backups_also_prune_finished_history_without_touching_other_workshops(
             .unwrap()
             .created
     );
-    assert_eq!(std::fs::read_dir(directory).unwrap().count(), 3);
-    assert!(directory.join("old-5").exists());
-    assert!(directory.join("old-4").exists());
+    assert_eq!(std::fs::read_dir(directory).unwrap().count(), 1);
+    assert!(newest.path.exists());
+    assert!(!directory.join("old-5").exists());
     assert!(other.path.exists());
 }

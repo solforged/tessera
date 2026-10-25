@@ -25,6 +25,17 @@ pub struct BackupManifest {
     /// Hash of the portable SQLite snapshot; absent in backups from older builds.
     #[serde(default)]
     pub database_sha256: String,
+    /// Set on a backup that keeps the state an update or restore replaces.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub safety: Option<Safety>,
+}
+
+/// What a safety backup was taken before. Retention keeps these for a week.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum Safety {
+    Update,
+    Restore,
 }
 
 /// Take a consistent SQLite snapshot without acquiring the source service lock.
@@ -69,21 +80,28 @@ pub fn backup(source: impl AsRef<Path>, destination: impl AsRef<Path>) -> Result
         object_count,
         db_page_count,
         database_sha256,
+        safety: None,
     };
     fs::rename(
         stage.path().join(DATABASE_FILE),
         destination.join(DATABASE_FILE),
     )?;
-    let mut file = File::create(stage.path().join("manifest.json"))?;
-    serde_json::to_writer_pretty(&mut file, &manifest).map_err(io::Error::other)?;
+    write_manifest(stage.path(), &destination, &manifest)?;
+    Ok(manifest)
+}
+
+/// Publish `manifest.json` into `destination` by renaming it from `stage`.
+fn write_manifest(stage: &Path, destination: &Path, manifest: &BackupManifest) -> Result<()> {
+    let mut file = File::create(stage.join("manifest.json.tmp"))?;
+    serde_json::to_writer_pretty(&mut file, manifest).map_err(io::Error::other)?;
     file.write_all(b"\n")?;
     file.sync_all()?;
     fs::rename(
-        stage.path().join("manifest.json"),
+        stage.join("manifest.json.tmp"),
         destination.join("manifest.json"),
     )?;
-    File::open(&destination)?.sync_all()?;
-    Ok(manifest)
+    File::open(destination)?.sync_all()?;
+    Ok(())
 }
 
 /// A store backup either newly published or retained because nothing changed.
@@ -145,7 +163,21 @@ pub fn backup_to_store(
     notebook: impl AsRef<Path>,
     store: impl AsRef<Path>,
 ) -> Result<StoredBackup> {
-    store_backup(notebook.as_ref(), store.as_ref(), None)
+    store_backup(notebook.as_ref(), store.as_ref(), None, None)
+}
+
+/// Back up before an update replaces the build, marked so retention keeps it
+/// for a week.
+pub fn backup_before_update(
+    notebook: impl AsRef<Path>,
+    store: impl AsRef<Path>,
+) -> Result<StoredBackup> {
+    store_backup(
+        notebook.as_ref(),
+        store.as_ref(),
+        None,
+        Some(Safety::Update),
+    )
 }
 
 /// Take a safety snapshot without pruning the backup about to be restored.
@@ -154,10 +186,20 @@ pub fn backup_to_store_preserving(
     store: impl AsRef<Path>,
     preserve: &Path,
 ) -> Result<StoredBackup> {
-    store_backup(notebook.as_ref(), store.as_ref(), Some(preserve))
+    store_backup(
+        notebook.as_ref(),
+        store.as_ref(),
+        Some(preserve),
+        Some(Safety::Restore),
+    )
 }
 
-fn store_backup(notebook: &Path, store: &Path, preserve: Option<&Path>) -> Result<StoredBackup> {
+fn store_backup(
+    notebook: &Path,
+    store: &Path,
+    preserve: Option<&Path>,
+    safety: Option<Safety>,
+) -> Result<StoredBackup> {
     let notebook = fs::canonicalize(notebook)?;
     let id: String = {
         let conn = Connection::open_with_flags(
@@ -175,13 +217,18 @@ fn store_backup(notebook: &Path, store: &Path, preserve: Option<&Path>) -> Resul
         return Err(validation("Backup directories must not be symlinks."));
     }
     let stage = tempfile::tempdir_in(&directory)?;
-    let manifest = backup(&notebook, stage.path())?;
+    let mut manifest = backup(&notebook, stage.path())?;
     // This private staging directory is no longer owned after backup returns.
     fs::remove_file(stage.path().join("service.lock"))?;
-    if let Some((path, previous)) = finished_backups(store, &id)?.into_iter().next()
+    if let Some((path, mut previous)) = finished_backups(store, &id)?.into_iter().next()
         && previous.database_sha256 == manifest.database_sha256
         && previous.object_count == manifest.object_count
     {
+        // The unchanged backup now holds the state being replaced.
+        if safety.is_some() && previous.safety.is_none() {
+            previous.safety = safety;
+            write_manifest(stage.path(), &path, &previous)?;
+        }
         stage.close()?;
         prune_store(store, &id, now_ms(), preserve)?;
         return Ok(StoredBackup {
@@ -189,6 +236,10 @@ fn store_backup(notebook: &Path, store: &Path, preserve: Option<&Path>) -> Resul
             manifest: previous,
             created: false,
         });
+    }
+    if safety.is_some() {
+        manifest.safety = safety;
+        write_manifest(stage.path(), stage.path(), &manifest)?;
     }
     let timestamp = jiff::Timestamp::from_millisecond(manifest.created_at)
         .map_err(|error| validation(error.to_string()))?;
@@ -222,15 +273,20 @@ fn store_backup(notebook: &Path, store: &Path, preserve: Option<&Path>) -> Resul
 
 const DAY_MS: i64 = 86_400_000;
 
-/// Indices to retain: three newest, one per UTC day including today for seven
+/// Indices to retain from `(created_at, safety)` pairs: the newest, safety
+/// backups younger than seven days, one per UTC day including today for seven
 /// days, then one per seven-day window for the preceding four weeks.
-fn retained_backups(timestamps: &[i64], now: i64) -> BTreeSet<usize> {
-    let mut newest: Vec<_> = (0..timestamps.len()).collect();
-    newest.sort_by_key(|&index| std::cmp::Reverse(timestamps[index]));
-    let mut keep: BTreeSet<_> = newest.iter().take(3).copied().collect();
+fn retained_backups(backups: &[(i64, bool)], now: i64) -> BTreeSet<usize> {
+    let mut newest: Vec<_> = (0..backups.len()).collect();
+    newest.sort_by_key(|&index| std::cmp::Reverse(backups[index].0));
+    let mut keep: BTreeSet<_> = newest.first().copied().into_iter().collect();
     let mut buckets = BTreeSet::new();
     for index in newest {
-        let age = now.div_euclid(DAY_MS) - timestamps[index].div_euclid(DAY_MS);
+        let (created, safety) = backups[index];
+        if safety && now - created < 7 * DAY_MS {
+            keep.insert(index);
+        }
+        let age = now.div_euclid(DAY_MS) - created.div_euclid(DAY_MS);
         let bucket = match age {
             0..=6 => age,
             7..=34 => 7 + (age - 7) / 7,
@@ -247,7 +303,7 @@ fn prune_store(store: &Path, id: &str, now: i64, preserve: Option<&Path>) -> Res
     let backups = finished_backups(store, id)?;
     let timestamps: Vec<_> = backups
         .iter()
-        .map(|(_, manifest)| manifest.created_at)
+        .map(|(_, manifest)| (manifest.created_at, manifest.safety.is_some()))
         .collect();
     let keep = retained_backups(&timestamps, now);
     for (index, (path, _)) in backups.into_iter().enumerate() {
@@ -456,12 +512,35 @@ fn copy_objects(source: &Path, destination: &Path) -> Result<u64> {
 mod tests {
     use super::*;
 
+    fn plain(timestamps: &[i64]) -> Vec<(i64, bool)> {
+        timestamps.iter().map(|&at| (at, false)).collect()
+    }
+
     #[test]
-    fn retention_keeps_three_newest_even_outside_the_time_windows() {
+    fn retention_keeps_the_newest_even_outside_the_time_windows() {
         assert_eq!(retained_backups(&[], 0), BTreeSet::new());
         assert_eq!(
-            retained_backups(&[1, 4, 2, 3], 100 * DAY_MS),
-            BTreeSet::from([1, 2, 3])
+            retained_backups(&plain(&[1, 4, 2, 3]), 100 * DAY_MS),
+            BTreeSet::from([1])
+        );
+    }
+
+    #[test]
+    fn retention_keeps_safety_backups_for_seven_days_beside_their_day() {
+        let now = 100 * DAY_MS;
+        let backups = [
+            (now, false),
+            (now - 1_000, true),
+            (now - 2_000, false),
+            (now - 7 * DAY_MS + 1, true),
+            (now - 7 * DAY_MS + 2, false),
+            (now - 8 * DAY_MS, true),
+        ];
+        // Days 99 and 93 keep their newest beside the safety backup; the
+        // eight-day-old one shares day 93's week and is no longer protected.
+        assert_eq!(
+            retained_backups(&backups, now),
+            BTreeSet::from([0, 1, 3, 4])
         );
     }
 
@@ -475,11 +554,11 @@ mod tests {
             timestamps.push(midnight - age * DAY_MS + 1);
         }
         timestamps.extend([midnight + 2, midnight + 3]);
-        let actual: BTreeSet<_> = retained_backups(&timestamps, midnight + 4)
+        let actual: BTreeSet<_> = retained_backups(&plain(&timestamps), midnight + 4)
             .into_iter()
             .map(|index| timestamps[index])
             .collect();
-        let mut expected = BTreeSet::from([midnight + 1, midnight + 2, midnight + 3]);
+        let mut expected = BTreeSet::from([midnight + 3]);
         for age in [1, 2, 3, 4, 5, 6, 7, 14, 21, 28] {
             expected.insert(midnight - age * DAY_MS + 1);
         }
@@ -494,8 +573,8 @@ mod tests {
             midnight - 1,
         ];
         assert_eq!(
-            retained_backups(&timestamps, midnight + 4),
-            BTreeSet::from([0, 1, 2, 4])
+            retained_backups(&plain(&timestamps), midnight + 4),
+            BTreeSet::from([0, 4])
         );
     }
 
@@ -513,8 +592,8 @@ mod tests {
             now - 35 * DAY_MS,
         ];
         assert_eq!(
-            retained_backups(&timestamps, now),
-            BTreeSet::from([0, 1, 2, 3, 4, 5, 6])
+            retained_backups(&plain(&timestamps), now),
+            BTreeSet::from([0, 1, 3, 4, 5, 6])
         );
     }
 

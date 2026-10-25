@@ -241,7 +241,9 @@ pub fn install(
     let backup = if notebook.join(tessera_core::DATABASE_FILE).exists() {
         let result = tessera_service::paths::backups_dir()
             .context("cannot find the workshop backup store")
-            .and_then(|store| tessera_core::backup_to_store(&notebook, store).map_err(Into::into));
+            .and_then(|store| {
+                tessera_core::backup_before_update(&notebook, store).map_err(Into::into)
+            });
         match result {
             Ok(backup) => {
                 if backup.created {
