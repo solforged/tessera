@@ -59,6 +59,15 @@ async fn service_reports_version_bound_port_assets_and_launch_agent() {
     );
 }
 
+/// Move a store backup's timestamp back one day, so retention keeps it beside a new one.
+fn age_a_day(path: &std::path::Path) {
+    let manifest = path.join("manifest.json");
+    let mut value: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(&manifest).unwrap()).unwrap();
+    value["created_at"] = (value["created_at"].as_i64().unwrap() - 86_400_000).into();
+    std::fs::write(&manifest, serde_json::to_vec(&value).unwrap()).unwrap();
+}
+
 #[tokio::test]
 async fn backups_create_skip_and_list_portable_snapshots_newest_first() {
     let dir = tempfile::tempdir().unwrap();
@@ -94,6 +103,8 @@ async fn backups_create_skip_and_list_portable_snapshots_newest_first() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(skipped["created"], false);
     assert_eq!(skipped["backups"], created["backups"]);
+    // Yesterday's backup survives today's, since retention keeps one per day.
+    age_a_day(path);
 
     // A new object changes the backup even without changing database bytes.
     let notebook = Notebook::open(&info.path).unwrap();
@@ -106,7 +117,7 @@ async fn backups_create_skip_and_list_portable_snapshots_newest_first() {
     assert_eq!(listed, edited["backups"]);
     assert_eq!(listed["backups"].as_array().unwrap().len(), 2);
     assert_eq!(listed["backups"][0]["object_count"], 2);
-    assert_eq!(listed["backups"][1], *saved);
+    assert_eq!(listed["backups"][1]["name"], saved["name"]);
     let own_sizes: u64 = listed["backups"]
         .as_array()
         .unwrap()
@@ -133,6 +144,7 @@ async fn other_backups_list_and_delete_without_removing_the_open_workshop() {
     let other_info = other.info().unwrap();
     other.put_object(b"other workshop object").unwrap();
     let first = tessera_core::backup_to_store(&other_info.path, &store).unwrap();
+    age_a_day(&first.path);
     other.put_object(b"second other object").unwrap();
     let second = tessera_core::backup_to_store(&other_info.path, &store).unwrap();
     let app = tessera_service::router(notebook, PORT, None, None, Some(store.clone())).unwrap();

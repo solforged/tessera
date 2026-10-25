@@ -295,7 +295,7 @@ export interface ServiceInfo {
   launch_agent: { installed: boolean; path: string | null };
 }
 
-export interface BackupInfo { path: string; name: string; created_at: number; object_count: number; size: number }
+export interface BackupInfo { path: string; name: string; created_at: number; object_count: number; size: number; safety: 'update' | 'restore' | null }
 export interface OtherBackups { workshop_id: string; count: number; size: number; newest_at: number | null; path: string }
 export interface Backups { backups: BackupInfo[]; store_size: number; others: OtherBackups[] }
 export interface CreatedBackup { created: boolean; backups: Backups }

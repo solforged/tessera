@@ -817,6 +817,8 @@ struct BackupInfo {
     created_at: i64,
     object_count: u64,
     size: u64,
+    /// What an update or restore safety backup was taken before.
+    safety: Option<tessera_core::Safety>,
 }
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -920,6 +922,7 @@ fn backup_info(
         path,
         created_at: manifest.created_at,
         object_count: manifest.object_count,
+        safety: manifest.safety,
     })
 }
 
@@ -2276,6 +2279,7 @@ mod tests {
                 object_count: 1,
                 db_page_count: 1,
                 database_sha256: String::new(),
+                safety: None,
             };
             std::fs::write(
                 path.join("manifest.json"),
@@ -2378,6 +2382,7 @@ mod tests {
             object_count: 0,
             db_page_count: 1,
             database_sha256: String::new(),
+            safety: None,
         };
         std::fs::write(
             root.join("foreign/manifest.json"),
