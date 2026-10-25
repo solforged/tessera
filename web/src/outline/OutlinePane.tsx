@@ -60,6 +60,8 @@ import { createOutlineCommands } from './commands';
 import { createOutlineKeyboard } from './keyboard';
 import { createOutlineInteractions } from './interactions';
 import { createOutlineRows } from './Row';
+import { MissingSections, createJournalLayout } from './journal-sections';
+import { section } from '../tasks/today-template';
 import { createOutlineDrag } from './drag';
 import { createOutlineImages } from './Images';
 import { createOutlineRelated } from './Related';
@@ -1433,8 +1435,9 @@ function Pane(props: OutlinePaneProps) {
   const { related, relatedError, relatedLoading, apparatus, holders, holderRelations, linkedPages, isCollection, CollectionSources, Related, Backlinks, UnlinkedMentions, mentionsAvailable, ReferenceCount, RowRelations } = createOutlineRelated(context);
   const holderBoundary = createMemo(() => !zoom() && related()?.heldReadings.length
     ? ids().find(id => doc.outline.parentOf(id) === props.pageId && !!doc.block(id)?.heading) : undefined);
+  const journalLayout = createJournalLayout(doc, props.notebook, () => !zoom());
   const { Row, TaskSummary, QuestionSummary } = createOutlineRows(context, fieldSheet, drag, ReferenceCount, RowRelations, openValueEditor,
-    row => <Show when={holderBoundary() === row.id}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>, DiscoveryHints);
+    row => <Show when={holderBoundary() === row.id}><HeldReadings rows={related()?.heldReadings ?? []} notebook={props.notebook} onOpen={props.onOpen} /></Show>, DiscoveryHints, journalLayout);
   const emptyRootBlock = createMemo(() => {
     if (zoom() || doc.root()?.kind !== 'page' || doc.root()?.source || doc.outline.size() !== 1) return undefined;
     const id = doc.outline.idAt(0), block = doc.block(id);
@@ -1872,7 +1875,12 @@ function Pane(props: OutlinePaneProps) {
     <Show when={doc.root()?.source && fields.error}><p class="library-error" role="alert">{String(fields.error)}</p></Show>
     <Show when={doc.status() === 'ready' && !zoom() && isCollection()}><CollectionSources /></Show>
     <Show when={doc.status() === 'ready' && ids().length === 0 && depthFilter() === undefined}><button type="button" class="add-first-block" onClick={() => apply({ kind: 'insert', parentId: zoom() ?? props.pageId, after: null }, true)}><Icon name="plus" />Add an atom</button></Show>
-    <Show when={!zoom() && doc.root()?.kind === 'journal'}><div class="related-sections journal-highlights"><Show when={doc.root()!.text === props.notebook.todayDate()}><ResearchToRevisit notebook={props.notebook} onOpen={props.onOpen} /></Show><JournalResurface date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></div></Show>
+    {/* Generated sections follow the outline on Today alone, as the workshop's template switches them. */}
+    <Show when={journalLayout()?.missing.end.length}><div class="journal-missing-end"><MissingSections notebook={props.notebook} sections={journalLayout()!.missing.end} /></div></Show>
+    <Show when={!zoom() && doc.root()?.kind === 'journal' && doc.root()!.text === props.notebook.todayDate()}><div class="related-sections journal-highlights">
+      <Show when={section(props.notebook.todayTemplate(), 'research')?.on}><ResearchToRevisit name={section(props.notebook.todayTemplate(), 'research')!.name} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+      <Show when={section(props.notebook.todayTemplate(), 'highlights')?.on}><JournalResurface name={section(props.notebook.todayTemplate(), 'highlights')!.name} date={doc.root()!.text} notebook={props.notebook} onOpen={props.onOpen} /></Show>
+    </div></Show>
     <Show when={doc.status() === 'ready' && !zoom() && related()?.works.length}><PersonWorks pageId={props.pageId} rows={related()!.works} onOpen={props.onOpen} /></Show>
     <Show when={!zoom()}><projectSummary.LinkedTasks /></Show>
     <Show when={doc.status() === 'ready' && !zoom() && (doc.root()?.project || doc.root()?.manual_types.some(title => title.toLocaleLowerCase() === 'stream'))}><Arrivals doc={doc} notebook={props.notebook} onOpen={props.onOpen} onAdded={restoreFocus} /></Show>

@@ -295,6 +295,31 @@ fn invalid_time_zone_boolean_and_unknown_settings_are_rejected() {
     assert!(notebook.changes_since(0, 10).unwrap().is_empty());
 }
 
+const TODAY_TEMPLATE: &str = r#"{"sections":[{"id":"plan","name":"Plan","on":true},{"id":"inbox","name":"Inbox","on":true},{"id":"reading","name":"Reading","on":true},{"id":"notes","name":"Notes","on":true},{"id":"research","name":"Research to revisit","on":true},{"id":"highlights","name":"From your highlights","on":false}],"capture":"inbox","links":"link","tiles":{"agenda":true,"review":true,"reading":true}}"#;
+
+#[test]
+fn today_template_accepts_a_complete_template_and_rejects_broken_ones() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    notebook
+        .apply(&setting_batch("today_template", None, TODAY_TEMPLATE))
+        .unwrap();
+    for value in [
+        "{}".to_owned(),
+        TODAY_TEMPLATE.replace(r#"{"id":"reading","name":"Reading","on":true},"#, ""),
+        TODAY_TEMPLATE.replace(r#""capture":"inbox""#, r#""capture":"plan""#),
+        TODAY_TEMPLATE.replace(r#""name":"Notes","on":true"#, r#""name":"Notes","on":false"#),
+        TODAY_TEMPLATE.replace(r#""name":"Reading""#, r#""name":"inbox""#),
+        TODAY_TEMPLATE.replace(r#""links":"link""#, r#""links":"page""#),
+    ] {
+        assert!(matches!(
+            notebook.apply(&setting_batch("today_template", Some(1), &value)),
+            Err(Error::Validation { .. })
+        ));
+    }
+    assert_eq!(notebook.settings().unwrap()[0].revision, 1);
+}
+
 #[test]
 fn today_uses_notebook_time_zone_across_midnight() {
     let dir = tempfile::tempdir().unwrap();

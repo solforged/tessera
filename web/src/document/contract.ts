@@ -13,6 +13,7 @@
  *   a block with unsent local text, the block enters conflict and keeps both.
  */
 
+import type { SectionTarget, TodayTemplate } from '../tasks/today-template';
 import type { Accessor } from 'solid-js';
 import type { Block, BlockKind, ChangeEvent, Citation, Committed, FieldDefinition, FieldKind, Operation, PassagePoint, ProjectState, SettingsView, SourceRecord, SourceState, TaskState, WorkSession } from '../api/types';
 import type { PositionInfo, RelationInfo, RelationKind } from '../api/types';
@@ -330,6 +331,8 @@ export interface PageDocument {
   root(): BlockState | undefined;
   /** Live blocks of this page, by ID; undefined when absent. */
   block(id: string): BlockState | undefined;
+  /** When the service first stored the block; undefined until its insert is acknowledged. */
+  createdAt(id: string): number | undefined;
   /** Engine-derived behavior and system-tag protection for a live atom. */
   capabilities(id: string): BlockCapabilities;
   /** Whether a block is archived, untracked; pair it with `archivedVersion` to follow every block's flag at once. */
@@ -379,6 +382,8 @@ export interface CaptureIntent {
   picked: [string, string][];
   targetPageId?: string;
   question?: boolean;
+  /** A written Today section to file under; its heading is written in the same batch when the day lacks it. */
+  section?: SectionTarget;
 }
 
 export interface CaptureResult {
@@ -403,7 +408,7 @@ export interface NotebookClient {
   /** Keep text for a value whose creation is already queued, before its editor can mount. */
   queueCreatedValueText(valueId: string, pageId: string, text: string): Promise<void>;
   /** Resolves once the capture is in the outbox, not when the service acknowledges it. */
-  appendCapture(text: string, task: TaskState | null, picked?: readonly [string, string][], options?: Pick<CaptureIntent, 'targetPageId' | 'question'>): Promise<CaptureReceipt>;
+  appendCapture(text: string, task: TaskState | null, picked?: readonly [string, string][], options?: Pick<CaptureIntent, 'targetPageId' | 'question' | 'section'>): Promise<CaptureReceipt>;
   /** One acknowledged transaction across pages, with exact field-level undo/redo. */
   editSourceDetails(edits: readonly { pageId: string; edit: SourceDetailsEdit }[]): Promise<DocumentChange>;
   /** Move a journal subtree and leave a live reference, in one transaction with undo/redo. */
@@ -428,7 +433,9 @@ export interface NotebookClient {
   refreshSettings(): Promise<void>;
   vim(): boolean;
   confirmViewDelete(): boolean;
-  setSetting(key: 'time_zone' | 'vim' | 'confirm_view_delete', value: string): Promise<void>;
+  /** The workshop's Today sections, or the default template. */
+  todayTemplate(): TodayTemplate;
+  setSetting(key: 'time_zone' | 'vim' | 'confirm_view_delete' | 'today_template', value: string): Promise<void>;
   settingsBusy(): boolean;
   settingsMessage(): string;
   canUndoSetting(): boolean;

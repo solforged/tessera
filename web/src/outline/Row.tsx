@@ -38,6 +38,9 @@ import { Embed } from './Embed';
 import { AgentMark } from '../agent/AgentMark';
 import { embedTarget } from './streams';
 import { ViewEmbed, viewEmbedTarget } from './ViewEmbed';
+import { MissingSections, SectionCapture } from './journal-sections';
+import type { JournalLayout } from './journal-sections';
+import { SectionHead } from '../ui/SectionHead';
 import { NotebookImage } from '../ui/NotebookImage';
 import './image.css';
 
@@ -50,7 +53,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
   | 'referenceMenu' | 'selectedOffsets' | 'ids' | 'indices' | 'setMessage' | 'apply'
   | 'setConflicts' | 'conflicts' | 'editedConflicts' | 'setEditedConflicts'
   | 'openImage'
->, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>, RowRelations: Component<{ id: string }>, openValueEditor: (id: string, anchor?: HTMLElement) => boolean, RowPrelude: Component<{ id: string }>, DiscoveryHints: Component<{ id: string }>) {
+>, sheet: FieldSheet, drag: OutlineDrag, ReferenceCount: Component<{ id: string }>, RowRelations: Component<{ id: string }>, openValueEditor: (id: string, anchor?: HTMLElement) => boolean, RowPrelude: Component<{ id: string }>, DiscoveryHints: Component<{ id: string }>, journal: Accessor<JournalLayout | null>) {
   const {
     doc, capabilities, setMenu, investigationItems, definitionsById, contextDate, inlineFields,
     baseDepth, positionSource, sourceDetails, virtualizer, hosts, props,
@@ -166,6 +169,11 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const id = () => propsRow.id;
     const block = () => doc.block(id());
     const children = () => doc.outline.children(id()).length > 0;
+    // Today draws its written sections' headings as section heads, Notes before its first row, and Inbox clocks.
+    const sectionHead = () => journal()?.heads.get(id());
+    const notesHead = () => { const head = journal()?.notesHead; return head?.id === id() ? head.name : undefined; };
+    const missingBefore = () => journal()?.missing.before.get(id());
+    const captureTime = () => journal()?.times.get(id());
     const target = createMemo(() => quoteTarget(block()?.text ?? ''));
     const field = createMemo(() => definitionsById().get(fieldEntryId(block()?.text ?? '') ?? ''));
     const parent = () => doc.outline.parentOf(id());
@@ -285,7 +293,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
     }
     return <div ref={row} id={`outline-${props.pane}-${id()}`} data-index={propsRow.natural ? undefined : propsRow.item!().index} data-block-id={id()} role="treeitem" aria-level={propsRow.natural ? 1 : depth() + 1}
       aria-expanded={children() ? !folds().has(id()) : undefined} aria-selected={selectedSet().has(id())}
-      class="outline-row" classList={{ 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline() || emptyEntry(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
+      class="outline-row" classList={{ 'row-section-head': !!sectionHead(), 'row-banner': !!notesHead() || !!missingBefore(), 'row-captured': !!captureTime(), 'row-position': !!block()?.position, 'row-gist': gist(), 'row-question': !!block()?.question, 'row-assessment': !!block()?.assessment, 'row-selected': selectedSet().has(id()) && editing() !== id(), 'row-covered': coveredSet().has(id()), 'row-editing': editing() === id(), 'row-archived': block()?.archived ?? false, 'field-entry': !!field(), 'inline-field-value': inline() || emptyEntry(), 'row-gloss': inline() && parent() === glossId(), 'choice-value': pill(), 'source-highlight': !!localCitation(), 'source-highlights-start': sourceDetails().chapters.has(id()), 'outline-row-linked': block()?.citations.some(citation => citation.id === linkedCitation()) ?? false }}
       data-task-status={block()?.task?.status}
       data-holder={block()?.position?.holder_id ?? undefined}
       data-field-role={inline() ? fieldRole(valueField()) : field() ? fieldRole(field()) : undefined}
@@ -300,6 +308,11 @@ export function createOutlineRows(context: Pick<OutlineContext,
       onContextMenu={event => { if (editing() !== id() && (holding || held)) event.preventDefault(); }}
       onPointerEnter={() => { setLinkedCitation(block()?.citations[0]?.id ?? null); if (!propsRow.natural) sheet.hover(id()); }} onPointerLeave={() => { setLinkedCitation(null); sheet.hover(null); }}
       style={{ transform: propsRow.natural ? undefined : `translateY(${propsRow.item!().start - margin()}px)`, '--depth': propsRow.natural ? 0 : depth(), '--quote-color': localCitation()?.color ? `var(--highlight-${localCitation()!.color})` : 'var(--faint)' }}>
+      <Show when={missingBefore() || notesHead()}><div class="row-section-banner">
+        <Show when={missingBefore()}>{sections => <MissingSections notebook={props.notebook} sections={sections()} />}</Show>
+        <Show when={notesHead()}>{name => <SectionHead class="row-notes-head" name={name()} />}</Show>
+      </div></Show>
+      <Show when={captureTime()}>{time => <span class="row-capture-time" aria-hidden="true">{time()}</span>}</Show>
       <RowPrelude id={id()} />
       <Show when={!propsRow.natural && depth() > 4}><span class="row-depth" aria-hidden="true" title={`Nesting depth ${depth()}`}>{depth()}</span></Show>
       <Show when={sourceDetails().chapters.get(id())}>{title => <div class="outline-chapter-label">{title()}</div>}</Show>
@@ -370,9 +383,11 @@ export function createOutlineRows(context: Pick<OutlineContext,
             <Show when={!editedConflicts().has(id())} fallback={<button type="button" onClick={() => doc.resolveConflict(id(), 'mine')}>Use edited text</button>}><button type="button" onClick={() => { setEditedConflicts(previous => new Set([...previous, id()])); editAt(id(), 0, true); }}>Edit merged text</button></Show></div>
         </div></Show>
       </div>
+      <Show when={sectionHead()}>{head => <span class="row-section-tail"><span class="section-rule" /><span class="section-head-count">{head().count}</span></span>}</Show>
       <AgentMark id={id()} />
       <ReferenceCount id={id()} />
       <sheet.FieldSlots id={id()} />
+      <Show when={sectionHead()?.capture ? sectionHead()!.section : undefined}>{section => <SectionCapture notebook={props.notebook} section={section()} />}</Show>
     </div>;
   }
   return { Row, TaskSummary, QuestionSummary };

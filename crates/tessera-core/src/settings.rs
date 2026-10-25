@@ -15,8 +15,73 @@ pub(crate) fn validate_setting(key: &str, value: &str) -> Result<()> {
         "confirm_view_delete" if matches!(value, "true" | "false") => Ok(()),
         "confirm_view_delete" => Err(validation("confirm_view_delete must be true or false")),
         "library_creator_targets" | "task_field_template" if value == "true" => Ok(()),
+        "today_template" => validate_today_template(value),
         _ => Err(validation(format!("unknown setting: {key}"))),
     }
+}
+
+/// Today's sections in order. Plan, Research and Highlights are generated; Notes
+/// always shows; every other section is written into the day's outline.
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TodayTemplate {
+    sections: Vec<TodaySection>,
+    capture: String,
+    links: String,
+    tiles: TodayTiles,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TodaySection {
+    id: String,
+    name: String,
+    on: bool,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+#[allow(dead_code)]
+struct TodayTiles {
+    agenda: bool,
+    review: bool,
+    reading: bool,
+}
+
+const TODAY_BUILT_IN: [&str; 6] = ["plan", "inbox", "reading", "notes", "research", "highlights"];
+const TODAY_GENERATED: [&str; 3] = ["plan", "research", "highlights"];
+
+fn validate_today_template(value: &str) -> Result<()> {
+    let template: TodayTemplate = serde_json::from_str(value)
+        .map_err(|error| validation(format!("today_template is not a template: {error}")))?;
+    let mut ids = std::collections::HashSet::new();
+    let mut names = std::collections::HashSet::new();
+    for section in &template.sections {
+        let name = section.name.trim();
+        if section.id.is_empty() || section.id.len() > 64 {
+            return Err(validation("today_template section ids must be 1 to 64 bytes"));
+        }
+        if name.is_empty() || name.chars().count() > 80 || name.contains(['\n', '\r']) {
+            return Err(validation("today_template section names must be one line of 1 to 80 characters"));
+        }
+        if !ids.insert(section.id.as_str()) || !names.insert(name.to_lowercase()) {
+            return Err(validation("today_template sections must have distinct ids and names"));
+        }
+    }
+    if let Some(missing) = TODAY_BUILT_IN.iter().find(|id| !ids.contains(**id)) {
+        return Err(validation(format!("today_template is missing the {missing} section")));
+    }
+    if !template.sections.iter().any(|section| section.id == "notes" && section.on) {
+        return Err(validation("today_template must keep Notes on"));
+    }
+    let written = |id: &str| !TODAY_GENERATED.contains(&id) && id != "notes";
+    if !template.sections.iter().any(|section| section.id == template.capture && section.on && written(&section.id)) {
+        return Err(validation("today_template must capture into a written section that is on"));
+    }
+    if !matches!(template.links.as_str(), "link" | "source") {
+        return Err(validation("today_template links must be link or source"));
+    }
+    Ok(())
 }
 
 impl Notebook {

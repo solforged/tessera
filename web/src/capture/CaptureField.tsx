@@ -11,6 +11,7 @@ import { completeTypes, typeSpelling, typeTokenAt } from '../outline/type-comple
 import { parseCardText } from '../review/card-text';
 import { captureDateToken, dateSuggestions, insideProtectedSyntax, newTask, planDateToken } from '../tasks/quick-date';
 import { relativeDate } from '../tasks/task-labels';
+import type { SectionTarget } from '../tasks/today-template';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import './capture.css';
@@ -40,6 +41,8 @@ export interface CaptureFieldProps {
   fixedKind?: boolean;
   onTextChange?(text: string): void;
   targetPageId?: string;
+  /** A written Today section to file under. */
+  section?: SectionTarget;
   question?: boolean;
   label: string;
   placeholder: string;
@@ -47,6 +50,8 @@ export interface CaptureFieldProps {
   boxed?: boolean;
   /** One faint line beneath a boxed field. */
   hint?: string;
+  /** Faint text at a boxed field's right end while no date preview shows. */
+  trailing?: string;
   /** Called after a save; `again` is true for Shift+Enter, which keeps the field for the next item. */
   onSaved?(again: boolean, receipt: CaptureReceipt): void;
   /** Escape with no completion open. */
@@ -154,7 +159,7 @@ export function CaptureField(props: CaptureFieldProps) {
     accepting = true;
     setPending(count => count + 1); setError('');
     try {
-      const receipt = await props.notebook.appendCapture(body.trim(), value, [...links], { targetPageId: props.targetPageId, question: props.question } satisfies Pick<CaptureIntent, 'targetPageId' | 'question'>);
+      const receipt = await props.notebook.appendCapture(body.trim(), value, [...links], { targetPageId: props.targetPageId, question: props.question, section: props.targetPageId ? undefined : props.section } satisfies Pick<CaptureIntent, 'targetPageId' | 'question' | 'section'>);
       // Typing while the storage transaction finishes stays in the next line.
       const next = draft() === submittedDraft ? '' : draft().startsWith(submittedDraft) ? draft().slice(submittedDraft.length) : draft();
       if (next !== draft()) {
@@ -227,6 +232,7 @@ export function CaptureField(props: CaptureFieldProps) {
       <Show when={props.boxed && preview()}>{state => <span class="capture-inline-preview" classList={{ warning: state().warning }} role="status">
         <Show when={!state().warning}><Icon name="calendar" /></Show><span class="capture-inline-plan">{state().label}</span><Show when={!state().warning}><span class="capture-inline-enter">↵ add</span></Show>
       </span>}</Show>
+      <Show when={props.boxed && !preview() && props.trailing}><span class="capture-trailing" aria-hidden="true">{props.trailing}</span></Show>
     </div>
     <Show when={tags().length}><div class="capture-tags" aria-label="Tags in draft"><For each={tags()}>{tag => <span class="capture-tag"><Icon name="tag" />{tag.value}</span>}</For></div></Show>
     <Show when={open()}>

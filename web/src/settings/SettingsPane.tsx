@@ -17,11 +17,12 @@ import { BrowserBackups } from './BrowserBackups';
 import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, notebookPlace, openNotebook, reloadNotebook, workshopName, workshopsHome } from './notebooks';
 import { AgentSettings } from '../agent/AgentSettings';
 import { deviceZone as currentDeviceZone, isoDate, isoMinute, workshopZone, zoneAliases as aliases } from './time';
+import { TodaySettings } from './TodaySettings';
 import '../fields/field-page.css';
 import './settings.css';
 import './devices.css';
 
-export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; section?: 'notebooks' | 'devices' | 'agent'; deviceId?: string | null; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onViewChange(view: SettingsViewState): void }) {
+export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; section?: 'notebooks' | 'devices' | 'agent' | 'today'; deviceId?: string | null; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onViewChange(view: SettingsViewState): void }) {
   const [error, setError] = createSignal('');
   const [info] = createResource(async () => {
     try { return await api.notebook(); }
@@ -110,6 +111,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   const [deviceCount, setDeviceCount] = createSignal(0);
   const sections = createMemo(() => [
     { key: 'preferences', label: 'Preferences', count: 0 },
+    { key: 'today', label: 'Today', count: 0 },
     ...(DEMO && !MOBILE ? [{ key: 'backups', label: 'Backups', count: 0 }] : []),
     ...(EMBEDDED ? [] : [{ key: 'notebooks', label: 'Workshops', count: knownNotebooks()?.notebooks.length ?? 0 }, { key: 'backups', label: 'Backups', count: backups()?.backups.length ?? 0 }]),
     ...(devices ? [{ key: 'devices', label: 'Devices', count: deviceCount() }] : []),
@@ -235,6 +237,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
             onPick={value => { setZoneAnchor(null); setZoneQuery(''); void change('time_zone', value.id); }}
             row={value => <><Show when={value.id === zone()} fallback={<span class="icon" />}><Icon name="check" /></Show><span class="settings-zone-text"><span>{value.label}</span><span class="settings-zone-id">{value.id}{value.id === deviceZone ? ' · Device' : ''}</span></span></>} />}</Show>
         </section>
+        <TodaySettings id={sectionId('today')} heading={heading(number('today'), 'today', 'Today')} pane={props.pane} notebook={props.notebook} />
         {DEMO && !MOBILE && <BrowserBackups id={sectionId('backups')} heading={heading(number('backups'), 'backups', 'Backups')} when={when} onError={setError} />}
         {!EMBEDDED && <section id={sectionId('notebooks')} aria-labelledby={`${sectionId('notebooks')}-heading`} aria-busy={notebookOpening() !== null}>
           {heading(number('notebooks'), 'notebooks', 'Workshops')}
