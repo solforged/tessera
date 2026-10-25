@@ -48,8 +48,13 @@
 .row-reading-creators { flex: none; align-self: flex-start; padding-top: calc(var(--space-2) + (var(--line-body) - var(--line-apparatus)) / 2); margin-left: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .row-reading-source:not(.row-editing) .static-text .reference-locator { display: none; }
 /* Narrow screens move the handles after the bullet, so heads and the capture line start at the text edge and clocks have no gutter. */
+/* A source's own row does not repeat its siglum: the row is the source. */
+.outline-row:is(.row-reading-source, .row-inbox-source) > .row-sigla { display: none; }
 @media (max-width: 599px) {
   .row-section-banner { padding-left: 2px; }
+  /* Authors, position and a link's site drop beneath the title at the text column instead of crowding it. */
+  .outline-row:is(.row-reading-source, .row-link) { flex-wrap: wrap; }
+  :is(.row-reading-creators, .row-link-site) { flex: 1 0 100%; order: 5; min-width: 0; margin: 0; padding: 0 0 var(--space-2) var(--target-size); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .outline-row > .section-capture { padding-left: var(--indent-unit); }
   .row-capture-time { display: none; }
 }

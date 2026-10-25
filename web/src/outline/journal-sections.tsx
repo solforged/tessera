@@ -8,6 +8,7 @@ import type { TodaySection } from '../tasks/today-template';
 import { foldName } from './names';
 import { SectionHead } from '../ui/SectionHead';
 import { embedTarget } from './streams';
+import { referenceSource } from './source-reads';
 import './journal-sections.css';
 
 /** A written section's heading row, drawn as the shared section head. */
@@ -31,6 +32,8 @@ export interface JournalLayout {
   toFile: string[];
   /** Top-level Reading rows that stand for a source → that source. */
   reading: Map<string, string>;
+  /** Top-level Inbox rows that are one reference to a source, such as a Link once its Library import finished. */
+  inboxSources: Set<string>;
 }
 
 // The field that captured into a missing section hands focus to the field under the heading it wrote.
@@ -39,7 +42,7 @@ const [captureFocus, setCaptureFocus] = createSignal<string | null>(null);
 /** Matches a journal day's root headings to the template's written sections. */
 export function createJournalLayout(doc: PageDocument, notebook: NotebookClient, active: Accessor<boolean>): Accessor<JournalLayout | null> {
   const clock = createMemo(() => new Intl.DateTimeFormat('en-GB', { timeZone: notebook.settings()?.time_zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
-  return createMemo(() => {
+  const layout = createMemo(() => {
     const root = doc.root();
     if (!active() || root?.kind !== 'journal') return null;
     const template = notebook.todayTemplate();
@@ -52,6 +55,7 @@ export function createJournalLayout(doc: PageDocument, notebook: NotebookClient,
     const inbox = new Set<string>();
     const toFile: string[] = [];
     const reading = new Map<string, string>();
+    const references = new Map<string, string>();
     let loose: string | undefined;
     const order = template.sections.filter(value => value.on && (isWritten(value) || value.id === 'notes')).map(value => value.id);
     const ranked: { id: string; rank: number }[] = [];
@@ -66,6 +70,8 @@ export function createJournalLayout(doc: PageDocument, notebook: NotebookClient,
       heads.set(id, { section, count: sectionCount(doc, section, children), capture: today && section.id === 'inbox', today });
       if (section.id === 'inbox') for (const child of children) {
         inbox.add(child);
+        const target = readingRowSource(doc.block(child)?.text ?? '');
+        if (target) references.set(child, target);
         if (unfiled(doc, child)) toFile.push(child);
         const at = doc.createdAt(child);
         if (at !== undefined) times.set(child, clock().format(at));
@@ -77,11 +83,24 @@ export function createJournalLayout(doc: PageDocument, notebook: NotebookClient,
     }
     const notesName = template.sections.find(section => section.id === 'notes')?.name ?? 'Notes';
     return {
-      today, heads, times, inbox, toFile, reading,
+      today, heads, times, inbox, toFile, reading, references,
       // Other days read as one outline unless they also hold section headings.
       notesHead: loose && (today || heads.size) ? { id: loose, name: notesName } : undefined,
       missing: placeMissing(today ? written.filter(section => !found.has(section.id)) : [], ranked, order),
     };
+  });
+  // Which referenced pages are sources is the service's to say; the rows draw their source glyph once it has.
+  const [sources] = createResource(() => [...new Set(layout()?.references.values() ?? [])].sort().join(' '), async key => {
+    const ids = key ? key.split(' ') : [];
+    const records = await Promise.all(ids.map(id => referenceSource(notebook, id).catch(() => null)));
+    return new Set(ids.filter((_, index) => records[index]));
+  });
+  return createMemo(() => {
+    const value = layout();
+    if (!value) return null;
+    const known = sources.latest;
+    const { references, ...rest } = value;
+    return { ...rest, inboxSources: new Set([...references].filter(([, target]) => known?.has(target)).map(([row]) => row)) };
   });
 }
 
