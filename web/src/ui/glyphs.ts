@@ -6,7 +6,7 @@ export type Glyph = string | readonly [stroke: string, fill: string];
 export const paths = {
   search: 'm11 11 4 4 M12.5 7a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0Z',
   command: 'M5 6h6v6H5z M5 6V3a2 2 0 1 0-2 2h3 M11 6V3a2 2 0 1 1 2 2h-3 M5 12v1a2 2 0 1 1-2-2h3 M11 12v1a2 2 0 1 0 2-2h-3',
-  left: 'm10 3-5 5 5 5', right: 'm6 3 5 5-5 5', down: 'm3 6 5 5 5-5', up: 'm3 10 5-5 5 5',
+  left: 'm10 3-5 5 5 5', right: 'm6 3 5 5-5 5', arrow: 'M2.5 8h11 M9.5 4l4 4-4 4', down: 'm3 6 5 5 5-5', up: 'm3 10 5-5 5 5',
   plus: 'M8 2v12 M2 8h12', close: 'm3 3 10 10 M13 3 3 13',
   more: 'M3 8h.01 M8 8h.01 M13 8h.01',
   sidebar: 'M2 2h12v12H2z M6 2v12', panes: 'M1 2h14v12H1z M8 2v12',

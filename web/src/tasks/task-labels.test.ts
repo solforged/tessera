@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { AgendaItem, AgendaReason, Block, TaskRow, TaskState } from '../api/types';
-import { agendaTaskTime, groupAgenda, groupDayAgenda, planTask, plannedTaskCounts, relativeDate, taskFacts } from './task-labels';
+import { agendaTaskTime, groupAgenda, groupDayAgenda, planTask, plannedTaskCounts, relativeDate, stripDays, taskFacts, upcomingDayLabel } from './task-labels';
 
 const todo: TaskState = { status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null };
 
@@ -201,5 +201,24 @@ describe('plannedTaskCounts', () => {
     const closed = item('done', ['recently_completed'], { status: 'done', scheduled: '2026-10-10' });
     const cancelled = item('cancelled', [], { status: 'cancelled', deadline: '2026-10-11' });
     expect([...plannedTaskCounts([both, both, separate, closed, cancelled])]).toEqual([['2026-10-10', 2], ['2026-10-11', 1]]);
+  });
+});
+
+describe('stripDays', () => {
+  test('counts open work per day, warns inside a deadline window and adds carried work to today', () => {
+    const near = item('near', ['deadline'], { deadline: '2026-10-27', warning_days: 3 });
+    const far = item('far', ['deadline'], { deadline: '2026-10-31', warning_days: 3 });
+    const planned = item('planned', ['scheduled'], { scheduled: '2026-10-25' });
+    const days = stripDays([near, near, far, planned], '2026-10-25', 2);
+    expect(days.get('2026-10-25')).toEqual({ open: 3, overdue: 2, warning: 0 });
+    expect(days.get('2026-10-27')).toEqual({ open: 1, overdue: 0, warning: 1 });
+    expect(days.get('2026-10-31')).toEqual({ open: 1, overdue: 0, warning: 0 });
+  });
+});
+
+describe('upcomingDayLabel', () => {
+  test('names tomorrow, then weekdays, with a month and day rather than ISO', () => {
+    expect(upcomingDayLabel('2026-10-26', '2026-10-25')).toEqual({ name: 'Tomorrow', detail: 'Oct 26' });
+    expect(upcomingDayLabel('2026-11-01', '2026-10-25')).toEqual({ name: 'Sunday', detail: 'Nov 1' });
   });
 });

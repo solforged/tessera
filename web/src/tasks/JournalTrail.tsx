@@ -1,6 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup } from 'solid-js';
 import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
+import { shiftCalendarDate } from './week-calendar';
 import { journalDayLabel, journalISOWeek, journalMonthGrid, journalMonthLabel, journalQuarter, journalWeekDays, journalYearMonths, spokenJournalDate } from './journal-date';
 
 type Period = 'year' | 'quarter' | 'month' | 'week';
@@ -14,7 +15,7 @@ function weekRange(days: string[]) {
     : `${journalMonthLabel(first)} ${day(first)} – ${journalMonthLabel(last)} ${day(last)}`;
 }
 
-export function JournalTrail(props: { date: string; journalPeriod?: Period; notebook: NotebookClient; onSelect(date: string): Promise<void> }) {
+export function JournalTrail(props: { date: string; today?: boolean; journalPeriod?: Period; notebook: NotebookClient; onSelect(date: string): Promise<void> }) {
   const [ledger, setLedger] = createSignal<{ kind: Period; date: string } | null>(null);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
@@ -45,13 +46,14 @@ export function JournalTrail(props: { date: string; journalPeriod?: Period; note
   const focus = () => ledger()?.date ?? props.date;
   const quarter = createMemo(() => journalQuarter(focus()));
   const week = createMemo(() => journalISOWeek(focus()));
-  // The trail stays short under the spoken date: year, month and week; the quarter shows only while its ledger is open.
+  // The trail runs from the nearest period outward: week, month, then year; the quarter shows only while its ledger is open.
   const segments = createMemo(() => [
-    { kind: 'year' as const, label: focus().slice(0, 4), name: focus().slice(0, 4) },
+    { kind: 'week' as const, label: `Week ${week().week}`, name: `Week ${week().week}, ${week().year}` },
+    { kind: 'month' as const, label: journalMonthLabel(focus()), name: journalMonthLabel(focus()) },
     ...(ledger()?.kind === 'quarter' ? [{ kind: 'quarter' as const, label: `Q${quarter().quarter}`, name: `Quarter ${quarter().quarter}` }] : []),
-    { kind: 'month' as const, label: journalMonthLabel(focus()).slice(0, 3), name: journalMonthLabel(focus()) },
-    { kind: 'week' as const, label: `W${week().week}`, name: `Week ${week().week}, ${week().year}` },
+    { kind: 'year' as const, label: focus().slice(0, 4), name: focus().slice(0, 4) },
   ]);
+  const step = (days: number) => { const date = shiftCalendarDate(props.date, days); if (date) void select(date); };
   let ledgerElement: HTMLDivElement | undefined;
   /** Opening a finer period from inside a ledger lands on it, rather than leaving the page scrolled past a shorter ledger. */
   function drill(kind: Period, date: string) {
@@ -114,12 +116,19 @@ export function JournalTrail(props: { date: string; journalPeriod?: Period; note
     </Show>;
   }
   return <>
-    <nav class="journal-trail" aria-label="Journal periods"><For each={segments()}>{(segment, index) => <>
+    <nav class="journal-trail" aria-label="Journal periods"><Show when={props.today}><span class="journal-trail-today">Today</span><span class="journal-trail-separator" aria-hidden="true">·</span></Show><For each={segments()}>{(segment, index) => <>
       <Show when={index() > 0}><span class="journal-trail-separator" aria-hidden="true">·</span></Show>
       <Button ref={element => triggers.set(segment.kind, element)} class="journal-trail-segment" aria-expanded={ledger()?.kind === segment.kind} aria-controls={id}
         label={`${segment.name} journal ledger`} onClick={() => setLedger(value => value?.kind === segment.kind ? null : { kind: segment.kind, date: value?.date ?? props.date })}>{segment.label}</Button>
     </>}</For></nav>
-    <h1>{spokenJournalDate(props.date)}</h1>
+    <div class="journal-title-row">
+      <h1>{spokenJournalDate(props.date)}</h1>
+      <div class="journal-day-stepper" role="group" aria-label="Journal day">
+        <Button icon="left" label="Previous day" disabled={busy()} onClick={() => step(-1)} />
+        <Button icon="calendar" label="Month ledger" aria-expanded={ledger()?.kind === 'month'} aria-controls={id} onClick={() => setLedger(value => value?.kind === 'month' ? null : { kind: 'month', date: props.date })} />
+        <Button icon="right" label="Next day" disabled={busy()} onClick={() => step(1)} />
+      </div>
+    </div>
     <Show when={ledger()}>{open => <div ref={ledgerElement} id={id} class="journal-ledger" aria-label={`${open().kind} journal ledger`} aria-busy={busy()}>
       <Show when={open().kind === 'week'}><section class="journal-ledger-month" aria-label={`Week ${week().week}, ${week().year}`}>
         <h2>Week {week().week} <span>{weekRange(journalWeekDays(open().date))}</span></h2>

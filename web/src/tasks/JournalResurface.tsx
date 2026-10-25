@@ -8,6 +8,7 @@ import { shortSourceTitle } from '../outline/source';
 import type { OpenTarget } from '../shell/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { SectionHead } from '../ui/SectionHead';
 import { createSettledChanges, createSlowFlag, sameData } from '../ui/loading';
 import './agenda.css';
 
@@ -93,10 +94,7 @@ export function JournalResurface(props: JournalResurfaceProps) {
   };
   return <section class="journal-agenda journal-resurface" aria-label="Resurfaced">
     <div class="resurface-heading">
-      <h2 class="journal-section-heading"><Button class="journal-agenda-toggle" aria-expanded={!collapsed()} aria-controls={id} onClick={() => setCollapsed(!collapsed())}>
-        <span class="journal-section-name">From your highlights</span>
-        <span class="section-rule" /><span class="agenda-summary">{!loaded() ? slow() ? 'Loading…' : '' : items().length ? `${Math.min(index() + 1, items().length)} of ${items().length}` : 'Nothing yet'}</span><Icon name="down" />
-      </Button></h2>
+      <SectionHead name="From your highlights" count={!loaded() ? slow() ? 'Loading…' : '' : items().length ? `${Math.min(index() + 1, items().length)} of ${items().length}` : 'Nothing yet'} open={!collapsed()} controls={id} onToggle={() => setCollapsed(!collapsed())} />
       <Show when={!collapsed() && items().length > 1}><nav class="resurface-navigation" aria-label="Resurfaced highlights">
         <Button icon="left" label="Previous highlight" disabled={pending() || index() === 0} onClick={() => setIndex(value => value - 1)} />
         <Button icon="right" label="Next highlight" disabled={pending() || index() >= items().length - 1} onClick={() => setIndex(value => value + 1)} />

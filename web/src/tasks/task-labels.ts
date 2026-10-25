@@ -158,3 +158,32 @@ export function plannedTaskCounts(rows: readonly TaskRow[]): Map<string, number>
   }
   return counts;
 }
+
+export interface StripDay { open: number; overdue: number; warning: number }
+
+/**
+ * The week strip's dots: each open task once per civil day it is planned on, with today's carried work counted as
+ * overdue and deadlines inside their warning window as warnings.
+ */
+export function stripDays(rows: readonly TaskRow[], today: string, overdueToday = 0): Map<string, StripDay> {
+  const days = new Map<string, StripDay>();
+  const day = (date: string) => days.get(date) ?? days.set(date, { open: 0, overdue: 0, warning: 0 }).get(date)!;
+  for (const [date, count] of plannedTaskCounts(rows)) day(date).open += count;
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const { deadline, warning_days } = row.task;
+    if (isFinished(row.task) || seen.has(row.source.block.id) || !deadline || warning_days === null) continue;
+    seen.add(row.source.block.id);
+    const remaining = daysBetween(today, deadline);
+    if (remaining >= 0 && remaining <= warning_days) day(deadline).warning += 1;
+  }
+  if (overdueToday) { const current = day(today); current.overdue = overdueToday; current.open += overdueToday; }
+  return days;
+}
+
+/** Upcoming's day subheads: Tomorrow or the weekday, then the month and day, never ISO. */
+export function upcomingDayLabel(date: string, today: string): { name: string; detail: string } {
+  const day = new Date(`${date}T12:00:00Z`);
+  const name = daysBetween(today, date) === 1 ? 'Tomorrow' : day.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+  return { name, detail: day.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) };
+}
