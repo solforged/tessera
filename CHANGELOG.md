@@ -48,6 +48,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Left ⌘Z and ⌘⇧Z to text fields in Settings, such as Open or create and the Agent form; the pane's Undo and Redo setting now apply only outside them.
+- Stopped the hourly backup check from snapshotting an unchanged workshop again once its newest backup was a day old; it now waits until the database or its write-ahead log changes.
 - Stopped iOS zooming the page when a text field takes focus, kept returning to Today on a phone from putting the caret in a row and raising the keyboard, and kept the edited line clear of the keyboard bar.
 - Opened a task's project link from Today and Agenda on the phone as the whole project page with the task briefly highlighted, instead of zooming into the task under its fields sheet.
 - Stopped a typed creation slip, such as New person, from failing when it opens before its kind has loaded.
