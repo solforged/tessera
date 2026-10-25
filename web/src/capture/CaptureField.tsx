@@ -43,6 +43,10 @@ export interface CaptureFieldProps {
   question?: boolean;
   label: string;
   placeholder: string;
+  /** A bordered text field with a gilt plus, its date preview inside the right end, as Agenda's Add a task. */
+  boxed?: boolean;
+  /** One faint line beneath a boxed field. */
+  hint?: string;
   /** Called after a save; `again` is true for Shift+Enter, which keeps the field for the next item. */
   onSaved?(again: boolean, receipt: CaptureReceipt): void;
   /** Escape with no completion open. */
@@ -211,15 +215,18 @@ export function CaptureField(props: CaptureFieldProps) {
   onMount(() => { acceptInput(); props.inputRef?.(input); });
 
   return <div class="capture-field" classList={{ busy: busy() }}>
-    <div ref={line} class="capture-line">
-      <Show when={!props.taskOnly && !props.fixedKind} fallback={<Icon name={props.taskOnly ? 'select' : 'bullet'} />}>
+    <div ref={line} class="capture-line" classList={{ 'capture-boxed': !!props.boxed }} onPointerDown={event => { if (props.boxed && event.target !== input) { event.preventDefault(); input.focus(); } }}>
+      <Show when={!props.boxed} fallback={<Icon name="plus" class="capture-plus" />}><Show when={!props.taskOnly && !props.fixedKind} fallback={<Icon name={props.taskOnly ? 'select' : 'bullet'} />}>
         <button type="button" class="capture-kind" aria-pressed={task()} aria-label="Task" title="Task" onMouseDown={event => event.preventDefault()} onClick={() => setTask(value => !value)}>
           <Icon name={isTask() || plan()?.explicit && plan()?.choice ? 'select' : hasCards() ? 'card' : 'bullet'} />
         </button>
-      </Show>
+      </Show></Show>
       <input ref={input} class="capture-input" aria-label={props.label} placeholder={props.placeholder} value={presentation().text} aria-busy={busy()} autocomplete="off" spellcheck
         role="combobox" aria-expanded={open()} aria-autocomplete="list"
         onInput={event => { if (event.isComposing) { setDraft(editCaptureDraft(draft(), event.currentTarget.value)); track(); } else acceptInput(); }} onCompositionEnd={acceptInput} onKeyDown={keydown} onKeyUp={track} onClick={track} onSelect={track} />
+      <Show when={props.boxed && preview()}>{state => <span class="capture-inline-preview" classList={{ warning: state().warning }} role="status">
+        <Show when={!state().warning}><Icon name="calendar" /></Show><span class="capture-inline-plan">{state().label}</span><Show when={!state().warning}><span class="capture-inline-enter">↵ add</span></Show>
+      </span>}</Show>
     </div>
     <Show when={tags().length}><div class="capture-tags" aria-label="Tags in draft"><For each={tags()}>{tag => <span class="capture-tag"><Icon name="tag" />{tag.value}</span>}</For></div></Show>
     <Show when={open()}>
@@ -233,7 +240,8 @@ export function CaptureField(props: CaptureFieldProps) {
         </div>
       </Popup>
     </Show>
-    <Show when={preview()}>{state => <p class="capture-preview" classList={{ warning: state().warning }} role="status">{state().label}</p>}</Show>
+    <Show when={props.hint}><p class="capture-hint">{props.hint}</p></Show>
+    <Show when={!props.boxed && preview()}>{state => <p class="capture-preview" classList={{ warning: state().warning }} role="status">{state().label}</p>}</Show>
     <Show when={error()}><p class="capture-error" role="alert">{error()}</p></Show>
     {props.children?.({ task: isTask, busy, submit: again => { void submit(again); } })}
   </div>;

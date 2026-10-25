@@ -1,0 +1,23 @@
+/* Content heads: the name in the display voice, a hairline, then the count and one action. Apparatus heads stay mono. */
+.section-head { display: flex; align-items: center; gap: var(--space-12); min-width: 0; min-height: var(--target-size); margin: 0; }
+.section-head-name { flex: none; min-width: 0; color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+.section-head-danger { color: var(--danger); }
+.section-head-folded .section-head-name { color: var(--muted); }
+.section-head > .section-rule { min-width: var(--space-16); }
+.section-head-count { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.section-head-action { display: flex; flex: none; align-items: center; }
+.section-head-action .button { min-height: var(--target-size); padding-inline: var(--space-8); font-size: var(--text-control); line-height: var(--line-control); }
+.section-head-toggle.button { display: flex; align-items: center; gap: var(--space-4); min-width: 0; min-height: var(--target-size); margin-left: calc(-1 * (var(--icon-size-small) + var(--space-4))); padding: 0; border: 0; background: transparent; }
+.section-head-toggle.button:hover:not(:disabled) { background: transparent; }
+.section-head-toggle.button:hover:not(:disabled) .section-head-name { color: var(--text); }
+.section-head-toggle > .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); transition: rotate var(--motion-fast) var(--motion-ease); }
+.section-head-toggle[aria-expanded="false"] > .icon { rotate: -90deg; }
+/* A narrow pane has no room left of the text column, so the chevron takes its place in the line. */
+@container (max-width: 599px) {
+  .section-head-toggle.button { margin-left: 0; }
+}
+@media (pointer: coarse) {
+  .section-head-toggle.button, .section-head-action .button { min-height: var(--touch-target); }
+}
+.section-subhead { display: flex; align-items: baseline; gap: var(--space-8); margin: var(--space-12) 0 0; color: var(--muted); font: var(--weight-control) var(--text-control)/var(--line-control) var(--font-body); }
+.section-subhead-detail { color: var(--faint); font-weight: var(--weight-body); }

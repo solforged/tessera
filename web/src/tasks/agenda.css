@@ -1,5 +1,5 @@
-/* Agenda rows also render in Today's ledger, so both hosts carry their height. */
-.agenda-pane, .today-ledger { --agenda-row-height: var(--row-height); }
+/* Task rows render in Agenda, Week, Today's Plan and project pages; every list carries the row's measures. */
+.agenda-rows { --agenda-title-line: 22px; --agenda-gutter-width: 52px; --agenda-actions-width: 96px; }
 /* The date, tabs and day list share the outline measure and one left edge. */
 .agenda-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); container: agenda-pane / inline-size; }
 .agenda-content { max-width: var(--measure); margin-inline: auto; display: flex; flex-direction: column; gap: var(--page-head-gap); }
@@ -14,35 +14,40 @@
 .agenda-modes { width: 100%; max-width: var(--measure); margin: calc(var(--page-title-gap) - var(--page-head-gap)) auto 0; }
 .agenda-week-hours { display: flex; align-items: center; margin-left: auto; }
 .agenda-week-hours > .button { min-height: var(--target-size); padding: var(--space-2) var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
-.agenda-date > .button { min-height: var(--row-height); border-color: transparent; color: var(--muted); }
+/* Previous, Today and Next form one bordered group at the title's right edge. */
+.agenda-date { gap: 0; margin-left: auto; border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); }
+.agenda-date > .button { min-height: var(--row-height); border: 0; border-radius: 0; color: var(--muted); }
+.agenda-date > .button + .button { border-left: var(--rule-width) solid var(--line); }
+.agenda-date > .agenda-date-current { color: var(--faint); }
+.agenda-eyebrow-today { color: var(--accent); }
 /* Seven quiet columns end on one hairline; only the selected date carries the gilt rule. */
 .agenda-week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); width: 100%; max-width: var(--measure); margin-inline: auto; box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); overflow-x: auto; }
 .agenda-week-day.button { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: var(--space-2); padding: var(--space-8); border: 0; border-radius: 0; color: var(--muted); white-space: nowrap; }
-.agenda-week-day.button[aria-current="date"] { background: transparent; box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
+.agenda-week-day.button[aria-current="date"] { background: var(--hover); box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
 .agenda-week-day.button:focus-visible { outline: none; box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--faint); }
 .agenda-week-day.button[aria-current="date"]:focus-visible { box-shadow: inset 0 calc(-2 * var(--rule-width)) var(--accent); }
-.agenda-day-weekday, .agenda-day-count { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.agenda-day-numeral { color: var(--text); font: var(--weight-title) var(--text-h1)/var(--line-h1) var(--font-display); font-variation-settings: var(--optical-heading); }
+.agenda-day-weekday, .agenda-day-more { font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.agenda-day-numeral { color: var(--text); font: var(--weight-control) 20px/26px var(--font-body); font-variant-numeric: tabular-nums; }
 .agenda-week-today .agenda-day-numeral { color: var(--accent); }
-.agenda-day-count { min-height: var(--line-apparatus); color: var(--faint); }
+/* One dot per open task: carried work in danger, deadlines near their date in warning. */
+.agenda-day-dots { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; min-height: var(--line-apparatus); }
+.agenda-day-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--faint); }
+.agenda-day-dot-overdue { background: var(--danger); }
+.agenda-day-dot-warning { background: var(--warning); }
+.agenda-day-more { margin-left: var(--space-2); color: var(--faint); }
 .agenda-number { display: inline-flex; align-items: center; gap: var(--space-8); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
 /* Counts, planning and other machine-known facts share the apparatus voice. */
 .agenda-count { margin: 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .agenda-number .input { width: calc(var(--space-48) + var(--space-32)); min-height: var(--row-height); }
 .agenda-message { color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); font-weight: var(--weight-body); }
-.agenda-summary { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .agenda-message { margin: 0; }
 .agenda-error { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); color: var(--danger); font-size: var(--text-control); line-height: var(--line-control); margin: 0; }
 .agenda-results { display: flex; flex-direction: column; gap: var(--section-gap); }
 .agenda-rows { list-style: none; margin: 0; padding: 0; }
 .agenda-day-section { display: flex; flex-direction: column; gap: var(--section-item-gap); min-width: 0; }
-.agenda-section-heading, .agenda-section-toggle.button { display: flex; align-items: center; gap: var(--space-8); width: 100%; min-height: var(--target-size); margin: 0; padding: 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.agenda-section-heading.agenda-late, .agenda-section-heading.agenda-late .agenda-summary { color: var(--danger); }
-.agenda-section-toggle.button:hover:not(:disabled) { color: var(--text); background: transparent; }
-.agenda-section-toggle > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); }
-.agenda-section-toggle[aria-expanded="false"] > .icon { rotate: -90deg; }
+.agenda-day-section > .agenda-rows { margin-top: var(--space-4); }
 .agenda-day-empty { padding-block: var(--space-4); }
-.agenda-lookahead-date { margin: var(--space-8) 0 var(--space-2); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-transform: capitalize; }
+.agenda-group-move .button { gap: var(--space-4); }
 /* The query, condition builder and count share one rail, wrapping only when space runs out. */
 .task-query-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4) var(--space-8); min-width: 0; }
 .task-query-view.button { min-width: 0; max-width: 100%; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
@@ -71,95 +76,63 @@
 .task-query-invalid { text-decoration: underline wavy var(--danger); text-underline-offset: var(--space-2); }
 .task-query-errors { margin-top: var(--space-4); color: var(--danger); font-size: var(--text-control); line-height: var(--line-control); }
 .task-query-errors p { margin: 0; overflow-wrap: anywhere; }
-/* Adding sits under the week strip on Day, in the same place however many tasks are overdue; the plus takes the
-   status column so the line starts where task text does. */
-.agenda-add { margin-block: var(--space-12) var(--space-4); }
-/* One line per task: status, source with its page, then planning on the right; wraps under the source when narrow. */
-.agenda-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--space-8); min-width: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: var(--radius-workspace); content-visibility: auto; contain-intrinsic-size: auto var(--row-height); transition: background-color var(--motion-fast) var(--motion-ease); }
-/* The whole line lights on hover, planning included; the source button inside stays transparent. */
+/* Adding sits under the week strip on Day, in the same place however many tasks are overdue. */
+.agenda-add { margin-block: var(--space-4) var(--space-12); }
+/* The one task row: clock gutter, status glyph, a title over its facts line, then a reserved slot for rescheduling. */
+.agenda-row { position: relative; display: grid; grid-template-columns: var(--target-size) minmax(0, 1fr) var(--agenda-actions-width); column-gap: var(--space-8); align-items: start; min-width: 0; padding-block: var(--space-8); border-bottom: var(--rule-width) solid var(--line); content-visibility: auto; contain-intrinsic-size: auto calc(var(--space-48) + var(--space-4)); transition: background-color var(--motion-fast) var(--motion-ease); }
+.agenda-row.agenda-row-gutter { grid-template-columns: var(--agenda-gutter-width) var(--target-size) minmax(0, 1fr) var(--agenda-actions-width); }
 .agenda-row:hover { background: var(--hover); }
-.agenda-status { display: inline-flex; flex: 0 0 var(--target-size); justify-content: center; align-items: center; width: var(--target-size); min-height: var(--row-height); padding: 0; color: var(--muted); }
-.agenda-row .agenda-status.task-status-button { min-height: var(--row-height); padding: 0; }
-/* The task and its facts share one line. A lone priority trails the text; a date keeps the right edge. */
-.agenda-task-line { display: flex; align-items: baseline; flex: 1 1 16rem; min-width: 0; column-gap: var(--space-12); }
-.agenda-task-line > .agenda-source { flex: 1 1 auto; }
-.agenda-task-line:has(.agenda-row-meta-lone) > .agenda-source { flex: 0 1 auto; }
-.agenda-task-line > .agenda-row-meta { margin-left: auto; min-height: 0; }
-
-.agenda-source { flex: 1 1 auto; min-width: 0; min-height: var(--row-height); display: flex; flex-wrap: wrap; align-items: baseline; align-content: center; column-gap: var(--space-8); border: 0; border-radius: var(--radius-control); padding: var(--space-2) var(--space-4); background: transparent; color: var(--text); text-align: left; cursor: pointer; font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); }
+.agenda-time-gutter { display: flex; align-items: center; min-height: var(--agenda-title-line); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.agenda-status { display: inline-flex; justify-content: center; align-items: center; width: var(--target-size); min-height: var(--agenda-title-line); padding: 0; color: var(--muted); }
+.agenda-row .agenda-status.task-status-button { min-height: var(--agenda-title-line); padding: 0; }
+.agenda-row-text { display: flex; flex-direction: column; min-width: 0; }
+.agenda-source { display: block; min-width: 0; border: 0; border-radius: var(--radius-control); padding: 0; background: transparent; color: var(--text); text-align: left; cursor: pointer; font: var(--weight-body) var(--text-body)/var(--agenda-title-line) var(--font-body); }
 /* Rows contain their paint, so the ring sits inside the row. */
 .agenda-row :focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
 /* Long task text clamps at two lines; opening the source shows all of it. */
 .agenda-source-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.agenda-source-page { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); overflow-wrap: anywhere; }
-/* Planning is the machine's: dates, times and priority in apparatus mono. */
-.agenda-row-meta { display: flex; flex-wrap: wrap; justify-content: flex-end; align-content: center; gap: var(--space-4) var(--space-8); min-height: var(--row-height); margin-left: auto; padding-right: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.agenda-row-meta:empty { display: none; }
-.agenda-time { color: var(--muted); }
-.agenda-priority.button { min-height: var(--target-size); padding: 0 var(--space-4); color: var(--faint); }
+/* Provenance and planning read as one sentence in the writing voice, parted by quiet middle dots. */
+.agenda-row-facts { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; color: var(--muted); font: var(--weight-body) 12.5px/18px var(--font-body); }
+.agenda-row-facts:empty { display: none; }
+.agenda-row-facts > * + *::before { content: '·'; padding-inline: var(--space-4) var(--space-4); color: var(--control-border); text-decoration: none; display: inline-block; }
+.agenda-facts-clock { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.agenda-row-gutter .agenda-facts-clock { display: none; }
+.agenda-row-gutter .agenda-facts-clock + *::before { content: none; }
+.agenda-provenance { min-width: 0; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.agenda-provenance { text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-2); }
+.agenda-provenance:is(:hover, :focus-visible) { color: var(--accent); text-decoration-color: var(--accent); }
+.agenda-priority.button { display: inline; min-height: 0; padding: 0; border: 0; color: inherit; font: inherit; }
+.agenda-priority.button:hover:not(:disabled) { background: transparent; color: var(--text); }
 .agenda-priority[data-priority="high"] { color: var(--danger); }
-.agenda-task-line > .agenda-row-meta.agenda-row-meta-lone { margin-left: 0; }
 .agenda-late { color: var(--danger); }
 .agenda-warning { color: var(--warning); }
 .agenda-row:is(.agenda-row-completed, .agenda-row-cancelled) .agenda-source-text { color: var(--muted); }
 .agenda-row-cancelled .agenda-source-text { text-decoration: line-through var(--faint); }
-/* Query rows reserve one priority column, keeping every planning token intact. */
-.agenda-row:not(.agenda-row-timetable) .agenda-task-line > .agenda-source { flex: 1 1 auto; }
-.agenda-row:not(.agenda-row-timetable) .agenda-row-meta { display: grid; grid-template-columns: max-content calc(var(--space-48) + var(--space-8)); align-items: baseline; align-content: start; margin-left: auto; }
-.agenda-row:not(.agenda-row-timetable) .agenda-row-meta:empty { display: none; }
-.agenda-row:not(.agenda-row-timetable) .agenda-row-meta > * { grid-column: 1; justify-self: end; white-space: nowrap; }
-.agenda-row:not(.agenda-row-timetable) .agenda-row-meta > .agenda-priority { grid-column: 2; grid-row: 1; width: 100%; justify-content: flex-end; font: inherit; }
-@container agenda-pane (max-width: 599px) {
-  .agenda-row:not(.agenda-row-timetable) .agenda-task-line { flex-wrap: wrap; }
-  .agenda-row:not(.agenda-row-timetable) .agenda-task-line > .agenda-source { flex-basis: 100%; }
-}
-.agenda-row > .agenda-error, .agenda-row > .agenda-message { flex-basis: 100%; margin-left: calc(var(--target-size) + var(--space-8)); }
-/* Day rows keep the clock fixed, the canonical task readable, and provenance quietly at the right. */
-.agenda-row-timetable { display: grid; grid-template-columns: var(--space-48) var(--target-size) minmax(0, 1fr) minmax(0, 20%) max-content; column-gap: var(--space-8); align-items: center; min-height: var(--agenda-row-height); padding: var(--space-2) 0; border-radius: 0; }
-.agenda-time-gutter { grid-column: 1; grid-row: 1; align-self: start; display: flex; align-items: center; min-height: var(--agenda-row-height); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.agenda-row-timetable .agenda-status { grid-column: 2; grid-row: 1; align-self: start; }
-.agenda-row-timetable .agenda-status.task-status-button, .agenda-row-timetable .agenda-source { min-height: var(--agenda-row-height); }
-.agenda-row-timetable .agenda-task-line { grid-column: 3; grid-row: 1; flex: none; align-items: center; min-height: var(--agenda-row-height); }
-.agenda-provenance { grid-column: 4; grid-row: 1; align-self: start; min-width: 0; min-height: var(--agenda-row-height); padding: var(--space-2) 0; border: 0; background: transparent; color: var(--text); text-align: left; font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-2); }
-.agenda-provenance:is(:hover, :focus-visible) { color: var(--accent); text-decoration-color: var(--accent); }
-.agenda-row-timetable:not(:has(> .agenda-provenance, > .agenda-row-actions)) .agenda-task-line { grid-column: 3 / -1; }
-.agenda-row-timetable .agenda-task-line > .agenda-source { padding-inline: 0; min-height: 0; }
-.agenda-row-timetable > .agenda-error, .agenda-row-timetable > .agenda-message { grid-column: 3 / -1; margin: 0; }
+.agenda-row > .agenda-error, .agenda-row > .agenda-message { grid-column: -3 / -1; margin-top: var(--space-4); }
+.agenda-row-section { list-style: none; }
 /* Today's timed work that has passed recedes above a gilt rule at the present, which starts from a gilt dot. */
 .agenda-row-past .agenda-source-text { color: var(--muted); }
 .agenda-row-past .agenda-time-gutter { color: var(--faint); }
 /* Rows contain their paint; the one under the rule lets the dot reach above its edge. */
-.agenda-row:has(> .agenda-now) { position: relative; content-visibility: visible; }
+.agenda-row:has(> .agenda-now) { content-visibility: visible; }
 .agenda-now { position: absolute; inset: calc(-1 * var(--rule-width)) 0 auto; border-top: var(--rule-width) solid var(--accent); pointer-events: none; }
 .agenda-now::before { content: ''; position: absolute; left: 0; top: calc(var(--space-8) / -2 - var(--rule-width) / 2); width: var(--space-8); height: var(--space-8); border-radius: 50%; background: var(--accent); }
 li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(--rule-width)); }
-/* Planning has its own trailing slot. Only the ink changes on hover or focus, never the provenance or columns. */
-.agenda-row-actions { grid-column: 5; grid-row: 1; align-self: start; display: flex; flex: 0 0 auto; justify-content: flex-end; align-items: center; gap: var(--space-2); min-height: var(--agenda-row-height); }
-.agenda-row-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.agenda-row-actions .button:is(:hover, :focus-visible):not(:disabled) { color: var(--text); background: transparent; text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-2); }
-/* Touch keeps the calendar in the same reserved slot, without hover-only controls. */
+/* Rescheduling has its own reserved slot and shows only on the hovered or focused row, so nothing else moves. */
+.agenda-row-actions { grid-column: -2; grid-row: 1; display: flex; justify-content: flex-end; align-items: center; gap: var(--space-4); min-height: var(--agenda-title-line); visibility: hidden; }
+.agenda-row:is(:hover, :focus-within) .agenda-row-actions, .agenda-row-picking .agenda-row-actions { visibility: visible; }
+.agenda-row-actions .button { width: 28px; min-height: var(--target-size); padding: 0; color: var(--muted); }
+.agenda-row-actions .button:is(:hover, :focus-visible):not(:disabled) { color: var(--text); background: var(--raised); }
+/* Touch shows only the calendar, always. */
 @media (hover: none), (pointer: coarse) {
-  .agenda-row-actions .button { color: var(--muted); }
+  .agenda-row-actions { visibility: visible; }
   .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
 }
-.agenda-section-actions { display: flex; gap: var(--space-2); margin-left: var(--space-8); }
-.agenda-section-actions .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
-.agenda-section-actions .button:hover:not(:disabled) { color: var(--text); }
-.journal-agenda { margin-block: var(--space-4) var(--space-8); font-weight: var(--weight-body); }
-/* Journal sections head like the sidebar's: the name, a hairline rule, then the state and the chevron at the right. */
-.journal-agenda-toggle.button { display: flex; width: 100%; justify-content: flex-start; gap: var(--space-8); min-height: var(--target-size); padding: 0 var(--space-4) 0 0; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.journal-agenda-toggle.button:hover:not(:disabled) { background: transparent; color: var(--text); }
-.journal-agenda-toggle .agenda-summary { color: var(--faint); }
-.journal-agenda-toggle > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); transition: rotate var(--motion-fast) var(--motion-ease); }
-.journal-agenda-toggle[aria-expanded="false"] > .icon { rotate: -90deg; }
-/* Ruled group headings start at the section edge; their counts stay beside the labels. */
-div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); padding-right: var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .journal-agenda-body { display: flex; flex-direction: column; gap: var(--card-gap); margin-top: var(--section-item-gap); }
 /* One resurfaced slip sits below the journal, marked by the highlight's colour along its left edge. */
 .resurface-heading, .resurface-navigation { display: flex; align-items: center; gap: var(--space-4); }
-.resurface-heading > .journal-section-heading { flex: 1; min-width: 0; margin: 0; }
+.resurface-heading > .section-head { flex: 1; min-width: 0; }
 /* The journal's authored writing heading retains its display voice; highlight disclosure uses the shared apparatus. */
-.journal-writing-heading > span:first-child { color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
 .resurface-card { position: relative; min-width: 0; padding: var(--card-padding); border: 0; border-radius: var(--radius-workspace); background: var(--raised); }
 .resurface-color { position: absolute; inset: 0 auto 0 0; width: var(--space-2); }
 .resurface-quote { white-space: pre-wrap; overflow-wrap: anywhere; margin: 0; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
@@ -174,16 +147,22 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 /* The spoken date is presentation only: journals retain their ISO root and all other pages keep their titles. */
 .outline-heading:has(.journal-header) > .outline-title-row { display: none; }
 .journal-trail { display: flex; align-items: center; height: var(--line-apparatus); gap: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.journal-trail-segment.button { position: relative; min-height: 0; padding: 0 0 var(--space-2); margin-bottom: calc(-1 * var(--space-2) - 2px); color: var(--muted); font: inherit; border-radius: 0; border-bottom: 2px solid transparent; }
+.journal-trail-today { color: var(--accent); }
+/* Segments rest quietly; hover or focus brightens one to gilt over a hairline, and the open one carries the 2 px rule. */
+.journal-trail-segment.button { position: relative; min-height: 0; padding: 0 0 var(--space-2); margin-bottom: calc(-1 * var(--space-2) - 2px); color: var(--faint); font: inherit; border-radius: 0; border-bottom: 2px solid transparent; }
 /* The trail keeps an eyebrow's line, so the date heading sits where every page title does; the hit area stays a pointer target. */
 .journal-trail-segment.button::before { content: ''; position: absolute; inset: calc((var(--line-apparatus) - var(--target-size)) / 2) 0; }
-.journal-trail-segment.button:not([aria-expanded="true"])::after { content: ''; position: absolute; bottom: 0; inset-inline: 0; border-bottom: var(--rule-width) dotted var(--line); }
-.journal-trail-segment.button:hover { color: var(--accent); background: transparent; }
-.journal-trail-segment.button:hover::after { border-color: var(--accent); }
+.journal-trail-segment.button:is(:hover, :focus-visible):not([aria-expanded="true"])::after { content: ''; position: absolute; bottom: 0; inset-inline: 0; border-bottom: var(--rule-width) solid var(--accent); }
+.journal-trail-segment.button:is(:hover, :focus-visible) { outline: none; color: var(--accent); background: transparent; }
 .journal-trail-segment.button[aria-expanded="true"] { color: var(--accent); border-bottom-color: var(--accent); background: transparent; }
-.journal-trail-segment.button:focus-visible { outline: none; border-bottom-color: var(--faint); }
-.journal-trail-segment.button[aria-expanded="true"]:focus-visible { border-bottom-color: var(--accent); }
 .journal-trail-separator { padding-inline: var(--space-4); }
+/* Previous day, the month ledger and next day form one bordered group at the title's right edge. */
+.journal-title-row { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-16); margin: var(--page-eyebrow-gap) 0 var(--page-head-gap); }
+.journal-title-row > h1 { margin: 0; }
+.journal-day-stepper { display: flex; flex: none; margin-bottom: var(--space-4); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); }
+.journal-day-stepper > .button { min-height: var(--row-height); border: 0; border-radius: 0; color: var(--muted); }
+.journal-day-stepper > .button + .button { border-left: var(--rule-width) solid var(--line); }
+.journal-day-stepper > .button[aria-expanded="true"] { color: var(--accent); }
 .journal-ledger { margin-block: 0 var(--space-16); padding-block: var(--space-12); border-block: var(--rule-width) solid var(--line); }
 .journal-week-ledger { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-4); }
 .journal-ledger-month > h2, .journal-overview-title { display: block; margin: 0 0 var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
@@ -212,7 +191,7 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 .journal-overview-day.journal-day-today { border-color: var(--accent); border-radius: 50%; }
 .journal-ledger-error { color: var(--danger); font: var(--apparatus); }
 /* Trail segments, calendar days, week numbers and ledger links are text: hover changes their ink, never paints the shared button box. */
-:is(.journal-trail-segment, .journal-ledger-day, .journal-week-number, .journal-month-overview, .today-carried .button, .today-ledger-open).button:hover:not(:disabled) { background: transparent; }
+:is(.journal-trail-segment, .journal-ledger-day, .journal-week-number, .journal-month-overview).button:hover:not(:disabled) { background: transparent; }
 .journal-ledger-day.button:hover:not(:disabled) { color: var(--text); }
 .journal-ledger-day.button:hover:not(:disabled):not([aria-current="date"]) .journal-day-numeral { border-color: var(--line); }
 .journal-ledger-day.button.journal-day-current:hover { color: var(--accent); }
@@ -228,45 +207,29 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .journal-quarter-ledger { grid-template-columns: 1fr; }
   .journal-year-ledger { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-.outline-heading .journal-header > h1 { margin: var(--page-eyebrow-gap) 0 var(--page-head-gap); }
-.journal-writing-heading { display: flex; align-items: center; gap: var(--space-8); margin: var(--section-gap) 0 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 /* Today is a three-tile hub, using real agenda, due-card and recently read book data, never session-time samples. */
 .journal-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--card-gap); }
 .journal-tile.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-4); width: 100%; min-width: 0; min-height: 120px; padding: var(--card-padding); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); color: var(--text); font-weight: var(--weight-body); white-space: normal; text-align: left; overflow: hidden; }
 .journal-tile.button:hover:not(:disabled) { border-color: var(--control-border); background: var(--hover); }
 .journal-tile-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .journal-tile-action { color: var(--accent); font: var(--weight-control) var(--text-library-title)/var(--line-control) var(--font-body); }
-.journal-tile-count { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); font: var(--weight-heading) var(--text-h1)/var(--line-h1) var(--font-mono); font-variant-numeric: tabular-nums; }
+.journal-tile-count { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); font: var(--weight-control) var(--text-h1)/var(--line-h1) var(--font-mono); font-variant-numeric: tabular-nums; }
 .journal-tile-count small { color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
-.journal-tile-meta { display: block; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.journal-tile-meta { display: block; color: var(--muted); font: var(--weight-body) 12.5px/18px var(--font-body); overflow-wrap: anywhere; }
 .journal-tile > .journal-tile-meta { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.journal-tile-clock { color: var(--calendar-scheduled); font: var(--apparatus); font-variant-numeric: tabular-nums; }
 .journal-tile-placeholder { display: flex; flex-direction: column; gap: var(--space-12); padding-top: var(--space-8); min-height: 72px; }
 .journal-tile-placeholder > span { height: var(--space-12); width: 70%; background: var(--line); }
 .journal-tile-placeholder > span + span { width: 45%; }
-/* The Agenda tile folds today's tasks open beneath the tiles, like the period trail's ledgers: a chevron, not an arrow. */
-.journal-tile-chevron { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--accent); rotate: -90deg; transition: rotate var(--motion-fast) var(--motion-ease); }
-.journal-agenda-tile[aria-expanded="true"] .journal-tile-chevron { rotate: 0deg; }
-.today-ledger { margin-top: var(--space-12); padding-top: var(--space-4); border-top: var(--rule-width) solid var(--line); }
-.today-carried { display: flex; align-items: center; gap: var(--space-8); min-height: var(--row-height); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.today-carried-collapsed { border-bottom: var(--rule-width) solid var(--line); margin-bottom: var(--space-4); }
-.today-carried .button { min-height: var(--target-size); padding-inline: var(--space-4); font: inherit; }
-.today-carried-toggle > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); rotate: -90deg; transition: rotate var(--motion-fast) var(--motion-ease); }
-.today-carried-toggle[aria-expanded="true"] > .icon { rotate: 0deg; }
-.today-carried-move.button { color: var(--muted); }
-.today-carried-move.button:hover:not(:disabled) { color: var(--text); }
-.today-ledger-open.button { display: flex; gap: var(--space-4); margin: var(--space-4) 0 0 auto; padding-inline: var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.today-ledger-open.button:hover:not(:disabled) { color: var(--text); }
-/* Today's ledger has no clock column unless a task has a time. Planning keeps its own trailing slot. */
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable { grid-template-columns: var(--target-size) minmax(0, 1fr) minmax(0, 20%) max-content; }
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > .agenda-time-gutter { display: none; }
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-status { grid-column: 1; }
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-task-line { grid-column: 2; }
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable:not(:has(> .agenda-provenance, > .agenda-row-actions)) .agenda-task-line { grid-column: 2 / -1; }
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > .agenda-provenance { grid-column: 3; }
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > .agenda-row-actions { grid-column: 4; }
-.today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > :is(.agenda-error, .agenda-message) { grid-column: 2 / -1; }
-.today-ledger .agenda-provenance { padding-inline-end: var(--space-4); text-align: right; }
-.today-ledger-open > span { color: var(--accent); }
+/* Plan is generated from Agenda: carried work folds to one danger band above today's rows. */
+.journal-plan, .journal-notes-head { margin-top: var(--section-gap); }
+.journal-plan-body { margin-top: var(--space-4); }
+.journal-plan-open { margin-left: var(--space-4); color: var(--accent); }
+.journal-carried { display: flex; align-items: center; gap: var(--space-12); min-height: var(--row-height); margin-block: var(--space-4); padding: var(--space-4) var(--space-12); border: var(--rule-width) solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: var(--radius-control); background: color-mix(in srgb, var(--danger) 12%, transparent); font-size: var(--text-control); line-height: var(--line-control); }
+.journal-carried-count { flex: none; color: var(--danger); font-weight: var(--weight-control); }
+.journal-carried-titles { flex: 1; min-width: 0; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.journal-carried-action.button { flex: none; min-height: var(--target-size); padding-inline: var(--space-4); color: var(--text); font: inherit; }
+.journal-carried-action.button:hover:not(:disabled) { background: transparent; color: var(--accent); }
 .agenda-moved { display: flex; align-items: center; gap: var(--space-8); }
 .agenda-moved > .button { min-height: var(--target-size); padding-inline: var(--space-4); color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .journal-reading-book { display: flex; align-items: flex-start; gap: var(--space-8); min-width: 0; }
@@ -275,60 +238,43 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
 .journal-reading-title { display: block; color: var(--text); font: var(--weight-source-title) var(--text-library-title)/var(--line-source-title) var(--font-display); }
 .journal-reading-text > .journal-tile-meta { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .journal-reading-tile .book-map { width: 100%; margin-top: var(--space-4); }
-/* A narrow journal keeps the three destinations in one ruled ledger, not a 2+1 tile grid. */
+/* A narrow journal keeps the three tiles in one row: label, figure or short title, and one detail line. */
 @container outline-pane (max-width: 640px) {
-  .journal-tiles { display: flex; flex-direction: column; gap: 0; border-top: var(--rule-width) solid var(--line); }
-  .journal-tile.button { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) auto; grid-template-rows: 1fr; align-items: center; gap: var(--space-8); min-height: var(--target-size); height: 48px; padding: var(--space-8) 0; border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; background: transparent; }
-  .journal-tile-heading { display: contents; }
-  .journal-tile-heading > span:first-child { grid-column: 1; grid-row: 1; }
-  .journal-tile-action, .journal-tile-chevron { grid-column: 3; grid-row: 1; }
-  .journal-tile-count { grid-column: 2; grid-row: 1; flex-wrap: nowrap; font: var(--apparatus); white-space: nowrap; }
-  .journal-tile-count small { font: inherit; }
-  .journal-tile > .journal-tile-meta:not(.journal-tile-unavailable) { display: none; }
-  .journal-tile-unavailable, .journal-tile-placeholder { grid-column: 2; grid-row: 1; }
-  .journal-tile-placeholder { min-height: 0; padding: 0; }
+  .journal-tiles { gap: var(--space-8); }
+  .journal-tile.button { min-height: 0; padding: var(--space-8) var(--space-12); }
+  .journal-tile-count { font-size: var(--text-h2); line-height: var(--line-h2); }
+  .journal-tile > .journal-tile-meta, .journal-reading-text > .journal-tile-meta { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .journal-reading-text > .journal-reading-chapter { display: none; }
+  .journal-tile-placeholder { min-height: var(--space-32); padding: 0; }
   .journal-tile-placeholder > span + span { display: none; }
-  .journal-reading-tile.button { height: auto; min-height: calc(var(--space-48) + var(--space-32)); grid-template-rows: 1fr auto; }
-  .journal-reading-book { grid-column: 2; grid-row: 1; display: block; }
-  .journal-reading-book .library-cover { display: none; }
-  .journal-reading-text { display: block; }
-  .journal-reading-title { font: var(--apparatus); }
-  .journal-reading-text > .journal-tile-meta { overflow: visible; white-space: normal; }
-  .journal-reading-tile .book-map { grid-column: 2 / 4; grid-row: 2; margin-top: 0; }
+  .journal-reading-book .library-cover, .journal-reading-tile .book-map { display: none; }
+  .journal-reading-title { font-size: var(--text-control); line-height: var(--line-control); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .journal-title-row { align-items: center; }
 }
 @media (max-width: 799px) {
   .agenda-toolbar { gap: var(--space-8) var(--space-16); }
 }
 @media (pointer: coarse) {
-  .agenda-pane, .today-ledger { --agenda-row-height: calc(var(--space-32) + var(--space-12)); }
-  .agenda-pane .agenda-row { min-height: var(--agenda-row-height); }
-  .agenda-pane .agenda-row:not(.agenda-row-timetable) .agenda-status.task-status-button, .agenda-pane .agenda-row:not(.agenda-row-timetable) .agenda-source, .agenda-pane .agenda-date > .button, .agenda-pane .agenda-modes > .button { min-height: var(--agenda-row-height); }
+@media (pointer: coarse) {
+  .agenda-rows { --agenda-title-line: 24px; }
+  .agenda-row-actions .button { min-width: var(--touch-target); min-height: var(--touch-target); }
+  .agenda-row .agenda-status.task-status-button { min-width: var(--touch-target); min-height: var(--touch-target); margin-block: -10px; }
 }
-/* Narrow ledgers give the title the full first line, then facts, provenance and the calendar beneath it. */
+/* Narrow panes drop the gutter and the reserved slot: the clock leads the facts, and the calendar ends the title line. */
 @container (max-width: 599px) {
-  .agenda-row-timetable { grid-template-columns: var(--space-48) var(--target-size) minmax(0, max-content) minmax(0, 1fr) max-content; }
-  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable { grid-template-columns: var(--target-size) minmax(0, max-content) minmax(0, 1fr) max-content; }
-  .agenda-row-timetable .agenda-task-line { display: contents; }
-  .agenda-row-timetable .agenda-task-line > .agenda-source { grid-column: 3 / -1; grid-row: 1; min-height: var(--target-size); }
-  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-source { grid-column: 2 / -1; }
-  .agenda-row-timetable .agenda-status.task-status-button, .agenda-row-timetable .agenda-time-gutter { min-height: var(--target-size); }
-  .agenda-row-timetable .agenda-task-line > .agenda-row-meta { grid-column: 3; grid-row: 2; min-width: 0; margin: 0; padding: 0; flex-wrap: nowrap; justify-content: flex-start; align-items: center; align-self: center; white-space: nowrap; overflow: hidden; }
-  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable .agenda-row-meta { grid-column: 2; }
-  .agenda-row-timetable .agenda-row-meta > * { flex-shrink: 0; }
-  .agenda-row-timetable > .agenda-provenance { grid-row: 2; align-self: center; min-height: var(--target-size); padding: 0; text-align: left; }
-  .agenda-row-timetable > .agenda-row-actions { grid-row: 2; min-height: var(--target-size); }
+  .agenda-row, .agenda-row.agenda-row-gutter { grid-template-columns: var(--target-size) minmax(0, 1fr) auto; }
+  .agenda-row > .agenda-time-gutter { display: none; }
+  .agenda-row-gutter .agenda-facts-clock { display: inline; }
+  .agenda-row-gutter .agenda-facts-clock + *::before { content: '·'; }
+  .agenda-row-actions { visibility: visible; }
   .agenda-row-actions .button:not(.agenda-row-pick) { display: none; }
-  .agenda-row-timetable > .agenda-error, .agenda-row-timetable > .agenda-message { grid-row: 3; }
 }
 @media (max-width: 480px) {
   .agenda-toolbar { flex-wrap: nowrap; align-items: center; gap: var(--space-8); }
   .agenda-heading > p { display: none; }
   .agenda-title-date { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-  .agenda-date { flex-wrap: nowrap; gap: var(--space-2); margin-left: auto; }
+  .agenda-date { flex-wrap: nowrap; margin-left: auto; }
   .agenda-date > .button { padding-inline: var(--space-4); }
-  .agenda-row-timetable > .agenda-provenance { grid-column: 3 / -1; grid-row: 3; min-height: var(--target-size); white-space: normal; overflow: visible; overflow-wrap: anywhere; }
-  .today-ledger:not(:has(.agenda-time-gutter:not(:empty))) .agenda-row-timetable > .agenda-provenance { grid-column: 2 / -1; }
-  .agenda-row-timetable > .agenda-error, .agenda-row-timetable > .agenda-message { grid-row: 4; }
 }
 /* The cover keeps the page title above date navigation; New lives in the shell's top bar. */
 @media (max-width: 599px) and (pointer: coarse) {
@@ -343,5 +289,5 @@ div.journal-agenda-toggle { display: flex; align-items: center; gap: var(--space
   .agenda-lookahead { display: none; }
 }
 @media (pointer: coarse) {
-  .agenda-title-date, .agenda-row-actions .button, .agenda-row-timetable > .agenda-provenance, .today-carried .button { min-height: var(--touch-target); }
+  .agenda-title-date { min-height: var(--touch-target); }
 }
