@@ -760,7 +760,9 @@ function Pane(props: OutlinePaneProps) {
     if (target) {
       // Test the caret against the viewport it would have after anchoring, then make only one scroll write.
       const shift = offset - before;
-      const bottom = Math.min(bounds.bottom, viewport().bottom - (editingBar?.offsetHeight ?? 0));
+      const barTop = editingBar?.isConnected ? editingBar.getBoundingClientRect().top : viewport().bottom;
+      const lineClearance = editingBarVisible() ? parseFloat(getComputedStyle(scroll).lineHeight) : 0;
+      const bottom = Math.min(bounds.bottom, viewport().bottom, barTop) - lineClearance;
       if (target.top - shift < bounds.top) offset += target.top - shift - bounds.top;
       else if (target.bottom - shift > bottom) offset += Math.min(target.bottom - shift - bottom, target.top - shift - bounds.top);
       offset = Math.max(0, Math.min(maximum, offset));
@@ -782,7 +784,7 @@ function Pane(props: OutlinePaneProps) {
       cancelScroll(); scheduleReport();
     }
   }
-  createEffect(on(viewport, () => {
+  createEffect(on([viewport, editingBarVisible], () => {
     const id = editing();
     if (!id || !props.active || !editor?.view.hasFocus) return;
     scrollReveal = { id, epoch: focusEpoch, caret: true };
@@ -1885,7 +1887,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={relatedError() || related()?.tagged.length}><Related title="Tagged atoms" rows={relatedError() ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show when={doc.status() === 'ready' && zoom()}><div class="related-sections"><Backlinks /></div></Show>
-    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>
+    <Show keyed when={menu()}>{state => <Menu class="outline-menu" anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>
     <Show keyed when={mergeTarget()}>{target => <PageMergeConfirmation anchor={target.anchor} notebook={props.notebook} from={target.from} into={target.page} onDismiss={() => setMergeTarget(undefined)} onMerged={id => { setMergeTarget(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
     <Show when={tagTemplate()}>{target => <Popup anchor={target().anchor} label={receiptType.error ? 'Tag fields' : `Fields for #${receiptType()?.page.text ?? ''}`} class="tag-template-popup" width={560} fitContent ready={!receiptType.loading || !!receiptType.error} onDismiss={() => setTagTemplate(undefined)}>
       <Show when={receiptType.error}><p class="error" role="alert">Couldn't load template · {String(receiptType.error)}</p></Show>

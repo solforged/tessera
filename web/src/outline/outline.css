@@ -427,11 +427,16 @@
   .outline-row:not(.row-editing) { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 }
 @media (max-width: 599px) and (pointer: coarse) {
+  body:has(.outline-editing-bar) .pane.active .outline-pane { padding-bottom: calc(var(--page-bottom-space) + var(--touch-target)); scroll-padding-bottom: calc(var(--touch-target) + var(--space-8)); }
   .outline-editing-bar { position: fixed; z-index: 40; display: flex; align-items: center; gap: var(--space-8); box-sizing: border-box; min-height: var(--touch-target); padding-inline: var(--space-8); transform: translateY(-100%); border-top: 1px solid var(--glass-edge); background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); box-shadow: var(--glass-shadow); }
   .outline-editing-bar .button { min-height: var(--touch-target); min-width: var(--touch-target); padding-inline: var(--space-12); }
   .outline-editing-bar .outline-editing-done { margin-left: auto; color: var(--accent); }
   @media (prefers-reduced-transparency: reduce) {
     .outline-editing-bar { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  }
+  @media (hover: none) {
+    /* A held finger can leave WebKit's :hover on the newly opened sheet after touchend. */
+    .outline-menu .menu-item:hover:not(:active, :focus-visible) { background: transparent; }
   }
 }
 
