@@ -240,7 +240,8 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   };
   return <div ref={region} class="settings-pane" tabIndex={0} aria-label="Settings" onScroll={() => { props.onViewChange({ scroll: region.scrollTop }); follow(); }} onWheel={release} onTouchStart={release} onKeyDown={event => {
     if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) release();
-    if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z') {
+    // Text fields keep their own undo; the pane's ⌘Z undoes settings everywhere else.
+    if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z' && !(event.target instanceof HTMLElement && event.target.closest('input:not([type="checkbox"]), textarea, [contenteditable="true"]'))) {
       event.preventDefault(); void settingHistory(event.shiftKey);
     }
   }}>
