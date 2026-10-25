@@ -15,6 +15,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Dropped the Reader display row from Settings › Preferences, since the reader sets it beside the text, and folded About's workshop id, URL, assets and an installed launch agent into a closed Diagnostics disclosure. Created now reads as an ISO date in the journal zone.
+
 - Moved History out of Settings into its own pane, opened from a History button in the Settings header or `Open history`, so Settings holds only settings and its Undo and Redo. Undo entries read `Undid: <summary>` (or `Redid:`) instead of `Undid change <seq>`, and a change from a device this side no longer knows reads Another device instead of its ID.
 
 - Trimmed Settings › Devices on the Mac to one mono line for the Mac's version and address, the Sharing switch and a Pair a phone button after the devices, and made Forget confirm inline. Recent attempts use ISO times, and device disclosures share Stored backups' chevron.
