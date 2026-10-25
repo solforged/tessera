@@ -136,7 +136,9 @@ Visiting or returning to a journal on a coarse pointer selects its saved row wit
 
 On touch, holding an outline row for half a second opens the same Atom actions sheet as its menu button. Moving to scroll cancels the hold. Rows at rest suppress the native text callout and selection flash; holding inside a row already being edited keeps native text selection.
 
-On the cover, editing with the keyboard open shows Outdent, Indent and Done immediately above the keyboard. Indent and Outdent use the outline's structural commands without dismissing the keyboard. Done leaves the row selected and dismisses the keyboard. The bar follows the visual viewport and stays hidden on wider layouts.
+On the cover, Atom actions omits Open beside. Touch menus leave every action at rest on opening, including the action beneath a lifted finger. Pressed actions and keyboard focus still show their active state.
+
+On the cover, editing with the keyboard open shows Outdent, Indent and Done immediately above the keyboard. Indent and Outdent use the outline's structural commands without dismissing the keyboard. Done leaves the row selected and dismisses the keyboard. The bar follows the visual viewport and stays hidden on wider layouts. Opening or resizing the bar reveals the full caret line above it, with one line of clearance and extra scrolling room at the end of the outline.
 
 All app entries limit text-focus zoom on iOS, including iPadOS with a desktop user agent, while preserving iOS pinch zoom. Android and desktop keep their original viewport settings so Android pinch zoom remains available.
 
