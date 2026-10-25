@@ -322,6 +322,7 @@ export interface ApiClient {
   image(sha: string, signal?: AbortSignal): Promise<Blob>;
   libraryViews(signal?: AbortSignal): Promise<LibraryView[]>;
   ingestJobs(limit?: number, signal?: AbortSignal): Promise<IngestJob[]>;
+  ingestJob(id: string, signal?: AbortSignal): Promise<IngestJob>;
   queueUrl(url: string, targetSource?: string, signal?: AbortSignal): Promise<IngestJob>;
   upload(file: Blob, name: string, targetSource?: string, signal?: AbortSignal): Promise<IngestJob>;
   retryJob(id: string, signal?: AbortSignal): Promise<IngestJob>;
@@ -487,6 +488,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
     image: (sha: string, signal?: AbortSignal) => send<Blob>(`${base}/api/images/${segment(sha)}`, { method: 'GET', signal, headers: notebookHeaders(base) }, response => response.blob()),
     libraryViews: (signal?: AbortSignal) => get<LibraryView[]>('/library/views', signal),
     ingestJobs: (limit = 50, signal?: AbortSignal) => get<IngestJob[]>(`/library/jobs${query({ limit })}`, signal),
+    ingestJob: (id: string, signal?: AbortSignal) => get<IngestJob>(`/library/jobs/${segment(id)}`, signal),
     upload: (file: Blob, name: string, targetSource?: string, signal?: AbortSignal) => send<IngestJob>(`${base}/api/library/uploads${query({ target_source: targetSource })}`, {
       method: 'POST', signal, body: file,
       headers: notebookHeaders(base, { 'Content-Type': file.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(name) }),

@@ -46,6 +46,7 @@ import { installQuickCapture } from './quick-capture';
 import { opensBeside } from './beside';
 import { besideSlot, dividerRatio, insertPane, MAX_PANES, paneCapacity, windowStart } from './pane-row';
 import { blankCapture, createEvent } from '../create/request';
+import { resumeLinkImports } from '../create/link-import';
 import type { CreateRequest } from '../create/request';
 import { CreateSlip, type CreateNotice } from '../create/CreateSlip';
 import { creatableKinds, kindNoun } from '../create/kinds';
@@ -634,6 +635,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   };
   onMount(() => {
     onCleanup(installLinkDrop(openCreate));
+    resumeLinkImports(notebook);
     const requested = (event: Event) => { if (event instanceof CustomEvent && event.detail) openCreate(event.detail as CreateRequest); };
     window.addEventListener(createEvent, requested);
     onCleanup(() => window.removeEventListener(createEvent, requested));

@@ -48,7 +48,7 @@ export function recentCaptures(page: PageView, template: TodayTemplate, limit = 
     return false;
   };
   return page.rows.map(({ block }) => block)
-    .filter(block => !block.archived && block.text.trim() && !headings.has(block.id) && !readingRowSource(block.text) && inSection(block))
+    .filter(block => !block.archived && block.text.trim() && !headings.has(block.id) && !(readingRowSource(block.text) && headings.get(block.parent_id ?? '') === 'reading') && inSection(block))
     .sort((a, b) => b.created_at - a.created_at)
     .slice(0, limit);
 }

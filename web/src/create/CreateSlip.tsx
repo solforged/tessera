@@ -18,6 +18,7 @@ import { inferKind, type CreateInto, type CreateKind, type CreateRequest } from 
 import { kindNoun } from './kinds';
 import { CapturedToday, LinkPreview, ReadingUnder, shortTitle, underText } from './SlipParts';
 import { titledLink } from './today-journal';
+import { linkWhenImported } from './link-import';
 import type { UnderChoice } from './SlipParts';
 import { captureSection, isWritten, section, sectionTarget } from '../tasks/today-template';
 import './create.css';
@@ -138,7 +139,13 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
   }
   function saved(again: boolean, receipt: CaptureReceipt) {
     const url = kind() === 'link' ? webAddress(text()) : null;
-    if (url && linkLibrary()) void props.notebook.api.queueUrl(url).catch(reason => props.onNotice?.({ message: reason instanceof Error ? reason.message : String(reason) }));
+    if (url && linkLibrary()) {
+      // The line is linked to its source once the import finishes; the text it was saved with tells an edit apart.
+      const title = linkTitle(), saved = titledLink(url, title);
+      void Promise.all([props.notebook.api.queueUrl(url), receipt.delivered]).then(([job, result]) => {
+        if (result) linkWhenImported(props.notebook, { job: job.id, pageId: result.pageId, blockId: result.blockId, text: saved, title });
+      }).catch(reason => props.onNotice?.({ message: reason instanceof Error ? reason.message : String(reason) }));
+    }
     announce(receipt, atom() ? `Added to ${destinationTitle()}` : `Added ${landing()}`);
     setText(''); setAdded(value => value + 1);
     if (!again) props.onDismiss();

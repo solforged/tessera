@@ -8,6 +8,9 @@ import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { readingRowText } from '../tasks/today-template';
 import { readingSources, recentCaptures, todayJournal } from './today-journal';
+import { importedSource } from './link-import';
+
+type Other = { row: LibraryRow } | { url: string };
 
 /** A source a Reading note can go under, with why it is offered. */
 export interface UnderChoice { id: string; title: string; reason: string; row?: LibraryRow }
@@ -20,7 +23,7 @@ export const underText = (choice: UnderChoice) => readingRowText(choice.id, shor
 
 /**
  * Reading's Under row: the source last open in the reader, those already under today's Reading, then the rest of the
- * Library's Reading shelf, and a search of all sources.
+ * Library's Reading shelf, and a search of all sources that also takes a pasted link.
  */
 export function ReadingUnder(props: { notebook: NotebookClient; value?: UnderChoice; onChange(choice: UnderChoice): void }) {
   const [options] = createResource(async (): Promise<UnderChoice[]> => {
@@ -45,7 +48,24 @@ export function ReadingUnder(props: { notebook: NotebookClient; value?: UnderCho
   createEffect(() => { const first = options()?.[0]; if (first && !props.value) props.onChange(first); });
   const [anchor, setAnchor] = createSignal<HTMLElement>();
   const [query, setQuery] = createSignal('');
+  const [importing, setImporting] = createSignal(false);
+  const [problem, setProblem] = createSignal('');
   const [found] = createResource(() => anchor() ? query() : false, async text => (await props.notebook.api.library({ states: [], text: text.trim() || null, sort: 'last_read', direction: 'desc', limit: 20 })).rows);
+  // A pasted web address is offered first: choosing it adds the page to the Library and files the note under it.
+  const address = () => /^https?:\/\/\S+$/i.test(query().trim()) ? query().trim() : null;
+  const items = (): Other[] => [...address() ? [{ url: address()! }] : [], ...(found() ?? []).map(row => ({ row }))];
+  const importLink = async (url: string) => {
+    setImporting(true); setProblem('');
+    try {
+      const job = await props.notebook.api.queueUrl(url);
+      const id = await importedSource(props.notebook, job.id);
+      if (!id) { setProblem('Still importing. Choose it here once it is in the Library.'); return; }
+      const view = await props.notebook.api.source(id);
+      props.onChange({ id, title: view.page.text, reason: 'Added from the link' });
+      setAnchor(undefined);
+    } catch (reason) { setProblem(reason instanceof Error ? reason.message : String(reason)); }
+    finally { setImporting(false); }
+  };
   const shown = createMemo(() => {
     const value = props.value, list = options() ?? [];
     return value && !list.some(choice => choice.id === value.id) ? [...list, value] : list;
@@ -56,12 +76,15 @@ export function ReadingUnder(props: { notebook: NotebookClient; value?: UnderCho
         <span class="create-under-cover"><Show when={choice.row} fallback={<Icon name="library" />}>{row => <SourceCover row={row()} siglum={row().source.siglum} />}</Show></span>
         <span class="create-under-text"><span class="create-under-title">{shortTitle(choice.title)}</span><span class="create-under-reason">{choice.reason}</span></span>
       </Button>}</For>
-      <Button class="create-under-other" aria-haspopup="listbox" onClick={event => { setQuery(''); setAnchor(event.currentTarget); }}>Another source…</Button>
+      <Button class="create-under-other" aria-haspopup="listbox" onClick={event => { setQuery(''); setProblem(''); setAnchor(event.currentTarget); }}>Another source or link…</Button>
     </div>
-    <Show when={anchor()}>{at => <Picker<LibraryRow> anchor={at()} label="Under a source" query={query()} onQuery={setQuery} placeholder="Find a source" items={found() ?? []} key={row => row.page.id}
-      busy={found.loading} error={found.error ? String(found.error) : undefined} empty="No matching sources." onDismiss={() => setAnchor(undefined)}
-      onPick={row => { props.onChange({ id: row.page.id, title: row.page.text, reason: 'Chosen', row }); setAnchor(undefined); }}
-      row={row => <><Icon name="library" /><span class="picker-text">{row.page.text}</span><Show when={row.creators.length}><span class="picker-meta">{row.creators.join(', ')}</span></Show></>} />}</Show>
+    <Show when={anchor()}>{at => <Picker<Other> anchor={at()} label="Under a source" query={query()} onQuery={value => { setQuery(value); setProblem(''); }} placeholder="Find a source or paste a link" items={items()} key={item => 'url' in item ? `url:${item.url}` : item.row.page.id}
+      busy={found.loading || importing()} error={problem() || (found.error ? String(found.error) : undefined)} empty="No matching sources." onDismiss={() => { if (!importing()) setAnchor(undefined); }}
+      disabledReason={() => importing() ? 'Adding the link to the Library…' : undefined}
+      onPick={item => { if ('url' in item) void importLink(item.url); else { props.onChange({ id: item.row.page.id, title: item.row.page.text, reason: 'Chosen', row: item.row }); setAnchor(undefined); } }}
+      row={item => 'url' in item
+        ? <><Icon name={importing() ? 'clock' : 'plus'} /><span class="picker-text">{importing() ? 'Adding to the Library…' : 'Add to the Library and file under it'}</span><span class="picker-meta">{item.url}</span></>
+        : <><Icon name="library" /><span class="picker-text">{item.row.page.text}</span><Show when={item.row.creators.length}><span class="picker-meta">{item.row.creators.join(', ')}</span></Show></>} />}</Show>
   </div>;
 }
 

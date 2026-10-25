@@ -89,3 +89,8 @@
   .create-recipe-fields .create-field-value, .create-recipe-fields input { display: flex; align-items: center; min-height: var(--touch-target); }
   .create-recipe .create-foot .bordered { min-height: var(--touch-target); padding-inline: var(--space-24); color: var(--accent); border-color: var(--accent); }
 }
+/* On the cover sheet, Into and Under scroll sideways in one line instead of wrapping under their label. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .create-into, .create-under-options { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .create-into > *, .create-under-options > * { flex: none; }
+}
