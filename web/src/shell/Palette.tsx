@@ -1,4 +1,5 @@
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from 'solid-js';
+import { Portal } from 'solid-js/web';
 import { highlightMatches } from '../library/query';
 import { api } from '../api/client';
 import type { Block, BlockInPage, Citation, FieldDefinition, HighlightRow, LibraryRow, NoteKind, PageView, PassageHit, PassagePage, SourceView } from '../api/types';
@@ -299,7 +300,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     const label = group(entry);
     return label === 'No matching atoms' ? label : label ? `${label} · ${groupCounts()[label]}${entry.kind === 'passage' ? ' passages' : ''}` : undefined;
   };
-  return <Picker<Entry> anchor={props.anchor} placement="top" width={mode() === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${mode() === 'search' ? 'palette-search' : ''}`} onDismiss={props.onDismiss}
+  return <><Portal><div class="find-backdrop" aria-hidden="true" /></Portal><Picker<Entry> anchor={props.anchor} placement="top" width={mode() === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${mode() === 'search' ? 'palette-search' : ''}`} onDismiss={props.onDismiss}
     style={{ '--visual-viewport-height': `${viewportSize().height}px`, '--visual-viewport-top': `${viewportSize().top}px` }}
     query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find or create an atom' : 'Find a command'}
     inputRef={input => { queryInput = input; }}
@@ -327,7 +328,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       : entry.kind === 'highlight' ? <><span class={`find-color highlight-color-${entry.row.color ?? 'none'}`} style={{ background: entry.row.color ? `var(--highlight-${entry.row.color})` : 'transparent', 'box-shadow': entry.row.color ? undefined : 'inset 0 0 0 1px var(--faint)' }} /><span class="find-result"><span class="find-quote"><MatchText text={entry.row.citation.quote} query={text()} /></span><small>Highlight · {location(entry.row.citation.source_id, entry.row.citation.ordinal, entry.row.citation.chapter_title)}</small></span></>
       : entry.kind === 'passage' ? <><span class="find-paragraph" aria-hidden="true">¶</span><span class="find-result"><span class="find-quote"><For each={entry.hit.snippet_parts}>{part => <Show when={part.match} fallback={part.text}><mark>{part.text}</mark></Show>}</For></span><small>{location(entry.hit.source_id, entry.hit.passage.ordinal)}</small></span></>
       : entry.kind === 'command' ? <CommandRow command={entry.command} selected={selected} />
-        : <><Icon name="plus" /><span class="picker-text">{createLabel(entry)}</span><Show when={selected && (entry.action === 'page' || entry.action === 'question')}><kbd class="picker-hint picker-create-hint">⇧↵ beside</kbd></Show></>} />;
+        : <><Icon name="plus" /><span class="picker-text">{createLabel(entry)}</span><Show when={selected && (entry.action === 'page' || entry.action === 'question')}><kbd class="picker-hint picker-create-hint">⇧↵ beside</kbd></Show></>} /></>;
 }
 
 function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient; selected: boolean; book?: LibraryRow; noteKind?: NoteKind }) {
