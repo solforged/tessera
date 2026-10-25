@@ -121,7 +121,7 @@ export function AgentDock(props: {
     </header>
     <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Model" onDismiss={() => setMenu(null)} items={[
       ...(providers()?.providers ?? []).map(item => ({ label: item.name, secondary: item.model, checked: item.id === provider()?.id, action: () => choose(item.id) })),
-      { label: 'Agent settings…', icon: 'settings' as const, divider: true, action: props.onSettings },
+      { label: 'Models…', icon: 'settings' as const, divider: true, action: props.onSettings },
     ]} />}</Show>
     <div class="agent-context">
       <p class="agent-context-label">{included().length ? `Reads ${included().length} ${included().length === 1 ? 'atom' : 'atoms'}` : 'Reads nothing in view'} · drag links here to add</p>
@@ -137,7 +137,7 @@ export function AgentDock(props: {
         <Show when={provider()} fallback={<div class="agent-empty">
           <h3>Connect a model</h3>
           <p>The agent uses a model you choose: a hosted one with your own key, or one running on this machine. Keys stay on this machine.</p>
-          <Button class="bordered" icon="settings" onClick={props.onSettings}>Agent settings</Button>
+          <Button class="bordered" icon="settings" onClick={props.onSettings}>Models</Button>
         </div>}>
           <div class="agent-empty"><p>Ask about the atoms in view, or ask for a change. Edits land in the panes, marked, and each one can be undone.</p></div>
         </Show>

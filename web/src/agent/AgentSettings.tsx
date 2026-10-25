@@ -21,7 +21,7 @@ const presets: { label: string; protocol: Protocol; base_url: string; key: boole
 const protocolLabels: Record<Protocol, string> = { anthropic: 'Anthropic', openai: 'OpenAI-compatible' };
 const message = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
 
-/** Settings › Agent: the models the agent dock can use, with keys kept on this machine. */
+/** Settings › Models: the models the agent dock can use, with keys kept on this machine. */
 export function AgentSettings(props: { id: string; heading: JSX.Element }) {
   const [saved, { mutate }] = createResource(() => api.agentProviders());
   const [draft, setDraft] = createSignal<Draft | null>(null);
@@ -30,6 +30,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
   const [tested, setTested] = createSignal<Record<string, string>>({});
   const [validated, setValidated] = createSignal(false);
   const [protocolAnchor, setProtocolAnchor] = createSignal<HTMLElement | null>(null);
+  const [removing, setRemoving] = createSignal<string | null>(null);
   let formElement!: HTMLFormElement;
   const fieldErrors = createMemo(() => {
     const errors: Partial<Record<'name' | 'base_url' | 'model', string>> = {};
@@ -71,20 +72,23 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
     const providers = value.id ? inputs().map(item => item.id === value.id ? entry : item) : [...inputs(), entry];
     if (await save(providers, saved()?.default ?? (list.length ? list[0]!.id : null))) setDraft(null);
   };
-  const remove = (provider: ProviderView) => {
+  const remove = async (provider: ProviderView) => {
     const rest = inputs(provider.id);
-    void save(rest, saved()?.default === provider.id ? rest[0]?.id ?? null : saved()?.default ?? null);
+    if (await save(rest, saved()?.default === provider.id ? rest[0]?.id ?? null : saved()?.default ?? null)) setRemoving(null);
   };
   // The dock uses the default, else the first model; with one model there is nothing to choose.
   const several = () => (saved()?.providers.length ?? 0) > 1;
   const isDefault = (id: string) => (saved()?.default ?? saved()?.providers[0]?.id) === id;
   const test = async (provider: ProviderView) => {
+    if (tested()[provider.id] === 'Testing…') return;
     setTested(values => ({ ...values, [provider.id]: 'Testing…' }));
     try { await api.testAgentProvider(provider.id); setTested(values => ({ ...values, [provider.id]: 'Answered' })); }
     catch (reason) { setTested(values => ({ ...values, [provider.id]: message(reason) })); }
   };
   const edit = (provider?: ProviderView) => {
-    setValidated(false); setProtocolAnchor(null); setError('');
+    setValidated(false); setProtocolAnchor(null); setError(''); setRemoving(null);
+    // A result from before the edit no longer describes the model.
+    if (provider) setTested(({ [provider.id]: _, ...rest }) => rest);
     setDraft(provider
       ? { id: provider.id, name: provider.name, protocol: provider.protocol, base_url: provider.base_url, model: provider.model, api_key: '', has_key: provider.has_key, clearKey: false }
       : { name: 'Anthropic', protocol: 'anthropic', base_url: presets[0]!.base_url, model: '', api_key: '', has_key: false, clearKey: false });
@@ -98,7 +102,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
     <label><span>Name</span><span class="agent-input-field"><input class="input" value={form.value.name} onInput={event => update({ name: event.currentTarget.value })} required aria-invalid={!!fieldErrors().name} aria-describedby={fieldErrors().name ? `${props.id}-name-error` : undefined} />
       <Show when={fieldErrors().name}>{error => <span class="error agent-field-error" id={`${props.id}-name-error`} role="alert">{error()}</span>}</Show>
     </span></label>
-    <label><span id={`${props.id}-protocol-label`}>Speaks</span><span class="agent-input-field">
+    <label><span id={`${props.id}-protocol-label`}>API</span><span class="agent-input-field">
       <Button class="bordered agent-protocol" aria-labelledby={`${props.id}-protocol-label`} aria-haspopup="menu" aria-expanded={protocolAnchor() !== null} onClick={event => setProtocolAnchor(event.currentTarget)}><span>{protocolLabels[form.value.protocol]}</span><Icon name="down" /></Button>
       <Show when={protocolAnchor()}>{anchor => <Menu anchor={anchor()} label="Protocol" onDismiss={() => setProtocolAnchor(null)} items={(Object.keys(protocolLabels) as Protocol[]).map(protocol => ({
         label: protocolLabels[protocol], checked: form.value.protocol === protocol, action: () => update({ protocol }),
@@ -133,12 +137,16 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
           <p class="settings-mono agent-provider-address">{provider.base_url}</p>
           <Show when={tested()[provider.id]}>{result => <p role="status" classList={{ error: result() !== 'Answered' && result() !== 'Testing…' }}>{result()}</p>}</Show>
         </div>
-        <div class="agent-provider-actions">
+        <div class="agent-provider-actions"><Show when={removing() === provider.id} fallback={<>
           <Show when={several() && !isDefault(provider.id)}><Button class="text-button" disabled={busy()} onClick={() => { void save(inputs(), provider.id); }}>Make default</Button></Show>
-          <Button class="text-button" onClick={() => { void test(provider); }}>Test</Button>
+          <Button class="text-button" disabled={tested()[provider.id] === 'Testing…'} onClick={() => { void test(provider); }}>Test</Button>
           <Button class="text-button" onClick={() => edit(provider)}>Edit</Button>
-          <Button class="text-button" disabled={busy()} onClick={() => remove(provider)}>Remove</Button>
-        </div>
+          <Button class="text-button danger" disabled={busy()} onClick={() => setRemoving(provider.id)}>Remove</Button>
+        </>}>
+          <span class="settings-backup-question">Remove{provider.has_key ? ' it and its key' : ''}?</span>
+          <Button disabled={busy()} onClick={() => setRemoving(null)}>Cancel</Button>
+          <Button class="bordered danger" disabled={busy()} onClick={() => { void remove(provider); }}>Confirm</Button>
+        </Show></div>
       </div>
     </Show>}</For>
     <Show when={draft() && !draft()!.id} fallback={<Show when={!draft()}><Button class="bordered agent-add-model" icon="plus" onClick={() => edit()}>Add model</Button></Show>}>

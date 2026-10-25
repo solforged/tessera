@@ -3,6 +3,7 @@ import type { JSX } from 'solid-js';
 import { api } from '../api/client';
 import type { PairingCode, PairingStatus, RejectedChange, SyncAttempt } from '../api/types';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { SyncSetup } from '../sync/SyncSetup';
 import type { NotebookClient } from '../document/contract';
@@ -13,13 +14,14 @@ import { ago, hubDevices, plural, replica, size, sync, syncConflicts } from '../
 
 const message = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
 
-interface DeviceProps { heading: JSX.Element; notebook: NotebookClient; deviceId?: string | null; onOpenPage(pageId: string): void; onError(message: string): void }
+interface DeviceProps { heading: JSX.Element; notebook: NotebookClient; deviceId?: string | null; when(value: number): string; onOpenPage(pageId: string): void; onError(message: string): void }
 
 /** The Mac's device rows contain the fix and evidence for each relationship. */
 export function HubDevices(props: DeviceProps & { onCount(count: number): void }) {
   const [busy, setBusy] = createSignal(false);
   const [pairing, setPairing] = createSignal(false);
   const [pairNeedsSharing, setPairNeedsSharing] = createSignal(false);
+  const [forgetting, setForgetting] = createSignal<string | null>(null);
   // Settled once the Mac has answered for its hub records; until then neither the rows nor "Sync is off" show.
   const [checked, setChecked] = createSignal(false);
   void sync.refresh().then(() => hubDevices.refresh()).finally(() => setChecked(true));
@@ -42,38 +44,28 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
     setPairNeedsSharing(false); setPairing(true);
   };
   const forget = async (id: string) => {
-    try { await api.forgetDevice(id); }
+    try { await api.forgetDevice(id); setForgetting(null); }
     catch (reason) { props.onError(message(reason)); }
     void hubDevices.refresh();
   };
   return <>
     {props.heading}
     <Show when={checked() && !hubDevices.state()}>
-      <div class="settings-row"><div class="settings-label"><span class="settings-name">Sync is off</span><p>This Mac is not serving its workshop to other devices, so no phone can pair with it.</p></div><span /></div>
+      <p class="settings-empty">Sync is off. This Mac is not serving its workshop to other devices, so no phone can pair with it.</p>
     </Show>
     <Show when={hubDevices.state()}>{value => <>
-      <div class="settings-row devices-hub-row">
-        <div class="settings-label"><span class="settings-name">The Mac<span class="settings-scope">Hub</span></span><p class="settings-mono">{value().hub_name} · {versionLine(value().this_device)}</p>
-          <Show when={value().sharing.url}>{url => <p class="settings-mono devices-url">{url()}</p>}</Show>
-        </div>
-      </div>
+      <p class="settings-mono devices-hub">{value().hub_name} · {versionLine(value().this_device)}<Show when={value().sharing.url}>{url => <><br /><span class="devices-url">{url()}</span></>}</Show></p>
       <div class="settings-row">
         <div class="settings-label"><span class="settings-name"><label for="settings-sharing">Sharing</label><span class="settings-scope">This Mac</span></span>
-          <p>{value().sharing.available ? 'Share with my tailnet' : value().sharing.error ?? 'Tailscale is not available on this Mac.'}</p>
+          <p>{value().sharing.available ? 'Phones on your tailnet get a copy of this workshop. Changes go both ways.' : value().sharing.error ?? 'Tailscale is not available on this Mac.'}</p>
         </div>
         <input id="settings-sharing" class="settings-switch" type="checkbox" role="switch" checked={value().sharing.on} disabled={busy() || !value().sharing.available} onChange={event => { void share(event.currentTarget.checked); }} />
-      </div>
-      <div class="settings-row">
-        <div class="settings-label"><span class="settings-name">Pair a phone</span><p>The phone gets a copy of this workshop. Changes go both ways.</p></div>
-        <div class="settings-action"><Button class="bordered" disabled={busy()} onClick={() => { void pair(); }}>Pair a phone</Button>
-          <Show when={!value().sharing.on && (pairNeedsSharing() || !value().sharing.available)}><span class="settings-hint" role="status">Turn on Sharing first</span></Show>
-        </div>
       </div>
       <For each={value().devices.map(device => device.id)}>{id => {
         const device = () => value().devices.find(device => device.id === id)!;
         const health = () => syncHealth(sync.state(), { ...value(), devices: [device()] }, sync.now())!;
         return <details class="devices-disclosure" data-device-id={id} open={props.deviceId === id}>
-          <summary><span class="devices-name">{device().name}</span><span class="devices-row-status" data-tone={health().tone}>{health().kind === 'synced' ? device().last_seen_at ? `Synced ${ago(device().last_seen_at!, sync.now())}` : 'Not synced yet' : health().title}</span></summary>
+          <summary><Icon name="right" /><span class="devices-name">{device().name}</span><span class="devices-row-status" data-tone={health().tone}>{health().kind === 'synced' ? device().last_seen_at ? `Synced ${ago(device().last_seen_at!, sync.now())}` : 'Not synced yet' : health().title}</span></summary>
           <div class="devices-expanded">
             <div class="devices-versions"><div><h3>{device().name}</h3><p class="settings-mono">{versionLine(device().version)}</p></div><div><h3>{value().hub_name}</h3><p class="settings-mono">{versionLine(value().this_device)}</p></div></div>
             <Show when={health().kind !== 'synced'}><div class="devices-fix" data-tone={health().tone}><h3>{health().title}</h3><SyncExplanation health={health()} /><SyncFix health={health()} onError={props.onError} /></div></Show>
@@ -81,12 +73,19 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
               <Show when={device().refused}>{refusal => <><dt>Refused since</dt><dd>{ago(refusal().since, sync.now())} · {plural(refusal().attempts, 'attempt')}</dd></>}</Show>
               <Show when={device().last_attempt_at}><dt>Last attempt</dt><dd>{ago(device().last_attempt_at!, sync.now())}</dd></Show>
             </dl>
-            <AttemptLedger attempts={device().attempts} />
-            <div class="devices-actions"><Button class="bordered" onClick={() => { void forget(id); }}>Forget</Button></div>
+            <AttemptLedger attempts={device().attempts} when={props.when} />
+            <div class="devices-actions"><Show when={forgetting() === id} fallback={<Button class="danger" onClick={() => setForgetting(id)}>Forget</Button>}>
+              <span class="settings-backup-question">Forget {device().name}? It must pair again to sync.</span>
+              <Button onClick={() => setForgetting(null)}>Cancel</Button>
+              <Button class="bordered danger" onClick={() => { void forget(id); }}>Confirm</Button>
+            </Show></div>
           </div>
         </details>;
       }}</For>
       <Show when={value().retained.changes > 0}><p class="settings-mono devices-retained">Keeping {plural(value().retained.changes, 'change')} for devices that have not caught up ({size(value().retained.bytes)}).</p></Show>
+      <div class="settings-action devices-pair"><Button class="bordered" icon="plus" disabled={busy()} onClick={() => { void pair(); }}>Pair a phone</Button>
+        <Show when={!value().sharing.on && (pairNeedsSharing() || !value().sharing.available)}><span class="settings-hint" role="status">Turn on Sharing first</span></Show>
+      </div>
       <Show when={pairing()}><PairDialog url={value().sharing.url} onDone={() => { setPairing(false); void sync.refresh(); }} /></Show>
     </>}</Show>
     <NeedsReview notebook={props.notebook} onOpenPage={props.onOpenPage} onError={props.onError} />
@@ -176,7 +175,7 @@ export function PhoneDevices(props: DeviceProps) {
       <Show when={setup()}><SyncSetup onDone={() => setSetup(false)} /></Show>
     </>}>{value => <>
       <details class="devices-disclosure" data-device-id={value().device_id} open={props.deviceId === value().device_id}>
-        <summary><span class="devices-name">{value().hub_name ?? 'The Mac'}</span><span class="devices-row-status" data-tone={currentHealth()?.tone}>{currentHealth()?.title}</span></summary>
+        <summary><Icon name="right" /><span class="devices-name">{value().hub_name ?? 'The Mac'}</span><span class="devices-row-status" data-tone={currentHealth()?.tone}>{currentHealth()?.title}</span></summary>
         <div class="devices-expanded">
           <div class="devices-versions"><div><h3>{value().device_name ? `This device · ${value().device_name}` : 'This device'}</h3><p class="settings-mono">{versionLine(state().this_device)}</p></div><div><h3>{value().hub_name ? `The Mac · ${value().hub_name}` : 'The Mac'}</h3><p class="settings-mono">{versionLine(value().hub_version)}</p></div></div>
           <p class="settings-mono devices-url">{value().hub_url}</p>
@@ -185,7 +184,7 @@ export function PhoneDevices(props: DeviceProps) {
             <Show when={value().failing_since}><dt>{currentHealth()?.kind === 'version' ? 'Refused since' : 'Failing since'}</dt><dd>{ago(value().failing_since!, sync.now())} · {plural(value().attempts.filter(attempt => !attempt.ok && attempt.first_at >= value().failing_since!).reduce((count, attempt) => count + attempt.count, 0), 'attempt')}</dd></Show>
             <dt>Changes waiting</dt><dd>{value().pending} · kept on this device</dd>
           </dl>
-          <AttemptLedger attempts={value().attempts} />
+          <AttemptLedger attempts={value().attempts} when={props.when} />
         </div>
       </details>
       <Show when={value().offline.books > 0}><div class="settings-row"><div class="settings-label"><span class="settings-name">Offline books</span><p>{plural(value().offline.books, 'book')} · {size(value().offline.bytes)}</p></div><span class="settings-aside">On this device</span></div></Show>
@@ -194,11 +193,11 @@ export function PhoneDevices(props: DeviceProps) {
   </>;
 }
 
-function AttemptLedger(props: { attempts: SyncAttempt[] }) {
-  const when = (at: number) => new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }).format(at);
+function AttemptLedger(props: { attempts: SyncAttempt[]; when(value: number): string }) {
+  const when = (at: number) => props.when(at);
   return <div class="devices-attempts"><h3>Recent attempts</h3><Show when={props.attempts?.length} fallback={<p>No attempts recorded since this service started.</p>}>
     <table><thead><tr><th>When</th><th>Result</th><th>Attempts</th></tr></thead><tbody><For each={props.attempts?.slice(0, 6)}>{attempt => <tr><td class="settings-mono"><time dateTime={new Date(attempt.at).toISOString()} title={`First attempt ${when(attempt.first_at)}`}>{when(attempt.at)}</time></td><td data-tone={attempt.ok ? 'muted' : 'rubric'} title={attempt.message ?? undefined}>{attempt.ok ? 'Accepted' : attempt.code === 'schema_mismatch' ? 'Version refused' : attempt.code === 'hub_unreachable' ? 'Could not reach the Mac' : attempt.message ?? attempt.code ?? 'Failed'}</td><td class="settings-mono">{attempt.count}</td></tr>}</For></tbody></table>
-  </Show><p class="devices-ledger-note">Recent attempts from this service run. History clears when Tessera restarts.</p></div>;
+  </Show><p class="devices-ledger-note">Recent attempts from this service run. They clear when Tessera restarts.</p></div>;
 }
 
 function NeedsReview(props: { notebook: NotebookClient; onOpenPage(pageId: string): void; onError(message: string): void }) {
@@ -224,7 +223,7 @@ function NeedsReview(props: { notebook: NotebookClient; onOpenPage(pageId: strin
   };
   return <Show when={(syncConflicts.state()?.kept.length ?? 0) + (syncConflicts.state()?.rejected.length ?? 0) > 0 || undo()}>
     <details class="devices-disclosure devices-review" aria-label="Needs review" open>
-      <summary><span class="devices-name">Needs review</span><span class="devices-row-status">{syncConflicts.state()?.kept.length ?? 0} kept · {syncConflicts.state()?.rejected.length ?? 0} rejected</span></summary>
+      <summary><Icon name="right" /><span class="devices-name">Needs review</span><span class="devices-row-status">{syncConflicts.state()?.kept.length ?? 0} kept · {syncConflicts.state()?.rejected.length ?? 0} rejected</span></summary>
       <div class="devices-expanded">
       <p>Kept versions are beside their atoms. Rejected changes are kept here until you copy them back or dismiss them.</p>
       <Show when={undo()}>{last => <div class="devices-undo" role="status"><span>{last().label}</span><Button class="bordered" disabled={busy()} onClick={() => { void undoLast(); }}>Undo</Button></div>}</Show>
