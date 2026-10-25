@@ -21,7 +21,9 @@ Sections use the same mono numbered heads as field definitions, in this order:
 
 Under 600 px (a split pane or the Fold cover), the header tightens. Controls stack under their descriptions except the switch, and the time-zone trigger fills the width. Paths wrap after slashes, not inside folder names. Pane chrome and mode tabs keep 44 px touch targets.
 
-On the cover layout (under 600 px with a coarse pointer), section names stay in the scroll instead of a horizontal chip row. This avoids clipped names and leaves more room for the settings themselves. Each section forms an inset group on `--raised`, with token spacing and rounded corners, a plain sentence-case heading and hairlines between rows. Controls and disclosures keep `--touch-target` hit areas. The title, save status, Undo and Redo stay above the groups; desktop and wider layouts keep their existing section index.
+On the cover layout (under 600 px with a coarse pointer), section names stay in the scroll instead of a horizontal chip row. This avoids clipped names and leaves more room for the settings themselves. Each section forms an inset group on `--raised`, with token spacing and rounded corners, a plain sentence-case heading and hairlines between rows. Controls and disclosures keep `--touch-target` hit areas.
+
+The cover title, save status, Undo and Redo scroll away with the page, leaving only the shell's glass title bar while reading lower sections. This avoids a second Settings title and gives the groups more room. Section links reserve header space only where the page header is sticky. Desktop and wider layouts keep their existing sticky header and section index.
 
 ## Preferences
 

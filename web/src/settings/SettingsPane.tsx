@@ -172,10 +172,14 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   const [scrolled, setScrolled] = createSignal(false);
   // A chosen section stays current until manual scrolling, since the last sections may not reach the header.
   const [chosen, setChosen] = createSignal<string | null>(null);
+  const stickyHeaderHeight = () => {
+    const header = region.querySelector<HTMLElement>('.settings-header');
+    return header && getComputedStyle(header).position === 'sticky' ? header.offsetHeight : 0;
+  };
   const follow = () => {
     setScrolled(region.scrollTop > 0);
     if (chosen()) { setCurrent(chosen()!); return; }
-    const header = region.querySelector<HTMLElement>('.settings-header')?.offsetHeight ?? 0;
+    const header = stickyHeaderHeight();
     let key = sections()[0]!.key;
     for (const section of sections()) {
       const element = document.getElementById(sectionId(section.key));
@@ -189,7 +193,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     const element = document.getElementById(sectionId(key));
     if (!element) return;
     setChosen(key); setCurrent(key);
-    const header = region.querySelector<HTMLElement>('.settings-header')?.offsetHeight ?? 0;
+    const header = stickyHeaderHeight();
     const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
     const top = element.getBoundingClientRect().top - region.getBoundingClientRect().top + region.scrollTop - header;
     region.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });

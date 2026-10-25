@@ -121,6 +121,7 @@
 
 /* The cover keeps all section names in the scroll, not in a clipped second navigation row. */
 @media (max-width: 599px) and (pointer: coarse) {
+  .settings-header, .settings-header[data-scrolled] { position: static; box-shadow: none; }
   .settings-index { display: none; }
   .settings-main > section { padding: var(--space-16); border-radius: var(--space-12); background: var(--raised); }
   .settings-main > section + section { margin-top: var(--space-16); }
