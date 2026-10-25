@@ -13,6 +13,8 @@ import { createSettledChanges, createSlowFlag, sameData } from '../ui/loading';
 import './agenda.css';
 
 export interface JournalResurfaceProps {
+  /** The template's name for the section. */
+  name?: string;
   date: string;
   notebook: NotebookClient;
   onOpen(target: OpenTarget, beside: boolean): void;
@@ -94,7 +96,7 @@ export function JournalResurface(props: JournalResurfaceProps) {
   };
   return <section class="journal-agenda journal-resurface" aria-label="Resurfaced">
     <div class="resurface-heading">
-      <SectionHead name="From your highlights" count={!loaded() ? slow() ? 'Loading…' : '' : items().length ? `${Math.min(index() + 1, items().length)} of ${items().length}` : 'Nothing yet'} open={!collapsed()} controls={id} onToggle={() => setCollapsed(!collapsed())} />
+      <SectionHead name={props.name ?? 'From your highlights'} count={!loaded() ? slow() ? 'Loading…' : '' : items().length ? `${Math.min(index() + 1, items().length)} of ${items().length}` : 'Nothing yet'} open={!collapsed()} controls={id} onToggle={() => setCollapsed(!collapsed())} />
       <Show when={!collapsed() && items().length > 1}><nav class="resurface-navigation" aria-label="Resurfaced highlights">
         <Button icon="left" label="Previous highlight" disabled={pending() || index() === 0} onClick={() => setIndex(value => value - 1)} />
         <Button icon="right" label="Next highlight" disabled={pending() || index() >= items().length - 1} onClick={() => setIndex(value => value + 1)} />

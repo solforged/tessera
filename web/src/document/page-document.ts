@@ -97,6 +97,10 @@ export class Document implements PageDocument {
     presence[0]();
     return this.cells.get(id)?.state;
   }
+  createdAt(id: string) {
+    this.block(id);
+    return this.baseBlocks.get(id)?.created_at;
+  }
   private presenceChanged(id: string) { this.presence.get(id)?.[1](value => value + 1); }
   /** Page-only renames refresh cached manual labels without rewriting member text. */
   renameManualType(before: string, after: string) {

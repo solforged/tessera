@@ -1,0 +1,37 @@
+/* Today's written sections: a heading row drawn as the shared section head, its name editable in place. */
+.outline-row.row-section-head { flex-wrap: wrap; align-items: center; }
+.outline-row.row-section-head > .row-bullet { display: none; }
+.row-section-head > .outline-body { flex: 0 1 auto; color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+.row-section-head.row-editing > .outline-body { flex: 1; }
+.row-section-head.row-editing > .row-section-tail { display: none; }
+.row-section-tail { display: flex; flex: 1; align-items: center; gap: var(--space-12); min-width: var(--space-16); margin-left: var(--space-4); }
+.row-section-tail > .section-rule { min-width: var(--space-16); }
+/* Inbox's capture line sits under its head at the text column of the rows it fills. */
+.outline-row > .section-capture { flex-basis: 100%; order: 10; padding: var(--space-8) 0 var(--space-4) calc(var(--gutter) + var(--indent-unit)); }
+.section-capture-inbox .capture-line.capture-boxed { height: 40px; }
+.capture-trailing { flex: none; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+/* Notes is drawn, never written: its head opens the first row outside every section. */
+.outline-row.row-banner { flex-wrap: wrap; }
+/* The banner covers the row's top padding and selection border in canvas, so hovering or selecting the row highlights only its own line. */
+.row-section-banner { display: flex; flex-direction: column; gap: var(--section-gap); flex-basis: 100%; order: -1; margin: calc(-1 * var(--space-2)) 0 var(--space-4) -2px; padding: calc(var(--space-16) + var(--space-2)) 0 0 calc(var(--gutter) + 2px); background: var(--canvas); }
+/* Rows are measured without margins, so the space above a written head is padding. */
+.outline-row.row-section-head:not(.row-banner) { padding-top: calc(var(--space-2) + var(--space-16)); }
+.row-section-head > .row-section-banner { margin-bottom: var(--space-16); }
+.journal-missing-end { max-width: var(--measure); margin: var(--section-gap) auto 0; }
+/* Inbox rows carry their capture clock in the gutter, giving way to the row's handles on hover. */
+.row-capture-time { position: absolute; top: calc(var(--space-2) + (var(--line-body) - var(--line-apparatus)) / 2); left: calc(var(--row-indent) + 2 * var(--target-size) - 56px); width: 48px; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-align: right; pointer-events: none; }
+.outline-row:is(:hover, :focus-within, .row-selected) > .row-capture-time { visibility: hidden; }
+/* Missing sections on Today: the head, then one line that writes the heading with its first entry. */
+.journal-missing-section > .section-capture { padding-top: var(--space-4); }
+.journal-missing-section .capture-line:not(.capture-boxed) .capture-input { border-bottom-color: transparent; }
+.journal-missing-section .capture-line:not(.capture-boxed) .capture-input:hover { border-bottom-color: var(--line); }
+@media (max-width: 599px) and (pointer: coarse) {
+  .section-capture-inbox { display: none; }
+  .row-capture-time { display: none; }
+}
+/* Narrow screens move the handles after the bullet, so heads and the capture line start at the text edge and clocks have no gutter. */
+@media (max-width: 599px) {
+  .row-section-banner { padding-left: 2px; }
+  .outline-row > .section-capture { padding-left: var(--indent-unit); }
+  .row-capture-time { display: none; }
+}

@@ -15,6 +15,7 @@ import { AgendaWeekStrip } from './AgendaWeekStrip';
 import { spokenJournalDate } from './journal-date';
 import { agendaTaskTime, daysBetween, groupAgenda, groupDayAgenda, isFinished, upcomingDayLabel } from './task-labels';
 import { SectionHead, SectionSubhead } from '../ui/SectionHead';
+import { captureSection, sectionTarget } from './today-template';
 import { TaskSourceRows } from './JournalAgenda';
 import { parseTaskDate } from './date-input';
 import { CaptureField } from '../capture/CaptureField';
@@ -383,6 +384,8 @@ export function AgendaPane(props: AgendaPaneProps) {
     const day = new Date(`${date()}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
     return `Add a task for ${away < 7 ? day : spokenJournalDate(date())}`;
   });
+  /** Add a task files into today's capture section, Inbox by default. */
+  const captureTarget = () => { const template = props.notebook.todayTemplate(); return sectionTarget(template, captureSection(template).id); };
   const changeDay = (input: string) => {
     const parsed = parseTaskDate(input, date());
     if (parsed.ok && parsed.date) {
@@ -445,7 +448,7 @@ export function AgendaPane(props: AgendaPaneProps) {
       <Show when={mode() === 'agenda'}><AgendaWeekStrip dates={stripDates()} date={date()} today={props.notebook.todayDate()} rows={weekRows()} overdueToday={date() === props.notebook.todayDate() ? dayGroups().overdue.length : 0} loading={weekLoading()} disabled={busy()} onSelect={date => update({ date, scroll: 0 })} /></Show>
       <Show when={mode() === 'agenda'}>
         <div class="agenda-add">
-          <CaptureField notebook={props.notebook} contextDate={date} schedule taskOnly boxed label="New task"
+          <CaptureField notebook={props.notebook} contextDate={date} schedule taskOnly boxed section={captureTarget()} label="New task"
             placeholder={addPlaceholder()} hint="Try “mon 9am”, “by fri” or “in 2 weeks”"
             onSaved={(_, receipt) => { void receipt.delivered.then(result => { if (result) { setAddedTask(result.blockId); setRefresh(value => value + 1); } }, reason => setCommandError(reason instanceof Error ? reason.message : String(reason))); }} />
         </div>

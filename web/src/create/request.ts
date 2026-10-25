@@ -8,8 +8,12 @@ import { parseCardText } from '../review/card-text';
 /** Built-in kinds, or `type:<key>` for a note kind from the index (`type:person`, `type:concept`). */
 export type CreateKind = 'note' | 'question' | 'project' | 'task' | 'card' | 'source' | `type:${string}`;
 
-/** Where a note, question, task or card goes: today's journal, a new titled page, or the end of an existing page. */
-export type CreateInto = { kind: 'journal' } | { kind: 'page' } | { kind: 'under'; pageId: string };
+/**
+ * Where a note, question, task or card goes: a section of today's journal, a new titled page, or the end of an
+ * existing page. A journal destination without a section means the workshop's capture section; `notes` is the end
+ * of the journal, outside every section.
+ */
+export type CreateInto = { kind: 'journal'; section?: string } | { kind: 'page' } | { kind: 'under'; pageId: string };
 
 export interface CreateRequest {
   kind: CreateKind;

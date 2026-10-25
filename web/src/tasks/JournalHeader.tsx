@@ -20,6 +20,7 @@ import { TaskSourceRows } from './JournalAgenda';
 import { movableTo } from './reschedule';
 import { createBulkMove } from './BulkMove';
 import { SectionHead } from '../ui/SectionHead';
+import { section } from './today-template';
 import { createSettledChanges, sameData } from '../ui/loading';
 import './agenda.css';
 import '../library/library.css';
@@ -94,6 +95,8 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
   const dayGroups = createMemo(() => { const agenda = desk()?.agenda; return agenda ? groupDayAgenda(agenda.items, [], props.date) : null; });
   // Every commit refreshes the desk, so Plan needs no refresh of its own.
   const carried = createBulkMove(props.notebook, () => {});
+  const tiles = () => props.notebook.todayTemplate().tiles;
+  const plan = () => section(props.notebook.todayTemplate(), 'plan');
   const Placeholder = () => <span class="journal-tile-placeholder" aria-hidden="true"><span /><span /></span>;
   return <section class="journal-header" aria-label={spokenJournalDate(props.date)}>
     <JournalTrail date={props.date} today={today()} journalPeriod={props.journalPeriod} notebook={props.notebook} onSelect={async date => {
@@ -102,22 +105,22 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
     }} />
     <Show when={today()}>
       {/* Each tile is one button to its destination; Plan below holds today's tasks. */}
-      <div class="journal-tiles" aria-label="Today">
-        <Button class="journal-tile" aria-busy={!desk() && !deskError()} onClick={event => props.onOpen({ kind: 'agenda', date: props.date }, opensBeside(event))}>
+      <Show when={tiles().agenda || tiles().review || tiles().reading}><div class="journal-tiles" aria-label="Today" style={{ '--journal-tiles': [tiles().agenda, tiles().review, tiles().reading].filter(Boolean).length }}>
+        <Show when={tiles().agenda}><Button class="journal-tile" aria-busy={!desk() && !deskError()} onClick={event => props.onOpen({ kind: 'agenda', date: props.date }, opensBeside(event))}>
           <span class="journal-tile-heading"><span>Agenda</span><span class="journal-tile-action" aria-hidden="true">›</span></span>
           <Show when={agendaSummary()} fallback={deskError() ? <span class="journal-tile-meta journal-tile-unavailable">Agenda unavailable</span> : <Placeholder />}>{summary => <>
             <span class="journal-tile-count">{summary().planned}<small>today<Show when={summary().overdue}> · <span class="agenda-late">{summary().overdue} carried</span></Show></small></span>
             <span class="journal-tile-meta"><Show when={summary().next} fallback={summary().planned ? 'Nothing else planned today' : 'Nothing planned today'}>{next => <><Show when={next().time}><span class="journal-tile-clock">{next().time}</span> </Show><BlockText text={next().source.block.text || 'Empty task'} notebook={props.notebook} interactive={false} /></>}</Show></span>
           </>}</Show>
-        </Button>
-        <Button class="journal-tile" aria-busy={!desk() && !deskError()} onClick={() => props.onOpen({ kind: 'review', start: true }, false)}>
+        </Button></Show>
+        <Show when={tiles().review}><Button class="journal-tile" aria-busy={!desk() && !deskError()} onClick={() => props.onOpen({ kind: 'review', start: true }, false)}>
           <span class="journal-tile-heading"><span>Review</span><span class="journal-tile-action" aria-hidden="true">›</span></span>
           <Show when={desk()} fallback={deskError() ? <span class="journal-tile-meta journal-tile-unavailable">Review unavailable</span> : <Placeholder />}>{counts => <>
             <span class="journal-tile-count">{counts().due}<small>due</small></span>
             <span class="journal-tile-meta">{counts().due ? 'Start the due queue' : 'All caught up'}</span>
           </>}</Show>
-        </Button>
-        <Button class="journal-tile journal-reading-tile" aria-busy={reading() === undefined && !readingError()} onClick={event => {
+        </Button></Show>
+        <Show when={tiles().reading}><Button class="journal-tile journal-reading-tile" aria-busy={reading() === undefined && !readingError()} onClick={event => {
           const book = reading();
           if (book) props.onOpen({ kind: 'reader', sourceId: book.row.page.id, snapshotId: book.source.source.current_snapshot_id ?? undefined }, opensBeside(event) || matchMedia('(pointer: coarse) and (min-width: 900px)').matches);
           else props.onOpen({ kind: 'library', tab: 'reading' }, false);
@@ -129,19 +132,18 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
             </span></span>
             <Show when={progress()?.length}><BookMap chapters={progress()!.chapters} length={progress()!.length} at={progress()!.at} highlights={book().highlights} /></Show>
           </>}</Show>
-        </Button>
-      </div>
+        </Button></Show>
+      </div></Show>
       <Show when={deskError() || readingError()}><p class="agenda-error" role="alert">{[deskError(), readingError()].filter(Boolean).join(' · ')}</p></Show>
-      <Show when={dayGroups()}>{groups => <JournalPlan date={props.date} groups={groups()} now={clock()} notebook={props.notebook} carried={carried} onOpen={props.onOpen} />}</Show>
+      <Show when={plan()?.on && dayGroups()}>{groups => <JournalPlan name={plan()!.name} date={props.date} groups={groups()} now={clock()} notebook={props.notebook} carried={carried} onOpen={props.onOpen} />}</Show>
     </Show>
-    <Show when={today()}><SectionHead class="journal-notes-head" name="Notes" /></Show>
   </section>;
 }
 
 const planFoldKey = 'tessera.today.plan';
 
 /** Today's generated Plan: carried work folded to one band, then today's rows from Agenda. */
-function JournalPlan(props: { date: string; groups: ReturnType<typeof groupDayAgenda>; now: string; notebook: NotebookClient; carried: ReturnType<typeof createBulkMove>; onOpen(target: OpenTarget, beside: boolean): void }) {
+function JournalPlan(props: { name: string; date: string; groups: ReturnType<typeof groupDayAgenda>; now: string; notebook: NotebookClient; carried: ReturnType<typeof createBulkMove>; onOpen(target: OpenTarget, beside: boolean): void }) {
   const id = createUniqueId();
   const [open, setOpenSignal] = createSignal((() => { try { return localStorage.getItem(planFoldKey) !== 'closed'; } catch { return true; } })());
   const setOpen = (value: boolean) => {
@@ -152,7 +154,7 @@ function JournalPlan(props: { date: string; groups: ReturnType<typeof groupDayAg
   const empty = () => !props.groups.planned.length && !props.groups.overdue.length;
   const gutter = createMemo(() => [...props.groups.overdue, ...props.groups.planned].some(row => !!agendaTaskTime(row, props.date)));
   return <section class="journal-plan" aria-label="Plan">
-    <SectionHead name="Plan" count={empty() ? 'Nothing planned' : `${props.groups.planned.length} today`} open={open() && !empty()} controls={id} onToggle={empty() ? undefined : () => setOpen(!open())}>
+    <SectionHead name={props.name} count={empty() ? 'Nothing planned' : `${props.groups.planned.length} today`} open={open() && !empty()} controls={id} onToggle={empty() ? undefined : () => setOpen(!open())}>
       <Button class="bordered" onClick={event => props.onOpen({ kind: 'agenda', date: props.date }, opensBeside(event))}>Open agenda<span class="journal-plan-open" aria-hidden="true">›</span></Button>
     </SectionHead>
     <Show when={open() && !empty()}><div id={id} class="journal-plan-body" data-task-rows>

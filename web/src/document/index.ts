@@ -5,6 +5,8 @@ import { ApiError, CHANGE_CONNECTING, CHANGE_OPEN, bindNotebook, createApi } fro
 import type { Batch, Block, BlockCapabilities, ChangeEvent, Committed, Operation, PageView, SettingsView, TaskState, WorkSession } from '../api/types';
 import type { ApiClient, ChangeSocket } from '../api/client';
 import { resolveRelationPick } from '../fields/instances';
+import { defaultTodayTemplate, parseTodayTemplate, todayTemplateKey } from '../tasks/today-template';
+import type { TodayTemplate } from '../tasks/today-template';
 import { captureOperations } from '../capture/append';
 import type { BlockClipboard, CaptureIntent, CaptureReceipt, Caret, DerivedType, DocumentChange, NotebookClient, PageDocument, SaveState, SourceDetailsEdit } from './contract';
 import { Document } from './page-document';
@@ -25,7 +27,7 @@ export interface NotebookOptions {
   coalesceMs?: number;
 }
 
-type SettingEdit = { key: 'time_zone' | 'vim' | 'confirm_view_delete'; before: string; after: string; revision: number };
+type SettingEdit = { key: 'time_zone' | 'vim' | 'confirm_view_delete' | 'today_template'; before: string; after: string; revision: number };
 type SourceCommandPart = { pageId: string; actions: Action[]; expected?: string; stale?: boolean };
 
 /** Back and forward between a few pages reopens them without a reload; each warm page keeps its rows in memory. */
@@ -110,6 +112,12 @@ export class Notebook implements NotebookClient, DocumentHost {
   private settingRedo: SettingEdit[] = [];
   vim = () => this.settings()?.settings.find(setting => setting.key === 'vim')?.value === 'true' || (!this.settings() && this.cachedVim[0]());
   confirmViewDelete = () => this.settings()?.settings.find(setting => setting.key === 'confirm_view_delete')?.value !== 'false';
+  private parsedTemplate: { value: string | undefined; template: TodayTemplate } | undefined;
+  todayTemplate = () => {
+    const value = this.settings()?.settings.find(setting => setting.key === todayTemplateKey)?.value;
+    if (this.parsedTemplate?.value !== value || !this.parsedTemplate) this.parsedTemplate = { value, template: parseTodayTemplate(value) };
+    return this.parsedTemplate.template;
+  };
   settingsMessage = () => this.settingError[0]() ? `Couldn’t save · ${this.settingError[0]()}` : this.settingsBusy() ? 'Saving…' : this.connection() === 'offline' ? 'Offline' : 'Saved';
   canUndoSetting = () => { this.revision[0](); return !this.settingsBusy() && this.settingUndo.length > 0; };
   canRedoSetting = () => { this.revision[0](); return !this.settingsBusy() && this.settingRedo.length > 0; };
@@ -395,14 +403,14 @@ export class Notebook implements NotebookClient, DocumentHost {
     if (!last || last.kind === 'notebook' || last.frozen || last.pageId !== pageId || last.actions.length !== 1 || action?.kind !== 'text' || action.id !== blockId) return;
     this.draftTag = { commandId: last.id, blockId };
   }
-  async appendCapture(text: string, task: TaskState | null, picked: readonly [string, string][] = [], options: Pick<CaptureIntent, 'targetPageId' | 'question'> = {}): Promise<CaptureReceipt> {
+  async appendCapture(text: string, task: TaskState | null, picked: readonly [string, string][] = [], options: Pick<CaptureIntent, 'targetPageId' | 'question' | 'section'> = {}): Promise<CaptureReceipt> {
     await this.ready;
     if (this.closed) throw new Error('The workshop is closed.');
     if (!this.outbox) throw new Error('Recovery storage has not opened.');
     const command: NotebookCommand = {
       kind: 'notebook', id: ulid(), order: ++this.order, pageId: null,
       capture: structuredClone({ date: this.todayDate(), text, task, picked: [...picked], ...options }),
-      operations: [], reason: options.targetPageId ? 'Add to atom' : 'Add to today', actions: [], inverse: [], before: null, after: null,
+      operations: [], reason: options.targetPageId ? 'Add to atom' : options.section ? `Add to ${options.section.name}` : 'Add to today', actions: [], inverse: [], before: null, after: null,
     };
     const waiter = Promise.withResolvers<Committed | null>();
     this.captureWaiters.set(command.id, waiter);
@@ -1843,7 +1851,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       if (!this.settings()) await this.refreshSettings();
       const settings = this.settings()!;
       const current = settings.settings.find(setting => setting.key === key);
-      const before = current?.value ?? (key === 'vim' ? 'false' : key === 'confirm_view_delete' ? 'true' : settings.time_zone);
+      const before = current?.value ?? (key === 'vim' ? 'false' : key === 'confirm_view_delete' ? 'true' : key === 'today_template' ? JSON.stringify(defaultTodayTemplate) : settings.time_zone);
       if (current?.value === value) return;
       const revision = await this.writeSetting(key, value, current?.revision ?? null);
       this.settingUndo.push({ key, before, after: value, revision });

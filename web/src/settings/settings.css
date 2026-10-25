@@ -61,6 +61,23 @@
 .settings-switch:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
 .settings-switch:disabled { opacity: .5; cursor: default; }
 
+/* Today: the template's sections as a reorderable list; a name renames in place, in Piazzolla like the section head. */
+.today-sections { margin: var(--space-12) 0 0; padding: 0; list-style: none; border-top: var(--rule-width) solid var(--line); }
+.today-section { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-8); min-height: var(--target-size); padding-block: var(--space-8); border-bottom: var(--rule-width) solid var(--line); }
+.today-section-handle { display: grid; place-items: center; width: var(--target-size); height: var(--target-size); margin-left: calc(-1 * var(--space-8)); padding: 0; border: 0; border-radius: var(--radius-control); background: none; color: var(--faint); cursor: grab; }
+.today-section-handle:hover { color: var(--text); }
+.today-section-handle:focus-visible { outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-offset)); }
+.today-section-text { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-12); min-width: 0; }
+.today-section-name { flex: 0 1 auto; min-width: 8ch; field-sizing: content; max-width: 100%; padding: 0 var(--space-4); margin-left: calc(-1 * var(--space-4)); border: var(--rule-width) solid transparent; border-radius: var(--radius-control); background: none; color: var(--text); font: var(--weight-body) var(--text-body)/var(--line-control) var(--font-display); }
+.today-section-name:hover:not(:disabled) { border-color: var(--line); }
+.today-section-name:focus { border-color: var(--control-border); outline: none; }
+.today-section-role { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
+.today-section[data-off] :is(.today-section-name, .today-section-role) { color: var(--faint); }
+.today-section-add { display: flex; gap: var(--space-8); margin-block: var(--space-12); }
+.today-section-add .input { flex: 1; max-width: 32ch; }
+.today-tiles { display: flex; flex-wrap: wrap; gap: var(--space-8) var(--space-16); }
+.today-tile { display: inline-flex; align-items: center; gap: var(--space-8); color: var(--muted); cursor: pointer; }
+
 /* Backups: earlier copies fold into a disclosure as mono lines. */
 .settings-more { margin-top: var(--space-4); font-size: var(--text-meta); line-height: var(--line-meta); }
 .settings-more summary { display: inline-flex; align-items: center; gap: var(--space-4); min-height: var(--target-size); color: var(--muted); cursor: pointer; list-style: none; }
