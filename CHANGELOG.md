@@ -17,6 +17,14 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 - Rebuilt the phone shell (touch screens under 600 px, iPhone and the Fold's cover) around phone conventions: the page runs edge to edge without the pane frame or registration corners; the header is a glass navigation bar with Index on tab landings, Back elsewhere, a title that appears on scroll, and New; a floating glass capsule holds Today, Agenda, Review and Library with Find in its own circle; and the sidebar became an Index page pushed onto the pane's history instead of a drawer.
 - Showed contents titles in one display form across the reader, Find, Review and the palette: all-capital titles take title case, numbered-label-only entries open as one title (`Book Three`), the running head drops capitals for the foot's numeral and italic title, and the book's own title page is no longer drawn again after Tessera's.
+- Gave each phone tab its own Back history: Index and the pages opened from it belong to the tab you came from, which stays lit; switching tabs returns to the last page and reading position; tapping the current tab returns to its landing and then scrolls to the top; a swipe from the left edge goes Back; and on iOS a status-bar tap scrolls the page to the top. The Find circle shows a magnifier.
+- Simplified the phone Index into a title with a count and plain groups, with Revisits first, empty kinds folded into one row, every saved view listed once in Views and Fields at the foot beside Settings. A Settings gear replaces New in its bar.
+- Limited the phone New button to today's journal, Agenda (a task for the shown day) and kind pages (that kind), and moved an atom's Read, Outline and depth switches into View in its menu, with the ID behind an Info row.
+- Renamed kind pages' Index tab to List. On the phone, List and Table share one search row under the tabs, grouping, filters, saving a view and Select move into a List options sheet, letters jump from a rail at the right edge, and checkboxes appear only in Select mode.
+- Gave the phone reader a glass bar with Back, title, Aa and ⋯, and a bottom capsule for contents, highlights and search. Review's tab opens the deck overview with Start, and a session has its own glass bar with Close, which keeps every grade.
+- Titled the phone Agenda and dropped its pinned task field, grouped phone Settings into inset blocks without the clipped section strip or Vim keys, aligned Revisits with other pages, kept phone Find below the status bar over a solid backdrop, and dropped the red tick from phone sheets.
+- Added an Outdent, Indent and Done bar above the phone keyboard, and a long press on an outline row opens its actions.
+- Kept iPhones in portrait and hid WebKit's form toolbar above the iOS keyboard.
 - Renamed `crates/tessera-android` to `crates/tessera-mobile` and the pages' `android` build mode to `mobile` (`web/mobile.html`, `web/dist-mobile`, `mise run mobile:pages`). The Android package stays `dev.tessera.android`, so installed phones update in place.
 - Kept receipt blobs out of the change catch-up read's sort, so `changes_since` meets its 100 ms budget at 10,000 and 50,000 blocks, and paged HTTP and WebSocket catch-up at 500 events to match the client.
 - Named history entries that touched no atom (a created page, a settings change) by their reason or `Changed the workshop` instead of `0 atoms changed`.
@@ -40,6 +48,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Stopped iOS zooming the page when a text field takes focus, kept returning to Today on a phone from putting the caret in a row and raising the keyboard, and kept the edited line clear of the keyboard bar.
+- Opened a task's project link from Today and Agenda on the phone as the whole project page with the task briefly highlighted, instead of zooming into the task under its fields sheet.
+- Stopped a typed creation slip, such as New person, from failing when it opens before its kind has loaded.
 - Kept Find and other shell shortcuts ahead of the editor's macOS control-key motions, so Find opens from the middle of journal and page text as well as at the end.
 - Kept Find and Commands usable after failed lookup reads, disabled Open as table with an explanation when field definitions are unavailable, and refreshed an open search when the service reconnects.
 - Routed Android launcher shortcuts through a throwaway activity, so New note, New task, New question and Add to library open the capture slip in the running app and keep an open draft instead of restarting Tessera.
