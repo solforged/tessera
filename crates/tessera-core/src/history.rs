@@ -170,29 +170,32 @@ impl Step {
     }
 }
 
+/// A change's stored summary, or one counted from what it committed.
+const SUMMARY: &str = "COALESCE(h.summary,
+    CASE MAX(COALESCE(json_array_length(c.committed, '$.revisions'), 0),
+             COALESCE(json_array_length(c.committed, '$.removed'), 0))
+    WHEN 0 THEN COALESCE(c.reason, 'Changed the workshop')
+    WHEN 1 THEN '1 atom changed'
+    ELSE MAX(COALESCE(json_array_length(c.committed, '$.revisions'), 0),
+             COALESCE(json_array_length(c.committed, '$.removed'), 0))
+         || ' atoms changed' END)";
+
 impl Notebook {
     /// All committed changes, newest first, before an optional exclusive sequence.
     pub fn history(&self, limit: usize, before: Option<i64>) -> Result<Vec<HistoryEntry>> {
         let rows = self
             .conn
-            .prepare_cached(
+            .prepare_cached(&format!(
                 "SELECT c.seq, c.change_id, c.origin, c.actor, c.reason, c.created_at,
-                    COALESCE(h.summary,
-                        CASE MAX(COALESCE(json_array_length(c.committed, '$.revisions'), 0),
-                                 COALESCE(json_array_length(c.committed, '$.removed'), 0))
-                        WHEN 0 THEN COALESCE(c.reason, 'Changed the workshop')
-                        WHEN 1 THEN '1 atom changed'
-                        ELSE MAX(COALESCE(json_array_length(c.committed, '$.revisions'), 0),
-                                 COALESCE(json_array_length(c.committed, '$.removed'), 0))
-                             || ' atoms changed' END),
+                    {SUMMARY},
                     COALESCE(h.page_id, CASE
                         WHEN json_array_length(c.committed, '$.pages') = 1
                         THEN json_extract(c.committed, '$.pages[0]') END),
                     h.undo IS NOT NULL AND h.undone_seq IS NULL, h.undone_seq, h.undoes_seq
                  FROM changes c LEFT JOIN change_history h ON h.seq = c.seq
                  WHERE (?1 IS NULL OR c.seq < ?1)
-                 ORDER BY c.seq DESC LIMIT ?2",
-            )?
+                 ORDER BY c.seq DESC LIMIT ?2"
+            ))?
             .query_map(params![before, limit.min(500) as i64], |row| {
                 Ok((
                     row.get::<_, i64>(0)?,
@@ -233,7 +236,10 @@ impl Notebook {
                         })?,
                         reason,
                         created_at,
-                        summary,
+                        summary: match undoes {
+                            Some(undone) => self.undo_summary(undone)?.unwrap_or(summary),
+                            None => summary,
+                        },
                         page: match page_id {
                             Some(id) => self.live_block(&id)?,
                             None => None,
@@ -245,6 +251,37 @@ impl Notebook {
                 },
             )
             .collect()
+    }
+
+    /// `Undid: <summary>` for the change an undo reversed, or `Redid:` when
+    /// it reversed an undo, following the chain to the original change.
+    fn undo_summary(&self, mut seq: i64) -> Result<Option<String>> {
+        let mut undos = 1;
+        loop {
+            let Some((summary, undoes)) = self
+                .conn
+                .prepare_cached(&format!(
+                    "SELECT {SUMMARY}, h.undoes_seq FROM changes c
+                     LEFT JOIN change_history h ON h.seq = c.seq WHERE c.seq = ?1"
+                ))?
+                .query_row([seq], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, Option<i64>>(1)?))
+                })
+                .optional()?
+            else {
+                return Ok(None);
+            };
+            match undoes {
+                Some(previous) if undos < 64 => {
+                    undos += 1;
+                    seq = previous;
+                }
+                _ => {
+                    let verb = if undos % 2 == 1 { "Undid" } else { "Redid" };
+                    return Ok(Some(format!("{verb}: {summary}")));
+                }
+            }
+        }
     }
 
     /// Reverse a local change as a batch by `actor`. Refuses when a block

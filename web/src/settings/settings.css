@@ -18,7 +18,7 @@
 .settings-count { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 
 /* The header stays in view, so the save status and Undo are always reachable; a hairline appears once the page scrolls under it. */
-.settings-header { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: end; gap: var(--space-4); padding: var(--page-top-space) 0 var(--page-head-gap); background: var(--canvas); box-shadow: inset 0 calc(-1 * var(--rule-width)) transparent; transition: box-shadow var(--motion-ui) var(--motion-ease); }
+.settings-header { position: sticky; top: 0; z-index: 2; display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, auto); align-items: end; gap: var(--space-4); padding: var(--page-top-space) 0 var(--page-head-gap); background: var(--canvas); box-shadow: inset 0 calc(-1 * var(--rule-width)) transparent; transition: box-shadow var(--motion-ui) var(--motion-ease); }
 .settings-header[data-scrolled] { box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); }
 .settings-heading { min-width: 0; }
 .settings-header h1 { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
@@ -78,7 +78,7 @@
   .settings-backup-row { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* History: the newest fifty, newest first; Undo waits for hover where there is hover. */
+/* History, its own pane in Settings' frame: the newest fifty, newest first; Undo waits for hover where there is hover. */
 .settings-changes { margin: 0; padding: 0; list-style: none; }
 .settings-change .settings-name { font-weight: var(--weight-body); }
 .settings-change[data-undone] .settings-name { color: var(--muted); }

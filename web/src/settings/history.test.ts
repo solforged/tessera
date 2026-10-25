@@ -64,3 +64,14 @@ test('a refused undo preserves the service message for inline display', async ()
     expect(error.status).toBe(409);
   }
 });
+
+test('history names who made each change without showing raw device ids', async () => {
+  const { historyActor } = await import('./history');
+  const names = (id: string) => ({ 'phone-device': 'Pixel', 'unnamed-device': '' } as Record<string, string>)[id];
+  expect(historyActor(entry, 'mac-device', names)).toBe('Pixel');
+  expect(historyActor({ ...entry, origin: 'unnamed-device' }, 'mac-device', names)).toBe('Phone');
+  expect(historyActor({ ...entry, origin: '01JUNKNOWN' }, 'mac-device', names)).toBe('Another device');
+  expect(historyActor({ ...entry, origin: 'mac-device' }, 'mac-device', names)).toBe('You');
+  expect(historyActor({ ...entry, origin: null, actor: { kind: 'agent' } as HistoryEntry['actor'] }, null, names)).toBe('Agent');
+  expect(historyActor({ ...entry, origin: null, actor: { kind: 'client', name: 'tessera-cli' } }, null, names)).toBe('tessera-cli');
+});

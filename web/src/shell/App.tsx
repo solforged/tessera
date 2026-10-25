@@ -79,6 +79,7 @@ const paneModules = {
   field: () => import('../fields/FieldPane'),
   cards: () => import('../fields/CardTemplatesPane'),
   settings: () => import('../settings/SettingsPane'),
+  history: () => import('../settings/HistoryPane'),
   agenda: () => import('../tasks/AgendaPane'),
   review: () => import('../review/ReviewPane'),
   revisits: () => import('../review/NotesReview'),
@@ -93,6 +94,7 @@ const FieldsPane = lazy(() => paneModules.fields().then(module => ({ default: mo
 const FieldPane = lazy(() => paneModules.field().then(module => ({ default: module.FieldPane })));
 const CardTemplatesPane = lazy(() => paneModules.cards().then(module => ({ default: module.CardTemplatesPane })));
 const SettingsPane = lazy(() => paneModules.settings().then(module => ({ default: module.SettingsPane })));
+const HistoryPane = lazy(() => paneModules.history().then(module => ({ default: module.HistoryPane })));
 const AgendaPane = lazy(() => paneModules.agenda().then(module => ({ default: module.AgendaPane })));
 const ReviewPane = lazy(() => paneModules.review().then(module => ({ default: module.ReviewPane })));
 const NotesReview = lazy(() => paneModules.revisits().then(module => ({ default: module.NotesReview })));
@@ -139,7 +141,7 @@ function paneLabel(target: OpenTarget | undefined): string {
   if (target?.kind === 'revisits') return 'Revisits';
   if (target?.kind === 'directory') return 'Index';
   if (target?.kind === 'table' && target.query.layout === 'desk') return 'Research desk';
-  return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : target?.kind === 'library' ? 'Library' : target?.kind === 'reader' ? 'Reader' : target?.kind === 'compare' ? 'Compare' : target?.kind === 'index' ? 'Index' : 'Loading…';
+  return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'history' ? 'History' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : target?.kind === 'library' ? 'Library' : target?.kind === 'reader' ? 'Reader' : target?.kind === 'compare' ? 'Compare' : target?.kind === 'index' ? 'Index' : 'Loading…';
 }
 function snapshotView(view: PaneView): PaneView {
   if ('mode' in view) return { ...view, query: copyTaskQuery(view.query) };
@@ -326,7 +328,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           : target.kind === 'review' ? { deckId: target.deckId ?? null, sessionId: null, selection: null, scroll: 0, ...(target.blockId ? { blockId: target.blockId } : {}), ...(target.start ? { start: target.start } : {}) }
             : target.kind === 'revisits' ? { scroll: 0, revisitId: target.revisitId }
             : target.kind === 'index' ? { scroll: 0, noteQuery: target.query ? copyQuery(target.query) : undefined, viewId: target.viewId }
-              : target.kind === 'directory' || target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'compare' || target.kind === 'spread' ? { scroll: 0 }
+              : target.kind === 'directory' || target.kind === 'fields' || target.kind === 'field' || target.kind === 'cards' || target.kind === 'settings' || target.kind === 'history' || target.kind === 'compare' || target.kind === 'spread' ? { scroll: 0 }
               : target.kind === 'library' ? { view: null, tab: target.collection ? 'collections' : target.tab ?? 'inbox', collection: target.collection ?? null, text: '', sort: 'added', filters: { people: [], decades: [], years: [], publishers: [], languages: [] }, group: 'none', unprocessedOnly: true, colors: [], tags: [], scroll: 0 }
                 : target.kind === 'reader' ? { snapshotId: target.snapshotId ?? null, ordinal: -1, offset: 0 }
                   : target.revealId ? { zoom: null, caret: null, scroll: { id: target.revealId, offset: 0 }, folds: null, showArchived: false, projection: 'outline', reveal: target.revealId }
@@ -734,7 +736,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
         } else if (saved.target.kind === 'revisits' && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
-        } else if ((saved.target.kind === 'directory' || saved.target.kind === 'fields' || saved.target.kind === 'field' || saved.target.kind === 'cards' || saved.target.kind === 'settings' || saved.target.kind === 'compare' || saved.target.kind === 'index' || saved.target.kind === 'spread') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
+        } else if ((saved.target.kind === 'directory' || saved.target.kind === 'fields' || saved.target.kind === 'field' || saved.target.kind === 'cards' || saved.target.kind === 'settings' || saved.target.kind === 'history' || saved.target.kind === 'compare' || saved.target.kind === 'index' || saved.target.kind === 'spread') && 'scroll' in saved.view && typeof saved.view.scroll === 'number') {
           current = { target: targetFromView(saved), view: saved.target.kind === 'compare' || saved.target.kind === 'index' ? snapshotView(saved.view) : { scroll: saved.view.scroll } };
         } else if ((saved.target.kind === 'library' && 'tab' in saved.view) || (saved.target.kind === 'reader' && 'ordinal' in saved.view)) {
           current = { target: targetFromView(saved), view: snapshotView(saved.view) };
@@ -811,6 +813,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     { id: 'shell.commands', title: 'Show commands', section: 'Navigation', keys: ['⌃⇧P'], run: () => showPalette('commands') },
     { id: 'shell.shortcuts', title: 'Keys and syntax', section: 'Navigation', keys: ['⌘/'], keywords: ['shortcuts', 'keyboard', 'help', 'cheat sheet'], run: () => setPopup({ kind: 'shortcuts', anchor: document.body, pane: active() }) },
     { id: 'shell.settings', title: 'Open settings', section: 'Navigation', run: () => open({ kind: 'settings' }) },
+    { id: 'shell.history', title: 'Open history', section: 'Navigation', run: () => open({ kind: 'history' }) },
     { id: 'shell.today', title: 'Open today’s journal', section: 'Navigation', keys: ['⌃⇧J'], run: () => { void today(); } },
     { id: 'shell.capture', title: 'Add to today', section: 'Create', keys: ['⌘E'], keywords: ['capture', 'quick atom', 'quick note', 'inbox', 'journal'], run: () => openCreate(blankCapture()) },
     { id: 'shell.fields', title: 'Open fields', section: 'Navigation', run: () => open({ kind: 'fields' }) },
@@ -1709,7 +1712,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     if (target.kind === 'revisits') return 'history';
     if ((target.kind === 'fields' || target.kind === 'cards') && target.typeId) return noteKindIcon(props.noteKind ?? `type:${target.typeId}`);
     const kind = target.kind;
-    return kind === 'agenda' ? 'agenda' : kind === 'review' ? 'review' : kind === 'library' || kind === 'reader' ? 'library' : kind === 'table' ? 'table' : kind === 'fields' || kind === 'field' ? 'field' : kind === 'settings' ? 'settings' : kind === 'compare' ? 'compare' : 'page';
+    return kind === 'agenda' ? 'agenda' : kind === 'review' ? 'review' : kind === 'library' || kind === 'reader' ? 'library' : kind === 'table' ? 'table' : kind === 'fields' || kind === 'field' ? 'field' : kind === 'settings' ? 'settings' : kind === 'history' ? 'clock' : kind === 'compare' ? 'compare' : 'page';
   };
   const tabRoot = () => (!cover() || props.session().index === 0) && (['agenda', 'review', 'library'].includes(current().target.kind) || root()?.kind === 'journal' && root()?.text === props.notebook.todayDate() && !outlineView().zoom);
   const showNew = () => cover() && (current().target.kind === 'index' ? !!kindCreate() : tabRoot() && (current().target.kind === 'agenda' || root()?.kind === 'journal'));
@@ -1771,6 +1774,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Match when={current().target.kind === 'field'}><FieldPane target={current().target as Extract<OpenTarget, { kind: 'field' }>} view={snapshotView(current().view) as FieldViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onTargetChange={target => { if (generation === props.session().generation) props.onTargetChange(target); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'cards' ? current().target as Extract<OpenTarget, { kind: 'cards' }> : undefined}>{target => <CardTemplatesPane typeId={target().typeId} applyId={target().applyId} view={snapshotView(current().view) as FieldsViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
       <Match when={current().target.kind === 'settings' ? current().target as Extract<OpenTarget, { kind: 'settings' }> : undefined}>{target => <SettingsPane pane={props.pane} view={snapshotView(current().view) as SettingsViewState} section={target().section} deviceId={target().deviceId} notebook={props.notebook} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
+      <Match when={current().target.kind === 'history'}><HistoryPane pane={props.pane} view={snapshotView(current().view) as SettingsViewState} notebook={props.notebook} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} /></Match>
       <Match when={current().target.kind === 'directory'}><DirectoryPane view={snapshotView(current().view) as DirectoryViewState} atomCount={props.atomCount} ready={props.directoryReady} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }}>{props.renderDirectory()}</DirectoryPane></Match>
       <Match when={current().target.kind === 'compare' ? current().target as Extract<OpenTarget, { kind: 'compare' }> : undefined}>{target => <ComparePane subjectId={target().subjectId} view={snapshotView(current().view) as CompareViewState} notebook={props.notebook} onActivate={props.onActivate} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }} />}</Match>
       <Match when={current().target.kind === 'spread' ? current().target as Extract<OpenTarget, { kind: 'spread' }> : undefined}>{target => <SpreadPane noteIds={target().noteIds} notebook={props.notebook} onActivate={props.onActivate} onChange={noteIds => props.onTargetChange({ kind: 'spread', noteIds })} onOpen={(next, beside) => { if (generation === props.session().generation) props.onOpen(next, beside); }} />}</Match>

@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
-import type { Backups, HistoryEntry } from '../api/types';
+import type { Backups } from '../api/types';
 import { DEMO, EMBEDDED, MOBILE } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
@@ -10,12 +10,13 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
 import { setThemePreference, themePreference } from '../shell/theme';
-import { hubDevices, size, sync } from '../sync/state';
+import { size, sync } from '../sync/state';
 import { backupLabel, backupStale } from './backup';
 import { HubDevices, PhoneDevices } from './DevicesSection';
 import { BrowserBackups } from './BrowserBackups';
 import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, notebookPlace, openNotebook, reloadNotebook, workshopName, workshopsHome } from './notebooks';
 import { AgentSettings } from '../agent/AgentSettings';
+import { deviceZone as currentDeviceZone, isoMinute, workshopZone, zoneAliases as aliases } from './time';
 import '../fields/field-page.css';
 import './settings.css';
 import './devices.css';
@@ -34,52 +35,6 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     try { return await api.backups(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
-  const [historyError, setHistoryError] = createSignal('');
-  const [hasMoreHistory, setHasMoreHistory] = createSignal(false);
-  const [loadingHistory, setLoadingHistory] = createSignal(false);
-  let historyGeneration = 0;
-  const [history, { refetch: refreshHistory, mutate: updateHistory }] = createResource(() => props.notebook.changeSequence(), async () => {
-    const generation = ++historyGeneration;
-    setHistoryError('');
-    try {
-      const entries = await props.notebook.api.history();
-      if (generation === historyGeneration) setHasMoreHistory(entries.length === 50);
-      return entries;
-    } catch (reason) {
-      if (generation === historyGeneration) setHistoryError(reason instanceof Error ? reason.message : String(reason));
-      return undefined;
-    }
-  });
-  const showMoreHistory = async () => {
-    const before = history()?.at(-1)?.seq;
-    if (before === undefined || loadingHistory() || history.loading) return;
-    const generation = historyGeneration;
-    setLoadingHistory(true); setHistoryError('');
-    try {
-      const entries = await props.notebook.api.history(50, before);
-      if (generation !== historyGeneration) return;
-      updateHistory(values => [...(values ?? []), ...entries]);
-      setHasMoreHistory(entries.length === 50);
-    } catch (reason) {
-      if (generation === historyGeneration) setHistoryError(reason instanceof Error ? reason.message : String(reason));
-    } finally { setLoadingHistory(false); }
-  };
-  const [undoing, setUndoing] = createSignal<number | null>(null);
-  const undoChange = async (seq: number) => {
-    if (undoing() !== null) return;
-    setUndoing(seq); setHistoryError('');
-    try { await props.notebook.api.undoChange(seq); await refreshHistory(); }
-    catch (reason) { setHistoryError(reason instanceof Error ? reason.message : String(reason)); }
-    finally { setUndoing(null); }
-  };
-  const historyActor = (entry: HistoryEntry) => {
-    const replica = sync.state()?.replica;
-    const remote = entry.origin && hubDevices.state()?.devices.find(device => device.id === entry.origin);
-    if (remote) return remote.name || 'Phone';
-    if (entry.origin && replica && entry.origin !== replica.device_id) return entry.origin;
-    if (entry.actor.kind === 'agent') return 'Agent';
-    return entry.actor.kind === 'person' || entry.actor.name.startsWith('tessera-web') ? 'You' : entry.actor.name;
-  };
   const [backingUp, setBackingUp] = createSignal(false);
   const [removingBackups, setRemovingBackups] = createSignal(false);
   const [restoringBackup, setRestoringBackup] = createSignal(false);
@@ -130,18 +85,9 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     setForgetting(path); setError('');
     try { await forgetNotebook(path); } catch (reason) { report(reason); } finally { setForgetting(null); }
   };
-  const aliases: Record<string, string> = {
-    'Africa/Asmera': 'Africa/Asmara', 'Asia/Calcutta': 'Asia/Kolkata', 'Asia/Katmandu': 'Asia/Kathmandu',
-    'Asia/Saigon': 'Asia/Ho_Chi_Minh', 'Asia/Rangoon': 'Asia/Yangon', 'Europe/Kiev': 'Europe/Kyiv',
-    'America/Godthab': 'America/Nuuk', 'Pacific/Truk': 'Pacific/Chuuk', 'Pacific/Ponape': 'Pacific/Pohnpei', 'Pacific/Enderbury': 'Pacific/Kanton',
-  };
-  const canonicalZone = (value: string) => {
-    const canonical = aliases[value] ?? new Intl.DateTimeFormat('en', { timeZone: value }).resolvedOptions().timeZone;
-    return aliases[canonical] ?? canonical;
-  };
-  const deviceZone = canonicalZone(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const deviceZone = currentDeviceZone();
   const available = Intl.supportedValuesOf('timeZone').map(value => aliases[value] ?? value);
-  const zone = createMemo(() => canonicalZone(props.notebook.settings()?.time_zone ?? deviceZone));
+  const zone = workshopZone(props.notebook);
   const [zoneTime, setZoneTime] = createSignal(Date.now());
   const zoneLabel = (value: string) => {
     const offset = new Intl.DateTimeFormat('en', { timeZone: value, timeZoneName: 'shortOffset' }).formatToParts(zoneTime()).find(part => part.type === 'timeZoneName')!.value;
@@ -168,7 +114,6 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     ...(EMBEDDED ? [] : [{ key: 'notebooks', label: 'Workshops', count: knownNotebooks()?.notebooks.length ?? 0 }, { key: 'backups', label: 'Backups', count: backups()?.backups.length ?? 0 }]),
     ...(devices ? [{ key: 'devices', label: 'Devices', count: deviceCount() }] : []),
     ...(DEMO ? [] : [{ key: 'agent', label: 'Models', count: 0 }]),
-    { key: 'history', label: 'History', count: history()?.length ?? 0 },
     { key: 'about', label: 'About', count: 0 },
   ]);
   const number = (key: string) => sections().findIndex(section => section.key === key) + 1;
@@ -203,11 +148,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     const top = element.getBoundingClientRect().top - region.getBoundingClientRect().top + region.scrollTop - header;
     region.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
   };
-  const when = (value: number) => {
-    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: zone(), year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(value);
-    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find(value => value.type === type)!.value;
-    return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`;
-  };
+  const when = (value: number) => isoMinute(value, zone());
   const heading = (index: number, key: string, label: string, aside?: JSX.Element) =>
     <h2 class="field-section-head" id={`${sectionId(key)}-heading`}><span class="field-rubric">{String(index).padStart(2, '0')}</span><span>{label}</span><span class="section-rule" />{aside}</h2>;
   const pathText = (value: string) => value.split('/').map((part, index) => <>{index > 0 && <>/<wbr /></>}{part}</>);
@@ -257,6 +198,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           <span class="settings-status" role="status">{props.notebook.settingsMessage()}</span>
           <Button icon="undo" label="Undo setting" shortcut="⌘Z" disabled={!props.notebook.canUndoSetting()} onClick={() => { void settingHistory(false); }} />
           <Button icon="redo" label="Redo setting" shortcut="⌘⇧Z" disabled={!props.notebook.canRedoSetting()} onClick={() => { void settingHistory(true); }} />
+          <Button icon="clock" label="History" title={`Every change to this workshop, with Undo · ${besideHint}`} onClick={event => props.onOpen({ kind: 'history' }, opensBeside(event))} />
           <nav class="settings-index" aria-label="Settings sections">
             <For each={sections()}>{section => <button type="button" class="settings-index-item" data-section={section.key} aria-current={current() === section.key ? 'location' : undefined} onClick={() => reveal(section.key)}>
               <span>{section.label}</span><Show when={section.count > 0}><span class="settings-count">{section.count}</span></Show>
@@ -376,28 +318,6 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           </Show>
         </section>}
         {!DEMO && <AgentSettings id={sectionId('agent')} heading={heading(number('agent'), 'agent', 'Models')} />}
-        <section id={sectionId('history')} aria-labelledby={`${sectionId('history')}-heading`} aria-busy={history.loading || loadingHistory() || undoing() !== null}>
-          {heading(number('history'), 'history', 'History')}
-          <Show when={historyError()}>{message => <p class="error" role="alert">{message()}</p>}</Show>
-          <Show when={history()}>{values => <Show when={values().length > 0} fallback={<p class="settings-empty">No changes yet. Edits to this workshop appear here with their author and Undo when available.</p>}>
-            <ol class="settings-changes">
-              <For each={values()}>{change => <li class="settings-change" data-undone={change.undone_by === null ? undefined : ''}>
-                <div class="settings-label">
-                  <span class="settings-name">{change.summary}</span>
-                  <p><span class="settings-mono">{historyActor(change)} · <time dateTime={new Date(change.created_at).toISOString()}>{when(change.created_at)}</time></span>
-                    <Show when={change.page}>{page => <><span class="settings-mono"> · </span><button type="button" class="settings-page-link" title={`Open atom · ${besideHint}`} onClick={event => props.onOpen({ kind: 'page', pageId: page().id }, opensBeside(event))}>{page().text}</button></>}</Show>
-                  </p>
-                </div>
-                <Show when={change.undoable} fallback={<Show when={change.undone_by !== null}><span class="settings-aside">Undone</span></Show>}>
-                  <Button class="bordered" disabled={undoing() !== null || history.loading || loadingHistory()} onClick={() => { void undoChange(change.seq); }}>{undoing() === change.seq ? 'Undoing…' : 'Undo'}</Button>
-                </Show>
-              </li>}</For>
-            </ol>
-            <Show when={hasMoreHistory()}>
-              <Button class="settings-show-more" disabled={history.loading || loadingHistory() || undoing() !== null} onClick={() => { void showMoreHistory(); }}><Icon name="right" />{loadingHistory() ? 'Loading…' : 'Show more'}</Button>
-            </Show>
-          </Show>}</Show>
-        </section>
         <section id={sectionId('about')} aria-labelledby={`${sectionId('about')}-heading`}>
           {heading(number('about'), 'about', 'About')}
           <Show when={info()}>{value => <dl>

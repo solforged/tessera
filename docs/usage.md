@@ -353,7 +353,7 @@ Written text follows the editor's syntax:
 Each write is one change attributed to the agent by its MCP client name. Open windows show it at once.
 
 - `tessera_recent_changes` lists the workshop's history, from people, windows and agents alike; `tessera_undo` reverses one entry.
-- Settings › History lists the same entries with the actor, time, summary and page, and an Undo button where the change has a stored inverse. Editor batches whose operations all have inverses (text, headings, moves, creates, deletes, tasks, relations, revisits, card holds, decks and citations) are reversible; batches with a split, merge, review grade, ingestion, settings or definition change are listed without Undo. Changes applied from another device are listed with their origin and cannot be undone here.
+- The History pane (from the Settings header or `Open history`) lists the same entries with the actor, time, summary and page, and an Undo button where the change has a stored inverse. Editor batches whose operations all have inverses (text, headings, moves, creates, deletes, tasks, relations, revisits, card holds, decks and citations) are reversible; batches with a split, merge, review grade, ingestion, settings or definition change are listed without Undo. Changes applied from another device are listed with their origin and cannot be undone here.
 - Undo refuses to overwrite anyone's later edit, so undo changes newest first. Undoing an undo brings the change back.
 - A page or field created by the change stays while other blocks use it.
 

@@ -90,6 +90,8 @@ export type OpenTarget =
   | { kind: 'field'; fieldId: string; previewKind?: FieldKind; section?: 'options' | 'targets' }
   | { kind: 'cards'; typeId: string; applyId?: string }
   | { kind: 'settings'; section?: 'notebooks' | 'devices' | 'agent'; deviceId?: string | null }
+  /** Every change to the workshop, newest first, with Undo. */
+  | { kind: 'history' }
   /** The phone's full-page workshop navigation. */
   | { kind: 'directory' }
   | { kind: 'library'; tab?: LibraryTab; collection?: string; add?: boolean; details?: readonly string[] }
