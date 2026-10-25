@@ -80,7 +80,7 @@ async fn backups_create_skip_and_list_portable_snapshots_newest_first() {
         request(&app, "GET", "/api/backups").await,
         (
             StatusCode::OK,
-            json!({"backups": [], "store_size": 0, "others": []})
+            json!({"backups": [], "store_size": 0, "others": [], "automatic_failure": null})
         )
     );
 
@@ -161,7 +161,7 @@ async fn other_backups_list_and_delete_without_removing_the_open_workshop() {
     assert_eq!(
         listed["others"],
         json!([{
-            "workshop_id": other_info.id, "count": 2, "size": expected_size,
+            "workshop_id": other_info.id, "name": "other", "count": 2, "size": expected_size,
             "newest_at": second.manifest.created_at, "path": store.join(&other_info.id),
         }])
     );

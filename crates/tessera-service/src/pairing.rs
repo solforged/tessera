@@ -396,7 +396,7 @@ mod tests {
             assets: None,
             port: 4500,
             sync_port: 4501,
-            backup: Arc::new(tokio::sync::Mutex::new(())),
+            backup: Arc::new(tokio::sync::Mutex::new(None)),
             backup_store: None,
             pairing: Arc::new(Mutex::new(waiting(now_ms() + LIFETIME_MS))),
             sharing: Arc::new(tokio::sync::Mutex::new(())),

@@ -49,9 +49,11 @@ Open or create accepts a name such as `reading`, an absolute path, or a home-rel
 
 ## Backups
 
-One intro sentence explains daily and pre-update backups, unchanged-backup skipping and retention. The Database and files row shows the last backup time, count and store size in mono, with Back up now at the right. If nothing changed, its status says so. Earlier backups fold into a disclosure with date, file count, size and Delete for each entry.
+One intro sentence explains daily and pre-update backups, unchanged-backup skipping and retention. The Database and files row shows the last backup time, count and store size in mono, with Back up now at the right. If nothing changed, its status says so. A failed automatic backup adds a `--danger` line with its time and reason until a later backup succeeds. Without one, the line warns when the workshop changed after its newest backup and that backup is more than two days old.
 
-Delete opens an inline Delete? confirmation with Cancel and Confirm. The newest backup has no Delete control. Other workshops is a second disclosure, showing each other workshop ID's backup count, newest time and store size, including workshops no longer in the list. Its Delete action asks Delete all? and removes that workshop's backup store, not its live folder. Deletion cannot be undone. Retention runs automatically; there is no Keep the latest 10 control.
+Stored backups is a closed disclosure listing each backup's time, `before update` or `before restore` for safety backups, file count and size, with Restore, and Delete except on the newest.
+
+Delete opens an inline Delete? confirmation with Cancel and Confirm. Other workshops is a second disclosure, showing each other workshop's name (or its shortened ID when its backups predate names), backup count, newest time and store size, including workshops no longer in the list. Its Delete action asks Delete all? and removes that workshop's backup store, not its live folder. Deletion cannot be undone. Retention runs automatically; there is no Keep the latest 10 control.
 
 Backup actions disable together while working, refresh the list when complete, and report failures in Settings' error slot.
 

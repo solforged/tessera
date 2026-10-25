@@ -5,11 +5,11 @@ use std::time::{Duration, SystemTime};
 use parking_lot::Mutex;
 use tessera_core::{DATABASE_FILE, Notebook};
 
-use crate::AppState;
+use crate::{AppState, BackupFailure, BackupLock};
 
 pub(super) struct Task {
     task: tokio::task::JoinHandle<()>,
-    backup: Arc<tokio::sync::Mutex<()>>,
+    backup: BackupLock,
 }
 
 impl Task {
@@ -49,8 +49,13 @@ pub(super) fn start(state: &AppState) -> Option<Task> {
             let store = store.clone();
             let seen = unchanged.take();
             let result = tokio::task::spawn_blocking(move || {
-                let _guard = guard;
-                check(&notebook, &store, seen)
+                let mut guard = guard;
+                let result = check(&notebook, &store, seen);
+                *guard = result.as_ref().err().map(|error| BackupFailure {
+                    at: tessera_core::now_ms(),
+                    message: error.to_string(),
+                });
+                result
             })
             .await;
             match result {
