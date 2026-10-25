@@ -4,7 +4,7 @@ import type { Operation, PageView } from '../api/types';
 import type { CaptureIntent, NotebookClient } from '../document/contract';
 import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
 import { foldName } from '../outline/names';
-import { findSectionHeading, sectionInsertAfter } from '../tasks/today-template';
+import { findSectionHeading, readingRowSource, sectionInsertAfter } from '../tasks/today-template';
 
 /** Resolves a durable capture into one batch, including any new journal or reference targets. */
 export async function captureOperations(notebook: NotebookClient, capture: CaptureIntent): Promise<{ operations: Operation[]; pageId: string }> {
@@ -42,6 +42,18 @@ export async function captureOperations(notebook: NotebookClient, capture: Captu
     else {
       parentId = ulid();
       operations.push({ op: 'insert', id: parentId, parent_id: pageId, after: sectionInsertAfter(roots, capture.section), text: capture.section.name, heading: 2 });
+    }
+  }
+  // Reading files a note under its source's row, writing the row after the section's last entry the first time.
+  const under = capture.targetPageId ? undefined : capture.section?.under;
+  if (under) {
+    const entries = page?.rows.filter(row => row.block.parent_id === parentId && !row.block.archived).map(row => row.block) ?? [];
+    const row = entries.find(block => readingRowSource(block.text) === under.id);
+    if (row) parentId = row.id;
+    else {
+      const id = ulid();
+      operations.push({ op: 'insert', id, parent_id: parentId, after: entries.at(-1)?.id ?? null, text: under.text, heading: null });
+      parentId = id;
     }
   }
   const last = page?.rows.filter(row => row.block.parent_id === parentId).at(-1)?.block;

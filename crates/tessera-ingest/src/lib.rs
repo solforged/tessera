@@ -10,7 +10,7 @@
 
 use std::io::{Cursor, Read};
 
-use tessera_core::library::{ExtractedDocument, SourceFormat};
+use tessera_core::library::{ExtractedDocument, ExtractedMetadata, SourceFormat};
 
 mod article;
 mod epub;
@@ -96,6 +96,11 @@ pub fn article(html: &str, url: &str) -> Result<ExtractedDocument> {
     let mut document = article::extract(html, url)?;
     normalize_language(&mut document);
     Ok(document)
+}
+
+/// Read a web page's title, site and creators without extracting its text, as a pasted link shows them.
+pub fn page_metadata(html: &str, url: &str) -> Result<ExtractedMetadata> {
+    article::page_metadata(html, url)
 }
 
 fn normalize_language(document: &mut ExtractedDocument) {

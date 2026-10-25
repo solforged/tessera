@@ -3,6 +3,7 @@ import type { Block } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
+import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { BlockBreadcrumb, BlockText } from './BlockText';
 import type { OutlineContext } from './context';
@@ -33,9 +34,21 @@ export async function holderChoices(notebook: NotebookClient, text: string, pref
 /** The existing picker serves authored links and journal destinations; none are inferred from prose. */
 export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'props' | 'rowAnchor' | 'setMessage' | 'restoreFocus' | 'editor' | 'showNotice' | 'scheduleReport'>, onAddReading?: (holderId: string) => Promise<void>) {
   const { doc, props, rowAnchor, setMessage, restoreFocus, showNotice, scheduleReport } = context;
-  const [state, setState] = createSignal<{ kind: RelationAction; id: string; anchor: PopupAnchor }>();
+  // File all walks `queue` one row at a time; `done` counts the rows already filed or skipped.
+  const [state, setState] = createSignal<{ kind: RelationAction; id: string; anchor: PopupAnchor; queue?: string[]; done?: number }>();
   function openRelation(id: string, kind: RelationAction, anchor = rowAnchor(id)) {
     if (anchor) setState({ id, kind, anchor });
+  }
+  function fileAll(ids: readonly string[], anchor?: PopupAnchor | null) {
+    const [first, ...queue] = ids;
+    const at = first && (rowAnchor(first) ?? anchor);
+    if (first && at) setState({ id: first, kind: 'integrate', anchor: at, queue, done: 0 });
+  }
+  /** The next row in File all, or the end of the walk. */
+  function advance(current: { anchor: PopupAnchor; queue?: string[]; done?: number }) {
+    const [next, ...queue] = current.queue ?? [];
+    if (!next) { setState(undefined); restoreFocus(); return; }
+    setState({ id: next, kind: 'integrate', anchor: rowAnchor(next) ?? current.anchor, queue, done: (current.done ?? 0) + 1 });
   }
   const positionReason = (id: string) => !doc.block(id)?.position ? 'Select a perspective.' : undefined;
   const placeReason = (id: string) => positionReason(id) ?? usePlaceReason(doc.block(id)?.text ?? '');
@@ -117,7 +130,7 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
           }
           if (current.kind === 'integrate') {
             const change = await props.notebook.integrateBlock(current.id, choice.block.id);
-            setState(undefined);
+            if (current.queue) advance(current); else setState(undefined);
             showNotice(`Integrated into ${plainText(choice.block.text, target => props.notebook.lookup(target))}.`, change.undo);
           } else {
             if (!doc.block(current.id)?.position) throw new Error('This atom is no longer a perspective.');
@@ -134,9 +147,13 @@ export function createRelationActions(context: Pick<OutlineContext, 'doc' | 'pro
         } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
         finally { setBusy(false); }
       };
-      return <Picker<Choice> anchor={current.anchor} placement={window.matchMedia('(max-width: 600px)').matches ? 'sheet' : 'anchor'} label={labels[current.kind]} query={query()} onQuery={setQuery} placeholder={holding ? 'Find a person or group' : current.kind === 'subject' ? 'Find a question, concept or atom' : 'Find an atom'} items={choices() ?? []} key={choice => `${choice.block.id}:${choice.create ?? choice.file ?? ''}`} section={choice => choice.section} onDismiss={dismiss} onPick={choice => { void pick(choice); }} busy={choices.loading || preferred.loading || busy()} error={error() || (choices.error || preferred.error ? String(choices.error || preferred.error) : undefined)} empty="No matching destinations." disabledReason={choice => busy() ? 'Saving…' : choices.loading || preferred.loading ? 'Loading destinations…' : current.kind === 'integrate' && choice.block.id === current.id ? 'An atom cannot move into itself.' : undefined}
+      const walking = current.queue !== undefined;
+      const total = (current.done ?? 0) + 1 + (current.queue?.length ?? 0);
+      return <Picker<Choice> anchor={current.anchor} placement={window.matchMedia('(max-width: 600px)').matches ? 'sheet' : 'anchor'} label={walking ? `File to, ${(current.done ?? 0) + 1} of ${total}` : labels[current.kind]}
+        status={walking ? <p class="file-all-status"><span class="file-all-count">{(current.done ?? 0) + 1} of {total}</span><span class="file-all-text"><BlockText text={doc.block(current.id)?.text ?? ''} notebook={props.notebook} interactive={false} /></span></p> : undefined}
+        queryActions={walking ? <Button disabled={busy()} onClick={() => advance(current)}>Skip</Button> : undefined} query={query()} onQuery={setQuery} placeholder={holding ? 'Find a person or group' : current.kind === 'subject' ? 'Find a question, concept or atom' : 'Find an atom'} items={choices() ?? []} key={choice => `${choice.block.id}:${choice.create ?? choice.file ?? ''}`} section={choice => choice.section} onDismiss={dismiss} onPick={choice => { void pick(choice); }} busy={choices.loading || preferred.loading || busy()} error={error() || (choices.error || preferred.error ? String(choices.error || preferred.error) : undefined)} empty="No matching destinations." disabledReason={choice => busy() ? 'Saving…' : choices.loading || preferred.loading ? 'Loading destinations…' : current.kind === 'integrate' && choice.block.id === current.id ? 'An atom cannot move into itself.' : undefined}
         row={choice => <><Icon name={choice.create || choice.file ? 'plus' : choice.block.kind === 'block' ? 'bullet' : 'note'} /><span class="picker-text"><Show when={choice.create}>{kind => <>Create {entityLabel(kind())} “</>}</Show><Show when={choice.file}>File “</Show><BlockText text={choice.block.text} notebook={props.notebook} interactive={false} /><Show when={choice.create}>”</Show><Show when={choice.file}>{kind => <>” as {entityLabel(kind())}</>}</Show></span><Show when={choice.alias}><span class="reference-via">via {choice.alias}</span></Show><Show when={choice.block.kind === 'block'}><span class="picker-meta"><BlockBreadcrumb block={choice.block} notebook={props.notebook} /></span></Show></>} />;
     }}</Show>;
   }
-  return { openRelation, positionReason, placeReason, usePlace, RelationPopups };
+  return { openRelation, fileAll, positionReason, placeReason, usePlace, RelationPopups };
 }

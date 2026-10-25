@@ -52,6 +52,8 @@ export interface OutlineContext {
   setMessage: Setter<string>;
   showNotice: (label: string, undo?: () => Promise<void>) => void;
   openRelation: (id: string, kind: 'holder' | 'subject' | 'integrate' | 'reading', anchor?: HTMLElement | null) => void;
+  /** File all…: Integrate each row in turn; Skip leaves a row and Escape stops. */
+  fileAll: (ids: readonly string[], anchor?: HTMLElement | null) => void;
   openViewEmbed: (id?: string | null) => void;
   openMoveToPage: () => void;
   chooseImage: (id: string, replace?: boolean) => void;

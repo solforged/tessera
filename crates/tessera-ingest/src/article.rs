@@ -21,6 +21,16 @@ fn path_date(url: &Url) -> Option<String> {
     })
 }
 
+/// A page's metadata without its text, so a page with no readable article still names itself.
+pub(crate) fn page_metadata(contents: &str, address: &str) -> Result<ExtractedMetadata> {
+    let url = Url::parse(address).map_err(|error| Error::Malformed {
+        format: "article",
+        message: error.to_string(),
+    })?;
+    let document = Html::parse_document(contents);
+    Ok(metadata(&document, content_root(&document), &url))
+}
+
 pub(crate) fn extract(contents: &str, address: &str) -> Result<ExtractedDocument> {
     let url = Url::parse(address).map_err(|error| Error::Malformed {
         format: "article",

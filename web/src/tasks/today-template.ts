@@ -66,8 +66,26 @@ export function section(template: TodayTemplate, id: string): TodaySection | und
   return template.sections.find(value => value.id === id);
 }
 
-/** Where a capture lands: the section's name, and the written order with Notes, so a missing heading takes its place. */
-export interface SectionTarget { name: string; order: string[] }
+/**
+ * Where a capture lands: the section's name, and the written order with Notes, so a missing heading takes its place.
+ * `under` files the line beneath a source's row in the section, written with the line when the day lacks it.
+ */
+export interface SectionTarget { name: string; order: string[]; under?: { id: string; text: string } }
+
+const stableId = /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/;
+
+/** The source a Reading row is about: the row's whole text is one reference to it. */
+export function readingRowSource(text: string): string | undefined {
+  const match = /^\[\[([^\]|]+)(?:\|[^\]]*)?\]\]$/.exec(text.trim());
+  return match && stableId.test(match[1]!) ? match[1] : undefined;
+}
+
+/** A Reading row's text: the source by its short title, with the reader's position when the row was written. */
+export function readingRowText(id: string, title: string, position?: string | null): string {
+  const clean = (value: string) => value.replace(/[|\[\]\r\n]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const locator = position ? clean(position) : '';
+  return `[[${id}|${clean(title) || 'Source'}${locator ? `|${locator}` : ''}]]`;
+}
 
 export function sectionTarget(template: TodayTemplate, id: string): SectionTarget | undefined {
   const target = writtenSections(template).find(value => value.id === id);

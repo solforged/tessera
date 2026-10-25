@@ -28,7 +28,9 @@ struct TodayTemplate {
     sections: Vec<TodaySection>,
     capture: String,
     links: String,
-    tiles: TodayTiles,
+    // Read only to check its shape.
+    #[serde(rename = "tiles")]
+    _tiles: TodayTiles,
 }
 
 #[derive(serde::Deserialize)]
@@ -48,7 +50,14 @@ struct TodayTiles {
     reading: bool,
 }
 
-const TODAY_BUILT_IN: [&str; 6] = ["plan", "inbox", "reading", "notes", "research", "highlights"];
+const TODAY_BUILT_IN: [&str; 6] = [
+    "plan",
+    "inbox",
+    "reading",
+    "notes",
+    "research",
+    "highlights",
+];
 const TODAY_GENERATED: [&str; 3] = ["plan", "research", "highlights"];
 
 fn validate_today_template(value: &str) -> Result<()> {
@@ -59,24 +68,42 @@ fn validate_today_template(value: &str) -> Result<()> {
     for section in &template.sections {
         let name = section.name.trim();
         if section.id.is_empty() || section.id.len() > 64 {
-            return Err(validation("today_template section ids must be 1 to 64 bytes"));
+            return Err(validation(
+                "today_template section ids must be 1 to 64 bytes",
+            ));
         }
         if name.is_empty() || name.chars().count() > 80 || name.contains(['\n', '\r']) {
-            return Err(validation("today_template section names must be one line of 1 to 80 characters"));
+            return Err(validation(
+                "today_template section names must be one line of 1 to 80 characters",
+            ));
         }
         if !ids.insert(section.id.as_str()) || !names.insert(name.to_lowercase()) {
-            return Err(validation("today_template sections must have distinct ids and names"));
+            return Err(validation(
+                "today_template sections must have distinct ids and names",
+            ));
         }
     }
     if let Some(missing) = TODAY_BUILT_IN.iter().find(|id| !ids.contains(**id)) {
-        return Err(validation(format!("today_template is missing the {missing} section")));
+        return Err(validation(format!(
+            "today_template is missing the {missing} section"
+        )));
     }
-    if !template.sections.iter().any(|section| section.id == "notes" && section.on) {
+    if !template
+        .sections
+        .iter()
+        .any(|section| section.id == "notes" && section.on)
+    {
         return Err(validation("today_template must keep Notes on"));
     }
     let written = |id: &str| !TODAY_GENERATED.contains(&id) && id != "notes";
-    if !template.sections.iter().any(|section| section.id == template.capture && section.on && written(&section.id)) {
-        return Err(validation("today_template must capture into a written section that is on"));
+    if !template
+        .sections
+        .iter()
+        .any(|section| section.id == template.capture && section.on && written(&section.id))
+    {
+        return Err(validation(
+            "today_template must capture into a written section that is on",
+        ));
     }
     if !matches!(template.links.as_str(), "link" | "source") {
         return Err(validation("today_template links must be link or source"));

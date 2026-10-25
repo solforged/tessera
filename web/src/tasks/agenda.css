@@ -255,7 +255,6 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
   .agenda-toolbar { gap: var(--space-8) var(--space-16); }
 }
 @media (pointer: coarse) {
-@media (pointer: coarse) {
   .agenda-rows { --agenda-title-line: 24px; }
   .agenda-row-actions .button { min-width: var(--touch-target); min-height: var(--touch-target); }
   .agenda-row .agenda-status.task-status-button { min-width: var(--touch-target); min-height: var(--touch-target); margin-block: -10px; }

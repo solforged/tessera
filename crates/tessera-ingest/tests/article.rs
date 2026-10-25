@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use tessera_core::library::{
     CreatorKind, CreatorRole, ExtractedDocument, MarkKind, PassageKind, SourceFormat,
 };
-use tessera_ingest::{Error, article};
+use tessera_ingest::{Error, article, page_metadata};
 
 fn invariants(document: &ExtractedDocument) {
     let locators: HashSet<_> = document
@@ -491,4 +491,16 @@ fn layout_tables_do_not_flatten_line_break_authored_articles() {
         ["First paragraph.", "Second paragraph.", "Third paragraph."]
     );
     invariants(&document);
+}
+
+#[test]
+fn page_metadata_names_a_page_without_readable_text() {
+    let html = "<html><head><title>Project Gutenberg | Gutenberg</title><meta property=\"og:site_name\" content=\"Gutenberg\"></head><body><nav>Menu</nav></body></html>";
+    assert!(matches!(
+        article(html, "https://www.gutenberg.org/ebooks/2680"),
+        Err(Error::Empty(_))
+    ));
+    let metadata = page_metadata(html, "https://www.gutenberg.org/ebooks/2680").unwrap();
+    assert_eq!(metadata.title.as_deref(), Some("Project Gutenberg"));
+    assert_eq!(metadata.site.as_deref(), Some("Gutenberg"));
 }

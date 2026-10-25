@@ -6,6 +6,7 @@ import { noteIndex, noteKindIcon } from '../notes/kinds';
 import { completeNames } from '../outline/names';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import type { IconName } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup, type PopupAnchor } from '../ui/Popup';
@@ -15,6 +16,9 @@ import { AddSourceBody } from '../library/AddSheet';
 import { PageDraft } from './PageDraft';
 import { inferKind, type CreateInto, type CreateKind, type CreateRequest } from './request';
 import { kindNoun } from './kinds';
+import { CapturedToday, LinkPreview, ReadingUnder, shortTitle, underText } from './SlipParts';
+import { titledLink } from './today-journal';
+import type { UnderChoice } from './SlipParts';
 import { captureSection, isWritten, section, sectionTarget } from '../tasks/today-template';
 import './create.css';
 
@@ -35,9 +39,12 @@ export interface CreateSlipProps {
   onDraft?(dirty: boolean): void;
 }
 const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
-const primaryKinds: { kind: CreateKind; label: string }[] = [
-  { kind: 'task', label: '#task' }, { kind: 'question', label: '#question' }, { kind: 'note', label: 'atom' }, { kind: 'card', label: 'card' }, { kind: 'source', label: '#source' },
+/** The line's kinds, each with its Inbox glyph; More offers Project and the workshop's page kinds. */
+const lineKinds: { kind: CreateKind; label: string; icon: IconName }[] = [
+  { kind: 'note', label: 'Note', icon: 'bullet' }, { kind: 'question', label: 'Question', icon: 'question-open' }, { kind: 'task', label: 'Task', icon: 'select' },
+  { kind: 'card', label: 'Card', icon: 'card' }, { kind: 'link', label: 'Link', icon: 'link' }, { kind: 'source', label: 'Source', icon: 'library' },
 ];
+const webAddress = (text: string) => /^https?:\/\/\S+$/i.test(text.trim()) ? text.trim() : null;
 
 export function CreateSlip(props: CreateSlipProps) {
   return <Popup anchor={props.anchor ?? document.body} placement={cover() ? 'sheet' : props.anchor ? 'anchor' : 'top'} width={560} fitContent class="create-slip" label="Create" onDismiss={props.onDismiss} autofocus={props.request.focus === 'kind' && !props.request.lockKind ? false : undefined}>
@@ -58,24 +65,36 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
   /** Written sections that are on, and Notes, in template order. */
   const sections = createMemo(() => template().sections.filter(value => value.on && (isWritten(value) || value.id === 'notes')));
   const sectionId = () => { const destination = into(); return destination.kind === 'journal' ? destination.section : undefined; };
-  const target = () => { const id = sectionId(); return id && id !== 'notes' ? sectionTarget(template(), id) : undefined; };
+  const reading = () => sectionId() === 'reading' && kind() !== 'card' ? under() : undefined;
+  const target = () => {
+    const id = sectionId(), choice = reading();
+    const value = id && id !== 'notes' ? sectionTarget(template(), id) : undefined;
+    return value && choice ? { ...value, under: { id: choice.id, text: underText(choice) } } : value;
+  };
   const sectionName = () => { const id = sectionId(); return id ? section(template(), id)?.name ?? 'Notes' : undefined; };
+  /** Where a line lands, as the button and notice name it: the section, or the source under Reading. */
+  const landing = () => reading() ? `under ${shortTitle(reading()!.title)}` : `to ${sectionName() ?? 'today'}`;
   let chosen = !!props.request.lockKind;
   let destinationChosen = !!props.request.into;
-  const [more, setMore] = createSignal<HTMLElement>();
   const [picker, setPicker] = createSignal<HTMLElement>();
   const [query, setQuery] = createSignal('');
   const [added, setAdded] = createSignal(0);
   const index = noteIndex(props.notebook);
   const noteKind = createMemo(() => index()?.kinds.find(value => value.key === (kind().startsWith('type:') ? kind().slice(5) : kind())));
-  const moreKinds = createMemo(() => (index()?.kinds ?? []).filter(value => value.tag && !primaryKinds.some(primary => primary.kind === value.key)));
+  const moreKinds = createMemo(() => (index()?.kinds ?? []).filter(value => value.tag && !lineKinds.some(line => line.kind === value.key)));
+  const [kindMenu, setKindMenu] = createSignal<HTMLElement>();
+  const [under, setUnder] = createSignal<UnderChoice>();
+  const [linkTitle, setLinkTitle] = createSignal<string | null>(null);
+  const [linkLibrary, setLinkLibrary] = createSignal(false);
   const [recipes] = createResource(() => kind().startsWith('type:') && noteKind()?.type_id || false, async id => (await props.notebook.api.cardTemplates(id)).filter(recipe => recipe.applied));
-  const under = () => { const destination = into(); return destination.kind === 'under' ? destination.pageId : undefined; };
-  const destinationTitle = () => under() ? props.notebook.lookup(under()!)()?.text ?? props.notebook.roots().find(page => page.id === under())?.text ?? 'Atom' : '';
+  const atom = () => { const destination = into(); return destination.kind === 'under' ? destination.pageId : undefined; };
+  const destinationTitle = () => atom() ? props.notebook.lookup(atom()!)()?.text ?? props.notebook.roots().find(page => page.id === atom())?.text ?? 'Atom' : '';
   const pageDraft = () => kind() === 'project' || kind().startsWith('type:') || (kind() === 'note' || kind() === 'question') && into().kind === 'page';
-  const moreSelected = () => !primaryKinds.some(value => value.kind === kind());
+  const lineKind = () => lineKinds.find(value => value.kind === kind());
+  const lineBody = () => !pageDraft() && kind() !== 'card' && kind() !== 'source';
+  const showsInto = () => ['note', 'question', 'task', 'card', 'link'].includes(kind());
   const action = () => recipes()?.length ? `Add ${noteKind() ? kindNoun(noteKind()!) : 'an atom'}` : kind() === 'source' ? 'Add to library' : kind() === 'task' ? 'New task' : kind() === 'card' ? 'New card' : kind() === 'project' ? 'New project' : kind().startsWith('type:') ? `New ${noteKind() ? kindNoun(noteKind()!) : 'atom'}` : pageDraft() ? kind() === 'question' ? 'New question' : 'New atom' : 'Capture';
-  const where = () => recipes()?.length ? 'Into today' : kind() === 'source' ? 'Library inbox' : pageDraft() ? '' : under() ? `→ End of ${destinationTitle()}` : `→ Today › ${sectionName() ?? 'Notes'}`;
+  const where = () => recipes()?.length ? 'Into today' : kind() === 'source' ? 'Library inbox' : pageDraft() ? '' : atom() ? `→ End of ${destinationTitle()}` : `→ Today › ${sectionName() ?? 'Notes'}${reading() ? ` › ${shortTitle(reading()!.title)}` : ''}`;
   const status = () => added() ? `${added()} added` : '';
   const [pages] = createResource(() => picker() ? [query(), props.notebook.roots()] as const : false, ([value, roots]) => completeNames(props.notebook, value, roots));
   let body!: HTMLDivElement;
@@ -94,29 +113,19 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
   function changeText(value: string) {
     setText(value);
     if (!chosen) {
-      // Settings › Today decides whether a pasted web link files as a source or stays a line in the capture section.
+      // Settings › Today decides whether a pasted web address infers Link or Source.
       const inferred = inferKind(value);
-      const link = inferred === 'source' && template().links === 'link' && /^https?:/i.test(value.trim());
-      changeKind((link ? null : inferred) ?? props.request.kind, false);
+      changeKind((inferred === 'source' && webAddress(value) && template().links === 'link' ? 'link' : inferred) ?? props.request.kind, false);
     }
   }
   createEffect(() => props.onDraft?.(text().trim().length > 0 || gist().trim().length > 0));
   onMount(() => {
     if (text() && !chosen) changeText(text());
     if (props.request.focus === 'kind' && !props.request.lockKind) queueMicrotask(() => {
-      if (body.isConnected) body.querySelector<HTMLButtonElement>('[role="radio"][aria-checked="true"]')?.focus();
+      if (body.isConnected) body.querySelector<HTMLButtonElement>('.create-chip')?.focus();
     });
   });
   function chooseInto(value: CreateInto) { destinationChosen = true; setInto(value); }
-  function radios(event: KeyboardEvent) {
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
-    event.preventDefault();
-    const options = [...primaryKinds.map(value => value.kind), moreSelected() ? kind() : 'project'] as CreateKind[];
-    const current = moreSelected() ? options.length - 1 : options.indexOf(kind());
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : (current + (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1) + options.length) % options.length;
-    changeKind(options[next]!, true);
-    queueMicrotask(() => body.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus());
-  }
   function announce(receipt: CaptureReceipt, message: string) {
     // The slip may close after durable acceptance. Delivery still owns the shell acknowledgement.
     void receipt.delivered.then(result => {
@@ -128,29 +137,37 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
     }, reason => props.onNotice?.({ message: reason instanceof Error ? reason.message : String(reason) }));
   }
   function saved(again: boolean, receipt: CaptureReceipt) {
-    announce(receipt, under() ? `Added to ${destinationTitle()}` : `Added to ${sectionName() ?? 'today'}`);
+    const url = kind() === 'link' ? webAddress(text()) : null;
+    if (url && linkLibrary()) void props.notebook.api.queueUrl(url).catch(reason => props.onNotice?.({ message: reason instanceof Error ? reason.message : String(reason) }));
+    announce(receipt, atom() ? `Added to ${destinationTitle()}` : `Added ${landing()}`);
     setText(''); setAdded(value => value + 1);
     if (!again) props.onDismiss();
   }
   async function saveCard(value: string) {
-    const receipt = await props.notebook.appendCapture(value, null, [], { targetPageId: under(), section: under() ? undefined : target() });
+    const receipt = await props.notebook.appendCapture(value, null, [], { targetPageId: atom(), section: atom() ? undefined : target() });
     await receipt.delivered;
     announce(receipt, 'Card added');
     setText(''); setAdded(value => value + 1);
   }
+  /** The kind chip leading the line; Shift+Tab from the line reaches it, and Enter or a click opens the kind menu. */
+  const chip = () => <Button class="create-chip" aria-haspopup="menu" aria-expanded={!!kindMenu()} label={`Kind: ${lineKind()?.label ?? noteKind()?.name ?? 'Project'}`} onClick={event => setKindMenu(event.currentTarget)}>
+    <Icon name={lineKind()?.icon ?? (kind() === 'project' ? 'flag' : 'page')} /><span>{lineKind()?.label ?? (kind() === 'project' ? 'Project' : noteKind()?.name ?? 'Atom')}</span><Icon name="down" />
+  </Button>;
+  /** Into, and Reading's Under row when Reading is chosen. */
+  const destination = () => <Show when={showsInto() && !props.request.lockKind}>
+    <div class="create-into" role="group" aria-label="Into"><span>Into</span>
+      <For each={sections()}>{value => <Button aria-pressed={sectionId() === value.id} onClick={() => chooseInto({ kind: 'journal', section: value.id })}>{value.name}</Button>}</For>
+      <Show when={kind() === 'note' || kind() === 'question'}><Button aria-pressed={into().kind === 'page'} onClick={() => chooseInto({ kind: 'page' })}>New atom</Button></Show>
+      <Button aria-pressed={into().kind === 'under'} aria-haspopup="listbox" onClick={event => { setQuery(''); setPicker(event.currentTarget); }}>{atom() ? destinationTitle() : 'Atom…'}</Button>
+      <Show when={atom()}><Button label="Remove destination" onClick={() => chooseInto(defaultInto(kind()))}>×</Button></Show>
+    </div>
+    <Show when={sectionId() === 'reading' && kind() !== 'card'}><ReadingUnder notebook={props.notebook} value={under()} onChange={setUnder} /></Show>
+  </Show>;
   return <div ref={body} class="create-body" onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); props.onDismiss(); } }}>
     <header class="capture-head"><span><span class="capture-title">{action()}</span> <span class="capture-where">{where()}</span></span><span class="capture-where">{shortDay(props.notebook.todayDate())}</span></header>
-    <Show when={!props.request.lockKind}>
-      <div class="create-kinds mode-tabs" role="radiogroup" aria-label="Create" onKeyDown={radios}>
-        <For each={primaryKinds}>{value => <Button role="radio" aria-checked={kind() === value.kind} tabIndex={kind() === value.kind ? 0 : -1} onClick={() => changeKind(value.kind, true)}>{value.label}</Button>}</For>
-        <Button role="radio" aria-checked={moreSelected()} tabIndex={moreSelected() ? 0 : -1} aria-haspopup="menu" onClick={event => setMore(event.currentTarget)}>{moreSelected() ? `#${noteKind()?.name ?? 'project'}` : 'More'}<Icon name="down" /></Button>
-      </div>
-      <Show when={kind() === 'note' || kind() === 'question' || kind() === 'task' || kind() === 'card'}><div class="create-into" role="group" aria-label="Into"><span>Into</span>
-        <For each={sections()}>{value => <Button aria-pressed={sectionId() === value.id} onClick={() => chooseInto({ kind: 'journal', section: value.id })}>{value.name}</Button>}</For>
-        <Show when={kind() === 'note' || kind() === 'question'}><Button aria-pressed={into().kind === 'page'} onClick={() => chooseInto({ kind: 'page' })}>New atom</Button></Show>
-        <Button aria-pressed={into().kind === 'under'} aria-haspopup="listbox" onClick={event => { setQuery(''); setPicker(event.currentTarget); }}>{under() ? destinationTitle() : 'Atom…'}</Button>
-        <Show when={under()}><Button label="Remove destination" onClick={() => chooseInto(defaultInto(kind()))}>×</Button></Show>
-      </div></Show>
+    <Show when={!lineBody()}>
+      <Show when={!props.request.lockKind}><div class="create-kind-line">{chip()}</div></Show>
+      {destination()}
     </Show>
     <Switch>
       <Match when={pageDraft()}><PageDraft notebook={props.notebook} kind={kind()} noteKind={noteKind()} text={text()} gist={gist()} sheet={!!props.sheet} onTextChange={changeText} onGistChange={setGist} onDismiss={props.onDismiss} onOpen={props.onOpen} onCreated={props.onCreated} onAdded={() => { chosen = true; setAdded(value => value + 1); }} status={status()} defaultBeside={props.defaultBeside} /></Match>
@@ -159,11 +176,22 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
         const current = (await props.notebook.api.ingestJobs()).find(value => value.id === job.id);
         props.onOpen(current?.source_id ? { kind: 'page', pageId: current.source_id } : { kind: 'library', tab: 'inbox' }, false);
       } }] })} onAdded={sourceId => props.onNotice?.({ message: 'Added to library', actions: [{ label: 'Open', run: () => props.onOpen({ kind: 'page', pageId: sourceId }, false) }] })} /><Show when={status()}><p class="create-keys" role="status">{status()}</p></Show></Match>
-      <Match when={!pageDraft()}><CaptureField notebook={props.notebook} contextDate={() => props.request.scheduledDate ?? props.notebook.todayDate()} schedule={kind() === 'task' && !!props.request.scheduledDate} initialText={text()} fixedKind taskOnly={kind() === 'task'} question={kind() === 'question'} targetPageId={under()} section={target()} onTextChange={changeText} label={action()} placeholder="Write a line" onSaved={saved} onCancel={props.onDismiss} inputRef={input => { input.focus(); input.setSelectionRange(input.value.length, input.value.length); }}>
-        {state => <footer class="create-foot"><span class="create-keys"><Show when={status()} fallback={<Show when={!props.sheet}><kbd>↵</kbd> Add <kbd>⇧↵</kbd> Add another <kbd>esc</kbd> Close</Show>}>{value => <span role="status">{value()}</span>}</Show></span><Show when={!props.sheet}><Button onClick={props.onDismiss}>Cancel</Button></Show><Button class="bordered create-add" disabled={state.busy() || !text().trim()} onClick={() => state.submit(false)}>{sectionName() ? `Add to ${sectionName()}` : 'Add'}</Button></footer>}
+      <Match when={lineBody()}><CaptureField notebook={props.notebook} contextDate={() => props.request.scheduledDate ?? props.notebook.todayDate()} schedule={kind() === 'task' && !!props.request.scheduledDate} initialText={text()} fixedKind taskOnly={kind() === 'task'} question={kind() === 'question'} targetPageId={atom()} section={target()} onTextChange={changeText} label={action()} placeholder={kind() === 'link' ? 'Paste a link' : 'Write a line'} onSaved={saved} onCancel={props.onDismiss}
+        leading={props.request.lockKind ? undefined : chip()} prepare={kind() === 'link' ? value => webAddress(value) ? titledLink(value, linkTitle()) : value : undefined}
+        inputRef={input => { if (props.request.focus === 'kind' && !props.request.lockKind) return; input.focus(); input.setSelectionRange(input.value.length, input.value.length); }}>
+        {state => <>
+          <Show when={kind() === 'link' && webAddress(text())}>{url => <LinkPreview notebook={props.notebook} url={url()} library={linkLibrary()} onLibrary={setLinkLibrary} onTitle={setLinkTitle} />}</Show>
+          {destination()}
+          <Show when={!atom()}><CapturedToday notebook={props.notebook} refresh={added()} onOpen={(pageId, blockId) => props.onOpen({ kind: 'page', pageId, blockId }, false)} /></Show>
+          <footer class="create-foot"><span class="create-keys"><Show when={status()} fallback={<Show when={!props.sheet}><kbd>↵</kbd> Add <kbd>⇧↵</kbd> Add another <kbd>esc</kbd> Close</Show>}>{value => <span role="status">{value()}</span>}</Show></span><Show when={!props.sheet}><Button onClick={props.onDismiss}>Cancel</Button></Show><Button class="bordered create-add" disabled={state.busy() || !text().trim()} onClick={() => state.submit(false)}>{atom() ? `Add to ${destinationTitle()}` : `Add ${landing()}`}</Button></footer>
+        </>}
       </CaptureField></Match>
     </Switch>
-    <Show when={more()}>{anchor => <Menu anchor={anchor()} label="More tags" onDismiss={() => setMore(undefined)} items={moreKinds().map(value => ({ label: `#${value.name}`, icon: noteKindIcon(value), action: () => changeKind(value.key === 'project' ? 'project' : `type:${value.key}`, true) }))} />}</Show>
+    <Show when={kindMenu()}>{anchor => <Menu anchor={anchor()} label="Kind" onDismiss={() => setKindMenu(undefined)} items={[
+      ...lineKinds.map(value => ({ label: value.label, icon: value.icon, checked: kind() === value.kind, action: () => changeKind(value.kind, true) })),
+      { label: 'Project', section: 'More', icon: 'flag' as const, checked: kind() === 'project', action: () => changeKind('project', true) },
+      ...moreKinds().filter(value => value.key !== 'project').map(value => ({ label: value.name, section: 'More', icon: noteKindIcon(value), checked: kind() === `type:${value.key}`, action: () => changeKind(`type:${value.key}`, true) })),
+    ]} />}</Show>
     <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Atom" query={query()} onQuery={setQuery} placeholder="Find an atom" items={pages()?.rows ?? []} key={value => value.page.id} onDismiss={() => setPicker(undefined)} onPick={value => { chooseInto({ kind: 'under', pageId: value.page.id }); setPicker(undefined); }} row={value => <><Icon name="page" /><span class="picker-text">{value.page.text}</span></>} empty="No matching atoms." error={pages.error ? String(pages.error) : undefined} />}</Show>
   </div>;
 }

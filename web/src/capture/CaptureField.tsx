@@ -52,6 +52,10 @@ export interface CaptureFieldProps {
   hint?: string;
   /** Faint text at a boxed field's right end while no date preview shows. */
   trailing?: string;
+  /** Leads the line in place of its bullet, such as the slip's kind chip. */
+  leading?: JSX.Element;
+  /** Rewrites the saved text, such as a pasted link into a titled one. */
+  prepare?(text: string): string;
   /** Called after a save; `again` is true for Shift+Enter, which keeps the field for the next item. */
   onSaved?(again: boolean, receipt: CaptureReceipt): void;
   /** Escape with no completion open. */
@@ -159,7 +163,7 @@ export function CaptureField(props: CaptureFieldProps) {
     accepting = true;
     setPending(count => count + 1); setError('');
     try {
-      const receipt = await props.notebook.appendCapture(body.trim(), value, [...links], { targetPageId: props.targetPageId, question: props.question, section: props.targetPageId ? undefined : props.section } satisfies Pick<CaptureIntent, 'targetPageId' | 'question' | 'section'>);
+      const receipt = await props.notebook.appendCapture(props.prepare ? props.prepare(body.trim()) : body.trim(), value, [...links], { targetPageId: props.targetPageId, question: props.question, section: props.targetPageId ? undefined : props.section } satisfies Pick<CaptureIntent, 'targetPageId' | 'question' | 'section'>);
       // Typing while the storage transaction finishes stays in the next line.
       const next = draft() === submittedDraft ? '' : draft().startsWith(submittedDraft) ? draft().slice(submittedDraft.length) : draft();
       if (next !== draft()) {
@@ -221,7 +225,7 @@ export function CaptureField(props: CaptureFieldProps) {
 
   return <div class="capture-field" classList={{ busy: busy() }}>
     <div ref={line} class="capture-line" classList={{ 'capture-boxed': !!props.boxed }} onPointerDown={event => { if (props.boxed && event.target !== input) { event.preventDefault(); input.focus(); } }}>
-      <Show when={!props.boxed} fallback={<Icon name="plus" class="capture-plus" />}><Show when={!props.taskOnly && !props.fixedKind} fallback={<Icon name={props.taskOnly ? 'select' : 'bullet'} />}>
+      <Show when={!props.boxed} fallback={<Icon name="plus" class="capture-plus" />}><Show when={!props.taskOnly && !props.fixedKind} fallback={props.leading ?? <Icon name={props.taskOnly ? 'select' : 'bullet'} />}>
         <button type="button" class="capture-kind" aria-pressed={task()} aria-label="Task" title="Task" onMouseDown={event => event.preventDefault()} onClick={() => setTask(value => !value)}>
           <Icon name={isTask() || plan()?.explicit && plan()?.choice ? 'select' : hasCards() ? 'card' : 'bullet'} />
         </button>

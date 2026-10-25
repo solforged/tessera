@@ -1300,6 +1300,7 @@ function Pane(props: OutlinePaneProps) {
     showNotice,
     openMoveToPage: () => openMoveToPage(),
     openRelation: (id, kind, anchor) => openRelation(id, kind, anchor),
+    fileAll: (ids, anchor) => fileAll(ids, anchor),
     positionReason: id => positionReason(id),
     placeReason: id => placeReason(id),
     usePlace: id => usePlace(id),
@@ -1406,7 +1407,7 @@ function Pane(props: OutlinePaneProps) {
     editedConflicts,
     setEditedConflicts,
   };
-  const { openRelation, positionReason, placeReason, usePlace, RelationPopups } = createRelationActions(context, async holderId => {
+  const { openRelation, fileAll, positionReason, placeReason, usePlace, RelationPopups } = createRelationActions(context, async holderId => {
     // The recipe offers only defined fields, so Tab from the Gist reaches Work only once work exists.
     const field = definitionsByName().get('gist') ?? await ensureField(props.notebook, 'gist', 'text', 'standfirst');
     const work = definitionsByName().get('work') ?? await ensureWorkField(props.notebook);

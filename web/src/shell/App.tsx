@@ -45,7 +45,7 @@ import { installOpenedFiles } from '../library/opened-files';
 import { installQuickCapture } from './quick-capture';
 import { opensBeside } from './beside';
 import { besideSlot, dividerRatio, insertPane, MAX_PANES, paneCapacity, windowStart } from './pane-row';
-import { blankCapture } from '../create/request';
+import { blankCapture, createEvent } from '../create/request';
 import type { CreateRequest } from '../create/request';
 import { CreateSlip, type CreateNotice } from '../create/CreateSlip';
 import { creatableKinds, kindNoun } from '../create/kinds';
@@ -619,7 +619,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   };
   const [creation, setCreation] = createSignal<{ request: CreateRequest; anchor?: PopupAnchor; pane: PaneId }>();
   const [createDirty, setCreateDirty] = createSignal(false);
-  const openCreate = (request: CreateRequest, anchor?: PopupAnchor) => { setPopup(null); setTypesMenu(null); setCreateDirty(false); setCreation({ request, anchor, pane: active() }); };
+  // Opening cancels a pane refocus still pending from a slip that just closed, which would take the new slip's focus.
+  const openCreate = (request: CreateRequest, anchor?: PopupAnchor) => { focusEpoch++; setPopup(null); setTypesMenu(null); setCreateDirty(false); setCreation({ request, anchor, pane: active() }); };
   /** A shortcut or widget tap while a draft is open returns to that draft; only a request carrying text replaces it. */
   const quickCreate = (request: CreateRequest) => {
     if (!creation() || !createDirty() || request.text) { openCreate(request); return; }
@@ -633,6 +634,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   };
   onMount(() => {
     onCleanup(installLinkDrop(openCreate));
+    const requested = (event: Event) => { if (event instanceof CustomEvent && event.detail) openCreate(event.detail as CreateRequest); };
+    window.addEventListener(createEvent, requested);
+    onCleanup(() => window.removeEventListener(createEvent, requested));
     const nativeOpen = (event: Event) => {
       const target = event instanceof CustomEvent ? event.detail : undefined;
       if (!target || target.kind !== 'page' || typeof target.pageId !== 'string'

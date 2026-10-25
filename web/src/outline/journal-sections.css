@@ -29,6 +29,24 @@
   .section-capture-inbox { display: none; }
   .row-capture-time { display: none; }
 }
+/* Inbox rows offer Plan, File to… and More at their right edge while hovered or focused; touch keeps them in Atom actions. */
+.row-inbox-actions { display: flex; flex: none; gap: var(--space-4); align-self: flex-start; margin-left: var(--space-8); opacity: 0; transition: opacity var(--motion-fast) var(--motion-ease); }
+.row-inbox-actions .button { min-height: calc(var(--line-body) + 2 * var(--space-2)); padding: 0 var(--space-8); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+.row-inbox-actions .button:hover:not(:disabled) { color: var(--text); }
+.row-inbox-actions .button > .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+.outline-row:is(:hover, :focus-within, .row-selected) > .row-inbox-actions { opacity: 1; }
+@media (hover: none) { .row-inbox-actions { display: none; } }
+/* An Inbox link reads as its page: the title in Piazzolla, then its site in faint. */
+.row-link .static-text .reference-url { font-family: var(--font-display); }
+.row-link-site { flex: none; align-self: flex-start; padding-top: calc(var(--space-2) + (var(--line-body) - var(--line-apparatus)) / 2); margin-left: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+/* File all names the row being filed above the destinations. */
+.file-all-status { display: flex; align-items: baseline; gap: var(--space-8); margin: 0; padding: var(--space-4) var(--space-8); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
+.file-all-count { flex: none; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.file-all-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* A Reading row is its source: the short title in Piazzolla, the reader's position when it was written in faint. */
+.row-reading-source .static-text .outline-reference { font-family: var(--font-display); text-decoration: none; }
+.row-reading-creators { flex: none; align-self: flex-start; padding-top: calc(var(--space-2) + (var(--line-body) - var(--line-apparatus)) / 2); margin-left: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.row-reading-source:not(.row-editing) .static-text .reference-locator { display: none; }
 /* Narrow screens move the handles after the bullet, so heads and the capture line start at the text edge and clocks have no gutter. */
 @media (max-width: 599px) {
   .row-section-banner { padding-left: 2px; }

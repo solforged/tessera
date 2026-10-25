@@ -308,7 +308,10 @@ fn today_template_accepts_a_complete_template_and_rejects_broken_ones() {
         "{}".to_owned(),
         TODAY_TEMPLATE.replace(r#"{"id":"reading","name":"Reading","on":true},"#, ""),
         TODAY_TEMPLATE.replace(r#""capture":"inbox""#, r#""capture":"plan""#),
-        TODAY_TEMPLATE.replace(r#""name":"Notes","on":true"#, r#""name":"Notes","on":false"#),
+        TODAY_TEMPLATE.replace(
+            r#""name":"Notes","on":true"#,
+            r#""name":"Notes","on":false"#,
+        ),
         TODAY_TEMPLATE.replace(r#""name":"Reading""#, r#""name":"inbox""#),
         TODAY_TEMPLATE.replace(r#""links":"link""#, r#""links":"page""#),
     ] {
