@@ -101,14 +101,15 @@ Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f
 
 Pills take a 12% tint of their hue with a 30% border. A selected row adds a 2 px gilt bar at its left edge; keyboard focus inside a menu looks the same, never a ring.
 
-Controls share four shapes:
+Controls share five shapes:
 
 - **Modes and tabs:** [Library states and Highlights processing](surfaces/library.md), [Agenda, Week and Tasks](surfaces/tasks-agenda.md), [Review's Due, New and All](surfaces/cards-review.md), [reader settings](surfaces/reader.md), and a creator's role. They are mono labels with faint counts. The current one is gilt with a 2 px gilt rule beneath the whole tab, label and count alike, never a box or fill. Strips that switch views (Library states, Review queues, Agenda modes) stand on a hairline baseline, and every tab's rule lands on it. Forms use these tabs instead of native selects.
 - **Menu triggers and date ranges:** bordered buttons with a `--line` hairline that brightens to `--control-border` on hover.
-- **Text fields:** sit on `--surface` with a `--line` hairline that brightens while hovered or typed in. Agenda's add field is a bare row on a hairline under the plus.
-- **Section heads:** sidebar, [journal Agenda](surfaces/journal.md), and [Settings](surfaces/settings.md). They are mono: an optional rubric numeral, the name, a hairline rule, then state or count at the right in `--faint`, with the chevron last on collapsible ones. A rule appears only when it ends in a count, a state, or a chevron. Journal days' From your highlights sets the name as an H2 in Piazzolla at `--text-h2`, then the rule, state and chevron. Journal is the name alone.
+- **Text fields:** sit on `--surface` with a `--line` hairline that brightens while hovered or typed in. Agenda's Add a task (44 px) and Today's Inbox capture (40 px) are text fields with a leading plus.
+- **Section heads:** [Today's sections](surfaces/journal.md#section-heads), [Agenda's groups](surfaces/tasks-agenda.md#groups) and a type page's Template section share one head, an `h2`: the name in Piazzolla at `--text-h2` in `--text`, a hairline rule, a mono count or state in `--faint`, then at most one action as a bordered button or menu trigger. A collapsible head puts its chevron before the name. A danger group tints only its name, in `--danger`; a folded head dims its name to `--muted`. Groups inside a section, such as Upcoming's days, use a sans subhead at 13 px and weight 500 in `--muted` with a `--faint` qualifier and no rule.
+- **Apparatus heads:** sidebar, [Settings](surfaces/settings.md), backlinks and picker groups stay mono: an optional rubric numeral, the name, a hairline rule, then state or count at the right in `--faint`, with the chevron last on collapsible ones. A rule appears only when it ends in a count, a state, or a chevron.
 
-Counts, dates and result lines (`1 of 1 task`, `15 of 15 rows`, `1 card · 1 due`) are mono; sentences never are. Civil dates in the apparatus read as ISO, `2026-10-03`.
+Clock times, counts and result lines (`07:00`, `1 of 1 task`, `15 of 15 rows`, `1 card · 1 due`) are mono; sentences never are. Planning facts (`since Fri 23`, `due Tuesday`), priority words, repeats and actions are sentences in Plex. Civil dates in the apparatus read as ISO, `2026-10-03`.
 
 Focus has one frame per control:
 
@@ -369,7 +370,7 @@ The permanent merge confirmation stays a bounded short-control popup, with the s
 - [Library](surfaces/library.md): Library pane, adding sources, the inspector, the Highlights desk, source pages, sigla, collections and citation chips.
 - [Reader](surfaces/reader.md): reading books and articles, navigation, selection, highlights, notes and reader settings.
 - [Tasks and agenda](surfaces/tasks-agenda.md): tasks, planning, work sessions, projects, Agenda, Week and Tasks.
-- [Journal](surfaces/journal.md): journal days, the period trail, Today tiles and Add to today.
+- [Journal](surfaces/journal.md): journal days, the period trail, Today's tiles and template sections, and Add to today.
 - [Cards and review](surfaces/cards-review.md): card authoring, card state, review queues and review sessions.
 - [Perspectives](surfaces/perspectives.md): perspectives, Compare, questions and answers.
 - [Notes](surfaces/notes.md): Index, finding aids, note header, aliases, type icons and names.

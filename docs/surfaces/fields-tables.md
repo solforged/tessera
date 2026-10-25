@@ -86,7 +86,7 @@ Without Links to types, the picker offers pages, and from the third character al
 
 ## Type page template
 
-A type page shows its template under the title as a Template section, closed by default, headed like the [journal's sections](journal.md#today-tiles): the name, a hairline, the template's fields in mono order and a chevron.
+A type page shows its template under the title as a Template section, closed by default, headed like the [journal's sections](journal.md#section-heads): the name, a hairline, the template's fields in mono order and a chevron.
 
 Open, it shows the same field rows as the type's Fields tab, described below. Add field opens the field picker without the fields already there. A new name offers Create text field and Create field as…, which add the definition and its template place in one change.
 
