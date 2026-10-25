@@ -1,12 +1,14 @@
 /* Health grows inside each paired-device row. Review belongs to the notebook on both sides. */
-.settings-pane p.devices-url { color: var(--text); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.settings-pane .devices-url { color: var(--text); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.settings-pane p.devices-hub { margin: var(--space-8) 0 var(--space-4); color: var(--muted); }
 .devices-retained { margin: var(--space-12) 0 0; color: var(--muted); }
-.devices-hub-row > .settings-label { justify-self: start; }
+.devices-pair { margin-top: var(--space-12); }
 .devices-disclosure { border-top: var(--rule-width) solid var(--line); }
+/* The same small chevron as Stored backups, turning as the device opens. */
 .devices-disclosure summary { display: flex; align-items: center; gap: var(--space-12); padding: var(--space-12) 0; cursor: pointer; list-style: none; }
 .devices-disclosure summary::-webkit-details-marker { display: none; }
-.devices-disclosure summary::before { content: '›'; color: var(--muted); font: 20px/24px var(--font-body); }
-.devices-disclosure[open] summary::before { content: '⌄'; }
+.devices-disclosure summary > .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); color: var(--muted); transition: rotate var(--motion-fast) var(--motion-ease); }
+.devices-disclosure[open] > summary > .icon { rotate: 90deg; }
 .devices-name { flex: 1; min-width: 0; font: var(--apparatus); color: var(--text); }
 .devices-row-status { color: var(--muted); font: var(--apparatus); }
 .devices-row-status[data-tone="wait"] { color: var(--warning); }

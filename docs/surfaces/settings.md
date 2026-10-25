@@ -15,7 +15,7 @@ Sections use the same mono numbered heads as field definitions, in this order:
 1. Preferences.
 2. Workshops and Backups on the Mac; only Backups in the browser build; neither on the phone.
 3. Devices.
-4. Agent.
+4. Models.
 5. History.
 6. About.
 
@@ -75,11 +75,11 @@ Restore and Start over cover the window while they work, then reload. A file tha
 
 ## Mac devices
 
-A Mac serving without sync says so under the heading: `Sync is off`, and that no phone can pair with it. Otherwise the Mac's own version line (`hyperion · 0.3.0 · schema 35`) and tailnet address head the section. The sharing switch follows, then Pair a phone. Pairing turns Sharing on first when needed, using the same action as the switch. If that is unavailable or fails, `Turn on Sharing first` appears under the button. A mono line shows the changes kept for devices that have not caught up.
+A Mac serving without sync says so in one sentence under the heading: `Sync is off`, and that no phone can pair with it. Otherwise one muted mono line gives the Mac's version (`hyperion · 0.3.0 · schema 35`) and tailnet address. The Sharing switch follows, then the paired devices, a mono line with the changes kept for devices that have not caught up, and a bordered Pair a phone button with a plus. Pairing turns Sharing on first when needed, using the same action as the switch. If that is unavailable or fails, `Turn on Sharing first` appears under the button.
 
 Pair a phone opens a dialog: the QR code on white with the code under it in spaced mono, three numbered steps beside it, and the wait on a hairline. The wait turns to `<phone> is paired and copying the workshop.`
 
-Each paired device is a disclosure: its name, and its state at the right in `--danger` when it needs the person. Opened, it shows both sides' versions in mono, then the fix first: a version mismatch says which side is behind, in a block with a 2 px rubric rule at its left, with the update route. Last seen, refused since with the attempt count, and last attempt follow as a mono list, then Recent attempts as a small ledger of time, result and count, and Forget. The rail's summary opens Settings with its device expanded.
+Each paired device is a disclosure: its name, and its state at the right in `--danger` when it needs the person. Opened, it shows both sides' versions in mono, then the fix first: a version mismatch says which side is behind, in a block with a 2 px rubric rule at its left, with the update route. Last seen, refused since with the attempt count, and last attempt follow as a mono list, then Recent attempts as a small ledger of ISO time, result and count, and Forget. Forget asks `Forget <device>? It must pair again to sync.` inline with Cancel and Confirm. Device and Needs review disclosures use the same small turning chevron as Stored backups. The rail's summary opens Settings with its device expanded.
 
 ## Devices on the phone
 
@@ -89,9 +89,9 @@ The phone shows the Mac it copies as the same disclosure: this device's and the 
 
 Both sides list what sync kept for the person, under a Needs review disclosure with mono counts (`1 kept · 2 rejected`). Each item reads its device and age in mono, the page title in Piazzolla and its words as a quotation. A kept copy offers Open the atom. A rejected change also gives the hub's reason, with Open the atom while the page exists, Copy the text back and Dismiss. A page that is gone reads `Atom no longer available`, and Copy the text back then adds the words to today's journal.
 
-## Agent
+## Models
 
-Models edit in place. Speaks uses the shared menu, missing Name, Address and Model values show inline errors, and the form saves with Save model. An invalid address also shows its reason inline. Keys remain optional so local servers work without one.
+The agent dock's models edit in place. API uses the shared menu, missing Name, Address and Model values show inline errors, and the form saves with Save model. An invalid address also shows its reason inline. Keys remain optional so local servers work without one. Remove asks `Remove?`, or `Remove it and its key?` when a key is saved, inline with Cancel and Confirm. Test is disabled until its answer arrives, and editing a model clears its last result.
 
 Provider presets use the shared mode tabs, scrolling horizontally when needed.
 

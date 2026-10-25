@@ -15,6 +15,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Trimmed Settings › Devices on the Mac to one mono line for the Mac's version and address, the Sharing switch and a Pair a phone button after the devices, and made Forget confirm inline. Recent attempts use ISO times, and device disclosures share Stored backups' chevron.
+- Renamed Settings › Agent to Models and Speaks to API, made Remove confirm inline (naming the saved key it also removes), and kept Test from running twice or showing a result from before an edit.
+
 - Kept one store backup a day for a week and one a week for four more, plus the newest, so at most 11 instead of 14. Backups taken before an update or a restore are marked as safety backups and kept for seven days beside those.
 - Showed a failed automatic backup's time and reason in Settings › Backups until a later backup succeeds, and warned when the workshop changed after a newest backup more than two days old. Stored backups now start closed, label safety backups, and Other workshops names each workshop backed up by this build instead of shortening its ID.
 

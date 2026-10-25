@@ -167,7 +167,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     ...(DEMO && !MOBILE ? [{ key: 'backups', label: 'Backups', count: 0 }] : []),
     ...(EMBEDDED ? [] : [{ key: 'notebooks', label: 'Workshops', count: knownNotebooks()?.notebooks.length ?? 0 }, { key: 'backups', label: 'Backups', count: backups()?.backups.length ?? 0 }]),
     ...(devices ? [{ key: 'devices', label: 'Devices', count: deviceCount() }] : []),
-    ...(DEMO ? [] : [{ key: 'agent', label: 'Agent', count: 0 }]),
+    ...(DEMO ? [] : [{ key: 'agent', label: 'Models', count: 0 }]),
     { key: 'history', label: 'History', count: history()?.length ?? 0 },
     { key: 'about', label: 'About', count: 0 },
   ]);
@@ -371,11 +371,11 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
           </details></Show>
         </section>}
         {devices && <section id={sectionId('devices')} aria-labelledby={`${sectionId('devices')}-heading`}>
-          <Show when={MOBILE || sync.state()?.role === 'replica'} fallback={<HubDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} onCount={setDeviceCount} notebook={props.notebook} deviceId={props.deviceId} onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)} />}>
-            <PhoneDevices heading={heading(number('devices'), 'devices', 'Devices')} onError={setError} notebook={props.notebook} deviceId={props.deviceId} onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)} />
+          <Show when={MOBILE || sync.state()?.role === 'replica'} fallback={<HubDevices heading={heading(number('devices'), 'devices', 'Devices')} when={when} onError={setError} onCount={setDeviceCount} notebook={props.notebook} deviceId={props.deviceId} onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)} />}>
+            <PhoneDevices heading={heading(number('devices'), 'devices', 'Devices')} when={when} onError={setError} notebook={props.notebook} deviceId={props.deviceId} onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)} />
           </Show>
         </section>}
-        {!DEMO && <AgentSettings id={sectionId('agent')} heading={heading(number('agent'), 'agent', 'Agent')} />}
+        {!DEMO && <AgentSettings id={sectionId('agent')} heading={heading(number('agent'), 'agent', 'Models')} />}
         <section id={sectionId('history')} aria-labelledby={`${sectionId('history')}-heading`} aria-busy={history.loading || loadingHistory() || undoing() !== null}>
           {heading(number('history'), 'history', 'History')}
           <Show when={historyError()}>{message => <p class="error" role="alert">{message()}</p>}</Show>
