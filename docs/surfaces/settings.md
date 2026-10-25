@@ -6,7 +6,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ## Pane and navigation
 
-The header sticks to the top, so the save status and Undo and Redo stay in reach. It has a Piazzolla title, the status in faint mono, and Undo and Redo as icon buttons at its right. A hairline appears under it once the page scrolls.
+The header sticks to the top, so the save status and Undo and Redo stay in reach. It has a Piazzolla title, the status in faint mono, and Undo, Redo and History as icon buttons at its right. Undo and Redo change settings; History opens the workshop's change history in its own pane. ⌘Z and ⌘⇧Z undo and redo a setting anywhere in the pane except text fields, which keep their own undo. A hairline appears under it once the page scrolls.
 
 When the left margin can hold it, the section index sticks outside the centered page measure, with mono counts and a 2 px gilt bar on the current section. Narrower panes use the same index as a horizontally scrolling row of section chips under the title. Both forms scroll to sections and follow the current section. Once the page can scroll no further, the last section is current. A section chosen from the index stays current until you scroll by hand.
 
@@ -16,8 +16,7 @@ Sections use the same mono numbered heads as field definitions, in this order:
 2. Workshops and Backups on the Mac; only Backups in the browser build; neither on the phone.
 3. Devices.
 4. Models.
-5. History.
-6. About.
+5. About.
 
 Under 600 px (a split pane or the Fold cover), the header tightens. Controls stack under their descriptions except the switch, and the time-zone trigger fills the width. Paths wrap after slashes, not inside folder names. Pane chrome and mode tabs keep 44 px touch targets.
 
@@ -97,7 +96,7 @@ Provider presets use the shared mode tabs, scrolling horizontally when needed.
 
 ## History
 
-History lists the newest fifty changes, newest first: the summary, then the actor and ISO time in mono and the page as a quiet link that turns gilt on hover. The actor reads You for this person's windows, Agent for agents, the device name for synced changes and the client name otherwise. Undo waits for hover where there is hover; Show more fetches the next fifty. An undone change reads muted, with Undone in place of the button, and an undo entry names the change it undid. A refused undo shows its reason inline.
+History is its own pane in Settings' frame, opened from the Settings header or the `Open history` command. It lists the newest fifty changes, newest first: the summary, then the actor and ISO time in mono and the page as a quiet link that turns gilt on hover. The actor reads You for this person's windows, Agent for agents, the device name for synced changes, Another device for a device this side no longer knows, and the client name otherwise. Undo waits for hover where there is hover; Show more fetches the next fifty. An undone change reads muted, with Undone in place of the button. An undo entry reads `Undid: <summary>` of the change it undid, or `Redid:` when it undid an undo. A refused undo shows its reason inline.
 
 ## About
 

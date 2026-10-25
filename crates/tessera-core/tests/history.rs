@@ -106,6 +106,7 @@ fn editor_batches_list_and_undo_text_position_and_deleted_subtrees() {
     let history = notebook.history(2, None).unwrap();
     assert_eq!(history[0].seq, undone.committed.seq);
     assert_eq!(history[0].undoes, Some(committed.seq));
+    assert_eq!(history[0].summary, format!("Undid: {}", entry.summary));
     assert_eq!(history[0].actor, Actor::Person);
     assert!(history[0].undoable);
     assert_eq!(history[1].undone_by, Some(undone.committed.seq));
@@ -115,6 +116,10 @@ fn editor_batches_list_and_undo_text_position_and_deleted_subtrees() {
         .undo_change(undone.committed.seq, &Actor::Person)
         .unwrap();
     assert_eq!(outline(&notebook), edited);
+    assert_eq!(
+        notebook.history(1, None).unwrap()[0].summary,
+        format!("Redid: {}", entry.summary)
+    );
 }
 
 #[test]
