@@ -36,7 +36,7 @@ import { depthLabels, depthStops } from './contract';
 import type { AgendaViewState, Command, CommandRegistry, CompareViewState, Depth, DirectoryViewState, FieldsViewState, FieldViewState, IndexViewState, LibraryViewState, OpenTarget, PaneId, ReaderViewState, ReviewViewState, RevisitsViewState, SettingsViewState, TableViewState, ViewState } from './contract';
 import type { PagePresentation, PageProjection } from './contract';
 import type { HistoryEntry, PaneHistory, PaneSession, PaneView, PhoneTab } from './contract';
-import { activatePhoneTab, adoptPhoneTab, passiveHistory, phoneTabs, popPhoneTab } from './phone-navigation';
+import { activatePhoneTab, adoptPhoneTab, collapsePhoneLanding, passiveHistory, phoneTabs, popPhoneTab, pushPhoneEntry } from './phone-navigation';
 import { installPhoneGestures } from './phone-gestures';
 import { Palette } from './Palette';
 import { DeletedPages } from './DeletedPages';
@@ -338,7 +338,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           if (target.kind === 'page' && target.readAt) setPagePresentations(values => ({ ...values, [target.pageId]: { ...values[target.pageId], projection: 'read' } }));
           setSessions(values => {
             const previous = values[pane] ?? emptySession();
-            const next = { ...previous, entries: [...previous.entries.slice(0, previous.index + 1), { target, view }], index: previous.index + 1, generation: previous.generation + 1 };
+            const next = cover() ? pushPhoneEntry(previous, { target, view }) : { ...previous, entries: [...previous.entries.slice(0, previous.index + 1), { target, view }], index: previous.index + 1, generation: previous.generation + 1 };
             return { ...values, [pane]: next };
           });
           if (!slot.existing) {
@@ -441,7 +441,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   };
   const preparePhone = async (pane: PaneId) => {
     const session = sessions()[pane];
-    if (!session || session.tab) return;
+    // Initial Today opens through a deferred view transition. Adopt only after
+    // that entry arrives, rather than seeding a root ahead of its pending push.
+    if (!session?.entries[session.index] || session.tab) return;
     const tab = phoneTabFor(session), root = await phoneRoot(tab);
     setSessions(values => values[pane] && !values[pane].tab ? { ...values, [pane]: adoptPhoneTab(values[pane], tab, root) } : values);
   };
@@ -757,7 +759,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
             if (!stack || !Array.isArray(stack.entries) || !Number.isInteger(stack.index) || stack.index < 0 || stack.index >= stack.entries.length) continue;
             const entries = await Promise.all(stack.entries.map(restoreEntry));
             if (entries.some(entry => !entry)) continue;
-            stacks[tab] = { entries: entries as HistoryEntry[], index: stack.index };
+            stacks[tab] = collapsePhoneLanding({ entries: entries as HistoryEntry[], index: stack.index }, tab);
           }
           const currentStack = stacks[savedPhone.tab];
           if (currentStack) {
