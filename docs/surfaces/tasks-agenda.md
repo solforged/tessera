@@ -107,7 +107,7 @@ The task API's optional `project_via: "field"` filter restricts results to expli
 
 ## Agenda destination
 
-The Agenda destination keeps an Agenda kicker above its title. Day has a spoken date heading with Previous day / Today / Next day alongside it. Week uses a week number and ISO range (`W43 · 2026-10-19 – 2026-10-25`) with Previous week / Today / Next week. Both date headings open the journal's calendar; picking a day moves there, and its Today returns to today. Tasks has a plain Tasks title with no date navigation.
+The Agenda destination keeps a mono Agenda eyebrow above its title, followed by `· Today` in gilt when the displayed day or week contains today. Day has a spoken date heading, `Sunday, October 25`, never a relative word such as today. Previous day, Today and Next day form one bordered group at the title's right edge, with Today in `--faint` while today is shown. Week uses a week number and ISO range (`W43 · 2026-10-19 – 2026-10-25`) with Previous week / Today / Next week. Both date headings open the journal's calendar; picking a day moves there, and its Today returns to today. Tasks has a plain Tasks title with no date navigation.
 
 On the cover, a date eyebrow and Agenda page title sit above the day or week stepper. The eyebrow opens the calendar; Tasks uses a Tasks eyebrow instead. Wider layouts keep their date-led heading.
 
@@ -115,20 +115,20 @@ Day / Week / Tasks sit beneath on the shared ruled tab baseline. On the wide Wee
 
 Day's seven-day strip has no boxes:
 
-- Each column carries a small mono weekday, serif numeral and faint mono open-task count, deduplicating a task whose schedule and deadline coincide.
-- The selected day has a 2 px gilt rule on the strip's hairline; today's numeral is gilt.
+- Each column carries a small mono weekday, a Plex numeral at 20 px and weight 500, and one 4 px dot per open task, deduplicating a task whose schedule and deadline coincide. Dots are `--faint`; today's overdue work is `--danger` and deadlines inside their warning window are `--warning`. A day with more than six shows six dots and a faint mono count. The accessible label reads `4 open · 2 overdue`.
+- The selected day has a 2 px gilt rule on the strip's hairline and the `--hover` fill; today's numeral is gilt.
 - Tapping a day changes the list without shifting the strip.
 - The strip and Day lookahead reuse the existing scheduled/deadline task queries.
 
 ### Add a task
 
-On Day, Add a task sits directly under the strip, so it stays in place however many tasks are overdue. It is [Add to today](journal.md#add-to-today) in its task form: it captures into today's journal, scheduled for the displayed day unless a complete plain-word suffix such as `mon 9am`, a trailing `@date`, or `by`/`due` names another plan.
+On Day, Add a task sits directly under the strip, so it stays in place however many tasks are overdue: 20 px below the strip and 28 px above the first section. It uses the text-field shape at 44 px with a gilt plus and the placeholder `Add a task for Sunday`, naming the displayed day. It is [Add to today](journal.md#add-to-today) in its task form: it captures into today's [capture section](journal.md#today-template), Inbox by default, scheduled for the displayed day unless a complete plain-word suffix such as `mon 9am`, a trailing `@date`, or `by`/`due` names another plan.
 
-On the cover, the inline field is hidden and the glass top bar's New button opens a task creation slip preset to the displayed day. It still captures into today's journal; typed dates override the preset. Elsewhere, a live mono preview beneath the inline field shows the plan as a planning fact (`tomorrow 15:00`, `due Fri 16`) in `--calendar-scheduled`. An unmatched explicit `@` token warns in `--warning` that it stays in the text.
+On the cover, the inline field is hidden and the glass top bar's New button opens a task creation slip preset to the displayed day. It still captures into today's capture section; typed dates override the preset. Elsewhere, a live preview at the field's right end shows the plan as a planning fact in Plex (`tomorrow 15:00`, `due Fri 16`), after a calendar glyph, in `--calendar-scheduled`, then a faint `↵ add`. An unmatched explicit `@` token replaces the preview with a `--warning` note that it stays in the text. One `--faint` line beneath the field reads `Try “mon 9am”, “by fri” or “in 2 weeks”`.
 
 The preview shows exactly the first date suggestion that submission will use, including preset prefixes such as `@t` for Today. Protected references and code remain authored text.
 
-After acknowledgement, the list refreshes, scrolls the new task row into view and outlines it once in gilt for 1.5 seconds. The capture stays inline and keeps keyboard focus for another task.
+After acknowledgment, the list refreshes, scrolls the new task row into view and outlines it once in gilt for 1.5 seconds. The capture stays inline and keeps keyboard focus for another task.
 
 ## Tasks query
 
@@ -171,13 +171,25 @@ Saved task view project conditions show the resolved project title rather than i
 
 ### Rows
 
-Day rows have a fixed left mono time gutter, blank for untimed work, then the status glyph and source text, with page provenance and a separate rescheduling slot at the right. Provenance uses holder links in ink with a hairline underline and gilt hover. Journal provenance reads Journal rather than repeating the stored ISO date; the full page title remains in its tooltip and accessible name.
+Day rows are the one task row shared by Day, the Week ledger, Today's [Plan](journal.md#plan) and Tasks results. From the left, a row has:
+
+- A 52 px mono time gutter, blank for untimed work and omitted when no row in the list has a time.
+- The 24 px status glyph.
+- The text column, described below.
+- A reserved 96 px slot for [rescheduling](#rescheduling).
+
+The text column holds two lines:
+
+1. The title in Plex at 15 / 22, clamped after two lines.
+2. The facts line in Plex at 12.5 / 18 in `--muted`: provenance first, then the planning facts, separated by middle dots in `--control-border`.
+
+Only the clock is mono, and the facts line reads as a sentence. Provenance uses holder links in ink with a hairline underline and gilt hover. Journal provenance names the journal section and a relative day, `Inbox · today` or `Reading · yesterday`, or `Journal · Thu 22` outside a section, rather than the stored ISO title. The full page title remains in its tooltip and accessible name.
 
 On the cover, a provenance tap opens the whole source page in Outline, scrolls to the task and briefly highlights it. It neither zooms into the task nor opens Task fields; a planning-field tap opens that sheet. Wider layouts keep their zoom-to-task provenance behavior.
 
-Planning facts share the task's line. A lone priority trails the text. Dates and other facts keep the right edge. They omit dates implied by a day group and a project the row already names as its provenance, and show a carried schedule only as `since 2026-10-06`, not also a second date. Earlier work on a future displayed day has no `since` prefix unless it is also before civil today. Task-query rows retain their compact status, source and trailing planning layout.
+Planning facts follow provenance on the facts line in a fixed order: the plan (`since Fri 23`, `due Tuesday`), priority, repeat (`↻ every 3 days`), the project when provenance does not already name it, and logged work. They omit dates implied by a day group and a project the row already names as its provenance, and show a carried schedule only as `since 2026-10-06`, not also a second date. Earlier work on a future displayed day has no `since` prefix unless it is also before civil today.
 
-Below a 600 px pane width, Day, Week ledger and [Today ledger](journal.md#agenda-tile) rows use two lines. The first keeps the clock, status and task title, clamped only after two text lines. The second starts at the text column with non-wrapping mono facts, then provenance and the calendar at the right. One-line Today and Day titles fit in a row under 72 px on touch. Calendar actions keep 44 px touch targets. Wider touch rows and their completion/source controls remain at least 44 px high. The cover's content insets are equal.
+Below a 600 px pane width, Day, Week ledger and [Plan](journal.md#plan) rows drop the time gutter and the trailing slot. A timed row's clock leads its facts line in mono, and the calendar button sits at the right of the title line. One-line Plan and Day titles fit in a row under 72 px on touch. Calendar actions keep 44 px touch targets. Wider touch rows and their completion/source controls remain at least 44 px high. The cover's content insets are equal.
 
 The whole row takes the hover fill and long task text clamps at two lines. Planning uses the same facts as outline rows, with late facts in `--danger` and deadline warnings in `--warning`.
 
@@ -189,8 +201,8 @@ Completing, reopening or triaging a row uses its source page's undo history. ⌘
 
 Planned rows reschedule without dragging:
 
-- Quiet mono Today and Tomorrow and a calendar button occupy their own reserved trailing slot, each omitted when it would change nothing. They use no opacity fade. On fine pointers their ink brightens on hover or focus, without hiding provenance or moving the columns. Tab reaches the actions.
-- On touch or in a pane under 600 px only the calendar button shows. Narrow rows keep it visible at the right of the second line.
+- On fine pointers, Today, Tomorrow and Pick a date appear in the row's reserved trailing slot only while the row is hovered or has keyboard focus. They are 28 × 24 px icon buttons (a sun, an arrow and a calendar) whose tooltips name the action and its key, and each is omitted when it would change nothing. They appear without a fade, and since the slot is reserved and provenance sits on the facts line, nothing moves or hides. Tab reaches the actions.
+- On touch or in a pane under 600 px only the calendar button shows, always, at the right of the title line.
 
 | Focused-row key | Action |
 |---|---|
@@ -213,13 +225,14 @@ Day groups canonical tasks in this order:
 |---|---|
 | Overdue, or Before this day on a future date | Earlier schedules and deadlines; only facts before civil today use `--danger` and the `since` prefix |
 | Today, or Planned on other days | The displayed day's plans and work in progress |
-| Next 7 days | On desktop and unfolded screens; the seven civil days after the displayed date |
+| Upcoming | On desktop and unfolded screens; the seven civil days after the displayed date |
+| Unplanned, Done today | Folded by default |
 
-Headings read label, hairline, count. Today always has a ruled heading and count; when empty it shows one muted Nothing planned line.
+Every group uses the shared [section head](../design.md#color). Overdue tints its name `--danger`; Today counts open and finished work (`4 · 1 done`); folded groups dim their names to `--muted`. Today always has a head and count; when empty it shows one muted Nothing planned line.
 
-The Overdue heading ends in one Move all menu with To today and To tomorrow. Each moves every unfinished task in one command, keeping times and deadlines, and leaves a `Moved 6 to today · Undo` line until the next move. To today is disabled with an explanation when every task is already scheduled today, including tasks whose deadline is still overdue. The single menu keeps the rule and count in the heading on narrow panes.
+The Overdue head ends in one bordered Move all menu with To today and To tomorrow. Each moves every unfinished task in one command, keeping times and deadlines, and leaves a `Moved 6 to today · Undo` line until the next move. To today is disabled with an explanation when every task is already scheduled today, including tasks whose deadline is still overdue. The single menu keeps the rule and count in the heading on narrow panes.
 
-Next 7 days groups compact rows by their earliest future schedule or deadline, and excludes tasks already listed as overdue or planned. A live task appears only once across these sections, even when both planning dates contribute to the strip. Collapsed Unplanned and Done groups retain undated work and completion history; a completed occurrence never suppresses its source's live task.
+Upcoming groups rows by their earliest future schedule or deadline, and excludes tasks already listed as overdue or planned. Each day is a sans subhead without a rule: the day's name at 13 px and weight 500 in `--muted` (Tomorrow, then weekdays), then its month and day in `--faint`, as `Tomorrow Oct 26`, `Tuesday Oct 27` and `Sunday Nov 1`, never ISO. A live task appears only once across these sections, even when both planning dates contribute to the strip. Collapsed Unplanned and Done groups retain undated work and completion history; a completed occurrence never suppresses its source's live task.
 
 Opening a row still opens its source. ⌘-click opens it beside (Ctrl-click off Mac). Completion and planning never insert copies into the journal.
 
