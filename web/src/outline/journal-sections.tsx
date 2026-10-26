@@ -3,7 +3,7 @@ import type { Accessor } from 'solid-js';
 import { CaptureField } from '../capture/CaptureField';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { isFinished } from '../tasks/task-labels';
-import { isWritten, readingRowSource, sectionTarget, writtenSections } from '../tasks/today-template';
+import { captureSection, isWritten, readingRowSource, sectionTarget, writtenSections } from '../tasks/today-template';
 import type { TodaySection } from '../tasks/today-template';
 import { foldName } from './names';
 import { SectionHead } from '../ui/SectionHead';
@@ -48,6 +48,7 @@ export function createJournalLayout(doc: PageDocument, notebook: NotebookClient,
     const template = notebook.todayTemplate();
     const today = root.text === notebook.todayDate();
     const written = writtenSections(template);
+    const capture = captureSection(template).id;
     const byName = new Map(written.map(section => [foldName(section.name), section]));
     const heads = new Map<string, JournalSectionHead>();
     const found = new Set<string>();
@@ -67,7 +68,7 @@ export function createJournalLayout(doc: PageDocument, notebook: NotebookClient,
       ranked.push({ id, rank: order.indexOf(section.id) });
       found.add(section.id);
       const children = doc.outline.children(id).filter(child => !doc.isArchived(child));
-      heads.set(id, { section, count: sectionCount(doc, section, children), capture: today && section.id === 'inbox', today });
+      heads.set(id, { section, count: sectionCount(doc, section, children), capture: today && section.id === capture, today });
       if (section.id === 'inbox') for (const child of children) {
         inbox.add(child);
         const target = readingRowSource(doc.block(child)?.text ?? '');
@@ -132,18 +133,18 @@ function sectionCount(doc: PageDocument, section: TodaySection, children: readon
 }
 
 /**
- * A section's own line: Inbox gets the boxed capture field with its ⌘E reminder; other sections a quiet placeholder
- * row that writes nothing until something is entered.
+ * A section's own line: the section ⌘E captures into gets the boxed field with its reminder; other sections a quiet
+ * placeholder row that writes nothing until something is entered.
  */
 export function SectionCapture(props: { notebook: NotebookClient; section: TodaySection; onCaptured?(): void }) {
-  const inbox = () => props.section.id === 'inbox';
+  const boxed = () => props.section.id === captureSection(props.notebook.todayTemplate()).id;
   const target = () => sectionTarget(props.notebook.todayTemplate(), props.section.id);
-  return <div class="section-capture" classList={{ 'section-capture-inbox': inbox() }}
+  return <div class="section-capture" classList={{ 'section-capture-boxed': boxed() }}
     onPointerDown={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
-    <CaptureField notebook={props.notebook} contextDate={() => props.notebook.todayDate()} section={target()} boxed={inbox()}
-      trailing={inbox() ? '⌘E from anywhere' : undefined}
+    <CaptureField notebook={props.notebook} contextDate={() => props.notebook.todayDate()} section={target()} boxed={boxed()}
+      trailing={boxed() ? '⌘E from anywhere' : undefined}
       label={`Capture to ${props.section.name}`}
-      placeholder={inbox() ? `Capture to ${props.section.name}: a thought, a link, [] a task, a question?` : `Write in ${props.section.name}…`}
+      placeholder={boxed() ? `Capture to ${props.section.name}: a thought, a link, [] a task, a question?` : `Write in ${props.section.name}…`}
       inputRef={input => { if (captureFocus() === props.section.id) { setCaptureFocus(null); queueMicrotask(() => input.focus()); } }}
       onSaved={() => { setCaptureFocus(props.section.id); props.onCaptured?.(); }} />
   </div>;

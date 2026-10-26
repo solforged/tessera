@@ -72,6 +72,7 @@
 .today-section-name:hover:not(:disabled) { border-color: var(--line); }
 .today-section-name:focus { border-color: var(--control-border); outline: none; }
 .today-section-role { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
+.today-section-lock { color: var(--muted); }
 .today-section[data-off] :is(.today-section-name, .today-section-role) { color: var(--faint); }
 .today-section-add { display: flex; gap: var(--space-8); margin-block: var(--space-12); }
 .today-section-add .input { flex: 1; max-width: 32ch; }
