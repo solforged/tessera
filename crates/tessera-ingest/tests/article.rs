@@ -1,7 +1,8 @@
 use std::collections::HashSet;
 
 use tessera_core::library::{
-    CreatorKind, CreatorRole, ExtractedDocument, MarkKind, PassageKind, SourceFormat,
+    CreatorKind, CreatorRole, ExtractedDocument, ExtractedMetadata, MarkKind, PassageKind,
+    SourceFormat,
 };
 use tessera_ingest::{Error, article, page_metadata};
 
@@ -320,7 +321,7 @@ fn metadata_byline_can_precede_the_article_container() {
 fn schema_json_ld_creator_signals_override_unstructured_duplicates() {
     let html = r#"<html><head>
       <title>Structured creator kinds</title>
-      <meta name="citation_author" content="Research Institute">
+      <meta name="author" content="Research Institute">
       <script type="application/ld+json">{
         "@type": "ScholarlyArticle",
         "author": [
@@ -393,8 +394,7 @@ fn schema_json_ld_creator_references_keep_the_graph_entity_kind() {
 
 #[test]
 fn schema_microdata_creator_signals_keep_organisation_and_person_kinds() {
-    let html = r#"<meta name="author" content="University Press">
-      <div itemprop="author" itemscope itemtype="https://schema.org/Organization">
+    let html = r#"<div itemprop="author" itemscope itemtype="https://schema.org/Organization">
         <span class="author-name" itemprop="name">University Press</span>
       </div>
       <div itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -426,18 +426,25 @@ fn unstructured_article_creators_keep_person_default_without_name_guessing() {
       <span class="byline">University Press</span>
       <article><p>Text.</p></article>"#;
     let document = article(html, "https://example.org/plain-creators").unwrap();
-    assert_eq!(document.metadata.creators.len(), 4);
+    assert_eq!(document.metadata.creators.len(), 1);
     assert_eq!(
         document.metadata.creators[0].name,
         "The Editors of Encyclopaedia Britannica"
     );
-    assert!(
-        document
-            .metadata
-            .creators
-            .iter()
-            .all(|creator| creator.kind == CreatorKind::Person)
-    );
+    let html = r#"<script type="application/ld+json">{"@type": "Article",
+        "author": ["Research Institute", {"name": "Editorial Collective"}]
+      }</script>
+      <span class="byline">University Press</span>
+      <article><p>Text.</p></article>"#;
+    let document = article(html, "https://example.org/plain-creators").unwrap();
+    assert_eq!(document.metadata.creators.len(), 2);
+    let document = article(
+        "<span class='byline'>University Press</span><article><p>Text.</p></article>",
+        "https://example.org/plain-creators",
+    )
+    .unwrap();
+    assert_eq!(document.metadata.creators[0].name, "University Press");
+    assert_eq!(document.metadata.creators[0].kind, CreatorKind::Person);
 }
 
 #[test]
@@ -503,4 +510,178 @@ fn page_metadata_names_a_page_without_readable_text() {
     let metadata = page_metadata(html, "https://www.gutenberg.org/ebooks/2680").unwrap();
     assert_eq!(metadata.title.as_deref(), Some("Project Gutenberg"));
     assert_eq!(metadata.site.as_deref(), Some("Gutenberg"));
+}
+
+fn names(metadata: &ExtractedMetadata) -> Vec<(&str, CreatorRole)> {
+    metadata
+        .creators
+        .iter()
+        .map(|creator| (creator.name.as_str(), creator.role))
+        .collect()
+}
+
+#[test]
+fn gutenberg_ebook_names_the_book_and_its_catalogue_creators() {
+    let metadata = page_metadata(
+        include_str!("fixtures/gutenberg-ebook.html"),
+        "https://www.gutenberg.org/ebooks/3296",
+    )
+    .unwrap();
+    assert_eq!(
+        metadata.title.as_deref(),
+        Some("The Confessions of St. Augustine")
+    );
+    assert_eq!(metadata.site.as_deref(), Some("Project Gutenberg"));
+    assert_eq!(
+        names(&metadata),
+        [
+            ("Augustine of Hippo", CreatorRole::Author),
+            ("Pusey, E. B.", CreatorRole::Translator),
+        ]
+    );
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = tessera_core::Notebook::open(dir.path()).unwrap();
+    let plan = notebook.plan_source_record(&metadata).unwrap();
+    notebook
+        .apply(&tessera_core::Batch {
+            actor: tessera_core::Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: plan.operations,
+        })
+        .unwrap();
+    let mut people: Vec<_> = notebook
+        .kind_notes("person")
+        .unwrap()
+        .notes
+        .into_iter()
+        .map(|note| note.title)
+        .collect();
+    people.sort();
+    assert_eq!(people, ["Augustine of Hippo", "E. B. Pusey"]);
+}
+
+#[test]
+fn catalogue_headings_become_the_names_readers_write() {
+    for (heading, title, name, stripped) in [
+        (
+            "Marcus Aurelius, Emperor of Rome, 121-180",
+            "Meditations by Emperor of Rome Marcus Aurelius",
+            "Marcus Aurelius",
+            "Meditations",
+        ),
+        (
+            "Dickens, Charles, 1812-1870",
+            "Contributions to All The Year Round by Charles Dickens",
+            "Dickens, Charles",
+            "Contributions to All The Year Round",
+        ),
+        (
+            "Thomas, Aquinas, Saint, 1225?-1274",
+            "Summa Theologica, Part I (Prima Pars) by Saint Aquinas Thomas",
+            "Thomas Aquinas",
+            "Summa Theologica, Part I (Prima Pars)",
+        ),
+        (
+            "Elizabeth I, Queen of England, 1533-1603",
+            "Letters by Queen of England Elizabeth I",
+            "Elizabeth I",
+            "Letters",
+        ),
+        (
+            "Byron, George Gordon Byron, Baron, 1788-1824",
+            "Don Juan by Baron George Gordon Byron Byron",
+            "George Gordon Byron",
+            "Don Juan",
+        ),
+        (
+            "Wells, H. G. (Herbert George), 1866-1946",
+            "The Time Machine by H. G. Wells",
+            "Wells, H. G.",
+            "The Time Machine",
+        ),
+        (
+            "King, Stephen",
+            "Stand by Me",
+            "King, Stephen",
+            "Stand by Me",
+        ),
+    ] {
+        let html = format!(
+            "<title>{title} | Project Gutenberg</title>\
+             <meta property=\"og:site_name\" content=\"Project Gutenberg\">\
+             <table><tr><th>Author</th><td><a rel=\"marcrel:aut\" itemprop=\"creator\">{heading}</a></td></tr></table>"
+        );
+        let metadata = page_metadata(&html, "https://www.gutenberg.org/ebooks/1").unwrap();
+        assert_eq!(metadata.title.as_deref(), Some(stripped), "{heading}");
+        assert_eq!(names(&metadata), [(name, CreatorRole::Author)], "{heading}");
+    }
+}
+
+#[test]
+fn news_citation_tags_outrank_the_page_title_and_site_author() {
+    let metadata = page_metadata(
+        include_str!("fixtures/news-citation.html"),
+        "https://gazette.example/science/tides",
+    )
+    .unwrap();
+    assert_eq!(
+        metadata.title.as_deref(),
+        Some("Tides are rising faster along the coast")
+    );
+    assert_eq!(metadata.site.as_deref(), Some("The Harbour Gazette"));
+    // `Writer, Grace` takes the display name the page's author tag and byline give.
+    assert_eq!(
+        names(&metadata),
+        [
+            ("Grace Writer", CreatorRole::Author),
+            ("Lin Reporter", CreatorRole::Author),
+        ]
+    );
+    assert!(
+        metadata
+            .creators
+            .iter()
+            .all(|creator| creator.kind == CreatorKind::Person)
+    );
+}
+
+#[test]
+fn json_ld_headline_and_author_outrank_tags_that_name_the_site() {
+    let document = article(
+        include_str!("fixtures/json-ld.html"),
+        "https://smallcraft.example/notes/knots",
+    )
+    .unwrap();
+    assert_eq!(
+        document.metadata.title.as_deref(),
+        Some("Knots that hold: notes from a season of sailing & rigging")
+    );
+    assert_eq!(
+        names(&document.metadata),
+        [("Ana Évora", CreatorRole::Author)]
+    );
+    assert_eq!(document.metadata.creators[0].kind, CreatorKind::Person);
+}
+
+#[test]
+fn dublin_core_names_a_page_without_citation_or_schema_metadata() {
+    let html = r#"<title>Untitled document</title>
+      <meta name="DC.title" content="Notes on the river survey">
+      <meta name="DC.creator" content="Austen, Jane, 1775-1817">
+      <meta name="author" content="Jane Austen">"#;
+    let metadata = page_metadata(html, "https://archive.example/item/7").unwrap();
+    assert_eq!(metadata.title.as_deref(), Some("Notes on the river survey"));
+    assert_eq!(names(&metadata), [("Jane Austen", CreatorRole::Author)]);
+}
+
+#[test]
+fn the_site_name_is_never_a_creator() {
+    let html = r#"<title>About us | Small Craft Press</title>
+      <meta property="og:site_name" content="Small Craft Press">
+      <meta name="author" content="Small Craft Press">
+      <span class="byline">small craft press</span>"#;
+    let metadata = page_metadata(html, "https://smallcraft.example/about").unwrap();
+    assert_eq!(metadata.title.as_deref(), Some("About us"));
+    assert!(metadata.creators.is_empty());
 }
