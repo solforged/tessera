@@ -683,7 +683,10 @@ function Pane(props: OutlinePaneProps) {
   }
   function report() {
     if (restoring || disposed || props.projection === 'compare' || reading() && pendingReadAnchor()) return;
-    props.onViewChange({ ...props.view, reveal: undefined, zoom: zoom(), folds: [...folds()], showArchived: showArchived(), depth: depth(), sourceFieldsVisible: sourceFieldsVisible(), readDisclosures: [...readDisclosures()], caret: caret(), scroll: currentAnchor() });
+    // A page left at its top reopens at its top: a row anchor would keep that row's offset under a page head whose
+    // height differs by width and by what its tiles load, and scroll the head away.
+    const top = !reading() && scroll && scroll.scrollTop < 1;
+    props.onViewChange({ ...props.view, reveal: undefined, zoom: zoom(), folds: [...folds()], showArchived: showArchived(), depth: depth(), sourceFieldsVisible: sourceFieldsVisible(), readDisclosures: [...readDisclosures()], caret: caret(), scroll: top ? null : currentAnchor() });
   }
   function scheduleReport() {
     cancelAnimationFrame(reportingFrame);

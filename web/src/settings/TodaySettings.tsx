@@ -55,7 +55,8 @@ export function TodaySettings(props: { id: string; heading: JSX.Element; pane: s
     if (await save({ sections })) setDraft('');
   };
   const role = (section: TodaySection) => sectionRoles[section.id] ?? 'Written section';
-  const locked = (section: TodaySection) => section.id === 'notes' ? 'Notes is always on.' : section.id === captureSection(template()).id ? '⌘E captures here; choose another section first.' : '';
+  // Why a section cannot be turned off, said on its row so touch screens, which have no hover, show it too.
+  const locked = (section: TodaySection) => section.id === 'notes' ? 'Always on' : section.id === captureSection(template()).id ? '⌘E captures here, so it stays on' : '';
 
   return <section id={props.id} aria-labelledby={`${props.id}-heading`} aria-busy={busy()}>
     {props.heading}
@@ -79,9 +80,9 @@ export function TodaySettings(props: { id: string; heading: JSX.Element; pane: s
               if (event.key === 'Enter') event.currentTarget.blur();
               if (event.key === 'Escape') { event.currentTarget.value = section.name; event.currentTarget.blur(); }
             }} />
-          <span class="today-section-role">{role(section)}<Show when={!isWritten(section) && section.id !== 'notes'}> · Generated</Show></span>
+          <span class="today-section-role" id={`${props.id}-${section.id}-role`}>{role(section)}<Show when={!isWritten(section) && section.id !== 'notes'}> · Generated</Show><Show when={locked(section)}>{reason => <span class="today-section-lock"> · {reason()}</span>}</Show></span>
         </span>
-        <input class="settings-switch" type="checkbox" role="switch" aria-label={`Show ${section.name}`} title={locked(section) || undefined}
+        <input class="settings-switch" type="checkbox" role="switch" aria-label={`Show ${section.name}`} aria-describedby={`${props.id}-${section.id}-role`}
           checked={section.on} disabled={busy() || !!locked(section)}
           onChange={event => {
             const on = event.currentTarget.checked;

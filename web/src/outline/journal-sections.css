@@ -6,9 +6,9 @@
 .row-section-head.row-editing > .row-section-tail { display: none; }
 .row-section-tail { display: flex; flex: 1; align-items: center; gap: var(--space-12); min-width: var(--space-16); margin-left: var(--space-4); }
 .row-section-tail > .section-rule { min-width: var(--space-16); }
-/* Inbox's capture line sits under its head at the text column of the rows it fills. */
+/* The ⌘E section's capture line sits under its head at the text column of the rows it fills. */
 .outline-row > .section-capture { flex-basis: 100%; order: 10; padding: var(--space-8) 0 var(--space-4) calc(var(--gutter) + var(--indent-unit)); }
-.section-capture-inbox .capture-line.capture-boxed { height: 40px; }
+.section-capture-boxed .capture-line.capture-boxed { height: 40px; }
 .capture-trailing { flex: none; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 /* Notes is drawn, never written: its head opens the first row outside every section. */
 .outline-row.row-banner { flex-wrap: wrap; }
@@ -26,7 +26,7 @@
 .journal-missing-section .capture-line:not(.capture-boxed) .capture-input { border-bottom-color: transparent; }
 .journal-missing-section .capture-line:not(.capture-boxed) .capture-input:hover { border-bottom-color: var(--line); }
 @media (max-width: 599px) and (pointer: coarse) {
-  .section-capture-inbox { display: none; }
+  .section-capture-boxed { display: none; }
   .row-capture-time { display: none; }
 }
 /* Inbox rows offer Plan, File to… and More at their right edge while hovered or focused; touch keeps them in Atom actions. */
