@@ -153,10 +153,11 @@ fn score(root: ElementRef<'_>) -> usize {
     (readable + paragraphs * 80) * 100 / (elements + 20)
 }
 
-fn meta(document: &Html, key: &str) -> Option<String> {
+/// Every `meta` value named `key`, in document order.
+fn metas<'a>(document: &'a Html, key: &str) -> Vec<&'a str> {
     document
         .select(&selector("meta[content]"))
-        .find(|element| {
+        .filter(|element| {
             [
                 element.value().attr("name"),
                 element.value().attr("property"),
@@ -165,9 +166,15 @@ fn meta(document: &Html, key: &str) -> Option<String> {
             .flatten()
             .any(|name| name.eq_ignore_ascii_case(key))
         })
-        .and_then(|element| element.value().attr("content"))
+        .filter_map(|element| element.value().attr("content"))
+        .collect()
+}
+
+fn meta(document: &Html, key: &str) -> Option<String> {
+    metas(document, key)
+        .into_iter()
         .map(normalize)
-        .filter(|value| !value.is_empty())
+        .find(|value| !value.is_empty())
 }
 
 fn json_articles<'a>(value: &'a Value, output: &mut Vec<&'a Value>) {
@@ -183,6 +190,7 @@ fn json_articles<'a>(value: &'a Value, output: &mut Vec<&'a Value>) {
                     matches!(
                         kind,
                         "Article"
+                            | "Book"
                             | "NewsArticle"
                             | "BlogPosting"
                             | "ScholarlyArticle"
@@ -207,7 +215,23 @@ fn json_articles<'a>(value: &'a Value, output: &mut Vec<&'a Value>) {
     }
 }
 
-fn add_author(creators: &mut Vec<ExtractedCreator>, name: &str, kind: Option<CreatorKind>) {
+/// A creator as one kind of page metadata names it, before the most trusted kind is chosen.
+struct Named {
+    name: String,
+    role: CreatorRole,
+    kind: Option<CreatorKind>,
+}
+
+fn add_author(creators: &mut Vec<Named>, name: &str, kind: Option<CreatorKind>) {
+    add_creator(creators, name, CreatorRole::Author, kind);
+}
+
+fn add_creator(
+    creators: &mut Vec<Named>,
+    name: &str,
+    role: CreatorRole,
+    kind: Option<CreatorKind>,
+) {
     let name = normalize(name);
     let name = name
         .strip_prefix("By ")
@@ -217,17 +241,162 @@ fn add_author(creators: &mut Vec<ExtractedCreator>, name: &str, kind: Option<Cre
     if name.is_empty() || Url::parse(name).is_ok() {
         return;
     }
-    if let Some(creator) = creators.iter_mut().find(|creator| creator.name == name) {
-        if let Some(kind) = kind {
+    if let Some(creator) = creators
+        .iter_mut()
+        .find(|creator| creator.name == name && creator.role == role)
+    {
+        if kind.is_some() {
             creator.kind = kind;
         }
     } else {
-        let mut creator = ExtractedCreator::new(name.to_owned(), CreatorRole::Author);
-        if let Some(kind) = kind {
-            creator.kind = kind;
-        }
-        creators.push(creator);
+        creators.push(Named {
+            name: name.to_owned(),
+            role,
+            kind,
+        });
     }
+}
+
+/// Lowercase words, so `Reader, Ada` and `Ada Reader` name the same person.
+fn words(name: &str) -> impl Iterator<Item = String> + '_ {
+    name.split(|character: char| !character.is_alphanumeric())
+        .filter(|word| !word.is_empty())
+        .map(str::to_lowercase)
+}
+
+fn name_key(name: &str) -> Vec<String> {
+    let mut key: Vec<String> = words(name).collect();
+    key.sort_unstable();
+    key
+}
+
+/// Ranks that mark a catalogue heading entered under a forename, as in
+/// `Marcus Aurelius, Emperor of Rome` or `Augustine, of Hippo, Saint`.
+const FORENAME_RANKS: &[&str] = &[
+    "saint", "st.", "blessed", "pope", "emperor", "empress", "king", "queen", "prince", "princess",
+];
+
+/// A catalogue heading such as `Augustine, of Hippo, Saint, 354-430` or
+/// `Pusey, E. B. (Edward Bouverie), 1800-1882` as a reader writes the name.
+/// A plain `Surname, Forename` stays inverted, as the notebook reads it.
+fn heading_name(heading: &str) -> String {
+    let parts: Vec<&str> = heading
+        .split(',')
+        .map(str::trim)
+        .enumerate()
+        // Dates such as `1812-1870`, `fl. 1600` or `-430 B.C.` follow the name.
+        .filter(|(index, part)| {
+            !part.is_empty() && (*index == 0 || !part.contains(|c: char| c.is_ascii_digit()))
+        })
+        .map(|(_, part)| part)
+        .collect();
+    let ranked = |part: &&str| {
+        part.split_whitespace().next().is_some_and(|word| {
+            FORENAME_RANKS
+                .iter()
+                .any(|rank| word.eq_ignore_ascii_case(rank))
+        })
+    };
+    match parts.as_slice() {
+        [] => heading.to_owned(),
+        [name] => (*name).to_owned(),
+        [name, rest @ ..] if rest.iter().any(ranked) || rest[0].starts_with("of ") => {
+            // Keep bynames such as `of Hippo` or `Aquinas`, and drop ranks.
+            std::iter::once(*name)
+                .chain(rest.iter().copied().filter(|part| {
+                    !ranked(part)
+                        && (part.starts_with("of ") || part.starts_with(char::is_uppercase))
+                }))
+                .collect::<Vec<_>>()
+                .join(" ")
+        }
+        [family, given, ..] => {
+            // Initials keep their usual form: `Wells, H. G. (Herbert George)` is H. G. Wells.
+            let given = normalize(&match given.split_once('(') {
+                Some((initials, rest)) => {
+                    format!(
+                        "{initials} {}",
+                        rest.split_once(')').map_or("", |(_, after)| after)
+                    )
+                }
+                None => (*given).to_owned(),
+            });
+            if given.is_empty() {
+                (*family).to_owned()
+            } else if given.split_whitespace().last() == Some(family) {
+                // `Byron, George Gordon Byron, Baron` already ends with the family name.
+                given
+            } else {
+                format!("{family}, {given}")
+            }
+        }
+    }
+}
+
+/// The first kind of metadata that names creators decides who they are; the
+/// rest only add a kind or the display name of a `Surname, Forename` heading.
+fn chosen_creators<'a>(
+    sources: &'a [Vec<Named>],
+    site: Option<&str>,
+) -> (&'a [Named], Vec<ExtractedCreator>) {
+    let site = site.map(name_key);
+    let named = |creator: &&Named| Some(name_key(&creator.name)) != site;
+    let Some(chosen) = sources
+        .iter()
+        .position(|source| source.iter().any(|creator| named(&creator)))
+    else {
+        return (&[], Vec::new());
+    };
+    let creators = sources[chosen]
+        .iter()
+        .filter(named)
+        .map(|found| {
+            let key = name_key(&found.name);
+            let others = || {
+                sources
+                    .iter()
+                    .flatten()
+                    .filter(|other| name_key(&other.name) == key)
+            };
+            let kind = found
+                .kind
+                .or_else(|| others().find_map(|other| other.kind))
+                .unwrap_or(CreatorKind::Person);
+            let name = if kind == CreatorKind::Organisation {
+                found.name.clone()
+            } else {
+                let heading = heading_name(&found.name);
+                let key = name_key(&heading);
+                heading
+                    .contains(',')
+                    .then(|| {
+                        sources
+                            .iter()
+                            .flatten()
+                            .find(|other| !other.name.contains(',') && name_key(&other.name) == key)
+                    })
+                    .flatten()
+                    .map_or(heading, |other| other.name.clone())
+            };
+            let mut creator = ExtractedCreator::new(name, found.role);
+            creator.kind = kind;
+            creator
+        })
+        .collect();
+    (&sources[chosen], creators)
+}
+
+/// Catalogue pages title a book `Title by Author`, naming the author as the catalogue heading does.
+fn without_byline<'a>(title: &'a str, creators: &[Named]) -> Option<&'a str> {
+    let (title, byline) = title.rsplit_once(" by ")?;
+    let names: std::collections::HashSet<String> = creators
+        .iter()
+        .flat_map(|creator| words(&creator.name))
+        .collect();
+    let mut byline = words(byline).filter(|word| word != "and").peekable();
+    let title = title.trim();
+    (!title.is_empty() && byline.peek().is_some() && byline.all(|word| names.contains(&word)))
+        .then_some(title)
 }
 
 fn schema_kind(kind: &str) -> Option<CreatorKind> {
@@ -271,7 +440,7 @@ fn json_entity<'a>(value: &'a Value, id: &str) -> Option<&'a Value> {
     }
 }
 
-fn json_authors(value: &Value, entities: &[Value], creators: &mut Vec<ExtractedCreator>) {
+fn json_authors(value: &Value, entities: &[Value], creators: &mut Vec<Named>) {
     match value {
         Value::String(name) => add_author(creators, name, None),
         Value::Array(authors) => {
@@ -331,8 +500,33 @@ fn byline_kind(byline: ElementRef<'_>) -> Option<CreatorKind> {
 
 fn metadata(document: &Html, root: ElementRef<'_>, url: &Url) -> ExtractedMetadata {
     let site = meta(document, "og:site_name").or_else(|| url.host_str().map(str::to_owned));
-    let mut title =
-        meta(document, "og:title").or_else(|| document.select(&selector("title")).next().map(text));
+    let json_values: Vec<Value> = document
+        .select(&selector("script[type='application/ld+json']"))
+        .filter_map(|script| serde_json::from_str(&script.text().collect::<String>()).ok())
+        .collect();
+    let mut json = Vec::new();
+    for value in &json_values {
+        json_articles(value, &mut json);
+    }
+    // Bibliographic tags first, then schema.org, Dublin Core, and only then what the page shows.
+    let structured_title = meta(document, "citation_title")
+        .or_else(|| {
+            ["headline", "name"].into_iter().find_map(|key| {
+                json.iter().find_map(|article| {
+                    article
+                        .get(key)
+                        .and_then(Value::as_str)
+                        .map(plain)
+                        .filter(|value| !value.is_empty())
+                })
+            })
+        })
+        .or_else(|| meta(document, "dc.title"))
+        .or_else(|| meta(document, "dcterms.title"));
+    let structured = structured_title.is_some();
+    let mut title = structured_title
+        .or_else(|| meta(document, "og:title"))
+        .or_else(|| document.select(&selector("title")).next().map(text));
     if let (Some(title), Some(site)) = (&mut title, &site) {
         for separator in [" | ", " - "] {
             if let Some((prefix, suffix)) = title.rsplit_once(separator)
@@ -343,42 +537,52 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: &Url) -> ExtractedMetada
             }
         }
     }
-    let json_values: Vec<Value> = document
-        .select(&selector("script[type='application/ld+json']"))
-        .filter_map(|script| serde_json::from_str(&script.text().collect::<String>()).ok())
-        .collect();
-    let mut json = Vec::new();
-    for value in &json_values {
-        json_articles(value, &mut json);
+
+    let mut citation = Vec::new();
+    for name in metas(document, "citation_author") {
+        add_author(&mut citation, name, None);
     }
-    let mut creators = Vec::new();
-    for element in document.select(&selector("meta[content]")) {
-        if [
-            element.value().attr("name"),
-            element.value().attr("property"),
-        ]
-        .into_iter()
-        .flatten()
-        .any(|name| {
-            ["author", "article:author", "citation_author"]
-                .iter()
-                .any(|key| name.eq_ignore_ascii_case(key))
-        }) {
-            add_author(
-                &mut creators,
-                element.value().attr("content").unwrap_or(""),
-                None,
-            );
-        }
-    }
+    let mut schema = Vec::new();
     for article in &json {
         if let Some(author) = article.get("author") {
-            json_authors(author, &json_values, &mut creators);
+            json_authors(author, &json_values, &mut schema);
         }
     }
+    let names = selector("[itemprop=name]");
+    let mut dublin_core = Vec::new();
+    for key in ["dc.creator", "dcterms.creator"] {
+        for name in metas(document, key) {
+            add_author(&mut dublin_core, name, None);
+        }
+    }
+    // Catalogue records mark creators in RDFa with MARC relator roles, as Project Gutenberg does.
+    for element in document.select(&selector("[itemprop~=creator], [rel^='marcrel:']")) {
+        let relator = element.value().attr("rel").and_then(|rel| {
+            rel.split_whitespace()
+                .find_map(|value| value.strip_prefix("marcrel:"))
+        });
+        let role = match relator {
+            None | Some("aut" | "cre") => CreatorRole::Author,
+            Some("edt") => CreatorRole::Editor,
+            Some("trl") => CreatorRole::Translator,
+            Some(_) => continue,
+        };
+        let name = element.select(&names).next().unwrap_or(element);
+        let name = name
+            .value()
+            .attr("content")
+            .map_or_else(|| text(name), str::to_owned);
+        add_creator(&mut dublin_core, &name, role, byline_kind(element));
+    }
+    let mut tagged = Vec::new();
+    for key in ["author", "article:author"] {
+        for name in metas(document, key) {
+            add_author(&mut tagged, name, None);
+        }
+    }
+    let mut shown = Vec::new();
     let bylines =
         selector(".byline, .author, .post-author, .author-name, [rel=author], [itemprop=author]");
-    let names = selector("[itemprop=name]");
     let given_names = selector("[itemprop=givenName]");
     let family_names = selector("[itemprop=familyName]");
     for byline in document.select(&bylines) {
@@ -392,13 +596,21 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: &Url) -> ExtractedMetada
             if name == byline && (given.is_some() || family.is_some()) {
                 let given = given.map(text).unwrap_or_default();
                 let family = family.map(text).unwrap_or_default();
-                add_author(&mut creators, &format!("{given} {family}"), kind);
+                add_author(&mut shown, &format!("{given} {family}"), kind);
             } else if let Some(name) = name.value().attr("content") {
-                add_author(&mut creators, name, kind);
+                add_author(&mut shown, name, kind);
             } else {
-                add_author(&mut creators, &text(name), kind);
+                add_author(&mut shown, &text(name), kind);
             }
         }
+    }
+    let sources = [citation, schema, dublin_core, tagged, shown];
+    let (chosen, creators) = chosen_creators(&sources, site.as_deref());
+    if !structured
+        && let Some(title) = &mut title
+        && let Some(stripped) = without_byline(title, chosen)
+    {
+        *title = stripped.to_owned();
     }
     let published = meta(document, "article:published_time")
         .and_then(|value| date(&value))
