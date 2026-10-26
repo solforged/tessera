@@ -10,6 +10,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { SectionHead } from '../ui/SectionHead';
 import { createSettledChanges, createSlowFlag, sameData } from '../ui/loading';
+import { civilDate, relativeDate } from './relative-date';
 import './agenda.css';
 
 export interface JournalResurfaceProps {
@@ -73,9 +74,6 @@ export function JournalResurface(props: JournalResurfaceProps) {
     onCleanup(() => controller.abort());
   });
   onCleanup(() => { generation++; });
-  const formatter = createMemo(() => new Intl.DateTimeFormat('en-GB', {
-    timeZone: props.notebook.settings()?.time_zone, month: 'short', day: 'numeric',
-  }));
   async function act(row: Surfacing, action: SurfacingAction) {
     if (pending() || !loaded()) return;
     const date = props.date, current = generation;
@@ -112,7 +110,7 @@ export function JournalResurface(props: JournalResurfaceProps) {
           <span class={`resurface-color highlight-color-${row().citation.color ?? 'none'}`} aria-hidden="true" />
           <p class="resurface-quote">{row().citation.quote}</p>
           <div class="resurface-footer">
-            <p class="resurface-meta" title={row().source_title}>{shortSourceTitle(row().source_title)} · {location()}{location().startsWith('¶') ? '' : ` · ¶${row().citation.ordinal + 1}`} · {formatter().format(row().created_at)}</p>
+            <p class="resurface-meta" title={row().source_title}>{shortSourceTitle(row().source_title)} · {location()}{location().startsWith('¶') ? '' : ` · ¶${row().citation.ordinal + 1}`} · {relativeDate(civilDate(row().created_at, props.notebook.settings()?.time_zone), props.notebook.todayDate())}</p>
             <div class="resurface-actions">
               <Button disabled={pending()} onClick={() => void act(row(), 'opened')}>Open</Button><span aria-hidden="true">·</span>
               <Button disabled={pending()} aria-pressed={row().action === 'kept'} onClick={() => void act(row(), 'kept')}><span class="resurface-keep-mark" aria-hidden="true"><Show when={row().action === 'kept'}><Icon name="check" /></Show></span>Keep</Button><span aria-hidden="true">·</span>

@@ -8,7 +8,7 @@ import type { OutlineIndex } from '../document/outline-index';
 import { linkMentionEdit } from '../document/link-mention';
 import { isStableReference, textTokens } from '../document/text-tokens';
 import { documentReady } from '../tasks/JournalAgenda';
-import { relativeDate } from '../tasks/task-labels';
+import { relativeDate } from '../tasks/relative-date';
 import { BlockBreadcrumb, BlockText } from './BlockText';
 import { plainText } from './names';
 import { BacklinkSource, BlockReferenceCount } from './Backlinks';

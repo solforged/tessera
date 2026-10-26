@@ -16,7 +16,7 @@ import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { createSlowFlag } from '../ui/loading';
 import { documentReady } from '../tasks/JournalAgenda';
-import { relativeDate } from '../tasks/task-labels';
+import { civilDate, relativeDate } from '../tasks/relative-date';
 import { CardComposer } from './CardComposer';
 import type { CreateRequest } from '../create/request';
 import type { PopupAnchor } from '../ui/Popup';
@@ -656,7 +656,7 @@ function CardReviewPane(props: ReviewPaneProps) {
             </Show>
             <Show when={!rows().length && value().held_cards}><p class="review-held">{value().held_cards} {value().held_cards === 1 ? 'card is' : 'cards are'} paused or marked Not yet. Start or resume them from their source atoms.</p></Show>
           </section>
-          <ReviewForecast stats={value()} />
+          <ReviewForecast stats={value()} today={props.notebook.todayDate()} />
         </div>
         <dl class="review-stats">
           <div><dt>Retention</dt><dd title="Non-Again grades over the last 30 days">{value().retention === null ? '—' : Math.round(value().retention! * 100)}<Show when={value().retention !== null}><small>%</small></Show></dd></div>
@@ -691,7 +691,7 @@ function CardReviewPane(props: ReviewPaneProps) {
           <div><dt>Streak</dt><dd>{stats()?.streak ?? '—'}<small>{stats()?.streak === 1 ? 'day' : 'days'}</small></dd></div>
         </dl>
         <Show when={grades().some(event => event.grade === 'hard')}><p class="review-pending">{grades().filter(event => event.grade === 'hard').length} Hard</p></Show>
-        <Show when={stats()}>{value => <ReviewForecast stats={value()} />}</Show>
+        <Show when={stats()}>{value => <ReviewForecast stats={value()} today={props.notebook.todayDate()} />}</Show>
         <Show when={missed().length}><section class="review-missed"><h3>Missed</h3><For each={missed()}>{event => <ReviewMissedCard event={event} notebook={props.notebook} />}</For></section></Show>
         <div class="review-done-actions"><Button class="review-start" disabled={locked() || loading()} onClick={() => void backToToday()}>Back to Today</Button><Show when={missed().length}><Button class="bordered" disabled={locked() || loading()} onClick={() => void reviewMissed()}>Review missed</Button></Show><Button disabled={locked() || loading()} onClick={() => moveTo({ deckId: deckId(), sessionId: null })}>Back to decks</Button></div>
       </section>}</Show>
@@ -758,7 +758,7 @@ function ReviewQueueRow(props: { row: CardRow; notebook: NotebookClient; onOpen:
     const text = card.kind === 'occlusion' ? occlusionSides(card)?.front.hint ?? `Mask ${groupLetter(card.occlusion_index ?? 0)}` : card.front;
     return text.split('\n', 1)[0] ?? '';
   });
-  const due = createMemo(() => props.row.card.schedule.last_reviewed_at === null ? null : new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(props.row.card.schedule.due_at));
+  const due = createMemo(() => props.row.card.schedule.last_reviewed_at === null ? null : relativeDate(civilDate(props.row.card.schedule.due_at, props.notebook.settings()?.time_zone), props.notebook.todayDate()));
   return <Button class="review-queue-row" onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, opensBeside(event))}>
     <span class="review-queue-text"><span class="review-queue-front"><Show when={props.row.card.kind === 'occlusion'} fallback={<CardFront plain={!!props.row.card.template} kind={props.row.card.kind} front={front()} back={props.row.card.back} notebook={props.notebook} />}>{front()}</Show></span><span class="review-queue-meta"><span class="review-queue-kind">{kind()}</span><span class="review-queue-source">{plainText(props.row.source.page.text, id => props.notebook.lookup(id))}</span></span></span>
     <span class="review-queue-due" classList={{ overdue: due() !== null && props.row.card.schedule.due_at < Date.now() }}>{due() ?? 'new'}</span>
@@ -766,7 +766,7 @@ function ReviewQueueRow(props: { row: CardRow; notebook: NotebookClient; onOpen:
 }
 
 function nextCardTime(due: number, today: string, timeZone?: string): string {
-  const date = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(due);
+  const date = civilDate(due, timeZone);
   const time = new Intl.DateTimeFormat('en', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(due);
   return `${relativeDate(date, today)} · ${time}`;
 }
@@ -781,7 +781,7 @@ function GradeStrip(props: { grades: ReviewEvent[]; remaining?: number }) {
   return <div class="review-grade-strip" role="img" aria-label={`${props.grades.length} reviewed${props.remaining ? `, ${props.remaining} remaining` : ''}`}><For each={segments()}>{grade => <i class={`review-grade-segment review-grade-${grade}`} title={grade === 'current' ? 'Current card' : grade === 'waiting' ? 'Waiting' : gradeLabels[grade]} />}</For></div>;
 }
 
-function ReviewForecast(props: { stats: ReviewStats }) {
+function ReviewForecast(props: { stats: ReviewStats; today: string }) {
   const maximum = createMemo(() => Math.max(1, ...props.stats.forecast.map(day => day.count)));
   const [selectedDate, setSelectedDate] = createSignal<string | null>(null);
   const selected = createMemo(() => props.stats.forecast.find(day => day.date === selectedDate()) ?? props.stats.forecast[0]);
@@ -789,12 +789,12 @@ function ReviewForecast(props: { stats: ReviewStats }) {
     <header><h2>Next two weeks</h2><span>{props.stats.forecast.reduce((sum, day) => sum + day.count, 0)} due</span></header>
     <div class="review-forecast-bars"><For each={props.stats.forecast}>{(day, index) => {
       const weekday = new Date(`${day.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' });
-      const label = `${weekday} ${day.date} · ${day.count} due`;
+      const label = `${relativeDate(day.date, props.today)} · ${day.count} due`;
       return <button type="button" class="review-forecast-day" classList={{ 'review-forecast-selected': selected()?.date === day.date, 'review-forecast-empty': day.count === 0, 'review-forecast-week-start': index() === 7 }} aria-label={label} aria-pressed={selected()?.date === day.date} title={label} onFocus={() => setSelectedDate(day.date)} onClick={() => setSelectedDate(day.date)}>
         <span class="review-forecast-track"><i style={{ height: `${day.count / maximum() * 100}%` }} /></span><span>{index() === 0 ? Number(day.date.slice(-2)) : weekday.slice(0, 2)}</span>
       </button>;
     }}</For></div>
-    <p class="review-forecast-caption" role="status" aria-live="polite"><Show when={selected()}>{day => <><time dateTime={day().date}>{day().date}</time> · {day().count} due</>}</Show></p>
+    <p class="review-forecast-caption" role="status" aria-live="polite"><Show when={selected()}>{day => <><time dateTime={day().date}>{relativeDate(day().date, props.today)}</time> · {day().count} due</>}</Show></p>
   </section>;
 }
 

@@ -37,7 +37,7 @@ On a narrow touch screen, the field bed is one bottom sheet headed Task fields a
 
 ## Dates and times
 
-Planning facts use the shared `relativeDate` civil-date rule: `today`, `tomorrow` and `yesterday`, then weekday and day only within today's Monday–Sunday week (`Thu 22`), and ISO dates otherwise (`2026-11-02`). Missed schedules prefix the date with `since`; deadlines prefix it with `due`. A plan is late only when it precedes both the displayed date and civil today. A deadline inside its inclusive warning window uses `--warning`; late facts keep `--danger`. The full civil date stays in the tooltip and accessible label.
+Planning facts use the shared `relativeDate` civil-date rule: `today`, `tomorrow` and `yesterday`, then the weekday within six days either side (`Thu`), then the month and day (`Nov 2`), adding the year outside today's (`Nov 2, 2025`). ISO appears only where a date is typed or edited. Missed schedules prefix the date with `since`; deadlines prefix it with `due`. A plan is late only when it precedes both the displayed date and civil today. A deadline inside its inclusive warning window uses `--warning`; late facts keep `--danger`. The tooltip and accessible label spell the full date out (`Scheduled Tuesday, October 6, 2026 at 19:00`).
 
 ### Date suggestions
 
@@ -107,7 +107,7 @@ The task API's optional `project_via: "field"` filter restricts results to expli
 
 ## Agenda destination
 
-The Agenda destination keeps a mono Agenda eyebrow above its title, followed by `· Today` in gilt when the displayed day or week contains today. Day has a spoken date heading, `Sunday, October 25`, never a relative word such as today. Previous day, Today and Next day form one bordered group at the title's right edge, with Today in `--faint` while today is shown. Week uses a week number and ISO range (`W43 · 2026-10-19 – 2026-10-25`) with Previous week / Today / Next week. Both date headings open the journal's calendar; picking a day moves there, and its Today returns to today. Tasks has a plain Tasks title with no date navigation.
+The Agenda destination keeps a mono Agenda eyebrow above its title, followed by `· Today` in gilt when the displayed day or week contains today. Day has a spoken date heading, `Sunday, October 25`, never a relative word such as today. Previous day, Today and Next day form one bordered group at the title's right edge, with Today in `--faint` while today is shown. Week uses a week number and month-and-day range (`Week 43 · Oct 19 – Oct 25`, with the year only outside today's) with Previous week / Today / Next week. Both date headings open the journal's calendar; picking a day moves there, and its Today returns to today. Tasks has a plain Tasks title with no date navigation.
 
 On the cover, a date eyebrow and Agenda page title sit above the day or week stepper. The eyebrow opens the calendar; Tasks uses a Tasks eyebrow instead. Wider layouts keep their date-led heading.
 

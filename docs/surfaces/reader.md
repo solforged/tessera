@@ -150,7 +150,7 @@ The book map is the same as on the source page and the [Library's reading cards]
 
 The card shows, in order:
 
-1. `N% of the book`, with the number in Piazzolla; the chapter by name, `4 · Deus Vult!, 43% through`, with nothing in front matter; and Added in mono at the right. Added uses the shared civil-date rule: `today`, `tomorrow` and `yesterday`, weekday and day only within the current Monday–Sunday week, and ISO otherwise.
+1. `N% of the book`, with the number in Piazzolla; the chapter by name, `4 · Deus Vult!, 43% through`, with nothing in front matter; and Added in mono at the right. Added uses the shared civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's.
 2. The map at double height, with Start, the highlight count and End beneath it.
 3. Left in chapter and Left in book, with their numbers in Piazzolla.
 4. The current chapter and the next five as rows. Each has its numeral and title as the toolbar names it and its length in minutes. The current one has a gilt edge and reads `N min left`.

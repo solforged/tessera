@@ -3,7 +3,7 @@ import type { WorkSession } from '../api/types';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { localDate } from '../ui/MonthGrid';
-import { relativeDate } from './task-labels';
+import { relativeDate } from './relative-date';
 import './work-sessions.css';
 
 export interface WorkSessionsProps {

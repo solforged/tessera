@@ -1,29 +1,11 @@
 import type { AgendaItem, TaskRow, TaskState } from '../api/types';
+import { journalDayLabel } from './journal-date';
+import { calendarDate, daysBetween, relativeDate } from './relative-date';
 
 // One vocabulary for a task's planning, shared by outline rows, the agenda and task queries, and the rules that keep a plan saveable.
 
-const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const priorityNames = { high: 'High', medium: 'Medium', low: 'Low' } as const;
 const repeatModes = { fixed: 'fixed', catch_up: 'catch up', after_completion: 'after completion' } as const;
-// Local noon keeps day arithmetic clear of daylight-saving edges.
-const noon = (date: string) => new Date(`${date}T12:00:00`);
-
-/** Whole civil days from `from` to `to`; negative when `to` is earlier. */
-export function daysBetween(from: string, to: string): number {
-  return Math.round((noon(to).getTime() - noon(from).getTime()) / 86_400_000);
-}
-
-/** Civil neighbors use words; other dates in today's Monday–Sunday week use weekday and day, then ISO. */
-export function relativeDate(date: string, today: string): string {
-  const days = daysBetween(today, date);
-  if (days === 0) return 'today';
-  if (days === 1) return 'tomorrow';
-  if (days === -1) return 'yesterday';
-  const day = noon(date);
-  const weekStart = -((noon(today).getDay() + 6) % 7);
-  if (days >= weekStart && days < weekStart + 7) return `${weekdays[day.getDay()]} ${day.getDate()}`;
-  return date;
-}
 
 export interface TaskFact {
   /** Short mono text shown in the row. */
@@ -50,17 +32,19 @@ export interface FactContext {
 }
 
 const clock = (time: string | null) => time ? ` ${time}` : '';
+/** Tooltips spell the day out in full, since the row's own words are relative. */
+const spelled = (date: string, time: string | null) => `${journalDayLabel(date)}${time ? ` at ${time}` : ''}`;
 export const isFinished = (task: TaskState) => task.status === 'done' || task.status === 'cancelled';
 
 /** Planning facts in reading order. Finished tasks report only when they were done; status itself is the glyph's job. */
 export function taskFacts(task: TaskState, context: FactContext): TaskFact[] {
   if (task.status === 'cancelled') return [];
-  if (task.status === 'done') return task.completed_on ? [{ field: 'status', text: `done ${relativeDate(task.completed_on, context.today)}`, label: `Done ${task.completed_on}` }] : [];
+  if (task.status === 'done') return task.completed_on ? [{ field: 'status', text: `done ${relativeDate(task.completed_on, context.today)}`, label: `Done ${spelled(task.completed_on, null)}` }] : [];
   const facts: TaskFact[] = [];
   if (task.scheduled && !(context.listed && task.scheduled === context.date)) {
     const late = task.scheduled < context.date && task.scheduled < context.today;
     const time = context.timeShown ? '' : clock(task.scheduled_time);
-    facts.push({ field: 'schedule', text: `${late ? 'since ' : ''}${relativeDate(task.scheduled, context.today)}${time}`, label: `Scheduled ${task.scheduled}${clock(task.scheduled_time)}`, late });
+    facts.push({ field: 'schedule', text: `${late ? 'since ' : ''}${relativeDate(task.scheduled, context.today)}${time}`, label: `Scheduled ${spelled(task.scheduled, task.scheduled_time)}`, late });
   }
   if (task.deadline) {
     const late = task.deadline < context.date && task.deadline < context.today;
@@ -68,7 +52,7 @@ export function taskFacts(task: TaskState, context: FactContext): TaskFact[] {
     const warning = !late && task.warning_days !== null && remaining >= 0 && remaining <= task.warning_days;
     const listedDay = context.listed && task.deadline === context.date;
     const time = listedDay && context.timeShown ? '' : clock(task.deadline_time);
-    facts.push({ field: 'deadline', text: listedDay ? `due${time}` : `due ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${task.deadline}${clock(task.deadline_time)}`, late, warning });
+    facts.push({ field: 'deadline', text: listedDay ? `due${time}` : `due ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${spelled(task.deadline, task.deadline_time)}`, late, warning });
   }
   if (task.priority) facts.push({ field: 'priority', text: priorityNames[task.priority], label: `${priorityNames[task.priority]} priority`, priority: task.priority });
   if (task.repeater) {
@@ -183,7 +167,6 @@ export function stripDays(rows: readonly TaskRow[], today: string, overdueToday 
 
 /** Upcoming's day subheads: Tomorrow or the weekday, then the month and day, never ISO. */
 export function upcomingDayLabel(date: string, today: string): { name: string; detail: string } {
-  const day = new Date(`${date}T12:00:00Z`);
-  const name = daysBetween(today, date) === 1 ? 'Tomorrow' : day.toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
-  return { name, detail: day.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }) };
+  const name = daysBetween(today, date) === 1 ? 'Tomorrow' : new Date(`${date}T12:00:00Z`).toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+  return { name, detail: calendarDate(date, today) };
 }

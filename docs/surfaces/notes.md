@@ -181,7 +181,7 @@ The Revisit menu sets a date with Revisit in a week, Revisit in a month, Revisit
 
 The Backlinks section appears and its count refreshes when incoming links change, including links to the note's own blocks. It reports the full count after removing links already represented as perspectives or works, groups sources by referring page, shows the first 100 when open, and offers Load more for each further batch. Unlinked mentions of the title and aliases follow it; see [Backlinks](../design.md#backlinks).
 
-Backlinks, Cited in, Unlinked mentions and Linked to this atom use mono section heads with a rule and faint count. Zero results collapse to one quiet line. Journal backlink rubrics use the shared civil-date rule: `today`, `tomorrow` and `yesterday`, weekday and day only within the current Monday–Sunday week, and ISO otherwise.
+Backlinks, Cited in, Unlinked mentions and Linked to this atom use mono section heads with a rule and faint count. Zero results collapse to one quiet line. Journal backlink rubrics use the shared civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's.
 
 ## Deleted pages
 

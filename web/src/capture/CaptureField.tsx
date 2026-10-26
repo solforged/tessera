@@ -10,7 +10,7 @@ import type { TitleTargets } from '../outline/link-titles';
 import { completeTypes, typeSpelling, typeTokenAt } from '../outline/type-completion';
 import { parseCardText } from '../review/card-text';
 import { captureDateToken, dateSuggestions, insideProtectedSyntax, newTask, planDateToken } from '../tasks/quick-date';
-import { relativeDate } from '../tasks/task-labels';
+import { relativeDate } from '../tasks/relative-date';
 import type { SectionTarget } from '../tasks/today-template';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
