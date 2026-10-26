@@ -5,7 +5,7 @@ import type { OpenTarget } from '../shell/contract';
 import { opensBeside } from '../shell/beside';
 import { TaskSourceRows } from '../tasks/JournalAgenda';
 import { createTaskQuery } from '../tasks/query';
-import { relativeDate } from '../tasks/task-labels';
+import { relativeDate } from '../tasks/relative-date';
 import { Button } from '../ui/Button';
 import './projects.css';
 

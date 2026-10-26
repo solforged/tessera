@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { AgendaItem, AgendaReason, Block, TaskRow, TaskState } from '../api/types';
-import { agendaTaskTime, groupAgenda, groupDayAgenda, planTask, plannedTaskCounts, relativeDate, stripDays, taskFacts, upcomingDayLabel } from './task-labels';
+import { agendaTaskTime, groupAgenda, groupDayAgenda, planTask, plannedTaskCounts, stripDays, taskFacts, upcomingDayLabel } from './task-labels';
 
 const todo: TaskState = { status: 'todo', scheduled: null, scheduled_time: null, deadline: null, deadline_time: null, warning_days: null, repeater: null, priority: null, completed_on: null };
 
@@ -9,45 +9,19 @@ function item(id: string, reasons: AgendaReason[], patch: Partial<TaskState> = {
   return { source: { page, block: { ...page, id, parent_id: pageId, kind: 'block', text: id } }, task: { ...todo, ...patch }, reasons, project_id: null, time: null, section_id: null, section_text: null };
 }
 
-describe('relativeDate', () => {
-  test('names civil neighbors, uses weekdays only in the current Monday–Sunday week, then ISO', () => {
-    expect(relativeDate('2026-10-22', '2026-10-22')).toBe('today');
-    expect(relativeDate('2026-10-23', '2026-10-22')).toBe('tomorrow');
-    expect(relativeDate('2026-10-21', '2026-10-22')).toBe('yesterday');
-    expect(relativeDate('2026-10-19', '2026-10-22')).toBe('Mon 19');
-    expect(relativeDate('2026-10-24', '2026-10-22')).toBe('Sat 24');
-    expect(relativeDate('2026-10-25', '2026-10-22')).toBe('Sun 25');
-    expect(relativeDate('2026-10-26', '2026-10-22')).toBe('2026-10-26');
-    expect(relativeDate('2026-10-18', '2026-10-22')).toBe('2026-10-18');
-    expect(relativeDate('2027-01-02', '2026-12-30')).toBe('Sat 2');
-    expect(relativeDate('2027-01-04', '2026-12-30')).toBe('2027-01-04');
-  });
-
-  test('keeps yesterday and tomorrow words across a week boundary', () => {
-    expect(relativeDate('2026-10-18', '2026-10-19')).toBe('yesterday');
-    expect(relativeDate('2026-10-19', '2026-10-18')).toBe('tomorrow');
-    expect(relativeDate('2026-10-20', '2026-10-18')).toBe('2026-10-20');
-  });
-
-  test('counts civil days across a daylight-saving change', () => {
-    expect(relativeDate('2026-11-02', '2026-11-01')).toBe('tomorrow');
-    expect(relativeDate('2026-03-08', '2026-03-07')).toBe('tomorrow');
-  });
-});
-
 describe('taskFacts', () => {
   const day = { date: '2026-10-10', today: '2026-10-10' };
 
   test('marks missed scheduled and deadline dates late only before both displayed day and civil today', () => {
     const facts = taskFacts({ ...todo, scheduled: '2026-10-06', scheduled_time: '19:00', deadline: '2026-10-08' }, day);
-    expect(facts.map(fact => [fact.text, !!fact.late])).toEqual([['since Tue 6 19:00', true], ['due Thu 8', true]]);
-    expect(facts[0]!.label).toBe('Scheduled 2026-10-06 19:00');
+    expect(facts.map(fact => [fact.text, !!fact.late])).toEqual([['since Tue 19:00', true], ['due Thu', true]]);
+    expect(facts[0]!.label).toBe('Scheduled Tuesday, October 6, 2026 at 19:00');
   });
 
   test('prospective days do not mark plans on or after today late or add a since prefix', () => {
     const future = { date: '2026-10-25', today: '2026-10-22' };
     const facts = taskFacts({ ...todo, scheduled: '2026-10-23', deadline: '2026-10-24' }, future);
-    expect(facts.map(fact => [fact.text, fact.late])).toEqual([['tomorrow', false], ['due Sat 24', false]]);
+    expect(facts.map(fact => [fact.text, fact.late])).toEqual([['tomorrow', false], ['due Sat', false]]);
     expect(taskFacts({ ...todo, scheduled: '2026-10-22', deadline: '2026-10-22' }, future).map(fact => [fact.text, fact.late])).toEqual([['today', false], ['due today', false]]);
     expect(taskFacts({ ...todo, scheduled: '2026-10-21', deadline: '2026-10-21' }, future).map(fact => [fact.text, fact.late])).toEqual([['since yesterday', true], ['due yesterday', true]]);
   });
@@ -190,7 +164,7 @@ describe('agendaTaskTime', () => {
   test('carried work retains its clock but reports its date once as a missed-plan fact', () => {
     const row = item('carried', ['overdue'], { scheduled: '2026-10-06', scheduled_time: '19:00' });
     expect(agendaTaskTime(row, '2026-10-10')).toBe('19:00');
-    expect(taskFacts(row.task, { date: '2026-10-10', today: '2026-10-10', listed: true, timeShown: true }).map(fact => fact.text)).toEqual(['since Tue 6']);
+    expect(taskFacts(row.task, { date: '2026-10-10', today: '2026-10-10', listed: true, timeShown: true }).map(fact => fact.text)).toEqual(['since Tue']);
   });
 });
 

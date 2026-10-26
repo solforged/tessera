@@ -15,6 +15,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Changed
 
+- Spoke every listed date one way, from civil today in the notebook's zone: today, tomorrow and yesterday, the weekday within six days either side, then `Oct 24`, and `Oct 24, 2025` outside today's year. Task facts, Agenda's Week title (`Week 44 · Oct 26 – Nov 1`), Review's due list, next card and forecast, resurfaced highlights, work sessions, backlink rubrics and the reader's Added line share it; ISO stays where a date is typed or edited, and task tooltips spell the full date out.
 - Dropped the Reader display row from Settings › Preferences, since the reader sets it beside the text, and folded About's workshop id, URL, assets and an installed launch agent into a closed Diagnostics disclosure. Created now reads as an ISO date in the journal zone.
 
 - Moved History out of Settings into its own pane, opened from a History button in the Settings header or `Open history`, so Settings holds only settings and its Undo and Redo. Undo entries read `Undid: <summary>` (or `Redid:`) instead of `Undid change <seq>`, and a change from a device this side no longer knows reads Another device instead of its ID.
@@ -39,7 +40,6 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Kept receipt blobs out of the change catch-up read's sort, so `changes_since` meets its 100 ms budget at 10,000 and 50,000 blocks, and paged HTTP and WebSocket catch-up at 500 events to match the client.
 - Named history entries that touched no atom (a created page, a settings change) by their reason or `Changed the workshop` instead of `0 atoms changed`.
 - Showed logged work beside task rows as a quiet duration chip that opens their work sessions, excluding the running clock and reversed sessions.
-- Settled civil dates: today, tomorrow and yesterday stay words, weekday and day serve only inside the current Monday–Sunday week, and every other date reads ISO across task facts, work sessions, backlink rubrics, the reader's Added line, Review's next card and the Week header.
 - Colored deadlines inside their warning window with the warning tone, kept danger for genuinely late plans, and headed a future day's earlier work `Before this day` instead of `Overdue`.
 - Shared one agenda count between the sidebar badge and the Today tile, and made the badge tooltip spell it out (`6 to do: 4 today · 2 overdue`).
 - Lowercased built-in task field names (`status`, `deadline`, `project`) in the field bed, Fields, templates and tables, and sentence-cased generated labels such as `New book…`.

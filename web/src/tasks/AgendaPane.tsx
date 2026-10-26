@@ -13,7 +13,8 @@ import { Popup } from '../ui/Popup';
 import { createSlowFlag, sameData } from '../ui/loading';
 import { AgendaWeekStrip } from './AgendaWeekStrip';
 import { spokenJournalDate } from './journal-date';
-import { agendaTaskTime, daysBetween, groupAgenda, groupDayAgenda, isFinished, upcomingDayLabel } from './task-labels';
+import { daysBetween, weekRangeTitle } from './relative-date';
+import { agendaTaskTime, groupAgenda, groupDayAgenda, isFinished, upcomingDayLabel } from './task-labels';
 import { SectionHead, SectionSubhead } from '../ui/SectionHead';
 import { captureSection, sectionTarget } from './today-template';
 import { TaskSourceRows } from './JournalAgenda';
@@ -358,13 +359,7 @@ export function AgendaPane(props: AgendaPaneProps) {
   const weekTitle = createMemo(() => {
     const first = mondayWeekStart(date());
     if (!first) return spokenJournalDate(date());
-    const last = shiftCalendarDate(first, 6) ?? '9999-12-31';
-    const thursday = new Date(`${first}T12:00:00Z`);
-    thursday.setUTCDate(thursday.getUTCDate() + 3);
-    const yearStart = new Date(thursday);
-    yearStart.setUTCMonth(0, 1);
-    const week = Math.ceil(((thursday.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
-    return `W${week} · ${first} – ${last}`;
+    return weekRangeTitle(first, shiftCalendarDate(first, 6) ?? '9999-12-31', props.notebook.todayDate());
   });
   /** The displayed day, or Week's displayed week, holds civil today. */
   const showsToday = createMemo(() => {

@@ -1,7 +1,7 @@
 import { For, Show, createMemo } from 'solid-js';
 import type { Citation } from '../api/types';
 import { formatProgress } from '../library/query';
-import { relativeDate } from '../tasks/task-labels';
+import { relativeDate } from '../tasks/relative-date';
 import { localDate } from '../ui/MonthGrid';
 import { BookMap } from '../ui/BookMap';
 import { Button } from '../ui/Button';

@@ -5,7 +5,7 @@ import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { movableTo, rescheduleTasks } from './reschedule';
 import type { Rescheduled } from './reschedule';
-import { relativeDate } from './task-labels';
+import { relativeDate } from './relative-date';
 
 /** Moves a group of tasks to one day and keeps a quiet `Moved 6 to today · Undo` line until the next move. */
 export function createBulkMove(notebook: NotebookClient, onChanged: () => void): { move(rows: readonly (TaskRow | AgendaItem)[], date: string): void; Notice: () => JSX.Element } {
