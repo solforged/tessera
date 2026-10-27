@@ -14,7 +14,7 @@
 .reference-preview-pin.button[aria-pressed="true"] { background: transparent; color: var(--accent); }
 .reference-preview-pin kbd { color: var(--faint); font: inherit; }
 .reference-preview-title { margin-top: var(--space-4); }
-.reference-preview-title h2 { margin: 0; font: var(--weight-title) var(--text-h1)/var(--line-h1) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-title); overflow-wrap: anywhere; }
+.reference-preview-title h2 { margin: 0; font: var(--weight-title) var(--text-h1)/var(--line-h1) var(--font-display); overflow-wrap: anywhere; }
 .reference-preview-kind { color: var(--muted); font-weight: var(--weight-control); }
 .reference-preview-gloss { margin: var(--space-8) 0 0; color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-body); overflow-wrap: anywhere; }
 .reference-preview-pills { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-8); }
@@ -34,8 +34,8 @@
 .reference-preview-reading { padding-block: var(--space-8); border-bottom: 1px solid var(--line); }
 .reference-preview-reading:last-child { padding-bottom: 0; border-bottom: 0; }
 .reference-preview-reading-heading { display: flex; align-items: baseline; gap: var(--space-8); }
-.reference-preview-siglum { flex: none; color: var(--accent); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.reference-preview-holder.button { flex: 1; min-width: 0; justify-content: space-between; padding: 0; color: var(--text); font: var(--weight-control) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+.reference-preview-siglum { flex: none; color: var(--accent); font: var(--figures); letter-spacing: var(--tracking-apparatus); }
+.reference-preview-holder.button { flex: 1; min-width: 0; justify-content: space-between; padding: 0; color: var(--text); font: var(--weight-control) var(--text-quote)/var(--line-quote) var(--font-display); }
 .reference-preview-holder > span:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .reference-preview-holder.button[aria-expanded="true"] { color: var(--accent); }
 .reference-preview-expand { color: var(--faint); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
@@ -49,7 +49,7 @@
 .reference-preview-compare.button { align-self: flex-start; margin: var(--space-4) var(--space-16) var(--space-8); padding: 0; color: var(--accent); font-family: var(--font-body); }
 
 .reference-preview-footer { display: flex; align-items: center; gap: var(--space-4); margin-top: auto; padding: var(--space-4) var(--space-12) var(--space-4) var(--space-16); border-top: 1px solid var(--line); }
-.reference-preview-counts { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.reference-preview-counts { color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .reference-preview-spacer { flex: 1; }
 .reference-preview-footer .button { flex: none; font-family: var(--font-body); }
 .reference-preview-footer .button.primary { color: var(--accent); }

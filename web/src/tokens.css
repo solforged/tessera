@@ -66,27 +66,31 @@
   --font-reading-serif: var(--font-display);
   --font-mono: "Berkeley Mono Variable", "Berkeley Mono", "SFMono-Regular", Menlo, Consolas, monospace;
   --text-apparatus: 11.5px; --line-apparatus: 16px;
-  --apparatus: var(--weight-body) var(--text-apparatus)/var(--line-apparatus) var(--font-mono);
+  /* The apparatus labels in small Plex; only figures (counts, dates, times, sigla) are mono. */
+  --apparatus: var(--weight-body) var(--text-meta)/var(--line-apparatus) var(--font-body);
+  --figures: var(--weight-body) var(--text-apparatus)/var(--line-apparatus) var(--font-mono);
+  --caps: var(--weight-control) var(--text-caps)/var(--line-apparatus) var(--font-body); /* with --tracking-caps and uppercase */
   --tracking-apparatus: .01em;
   --tracking-notebook: .14em;
-  --tracking-title: -.005em; --tracking-heading: -.003em;
+  --tracking-caps: .09em; /* uppercase labels in Plex: survey lettering */
+  /* One step per level, never a pixel apart: 11.5 · 12 · 13 · 15 · 17 · 20 · 26 · 36. */
   --text-meta: 12px; --line-meta: 16px;       /* pills and labels */
+  --text-caps: 11px;                          /* uppercase labels, which read larger than their size */
   --text-control: 13px; --line-control: 18px; /* buttons, menus, sidebar, tables */
   --text-body: 15px; --line-body: 24px;       /* block text, inputs */
-  --text-h3: 16px; --line-h3: 24px;
-  --text-h2: 18px; --line-h2: 26px;           /* also section and pane titles */
-  --text-outline-h2: 19px;
-  --text-h1: 24px; --line-h1: 30px;           /* also dialog and view headings */
-  --text-title: 32px; --line-title: 38px;     /* page titles */
-  --text-figure: 56px; --line-figure: 56px;   /* a serif count set as a title figure, as Review's due count */
-  --text-quote: 16px; --line-quote: 24px;
+  --text-h3: 17px; --line-h3: 24px;
+  --text-h2: 20px; --line-h2: 28px;           /* also section and pane titles */
+  --text-outline-h2: 20px;
+  --text-h1: 26px; --line-h1: 32px;           /* also dialog and view headings */
+  --text-title: 36px; --line-title: 42px;     /* page titles */
+  --text-figure: 64px; --line-figure: 64px;   /* a serif count set as a title figure, as Review's due count */
+  --text-quote: 17px; --line-quote: 26px;
   --text-gloss: 17px; --line-gloss: 26px;     /* a page's gloss under its title */
-  --text-library-title: 15.5px;
+  --text-library-title: var(--text-body);
   --line-source-title: 22px;
+  /* Piazzolla takes its optical size from the font size (font-optical-sizing: auto). */
   --weight-body: 400; --weight-control: 500; --weight-heading: 600;
-  --weight-title: 430; --weight-display-heading: 480; --weight-source-title: 560;
-  --optical-title: "opsz" 30; --optical-heading: "opsz" 20;
-  --optical-quote: "opsz" 16; --optical-reader: "opsz" 17;
+  --weight-title: 430; --weight-display-heading: 460; --weight-source-title: 530;
 
   /* Spacing and size. */
   --space-2: 2px; --space-4: 4px; --space-8: 8px;
@@ -127,7 +131,7 @@
   --card-padding: var(--space-16);        /* inside a boxed tile or card */
   --card-gap: var(--space-16);            /* between boxed cards */
   --page-bottom-space: var(--space-48);   /* after the last item; fixed docks add their own clearance */
-  --page-title-font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display); /* with --optical-title and --tracking-title */
+  --page-title-font: var(--weight-title) var(--text-title)/var(--line-title) var(--font-display);
 
   /* Week planning has a half-hour card and a readable column at narrow widths. */
   --week-measure: 1200px;
@@ -141,7 +145,7 @@
   --week-rule-width: 1px;
   --week-drag-threshold: var(--space-4);
 
-  /* Shape and elevation. Only floating layers cast shadows. */
+  /* Shape and elevation. Only floating layers cast deep shadows; a leaf on the page only touches it. */
   --radius-control: 2px; --radius-popup: 3px; --radius-workspace: 0; --radius-pill: 999px;
   --registration-size: 9px; --rule-width: 1px;
   --rubric-width: 24px; --rubric-height: 2px;
@@ -150,6 +154,18 @@
   --dialog-shadow: 0 24px 64px #000a;
   --mask-opaque: #000;
   --image-filter: brightness(.85); /* figures dimmed so white pages do not glare on the dark canvas */
+
+  /* Material. A pane is a sheet with a grain; a tile or slip is a leaf laid on it, lit along its
+     top edge and touching the sheet beneath; a field is a well pressed into it. By night the
+     layers are cyanotype and stay cool, so nothing warm floats over the ink-blue and greys it. */
+  --lit-edge: #d4e0ff12;       /* light caught along a sheet's top edge */
+  --contact-shadow: #00000080; /* where a leaf meets what lies beneath */
+  --leaf: color-mix(in srgb, var(--canvas), #a9bff0 4.5%);
+  --well: color-mix(in srgb, var(--canvas), #000 35%);
+  --well-shade: inset 0 1px 2px #00000099, inset 0 0 0 1px #00000040;
+  --tick: color-mix(in srgb, var(--faint) 70%, transparent); /* registration ticks at a leaf's corners */
+  --tick-length: 8px;
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .8 0 0 0 0 .87 0 0 0 0 1 .04 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); /* fine and sparse; a mottle reads as smoke on midnight */
 
   /* Motion acknowledges input without delaying the action. */
   --motion-fast: 90ms;
@@ -163,6 +179,7 @@
   --icon-press-scale: .94;
 
   font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body);
+  font-optical-sizing: auto;
   background: var(--canvas);
   color: var(--text);
 }
@@ -179,7 +196,7 @@
   --surface: #f0ebe0;
   --canvas: #f8f5ee;
   --raised: #fffdf8;
-  --hover: #f0eadd;
+  --hover: #edeae3; /* a wash of ink, not of ochre */
   --selection: #e9e0cc;
   --text-selection: #a8761a40;
   --line: #ddd5c4;
@@ -209,6 +226,13 @@
   --highlight-ink-l: 0.90; --highlight-ink-deep: 0.84; --highlight-ink-chroma: 1;
 
   --popup-shadow: 0 12px 32px #3b2c1426;
+  --lit-edge: #ffffffe6;
+  --contact-shadow: #3b2c141f;
+  --leaf: var(--raised);
+  --well: color-mix(in srgb, var(--canvas), #6b5a3a 7%);
+  --well-shade: inset 0 1px 2px #3b2c1424, inset 0 0 0 1px #3b2c1414;
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .3 0 0 0 0 .22 0 0 0 0 .1 .09 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .42 0 0 0 0 .2 .08 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)'/%3E%3C/svg%3E"); /* vellum: a fine fibre and a slow mottle */
   --dialog-shadow: 0 24px 64px #3b2c1438;
   --image-filter: none;
 }

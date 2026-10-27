@@ -4,7 +4,7 @@
 .shortcuts-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-16); }
 .shortcuts-head .popup-title { margin-bottom: var(--space-16); }
 .shortcuts-columns { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: var(--space-32); }
-.shortcuts-section { margin: 0 0 var(--space-8); padding-bottom: var(--space-4); border-bottom: var(--rule-width) solid var(--line); color: var(--faint); font: var(--apparatus); text-transform: uppercase; letter-spacing: var(--tracking-notebook); }
+.shortcuts-section { margin: 0 0 var(--space-8); padding-bottom: var(--space-4); border-bottom: var(--rule-width) solid var(--line); color: var(--faint); font: var(--caps); text-transform: uppercase; letter-spacing: var(--tracking-caps); }
 .shortcuts-group { margin: var(--space-12) 0 var(--space-4); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .shortcuts dl { display: grid; grid-template-columns: minmax(0, auto) minmax(0, 1fr); column-gap: var(--space-16); margin: 0; }
 .shortcuts-syntax dl { grid-template-columns: minmax(0, 12em) minmax(0, 1fr); }

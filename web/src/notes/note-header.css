@@ -1,13 +1,13 @@
 /* A note's header: kinds above the title, alternate names and apparatus beneath it. */
-.note-eyebrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); margin: 0 0 var(--page-eyebrow-gap); color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.note-eyebrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); margin: 0 0 var(--page-eyebrow-gap); color: var(--danger); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 .note-eyebrow button { padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; cursor: pointer; }
 .note-eyebrow button { display: inline-flex; align-items: center; gap: var(--space-4); }
 .note-eyebrow .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
 .note-eyebrow button:hover { color: var(--accent); }
 .note-eyebrow-separator { color: var(--faint); }
-.note-aliases { margin: var(--page-title-gap) 0 0; color: var(--muted); font: italic var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); overflow-wrap: anywhere; }
+.note-aliases { margin: var(--page-title-gap) 0 0; color: var(--muted); font: italic var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); overflow-wrap: anywhere; }
 .note-aliases button { min-height: var(--target-size); padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .note-aliases button:hover { color: var(--accent); }
-.note-aliases-label { margin-right: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.note-aliases-label { margin-right: var(--space-8); color: var(--faint); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 .note-aliases-separator { color: var(--faint); font-style: normal; }
 .note-line { display: flex; flex-wrap: wrap; gap: 0 var(--space-8); margin: var(--page-title-gap) 0 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }

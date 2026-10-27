@@ -1,5 +1,5 @@
 /* Health grows inside each paired-device row. Review belongs to the notebook on both sides. */
-.settings-pane .devices-url { color: var(--text); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.settings-pane .devices-url { color: var(--text); font: var(--figures); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
 .settings-pane p.devices-hub { margin: var(--space-8) 0 var(--space-4); color: var(--muted); }
 .settings-pane .devices-hub .devices-url { color: inherit; }
 .devices-retained { margin: var(--space-12) 0 0; color: var(--muted); }
@@ -52,7 +52,7 @@
 .popup.pair-dialog, .popup-exit.pair-dialog { padding: 0; font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
 .pair-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-12); padding: var(--space-16) var(--space-16) var(--space-8) var(--space-24); }
 .pair-register { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.pair-head h2 { margin: var(--space-4) 0 0; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+.pair-head h2 { margin: var(--space-4) 0 0; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
 .pair-dialog .error { margin: 0 var(--space-24) var(--space-8); }
 .pair-body { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-32); padding: var(--space-8) var(--space-24) var(--space-24); }
 .pair-code { display: flex; flex-direction: column; align-items: center; gap: var(--space-12); margin: 0; }

@@ -52,21 +52,23 @@
 .constellation-hub { fill: var(--accent); }
 .apparatus-sources { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-4); font-size: var(--text-meta); line-height: var(--line-meta); }
 .apparatus-sources li { display: flex; align-items: baseline; gap: var(--space-8); min-width: 0; }
-.apparatus-siglum { flex: none; min-width: var(--siglum-width); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: center; white-space: nowrap; }
+.apparatus-siglum { flex: none; min-width: var(--siglum-width); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--muted); font: var(--figures); letter-spacing: var(--tracking-apparatus); text-align: center; white-space: nowrap; }
 .apparatus-sources button { min-width: 0; overflow: hidden; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 .apparatus-sources button:hover { color: var(--accent); }
 .outline-title-row { display: flex; align-items: flex-start; gap: var(--space-8); flex-wrap: wrap; }
 .outline-title-row h1 { flex: 1; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .outline-header-actions { display: flex; align-items: center; gap: var(--space-8); margin-left: auto; }
-.table-member-count { min-width: 18px; padding: 0 var(--space-4); border-radius: var(--radius-pill); background: var(--raised); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-align: center; }
-.outline-heading h1 { margin: 0; font: var(--page-title-font); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
-.outline-title { display: block; max-width: 100%; overflow-wrap: anywhere; white-space: normal; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); text-align: left; border: 0; padding: 0; background: transparent; color: var(--text); cursor: text; }
+.table-member-count { min-width: 18px; padding: 0 var(--space-4); border-radius: var(--radius-pill); background: var(--raised); color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-align: center; }
+.outline-heading h1 { margin: 0; font: var(--page-title-font); }
+.outline-title { display: block; max-width: 100%; overflow-wrap: anywhere; white-space: normal; font: var(--page-title-font); text-align: left; border: 0; padding: 0; background: transparent; color: var(--text); cursor: text; }
+/* A source page names a work, so its title is italic, as a bibliography sets it. */
+.source-page .outline-title-row h1 :is(.outline-title, .title-input) { font-style: italic; }
 /* A title with tags: behavior glyphs lead it as on an index, and the other tags follow it as pills at meta size. */
 .outline-title-tagged { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-12); }
 .outline-title-tagged > .icon { flex: none; align-self: center; color: var(--faint); }
 .outline-title-tagged > .outline-tag { margin: 0; font-family: var(--font-body); letter-spacing: normal; font-variation-settings: normal; }
 .outline-title:disabled { color: var(--text); opacity: 1; cursor: default; }
-.title-input { width: 100%; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.title-input { width: 100%; font: var(--page-title-font); }
 /* The pane header carries a zoom's trail; only once its ancestors step aside does the page repeat them. */
 .outline-breadcrumbs { display: none; flex-wrap: wrap; align-items: center; gap: var(--space-4); margin-bottom: var(--page-eyebrow-gap); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
 .outline-breadcrumbs button { background: transparent; border: 0; padding: var(--space-2); color: inherit; max-width: 220px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap; }
@@ -117,7 +119,7 @@
 /* The caret marks the block being edited. CodeMirror's own `outline: none` does not reach the Android WebView,
    which then draws the global gilt ring around the whole block. */
 .editor-host .cm-content:focus-visible { outline: none; }
-.outline-body:is(.heading-1, .heading-2, .heading-3) { font-family: var(--font-display); font-weight: var(--weight-display-heading); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+.outline-body:is(.heading-1, .heading-2, .heading-3) { font-family: var(--font-display); font-weight: var(--weight-display-heading); }
 .outline-body.heading-1 { font-size: var(--text-h1); line-height: var(--line-h1); }
 .outline-body.heading-2 { font-size: var(--text-outline-h2); line-height: var(--line-h2); }
 .outline-body.heading-3 { font-size: var(--text-h3); line-height: var(--line-h3); }
@@ -130,8 +132,8 @@
 .reference-locator { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .outline-citation:hover .reference-locator { color: var(--accent); }
 /* A whole-row quote read as text elsewhere: a mono rubric, then the quoted block in the quote face. */
-.quote-label { font-family: var(--font-display); font-variation-settings: var(--optical-quote); }
-.quote-label-rubric { margin-right: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.quote-label { font-family: var(--font-display); }
+.quote-label-rubric { margin-right: var(--space-8); color: var(--faint); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 /* The `[[query]]` a picker is completing: accent text on a tint, so the pending link reads as one span. */
 .outline-reference-draft { color: var(--accent); background: var(--accent-tint); border-radius: var(--radius-control); }
 .outline-reference .icon { width: var(--icon-size-small); height: var(--icon-size-small); display: inline; vertical-align: -2px; margin-right: var(--space-4); }
@@ -148,7 +150,7 @@
 .row-gloss .empty-block { font: inherit; }
 /* A source's siglum hangs in the margin beside rows that cite it, as in a critical edition. */
 .row-sigla { position: absolute; right: 100%; top: calc((var(--row-height) - var(--line-apparatus)) / 2); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-4); margin-right: var(--space-4); }
-.row-siglum { min-width: var(--siglum-width); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--canvas); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-align: right; white-space: nowrap; }
+.row-siglum { min-width: var(--siglum-width); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--canvas); color: var(--muted); font: var(--figures); letter-spacing: var(--tracking-apparatus); text-align: right; white-space: nowrap; }
 .outline-row-linked .row-siglum, .outline-row.row-selected .row-siglum { border-color: var(--accent); background: var(--accent); color: var(--canvas); }
 @container outline-pane (max-width: 856px) {
   .outline-pane[data-projection="outline"] .outline-row:has(> .row-sigla) { flex-wrap: wrap; }
@@ -188,11 +190,11 @@
 .question-parent .question-parent-name { color: var(--text); }
 .question-parent .button:is(:hover, :focus-visible) { color: var(--accent); }
 .question-branches { min-width: 0; max-width: var(--measure); margin: var(--section-gap) auto; }
-.question-branches h3 { margin: 0 0 var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.question-branches h3 { margin: 0 0 var(--space-8); color: var(--muted); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 .question-branches .question-branch { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: flex-start; gap: var(--space-4) var(--space-12); width: 100%; min-width: 0; padding: var(--space-8) 0; border-top: var(--rule-width) solid var(--line); white-space: normal; text-align: left; }
 .question-branch-title { flex: 1 1 var(--apparatus-width); min-width: 0; overflow-wrap: anywhere; font-size: var(--text-body); }
 .question-branch .outline-question { display: inline-flex; align-items: center; gap: var(--space-4); font-size: var(--text-meta); }
-.question-branch-count { color: var(--faint); font: var(--apparatus); }
+.question-branch-count { color: var(--faint); font: var(--figures); }
 .question-branch-reading { flex: 1 0 100%; color: var(--muted); overflow-wrap: anywhere; }
 .assessment-journal-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--space-8); }
 .assessment-journal .assessment-journal-head > h3 { flex: none; float: none; width: auto; white-space: nowrap; }
@@ -232,7 +234,7 @@
 .outline-row:is(:hover, :focus-within, .row-selected) .outline-value-edit { opacity: 1; pointer-events: auto; }
 .outline-value-edit .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
 .inline-field-value:is([data-value-kind="date"], [data-value-kind="number"]) .static-text,
-.outline-value-cell:is([data-value-kind="date"], [data-value-kind="number"]) > .outline-value-text { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.outline-value-cell:is([data-value-kind="date"], [data-value-kind="number"]) > .outline-value-text { font: var(--figures); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
 .outline-reading-problem { text-decoration: underline dotted var(--warning); text-underline-offset: var(--space-4); }
 /* Every owner's missing template fields stay below its last entry, independent of selection.
    Slots span the canvas so the anchor row's hover and selection stay on its own line. */
@@ -274,7 +276,7 @@
 .outline-row[data-task-status] > .outline-body > .outline-source-line > .outline-source { flex: 1 1 0; }
 .outline-row[data-task-status] > .outline-body > .outline-source-line > .outline-capability-metadata { flex: 0 1 auto; min-width: 0; max-width: 40%; }
 /* A card count is a count: apparatus mono, like every other number the notebook reports. */
-.outline-capability-metadata .outline-card-count { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.outline-capability-metadata .outline-card-count { font: var(--figures); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
 .outline-card-decks { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); }
 /* Task facts are the machine's: dates, progress and the running clock in apparatus mono. Missed plans take the danger colour. */
 .outline-capability-metadata :is(.outline-task-facts, .outline-task-progress, .outline-task-logged) { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
@@ -325,15 +327,14 @@
 .outline-source-creator.outline-reference:is(:hover, :focus-visible) { background: transparent; color: var(--accent); text-decoration-color: currentColor; }
 .outline-source-progress-block { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--space-8); margin-top: var(--space-16); }
 .outline-source-chapter { margin: 0; color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
-.outline-source-time { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4) var(--space-16); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.outline-source-time { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-4) var(--space-16); color: var(--faint); font: var(--figures); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
 .outline-source-description { grid-column: 1 / -1; display: flex; align-items: flex-end; gap: var(--space-8); overflow: hidden; margin-top: var(--space-8); }
 .outline-source-description p { flex: 1; min-width: 0; margin: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; color: var(--muted); font-size: var(--text-body); line-height: var(--line-body); }
 .outline-source-description p.expanded { display: block; }
 .outline-source-description .button { flex: none; }
 .outline-source-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-top: var(--space-8); }
 /* Reading is the gilt hairline action Review's start uses, at the height of its neighbours. */
-.outline-source-read.button { padding-inline: var(--space-16); border: var(--rule-width) solid color-mix(in srgb, var(--accent) 55%, transparent); background: none; color: var(--accent); }
-.outline-source-read.button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.outline-source-read.button { padding-inline: var(--space-16); }
 .source-actions-menu[aria-label="Snapshots"] .menu-label { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 /* Colour filters keep individual touch targets and real highlight hues. Their buttons' padding counts toward the interval before the grouping control, whose own padding hangs past the column so its chevron meets the paragraph numbers' edge. */
 .outline-source-highlight-toolbar { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--section-item-gap) var(--space-16); margin-top: var(--section-gap); }
@@ -347,10 +348,10 @@
 .outline-highlights-label { flex: 0 0 calc(100% - var(--gutter) - var(--indent-width)); margin: var(--space-24) 0 var(--space-4) calc(var(--gutter) + var(--indent-width)); color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
 .outline-highlights-label span { margin-left: var(--space-8); }
 /* Each chapter's first highlight carries the chapter title, in the apparatus face, over the highlight text. */
-.outline-chapter-label { flex: 0 0 calc(100% - var(--gutter) - var(--indent-width)); margin: var(--space-16) 0 var(--space-2) calc(var(--gutter) + var(--indent-width)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.outline-chapter-label { flex: 0 0 calc(100% - var(--gutter) - var(--indent-width)); margin: var(--space-16) 0 var(--space-2) calc(var(--gutter) + var(--indent-width)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 /* Highlights of this source filed on other pages: the same faint label and the same reading face as the highlights above. */
 .source-elsewhere > .outline-highlights-label { margin: var(--space-4) 0 var(--space-4) var(--indent-width); font-weight: var(--weight-body); }
-.source-elsewhere > .library-highlight.button { margin-left: calc(var(--indent-width) - var(--space-8)); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+.source-elsewhere > .library-highlight.button { margin-left: calc(var(--indent-width) - var(--space-8)); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 /* A person's works: the Library shelf at a smaller cover, with the same faint label as the sections around it. */
 .person-works > .outline-highlights-label { display: flex; align-items: center; gap: var(--space-8); margin: 0 0 var(--section-item-gap); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .person-works > .outline-highlights-label span { margin-left: 0; }
@@ -358,7 +359,7 @@
 .person-work.button { display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: var(--space-4); width: 100%; height: auto; padding: 0; white-space: normal; text-align: left; font-weight: var(--weight-body); }
 .person-work.button:hover:not(:disabled) { background: transparent; }
 .person-work:hover .person-work-title { color: var(--accent); }
-.person-work-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text); font-family: var(--font-display); font-size: var(--text-control); line-height: var(--line-control); }
+.person-work-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text); font-family: var(--font-display); font-size: var(--text-control); line-height: var(--line-control); font-style: italic; }
 .person-work-apparatus { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .outline-citation { max-width: 100%; overflow-wrap: anywhere; text-align: left; }
 /* On the source's own page the chip is only `¶N`: it stays at the end of the first line, and the text wraps beside it. */
@@ -366,7 +367,7 @@
 .outline-source-line:has(.outline-citation-local) > .outline-source { flex-basis: 0; }
 .outline-source-line:has(.outline-citation-local) > .outline-capability-metadata { flex: none; }
 .outline-capability-metadata .outline-citation-local { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
-.outline-citation-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: var(--space-4) 0; padding-left: var(--space-8); border-left: var(--space-2) solid var(--line); white-space: pre-wrap; color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+.outline-citation-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; margin: var(--space-4) 0; padding-left: var(--space-8); border-left: var(--space-2) solid var(--line); white-space: pre-wrap; color: var(--muted); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .outline-running-task { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); color: var(--muted); }
 
 /* Type pills: a hue tint behind the name. The hue is a CSS variable the renderer may set; default is neutral. */
@@ -446,7 +447,7 @@
 .outline-cards-list { display: flex; flex-direction: column; gap: var(--space-8); }
 /* Kind labels share one fixed column, so every card's text starts at the same edge. */
 .outline-cards-row { display: grid; grid-template-columns: 12ch minmax(0, 1fr) auto; align-items: baseline; gap: var(--space-4) var(--space-8); min-width: 0; }
-.outline-cards-kind { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-notebook); text-transform: uppercase; white-space: nowrap; }
+.outline-cards-kind { color: var(--faint); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; white-space: nowrap; }
 .outline-cards-provenance, .outline-cards-more { margin: var(--space-2) 0 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .outline-cards-content { min-width: 0; }
 .outline-cards-front { overflow-wrap: anywhere; }
@@ -465,6 +466,7 @@
   .source-page > .outline-list .outline-row:not(.source-highlight, .source-highlights-start) { left: calc(-1 * var(--gutter)); }
 }
 .source-page .source-highlight { padding-left: 0; padding-block: var(--space-12); border-left: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; }
+.source-page .source-highlight > .outline-body .outline-source { font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .source-page .source-highlight > .outline-body { border-left: var(--space-2) solid var(--quote-color); padding-left: var(--space-16); padding-right: 0; }
 .source-page .source-highlight > :is(.row-menu, .row-fold, .row-bullet) { position: absolute; display: none; }
 .source-page .source-highlight:is(:hover, :focus-within, .row-selected) > :is(.row-menu, .row-fold, .row-bullet) { display: inline-flex; z-index: 1; background: var(--canvas); }

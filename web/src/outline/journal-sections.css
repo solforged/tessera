@@ -1,14 +1,13 @@
 /* Today's written sections: a heading row drawn as the shared section head, its name editable in place. */
 .outline-row.row-section-head { flex-wrap: wrap; align-items: center; }
 .outline-row.row-section-head > .row-bullet { display: none; }
-.row-section-head > .outline-body { flex: 0 1 auto; color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+.row-section-head > .outline-body { flex: 0 1 auto; color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
 .row-section-head.row-editing > .outline-body { flex: 1; }
 .row-section-head.row-editing > .row-section-tail { display: none; }
 .row-section-tail { display: flex; flex: 1; align-items: center; gap: var(--space-12); min-width: var(--space-16); margin-left: var(--space-4); }
 .row-section-tail > .section-rule { min-width: var(--space-16); }
 /* The ⌘E section's capture line sits under its head at the text column of the rows it fills. */
 .outline-row > .section-capture { flex-basis: 100%; order: 10; padding: var(--space-8) 0 var(--space-4) calc(var(--gutter) + var(--indent-unit)); }
-.section-capture-boxed .capture-line.capture-boxed { height: 40px; }
 .capture-trailing { flex: none; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 /* Notes is drawn, never written: its head opens the first row outside every section. */
 .outline-row.row-banner { flex-wrap: wrap; }
@@ -19,7 +18,7 @@
 .row-section-head > .row-section-banner { margin-bottom: var(--space-16); }
 .journal-missing-end { max-width: var(--measure); margin: var(--section-gap) auto 0; }
 /* Inbox rows carry their capture clock in the gutter, giving way to the row's handles on hover. */
-.row-capture-time { position: absolute; top: calc(var(--space-2) + (var(--line-body) - var(--line-apparatus)) / 2); left: calc(var(--row-indent) + 2 * var(--target-size) - 56px); width: 48px; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-align: right; pointer-events: none; }
+.row-capture-time { position: absolute; top: calc(var(--space-2) + (var(--line-body) - var(--line-apparatus)) / 2); left: calc(var(--row-indent) + 2 * var(--target-size) - 56px); width: 48px; color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-align: right; pointer-events: none; }
 .outline-row:is(:hover, :focus-within, .row-selected) > .row-capture-time { visibility: hidden; }
 /* Missing sections on Today: the head, then one line that writes the heading with its first entry. */
 .journal-missing-section > .section-capture { padding-top: var(--space-4); }
@@ -37,14 +36,14 @@
 .outline-row:is(:hover, :focus-within, .row-selected) > .row-inbox-actions { opacity: 1; }
 @media (hover: none) { .row-inbox-actions { display: none; } }
 /* An Inbox link reads as its page: the title in Piazzolla, then its site in faint. */
-.row-link .static-text .reference-url { font-family: var(--font-display); }
+.row-link .static-text .reference-url { font-family: var(--font-display); font-style: italic; }
 .row-link-site { flex: none; align-self: flex-start; padding-top: calc(var(--space-2) + (var(--line-body) - var(--line-apparatus)) / 2); margin-left: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 /* File all names the row being filed above the destinations. */
 .file-all-status { display: flex; align-items: baseline; gap: var(--space-8); margin: 0; padding: var(--space-4) var(--space-8); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
-.file-all-count { flex: none; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.file-all-count { flex: none; color: var(--faint); font: var(--figures); letter-spacing: var(--tracking-apparatus); }
 .file-all-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* A Reading row is its source: the short title in Piazzolla, the reader's position when it was written in faint. */
-.row-reading-source .static-text .outline-reference { font-family: var(--font-display); text-decoration: none; }
+.row-reading-source .static-text .outline-reference { font-family: var(--font-display); font-style: italic; text-decoration: none; }
 .row-reading-creators { flex: none; align-self: flex-start; padding-top: calc(var(--space-2) + (var(--line-body) - var(--line-apparatus)) / 2); margin-left: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .row-reading-source:not(.row-editing) .static-text .reference-locator { display: none; }
 /* Narrow screens move the handles after the bullet, so heads and the capture line start at the text edge and clocks have no gutter. */

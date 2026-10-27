@@ -11,9 +11,15 @@ a { color: var(--accent); }
 .icon { width: var(--icon-size); height: var(--icon-size); flex: none; vertical-align: middle; }
 :is(.button, .conflict-actions button) { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-4); min-height: var(--target-size); border: 1px solid transparent; border-radius: var(--radius-control); padding: var(--space-4) var(--space-8); background: transparent; font-size: var(--text-control); line-height: var(--line-control); font-weight: var(--weight-control); text-align: left; transition: background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease); }
 :is(.button, .conflict-actions button):hover:not(:disabled) { background: var(--hover); }
+/* A press sinks the control a hair into the sheet. */
+:is(.button, .conflict-actions button):active:not(:disabled) { background: color-mix(in srgb, var(--text) 9%, transparent); box-shadow: inset 0 1px 2px var(--contact-shadow); }
 .button[aria-pressed="true"], .button.selected { background: var(--selection); color: var(--accent); }
-/* Bordered controls (menu triggers, date ranges) carry a hairline, not a frame. */
-:is(.button.bordered, .conflict-actions button) { border-color: var(--line); }
+/* Bordered controls (menu triggers, date ranges) are blind stamps: a leaf with a hairline, not a frame. */
+:is(.button.bordered, .conflict-actions button) { border-color: var(--line); background: var(--leaf); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 0 var(--contact-shadow); }
+/* A primary action is a gilt stamp; a press drives it into the sheet. */
+.button.stamp { border-color: color-mix(in srgb, var(--accent) 75%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 18%, transparent), color-mix(in srgb, var(--accent) 7%, transparent)); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 35%, transparent), 0 1px 1px var(--contact-shadow); color: var(--accent); }
+.button.stamp:hover:not(:disabled) { border-color: var(--accent); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 24%, transparent), color-mix(in srgb, var(--accent) 10%, transparent)); }
+.button.stamp:active:not(:disabled) { translate: 0 1px; box-shadow: inset 0 1px 2px var(--contact-shadow); }
 :is(.button.bordered, .conflict-actions button):hover:not(:disabled) { border-color: var(--control-border); }
 .button.danger { color: var(--danger); }
 .button.icon-only { width: var(--row-height); padding: var(--space-4); }
@@ -37,7 +43,7 @@ a { color: var(--accent); }
    tab's rule lands on that same line. */
 .mode-tabs.tab-strip { align-items: stretch; box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); }
 .mode-tabs.tab-strip > .button { border-bottom: 0; border-radius: 0; }
-:is(.popup, .popup-exit) { position: fixed; z-index: 50; max-width: calc(100vw - var(--space-16)); overflow: auto; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-8); }
+:is(.popup, .popup-exit) { position: fixed; z-index: 50; max-width: calc(100vw - var(--space-16)); overflow: auto; background: var(--paper-grain), var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: inset 0 1px 0 var(--lit-edge), var(--popup-shadow); padding: var(--space-8); }
 :is(.popup, .popup-exit)::before { content: ''; position: absolute; top: 0; left: var(--space-12); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
 /* The panel itself takes focus when nothing inside can; the ring belongs on controls, not on the box. */
 .popup:is(:focus, :focus-visible) { outline: none; }
@@ -98,7 +104,7 @@ a { color: var(--accent); }
 .menu-divider { height: 0; margin: var(--space-4) var(--space-8); border: 0; border-top: var(--rule-width) solid var(--line); }
 /* A titled menu names itself in Piazzolla, the thing it acts on in mono, and closes or steps back from the same corner. */
 .menu-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: var(--space-16); padding: var(--space-4) var(--space-8) var(--space-8); }
-.menu-head h2 { margin: 0; font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); font-variation-settings: var(--optical-heading); }
+.menu-head h2 { margin: 0; font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); }
 .menu-head-control { display: inline-flex; align-items: center; gap: var(--space-4); padding: 0; border: 0; background: transparent; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); cursor: pointer; }
 .menu-head-control:hover { color: var(--text); }
 .menu-context { grid-column: 1 / -1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 36ch; margin-top: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
@@ -119,10 +125,10 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .error { color: var(--danger); }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* Fields sit in a dark well with a hairline; the frame brightens only while hovered or typed in. */
-.input { width: 100%; min-height: 32px; border: 1px solid var(--line); border-radius: var(--radius-control); padding: var(--space-4) var(--space-8); background: var(--surface); transition: border-color var(--motion-fast) var(--motion-ease); }
-.input:hover:not(:disabled) { border-color: var(--control-border); }
+/* A field is a well pressed into the sheet, shaded at its upper lip; focus draws a gilt baseline, not a frame. */
+.input { width: 100%; min-height: 32px; border: 1px solid transparent; border-radius: var(--radius-control); padding: var(--space-4) var(--space-8); background: var(--well); box-shadow: var(--well-shade), inset 0 -1px 0 var(--lit-edge); transition: box-shadow var(--motion-fast) var(--motion-ease); }
 /* Focus turns the hairline gilt instead of adding a ring outside it, so a field never shows two frames. */
-.input:is(:focus, :focus-visible):not(:disabled) { outline: none; border-color: var(--accent); }
+.input:is(:focus, :focus-visible):not(:disabled) { outline: none; box-shadow: var(--well-shade), inset 0 -2px 0 var(--accent); }
 /* WebKit draws its own grey clear button in search fields; redraw it as a faint cross in the text colour. */
 .input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; width: var(--icon-size); height: var(--icon-size); background: var(--faint); cursor: pointer; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
 .input[type="search"]::-webkit-search-cancel-button:hover { background: var(--text); }
@@ -158,7 +164,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 :root[data-titlebar="overlay"] .app.is-immersive > .global-rail { display: grid; }
 :root[data-titlebar="overlay"] .app.is-immersive > .global-rail > * { visibility: hidden; }
 :root[data-titlebar="overlay"] .app.is-immersive .workspace { grid-row: 2; }
-.wordmark { display: flex; align-items: center; gap: var(--oculus-gap); min-width: 0; color: var(--text); font: var(--weight-control) var(--text-meta)/var(--line-meta) var(--font-mono); letter-spacing: var(--tracking-notebook); text-transform: uppercase; white-space: nowrap; }
+.wordmark { display: flex; align-items: center; gap: var(--oculus-gap); min-width: 0; color: var(--text); font: var(--weight-display-heading) var(--text-control)/var(--line-meta) var(--font-display); letter-spacing: var(--tracking-notebook); text-transform: uppercase; white-space: nowrap; }
 .wordmark::before { content: ''; width: var(--icon-size); height: var(--icon-size); flex: none; border-radius: var(--radius-pill); background: radial-gradient(circle, var(--accent) 0 27%, transparent 28% 50%, var(--accent) 51% 66%, transparent 67%); }
 .rail-end { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-8); min-width: 0; }
 .rail-finder { display: flex; align-items: stretch; width: var(--search-width); min-width: calc(2 * var(--row-height)); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--faint); transition: border-color var(--motion-fast) var(--motion-ease); }
@@ -187,7 +193,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .sidebar-foot { flex: none; }
 .primary-navigation .button { color: var(--text); }
 .primary-navigation .button > .icon { color: var(--muted); }
-:is(.sidebar, .directory-pane) .button > .desk-count { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+:is(.sidebar, .directory-pane) .button > .desk-count { flex: none; color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 :is(.sidebar, .directory-pane) .button > .desk-count.late { color: var(--danger); }
 /* A built-in kind with nothing filed but a saved view keeps its row, named faintly and without a count. */
 :is(.sidebar, .directory-pane) .index-kind.empty:not(.selected), :is(.sidebar, .directory-pane) .index-kind.empty:not(.selected) > .icon { color: var(--faint); }
@@ -196,7 +202,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 /* Sections: a rubric numeral, the name, a hairline rule and a count. */
 .page-list { margin-top: var(--space-16); }
 .page-list h2, .page-list > summary { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); margin: 0 0 var(--space-2); padding: 0 var(--space-8) 0 var(--space-12); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
-.section-number { color: var(--danger); }
+.section-number { color: var(--danger); font: var(--figures); }
 .section-rule { flex: 1; border-top: var(--rule-width) solid var(--line); }
 /* The heading row is target height; the link fills it so touch can hit it. */
 .index-directory-link { align-self: stretch; margin-inline: calc(-1 * var(--space-4)); padding: 0 var(--space-4); border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
@@ -230,17 +236,17 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .index-views .view-link > .icon { display: none; }
 /* The Index is a finding aid: kinds sit under small mono shelf heads, in the interface voice with their glyphs.
    Heads align with the kind names. */
-.index-shelf { margin: var(--space-12) 0 var(--space-2); padding-left: calc(var(--space-8) + 2 * var(--rule-width)); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-notebook); text-transform: uppercase; }
+.index-shelf { margin: var(--space-12) 0 var(--space-2); padding-left: calc(var(--space-8) + 2 * var(--rule-width)); color: var(--faint); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 .index-list > h2 + .index-shelf { margin-top: var(--space-4); }
 /* Index is a document on the phone; its foot follows the rows instead of docking to the shell. */
 .directory-pane { flex: 1; min-height: 0; overflow: auto; overscroll-behavior-y: contain; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); }
 .directory-pane:focus { outline: none; }
 .directory-head { margin-bottom: var(--page-head-gap); }
 .directory-head > p { margin: 0 0 var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.directory-head > h1 { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.directory-head > h1 { margin: 0; font: var(--page-title-font); }
 .directory-pane .sidebar-scroll { overflow: visible; }
 .directory-pane .sidebar-foot { margin-top: var(--space-24); }
-.workspace { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0 var(--space-12) var(--space-12) 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-workspace); background: var(--canvas); transition: margin-left var(--motion-ui) var(--motion-ease); }
+.workspace { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0 var(--space-12) var(--space-12) 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-workspace); background: var(--canvas); box-shadow: inset 0 1px 0 var(--lit-edge); transition: margin-left var(--motion-ui) var(--motion-ease); }
 .sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr) var(--dock-track); }
 .sidebar-collapsed .sidebar { visibility: hidden; pointer-events: none; opacity: 0; transform: translateX(-100%); transition-delay: 0s, 0s, var(--motion-ui); }
 .sidebar-collapsed .workspace { margin-left: var(--space-12); }
@@ -262,6 +268,8 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .panes { position: relative; display: flex; flex: 1; min-height: 0; }
 .pane { position: relative; display: flex; flex: 1 1 0; flex-direction: column; min-width: 0; min-height: 0; background: var(--canvas); container: pane / inline-size; }
 .pane.folded { display: none; }
+/* The sheet's grain lies over its contents, so rows and sections that paint the canvas take the same fibre. */
+.pane::after { content: ''; position: absolute; inset: 0; z-index: 2; background-image: var(--paper-grain); pointer-events: none; }
 .pane-divider { position: relative; z-index: 2; flex: none; width: var(--rule-width); background: var(--line); cursor: col-resize; touch-action: none; transition: background-color var(--motion-fast) var(--motion-ease); }
 /* A wider grip than the hairline it draws. */
 .pane-divider::before { content: ""; position: absolute; inset: 0 calc(-1 * var(--space-4)); }
@@ -274,7 +282,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .pane:not(.folded) ~ .pane-spine { border-right: 0; border-left: var(--rule-width) solid var(--line); }
 .pane-spine:hover { background: var(--hover); color: var(--text); }
 .pane-spine:focus-visible { outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-offset)); }
-.pane-spine-number { color: var(--danger); font: var(--apparatus); }
+.pane-spine-number { color: var(--danger); font: var(--figures); }
 .pane-spine-title { overflow: hidden; max-height: 60vh; font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-overflow: ellipsis; white-space: nowrap; writing-mode: vertical-rl; rotate: 180deg; }
 /* Where an open lands: a gilt frame over the pane it replaces, a hatched ghost where a new pane will stand. */
 .pane-guide { position: absolute; top: 0; bottom: 0; z-index: 5; border: calc(2 * var(--rule-width)) solid var(--accent); background: var(--accent-tint); pointer-events: none; animation: pane-guide var(--motion-fast) var(--motion-ease); }
@@ -295,7 +303,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .pane.active .pane-kind { color: var(--accent); }
 /* In a split each header carries its pane's number, as Opens in pane 3 and the spines name it, and the active pane's
    header a gilt rule along its top. */
-.pane-number { flex: none; margin-right: var(--space-4); color: var(--faint); font: var(--apparatus); }
+.pane-number { flex: none; margin-right: var(--space-4); color: var(--faint); font: var(--figures); }
 .is-split .pane.active > .pane-header { box-shadow: inset 0 calc(2 * var(--rule-width)) var(--accent); }
 /* Inactive panes keep their tabs legible but hand the gilt to the active pane. */
 .is-split .pane:not(.active) .mode-tabs > .tab-rule { background: var(--control-border); }
@@ -416,7 +424,7 @@ details[open]::details-content { opacity: 1; block-size: auto; }
 .popup-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 :is(.popup, .popup-exit) p { margin: 4px 0 12px; }
 :is(.popup, .popup-exit) label { display: block; margin-bottom: 8px; font-size: var(--text-control); }
-.popup-title { margin: 0 0 var(--space-12); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
+.popup-title { margin: 0 0 var(--space-12); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
 .calendar-today { display: flex; margin: 8px auto 0; }
 /* Picker: input on top, 28 px rows below. Palettes centre near the top of the viewport. */
 .picker { padding: 0; }
@@ -445,7 +453,7 @@ details[open]::details-content { opacity: 1; block-size: auto; }
 .picker-row kbd { margin-left: auto; }
 .picker-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .picker-text small { color: var(--muted); }
-.picker-meta { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.picker-meta { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .picker-hint { flex: none; color: var(--faint); }
 .picker-section { padding: var(--space-8) var(--space-12) var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .picker-section:not(:first-child), .picker-group + .picker-group > .picker-section { border-top: var(--rule-width) solid var(--line); margin-top: var(--space-4); }
@@ -474,7 +482,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 .find-result small, .find-preview-header small { display: block; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 /* Quotes and book passages are someone else's words, in the serif; your own blocks keep the writing voice. */
 .find-quote, .find-snippet { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.find-quote, .find-passage { font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); font-variation-settings: var(--optical-quote); }
+.find-quote, .find-passage { font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .find-color { width: var(--space-8); height: var(--space-8); border-radius: var(--radius-pill); }
 .find-paragraph { width: var(--icon-size); color: var(--faint); font: var(--apparatus); }
 .palette-search mark { background: var(--text-selection); color: var(--accent); font-weight: inherit; }
@@ -487,7 +495,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 .find-preview { grid-column: 2; grid-row: 1 / -1; min-width: 0; overflow: auto; padding: var(--space-16) var(--space-24); border-left: 1px solid var(--line); }
 .find-preview-header { display: flex; align-items: center; gap: var(--space-12); margin-bottom: var(--space-16); }
 .find-preview-header img { width: var(--resume-cover-width); max-height: 64px; object-fit: contain; border-radius: var(--radius-control); }
-.find-preview-header h2 { margin: 0; font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); font-variation-settings: var(--optical-heading); }
+.find-preview-header h2 { margin: 0; font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); }
 .find-preview-prose { font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); text-align: left; }
 .find-preview-prose p { margin: 0 0 var(--space-12); }
 .find-preview-field { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: var(--space-12); padding-block: var(--space-4); font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }

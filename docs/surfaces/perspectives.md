@@ -14,9 +14,9 @@ Question pages and pages holding active perspectives about themselves or their i
 
 Read puts the title, Gloss and opening on one text edge. Piazzolla remains the prose voice while editing, so entering the editor never changes the measure or the rows below it. Links, completion and undo use the same editor as Outline. Structural edits return to Outline with the caret at the edited block.
 
-Perspectives puts the perspective and holder counts, Compare and Add perspective on the section heading's line, in mono: the counts faint, the actions muted until hovered. A page without an authored heading above its perspectives gets a Perspectives heading. A pane narrower than 480 px moves them to their own line at the text edge.
+Perspectives puts the perspective and holder counts, Compare and Add perspective on the section heading's line: the counts in faint mono, the actions in the muted apparatus until hovered. A page without an authored heading above its perspectives gets a Perspectives heading. A pane narrower than 480 px moves them to their own line at the text edge.
 
-Each slip leads with the source siglum and holder in mono, then its standfirst as a Piazzolla headline at the gloss size and Work as one faint mono line that truncates. Account has its own quiet label, followed by authored argument relations. Prose-role fields take the full measure; authored non-field prose opens in place. Attributes and citation fields open under Facts, except criteria asked about under Where they disagree. Neither disclosure writes to the workshop. Open perspective ends the slip's last line.
+Each slip leads with the source siglum and holder in mono, then its standfirst as a Piazzolla headline at the gloss size and Work as one faint apparatus line that truncates. Account has its own quiet label, followed by authored argument relations. Prose-role fields take the full measure; authored non-field prose opens in place. Attributes and citation fields open under Facts, except criteria asked about under Where they disagree. Neither disclosure writes to the workshop. Open perspective ends the slip's last line.
 
 Slips sit in two columns when the pane is at least 620 px wide and stack otherwise, so a split unfolded Fold reads like a phone. A lone perspective takes the full measure. A stored Work that points at a highlight takes its source's siglum.
 
@@ -30,7 +30,7 @@ On coarse pointers, Compare, Add perspective, Prose, Facts and Open perspective 
 
 Where they disagree appears only when stored questions name criteria. Each criterion leads with its questions, which link the criterion, then each perspective's answer: its siglum (or holder name when it has none) and its value for that criterion, in the slips' columns. Questions that all name holders show only those holders' answers; otherwise every perspective answers. A perspective without a value reads Not stated. Questions without a criterion stay in their authored place. No differences between field values are turned into questions.
 
-Your answer follows theirs. Under a gilt rule, the current assessment shows its date and text, editable in place. Without one, the newest assessment shows as a draft with its status under a plain rule. Earlier assessments fold under N earlier and read muted when unfolded. Write assessment shares that mono line and puts the caret in the new answer without leaving Read. A question with no assessment reads No answer yet. Read leaves the Decision journal, with its repeated links, to Outline.
+Your answer follows theirs. Under a gilt rule, the current assessment shows its date and text, editable in place. Without one, the newest assessment shows as a draft with its status under a plain rule. Earlier assessments fold under N earlier and read muted when unfolded. Write assessment shares that apparatus line and puts the caret in the new answer without leaving Read. A question with no assessment reads No answer yet. Read leaves the Decision journal, with its repeated links, to Outline.
 
 Compare switches the same pane to the existing perspective sheet and criteria matrix. With fewer than two perspectives, the register and Outline's counts line leave Compare out; the count already says why.
 
@@ -65,7 +65,7 @@ Use place, in the same menus, returns to the nearest ancestor question or the pa
 
 ### Holder and subject pages
 
-A holder's page opens into its perspectives grouped by subject, with a Compare action when that subject has two or more perspectives. Each row leads with the source siglum and the Gist in Piazzolla, then Work as a faint mono line; the holder's own name does not repeat. The register follows the opening, before the first heading, or leads when the holder has no rows. It replaces Perspectives held.
+A holder's page opens into its perspectives grouped by subject, with a Compare action when that subject has two or more perspectives. Each row leads with the source siglum and the Gist in Piazzolla, then Work as a faint apparatus line; the holder's own name does not repeat. The register follows the opening, before the first heading, or leads when the holder has no rows. It replaces Perspectives held.
 
 Clicking a perspective opens it zoomed on its source page. ⌘-click opens it beside (Ctrl-click off Mac). A subject's page still lists Perspectives filed elsewhere above its backlinks; neither list repeats under Backlinks.
 
@@ -98,11 +98,11 @@ Relation blocks and their reasoning stay out of perspective prose. Each perspect
 
 Actual question blocks on the subject page appear below the sheet. Clicking a question focuses it; Open original opens its block. Columns have a readable minimum width and scroll horizontally on narrow panes.
 
-The perspective sheet's heading uses the shared centered page measure and page-title tokens. Its holder choices use the mono tab strip, with gilt rules and no pressed fill.
+The perspective sheet's heading uses the shared centered page measure and page-title tokens. Its holder choices use the mode-tab strip, with gilt rules and no pressed fill.
 
 ### Compare tabs
 
-Compare has Perspectives and Criteria tabs under the subject title, in the same mono strip. Criteria opens first when the subject has criteria, and the pane remembers the choice.
+Compare has Perspectives and Criteria tabs under the subject title, in the same tab strip. Criteria opens first when the subject has criteria, and the pane remembers the choice.
 
 ### Question focus
 
@@ -118,7 +118,7 @@ At phone width the focused perspective sheet stacks its perspectives and the foc
 
 The criteria matrix leaves the heading on the measure and widens to the pane. A mono line counts perspectives, holders, criteria and questions beside Choose perspectives and Edit criteria.
 
-Each column heads with the siglum in mono, the holder in 18 px Piazzolla and the Work title in mono. Each row starts with the criterion's name in Piazzolla in a sticky first column. Columns keep a readable minimum width and the matrix scrolls sideways in a split pane.
+Each column heads with the siglum in mono, the holder in 18 px Piazzolla and the Work title in the apparatus. Each row starts with the criterion's name in Piazzolla in a sticky first column. Columns keep a readable minimum width and the matrix scrolls sideways in a split pane.
 
 Cells are the perspectives' own values. Enter or a click edits one in place, an empty cell offers Add on hover or focus, and both are undoable edits of the perspective's page.
 
@@ -140,7 +140,7 @@ Two or more cells in a row with exactly the same authored text get a numbered `�
 
 ### Questions and criteria editing
 
-A question that names a criterion follows that row with a `?`, its text in Piazzolla and a mono scope, `Shape · all 6` or `Shape · POL ↔ MAC only`. Other questions stay below.
+A question that names a criterion follows that row with a `?`, its text in Piazzolla and an apparatus scope, `Shape · all 6` or `Shape · POL ↔ MAC only`. Other questions stay below.
 
 Edit criteria lists the criteria with Move up, Move down and Remove and adds fields through the field picker. While the set is derived it says so, and saving stores it.
 

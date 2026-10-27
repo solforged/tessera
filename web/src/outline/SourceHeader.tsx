@@ -149,7 +149,7 @@ export function SourceHeader(props: {
     ] });
   }
   const ReadingActions = () => <div class="outline-source-actions" classList={{ 'source-cover-actions': coverLayout() && !!actionsHost() }} style={{ visibility: props.ready ? undefined : 'hidden' }}>
-    <Show when={snapshot()}><Button class="outline-source-read" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, opensBeside(event))}>{source()?.position ? 'Continue reading' : 'Read'}</Button></Show>
+    <Show when={snapshot()}><Button class="stamp outline-source-read" onClick={event => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId }, opensBeside(event))}>{source()?.position ? 'Continue reading' : 'Read'}</Button></Show>
     <Button class="bordered" aria-haspopup="menu" onClick={event => stateMenu(event.currentTarget)}>{stateLabels[props.doc.root()!.source!.state]}<Icon name="down" /></Button>
     <Button class="bordered" icon="more" label="Source actions" aria-haspopup="menu" onClick={event => { void sourceMenu(event.currentTarget); }} />
   </div>;

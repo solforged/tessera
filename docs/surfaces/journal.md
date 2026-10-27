@@ -6,7 +6,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ## Add to today
 
-Add to today (⌘E) opens the shared creation slip centered near the top, 560 px wide. On the cover it rises from the bottom edge above the keyboard, and the capture button in the bottom nav opens the same sheet into the capture section. Commands finds Add to today through capture, quick atom, inbox or journal. A mono rubric names the action and its destination, as `Capture → Today › Inbox` or `Capture → Today › Reading › Meditations`: Capture in gilt, the destination in `--faint`. The current day and time sit at the rubric's right in `--faint`.
+Add to today (⌘E) opens the shared creation slip centered near the top, 560 px wide. On the cover it rises from the bottom edge above the keyboard, and the capture button in the bottom nav opens the same sheet into the capture section. Commands finds Add to today through capture, quick atom, inbox or journal. An apparatus rubric names the action and its destination, as `Capture → Today › Inbox` or `Capture → Today › Reading › Meditations`: Capture in gilt, the destination in `--faint`. The current day and time sit at the rubric's right in `--faint`.
 
 The line leads with a kind chip: Note, Question, Task, Card, Link or Source, each with its glyph from the [Inbox](#inbox). Until a kind is chosen explicitly, a trailing `?` infers Question, `[] ` infers Task, complete card syntax infers Card, a whole URL infers Link, and an ISBN, DOI or arXiv identifier infers Source. Clicking the chip, or Shift+Tab from the line and then Enter, opens the kind menu. Arrow keys move through it, and More offers Project and the workshop's page kinds. Typing or choosing a tag never changes the kind or destination; typed pages are chosen in More. The draft carries across kind switches.
 
@@ -57,7 +57,7 @@ Each request opens the creation slip on its kind: Atom and Task into the capture
 
 ## Journal dates
 
-Journal days present a spoken date such as Tuesday, October 13 beneath a short mono period trail that runs from week to year: `Week 42 · October · 2026`. On today's journal the trail leads with `Today` in gilt, which is not a control. A bordered group of Previous day, calendar and Next day buttons sits at the title's right edge; the calendar button toggles the month ledger. Agenda's Day heading speaks dates the same way (`Tuesday, October 13, 2026`). Backlink rubrics and compact dates use the shared `relativeDate` civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's.
+Journal days present a spoken date such as Tuesday, October 13 beneath a short apparatus period trail that runs from week to year: `Week 42 · October · 2026`. On today's journal the trail leads with `Today` in gilt, which is not a control. A bordered group of Previous day, calendar and Next day buttons sits at the title's right edge; the calendar button toggles the month ledger. Agenda's Day heading speaks dates the same way (`Tuesday, October 13, 2026`). Backlink rubrics and compact dates use the shared `relativeDate` civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's.
 
 The latest navigation request wins in its pane. Previous and next step from a pending journal date, and a superseded lookup does not create a missing journal. Before a new journal root is committed, missing reference reads show quiet zero counts rather than unavailable sections; successful reads still show real backlinks, and related sections refresh when the root becomes committed.
 
@@ -155,7 +155,7 @@ When nothing is planned or carried, Plan folds to its head, which reads `Nothing
 
 ### Inbox
 
-Inbox holds what you capture, in the order it arrived. On desktop, an inline capture field sits under its head, indented to the text column: the text-field shape at 40 px, a plus, the placeholder `Capture to Inbox: a thought, a link, [] a task, a question?` and a faint `⌘E from anywhere` at its end. It is Add to today's line, with the same kind inference, completions and date preview, fixed to Inbox. Enter adds and keeps focus; Escape leaves the field. On the cover the field is hidden and the bottom nav's capture button opens the slip.
+Inbox holds what you capture, in the order it arrived. On desktop, an inline capture field sits under its head, indented to the text column: the [capture slip](../design.md#color) at 52 px, a gilt plus, the placeholder `Capture to Inbox: a thought, a link, [] a task, a question?` and `⌘E from anywhere` at its end as a blind-stamped key. It is Add to today's line, with the same kind inference, completions and date preview, fixed to Inbox. Enter adds and keeps focus; Escape leaves the field. On the cover the field is hidden and the bottom nav's capture button opens the slip.
 
 Inbox rows are outline rows behind a 52 px mono gutter in `--faint`, which gives each top-level row's creation time as `HH:MM` in the workshop's time zone. Children have no time, and the time is never written into the text. The bullet shows the row's kind:
 
@@ -192,7 +192,7 @@ Notes holds the root-level atoms outside the other written sections, in outline 
 
 Each tile is one bordered button that opens its destination; no tile folds content open beneath it. Desktop and unfolded Today tiles share one height, enough for the tallest loaded Reading content including the book map, and grow with their content. Their placeholders keep the same height. The three desktop tiles reserve their loaded height while requests show quiet placeholders.
 
-Each tile has its label in mono `--faint`, a figure at 24 px with a word in `--muted`, and one detail line at 12.5 px. A journal narrower than 640 px keeps the three tiles in one row: label, figure or short title, and the detail line; the Reading tile drops its cover and book map there.
+Each tile has its label in the apparatus in `--faint`, a figure at 24 px with a word in `--muted`, and one detail line at 12.5 px. A journal narrower than 640 px keeps the three tiles in one row: label, figure or short title, and the detail line; the Reading tile drops its cover and book map there.
 
 #### Agenda tile
 

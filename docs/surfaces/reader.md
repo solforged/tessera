@@ -29,7 +29,7 @@ The book opens with a title page read from the source page like the Library row.
 
 The title page has:
 
-- A 112 px cover, or 76 px on the cover screen, beside the imprint in mono: siglum, publisher, year.
+- A 112 px cover, or 76 px on the cover screen, beside the imprint in the apparatus: siglum, publisher, year, the siglum and year in mono.
 - The title in Piazzolla at 2.25 times the reading size, with any subtitle in italic beneath it. The subtitle follows a colon or comes from the source's Subtitle.
 - The author in Piazzolla italic.
 - A gilt rubric rule.
@@ -56,11 +56,11 @@ Older inferred contents entries that name a lone paragraph by a truncated excerp
 
 Chapter openings come from the contents, not the file's heading markup, so every book opens its chapters the same way. Each chapter, except front matter and entries that only repeat the book's title, opens four lines down from the passage before, with:
 
-- A rubric mono label: `CHAPTER I`, `BOOK ONE`, `INTRODUCTION`; none for an unnumbered section or an entry that is only a numbered label, whose whole entry is the title (`Book Three`, `Chapter 5`).
+- A rubric label in tracked capitals: `CHAPTER I`, `BOOK ONE`, `INTRODUCTION`; none for an unnumbered section or an entry that is only a numbered label, whose whole entry is the title (`Book Three`, `Chapter 5`).
 - The title in Piazzolla at 2.1 times the reading size.
 - A gilt rubric rule.
 
-The first line of text takes small capitals. A chapter that starts at the same passage as its part has the part above it in `--faint` mono capitals, as `PART ONE · AN EXCESS OF GOOD FORTUNE`.
+The first line of text takes small capitals. A chapter that starts at the same passage as its part has the part above it in `--faint` tracked capitals, as `PART ONE · AN EXCESS OF GOOD FORTUNE`.
 
 Numerals are recognized as `Chapter 3`, `Book One`, `Part II`, or a bare upper-case Roman numeral or number before `.` or `:`. A title such as `I Remember` stays a title. Decorations around a title, such as `~Book One~`, are dropped.
 
@@ -150,12 +150,12 @@ The book map is the same as on the source page and the [Library's reading cards]
 
 The card shows, in order:
 
-1. `N% of the book`, with the number in Piazzolla; the chapter by name, `4 · Deus Vult!, 43% through`, with nothing in front matter; and Added in mono at the right. Added uses the shared civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's.
+1. `N% of the book`, with the number in Piazzolla; the chapter by name, `4 · Deus Vult!, 43% through`, with nothing in front matter; and Added in the apparatus at the right, its date in mono. Added uses the shared civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's.
 2. The map at double height, with Start, the highlight count and End beneath it.
 3. Left in chapter and Left in book, with their numbers in Piazzolla.
 4. The current chapter and the next five as rows. Each has its numeral and title as the toolbar names it and its length in minutes. The current one has a gilt edge and reads `N min left`.
 
-Choosing a row reads on from that chapter, as Contents does. A mono note says the times assume about 250 words a minute. The card leaves out the day's reading and a finish estimate, because Tessera does not record reading sessions.
+Choosing a row reads on from that chapter, as Contents does. An apparatus note says the times assume about 250 words a minute. The card leaves out the day's reading and a finish estimate, because Tessera does not record reading sessions.
 
 ## Pages
 
@@ -273,7 +273,7 @@ On a touch screen, Highlight and annotate, and Add atom on a highlight without a
 
 1. The book's title and byline.
 2. The reading rule.
-3. The section and position in mono.
+3. The section in the apparatus and the position in mono.
 4. The sentence leading into the quotation in `--muted`.
 5. The quotation itself, larger on a highlight tint with a gilt rule.
 6. The sentence after it.

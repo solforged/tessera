@@ -16,11 +16,11 @@
 .work-session-history { display: flex; flex-direction: column; list-style: none; padding: 0; margin: var(--space-4) 0 0; border-top: var(--rule-width) solid var(--line); }
 .work-session-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--space-12); padding-block: var(--space-8) var(--space-4); border-bottom: var(--rule-width) solid var(--line); }
 .work-session-row .work-session-note { grid-column: 1 / -1; }
-.work-session-times, .work-session-duration { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.work-session-times, .work-session-duration { color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .work-session-duration { color: var(--text); text-align: right; }
 .work-session-error { margin: 0; overflow-wrap: anywhere; }
 /* A running session shows on its row as a ticking clock in the Doing hue. */
-.outline-capability-metadata .running-clock.button { gap: var(--space-4); align-items: center; color: var(--status-doing); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.outline-capability-metadata .running-clock.button { gap: var(--space-4); align-items: center; color: var(--status-doing); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .running-clock-dot { width: calc(3 * var(--space-2)); height: calc(3 * var(--space-2)); border-radius: 50%; background: currentColor; animation: running-clock-pulse 2s var(--motion-ease) infinite; }
 @keyframes running-clock-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .running-clock-dot { animation: none; } }

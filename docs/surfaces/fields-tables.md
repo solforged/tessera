@@ -33,11 +33,11 @@ Filtering the index does not change definitions; an empty result offers Clear fi
 
 ## Field pages
 
-A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Rename… and Delete definition… sit at the name's right, and a mono summary (`Choice · 7 owners · 9 values`) under it. A built-in field's Rename… is disabled. Format, Links to for relation fields, Hide, Role and Counts as follow as rows between single hairlines, each note inside its row. Hide offers Never, When empty and Always, with one muted line saying what the current choice does. Role offers Standfirst, Attribute, Prose and Citation, with a sentence explaining its presentation. Each change is one undoable edit on the definition. The [field menu](../design.md#field-entries) in any note opens this page, at the kind preview, Options or Links to; its Role menu offers the same choices.
+A field page is a specimen sheet on the outline measure, crumbed `Fields / Name`. Rename… and Delete definition… sit at the name's right, and an apparatus summary with mono counts (`Choice · 7 owners · 9 values`) under it. A built-in field's Rename… is disabled. Format, Links to for relation fields, Hide, Role and Counts as follow as rows between single hairlines, each note inside its row. Hide offers Never, When empty and Always, with one muted line saying what the current choice does. Role offers Standfirst, Attribute, Prose and Citation, with a sentence explaining its presentation. Each change is one undoable edit on the definition. The [field menu](../design.md#field-entries) in any note opens this page, at the kind preview, Options or Links to; its Role menu offers the same choices.
 
 Counts as offers Nothing, Creator, Contributor and Originator, as the [domain model](../domain-model.md#counts-as) describes. It is disabled with its reason on a built-in field and on fields that are neither text nor relations.
 
-A note's field entry menu is titled with the field name and names its owning note as mono context. Open field definition leads, Definition… groups Format…, Options… for choices or Links to… for relations, Hide…, Role… and Counts as…, and Remove from this atom stays last as a danger action. Templates… contains Add to or Remove from each owning type's template and is absent without an owning type. This gives four root rows, or three without Templates.
+A note's field entry menu is titled with the field name and names its owning note as apparatus context. Open field definition leads, Definition… groups Format…, Options… for choices or Links to… for relations, Hide…, Role… and Counts as…, and Remove from this atom stays last as a danger action. Templates… contains Add to or Remove from each owning type's template and is absent without an owning type. This gives four root rows, or three without Templates.
 
 Format, Hide, Role and Counts as are nested drill-ins with nine kinds, three hide modes, four roles and four meanings. Each replaces the rows in the same menu under a header Back. Format still opens the interpretation preview before any change is applied; Hide, Role and Counts as retain their saving/loading reasons and Undo notices. On a phone below 600 px with a coarse pointer, the same menu is a bottom sheet with 44 px targets and an explicit root Close.
 
@@ -51,7 +51,7 @@ Numbered sections follow with rubric numerals and hairlines, starting at 01 and 
 | --- | --- |
 | Options | Options with their uses and inline rename, then Add option; choice fields only. Option names may wrap; Uses and Edit retain their intrinsic one-line width, including on phones. |
 | In templates | Each type's pill, the field's place in its template and the member count. |
-| Used by | Up to twelve owners with their values in mono: three columns in wide panes, two below 840 px of pane width and one below 480 px. View owner (one owner) or View all N owners opens the field-only table. |
+| Used by | Up to twelve owners with their values: three columns in wide panes, two below 840 px of pane width and one below 480 px. View owner (one owner) or View all N owners opens the field-only table. |
 | Problem values | The written text in rubric beside its owner and the problem. Choice rows offer Make option: create or reuse the matching option and link every matching value in one undoable change. The help reads “Make it an option, or open its owner to edit it.” |
 
 Atoms in the pane header opens the definition in the Fields page, where names and options remain ordinary blocks. Edit definitions opens the Fields page.
@@ -88,7 +88,7 @@ Without Links to types, the picker offers pages, and from the third character al
 
 ## Type page template
 
-A type page shows its template under the title as a Template section, closed by default, headed like the [journal's sections](journal.md#section-heads): the name, a hairline, the template's fields in mono order and a chevron.
+A type page shows its template under the title as a Template section, closed by default, headed like the [journal's sections](journal.md#section-heads): the name, a hairline, the template's fields in order in the apparatus, and a chevron.
 
 Open, it shows the same field rows as the type's Fields tab, described below. Add field opens the field picker without the fields already there. A new name offers Create text field and Create field as…, which add the definition and its template place in one change.
 
@@ -101,7 +101,7 @@ The type page and the Fields tab list a template with one row design: Name, Form
 - Rename, Move up, Move down and Remove appear on hover or focus and remain visible on coarse pointers. Rename edits the name in the row; Enter or leaving the input saves it and Escape cancels. A built-in field's Rename is disabled, and a name another field holds is refused, since merging belongs on the field page.
 - A required field reads `required` after its name, and its Remove is disabled with the reason, such as Books require author. The field menu's Templates… and the table's column menu disable their Remove from template the same way.
 - Each rename, kind change and Links to change reports itself beside Add field, such as rank links to Person, with an Undo while it is the latest change.
-- Task's built-in fields have a quiet mono `built-in` mark here only. `status` also reads `required`; it alone cannot be removed from the Task template. Built-in task names, formats and global deletion are protected. `repeat` has Repeat format, while `scheduled` and `deadline` have Date + time format.
+- Task's built-in fields have a quiet apparatus `built-in` mark here only. `status` also reads `required`; it alone cannot be removed from the Task template. Built-in task names, formats and global deletion are protected. `repeat` has Repeat format, while `scheduled` and `deadline` have Date + time format.
 
 Under the list, a gap line appears only when at least one missing field has Hide set to Never. It reads `19 empty fields on 7 people`, using the tag's plural noun, with Fill missing fields. This gives each affected atom an empty entry for every template field it lacks, placed in template order, in one workshop command. Undo beside the result removes the entries it added that are still empty; an entry that gained a value or a note stays. Changing the template never rewrites atoms.
 
@@ -139,13 +139,13 @@ A table is a query shown as rows. New view… in the sidebar or Commands asks fo
 
 The heading, mode strip, toolbar, query chips and footer stay centered on the page's `--measure`. The grid uses the available pane width and scrolls horizontally on its own, with the title held at the left. More columns never widen or shift the heading and controls.
 
-The type and Register sit in quiet apparatus above a Piazzolla view name. Its menu lists all members of the source or type and its saved views, then Save as view…, Rename and Delete separately. A checkmark means the current query and recipe equal that row's saved query, not merely that the view is open. When they differ, the open row shows faint mono Modified; Save changes updates a saved view in one undoable edit, and Revert changes restores its saved query and recipe. The footer offers Undo after saving; ⌘Z and ⌘⇧Z also undo and redo the update. The one-line purpose under the name edits in place.
+The type and Register sit in quiet apparatus above a Piazzolla view name. Its menu lists all members of the source or type and its saved views, then Save as view…, Rename and Delete separately. A checkmark means the current query and recipe equal that row's saved query, not merely that the view is open. When they differ, the open row shows faint apparatus Modified; Save changes updates a saved view in one undoable edit, and Revert changes restores its saved query and recipe. The footer offers Undo after saving; ⌘Z and ⌘⇧Z also undo and redo the update. The one-line purpose under the name edits in place.
 
 A kind's Table mode, reached from its List tab, keeps List's head so switching modes moves nothing: no type crumb or Register label, the same glyph, title, tally and create action in the same places, and the tally, footer and empty state in List's nouns (`9 atoms`, `16 tasks`, `No people yet.`). Its purpose waits in the view menu as Add purpose… until it has text. The pane title, its glyph and the sidebar's selected row name the kind, as in List.
 
 A saved view with a detached or deleted field names the remembered field and offers Remove from view. Results pause instead of showing an empty result or a raw identifier. Removing the field clears its filters, sorts, columns, grouping and phone card references, and saves the repaired view. Undoing the field change restores the original recipe.
 
-A type with a required field that some rows lack adds `· 3 need author` after the member count, counted within the table's own query. It adds that field's `is empty` filter to the filters already set. An empty required cell reads faint mono `needed`.
+A type with a required field that some rows lack adds `· 3 need author` after the member count, counted within the table's own query. It adds that field's `is empty` filter to the filters already set. An empty required cell reads faint apparatus `needed`.
 
 A type shares `List N`, `Table N`, `Fields N` and `Cards N` tabs with its [finding aid](notes.md#finding-aid) and template registers. List and Table count the query retained when switching modes, not the unfiltered type total; List counts notes only. Fields switches the same pane to that type's ordered template; its type crumb opens the ordinary type page.
 
@@ -206,7 +206,7 @@ Apparatus headers are sticky on `--canvas`, with the title sticky at the left. C
 
 | Value | Appearance |
 | --- | --- |
-| Titles | Piazzolla at the cell size. The faint `in <page>` line under a block title stays mono. |
+| Titles | Piazzolla at the cell size. The faint `in <page>` line under a block title stays in the apparatus. |
 | Numbers and counts | Right-aligned tabular mono. |
 | Dates | Left-aligned mono. |
 | Choices | Quiet pills. |
@@ -214,7 +214,7 @@ Apparatus headers are sticky on `--canvas`, with the title sticky at the left. C
 
 Source values keep the first authored label and hostname, with a named derived Refs column opening every original URL destination. Labels can be Markdown links or `Title: URL`; bare URLs use their hostname/path. Remaining prose stays visible, and invalid readings retain their warning.
 
-Note and tagged non-page members share the same grid and field cells, ordered notes first and then blocks while retaining query order within each kind. Only a mixed register inserts a full-width mono Tagged atoms row with its count and a hairline above; a block-only register needs no divider. Block titles use the same three-line clamp and More/Less expansion as note titles, followed by a faint apparatus `in <page title>` line (the journal date for journal pages). A run of blocks from one page names it on the first row only. A group heading or the Tagged atoms row starts a new run. Titles reuse the outline's quiet card display: direction arrows are faint and cloze answers have a dotted underline.
+Note and tagged non-page members share the same grid and field cells, ordered notes first and then blocks while retaining query order within each kind. Only a mixed register inserts a full-width apparatus Tagged atoms row with its mono count and a hairline above; a block-only register needs no divider. Block titles use the same three-line clamp and More/Less expansion as note titles, followed by a faint apparatus `in <page title>` line (the journal date for journal pages). A run of blocks from one page names it on the first row only. A group heading or the Tagged atoms row starts a new run. Titles reuse the outline's quiet card display: direction arrows are faint and cloze answers have a dotted underline.
 
 Columns past the right edge fade under the rows. `+N ›` at the header's end counts them and scrolls to them.
 
@@ -275,9 +275,9 @@ An empty result names the source and the conditions that excluded its rows. Clea
 
 ### Cover ledger and query sheet
 
-On coarse pointers below 600 px of available pane width, compact ledger rows replace the grid without lateral scrolling. The title and mode tabs scroll away with the rows. One mono summary beneath the title describes the count, conditions, sorts and grouping; a changed saved recipe ends with Modified in gilt. An empty purpose stays hidden; Add purpose… in the title menu opens its editor, and a set purpose remains below the title.
+On coarse pointers below 600 px of available pane width, compact ledger rows replace the grid without lateral scrolling. The title and mode tabs scroll away with the rows. One apparatus summary beneath the title describes the count, conditions, sorts and grouping; a changed saved recipe ends with Modified in gilt. An empty purpose stays hidden; Add purpose… in the title menu opens its editor, and a set purpose remains below the title.
 
-Notes and tagged blocks share the same ordered list, with the counted apparatus divider only for mixed membership. Each row shows its Piazzolla title and `in <page title>` beneath a block title, named once per run of blocks from one page. Gloss values clamp to two lines without their labels. Choice and instance pills also omit labels; other values retain mono labels on one line. The grouped field hides inside its own groups, whose counted hairline headings stick while scrolling. The whole row opens the note, with field taps still opening their canonical entries and refs opening the destination list.
+Notes and tagged blocks share the same ordered list, with the counted apparatus divider only for mixed membership. Each row shows its Piazzolla title and `in <page title>` beneath a block title, named once per run of blocks from one page. Gloss values clamp to two lines without their labels. Choice and instance pills also omit labels; other values retain apparatus labels on one line. The grouped field hides inside its own groups, whose counted hairline headings stick while scrolling. The whole row opens the note, with field taps still opening their canonical entries and refs opening the destination list.
 
 Task cards lead with the status glyph and show compact planning facts, including deadline warnings and late dates. Finished task titles recede with a strike-through.
 

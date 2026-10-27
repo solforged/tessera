@@ -1,10 +1,10 @@
 /* Content heads: the name in the display voice, a hairline, then the count and one action. Apparatus heads stay mono. */
 .section-head { display: flex; align-items: center; gap: var(--space-12); min-width: 0; min-height: var(--target-size); margin: 0; }
-.section-head-name { flex: none; min-width: 0; color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+.section-head-name { flex: none; min-width: 0; color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
 .section-head-danger { color: var(--danger); }
 .section-head-folded .section-head-name { color: var(--muted); }
 .section-head > .section-rule { min-width: var(--space-16); }
-.section-head-count { flex: none; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.section-head-count { flex: none; color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .section-head-action { display: flex; flex: none; align-items: center; }
 .section-head-action .button { min-height: var(--target-size); padding-inline: var(--space-8); font-size: var(--text-control); line-height: var(--line-control); }
 .section-head-toggle.button { display: flex; align-items: center; gap: var(--space-4); min-width: 0; min-height: var(--target-size); margin-left: calc(-1 * (var(--icon-size-small) + var(--space-4))); padding: 0; border: 0; background: transparent; }

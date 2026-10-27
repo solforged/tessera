@@ -29,7 +29,7 @@ Rows read as a ledger at least 28 px high:
 
 - A leading slot holds a book or article glyph in `--faint`. A compact row cannot show a cover legibly, so covers appear in the Shelf, Reading now and the phone ledger's taller rows.
 - Every tab uses the same row: the mono siglum, gilt on hover, then title and a muted ragged byline (creators, else site). Creators join with ` · `. Bylines wrap to two lines and keep the full text in a tooltip.
-- Trailing fixed-width mono columns show state in views spanning states, year, progress and the unprocessed highlight count, so figures line up across tabs. Inside a year group the year column steps aside, because the heading already says it. Inbox rows offer Start reading on hover or focus, always visible without hover; it changes the source's state to Reading.
+- Trailing fixed-width columns show state in views spanning states, year, progress and the unprocessed highlight count, with figures in mono so they line up across tabs. Inside a year group the year column steps aside, because the heading already says it. Inbox rows offer Start reading on hover or focus, always visible without hover; it changes the source's state to Reading.
 
 Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows `Finished 2026-10-19` using its ISO state-change date, never a percentage or a second Finished label. State-specific tabs omit the redundant state column.
 
@@ -54,13 +54,13 @@ The shelf is a grid of 2:3 covers at least `--shelf-cover-width` wide, sharing a
 - The reader's 2 px position rule, with its `--line` track only once reading has started.
 - The title in Piazzolla on up to two lines.
 - The byline in `--muted`, clamped to two lines with its full text in a tooltip.
-- One mono apparatus line in `--faint`: siglum (gilt on hover), state in views spanning states, year, progress (none once finished) and the unprocessed highlight count.
+- One apparatus line in `--faint`, its figures in mono: siglum (gilt on hover), state in views spanning states, year, progress (none once finished) and the unprocessed highlight count.
 
 A source without a cover gets a placeholder on `--surface` with only its centered gilt siglum. The caption carries its title; the same placeholder is used on the shelf, Reading now and collection previews.
 
 The selection checkbox and the actions button sit on the cover's top corners and appear as in the list, on a phone only in Select. A selected cover takes a 2 px accent ring.
 
-On touch the actions button is an always-visible surface disc. Below 600 px it opens the existing source actions in a sheet above navigation, headed by the title, author and mono imprint and progress. Reading and state actions, exports and deletion are separated by rules. Delete still asks for confirmation.
+On touch the actions button is an always-visible surface disc. Below 600 px it opens the existing source actions in a sheet above navigation, headed by the title, author and apparatus imprint and progress. Reading and state actions, exports and deletion are separated by rules. Delete still asks for confirmation.
 
 Arrow keys move one book sideways and to the nearest cover in the next row up or down. Home and End go to the ends.
 Title sorting uses the finding aid's case- and diacritic-folded filing key, so accented Latin titles stay with their base letters.
@@ -95,11 +95,11 @@ Chosen values also show as removable chips under the controls with Clear filters
 
 ### Person page works
 
-A person's page lists their works above the related sections: `Works N` in the faint label, then a grid of 72 px covers (`--work-cover-width`). Each has the title on up to two lines and one mono line of year, Editor or Translator when that is their role, and the reading state or progress. Undated works follow the dated ones, oldest first.
+A person's page lists their works above the related sections: `Works N` in the faint label, then a grid of 72 px covers (`--work-cover-width`). Each has the title on up to two lines and one apparatus line of year, Editor or Translator when that is their role, and the reading state or progress. Undated works follow the dated ones, oldest first.
 
 The creator field values those works hold are left out of Backlinks, and the person's hover card counts `N works` before its perspectives and references.
 
-The Works heading and shelf share the page title's left edge. Works and its count sit in mono on either side of a hairline rule.
+The Works heading and shelf share the page title's left edge. Works in the apparatus and its count in mono sit on either side of a hairline rule.
 
 ### Reading now
 
@@ -132,7 +132,7 @@ An identifier lookup previews a catalog card before anything is written:
 
 - The cover and the title in Piazzolla with its subtitle.
 - The creators with `(ed.)` and `(trans.)` marks.
-- Year, publisher and identifiers as mono apparatus.
+- Year, publisher and identifiers as apparatus, the year and identifiers in mono.
 - `From Open Library`, `From Crossref` or `From arXiv` in `--faint`.
 - Cancel, Edit details and Add.
 
@@ -229,7 +229,7 @@ An inspector transaction is not adopted into document state before acknowledgmen
 
 Highlights is a processing desk: a reading-order queue and selected passage share the desktop and unfolded pane, with source and chapter pickers in the toolbar rather than a permanent navigator. The tab strip keeps its place from the other tabs; the desk's controls span the desk below it. Until the workshop has a highlight there is no desk, so the controls and the empty message keep the other tabs' measure and offset.
 
-Sources retain newest-highlight order. Each source's passages retain ordinal and selection-offset order, including distinct overlapping selections. Queue previews clamp to three lines, marked by a 2 px color bar, with the actual paragraph, date, note count and filing page in mono. A quotation that supplies its own chapter title does not repeat that title above it.
+Sources retain newest-highlight order. Each source's passages retain ordinal and selection-offset order, including distinct overlapping selections. Queue previews clamp to three lines, marked by a 2 px color bar, with the actual paragraph, date and note count in mono and the filing page in the apparatus. A quotation that supplies its own chapter title does not repeat that title above it.
 
 The detail shows the full frozen quotation, preserves rewritten block prose, and fetches context from the citation's snapshot without moving the reading position. Passage continues starts with the rest of the highlighted paragraph after the selection, then following passages. Filing tags appear once as metadata. Adding a tag alone does not repeat the quotation, here or in the source outline.
 
@@ -289,7 +289,7 @@ Empty results and their controls stay on the page measure rather than reserving 
 
 ### Header and reading progress
 
-A source page puts the current snapshot's cover beside its title, with creators joined by ` · ` followed by one mono imprint line: siglum, format, publisher and year, omitting absent values. The cover opens the reader.
+A source page puts the current snapshot's cover beside its title, with creators joined by ` · ` followed by one apparatus imprint line: siglum, format, publisher and year, the siglum and year in mono, omitting absent values. The cover opens the reader.
 
 In panes below 600 px, coverless articles omit the empty spine tile and give the title and imprint the whole width. Books and articles with real covers keep the cover rail; Read remains available in the reading controls.
 
@@ -301,7 +301,7 @@ The primary gilt Read button becomes Continue reading once a saved position exis
 
 ### Source actions and fields
 
-Source actions is titled `Source actions`, with the source title in mono beneath it. Six routine rows keep longer choices in drill-ins:
+Source actions is titled `Source actions`, with the source title in the apparatus beneath it. Six routine rows keep longer choices in drill-ins:
 
 | Menu | Items |
 | --- | --- |
