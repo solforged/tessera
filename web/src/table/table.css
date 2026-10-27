@@ -3,10 +3,16 @@
 .table-register { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; width: 100%; margin-inline: auto; }
 .table-header { display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0; gap: var(--page-title-gap); padding-bottom: var(--page-title-gap); }
 .table-heading { min-width: 0; }
-.table-heading h1 { margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); }
-.table-title.button { justify-content: flex-start; max-width: 100%; min-width: 0; padding: 0; font-family: var(--font-display); font-size: inherit; line-height: inherit; font-weight: var(--weight-title); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+/* The title button fills the heading's line exactly, so Table mode's tabs sit where List mode's do. */
+.table-heading h1 { display: flex; margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); }
+.table-title.button { align-items: baseline; justify-content: flex-start; max-width: 100%; min-width: 0; padding: 0; border: 0; font-family: var(--font-display); font-size: inherit; line-height: inherit; font-weight: var(--weight-title); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
 .table-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.table-title > .icon { color: var(--faint); }
+.table-title > .icon { align-self: center; color: var(--faint); }
+.table-title > .icon:first-child { margin-right: var(--space-8); }
+/* A kind's Table mode sets its title and count on one baseline, as its List mode does. */
+.table-kind-header { align-items: baseline; gap: var(--space-8) var(--space-16); }
+.table-kind-header > .table-heading { flex: 1 1 auto; }
+.table-kind-header .table-view-status { padding-top: 0; }
 .table-register-label { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .table-type-label.button { position: relative; min-height: 0; max-width: 100%; border: 0; padding: 0; color: var(--muted); font: inherit; letter-spacing: inherit; overflow-wrap: anywhere; }
 .table-view-status { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-4); padding-top: var(--space-24); color: var(--faint); font: var(--apparatus); text-align: left; }
@@ -15,6 +21,8 @@
 .table-needed { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .table-columns-button { margin-left: auto; color: var(--muted); }
 .table-register > :is(.table-header, .type-mode-tabs, .table-toolbar, .table-query-chips, .table-footer, .note-find) { width: min(100%, var(--measure)); margin-inline: auto; }
+/* The find field stands off the tabs as far as it does in List mode, where its margin collapses into theirs. */
+.table-register > .type-mode-tabs + .note-find { margin-top: var(--page-head-gap); }
 .table-toolbar { display: flex; align-items: center; flex-shrink: 0; flex-wrap: wrap; width: 100%; gap: var(--space-8); padding-block: var(--page-head-gap); }
 .table-toolbar .table-search { width: calc(var(--apparatus-width) + var(--space-8)); max-width: 100%; min-width: 0; min-height: var(--row-height); font-size: var(--text-control); line-height: var(--line-control); }
 .table-query-controls { display: flex; flex: 1; gap: var(--space-8); }
@@ -33,6 +41,8 @@
 .type-table th .button { justify-content: flex-start; width: 100%; min-width: 0; color: inherit; font: inherit; letter-spacing: inherit; min-height: var(--target-size); padding-inline: 0; overflow-wrap: anywhere; }
 .type-table tbody tr:hover td { background: var(--hover); }
 .type-table .table-title-column { width: var(--table-title-width); position: sticky; left: 0; z-index: 1; background: var(--canvas); border-right: var(--rule-width) solid var(--line); padding-left: var(--space-8); padding-right: var(--space-32); }
+/* A lone Title column has no neighbour to divide from. */
+.type-table .table-title-column:last-child { border-right: 0; }
 /* A header's hover band and click target span its whole column, inset alike from each rule; the label keeps the cells' text edges. */
 .type-table thead th { --header-start: var(--space-12); --header-end: var(--space-12); }
 .type-table thead .table-title-column { --header-start: var(--space-8); --header-end: var(--space-32); }
@@ -79,7 +89,7 @@
 .table-source-link:hover { color: var(--accent); }
 .table-source-list .table-source-host { margin-top: var(--space-4); color: var(--muted); }
 .table-source-href { margin-top: var(--space-2); }
-.table-footer { display: flex; align-items: center; flex-wrap: wrap; flex-shrink: 0; gap: var(--space-4); min-height: var(--space-32); padding-top: var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.table-footer { display: flex; align-items: center; flex-wrap: wrap; flex-shrink: 0; gap: var(--space-4); min-height: var(--space-32); padding-block: var(--space-8); border-top: var(--rule-width) solid var(--line); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .table-show-more.button { padding-inline: var(--space-8); color: var(--accent); font: inherit; letter-spacing: inherit; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 35%, transparent); text-underline-offset: var(--space-4); }
 .menu-section { padding: var(--space-8) var(--space-8) var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); border-top: var(--rule-width) solid var(--line); margin-top: var(--space-4); }
 .menu-section:first-child { border-top: 0; margin-top: 0; }

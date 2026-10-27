@@ -139,6 +139,8 @@ The heading, mode strip, toolbar, query chips and footer stay centered on the pa
 
 The type and Register sit in quiet apparatus above a Piazzolla view name. Its menu lists all members of the source or type and its saved views, then Save as view…, Rename and Delete separately. A checkmark means the current query and recipe equal that row's saved query, not merely that the view is open. When they differ, the open row shows faint mono Modified; Save changes updates a saved view in one undoable edit, and Revert changes restores its saved query and recipe. The footer offers Undo after saving; ⌘Z and ⌘⇧Z also undo and redo the update. The one-line purpose under the name edits in place.
 
+A kind's Table mode, reached from its List tab, keeps List's head so switching modes moves nothing: no type crumb or Register label, the same glyph, title, tally and create action in the same places, and the tally, footer and empty state in List's nouns (`9 atoms`, `16 tasks`, `No people yet.`). Its purpose waits in the view menu as Add purpose… until it has text. The pane title, its glyph and the sidebar's selected row name the kind, as in List.
+
 A saved view with a detached or deleted field names the remembered field and offers Remove from view. Results pause instead of showing an empty result or a raw identifier. Removing the field clears its filters, sorts, columns, grouping and phone card references, and saves the repaired view. Undoing the field change restores the original recipe.
 
 A type with a required field that some rows lack adds `· 3 need author` after the member count, counted within the table's own query. It adds that field's `is empty` filter to the filters already set. An empty required cell reads faint mono `needed`.
@@ -183,7 +185,7 @@ Group offers attributes and fields, except Title, which would make every row its
 
 ### Perspective layouts
 
-Layout offers Table, Register and Matrix beside Group. Register and Matrix require Perspectives; other sources show the reason beside their unavailable choices. Old views remain Table.
+Layout offers Table, Register and Matrix beside Group. Register and Matrix require Perspectives; other sources show the reason beside their unavailable choices. A kind's Table mode leaves Layout out, since its Table tab already names the layout. Old views remain Table.
 
 Register starts grouped by Subject, with Holder also available in Group. Each perspective slip leads with its siglum and holder, then its standfirst sentence, an aligned attribute and citation bed, full-width prose and labeled argument relations. Open perspective zooms into the perspective; the subject link opens its original page or question.
 
@@ -252,7 +254,7 @@ Column menus contain sort, filter and hide. Edit field opens the field page and 
 
 ### Footer
 
-The footer has a persistent `N of M members` (`1 of 1 member`) readout, followed by `· Show 500 more` while more results remain. Appending retains the loaded rows, scroll position, sort and filters; the action disappears when every result is loaded.
+The footer has a persistent `N of M members` (`1 of 1 member`) readout, or `N of M atoms` in a kind's Table mode, on a hairline like the Fields register's count, followed by `· Show 500 more` while more results remain. Appending retains the loaded rows, scroll position, sort and filters; the action disappears when every result is loaded.
 
 Queries page by a zero-based offset with block ID as the deterministic ordering tie-breaker. Totals cover all matches rather than one batch; column metadata covers the base membership before search and filters. Tagged block members count toward both totals rather than disappearing from membership. Load errors stay in the footer.
 

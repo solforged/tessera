@@ -42,7 +42,7 @@
 .field-create-fields :is(.input, .button) { min-height: var(--space-32); color: var(--text); }
 .field-create-fields .button { justify-content: space-between; border-color: var(--line); }
 .fields-actions { display: flex; gap: var(--space-4); }
-.fields-footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); padding-block: var(--space-8); border-top: 1px solid var(--line); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.fields-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); min-height: var(--space-32); padding-block: var(--space-8); border-top: var(--rule-width) solid var(--line); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 
 /* Narrow panes keep each field on one line, with templates only when present. */
 @container pane (max-width: 599px) {

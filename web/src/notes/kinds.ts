@@ -29,6 +29,20 @@ export function kindLabel(kind: IndexKind): string {
   return kind.key.startsWith('type:') && tagOnly(kind) && kind.plural === autoPlural(kind.name) ? kind.name : kind.plural;
 }
 
+/** Built-in kinds that can start from their finding aid. Sources come from the Library instead. */
+export const startableKinds: Readonly<Record<string, 'type' | 'task' | 'question' | 'project'>> = { person: 'type', group: 'type', concept: 'type', thesis: 'type', task: 'task', question: 'question', project: 'project' };
+
+/** Built-in kinds read as common nouns (`no people yet`); a type's own name keeps the capitals it was given. */
+export function kindPlural(kind: Pick<NoteKind, 'key' | 'plural'>): string {
+  return kind.key in startableKinds || kind.key === 'source' ? kind.plural.toLocaleLowerCase() : kind.plural;
+}
+
+/** A kind's member count in its own noun: tasks, questions, sources and projects count themselves, the rest count atoms. */
+export function kindTally(count: number, key: string): string {
+  const noun = ['task', 'question', 'source', 'project'].includes(key) ? key : 'atom';
+  return `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`;
+}
+
 /** A tag-only kind opens its useful member table rather than an empty note index. */
 export function indexKindTarget(kind: IndexKind): OpenTarget {
   return tagOnly(kind)

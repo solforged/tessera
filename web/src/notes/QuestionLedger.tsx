@@ -53,7 +53,7 @@ export function QuestionLedger(props: { notebook: NotebookClient; newQuestion?(m
   });
   const open = (row: QuestionRow, event: MouseEvent) => props.onOpen({ kind: 'page', pageId: row.block.page.id, blockId: row.block.block.kind === 'block' ? row.block.block.id : undefined }, opensBeside(event));
   return <div class="index-pane question-ledger" role="region" tabIndex={0} aria-label="Questions index" onFocusIn={props.onActivate}><div class="index-sheet">
-    <p class="index-eyebrow">Inquiry ledger</p><div class="index-head"><h1><Icon name="question-open" />Questions</h1><Show when={visible() && all()}><span class="index-tally">{visible()!.length} of {all()!.length} questions</span></Show>
+    <p class="index-eyebrow index-kind-eyebrow">Inquiry ledger</p><div class="index-head"><h1><Icon name="question-open" />Questions</h1><Show when={visible() && all()}><span class="index-tally">{visible()!.length} of {all()!.length} questions</span></Show>
       <Show when={all()}>{rows => props.newQuestion?.(rows().filter(row => row.block.block.kind === 'page').map(row => ({ id: row.block.block.id })))}</Show>
     </div>
     <div class="question-inquiry-tabs mode-tabs tab-strip" role="tablist" aria-label="Question state"><For each={tabs}>{state => <Button role="tab" aria-selected={tab() === state} onClick={() => setTab(state)}>{state}</Button>}</For></div>
