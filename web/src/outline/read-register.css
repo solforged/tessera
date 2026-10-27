@@ -41,7 +41,7 @@
 .reading-register .reading-holder .row-siglum { min-width: 0; padding: 0; border: 0; background: none; color: var(--faint); font: var(--weight-control) var(--text-control)/var(--line-control) var(--font-mono); }
 .reading-holder .static-text { min-height: var(--line-control); }
 .reading-gist .outline-row { padding-block: 0; }
-.reading-register .reading-gist .outline-body { margin-left: 0; color: var(--text); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); font-variation-settings: var(--optical-reader); }
+.reading-register .reading-gist .outline-body { margin-left: 0; color: var(--text); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); }
 .reading-work .outline-row { min-height: var(--line-apparatus); padding: 0; }
 .reading-register .reading-work .outline-body { margin-left: 0; }
 .reading-work, .reading-work .outline-source { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--faint); }

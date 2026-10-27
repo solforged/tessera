@@ -1,5 +1,5 @@
 .week-ledger { width: 100%; max-width: var(--measure); margin-inline: auto; }
-.week-ledger-summary { margin: 0 0 var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.week-ledger-summary { margin: 0 0 var(--space-8); color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .week-ledger-day { margin-top: var(--space-16); }
 .week-ledger-day > h2 { margin: 0; }
 .week-ledger-heading { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: baseline; align-content: center; column-gap: var(--space-8); width: 100%; min-height: var(--touch-target); }

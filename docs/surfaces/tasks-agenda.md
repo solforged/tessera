@@ -60,7 +60,7 @@ Typing `@` after a space or at block start opens date suggestions under the `@`:
 
 Typed dates count from the workshop's today, also on another day's journal page or Agenda day, so `@today` on last Tuesday's page schedules today. Agenda's New task still schedules a dateless task on the shown day.
 
-The picker's first, non-selectable row reads Scheduled or Deadline, with a mono Tab hint. Tab flips the field by inserting `by ` or removing `by `/`due ` while retaining the query. Other pickers keep Tab to pick.
+The picker's first, non-selectable row reads Scheduled or Deadline, with a Tab key hint. Tab flips the field by inserting `by ` or removing `by `/`due ` while retaining the query. Other pickers keep Tab to pick.
 
 Enter picks a date: a plain atom becomes an appointment with no status or checkbox, an existing task keeps its status, and only the date token and its leading space leave the text. A tag normalized while the picker is open keeps its full identity; the date choice, Tab field flip and full date picker follow the rewritten token boundaries. `#task`, `/Todo` or ⌘Enter adds a checkbox. Pick a date… opens the full picker with the typed query, without changing the atom until a date is chosen. Canceling either picker keeps the token and the existing schedule unchanged.
 
@@ -111,7 +111,7 @@ The task API's optional `project_via: "field"` filter restricts results to expli
 
 ## Agenda destination
 
-The Agenda destination keeps a mono Agenda eyebrow above its title, followed by `· Today` in gilt when the displayed day or week contains today. Day has a spoken date heading, `Sunday, October 25`, never a relative word such as today. Previous day, Today and Next day form one bordered group at the title's right edge, with Today in `--faint` while today is shown. Week uses a week number and month-and-day range (`Week 43 · Oct 19 – Oct 25`, with the year only outside today's) with Previous week / Today / Next week. Both date headings open the journal's calendar; picking a day moves there, and its Today returns to today. Tasks has a plain Tasks title with no date navigation.
+The Agenda destination keeps an apparatus Agenda eyebrow above its title, followed by `· Today` in gilt when the displayed day or week contains today. Day has a spoken date heading, `Sunday, October 25`, never a relative word such as today. Previous day, Today and Next day form one bordered group at the title's right edge, with Today in `--faint` while today is shown. Week uses a week number and month-and-day range (`Week 43 · Oct 19 – Oct 25`, with the year only outside today's) with Previous week / Today / Next week. Both date headings open the journal's calendar; picking a day moves there, and its Today returns to today. Tasks has a plain Tasks title with no date navigation.
 
 On the cover, a date eyebrow and Agenda page title sit above the day or week stepper. The eyebrow opens the calendar; Tasks uses a Tasks eyebrow instead. Wider layouts keep their date-led heading.
 
@@ -119,14 +119,14 @@ Day / Week / Tasks sit beneath on the shared ruled tab baseline. On the wide Wee
 
 Day's seven-day strip has no boxes:
 
-- Each column carries a small mono weekday, a Plex numeral at 20 px and weight 500, and one 4 px dot per open task, deduplicating a task whose schedule and deadline coincide. Dots are `--faint`; today's overdue work is `--danger` and deadlines inside their warning window are `--warning`. A day with more than six shows six dots and a faint mono count. The accessible label reads `4 open · 2 overdue`.
+- Each column carries a small apparatus weekday, a Plex numeral at 20 px and weight 500, and one 4 px dot per open task, deduplicating a task whose schedule and deadline coincide. Dots are `--faint`; today's overdue work is `--danger` and deadlines inside their warning window are `--warning`. A day with more than six shows six dots and a faint mono count. The accessible label reads `4 open · 2 overdue`.
 - The selected day has a 2 px gilt rule on the strip's hairline and the `--hover` fill; today's numeral is gilt.
 - Tapping a day changes the list without shifting the strip.
 - The strip and Day lookahead reuse the existing scheduled/deadline task queries.
 
 ### Add a task
 
-On Day, Add a task sits directly under the strip, so it stays in place however many tasks are overdue: 20 px below the strip and 28 px above the first section. It uses the text-field shape at 44 px with a gilt plus and the placeholder `Add a task for Sunday`, naming the displayed day. It is [Add to today](journal.md#add-to-today) in its task form: it captures into today's [capture section](journal.md#today-template), Inbox by default, scheduled for the displayed day unless a complete plain-word suffix such as `mon 9am`, a trailing `@date`, or `by`/`due` names another plan.
+On Day, Add a task sits directly under the strip, so it stays in place however many tasks are overdue: 20 px below the strip and 28 px above the first section. It is a [capture slip](../design.md#color) at 52 px with a gilt plus and the placeholder `Add a task for Sunday`, naming the displayed day. It is [Add to today](journal.md#add-to-today) in its task form: it captures into today's [capture section](journal.md#today-template), Inbox by default, scheduled for the displayed day unless a complete plain-word suffix such as `mon 9am`, a trailing `@date`, or `by`/`due` names another plan.
 
 On the cover, the inline field is hidden and the glass top bar's New button opens a task creation slip preset to the displayed day. It still captures into today's capture section; typed dates override the preset. Elsewhere, a live preview at the field's right end shows the plan as a planning fact in Plex (`tomorrow 15:00`, `due Fri 16`), after a calendar glyph, in `--calendar-scheduled`, then a faint `↵ add`. An unmatched explicit `@` token replaces the preview with a `--warning` note that it stays in the text. One `--faint` line beneath the field reads `Try “mon 9am”, “by fri” or “in 2 weeks”`.
 
@@ -136,7 +136,7 @@ After acknowledgment, the list refreshes, scrolls the new task row into view and
 
 ## Tasks query
 
-Tasks has one mono query line on a hairline, beside its saved-view trigger. The line never wraps: its empty placeholder truncates with an ellipsis, and applied term chips scroll horizontally when they exceed the available width. Focus edits one line of plain text; Enter or blur applies it. Outside editing each term is a chip with its own remove control. Invalid terms keep their text, carry a `--danger` underline and explain the error beneath; the last valid query stays applied.
+Tasks has one apparatus query line on a hairline, beside its saved-view trigger. The line never wraps: its empty placeholder truncates with an ellipsis, and applied term chips scroll horizontally when they exceed the available width. Focus edits one line of plain text; Enter or blur applies it. Outside editing each term is a chip with its own remove control. Invalid terms keep their text, carry a `--danger` underline and explain the error beneath; the last valid query stays applied.
 
 A faint mono count trails the condition-builder rail, which can wrap below the query when space runs out. Terms combine before the result limit, and double quotes group words or multi-word date expressions. Finished tasks, both Done and Canceled, follow all unfinished results while retaining the query's order within each group.
 
@@ -248,13 +248,13 @@ Week shows the displayed date's Monday-start week. Previous week, Next week and 
 
 The heading, shared tabs and drop feedback keep the same 760 px measure and alignment across Day, Week and Tasks.
 
-The all-day strip holds untimed scheduled tasks and deadlines labeled Due. Each card leads with its status glyph in the status color, then the time or Due in mono. The strip sizes to its tallest day's content, capped at three rows; days with more cards scroll within the strip.
+The all-day strip holds untimed scheduled tasks and deadlines labeled Due. Each card leads with its status glyph in the status color, then the time in mono or Due in the apparatus. The strip sizes to its tallest day's content, capped at three rows; days with more cards scroll within the strip.
 
 In the week containing today, unfinished tasks with a missed schedule or deadline before the week's first day also appear as Overdue cards in today's all-day lane. Overdue plans from earlier days of this same week keep their red card on their original day and are not repeated in today's lane. The narrow week ledger follows the same rule: those tasks list under today with their `since` facts, and its summary line adds `· N overdue`.
 
 Timed scheduled tasks sit in an hourly grid, initially scrolled to 08:00 or the earliest earlier task. Column dates (`Thu 22`) and hour labels are mono. Timed cards may take two text lines. The default hour window is 06:00–22:00 and expands to include any task outside it. Show all hours at the right of the tab row opens 00:00–24:00; its pressed state and label change to Hide early and late hours. Toggling keeps the visible hour in place. A live gilt now line and dot cross today's timed column at the current time when it falls inside the shown window. Overlapping times use separate lanes.
 
-At an Agenda container width below 600 px, Week becomes a seven-day ledger on one scroll axis, including narrow desktop splits. Mono weekdays, serif numerals, hairlines and faint open counts head Day's canonical task rows. Today's numeral and now rule are gilt. Untimed work leads each day, followed by chronological timed rows regardless of status; elapsed clocks sit above the now rule and future clocks below it. Empty days take one line. Days before today fold to a done count and any open count, and expand on tap.
+At an Agenda container width below 600 px, Week becomes a seven-day ledger on one scroll axis, including narrow desktop splits. Apparatus weekdays, serif numerals, hairlines and faint open counts head Day's canonical task rows. Today's numeral and now rule are gilt. Untimed work leads each day, followed by chronological timed rows regardless of status; elapsed clocks sit above the now rule and future clocks below it. Empty days take one line. Days before today fold to a done count and any open count, and expand on tap.
 
 Appointments, scheduled atoms without `#task`, appear on their exact date in both the grid and the narrow ledger, with or without a time and without a status glyph.
 

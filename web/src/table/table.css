@@ -5,7 +5,7 @@
 .table-heading { min-width: 0; }
 /* The title button fills the heading's line exactly, so Table mode's tabs sit where List mode's do. */
 .table-heading h1 { display: flex; margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); }
-.table-title.button { align-items: baseline; justify-content: flex-start; max-width: 100%; min-width: 0; padding: 0; border: 0; font-family: var(--font-display); font-size: inherit; line-height: inherit; font-weight: var(--weight-title); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.table-title.button { align-items: baseline; justify-content: flex-start; max-width: 100%; min-width: 0; padding: 0; border: 0; font-family: var(--font-display); font-size: inherit; line-height: inherit; font-weight: var(--weight-title); }
 .table-title > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .table-title > .icon { align-self: center; color: var(--faint); }
 .table-title > .icon:first-child { margin-right: var(--space-8); }
@@ -26,7 +26,7 @@
 .table-toolbar { display: flex; align-items: center; flex-shrink: 0; flex-wrap: wrap; width: 100%; gap: var(--space-8); padding-block: var(--page-head-gap); }
 .table-toolbar .table-search { width: calc(var(--apparatus-width) + var(--space-8)); max-width: 100%; min-width: 0; min-height: var(--row-height); font-size: var(--text-control); line-height: var(--line-control); }
 .table-query-controls { display: flex; flex: 1; gap: var(--space-8); }
-.table-control-count { color: var(--faint); font: var(--apparatus); }
+.table-control-count { color: var(--faint); font: var(--figures); }
 .table-query-chips { display: flex; flex-wrap: wrap; width: 100%; gap: var(--space-8); padding-bottom: var(--page-head-gap); }
 .table-chip { display: inline-flex; align-items: center; gap: var(--space-2); min-height: var(--target-size); max-width: 100%; padding-left: var(--space-8); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: transparent; font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
 .table-chip .button { flex: none; min-height: var(--target-size); padding: 0 var(--space-8); border-radius: var(--radius-pill); }
@@ -55,9 +55,9 @@
 /* The toggle's label starts on the cell text's edge. */
 .table-cell-more.button { margin-inline-start: calc(-1 * (var(--space-8) + var(--rule-width))); color: var(--muted); font-weight: var(--weight-body); }
 .type-table .table-cell:focus { outline: var(--focus-ring); outline-offset: calc(-2 * var(--rule-width)); background: var(--selection); }
-.table-cell.table-title-column { cursor: pointer; font-family: var(--font-display); font-weight: var(--weight-title); font-variation-settings: var(--optical-quote); letter-spacing: var(--tracking-title); }
-.type-table :is(.table-kind-number, .table-refs) { text-align: right; font: var(--apparatus); font-variant-numeric: tabular-nums; }
-.table-kind-date { font: var(--apparatus); font-variant-numeric: tabular-nums; }
+.table-cell.table-title-column { cursor: pointer; font-family: var(--font-display); font-weight: var(--weight-title); }
+.type-table :is(.table-kind-number, .table-refs) { text-align: right; font: var(--figures); font-variant-numeric: tabular-nums; }
+.table-kind-date { font: var(--figures); font-variant-numeric: tabular-nums; }
 .table-page-title { color: var(--faint); font: var(--apparatus); margin-top: var(--space-4); white-space: normal; }
 .table-value-pill.button { display: inline-block; min-height: 0; padding: 0 var(--space-8); margin: var(--rule-width) var(--space-2) var(--rule-width) 0; border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: transparent; font-size: var(--text-meta); font-weight: var(--weight-body); line-height: var(--line-meta); white-space: normal; }
 .table-reading-problem { text-decoration: underline dotted var(--warning); text-underline-offset: var(--space-4); }
@@ -65,21 +65,22 @@
 .table-source-cell { display: flex; align-items: center; gap: var(--space-8); white-space: normal; }
 .table-source-summary { flex: 1; min-width: 0; }
 .table-source-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); line-height: var(--line-meta); }
-.table-source-host, .table-source-href { display: block; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
+.table-source-host, .table-source-href { display: block; color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
 .table-source-summary .table-source-host { margin-top: 0; line-height: calc(var(--line-apparatus) - var(--space-2)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.table-source-count.button { flex: none; color: var(--accent); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); padding-inline: var(--space-4); white-space: nowrap; }
+.table-source-count.button { flex: none; color: var(--accent); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); padding-inline: var(--space-4); white-space: nowrap; }
 .table-source-remainder { margin-top: var(--space-4); }
-.table-popup-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); padding: var(--space-4) var(--space-8) var(--space-8); font-family: var(--font-display); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-display-heading); font-variation-settings: var(--optical-heading); }
+.table-popup-heading { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-8); padding: var(--space-4) var(--space-8) var(--space-8); font-family: var(--font-display); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-display-heading); }
 .table-popup-count, .table-popup-note { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.table-popup-count { font: var(--figures); }
 .table-popup-count { flex: none; white-space: nowrap; }
 .table-popup-note { padding: 0 var(--space-8) var(--space-4); }
 /* The view menu's trailing label is state, not a keyboard hint, including on touch. */
-.menu:has(.table-popup-heading) kbd { display: block; color: var(--faint); font: var(--apparatus); }
+.menu:has(.table-popup-heading) kbd { display: block; color: var(--faint); font: var(--figures); }
 .table-columns-popup .table-column-choice { display: flex; align-items: center; gap: var(--space-8); margin: 0; padding: var(--space-4) var(--space-8); min-height: var(--row-height); cursor: pointer; overflow-wrap: anywhere; }
 .table-column-choice input { flex: none; margin: 0; accent-color: var(--accent); }
 .table-columns-popup .table-width-control { display: block; margin: var(--space-8) 0 0; padding: var(--space-8); border-top: var(--rule-width) solid var(--line); }
 .table-width-control > span { display: flex; justify-content: space-between; gap: var(--space-8); }
-.table-width-control output { color: var(--muted); font: var(--apparatus); }
+.table-width-control output { color: var(--muted); font: var(--figures); }
 .table-width-control input { display: block; width: 100%; margin: var(--space-8) 0 0; accent-color: var(--accent); }
 .table-template-actions { padding-top: var(--space-4); border-top: var(--rule-width) solid var(--line); }
 .table-template-actions .button { width: 100%; justify-content: flex-start; color: var(--muted); }
@@ -120,7 +121,7 @@
 .table-purpose::placeholder { color: var(--faint); }
 .table-resize { position: absolute; top: 0; right: 0; width: var(--space-8); height: 100%; cursor: col-resize; touch-action: none; }
 .table-resize:hover { background: var(--selection); }
-.table-sort-priority { color: var(--faint); font: var(--apparatus); }
+.table-sort-priority { color: var(--faint); font: var(--figures); }
 .table-columns-popup .input { width: 100%; }
 .table-column-choice { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-4) var(--space-8); }
 .table-card-field-name { margin-right: var(--space-8); color: var(--faint); font: var(--apparatus); }
@@ -128,7 +129,7 @@
 .table-cards { display: none; border-top: var(--rule-width) solid var(--line); }
 .table-card { position: relative; padding: var(--card-padding); border-bottom: var(--rule-width) solid var(--line); }
 .table-card.selected { background: var(--selection); box-shadow: inset var(--space-2) 0 var(--accent); }
-.table-card-title.button { justify-content: flex-start; width: 100%; padding: 0; border: 0; text-align: left; font-family: var(--font-display); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-display-heading); font-variation-settings: var(--optical-heading); }
+.table-card-title.button { justify-content: flex-start; width: 100%; padding: 0; border: 0; text-align: left; font-family: var(--font-display); font-size: var(--text-h2); line-height: var(--line-h2); font-weight: var(--weight-display-heading); }
 .table-card-text { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
 .table-card-arrow { margin-left: auto; flex: none; color: var(--faint); }
 .table-card-status { flex: none; display: inline-flex; align-items: center; color: var(--muted); }
@@ -182,7 +183,7 @@
     .table-query-bar > :is(.table-query-find, .button) { display: flex; align-items: center; gap: var(--space-8); min-width: 0; min-height: var(--touch-target); padding-inline: var(--space-12); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); }
     .table-query-find { color: var(--muted); }
     .table-query-find .input { width: 100%; min-width: 0; border: 0; padding: 0; background: transparent; font: var(--text-body) / var(--line-body) var(--font-body); }
-    .table-query-count { font: var(--apparatus); }
+    .table-query-count { font: var(--figures); }
     .pane:not(.active) .table-query-bar { display: none; }
     .app.keyboard-open .table-query-bar { bottom: calc(var(--bottom-inset) + var(--space-8)); }
   }

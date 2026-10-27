@@ -3,7 +3,7 @@
 .spread-saved { margin-block: var(--section-gap); }
 .outline-heading:has(> .spread-pane) { max-width: none; }
 .spread-toolbar { display: flex; align-items: center; gap: var(--space-8); margin-bottom: var(--page-head-gap); flex-wrap: wrap; }
-.spread-rubric, .spread-kind { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--faint); text-transform: uppercase; }
+.spread-rubric, .spread-kind { font: var(--caps); letter-spacing: var(--tracking-caps); color: var(--faint); text-transform: uppercase; }
 .spread-toolbar .section-rule { flex: 1; }
 .spread-scroll { overflow-x: auto; }
 .spread-table { width: 100%; min-width: calc(var(--space-48) * 2 + var(--spread-count) * var(--apparatus-width)); table-layout: fixed; border-collapse: collapse; }

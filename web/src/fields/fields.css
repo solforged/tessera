@@ -4,7 +4,7 @@
 .fields-pane > :is(.fields-heading, .fields-toolbar, .fields-scroll, .fields-footer) { width: 100%; max-width: var(--fields-width); margin-inline: auto; transition: max-width var(--motion-page) var(--motion-ease); }
 .fields-heading { padding-bottom: var(--page-title-gap); }
 .fields-register { margin-bottom: var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.fields-title { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.fields-title { margin: 0; font: var(--page-title-font); }
 .fields-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); padding-bottom: var(--page-head-gap); border-bottom: var(--rule-width) solid var(--line); }
 .fields-search { flex: 1 1 16rem; min-width: 0; width: 100%; max-width: 16rem; min-height: var(--row-height); border-width: 0 0 var(--rule-width); border-radius: 0; background: transparent; padding-inline: 0; font-size: var(--text-control); }
 .fields-search:focus-visible { outline: none; border-color: var(--accent); }
@@ -20,7 +20,7 @@
 .fields-index th:not(:last-child) { padding-inline: calc(var(--space-8) + var(--space-4) + 1px); }
 .fields-index th:first-child { padding-left: calc(var(--space-16) + var(--space-4) + 1px); }
 .fields-index .fields-kind { width: calc(var(--row-height) * 3 + var(--space-24)); }
-.fields-index .fields-count { width: calc(var(--row-height) * 2 + var(--space-8)); text-align: right; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.fields-index .fields-count { width: calc(var(--row-height) * 2 + var(--space-8)); text-align: right; font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .fields-index .fields-count .button { font: inherit; letter-spacing: inherit; }
 .fields-count .fields-unused { padding-right: calc(var(--space-4) + 1px); }
 .fields-index tbody tr { transition: background-color var(--motion-fast) var(--motion-ease); }
@@ -87,7 +87,7 @@
 .type-fields-heading { padding-bottom: var(--page-title-gap); }
 .type-fields-crumb.button { min-height: 0; padding: 0; border: 0; color: var(--muted); font: inherit; letter-spacing: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: var(--space-4); }
 .type-fields-title { display: flex; align-items: baseline; gap: var(--space-16); }
-.type-fields-title h1 { display: flex; align-items: baseline; gap: var(--space-12); min-width: 0; margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.type-fields-title h1 { display: flex; align-items: baseline; gap: var(--space-12); min-width: 0; margin: 0; font: var(--page-title-font); }
 /* The kind's glyph leads the name, as on its index and table. */
 .type-fields-title h1 > .icon { flex: none; align-self: center; color: var(--faint); }
 .template-register { margin-top: var(--page-head-gap); }

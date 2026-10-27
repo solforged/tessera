@@ -6,11 +6,11 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ## Pane and navigation
 
-The header sticks to the top, so the save status and Undo and Redo stay in reach. It has a Piazzolla title, the status in faint mono, and Undo, Redo and History as icon buttons at its right. Undo and Redo change settings; History opens the workshop's change history in its own pane. ⌘Z and ⌘⇧Z undo and redo a setting anywhere in the pane except text fields, which keep their own undo. A hairline appears under it once the page scrolls.
+The header sticks to the top, so the save status and Undo and Redo stay in reach. It has a Piazzolla title, the status in the faint apparatus, and Undo, Redo and History as icon buttons at its right. Undo and Redo change settings; History opens the workshop's change history in its own pane. ⌘Z and ⌘⇧Z undo and redo a setting anywhere in the pane except text fields, which keep their own undo. A hairline appears under it once the page scrolls.
 
 When the left margin can hold it, the section index sticks outside the centered page measure, with mono counts and a 2 px gilt bar on the current section. Narrower panes use the same index as a horizontally scrolling row of section chips under the title. Both forms scroll to sections and follow the current section. Once the page can scroll no further, the last section is current. A section chosen from the index stays current until you scroll by hand.
 
-Sections use the same mono numbered heads as field definitions, in this order:
+Sections use the same numbered apparatus heads as field definitions, in this order:
 
 1. Preferences.
 2. Workshops and Backups on the Mac; only Backups in the browser build; neither on the phone.
@@ -26,7 +26,7 @@ The cover title, save status, Undo and Redo scroll away with the page, leaving o
 
 ## Preferences
 
-Preferences contains Theme, Vim keys, Ask before deleting views and Journal day. Reader display is set beside the text in the reader, so Settings has no row for it. Each row has its name, a mono scope (This device or Workshop) and one muted sentence on the left, with its control flush right. Rows divide with hairlines.
+Preferences contains Theme, Vim keys, Ask before deleting views and Journal day. Reader display is set beside the text in the reader, so Settings has no row for it. Each row has its name, an apparatus scope (This device or Workshop) and one muted sentence on the left, with its control flush right. Rows divide with hairlines.
 
 Vim keys is hidden with a coarse pointer, without changing its saved workshop value or the desktop setting.
 
@@ -39,11 +39,11 @@ Vim keys is hidden with a coarse pointer, without changing its saved workshop va
 
 ## Workshops
 
-The list contains every registered workshop and every workshop folder found inside `~/.local/share/tessera/workshops`, or its XDG data override. Names use the folder name with its first letter capitalized; the default is Main. The one in use has a mono Open scope. A place line appears for workshops outside that folder, sharing a name or missing their folder; shared names show the full path.
+The list contains every registered workshop and every workshop folder found inside `~/.local/share/tessera/workshops`, or its XDG data override. Names use the folder name with its first letter capitalized; the default is Main. The one in use has an apparatus Open scope. A place line appears for workshops outside that folder, sharing a name or missing their folder; shared names show the full path.
 
 Other workshops offer Open and, except for the default, Forget. Forget drops the registry entry, not the folder. A workshop still in the workshops folder appears again when the list loads. A listed workshop whose folder is gone reads Folder missing and shows its expected path. A missing default workshop also explains that its folder can be moved back or opened from its new location.
 
-Open or create accepts a name such as `reading`, an absolute path, or a home-relative path such as `~/Documents/reading`. Names resolve inside the workshops folder. Open uses an existing workshop; New starts an empty one in a new or empty folder. Switching covers the window with `Opening <name>…` in mono until it reloads. Commands lists available workshops as `Switch to workshop: <name>`. The sidebar switcher opens the same workshops.
+Open or create accepts a name such as `reading`, an absolute path, or a home-relative path such as `~/Documents/reading`. Names resolve inside the workshops folder. Open uses an existing workshop; New starts an empty one in a new or empty folder. Switching covers the window with `Opening <name>…` in the apparatus until it reloads. Commands lists available workshops as `Switch to workshop: <name>`. The sidebar switcher opens the same workshops.
 
 ## Backups
 
@@ -79,7 +79,7 @@ A Mac serving without sync says so in one sentence under the heading: `Sync is o
 
 Pair a phone opens a dialog once its code has arrived, so it never grows while it enters: the QR code on white with the code under it in spaced mono, three numbered steps beside it, and the wait on a hairline. A click outside does not cancel a pairing in progress. The wait turns to `<phone> is paired and copying the workshop.`
 
-Each paired device is a disclosure: its name, and its state at the right in `--danger` when it needs the person. Opened, it shows both sides' versions in mono, then the fix first: a version mismatch says which side is behind, in a block with a 2 px rubric rule at its left, with the update route. Last seen, refused since with the attempt count, and last attempt follow as a mono list, then Recent attempts as a small ledger of ISO time, result and count, and Forget. Forget asks `Forget <device>? It must pair again to sync.` inline with Cancel and Confirm. Device and Needs review disclosures use the same small turning chevron as Stored backups. The rail's summary opens Settings with its device expanded.
+Each paired device is a disclosure: its name, and its state at the right in `--danger` when it needs the person. Opened, it shows both sides' versions in mono, then the fix first: a version mismatch says which side is behind, in a block with a 2 px rubric rule at its left, with the update route. Last seen, refused since with the attempt count, and last attempt follow as a list, then Recent attempts as a small ledger of ISO time, result and count, and Forget. Forget asks `Forget <device>? It must pair again to sync.` inline with Cancel and Confirm. Device and Needs review disclosures use the same small turning chevron as Stored backups. The rail's summary opens Settings with its device expanded.
 
 ## Devices on the phone
 

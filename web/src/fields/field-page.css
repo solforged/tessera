@@ -3,7 +3,7 @@
 .field-eyebrow { margin-bottom: var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .field-eyebrow .button { min-height: 0; padding: 0; border: 0; font: inherit; color: var(--muted); }
 .field-heading { display: flex; align-items: baseline; gap: var(--space-16); }
-.field-heading h1 { min-width: 0; margin: 0; overflow-wrap: anywhere; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }
+.field-heading h1 { min-width: 0; margin: 0; overflow-wrap: anywhere; font: var(--page-title-font); }
 .field-heading > .button, .field-heading-actions { flex: none; }
 .field-heading-actions { margin-inline-start: auto; }
 .field-built-in { flex: none; color: var(--faint); font: var(--apparatus); }

@@ -28,7 +28,7 @@
 
 .agent-thread { display: flex; flex: 1; flex-direction: column; gap: var(--space-16); min-height: 0; overflow-y: auto; padding: var(--space-12); font-size: var(--text-control); line-height: var(--line-body); }
 .agent-empty { margin: auto 0; color: var(--muted); }
-.agent-empty h3 { margin: 0 0 var(--space-8); color: var(--text); font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); font-variation-settings: var(--optical-heading); }
+.agent-empty h3 { margin: 0 0 var(--space-8); color: var(--text); font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); }
 .agent-empty p { margin: 0 0 var(--space-12); }
 .agent-who { margin: 0 0 var(--space-2); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .agent-message-user .agent-body { padding: var(--space-8) var(--space-12); border-radius: var(--radius-popup); background: var(--raised); white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -38,7 +38,7 @@
 /* Each change the agent made: its page in mono capitals, what it did, then Show and Undo. */
 .agent-edit { margin: 0 0 var(--space-8); padding: var(--space-8) var(--space-12); border: var(--rule-width) solid var(--line); border-left: calc(2 * var(--rule-width)) solid var(--agent); border-radius: var(--radius-control); }
 .agent-edit.undone { border-left-color: var(--line); color: var(--faint); }
-.agent-edit-page { margin: 0; color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.agent-edit-page { margin: 0; color: var(--muted); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 .agent-edit-summary { margin: var(--space-4) 0; }
 .agent-edit-actions { display: flex; align-items: center; gap: var(--space-12); }
 .agent-edit-undone { color: var(--faint); font: var(--apparatus); }

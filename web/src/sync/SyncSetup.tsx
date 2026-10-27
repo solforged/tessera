@@ -66,7 +66,7 @@ export function SyncSetup(props: { again?: { url: string }; onDone(): void }) {
           : `A copy of your Mac's workshop. This ${MOBILE ? 'phone' : 'device'} sends its changes to the Mac and gets the Mac's changes. Anything already here is added to the Mac's workshop first.`}</p>
         <Show when={step() === 'type'} fallback={<>
           <div class="sync-actions">
-            <Show when={MOBILE}><Button class="bordered sync-primary" onClick={() => { void scanCode(); }}>Scan code</Button></Show>
+            <Show when={MOBILE}><Button class="stamp sync-primary" onClick={() => { void scanCode(); }}>Scan code</Button></Show>
             <Button class="bordered" onClick={() => setStep('type')}>Type code</Button>
           </div>
           <Show when={!props.again}><p class="sync-hint">Open Settings → Devices on the Mac to pair.</p></Show>
@@ -75,7 +75,7 @@ export function SyncSetup(props: { again?: { url: string }; onDone(): void }) {
             <label>Mac address<input class="input" type="text" inputMode="url" autocapitalize="off" autocomplete="off" spellcheck={false} placeholder="mac-name.tailnet.ts.net:4319" value={address()} onInput={event => setAddress(event.currentTarget.value)} /></label>
             <label>Code<input class="input" type="text" autocapitalize="characters" autocomplete="one-time-code" spellcheck={false} placeholder="4F7K-92QD" value={code()} onInput={event => setCode(event.currentTarget.value)} /></label>
             <div class="sync-actions">
-              <Button class="bordered sync-primary" type="submit" disabled={!address().trim() || code().replace(/[\s-]/g, '').length < 8}>Pair</Button>
+              <Button class="stamp sync-primary" type="submit" disabled={!address().trim() || code().replace(/[\s-]/g, '').length < 8}>Pair</Button>
               <Button onClick={() => { setStep('choose'); setError(''); }}>Back</Button>
             </div>
           </form>

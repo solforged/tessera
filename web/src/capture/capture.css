@@ -22,13 +22,32 @@
 .capture-tag { display: inline-flex; align-items: center; gap: var(--space-4); padding: 1px var(--space-4); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); color: var(--accent); font: var(--apparatus); }
 .capture-tag .icon { width: 1em; height: 1em; }
 .popup.capture-choices { padding: 0; }
-/* Agenda's Add a task is a real text field: a gilt plus, the line, and the plan it will save at the right end. */
-.capture-line.capture-boxed { gap: var(--space-8); height: 44px; padding-inline: var(--space-12); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); background: var(--surface); cursor: text; transition: border-color var(--motion-fast) var(--motion-ease); }
-.capture-line.capture-boxed:hover { border-color: var(--control-border); }
-.capture-line.capture-boxed:focus-within { border-color: var(--accent); }
+/* Agenda's Add a task and the ⌘E section's capture are an index slip laid on the page: a leaf with a gilt
+   spine, ticks at its open end, a gilt plus and a ruled line to write on. Focus gilds the ticks and draws
+   the rule in gilt from the left, as ink is drawn; the shortcut or plan sits at the end as a blind-stamped key. */
+.capture-line.capture-boxed {
+  gap: var(--space-8); height: 52px; padding-inline: var(--space-16) var(--space-12);
+  border: var(--rule-width) solid transparent; border-radius: var(--radius-control); cursor: text;
+  background:
+    linear-gradient(var(--tick), var(--tick)) right top / var(--tick-length) var(--rule-width) no-repeat,
+    linear-gradient(var(--tick), var(--tick)) right top / var(--rule-width) var(--tick-length) no-repeat,
+    linear-gradient(var(--tick), var(--tick)) right bottom / var(--tick-length) var(--rule-width) no-repeat,
+    linear-gradient(var(--tick), var(--tick)) right bottom / var(--rule-width) var(--tick-length) no-repeat,
+    var(--leaf);
+  box-shadow: inset 2px 0 0 var(--accent), inset 0 1px 0 var(--lit-edge), 0 1px 3px var(--contact-shadow), 0 0 0 var(--rule-width) color-mix(in srgb, var(--line) 60%, transparent);
+}
+.capture-line.capture-boxed:focus-within { --tick: var(--accent); }
 .capture-boxed > .capture-plus { width: var(--icon-size); height: var(--icon-size); color: var(--accent); }
-.capture-boxed > .capture-input { min-height: 0; height: 100%; padding: 0; border: 0; }
-.capture-inline-preview { display: inline-flex; flex: 0 1 auto; align-items: center; gap: var(--space-4); min-width: 0; color: var(--calendar-scheduled); font: var(--weight-body) 12.5px/18px var(--font-body); white-space: nowrap; }
+.capture-boxed > .capture-input {
+  align-self: center; min-height: 0; height: 28px; padding: 0; border: 0;
+  background:
+    linear-gradient(var(--accent), var(--accent)) left bottom / 0 var(--rule-width) no-repeat,
+    linear-gradient(var(--line), var(--line)) left bottom / 100% var(--rule-width) no-repeat;
+  transition: background-size var(--motion-ink) var(--motion-ease);
+}
+.capture-boxed > .capture-input:focus { background-size: 100% var(--rule-width), 100% var(--rule-width); }
+.capture-boxed .capture-trailing { padding: 0 var(--space-8); border-radius: var(--radius-control); background: var(--leaf); color: var(--muted); font: var(--figures); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 0 var(--contact-shadow), 0 0 0 var(--rule-width) var(--line); }
+.capture-inline-preview { display: inline-flex; flex: 0 1 auto; align-items: center; gap: var(--space-4); min-width: 0; color: var(--calendar-scheduled); font: var(--weight-body) var(--text-meta)/var(--line-control) var(--font-body); white-space: nowrap; }
 .capture-inline-preview > .icon { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); }
 .capture-inline-plan { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .capture-inline-preview.warning { color: var(--warning); }

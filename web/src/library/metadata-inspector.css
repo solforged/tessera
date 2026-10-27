@@ -35,7 +35,7 @@
 .metadata-group > h3 { margin: 0 0 var(--space-4); font: inherit; }
 .metadata-group-toggle { width: 100%; gap: var(--space-8); padding: var(--space-4) 0; text-align: left; font: inherit; }
 .metadata-group-toggle:hover { background: none; }
-.metadata-section-number { color: var(--danger); font: var(--apparatus); }
+.metadata-section-number { color: var(--danger); font: var(--figures); }
 .metadata-section-rule { height: var(--rule-width); flex: 1; min-width: var(--space-8); background: var(--line); }
 .metadata-group-toggle > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); }
 .metadata-group-summary { color: var(--faint); font: var(--apparatus); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60%; }
@@ -48,14 +48,15 @@
 .metadata-field .metadata-value:focus-visible { outline: var(--focus-ring); outline-offset: 0; }
 .metadata-field .metadata-value.metadata-empty, .metadata-empty { color: var(--faint); }
 .metadata-field .metadata-value.metadata-empty { font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
-.metadata-field-title .metadata-value { font: var(--weight-title) var(--text-h3)/var(--line-source-title) var(--font-display); }
-.metadata-field-mono .metadata-value { font: var(--apparatus); }
+.metadata-field-title .metadata-value { font: italic var(--weight-title) var(--text-h3)/var(--line-source-title) var(--font-display); }
+.metadata-field-mono .metadata-value { font: var(--figures); }
 .metadata-field .metadata-input { display: block; box-sizing: border-box; width: 100%; min-width: 0; min-height: var(--target-size); padding: var(--space-4) var(--space-8); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
 .metadata-field textarea.metadata-input { resize: vertical; }
 .metadata-input[aria-invalid="true"], .metadata-input[aria-invalid="true"]:focus { border-color: var(--danger); color: var(--danger); }
 .metadata-field .metadata-choice { display: inline-flex; width: auto; max-width: 100%; padding: var(--space-2) var(--space-8); gap: var(--space-8); margin-block: var(--space-2); border-color: var(--line); font: var(--apparatus); }
 .metadata-field .metadata-choice .icon { flex: none; }
 .metadata-hint, .metadata-code { margin: var(--space-4) 0; color: var(--faint); font: var(--apparatus); overflow-wrap: anywhere; }
+.metadata-code { font: var(--figures); }
 .metadata-inspector .metadata-text-action { display: inline-flex; justify-content: flex-start; min-height: var(--target-size); padding: var(--space-2) 0; color: var(--muted); font: var(--weight-body) var(--text-meta)/var(--line-meta) var(--font-body); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: var(--space-4); white-space: normal; text-align: left; }
 .metadata-inspector .metadata-text-action:hover { color: var(--accent); background: none; }
 .metadata-reset { margin-bottom: var(--space-4); }
@@ -96,7 +97,7 @@
 .metadata-register-title { display: flex; align-items: baseline; gap: var(--space-8); font: var(--weight-title) var(--text-control)/var(--line-control) var(--font-display); overflow-wrap: anywhere; }
 .metadata-register-title > span { flex: none; color: var(--faint); font: var(--apparatus); }
 .metadata-register .metadata-field { grid-template-columns: minmax(0, calc(var(--work-cover-width) + var(--space-12))) minmax(0, 1fr); }
-.metadata-register-pages { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); color: var(--faint); font: var(--apparatus); }
+.metadata-register-pages { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); color: var(--faint); font: var(--figures); }
 .metadata-field-body > .metadata-register .metadata-register-title { margin-top: var(--space-4); }
 .metadata-lookup { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin: var(--space-4) 0 0 calc(var(--metadata-label-width) + var(--space-8)); }
 .metadata-cover { display: flex; gap: var(--space-12); margin: var(--space-8) 0 var(--space-16); align-items: flex-start; }

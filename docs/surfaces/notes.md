@@ -6,7 +6,7 @@ Tokens, shell and shared popup patterns are in [design](../design.md).
 
 ## Index
 
-Index is a sidebar section after Pinned. Its count is the distinct notes filed, left out at zero. It reads as a finding aid: kinds sit on shelves under small mono capital heads, in this order:
+Index is a sidebar section after Pinned. Its count is the distinct notes filed, left out at zero. It reads as a finding aid: kinds sit on shelves under small tracked capital heads, in this order:
 
 | Shelf | Kinds |
 | --- | --- |
@@ -103,11 +103,11 @@ Generated create labels use sentence case for built-in and notebook-defined type
 
 New task uses that same slip to append a task atom to Today or the chosen page rather than creating a titled task page; its active capability is enough to include it in Tasks.
 
-The slip names New person in its mono rubric. An autosizing page-title textarea wraps without inserting newlines on Enter; the optional gist becomes the first block, with the caret at its end. With no gist, the first block is empty and ready for typing. A project's gist instead sets its outcome, shown in the project header, without duplicating it in the body. Up to four similar pages match anywhere in titles and aliases, excluding the exact title: Link appends a bracketed title to the gist without closing; Open opens the existing page and closes the slip.
+The slip names New person in its apparatus rubric. An autosizing page-title textarea wraps without inserting newlines on Enter; the optional gist becomes the first block, with the caret at its end. With no gist, the first block is empty and ready for typing. A project's gist instead sets its outcome, shown in the project header, without duplicating it in the body. Up to four similar pages match anywhere in titles and aliases, excluding the exact title: Link appends a bracketed title to the gist without closing; Open opens the existing page and closes the slip.
 
 The slip's primary choices are `#task`, `#question`, note, card and `#source`, in that order. More reads the remaining tags and their glyphs from the registry. A plain atom with `@friday` is an appointment. Agenda shows its time without a checkbox; `#task`, `/Todo` or ⌘Enter adds one.
 
-Under the gist, compact field rows pair mono labels with values, separated by hairlines; each row opens the matching editor. Tab moves from title to gist, fields and Create. Rows keep their full width on a sheet. Questions offer Parent question (page or inline), Revisit (In a week, In a month, In three months, On a date… or None), Recurrent and First perspective (the same people and groups offered by Add perspective). These save with the full question state; the first perspective and its empty Gist save in the creation batch. Projects offer Deadline.
+Under the gist, compact field rows pair apparatus labels with values, separated by hairlines; each row opens the matching editor. Tab moves from title to gist, fields and Create. Rows keep their full width on a sheet. Questions offer Parent question (page or inline), Revisit (In a week, In a month, In three months, On a date… or None), Recurrent and First perspective (the same people and groups offered by Add perspective). These save with the full question state; the first perspective and its empty Gist save in the creation batch. Projects offer Deadline.
 
 Typed drafts offer the first four template fields in template order, or all fields when there are fewer. Longer templates say More fields after creating. The editors match table cells, including choice options and creating a linked page for a relation value. Values save in the page's creation batch. Filing an existing title shows already-filled fields read-only and sets only empty fields, checking the current page again at submission.
 
@@ -131,7 +131,7 @@ Notes are written in the journal, under a line that links the stream. On a strea
 
 Add links rather than moves. It adds a whole-row `[[note]]` line at the end of the page, filling a trailing empty line first, in one undo step, and the note stays in its journal. The page outline is the stream's order, so the usual drag and ⌥⇧↑/↓ reorder it.
 
-A whole-row link to a block, other than a field entry or value, shows that block live: its text, up to 12 nested lines and then `Show N more`, and a faint mono provenance (`Mon 12`, or the page title) that opens the source. ⌘-click opens the source beside (Ctrl-click off Mac). Editing the note in its journal updates every stream that shows it.
+A whole-row link to a block, other than a field entry or value, shows that block live: its text, up to 12 nested lines and then `Show N more`, and a faint provenance (`Mon 12` in mono, or the page title in the apparatus) that opens the source. ⌘-click opens the source beside (Ctrl-click off Mac). Editing the note in its journal updates every stream that shows it.
 
 ### Embedded views
 
@@ -145,13 +145,13 @@ A missing view keeps the remembered name with Relink… and Remove embed. Undoin
 
 ## Sources
 
-Sources is a bibliography, not a second reading shelf. It shows siglum, source title and author byline; stable person references open that page, while unlinked or bracketed names read as plain names without wiki syntax. One mono apparatus line combines format, publisher, publication year when stored, citation key and nonzero highlight/page-backlink counts. Entries use 12 px vertical padding. Open source atoms is the default; actions sit inline with the apparatus, revealed on hover or focus and always visible on touch. Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
+Sources is a bibliography, not a second reading shelf. It shows siglum, source title and author byline; stable person references open that page, while unlinked or bracketed names read as plain names without wiki syntax. One apparatus line, its figures in mono, combines format, publisher, publication year when stored, citation key and nonzero highlight/page-backlink counts. Entries use 12 px vertical padding. Open source atoms is the default; actions sit inline with the apparatus, revealed on hover or focus and always visible on touch. Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
 
 Collection pages show member sources in a Sources section. Their Table opens the Library collection view.
 
 ## Note header
 
-A note at its top level shows its kinds above the title in rubric mono capitals, separated by a faint slash (`PERSON / ECONOMIST`). Each opens that kind's finding aid.
+A note at its top level shows its kinds above the title in rubric tracked capitals, separated by a faint slash (`PERSON / ECONOMIST`). Each opens that kind's finding aid.
 
 Type breadcrumbs use the plural. Truncated breadcrumbs keep their full label in a tooltip. Project and question pane headers carry flag and question glyphs.
 
@@ -163,7 +163,7 @@ The Opening navigator appears only after the title leaves the viewport, with 24 
 
 Page fields use two columns: label and value. Empty fields of every kind show `Add…`. Multiple values of one field share a row; dates and numbers use mono. Relation pills open their target with an `Open …` label. A pencil appears on hover or focus, and always on touch, to edit the value; F2 also edits. When bullets are shown, a task's status glyph takes the bullet slot and Plan stays inline.
 
-A note with aliases shows them under the title: `ALSO` in faint mono, then the aliases in italic Piazzolla at the quote size, separated by faint dots. Then one mono line reads `Created 2026-10-06` in the workshop's time zone, without the note's ID at any width, then Revisit. Revisit is muted, reads `Revisit 2026-11-12` once a date is set and turns gilt when that date is due; a resolved note reads Resolved. The gloss follows as the first row.
+A note with aliases shows them under the title: `ALSO` in faint tracked capitals, then the aliases in italic Piazzolla at the quote size, separated by faint dots. Then one apparatus line reads `Created 2026-10-06`, the date in mono and in the workshop's time zone, without the note's ID at any width, then Revisit. Revisit is muted, reads `Revisit 2026-11-12` once a date is set and turns gilt when that date is due; a resolved note reads Resolved. The gloss follows as the first row.
 
 Unfiled notes show no kinds. Sources keep their own header; journal days and the Fields page have none.
 
@@ -183,7 +183,7 @@ The Revisit menu sets a date with Revisit in a week, Revisit in a month, Revisit
 
 The Backlinks section appears and its count refreshes when incoming links change, including links to the note's own blocks. It reports the full count after removing links already represented as perspectives or works, groups sources by referring page, shows the first 100 when open, and offers Load more for each further batch. Unlinked mentions of the title and aliases follow it; see [Backlinks](../design.md#backlinks).
 
-Backlinks, Cited in, Unlinked mentions and Linked to this atom use mono section heads with a rule and faint count. Zero results collapse to one quiet line. Journal backlink rubrics use the shared civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's.
+Backlinks, Cited in, Unlinked mentions and Linked to this atom use apparatus section heads with a rule and faint mono count. Zero results collapse to one quiet line. Journal backlink rubrics use the shared civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's.
 
 ## Deleted pages
 
@@ -201,7 +201,7 @@ Pinning with ⌘ or Pin expands the slip to its perspectives and permits scrolli
 
 ## Aliases
 
-Add alias, under Description… in the page menu and in the palette, adds the Aliases field after the gloss and starts a new value with keyboard focus, ready for the first typed character. `[[` completion and Find name the alias a result was found through as `via Tully`, in faint mono at the row's end.
+Add alias, under Description… in the page menu and in the palette, adds the Aliases field after the gloss and starts a new value with keyboard focus, ready for the first typed character. `[[` completion and Find name the alias a result was found through as `via Tully`, in the faint apparatus at the row's end.
 
 An inline link can display different wording without changing its target: `[[Target|alias]]`. While `[[` completion is open, type `|` to accept the highlighted target and begin the alias inside the paired `]]`; if no match or Create atom is highlighted, the typed target stays as written without creating a page. Alias text never filters or reopens completion. To add an alias to an existing link, place the caret just before `]]` and type `|alias`. Enter and Tab still accept a completion and continue after the link; Escape still dismisses it without accepting a target.
 
@@ -229,7 +229,7 @@ New spread opens an unsaved sheet; a view's selected notes can open the same she
 
 An exact value shared by at least two columns carries `=` with title Shared. Text is compared after trimming; a whole reference is compared by its target, regardless of its label. A link to a selected column carries `↔`. Differences carry no mark.
 
-A faint mono legend beneath the sheet explains `= Shared value · ↔ Links to another column`.
+A faint apparatus legend beneath the sheet explains `= Shared value · ↔ Links to another column`.
 
 Each column offers Move left, Move right and Remove column. Save spread asks for a title, initially the column titles joined with ` / `. Saving creates a page with the spread capability and one top-level `[[id]]` block per column in order. Saved spreads appear after kinds in the Index directory and sidebar.
 

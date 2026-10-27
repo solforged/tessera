@@ -11,8 +11,8 @@ Status: applied to the shell, the outline and the table. The permanent global ra
 3. **One meaning, one form.** Structure is a neutral bullet. A tag is a tinted pill with its name; a built-in tag that has a glyph (`#task`, `#question`, `#project`, `#source`) is its glyph at the bullet, never a pill. Task state is a glyph. Color never carries meaning alone, and tag hues never reuse status hues.
 4. **Work happens in panes.** Tables, views, fields, settings, search results and references open in a pane. Dialogs are for short controls and confirmations only.
 5. **Summaries in the row, details on selection.** A block shows its state as compact trailing metadata; field rows appear as children under it.
-6. **Calm by night and day.** A midnight shell frames the ink-blue canvas, or a vellum one by day. Gilt marks focus and primary actions. Only floating layers cast shadows.
-7. **Built for long sessions.** 28 px rows, 15 px writing, a 760 px measure. Apparatus is 11.5 px; other labels start at 12 px.
+6. **Calm by night and day.** A midnight shell frames the ink-blue canvas, or a vellum one by day. Gilt marks focus and primary actions. Surfaces are made of something: sheets, leaves laid on them, wells pressed into them. Only floating layers cast deep shadows.
+7. **Built for long sessions.** 28 px rows, 15 px writing, a 760 px measure. Apparatus labels are 12 px and its figures 11.5 px; no two levels sit a pixel apart.
 8. **Keyboard and pointer parity.** Menus show shortcuts beside actions. Vim is optional.
    Unavailable menu items remain in the arrow-key order. Focus or hover shows their reason, also exposed as an accessible description; activation leaves the menu open without running the action.
 9. **Three words.** The interface says atom, tag and field. Block, page, type, kind and capability stay in the schema, the API and the code; "supertag" is never used.
@@ -21,26 +21,29 @@ Status: applied to the shell, the outline and the table. The permanent global ra
 
 ### Type
 
-Three voices separate writing from publication and apparatus. IBM Plex Sans Variable is bundled for your writing, inputs and ordinary controls. Piazzolla Variable is bundled in normal and italic for the names of things and for what someone else wrote: page titles, heading rows, library and work titles, displayed highlights, quotes and the reader. A quotation, highlight or passage from a book or article stays in Piazzolla wherever it is shown, including inside an outline row. The workshop's own sentences stay in Plex wherever they appear, including an outline row that cites a source: glosses and standfirsts, positions and questions, and their previews in Find and on hover. Read projection prose, including its in-place editor, stays in Piazzolla. The font belongs to the projection, never to focus. Berkeley Mono is used when installed, with system monospace fallbacks. Its commercial font files are not bundled.
+Three voices separate writing from publication and apparatus. IBM Plex Sans Variable is bundled for your writing, inputs and ordinary controls. Piazzolla Variable is bundled in normal and italic for the names of things and for what someone else wrote: page titles, heading rows, library and work titles, displayed highlights, quotes and the reader. A quotation, highlight or passage from a book or article stays in Piazzolla wherever it is shown, including inside an outline row. The workshop's own sentences stay in Plex wherever they appear, including an outline row that cites a source: glosses and standfirsts, positions and questions, and their previews in Find and on hover. Read projection prose, including its in-place editor, stays in Piazzolla. The font belongs to the projection, never to focus. A work is named in Piazzolla italic, as a bibliography sets it: a source page's title, library and shelf titles, Reading titles and Inbox links. Berkeley Mono sets figures only, used when installed with system monospace fallbacks; its commercial font files are not bundled.
 
-Apparatus uses `--apparatus`: 400 at 11.5 / 16, with tabular numerals and slight tracking. It covers breadcrumbs, save state, Vim mode, sidebar section headings, picker metadata, counts, progress and resurfaced metadata. UI labels stay in sentence case. Key hints (`⌃⇧F`, `⇧↵`, `Space`) keep the apparatus size in the sans voice.
+Piazzolla takes its optical size from the font size (`font-optical-sizing: auto`), so a title is drawn from the display cut and a quote from the text cut; nothing sets the axis by hand, and titles carry no negative tracking. Page titles use weight 430, heading rows 460 and work titles 530, in both themes.
+
+The apparatus is the survey's lettering: labels in small Plex, figures in mono. `--apparatus` sets labels, Plex 400 at 12 / 16: breadcrumbs, save state, eyebrows, sidebar section names, picker metadata, field names and resurfaced source lines. `--figures` sets what the machine knows, Berkeley Mono 400 at 11.5 / 16 with tabular numerals: counts, dates, clock times, progress, sigla, ids and paths. A line that holds both sets each part in its own voice. UI labels stay in sentence case; a label set in capitals, such as a rubric, an eyebrow or a chapter, uses `--caps`, Plex 500 at 11 px tracked `--tracking-caps` (.09em). Key hints (`⌃⇧F`, `⇧↵`, `Space`) keep the figure size in the sans voice.
 
 Plex has no modifier glyphs, so `web/src/ui/keys.css` adds a face to the Plex family with ⌃ ⇧ ⌘ ⌥ ↵ and the four arrows, drawn by `mise run fonts:keys` at Plex's cap height and stem. Without it each system's fallback drew them, at mismatched sizes on Android.
 
 | Token | Size / line | Use |
 |---|---|---|
-| `--text-apparatus` | 11.5 / 16 | Apparatus in Berkeley Mono |
-| `--text-meta` | 12 / 16 | Pills and labels |
+| `--text-apparatus` | 11.5 / 16 | Figures in Berkeley Mono |
+| `--text-caps` | 11 / 16 | Capital labels in Plex, tracked |
+| `--text-meta` | 12 / 16 | Pills, labels and the apparatus |
 | `--text-control` | 13 / 18 | Buttons, menus, sidebar, table cells |
 | `--text-body` | 15 / 24 | Writing and inputs in Plex |
-| `--text-quote` | 16 / 24 | Quotes and displayed highlights in Piazzolla |
-| `--text-h3` | 16 / 24 | Heading 3 |
-| `--text-h2` | 18 / 26 | Pane and section titles |
-| `--text-outline-h2` | 19 / 26 | Heading 2 in the outline |
-| `--text-h1` | 24 / 30 | Heading 1, view and dialog headings |
-| `--text-title` | 32 / 38 | Page titles in Piazzolla |
+| `--text-quote` | 17 / 26 | Quotes and displayed highlights in Piazzolla |
+| `--text-h3` | 17 / 24 | Heading 3 |
+| `--text-h2` | 20 / 28 | Pane and section titles, and heading 2 in the outline |
+| `--text-h1` | 26 / 32 | Heading 1, view and dialog headings |
+| `--text-title` | 36 / 42 | Page titles in Piazzolla |
+| `--text-figure` | 64 / 64 | A count set as a title figure, as Review's due count and Today's tiles at their own size |
 
-Piazzolla page titles use weight 430 and optical size 30. Heading rows use weight 480 and optical size 20. Quotes use optical size 16; the reader uses 17.
+The steps are 11.5, 12, 13, 15, 17, 20, 26 and 36 px. A count that heads a tile or a review queue is a Piazzolla lining figure, never mono.
 
 ### Space and size
 
@@ -74,7 +77,7 @@ Every screen composes its page spacing from shared tokens, so moving between scr
 | Inside and between boxed cards | 16 px |
 | After the last item | 48 px, plus the height of any bar fixed over the content |
 
-Page titles are Piazzolla at 32/38 px, 24/30 px below 600 px. A title written with tags shows the text without its tag tokens: built-in behavior tags lead it as their glyph, as on an index heading, and other tags follow it as pills at meta size; renaming edits the authored text. The [reader](surfaces/reader.md), a [live review session](surfaces/cards-review.md) and Find keep their own spacing.
+Page titles are Piazzolla at 36/42 px, 26/32 px below 600 px. A title written with tags shows the text without its tag tokens: built-in behavior tags lead it as their glyph, as on an index heading, and other tags follow it as pills at meta size; renaming edits the authored text. The [reader](surfaces/reader.md), a [live review session](surfaces/cards-review.md) and Find keep their own spacing.
 
 ### Color
 
@@ -101,13 +104,15 @@ Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f
 
 Pills take a 12% tint of their hue with a 30% border. A selected row adds a 2 px gilt bar at its left edge; keyboard focus inside a menu looks the same, never a ring.
 
-Controls share five shapes:
+Controls share six shapes:
 
-- **Modes and tabs:** [Library states and Highlights processing](surfaces/library.md), [Agenda, Week and Tasks](surfaces/tasks-agenda.md), [Review's Due, New and All](surfaces/cards-review.md), [reader settings](surfaces/reader.md), and a creator's role. They are mono labels with faint counts. The current one is gilt with a 2 px gilt rule beneath the whole tab, label and count alike, never a box or fill. Strips that switch views (Library states, Review queues, Agenda modes) stand on a hairline baseline, and every tab's rule lands on it. Forms use these tabs instead of native selects.
-- **Menu triggers and date ranges:** bordered buttons with a `--line` hairline that brightens to `--control-border` on hover.
-- **Text fields:** sit on `--surface` with a `--line` hairline that brightens while hovered or typed in. Agenda's Add a task (44 px) and Today's Inbox capture (40 px) are text fields with a leading plus.
+- **Modes and tabs:** [Library states and Highlights processing](surfaces/library.md), [Agenda, Week and Tasks](surfaces/tasks-agenda.md), [Review's Due, New and All](surfaces/cards-review.md), [reader settings](surfaces/reader.md), and a creator's role. They are Plex labels with faint mono counts. The current one is gilt with a 2 px gilt rule beneath the whole tab, label and count alike, never a box or fill. Strips that switch views (Library states, Review queues, Agenda modes) stand on a hairline baseline, and every tab's rule lands on it. Forms use these tabs instead of native selects.
+- **Menu triggers and date ranges:** bordered buttons, blind stamps: a `--leaf` face with a `--line` hairline that brightens to `--control-border` on hover.
+- **Primary actions:** a page's one main action (Read, Start review, Pair, Apply) is a gilt stamp, the `stamp` class: a gilt hairline over a faint gilt wash, lit along its top. A press drives it 1 px into the sheet.
+- **Text fields:** wells in `--well`, shaded at their upper lip by `--well-shade`, with no border. Focus draws a 2 px gilt baseline.
+- **Capture slips:** Agenda's Add a task and Today's Inbox capture are index slips at 52 px: a `--leaf` with a 2 px gilt spine at its left, registration ticks at its right corners, a gilt plus and a ruled line to write on. The shortcut or plan sits at the end as a blind-stamped key in mono. Focus gilds the ticks and draws the rule in gilt from the left over `--motion-ink`.
 - **Section heads:** [Today's sections](surfaces/journal.md#section-heads), [Agenda's groups](surfaces/tasks-agenda.md#groups) and a type page's Template section share one head, an `h2`: the name in Piazzolla at `--text-h2` in `--text`, a hairline rule, a mono count or state in `--faint`, then at most one action as a bordered button or menu trigger. A collapsible head puts its chevron before the name. A danger group tints only its name, in `--danger`; a folded head dims its name to `--muted`. Groups inside a section, such as Upcoming's days, use a sans subhead at 13 px and weight 500 in `--muted` with a `--faint` qualifier and no rule.
-- **Apparatus heads:** sidebar, [Settings](surfaces/settings.md), backlinks and picker groups stay mono: an optional rubric numeral, the name, a hairline rule, then state or count at the right in `--faint`, with the chevron last on collapsible ones. A rule appears only when it ends in a count, a state, or a chevron.
+- **Apparatus heads:** sidebar, [Settings](surfaces/settings.md), backlinks and picker groups use the apparatus: an optional rubric numeral in mono, the name, a hairline rule, then state or count at the right in `--faint`, with the chevron last on collapsible ones. A rule appears only when it ends in a count, a state, or a chevron.
 
 Clock times, counts and result lines (`07:00`, `1 of 1 task`, `15 of 15 rows`, `1 card · 1 due`) are mono; sentences never are. Planning facts (`since Fri 23`, `due Tuesday`), priority words, repeats and actions are sentences in Plex. Civil dates in the apparatus read as ISO, `2026-10-03`.
 
@@ -115,7 +120,8 @@ Focus has one frame per control:
 
 | Focused control | Appearance |
 |---|---|
-| Text field | Border turns gilt, with no outer ring |
+| Text field | A 2 px gilt baseline inside the well, with no outer ring |
+| Capture slip | Its ticks turn gilt and its ruled line is drawn in gilt |
 | Mode tab | Faint rule beneath its label |
 | Current mode tab | Keeps its gilt rule; its label brightens |
 | Other controls | Gilt ring |
@@ -126,7 +132,23 @@ Radius 2 px for controls, 3 px for popups, zero for the workspace and resurfaced
 
 Each pane has 9 px registration corners 4 px inside its content, clear of toolbars, gilt when active and `--line` otherwise. A reader whose controls have faded takes its corners with them. Popups carry a 24 × 2 px rubric mark at the top. The rail workshop name has an oculus mark in gilt.
 
-A [resurfaced slip](surfaces/journal.md) sits on `--raised`, marked by its highlight color as a 2 px bar at the left. The mono source line carries the short source title, chapter or passage and date, with Open, Keep and Mute beside it.
+A [resurfaced slip](surfaces/journal.md) sits on `--raised`, marked by its highlight color as a 2 px bar at the left. The apparatus source line carries the short source title, chapter or passage and date, with Open, Keep and Mute beside it.
+
+### Material
+
+Surfaces are cut from one material, a survey sheet: the [shape](#shape-and-elevation) says where a thing sits, the material says what it is made of. Elevation is told by tone and edge, never by a deep shadow on the page.
+
+| Layer | What it is | Drawn with |
+|---|---|---|
+| Sheet | A pane or popup | `--paper-grain` laid over its contents, so rows that paint the canvas share the fibre; the workspace is lit along its top by `--lit-edge` |
+| Leaf | A tile, slip, or blind-stamped control laid on the sheet | `--leaf`, a 1 px `--lit-edge` along the top and a `--contact-shadow` where it touches; tiles carry 8 px registration ticks (`--tick`) at their corners |
+| Well | A text field pressed into the sheet | `--well` and `--well-shade`, lit along its lower lip |
+| Ink | Hover and press | Hover is a wash of `--hover`; a press darkens the control and sinks it with an inset shade |
+| Stamp | A primary action | Gilt hairline over a faint gilt wash; it sinks 1 px when pressed |
+
+A journal tile lifts 1 px when hovered, its shadow deepens and its ticks turn gilt.
+
+Orrery by night is cyanotype, not parchment: every layer stays cool (a blue-white lit edge, a blue-tinted leaf, black contact and well shade, a fine sparse blue-white grain), so nothing warm floats over the ink-blue and greys it. Orrery by day is vellum: warm contact shade, `--raised` leaves, a fine fibre with a slow mottle, and an ink-wash hover rather than an ochre one.
 
 ### Motion
 
@@ -179,7 +201,7 @@ Desktop pointer dimensions, not to scale. The pane detail shows the measure and 
 
 ### Voices by job
 
-Mono is for what the machine knows: ids, dates, counts, paths and modes. Key hints are the exception, in sans at apparatus size. Sans is for what you write and for places and actions. The serif is for what was written to be read.
+Mono is for what the machine knows: ids, dates, counts, paths and sigla, never a word that names something. Labels around those figures are small Plex, the lettering on a survey sheet. Key hints are the exception, in sans at figure size. Sans is for what you write and for places and actions. The serif is for what was written to be read.
 
 Glyphs mark places (Today, Agenda, Revisits, Review, Library) and kinds of page; one glyph stands for one place everywhere it appears, and actions that read well as a word keep the word. Place glyphs are drawn from circles and rules like the oculus, with an optional filled hub.
 
@@ -189,7 +211,7 @@ Permanent across every pane. A three-column grid:
 
 | Position | Controls |
 |---|---|
-| Left | Sidebar toggle, Tessera wordmark with its oculus and workshop-path tooltip, then the bare sync mark |
+| Left | Sidebar toggle, the Tessera wordmark in tracked Piazzolla capitals with its oculus and workshop-path tooltip, then the bare sync mark |
 | Center of the window | Find or create with the Commands icon in one 400 px search-shaped control |
 | Right | Icon-only Layout button |
 
@@ -218,7 +240,7 @@ After the desk, sections appear in this order:
 3. Unpinned saved Views whose type is not a kind in the Index.
 4. Collapsible Recent.
 
-Section headings are mono: a rubric numeral counted over the sections shown, the name, a hairline rule and a count. Saved table views have a pin control on hover or keyboard focus, always shown on a screen without hover. Pinning is stored per workshop alongside page pins. Task views and decks are selected in their own destinations.
+Section headings are apparatus: a mono rubric numeral counted over the sections shown, the name, a hairline rule and a mono count. Saved table views have a pin control on hover or keyboard focus, always shown on a screen without hover. Pinning is stored per workshop alongside page pins. Task views and decks are selected in their own destinations.
 
 Fields closes the Index's Notes shelf with its field glyph and live definition count, including zero. It opens the global Fields register and reads selected there. It is a fixed register row, not a tag in kind pickers. The Index directory offers the same row.
 
@@ -237,7 +259,7 @@ The workspace is a row of up to four panes. Each has a header, in this order:
 1. Back and forward.
 2. The glyph of the place or page kind, gilt in the active pane. Typed pages reuse the outline's loaded kinds, falling back to explicit page types and the loaded index; questions and projects use their capability glyphs.
 3. The pane's number while split, in faint mono.
-4. Breadcrumbs or the pane title in mono.
+4. Breadcrumbs or the pane title in the apparatus.
 5. Save state.
 6. The Vim mode when on.
 7. The page menu.
@@ -253,11 +275,11 @@ Holding ⌘ (Ctrl elsewhere) over anything that opens shows where a click will l
 
 Below 840 px of window width the row becomes pane tabs, numbered, over the active pane; spines, dividers and header numbers step aside.
 
-A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. Breadcrumbs reserve at least twelve mono characters for the current title and ellipsize its ending; ancestors may shrink. Below 840 px of pane width, the depth dial collapses to its current iris in `--muted`, without the gilt well, and unavailable projection tabs, Read's reason and the Vim tag step aside. Below 600 px of pane width, ancestors, the kind glyph and unavailable history buttons step aside too. If the remaining controls cannot share a line with the title's minimum, they wrap instead of erasing the title.
+A table pane is titled with its saved view's name, else its type's, and an index pane with its kind's plural. Breadcrumbs reserve at least twelve characters for the current title and ellipsize its ending; ancestors may shrink. Below 840 px of pane width, the depth dial collapses to its current iris in `--muted`, without the gilt well, and unavailable projection tabs, Read's reason and the Vim tag step aside. Below 600 px of pane width, ancestors, the kind glyph and unavailable history buttons step aside too. If the remaining controls cannot share a line with the title's minimum, they wrap instead of erasing the title.
 
 On journal days the page menu leaves out what only titled pages can do (Rename, Merge into…, Description, Stream and Question) rather than listing it disabled. Saved shows as a 4 px dot with a hidden label only after the service acknowledges the text. Queued and fast saves keep the quiet dot but its hidden label says Saving…; slow saves, offline and errors speak in sans, errors in `--danger`.
 
-The Vim mode shows only in the active pane, as a hairline-boxed mono tag of fixed width:
+The Vim mode shows only in the active pane, as a hairline-boxed apparatus tag of fixed width:
 
 | Mode | Appearance |
 |---|---|
@@ -278,9 +300,9 @@ The agent dock is a 360 px column right of the workspace, framed like it, so ope
 
 From the top:
 
-1. A header: the glyph, `Agent`, the model in use as a mono menu of the connected models with Models…, and Hide.
-2. Context: a mono line, `Reads N pages · drag links here to add`, over one chip per page in a shown pane (a zoomed pane sends its block). × leaves a pane's page out and strikes its chip through; + takes it back. Links, rows and references dragged onto the dock add chips of their own, whose × removes them.
-3. The thread: `You` and `Agent` in mono over each turn. Your words sit on `--raised`. The agent's text renders references as links. Reading and searching show as faint mono lines (`Read Asabiyya`). Each change it makes is a card with a 2 px `--agent` bar: its page in mono capitals, what it did, then Show, which brings the row into view in its pane or opens the page beside and lights the row once, and Undo. An undone change reads Undone; a refused undo says why under the card.
+1. A header: the glyph, `Agent`, the model in use as an apparatus menu of the connected models with Models…, and Hide.
+2. Context: an apparatus line, `Reads N pages · drag links here to add`, over one chip per page in a shown pane (a zoomed pane sends its block). × leaves a pane's page out and strikes its chip through; + takes it back. Links, rows and references dragged onto the dock add chips of their own, whose × removes them.
+3. The thread: `You` and `Agent` in the apparatus over each turn. Your words sit on `--raised`. The agent's text renders references as links. Reading and searching show as faint apparatus lines (`Read Asabiyya`). Each change it makes is a card with a 2 px `--agent` bar: its page in tracked capitals, what it did, then Show, which brings the row into view in its pane or opens the page beside and lights the row once, and Undo. An undone change reads Undone; a refused undo says why under the card.
 4. The composer: three lines, Enter sends and Shift-Enter starts a line; Send turns into Stop while the agent works, and Clear empties the thread when it rests.
 
 With no model connected the thread says `Connect a model` and offers Models. Rows the agent changed carry a 2 px `--agent` bar at the left and the agent glyph in the outside rail, above any backlink count; the glyph opens the change with Undo. Marks last as long as the thread.
@@ -292,7 +314,7 @@ Settings › Models lists the models the agent dock can use: name, then mono kin
 | Width | Behavior |
 |---|---|
 | Below 1048 px | Sidebar becomes a toggleable modal overlay: opening it moves focus in, a scrim fades in over the panes, Escape or a click on the scrim closes it, and focus returns to its toggle |
-| Below 840 px | Working-pane tabs show one pane at a time, in the mode-tab style: rubric pane number, mono title, gilt rule under the current pane, and a close beside each tab that closes that pane |
+| Below 840 px | Working-pane tabs show one pane at a time, in the mode-tab style: rubric pane number, apparatus title, gilt rule under the current pane, and a close beside each tab that closes that pane |
 | Below 600 px | Find or create, Commands and Layout retain accessible labels on icon controls; workspace gutter shrinks to 4 px |
 
 While the sidebar is open, a shade in the shell color dims the workspace beside it. Tapping or clicking the shade closes the sidebar. Hidden navigation is inert immediately, including during its exit.
@@ -331,14 +353,14 @@ The first four visual depths have equal indentation steps; subsequent steps get 
 
 ### Find or create
 
-One picker searches pages, blocks, highlight quotations and authored text or tags, and the passages inside books; a leading `>` switches to commands. Everything, Highlights, Books and Pages chips filter grouped results under mono headings and live counts, in this order:
+One picker searches pages, blocks, highlight quotations and authored text or tags, and the passages inside books; a leading `>` switches to commands. Everything, Highlights, Books and Pages chips filter grouped results under apparatus headings and mono live counts, in this order:
 
 1. Highlights.
 2. Atoms, or Books when every result is a book page.
 3. Creation rows, when a non-empty Everything or Atoms query has no exact title match.
 4. In your books.
 
-A block already shown as a highlight is not repeated among the note results. Other note matches occupy one column, with their text clamped to two lines and the containing page title as mono apparatus beneath.
+A block already shown as a highlight is not repeated among the note results. Other note matches occupy one column, with their text clamped to two lines and the containing page title as apparatus beneath.
 Queries with no full-text word tokens, including emoji and punctuation, match authored display text literally and never turn empty name folding into a wildcard.
 
 Creation rows offer Add “{q}” to library for a whole source identifier, or Create question “{q}” for an inferred question, then Create atom “{q}” and Create “{q}” as…. A question or page creates directly and opens its Outline body caret; both show ⇧↵ beside. Add opens the Source slip with the query. Create as opens the inferred kind (otherwise Atom) into New atom, anchored to the search field with the Kind row focused. The preview names the selected action, using Choose a tag for “{q}” for Create as.
@@ -359,7 +381,7 @@ On the touch cover Find and Commands fit the keyboard-resized visual viewport be
 - Arrows select and Escape closes. Only plain Home and End select the first and last result; modified chords retain native query editing. Scope chips return focus to the query. Creation errors keep the entered title intact.
 - Tab drills into page-result children and Shift-Tab returns; a drilled search never offers root-page creation.
 - New atom opens the shared creation slip with Atom and New atom selected, top-centered without a trigger and anchored when invoked from a button. Its ⌘N hint appears only in the desktop app. The cover uses a bottom sheet with Close, no second Cancel and no keyboard hints. Existing titles offer Open atom; typed drafts offer File as their kind when needed.
-- Creating from Find or the slip commits a first block with the page and opens its unzoomed Outline with the body caret live. A gist becomes that block's text, except for projects, where it sets the outcome shown in the header and leaves the body empty. Kind-specific field rows sit between gist and Similar atoms, with mono labels, value columns and hairlines; question metadata, the first perspective, project deadlines and up to four template fields save with creation. Longer templates show More fields after creating. Filled fields on existing pages are read-only. Tab moves through title, gist and rows to Create. Typing immediately after submit continues into the body, including while the page loads. Shift+Enter in the slip opens beside; Shift+⌘Enter creates another without navigating. Opening an existing page does not force an editing caret.
+- Creating from Find or the slip commits a first block with the page and opens its unzoomed Outline with the body caret live. A gist becomes that block's text, except for projects, where it sets the outcome shown in the header and leaves the body empty. Kind-specific field rows sit between gist and Similar atoms, with apparatus labels, value columns and hairlines; question metadata, the first perspective, project deadlines and up to four template fields save with creation. Longer templates show More fields after creating. Filled fields on existing pages are read-only. Tab moves through title, gist and rows to Create. Typing immediately after submit continues into the body, including while the page loads. Shift+Enter in the slip opens beside; Shift+⌘Enter creates another without navigating. Opening an existing page does not force an editing caret.
 
 Command mode starts with Go to: [Highlights, Unfiled, Sources](surfaces/library.md), [Agenda week, Agenda tasks](surfaces/tasks-agenda.md), [This week, This month, This quarter and This year](surfaces/journal.md), followed by each workshop type's index and table. The period commands open today's journal with its corresponding inline ledger, not an agenda period. ⌘ opens these destinations beside. The query stays visible while the longer command list scrolls. Navigation, This atom, View and Editing retain their existing commands and shortcut hints below.
 
@@ -400,7 +422,7 @@ Handle and fold live in the gutter and show on hover, focus and selection. The h
 
 Dragging starts after a small movement and shows an indented horizontal drop line: the upper or lower half of a row chooses before or after its subtree, moving right of its text edge makes it the first child, and moving left chooses an ancestor depth. A selected row moves the whole selection with its subtrees in one undo step; the pane scrolls at its edges, Escape cancels, and drops cannot cross the zoom boundary or enter a moved subtree.
 
-The titled Atom actions menu names its block in at most two mono lines. Edit, Insert below, Move…, Copy reference and Open beside come first. Move contains Indent, Outdent, Move up, Move down, Move to atom… and, on journal days, Integrate. Move to atom opens the shared page picker and places the selected roots with their subtrees at the end of the chosen page, preserving identities and capabilities in one undo step. The source page stays open and offers Undo.
+The titled Atom actions menu names its block in at most two apparatus lines. Edit, Insert below, Move…, Copy reference and Open beside come first. Move contains Indent, Outdent, Move up, Move down, Move to atom… and, on journal days, Integrate. Move to atom opens the shared page picker and places the selected roots with their subtrees at the end of the chosen page, preserving identities and capabilities in one undo step. The source page stays open and offers Undo.
 
 Choosing a Move to atom destination reserves its undo step before saving. Undo requested while the move is pending waits for its acknowledgment, then reverses the move without undoing earlier text.
 
@@ -458,7 +480,7 @@ Tag pills follow the text at meta size, with their glyph from the registry. Clic
 
 A field whose values are all leaves reads through its definition's role. Standfirst values sit as sentences under their owner, without labels. Attributes and citations form one aligned bed: the field icon takes the bullet slot, the name sits in a 168 px muted column beside the first value, and later values follow with the name left blank. Citation references read as siglum · locator. Prose fields follow the bed at full measure, with their label above. A name that does not fit wraps. Fields whose values have children, and an entry being edited, retain two levels. Phone labels stack above values.
 
-A page's own fields read as a specimen block under the imprint, as the site sets title, standfirst, imprint, then text. Names are mono apparatus in `--faint` without the field icon, starting on the title edge. Attribute values are `--text-control` in `--muted`, and a dotted hairline separates rows. On phones each name sits over its value, both on the title edge. Nested fields sit inside prose and keep the bed above; journal days and the reading register set fields their own way.
+A page's own fields read as a specimen block under the imprint, as the site sets title, standfirst, imprint, then text. Names are apparatus in `--faint` without the field icon, starting on the title edge. Attribute values are `--text-control` in `--muted`, and a dotted hairline separates rows. On phones each name sits over its value, both on the title edge. Nested fields sit inside prose and keep the bed above; journal days and the reading register set fields their own way.
 
 - Clicking a name opens a menu titled with the field name and its owning note as context: Open field definition, Definition…, Templates… and Remove from this atom last. Definition groups Format…, Options… or Links to…, Hide…, Role… and Counts as…; Format opens the change preview on the field page. Templates holds Add to or Remove from each owning type's template and is omitted without an owning type. Nested choices replace the rows in place with a header Back. The block menu's Field manager and the leader key `f` open the same menu.
 - An entry with no value shows its name and a blank value; clicking the blank adds a value and edits it. Blank values show no text.
@@ -484,11 +506,11 @@ Every block or page with field entries or template fields has a field bed at res
 
 Tasks keep only their checkbox and compact planning facts at rest. Focus opens one bed for task-backed and user fields, in template order, with muted labels, dotted row rules and a thin left rule. Built-in marks belong only to template editing, not this bed. Tab moves among its controls and Escape closes it. On narrow touch screens the bed is one bottom sheet: title, stacked labels and values, 44 px targets, inline dates, Add field, and Each change saves to this atom. Richer pickers replace its contents rather than stack. An appointment starts with Scheduled and any added user fields; Make task retains the atom and date.
 
-- On a page, an Add field line in mono apparatus closes the area, followed by a small gap before the notes.
+- On a page, an Add field line in the apparatus closes the area, followed by a small gap before the notes.
 - On a nested block, `+ Field` appears at the end of its last field row while the block or one of its fields is hovered, selected or edited, without changing any row's height.
 - A page or block without fields adds one from Add field… in its page or block menu, or with `name::`.
 
-Slots read as suggestions: the name in `--faint` and no value text. On a page, slot names take the specimen block's mono apparatus without the icon, the value reads `Add…` in `--faint`, and a dotted hairline follows each slot. Slots share the field labels' edge and sit on the canvas outside the row's hover and selection. A slot adds the entry with a blank value and opens its kind's editor; a checkbox slot adds a ticked value.
+Slots read as suggestions: the name in `--faint` and no value text. On a page, slot names take the specimen block's apparatus without the icon, the value reads `Add…` in `--faint`, and a dotted hairline follows each slot. Slots share the field labels' edge and sit on the canvas outside the row's hover and selection. A slot adds the entry with a blank value and opens its kind's editor; a checkbox slot adds a ticked value.
 
 Add field opens a picker with missing template fields under the template's name, then Other fields, and Create field for a new name. Task built-ins appear only for task atoms. Its list shows about eight rows before scrolling and opens below its trigger, flipping only when below does not fit. A perspective instead begins with From this recipe: Gist, Work, then its subject's explicit or derived criteria. A suggested field takes its recipe or template place among the entries; another follows the last entry. Each addition is one undo step.
 
@@ -554,7 +576,7 @@ Start all appears when the cards include held ones, then Review.
 
 Held cards leave Review, its counts and forecasts and keep their schedule; holding is undoable. Malformed syntax is reported beneath the row once the block is left or its text has rested for 1.5 seconds, politely rather than as an alert. ⌘ on Review opens it beside.
 
-Review's Decks header keeps New card and New deck beside the muted mono line `Tag a card to make a deck. Save a deck for other filters.` A tag page's Cards header offers Review for that tag deck. It uses the registry's card count and is disabled with `No cards yet` when that count is zero.
+Review's Decks header keeps New card and New deck beside the muted apparatus line `Tag a card to make a deck. Save a deck for other filters.` A tag page's Cards header offers Review for that tag deck. It uses the registry's card count and is disabled with `No cards yet` when that count is zero.
 
 ### Conflicts and recovery
 
@@ -576,11 +598,11 @@ Undo preserves another window's later text by patching only non-overlapping regi
 
 A tag page rename changes no member text. Undo restores the page title, and every pill follows the live title by ID.
 
-A version that sync kept beside a block sits under it, inset behind a hairline at its left, under a mono label (`Sol's Fold's version, kept beside`). Use this, Discard and Keep both follow as bordered buttons in the control font. Each is one undoable step.
+A version that sync kept beside a block sits under it, inset behind a hairline at its left, under an apparatus label (`Sol's Fold's version, kept beside`). Use this, Discard and Keep both follow as bordered buttons in the control font. Each is one undoable step.
 
 ### Headings and selection
 
-Headings are Piazzolla block styles at the h1, outline-h2 and h3 tokens, weight 480. Typing `# `, `## ` or `### ` at block start sets the corresponding heading and removes the prefix, preserving any text after it, including text typed in one burst with the prefix.
+Headings are Piazzolla block styles at the h1, outline-h2 and h3 tokens, at the heading-row weight. Typing `# `, `## ` or `### ` at block start sets the corresponding heading and removes the prefix, preserving any text after it, including text typed in one burst with the prefix.
 
 Rows highlight on hover with `--hover`; selection uses `--selection` plus the accent bar. While a range is selected, every row under a selected block takes the same fill and bar, field values included, because those rows move, copy and delete with it.
 
@@ -710,7 +732,7 @@ A page made for a tag or by Add tag goes away again once no tag, manual type or 
 
 Leaving a value on a tagged block may instead show the template offer, such as strength is on another #proposition too, with Add to #proposition and Not now buttons. It names the tag as the block spells it. An offer stays while you keep typing, because it has no Undo to compete with the outline's. Add replaces it with a notice that has Undo.
 
-New tags and first uses have a quieter receipt under the saved block, in the register's mono: `#arabic is new · Add fields · Open`, `a card · tag it to put it in a deck`, and `a field · its tag can carry it as a template`. Each hint appears once per workshop, each new-tag receipt once per tag, remembered across reloads on this device. They wait until the block is no longer being edited and disappear when typing resumes in any outline block. Add fields opens the tag's expanded template editor beside its first member; Open goes to the tag page. These receipts do not change the template offer's two-member threshold or dismissal rules.
+New tags and first uses have a quieter receipt under the saved block, in the register's apparatus: `#arabic is new · Add fields · Open`, `a card · tag it to put it in a deck`, and `a field · its tag can carry it as a template`. Each hint appears once per workshop, each new-tag receipt once per tag, remembered across reloads on this device. They wait until the block is no longer being edited and disappear when typing resumes in any outline block. Add fields opens the tag's expanded template editor beside its first member; Open goes to the tag page. These receipts do not change the template offer's two-member threshold or dismissal rules.
 
 Space straight after `::`, or Tab anywhere in the name, makes the entry at once and puts the caret in its value; leaving the block converts it as before. `::` at the start of a block opens a field picker listing each field with its kind and Create field for a new name, and picking makes the entry the same way. Conversion, including its first empty value, is one undo step.
 
@@ -798,8 +820,8 @@ Bottom sheets share a grab area and an accessible Close button. Dragging downwar
 ### Shared popup patterns
 
 - **Menu:** 28 px desktop rows with a label and shortcut at the right; an icon column is reserved whenever any item has one. Cleaned action menus use hairline dividers and keep danger last. Piazzolla titles have Close; a drill-in replaces the rows with its title and Back, including ArrowRight to enter and ArrowLeft or Backspace to return. A drill-in glides the box to the new page's width and height over `--motion-ui` while the pages cross-fade, and Escape steps back one level before it closes the menu.
-- **Menu focus and size:** a menu opens on its current choice, or its first working row, which is its one tab stop, and Tab closes it and hands focus back to its opener. Context is at most two mono lines. Titled menus become bottom sheets with 44 px rows on coarse phones below 600 px. Dedicated selectors may retain section labels. Existing information headers remain above root rows, with their buttons in the arrow-key order.
-- **Picker:** an input on top and 28 px rows below. Arrows move, Page Up and Page Down move a page of rows, Enter picks, typing filters, the mouse hovers to highlight. Home and End edit the query; with Ctrl or ⌘ they jump the list. Rows and the cursor survive a refresh: the list dims instead of blanking, the cursor stays on the same row, and a new query starts at its first result. Chips before the input show steps already chosen. Optional mono section headings group results without entering the keyboard selection order. Used by the palette, reference completion, Add tag, Add condition and the time zone.
+- **Menu focus and size:** a menu opens on its current choice, or its first working row, which is its one tab stop, and Tab closes it and hands focus back to its opener. Context is at most two apparatus lines. Titled menus become bottom sheets with 44 px rows on coarse phones below 600 px. Dedicated selectors may retain section labels. Existing information headers remain above root rows, with their buttons in the arrow-key order.
+- **Picker:** an input on top and 28 px rows below. Arrows move, Page Up and Page Down move a page of rows, Enter picks, typing filters, the mouse hovers to highlight. Home and End edit the query; with Ctrl or ⌘ they jump the list. Rows and the cursor survive a refresh: the list dims instead of blanking, the cursor stays on the same row, and a new query starts at its first result. Chips before the input show steps already chosen. Optional apparatus section headings group results without entering the keyboard selection order. Used by the palette, reference completion, Add tag, Add condition and the time zone.
 - **Form:** compact labeled controls with an optional 18 px Piazzolla title and an action row. Fixed forms fit their content; a date picker's footer remains visible when its body must scroll, its calendar keeps one tab stop that follows the month shown, and on the cover screen it is a bottom sheet that does not raise the keyboard.
 - **Confirm:** 13 px body text and two buttons.
 - **Preview:** a read-only card for a reference's target; see [Reference previews](#reference-previews).
@@ -808,9 +830,9 @@ Bottom sheets share a grab area and an accessible Close button. Dragging downwar
 |---|---|---|
 | Find or create: pages, blocks and explicit page creation; `>` finds commands | Picker, one line per hit with the page path in meta size; Tab drills into children | Below the global search trigger, 560 px |
 | Dedicated command palette | Picker, grouped by action section, with shortcuts; disabled reasons appear on the selected row and remain available to assistive technology | Top center, 560 px |
-| Keys and syntax (⌘/, `?` with an outline row selected, Commands, the Mac's Help menu) | Two registers under mono WRITE and PRESS rubrics: atom syntax, including `#task`, `#question`, `#project` and `#source` with their behavior; `@` only schedules. Every bound command follows in registry order. `?` inside an editing atom keeps Vim's backward search. Bindings hide with `kbd` on coarse touch screens | Top center, 820 px; one column below 720 px; a bottom sheet on the cover |
-| [Creation slip](surfaces/journal.md) (⌘E / ⌘N) | Mono action/destination rubric, then `#task`, `#question`, note, card and `#source`. More lists the other registry tags with glyphs. Into segments precede the body; index and table requests lock their tag | 560 px, anchored with a trigger and top-centered without one; a bottom sheet on the cover |
-| [Card composer](surfaces/cards-review.md#card-composer) | Front and back under a mono rubric, the front in the display voice, key hints and Create on a hairline | Below its trigger, 560 px; top center without one; a bottom sheet on coarse pointers |
+| Keys and syntax (⌘/, `?` with an outline row selected, Commands, the Mac's Help menu) | Two registers under tracked-capital WRITE and PRESS rubrics: atom syntax, including `#task`, `#question`, `#project` and `#source` with their behavior; `@` only schedules. Every bound command follows in registry order. `?` inside an editing atom keeps Vim's backward search. Bindings hide with `kbd` on coarse touch screens | Top center, 820 px; one column below 720 px; a bottom sheet on the cover |
+| [Creation slip](surfaces/journal.md) (⌘E / ⌘N) | Apparatus action/destination rubric, then `#task`, `#question`, note, card and `#source`. More lists the other registry tags with glyphs. Into segments precede the body; index and table requests lock their tag | 560 px, anchored with a trigger and top-centered without one; a bottom sheet on the cover |
+| [Card composer](surfaces/cards-review.md#card-composer) | Front and back under an apparatus rubric, the front in the display voice, key hints and Create on a hairline | Below its trigger, 560 px; top center without one; a bottom sheet on coarse pointers |
 | `[[`, `((`, `#`, `name::` completion and Add tag | Picker; `#` rows show the registry's glyph and list built-in tags without a page after matching pages | Below the opening brackets, the caret or the block |
 | New tag's Add fields | Expanded template editor, sharing the tag page's field controls | Below the receipt line, 560 px, fitted to its content |
 | `@` dates and `/` commands | Picker without an input; the block text is the query, sections label `/` rows, faster keys at the right; Text offers Tag (`#`) and Field… (`::`), which opens the block's Add field picker | Below the token |
@@ -826,7 +848,7 @@ Bottom sheets share a grab area and an accessible Close button. Dragging downwar
 | Reference preview | Preview, 380 px | Below the line of the reference under the pointer, or the reference at the caret |
 | Atom backlinks | Each referring block with its page breadcrumb, parent and children, and an Open beside glyph on hover; `--measure` wide | Below the row's reference count |
 | Notice / Undo toast | One shell notice at a time, with up to two actions such as Open and Undo; eight seconds, paused under pointer or focus. Page deletions use the same surface. An outline's local notice still owns that pane's ⌘Z until a newer edit returns Undo to its document | Bottom center |
-| Sync status | An icon-only button after the Tessera wordmark wherever a hub has paired devices or a copy has a Mac. Shape and color together: an 8 px filled circle in `--status-done` for synced or sending (`ok`); an 8 px hollow ring with a 1.5 px `--warning` stroke for unreachable or review (`wait`); a 7 px square rotated 45° in `--danger` for version mismatch, forgotten or retired (`act`). No animation. On pointer devices, hover after 350 ms or keyboard focus shows a slip: the state in mono, colored `--text`, `--warning` or `--danger`, then a short hint in muted sans. The slip has no controls and hides on leave, blur, Escape or an open summary. Click or tap opens the summary; coarse pointers never show the slip. On the cover screen a row above the bottom nav shows only `wait` or `act`, with the same glyph, label and detail | Global rail's left, immediately after the wordmark; above the bottom nav on the cover screen |
+| Sync status | An icon-only button after the Tessera wordmark wherever a hub has paired devices or a copy has a Mac. Shape and color together: an 8 px filled circle in `--status-done` for synced or sending (`ok`); an 8 px hollow ring with a 1.5 px `--warning` stroke for unreachable or review (`wait`); a 7 px square rotated 45° in `--danger` for version mismatch, forgotten or retired (`act`). No animation. On pointer devices, hover after 350 ms or keyboard focus shows a slip: the state in the apparatus, colored `--text`, `--warning` or `--danger`, then a short hint in muted sans. The slip has no controls and hides on leave, blur, Escape or an open summary. Click or tap opens the summary; coarse pointers never show the slip. On the cover screen a row above the bottom nav shows only `wait` or `act`, with the same glyph, label and detail | Global rail's left, immediately after the wordmark; above the bottom nav on the cover screen |
 | Sync summary | Device → Mac register over the state's title, one or two sentences naming the side that is behind or what to check, the one fixing action (Download page on the Mac and GitHub releases, Try again or Sync now, Pair again, Download the workshop again) and `Settings › Devices`, which opens Settings with that device expanded. The top bar uses `--danger` for `act`, `--warning` for `wait`, and no bar for `ok`, clear of the pointer | Under the mark, left-aligned, 380 px with its pointer under the glyph; a bottom sheet on touch |
 | Phone setup | Where is your workshop? with two numbered choices: Use my Mac's workshop (Scan code or Type code, then the Mac's address and code) and Start a workshop on this phone. Pair again shows only the first, with the address filled in | Top center, 560 px; a bottom sheet on touch; on first run |
 | Save state | Says Saving… only when a save takes longer than a second | Pane header, never a toolbar or a row |
@@ -860,21 +882,21 @@ Open perspective and source links preserve access to the original outline; [Comp
 
 ### Quotes
 
-A quote row reads as cited text, not as a link. The frozen rows sit behind a hairline left rule in Piazzolla at the quote size, muted, indented by depth without bullets, like the outline at rest. A final faint mono line `… truncated at capture` marks a snapshot cut at its limit.
+A quote row reads as cited text, not as a link. The frozen rows sit behind a hairline left rule in Piazzolla at the quote size, muted, indented by depth without bullets, like the outline at rest. A final faint apparatus line `… truncated at capture` marks a snapshot cut at its limit.
 
-One mono rubric line follows: `QUOTE` · the source's page as an accent link (⌘ opens it beside) · the capture date in the workshop's time zone. When the source has moved on it adds `Source changed` and `Update`; when the source is gone it reads `Source deleted` and offers no update. Clicking the frame edits the row, which exposes the raw `((ID))`. Children of a quote row are ordinary blocks, for annotating the quote.
+One apparatus rubric line follows: `QUOTE` in tracked capitals · the source's page as an accent link (⌘ opens it beside) · the capture date in mono in the workshop's time zone. When the source has moved on it adds `Source changed` and `Update`; when the source is gone it reads `Source deleted` and offers no update. Clicking the frame edits the row, which exposes the raw `((ID))`. Children of a quote row are ordinary blocks, for annotating the quote.
 
-A `((ID))` row without a snapshot shows the target's live text in the same frame with `Capture quote`, or `Unresolved quote <ID>` when the target is gone. Elsewhere, in backlinks, breadcrumbs and search, a quote row reads as a mono `QUOTE` rubric followed by its target in the quote face. Copying a captured quote as text writes its frozen rows as `> ` lines.
+A `((ID))` row without a snapshot shows the target's live text in the same frame with `Capture quote`, or `Unresolved quote <ID>` when the target is gone. Elsewhere, in backlinks, breadcrumbs and search, a quote row reads as a tracked-capital `QUOTE` rubric followed by its target in the quote face. Copying a captured quote as text writes its frozen rows as `> ` lines.
 
 ### Backlinks
 
-Below the outline, Backlinks is open by default and counts every distinct referring block, including references to the page's own blocks. Groups follow the referring page, newest first, under a mono capital heading that opens the page, with the group's count at the right. Each source shows its live text, opens at the block on click (⌘ opens beside), and has a disclosure that shows its parent and up to six descendants from the live page. An Open beside glyph appears at the right of the row under the pointer or in focus, and always on touch screens; related blocks follow the same pattern. A source that names one of this page's blocks only through an alias adds a faint mono `→` line naming that block, which zooms to it. Load more fetches the next hundred.
+Below the outline, Backlinks is open by default and counts every distinct referring block, including references to the page's own blocks. Groups follow the referring page, newest first, under an apparatus heading, the page title, that opens the page, with the group's count at the right. Each source shows its live text, opens at the block on click (⌘ opens beside), and has a disclosure that shows its parent and up to six descendants from the live page. An Open beside glyph appears at the right of the row under the pointer or in focus, and always on touch screens; related blocks follow the same pattern. A source that names one of this page's blocks only through an alias adds a faint apparatus `→` line naming that block, which zooms to it. Load more fetches the next hundred.
 
 Blocks on the page with incoming references carry their count as a faint mono numeral in the outside right rail, where it cannot shift text or the editor. It opens the Atom backlinks popup.
 
 A relation's target shows a quiet meta line beneath its row, or beneath a page's title: `← qualifies` and its owners' labels, one group per field, after any argument line. Each label opens its owner where it is written, and its title names the owner's page. A field with more than three owners shows three, then a +N more button.
 
-Unlinked mentions follows, collapsed and fetched only once opened. Each mention shows its breadcrumb as a mono capital link, its text with the matched title or alias highlighted, and Link, which turns the first whole-word match into an aliased reference keeping the original wording. The edit belongs to the source page's undo history.
+Unlinked mentions follows, collapsed and fetched only once opened. Each mention shows its breadcrumb as a tracked capital link, its text with the matched title or alias highlighted, and Link, which turns the first whole-word match into an aliased reference keeping the original wording. The edit belongs to the source page's undo history.
 
 ## Icon
 
@@ -923,7 +945,7 @@ Rounds live in `~/Documents/tessera-design/icon-2026-10-10/`.
 
 ## Decisions
 
-1. Three voices: Plex for writing, Piazzolla for publication, Berkeley Mono for apparatus. Orrery palette. Density: 28 px rows.
+1. Three voices: Plex for writing and labels, Piazzolla for publication, Berkeley Mono for figures. Orrery palette. Density: 28 px rows.
 2. Handle and fold in a gutter outside the measure; bullets inside it, filled.
 3. ⌘ (Ctrl off Apple keyboards) is the one "open beside" modifier; Shift selects.
 4. Fields, Settings, tables and views are panes, not dialogs.

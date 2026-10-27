@@ -706,7 +706,7 @@ function CardReviewPane(props: ReviewPaneProps) {
                 query().selection === 'due' ? '' : `${counts().due ?? 0} due now`,
                 `${Math.max(0, value().due_review + value().due_new - (counts().due ?? 0))} later today`,
               ].filter(Boolean).join(' · ')}</p>
-              <Button ref={startButton} class="review-start" aria-disabled={dis(locked() || loading() || !!readError())} onClick={() => void start()}><span class="review-cover-label">Start</span><span class="review-desktop-label">Review {rows().length} {rows().length === 1 ? 'card' : 'cards'} <kbd>Space</kbd></span></Button>
+              <Button ref={startButton} class="stamp review-start" aria-disabled={dis(locked() || loading() || !!readError())} onClick={() => void start()}><span class="review-cover-label">Start</span><span class="review-desktop-label">Review {rows().length} {rows().length === 1 ? 'card' : 'cards'} <kbd>Space</kbd></span></Button>
             </Show>
             <Show when={!rows().length && value().held_cards}><p class="review-held">{value().held_cards} {value().held_cards === 1 ? 'card is' : 'cards are'} paused or marked Not yet. Start or resume them from their source atoms.</p></Show>
             </div>
@@ -748,7 +748,7 @@ function CardReviewPane(props: ReviewPaneProps) {
         <Show when={grades().some(event => event.grade === 'hard')}><p class="review-pending">{grades().filter(event => event.grade === 'hard').length} Hard</p></Show>
         <Show when={stats()}>{value => <ReviewForecast stats={value()} today={props.notebook.todayDate()} />}</Show>
         <Show when={missed().length}><section class="review-missed"><h3>Missed</h3><For each={missed()}>{event => <ReviewMissedCard event={event} notebook={props.notebook} />}</For></section></Show>
-        <div class="review-done-actions"><Button class="review-start" aria-disabled={dis(locked() || loading())} onClick={() => void backToToday()}>Back to Today</Button><Show when={missed().length}><Button class="bordered" aria-disabled={dis(locked() || loading())} onClick={() => void reviewMissed()}>Review missed</Button></Show><Button aria-disabled={dis(locked() || loading())} onClick={() => moveTo({ deckId: deckId(), sessionId: null })}>Back to decks</Button></div>
+        <div class="review-done-actions"><Button class="stamp review-start" aria-disabled={dis(locked() || loading())} onClick={() => void backToToday()}>Back to Today</Button><Show when={missed().length}><Button class="bordered" aria-disabled={dis(locked() || loading())} onClick={() => void reviewMissed()}>Review missed</Button></Show><Button aria-disabled={dis(locked() || loading())} onClick={() => moveTo({ deckId: deckId(), sessionId: null })}>Back to decks</Button></div>
       </section>}</Show>
       <Show when={stale()}><section class="review-stale" aria-label="Card changed">
         <p role="alert">{stale()}</p>

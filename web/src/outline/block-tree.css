@@ -6,6 +6,6 @@
 .block-tree-bullet { flex: none; display: inline-flex; align-items: center; justify-content: center; width: var(--space-16); height: var(--line-control); }
 .block-tree-bullet::before { content: ""; width: var(--space-4); height: var(--space-4); border-radius: 50%; background: var(--muted); }
 .block-tree-text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.block-tree-text:is(.heading-1, .heading-2, .heading-3) { font-family: var(--font-display); font-weight: var(--weight-display-heading); font-variation-settings: var(--optical-heading); letter-spacing: var(--tracking-heading); }
+.block-tree-text:is(.heading-1, .heading-2, .heading-3) { font-family: var(--font-display); font-weight: var(--weight-display-heading); }
 .block-tree-text.heading-1 { font-size: var(--text-h3); line-height: var(--line-h3); }
 .block-tree-text:is(.heading-2, .heading-3) { font-size: var(--text-body); line-height: var(--line-body); }

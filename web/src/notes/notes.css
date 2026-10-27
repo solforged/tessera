@@ -1,14 +1,14 @@
 /* Finding aids preserve the index's rubric letters while showing existing prose and apparatus. */
 .index-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; outline: none; container: finding-aid / inline-size; }
 .index-sheet { max-width: calc(var(--measure) + 2 * var(--pane-inset)); margin-inline: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); }
-.index-eyebrow { margin: 0; color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); text-transform: uppercase; }
+.index-eyebrow { margin: 0; color: var(--danger); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 .index-kind-eyebrow { text-transform: none; }
 .index-phone-control.button { display: none; }
 /* A title too long to share its line sends the tally and action to the next line instead of running under them. */
 .index-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-8) var(--space-16); margin: var(--page-eyebrow-gap) 0 var(--page-head-gap); }
-.index-head h1 { display: flex; align-items: baseline; gap: var(--space-12); flex: 1 1 auto; min-width: 0; margin: 0; font: var(--page-title-font); letter-spacing: var(--tracking-title); font-variation-settings: var(--optical-title); }
+.index-head h1 { display: flex; align-items: baseline; gap: var(--space-12); flex: 1 1 auto; min-width: 0; margin: 0; font: var(--page-title-font); }
 .index-head h1 > .icon { flex: none; align-self: center; color: var(--faint); }
-.index-tally { color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.index-tally { color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .index-head .required-gap { color: var(--accent); font: var(--apparatus); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .index-needs { display: block; margin-top: var(--space-4); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .index-head:has(+ :is(.type-mode-tabs, .index-queue-tabs, .index-source-tabs, .question-inquiry-tabs)) { margin-bottom: var(--page-title-gap); }
@@ -33,7 +33,7 @@
 .index-see-target:hover { color: var(--accent); }
 /* An empty kind names what it lacks in display type, says how pages arrive and offers to start one. */
 .index-empty { max-width: var(--measure); padding: var(--space-24) 0; }
-.index-empty-title { margin: 0; color: var(--muted); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
+.index-empty-title { margin: 0; color: var(--muted); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
 .index-empty-hint { margin: var(--space-8) 0 var(--space-16); color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
 .index-empty-hint:last-child { margin-bottom: 0; }
 /* Status lines start on the sheet's edge, under the find field. */
@@ -72,7 +72,7 @@
 /* A bibliography, with no shelf or reading-progress apparatus. */
 .index-source-row.index-selectable { display: grid; grid-template-columns: auto max-content minmax(0, 1fr); gap: var(--space-8); padding: var(--space-12) 0; border-bottom: var(--rule-width) solid var(--line); }
 .index-source-main { min-width: 0; }
-.index-source-siglum { padding-top: var(--space-4); color: var(--accent); font: var(--apparatus); }
+.index-source-siglum { padding-top: var(--space-4); color: var(--accent); font: var(--figures); }
 .index-source-title { padding: 0; border: 0; background: none; color: var(--text); text-align: left; font: var(--weight-display-heading) var(--text-h1)/var(--line-h1) var(--font-display); cursor: pointer; }
 .index-source-byline { margin: var(--space-4) 0; color: var(--muted); font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); }
 .index-source-byline .button { display: inline; min-height: 0; padding: 0; font: inherit; color: inherit; }
@@ -89,8 +89,8 @@
 .index-directory-row { display: grid; grid-template-columns: var(--icon-size) minmax(0, 1fr) calc(3 * var(--space-48)) calc(2 * var(--space-48) + var(--space-16)); align-items: center; gap: var(--space-16); padding: var(--space-16) var(--space-8); border-top: var(--rule-width) solid var(--line); }
 .index-directory-row:last-child { border-bottom: var(--rule-width) solid var(--line); }
 .index-directory-row > .icon { color: var(--faint); }
-.index-directory-name.button { min-width: 0; padding: 0; border: 0; justify-content: flex-start; text-align: left; overflow-wrap: anywhere; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
-.index-directory-count { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.index-directory-name.button { min-width: 0; padding: 0; border: 0; justify-content: flex-start; text-align: left; overflow-wrap: anywhere; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
+.index-directory-count { color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .index-directory-open.button { padding: 0; border: 0; justify-content: flex-start; color: var(--muted); font-weight: var(--weight-body); }
 .index-directory-name.button:hover, .index-directory-open.button:hover { color: var(--accent); background: none; }
 @container finding-aid (max-width: 599px) {

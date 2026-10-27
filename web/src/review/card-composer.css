@@ -15,7 +15,7 @@
 .card-composer-input::placeholder { color: var(--faint); }
 .card-composer-input:focus-visible { outline: none; }
 .card-composer-input:disabled { opacity: .7; }
-.card-composer-front .card-composer-input { max-height: calc(6 * var(--line-h2)); font: var(--weight-body) var(--text-h2)/var(--line-h2) var(--font-display); font-variation-settings: var(--optical-heading); }
+.card-composer-front .card-composer-input { max-height: calc(6 * var(--line-h2)); font: var(--weight-body) var(--text-h2)/var(--line-h2) var(--font-display); }
 .card-composer-back .card-composer-input { max-height: calc(10 * var(--line-body)); font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); }
 
 :is(.popup, .popup-exit) .card-composer-problem { margin: 0; padding: 0 var(--space-16) var(--space-8); color: var(--danger); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
