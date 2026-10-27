@@ -47,6 +47,8 @@
 .create-page-title:focus-visible { outline: none; }
 .create-foot { display: flex; align-items: center; gap: var(--space-8); margin: var(--space-8) calc(-1 * var(--space-16)) 0; padding: var(--space-8) var(--space-16); border-top: var(--rule-width) solid var(--line); }
 .create-keys { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); color: var(--faint); font: var(--apparatus); }
+/* Each key opens its own hint, set apart from the previous hint's label. */
+.create-keys > kbd:not(:first-child) { margin-left: var(--space-8); }
 .create-match { display: flex; align-items: baseline; gap: var(--space-8); font: var(--apparatus); }
 .create-match > span { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--text); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-display); }
 .create-match .button { flex: none; }

@@ -58,6 +58,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Kept a kind's head still when switching between its List and Table tabs: Table drops the Register label and the empty purpose line, puts the title, glyph, tally and New action where List does, counts `0 atoms` or `16 tasks` instead of members, says `No people yet.`, leaves out the one-choice Layout menu, and the pane title, its glyph and the sidebar's selection keep naming the kind instead of Table.
+- Drew the hairline between Find or create and the Commands key, so the ⌘ glyph reads as its own button rather than part of the ⌃⇧F hint, and bordered From, Save as view… and New field like the controls beside them.
+- Matched the finding aid's Group, Filters and Save as view… to the find field's height, dropped the second hairline over an empty kind, set Questions' Inquiry ledger eyebrow in sentence case like Bibliography and Filing queue, and started its empty line on the page edge.
+- Spaced the creation slip's key hints into pairs (`↵ Create  ⇧↵ Beside`), gave the table footer the Fields register's hairline, and dropped the divider a lone Title column drew at the table's right edge.
 - Left ⌘Z and ⌘⇧Z to text fields in Settings, such as Open or create and the Agent form; the pane's Undo and Redo setting now apply only outside them.
 - Stopped the hourly backup check from snapshotting an unchanged workshop again once its newest backup was a day old; it now waits until the database or its write-ahead log changes.
 - Stopped iOS zooming the page when a text field takes focus, kept returning to Today on a phone from putting the caret in a row and raising the keyboard, and kept the edited line clear of the keyboard bar.

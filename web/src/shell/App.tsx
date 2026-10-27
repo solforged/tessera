@@ -931,9 +931,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   });
   const activeViewId = () => { const target = entry(active())?.target; return target?.kind === 'table' || target?.kind === 'index' ? target.viewId ?? undefined : undefined; };
   const activeTypeId = () => { const target = entry(active())?.target; return target?.kind === 'table' && !target.viewId ? target.typeId : null; };
-  const activeKindKey = () => { const target = entry(active())?.target; return target?.kind === 'index' ? target.key : (target?.kind === 'fields' || target?.kind === 'cards') && target.typeId ? index()?.kinds.find(kind => kind.type_id === target.typeId)?.key : undefined; };
-  /** The note kind a pane shows: its index, or the type behind its table, fields or cards. */
-  const indexKind = (pane: PaneId) => { const target = entry(pane)?.target; return target?.kind === 'index' ? index()?.kinds.find(kind => kind.key === target.key) : (target?.kind === 'fields' || target?.kind === 'cards' || target?.kind === 'table') && target.typeId ? index()?.kinds.find(kind => kind.type_id === target.typeId) : undefined; };
+  const activeKindKey = () => { const target = entry(active())?.target; return target?.kind === 'index' ? target.key : target?.kind === 'table' && !target.viewId && target.query.note_kind ? target.query.note_kind : (target?.kind === 'fields' || target?.kind === 'cards') && target.typeId ? index()?.kinds.find(kind => kind.type_id === target.typeId)?.key : undefined; };
+  /** The note kind a pane shows: its index, its Table mode, or the type behind its table, fields or cards. */
+  const indexKind = (pane: PaneId) => { const target = entry(pane)?.target; return target?.kind === 'index' ? index()?.kinds.find(kind => kind.key === target.key) : target?.kind === 'table' && !target.typeId && target.query.note_kind ? index()?.kinds.find(kind => kind.key === target.query.note_kind) : (target?.kind === 'fields' || target?.kind === 'cards' || target?.kind === 'table') && target.typeId ? index()?.kinds.find(kind => kind.type_id === target.typeId) : undefined; };
   const [fieldNames] = createResource(() => order().some(pane => entry(pane)?.target.kind === 'field') ? notebook.changeSequence() : false, async () => {
     try { return await notebook.api.fields(); } catch (reason) { reportError(reason); return undefined; }
   });
@@ -1717,6 +1717,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     if (target.kind === 'directory') return 'contents';
     if (target.kind === 'revisits') return 'history';
     if ((target.kind === 'fields' || target.kind === 'cards') && target.typeId) return noteKindIcon(props.noteKind ?? `type:${target.typeId}`);
+    if (target.kind === 'table' && !target.viewId && props.noteKind) return noteKindIcon(props.noteKind);
     const kind = target.kind;
     return kind === 'agenda' ? 'agenda' : kind === 'review' ? 'review' : kind === 'library' || kind === 'reader' ? 'library' : kind === 'table' ? 'table' : kind === 'fields' || kind === 'field' ? 'field' : kind === 'settings' ? 'settings' : kind === 'history' ? 'clock' : kind === 'compare' ? 'compare' : 'page';
   };

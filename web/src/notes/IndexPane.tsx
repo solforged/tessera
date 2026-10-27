@@ -22,7 +22,7 @@ import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { createSettledChanges, createSlowFlag } from '../ui/loading';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
-import { indexKindTarget, kindLabel, noteKindIcon, tagOnly } from './kinds';
+import { indexKindTarget, kindLabel, kindPlural, kindTally, noteKindIcon, startableKinds, tagOnly } from './kinds';
 import { filingGroups, filingOperations, settleFindingAid, wholeKindIndex } from './finding-aid';
 import type { FindingAidSnapshot } from './finding-aid';
 import { CreateSlip } from '../create/CreateSlip';
@@ -82,7 +82,7 @@ export function IndexDirectory(props: IndexPaneProps) {
             <div class="index-directory-row">
               <Icon name={noteKindIcon(kind)} />
               <Button class="index-directory-name" onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>{kindLabel(kind)}</Button>
-              <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : tally(kind.count, ['task', 'question', 'source', 'project'].includes(kind.key) ? kind.key : 'atom')}</span>
+              <span class="index-directory-count">{tagOnly(kind) ? `${kind.tagged_block_count.toLocaleString()} tagged` : kindTally(kind.count, kind.key)}</span>
               <Button class="index-directory-open" label={`Open ${kindLabel(kind)} ${tagOnly(kind) ? 'table' : 'list'}`} onClick={event => props.onOpen(indexKindTarget(kind), opensBeside(event))}>Open {tagOnly(kind) ? 'table' : 'list'}<Icon name="right" /></Button>
             </div>
           }</For><Show when={shelf === 'notes'}>
@@ -312,7 +312,7 @@ function KindIndexPane(props: IndexPaneProps) {
     <div class="index-sheet">
       <Show when={props.kindKey === 'unfiled' || props.kindKey === 'source'}><p class="index-eyebrow index-kind-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : 'Bibliography'}</p></Show>
       <div class="index-head"><h1><Icon name={noteKindIcon(props.kind ?? props.kindKey)} />{saved()?.name ?? title()}</h1>
-        <Show when={count() != null && !missingFields().length}><span class="index-tally">{tally(count()!, ['task', 'question', 'source', 'project'].includes(props.kindKey) ? props.kindKey : 'atom')}</span></Show>
+        <Show when={count() != null && !missingFields().length}><span class="index-tally">{kindTally(count()!, props.kindKey)}</span></Show>
         <Show when={noteMode() && !missingFields().length}><RequiredGaps gaps={incomplete.latest?.map(field => ({ field_id: field.field_id, missing: field.owners.size }))} name={fieldName} onShow={showMissing} /></Show>
         <NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} onNewAction={props.onNewAction} members={index.latest?.notes} visible={!!groups().length} />
       </div>
@@ -325,7 +325,7 @@ function KindIndexPane(props: IndexPaneProps) {
         <NoteFind query={query()} plural={title()} notebook={props.notebook} onChange={updateQuery}>
           <Button class="bordered index-desktop-control" aria-haspopup="menu" onClick={event => setGroupMenu(event.currentTarget)}>Group <Icon name="down" /></Button>
           <Button class="bordered index-desktop-control" onClick={event => setFilterMenu(event.currentTarget)}>Filters</Button>
-          <Button class="index-desktop-control" onClick={event => { setViewName(''); setSaveAnchor(event.currentTarget); }}>Save as view…</Button>
+          <Button class="bordered index-desktop-control" onClick={event => { setViewName(''); setSaveAnchor(event.currentTarget); }}>Save as view…</Button>
           <Button class="bordered index-phone-control" icon="query" label="List options" aria-haspopup="dialog" aria-expanded={!!optionsAnchor()} onClick={event => setOptionsAnchor(event.currentTarget)} />
         </NoteFind>
         <Show when={definitions() && query().filters.length}><div class="table-query-chips"><For each={query().filters}>{(filter, at) => <span class="table-chip">{filterLabel(filter, [...noteAttributes, ...definitions()?.fields ?? []], props.notebook, query().field_names)}<Button label="Remove filter" onClick={() => updateQuery(removeFilter(query(), at()))}>×</Button></span>}</For></div></Show>
@@ -451,16 +451,12 @@ function KindIndexPane(props: IndexPaneProps) {
   </div>;
 }
 
-/** Built-in kinds that can start from their finding aid. Sources come from the Library instead. */
-const startable: Record<string, 'type' | 'task' | 'question' | 'project'> = { person: 'type', group: 'type', concept: 'type', thesis: 'type', task: 'task', question: 'question', project: 'project' };
-
 /** An empty kind says how pages arrive in it and, for built-in kinds, starts one. */
 function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' | 'onOpen'>) {
-  const mode = () => props.kind ? startable[props.kindKey] : undefined;
+  const mode = () => props.kind ? startableKinds[props.kindKey] : undefined;
   // A type that only tags blocks has members, just none of them notes; its table lists them.
   const tagged = () => props.kind && 'tagged_block_count' in props.kind && tagOnly(props.kind) ? props.kind : undefined;
-  // Built-in kinds read as common nouns; a type's own name keeps the capitals it was given.
-  const plural = () => props.kind ? props.kindKey in startable || props.kindKey === 'source' ? props.kind.plural.toLocaleLowerCase() : props.kind.plural : '';
+  const plural = () => props.kind ? kindPlural(props.kind) : '';
   const hint = () => {
     const name = props.kind?.name ?? '';
     switch (mode()) {
@@ -486,7 +482,7 @@ function EmptyKind(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' |
 
 function NewKindAction(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'notebook' | 'onOpen' | 'onNewAction'> & { members?: { id: string }[]; visible?: boolean }) {
   const [anchor, setAnchor] = createSignal<HTMLElement>();
-  const mode = () => props.kind ? startable[props.kindKey] ?? (props.kind.type_id ? 'type' : undefined) : undefined;
+  const mode = () => props.kind ? startableKinds[props.kindKey] ?? (props.kind.type_id ? 'type' : undefined) : undefined;
   createEffect(() => props.onNewAction?.(mode() ? { label: `New ${kindNoun(props.kind!)}`, run: setAnchor } : undefined));
   onCleanup(() => props.onNewAction?.(undefined));
   return <>

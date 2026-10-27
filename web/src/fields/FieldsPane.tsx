@@ -126,7 +126,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
     </header>
     <div class="fields-toolbar">
       <input class="input fields-search" type="search" aria-label="Filter fields" placeholder="Filter fields…" value={search()} onInput={event => setSearch(event.currentTarget.value)} />
-      <Button icon="plus" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!creating()} onClick={event => { setNewName(search().trim()); setNewKind('text'); setNewKindMenu(null); setCreateError(''); setCreating(event.currentTarget); }}>New field</Button>
+      <Button class="bordered" icon="plus" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!creating()} onClick={event => { setNewName(search().trim()); setNewKind('text'); setNewKindMenu(null); setCreateError(''); setCreating(event.currentTarget); }}>New field</Button>
       <div class="fields-actions"><Button icon="undo" label="Undo field changes" disabled={!doc()?.canUndo()} onClick={() => { pane.focus({ preventScroll: true }); doc()?.undo(); }} /><Button icon="redo" label="Redo field changes" disabled={!doc()?.canRedo()} onClick={() => { pane.focus({ preventScroll: true }); doc()?.redo(); }} /></div>
     </div>
     <Show when={error()}><div class="pane-error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></div></Show>

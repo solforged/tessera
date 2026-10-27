@@ -131,7 +131,8 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .rail-finder { display: flex; align-items: stretch; width: var(--search-width); min-width: calc(2 * var(--row-height)); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); color: var(--faint); transition: border-color var(--motion-fast) var(--motion-ease); }
 .rail-finder:has([aria-expanded="true"]) { border-color: var(--accent); }
 .global-search { flex: 1; min-width: 0; justify-content: flex-start; gap: var(--space-8); padding: var(--space-4) var(--space-8); border: 0; border-radius: var(--radius-control) 0 0 var(--radius-control); color: inherit; font-weight: var(--weight-body); }
-.global-commands { flex: none; border-block: 0; border-right: 0; border-left-color: var(--line); border-radius: 0 var(--radius-control) var(--radius-control) 0; color: inherit; }
+/* Two classes: the base button rule's :is() carries a type selector and would otherwise erase this divider. */
+.global-commands.button { flex: none; border-block: 0; border-right: 0; border-left-color: var(--line); border-radius: 0 var(--radius-control) var(--radius-control) 0; color: inherit; }
 .global-commands .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
 .global-commands:hover { color: var(--text); }
 .global-search > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

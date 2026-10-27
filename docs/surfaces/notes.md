@@ -78,7 +78,7 @@ Their chips use the same attribute labels as entity views: Resolved and Revisit 
 
 ### Questions ledger
 
-Questions opens a ledger rather than the alphabetical finding aid. Its heading, tally and create action align like other type pages, with a question glyph beside Questions. Its ruled tabs are Active, Recurrent, Due, Answered, Parked and All, kept on one horizontally scrolling line in narrow panes. Active includes questions that are active or recurrent; Due selects non-parked questions whose revisit date has arrived. Each tab reads the same state filter from `/api/questions`. Find in Questions uses the finding aid's words, link/source predicates and Revisit/Resolved chips, intersected with the selected state; it includes inline questions and preserves program grouping.
+Questions opens a ledger rather than the alphabetical finding aid. Its heading, tally and create action align like other type pages, under a sentence-case Inquiry ledger eyebrow and with a question glyph beside Questions. Its ruled tabs are Active, Recurrent, Due, Answered, Parked and All, kept on one horizontally scrolling line in narrow panes. Active includes questions that are active or recurrent; Due selects non-parked questions whose revisit date has arrived. Each tab reads the same state filter from `/api/questions`. Find in Questions uses the finding aid's words, link/source predicates and Revisit/Resolved chips, intersected with the selected state; it includes inline questions and preserves program grouping.
 
 Questions are grouped by their top-level program, with branches below it. Inline questions show their containing page and open their original block. The tally and sidebar count include inline questions. Each row shows state, perspective count, current assessment's first line and date, or No current answer, then the next revisit date. No progress percentage is shown.
 
@@ -86,7 +86,7 @@ The sidebar's Questions menu opens the [research desk](desk.md), which links que
 
 ## Empty kinds
 
-An empty finding aid says `No people yet.` in muted Piazzolla under a hairline, lowercasing a built-in kind but keeping a type's own capitals (`No Italian words yet.`), then one sentence on how pages arrive:
+An empty finding aid says `No people yet.` in muted Piazzolla below the find row, lowercasing a built-in kind but keeping a type's own capitals (`No Italian words yet.`), then one sentence on how pages arrive:
 
 - Type kinds are filed from Unfiled.
 - Tasks can be written inline with `#task` or started in the shared task creation slip.
