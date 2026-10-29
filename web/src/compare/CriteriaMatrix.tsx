@@ -160,7 +160,7 @@ export function CriteriaMatrix(props: {
         <For each={values().filter(value => value.id !== edit().value)}>{value => <CellValue value={value} position={cellProps.id} field={cellProps.field} />}</For>
         <Switch>
           <Match when={field()?.kind === 'checkbox'}><span class="criteria-hint" role="status">Saving…</span></Match>
-          <Match when={hasValueEditor(field(), edit().text, props.notebook.todayDate())}><ValueEditor anchor={cell} field={field()!} text={edit().text} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={(text, relationPick) => commit(text, cell, undefined, undefined, undefined, relationPick)} onCreateOption={text => commit('', cell, undefined, text)} onError={setError} onDismiss={() => finishEditing(cell, edit())} /></Match>
+          <Match when={hasValueEditor(field(), edit().text, props.notebook.todayDate())}><ValueEditor anchor={cell} field={field()!} text={edit().text} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={(text, relationPick) => commit(text, cell, undefined, undefined, undefined, relationPick)} onCreateOption={text => commit('', cell, undefined, text)} onError={setError} onDismiss={() => { /* A pick commits and clears the draft before the popup asks to close; `edit()` throws once the Show has gone falsy. */ const draft = current(); if (draft) finishEditing(cell, draft); }} /></Match>
           <Match when={true}><CriteriaCellEditor id={edit().value ?? edit().position} text={edit().text} label={`Edit ${fieldName(cellProps.field)} · ${props.holder(rowById().get(cellProps.id)!)}`} notebook={props.notebook} onChange={text => {
             const current = edit(); current.text = text;
             const result = current.durable?.replace(text);

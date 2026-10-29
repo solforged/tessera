@@ -39,5 +39,9 @@ export function FieldPicker(props: {
     row={row => row.kind === 'field'
       ? <><Icon name="field" /><span class="picker-text">{fieldLabel(row.field)}</span><span class="picker-meta">{taskFieldFormat(row.field) ?? kindLabels[row.field.kind]}</span></>
       : <><Icon name="plus" /><span class="picker-text">{row.kind === 'as' ? `Create field “${row.name}” as…` : `Create text field “${row.name}”`}</span></>}
-    empty={query().trim() ? 'No matching fields.' : props.exclude?.size ? 'No other fields.' : 'No fields yet.'} />}>{name => <Menu anchor={props.anchor} label="Format" header={<div class="menu-section">Create field “{name}” as…</div>} onDismiss={props.onDismiss} items={fieldKinds.map(kind => ({ label: kindLabels[kind], action: () => props.onCreate?.(name, kind) }))} />}</Show>;
+    empty={query().trim() ? 'No matching fields.' : props.exclude?.size ? 'No other fields.' : 'No fields yet.'} />}>{name => <Menu anchor={props.anchor} label="Format" header={<div class="menu-section">Create field “{name}” as…</div>} closeOnSelect={false} onDismiss={props.onDismiss} items={[
+      // Back returns to the picker, which still holds the typed name in `query`.
+      { label: 'Back to fields', icon: 'left', action: () => setCreating(null) },
+      ...fieldKinds.map((kind, index) => ({ label: kindLabels[kind], divider: index === 0, action: () => { props.onDismiss(); props.onCreate?.(name, kind); } })),
+    ]} />}</Show>;
 }

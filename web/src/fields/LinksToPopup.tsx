@@ -18,7 +18,7 @@ export function LinksToPopup(props: { anchor: HTMLElement; notebook: NotebookCli
     for (const page of props.notebook.roots()) if (page.kind === 'page' && !page.archived && (['person', 'group'].includes(titleKey(page.text)) || props.targets.includes(page.id))) pages.set(page.id, page);
     return [{ id: SOURCE_TARGET, text: 'Source' }, ...[...pages.values()].sort((a, b) => a.text.localeCompare(b.text))];
   });
-  return <Popup anchor={props.anchor} label="Links to" onDismiss={props.onDismiss}>
+  return <Popup anchor={props.anchor} label="Links to" fitContent ready={types.state !== 'pending' && types.state !== 'unresolved'} dirty={() => draft().length !== props.targets.length || draft().some(id => !props.targets.includes(id))} onDismiss={props.onDismiss}>
     <h2 class="popup-title">Links to</h2><p class="field-note">No selection means Any atom.</p>
     <Show when={types.error}><p class="error" role="alert">Could not load tags.</p></Show>
     <For each={choices()}>{type => <label class="menu-item"><input type="checkbox" checked={draft().includes(type.id)} onChange={event => { const checked = event.currentTarget.checked; setDraft(previous => checked ? [...previous, type.id] : previous.filter(id => id !== type.id)); }} />{type.text}</label>}</For>

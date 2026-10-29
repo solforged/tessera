@@ -35,6 +35,8 @@ interface FieldDetailsProps {
   onPreview(kind?: FieldKind): void;
   onOpen(target: OpenTarget, beside: boolean): void;
   onReady?(): void;
+  /** Inspector only: dismisses the side panel. */
+  onClose?(): void;
 }
 
 function ordinal(value: number) {
@@ -67,7 +69,8 @@ export function FieldDetails(props: FieldDetailsProps) {
   const [register] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.fields());
   const [lastChange, setLastChange] = createSignal<DocumentChange>();
   const [removed, setRemoved] = createSignal(false);
-  createEffect(on(() => props.fieldId, () => setRemoved(false)));
+  // The inspector stays mounted across selections, so a popup anchored in the previous field's rows must not outlive it.
+  createEffect(on(() => props.fieldId, () => { setRemoved(false); setMenu(null); setActionsMenu(null); setHideMenu(null); setRoleMenu(null); setCountsMenu(null); setTargetsMenu(null); }));
   const previewKey = createMemo(() => `${props.fieldId}:${props.previewKind ?? ''}`);
   createEffect(on(previewKey, () => { setMappings({}); setImpact(undefined); }));
   createEffect(on(() => props.notebook.changeSequence(), () => {
@@ -198,7 +201,6 @@ export function FieldDetails(props: FieldDetailsProps) {
     const result = doc.edit({ kind: 'fieldTargets', definition: value.field, targets });
     if (!result.ok) { setError(result.reason); return; }
     setTargetsMenu(null); setApplying(true);
-    article.focus({ preventScroll: true });
     try { await doc.flush(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
@@ -208,7 +210,6 @@ export function FieldDetails(props: FieldDetailsProps) {
     if (!value || !doc || !ready()) return;
     const result = doc.edit({ kind: 'fieldHide', definition: value.field, value: hide });
     if (!result.ok) { setError(result.reason); return; }
-    article.focus({ preventScroll: true });
     setApplying(true);
     try { await doc.flush(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
@@ -219,7 +220,7 @@ export function FieldDetails(props: FieldDetailsProps) {
     if (!value || !doc || !ready()) return;
     const result = doc.edit({ kind: 'fieldCountsAs', definition: value.field, value: counts });
     if (!result.ok) { setError(result.reason); return; }
-    setCountsMenu(null); article.focus({ preventScroll: true }); setApplying(true);
+    setCountsMenu(null); setApplying(true);
     try { await doc.flush(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
@@ -229,7 +230,7 @@ export function FieldDetails(props: FieldDetailsProps) {
     if (!value || !doc || !ready()) return;
     const result = doc.edit({ kind: 'fieldRole', definition: value.field, value: role });
     if (!result.ok) { setError(result.reason); return; }
-    setRoleMenu(null); article.focus({ preventScroll: true }); setApplying(true);
+    setRoleMenu(null); setApplying(true);
     try { await doc.flush(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setApplying(false); }
@@ -275,19 +276,19 @@ export function FieldDetails(props: FieldDetailsProps) {
     <Show when={lastChange()}>{change => <p class="field-note">Field changed. <Button disabled={applying()} onClick={async () => { setApplying(true); try { await change().undo(); setRemoved(false); setLastChange(undefined); setVersion(value => value + 1); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } finally { setApplying(false); } }}>Undo</Button></p>}</Show>
     <Show when={data()} fallback={<Show when={loading()}><p role="status">Loading field…</p></Show>}>{value => <>
       <Show when={!props.inspector}><div class="field-eyebrow"><Button onClick={event => props.onOpen({ kind: 'fields' }, opensBeside(event))}>Fields</Button></div></Show>
-      <header class="field-heading"><h1>{fieldLabel(value().field)}</h1><Show when={value().field.built_in}><span class="field-built-in">Built in</span></Show><Show when={props.inspector} fallback={<Show when={!preview() && !value().field.built_in}><Button class="field-heading-actions" icon="more" label="Field actions" aria-haspopup="menu" aria-expanded={!!actionsMenu()} disabled={!ready()} onClick={event => setActionsMenu(event.currentTarget)} /></Show>}><Button class="field-heading-actions" onClick={event => props.onOpen({ kind: 'field', fieldId: props.fieldId }, opensBeside(event))}>Open atom ↗</Button></Show></header>
+      <header class="field-heading"><h1>{fieldLabel(value().field)}</h1><Show when={value().field.built_in}><span class="field-built-in">Built in</span></Show><Show when={props.inspector} fallback={<Show when={!preview() && !value().field.built_in}><Button class="field-heading-actions" icon="more" label="Field actions" aria-haspopup="menu" aria-expanded={!!actionsMenu()} disabled={!ready()} onClick={event => setActionsMenu(event.currentTarget)} /></Show>}><Button class="field-heading-actions" onClick={event => props.onOpen({ kind: 'field', fieldId: props.fieldId }, opensBeside(event))}>Open atom ↗</Button><Show when={props.onClose}><Button class="field-inspector-close" icon="close" label="Close inspector" title="Close inspector · Esc" onClick={() => props.onClose?.()} /></Show></Show></header>
       {inlineEdit(props.fieldId)}
       <Show when={value().field.archived}><p class="field-note">Archived; values remain readable.</p></Show>
       <Show when={impact()}>{current => <FieldImpactPreview impact={current()} fields={register()?.fields ?? []} busy={applying()} onTarget={target => void previewImpact(target)} onApply={action => void applyImpact(action)} onCancel={() => setImpact(undefined)} />}</Show>
       <p class="field-summary">{taskFieldFormat(value().field) ?? kindLabels[value().field.kind]} · {plural(value().owners_total, 'atom')}</p>
       <div class="field-kind-row"><span>{preview() ? 'Change format' : 'Format'}</span><Show when={preview()}><span class="field-apparatus">{kindLabels[value().field.kind]} →</span></Show><Show when={!value().field.built_in && !taskFieldName(value().field)} fallback={<span>{taskFieldFormat(value().field) ?? kindLabels[value().kind]}</span>}><Button class="bordered" aria-label={`Format for ${fieldLabel(value().field)}: ${taskFieldFormat(value().field) ?? kindLabels[value().kind]}`} aria-haspopup="menu" aria-expanded={!!menu()} disabled={applying()} onClick={event => setMenu(event.currentTarget)}>{taskFieldFormat(value().field) ?? kindLabels[value().kind]} <Icon name="down" /></Button></Show></div>
-      <Show when={value().kind === 'instance' && !preview()}><div class="field-kind-row" data-field-section="targets"><span>Links to</span><Button class="bordered" disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!targetsMenu()} onClick={event => setTargetsMenu(event.currentTarget)}>{linksToSummary(props.notebook, value().field.targets, 'Any atom')} <Icon name="down" /></Button></div></Show>
-      <div class="field-kind-row"><span>Hide</span><Button class="bordered" aria-label={`Hide for ${fieldLabel(value().field)}: ${hideLabels[fieldHide(value().field)]}`} aria-haspopup="menu" aria-expanded={!!hideMenu()} disabled={!ready()} onClick={event => setHideMenu(event.currentTarget)}>{hideLabels[fieldHide(value().field)]} <Icon name="down" /></Button></div>
+      <Show when={value().kind === 'instance' && !preview()}><div class="field-kind-row" data-field-section="targets"><span>Links to</span><Button class="bordered" aria-disabled={!ready()} aria-haspopup="dialog" aria-expanded={!!targetsMenu()} onClick={event => { if (ready()) setTargetsMenu(event.currentTarget); }}>{linksToSummary(props.notebook, value().field.targets, 'Any atom')} <Icon name="down" /></Button></div></Show>
+      <div class="field-kind-row"><span>Hide</span><Button class="bordered" aria-label={`Hide for ${fieldLabel(value().field)}: ${hideLabels[fieldHide(value().field)]}`} aria-haspopup="menu" aria-expanded={!!hideMenu()} aria-disabled={!ready()} onClick={event => { if (ready()) setHideMenu(event.currentTarget); }}>{hideLabels[fieldHide(value().field)]} <Icon name="down" /></Button></div>
       <p class="field-note">{hideDescriptions[fieldHide(value().field)]}</p>
-      <div class="field-kind-row"><span>Shows as</span><Button class="bordered" aria-label={`Shows as for ${fieldLabel(value().field)}: ${roleLabels[fieldRole(value().field)]}`} aria-haspopup="menu" aria-expanded={!!roleMenu()} disabled={!ready()} onClick={event => setRoleMenu(event.currentTarget)}>{roleLabels[fieldRole(value().field)]} <Icon name="down" /></Button></div>
+      <div class="field-kind-row"><span>Shows as</span><Button class="bordered" aria-label={`Shows as for ${fieldLabel(value().field)}: ${roleLabels[fieldRole(value().field)]}`} aria-haspopup="menu" aria-expanded={!!roleMenu()} aria-disabled={!ready()} onClick={event => { if (ready()) setRoleMenu(event.currentTarget); }}>{roleLabels[fieldRole(value().field)]} <Icon name="down" /></Button></div>
       <p class="field-note">{roleDescriptions[fieldRole(value().field)]}</p>
       <Show when={!countsReason(value().field)}>
-        <div class="field-kind-row"><span>Counts as</span><Button class="bordered" aria-label={`Counts as for ${fieldLabel(value().field)}: ${countsLabel(value().field)}`} aria-haspopup="menu" aria-expanded={!!countsMenu()} disabled={!ready()} onClick={event => setCountsMenu(event.currentTarget)}>{countsLabel(value().field)} <Icon name="down" /></Button></div>
+        <div class="field-kind-row"><span>Counts as</span><Button class="bordered" aria-label={`Counts as for ${fieldLabel(value().field)}: ${countsLabel(value().field)}`} aria-haspopup="menu" aria-expanded={!!countsMenu()} aria-disabled={!ready()} onClick={event => { if (ready()) setCountsMenu(event.currentTarget); }}>{countsLabel(value().field)} <Icon name="down" /></Button></div>
         <p class="field-note">{countsDescriptions[fieldCounts(value().field) ?? 'nothing']}</p>
       </Show>
       <Show when={preview()} fallback={<>

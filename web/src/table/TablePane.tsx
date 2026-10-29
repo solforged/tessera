@@ -1,5 +1,7 @@
 import { opensBeside, listOpensBeside } from '../shell/beside';
-import { For, Show, createEffect, createMemo, createResource, createRoot, createSignal, onCleanup, onMount, untrack } from 'solid-js';
+import { glide } from '../ui/pane-motion';
+import { scrollBehavior } from '../shell/motion';
+import { For, Index, Show, createEffect, createMemo, createResource, createRoot, createSignal, onCleanup, onMount, untrack } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { ulid } from 'ulid';
 import { api } from '../api/client';
@@ -145,7 +147,9 @@ function TableContent(props: TablePaneProps) {
     const rowId = cell?.closest<HTMLElement>('tr')?.dataset.blockId;
     const fieldId = cell?.dataset.fieldId ?? null;
     const restore = !!cell && region.contains(cell);
-    setResult(next);
+    // Rows that re-sort glide to their new place instead of jumping; a long list just updates.
+    const moving = () => result() && result()!.rows.length <= 300 ? Array.from(region.querySelectorAll<HTMLElement>('tbody tr[data-block-id]:not([hidden])')) : [];
+    glide(moving, () => setResult(next));
     if (restore && rowId) focusCell(rowId, fieldId, document.activeElement !== active);
   };
   const refreshCells = async () => showResult(await api.query({ ...copyQuery(query()), offset: 0, limit: Math.max(pageSize(), result()?.rows.length ?? 0) }));
@@ -158,7 +162,7 @@ function TableContent(props: TablePaneProps) {
       ? [...grid.tHead?.rows[0]?.cells ?? []].filter(cell => cell.getBoundingClientRect().right > view.left + scroll.clientWidth + 1).length : 0;
     setEdge({ hidden, height: hidden ? Math.max(0, Math.min(scroll.clientHeight, grid.getBoundingClientRect().bottom - view.top)) : 0 });
   };
-  const showMoreColumns = () => scroll.scrollBy({ left: scroll.clientWidth - titleWidth(), behavior: 'smooth' });
+  const showMoreColumns = () => scroll.scrollBy({ left: scroll.clientWidth - titleWidth(), behavior: scrollBehavior() });
   // Scroll position reaches pane history once per frame, not once per scroll event.
   let scrollReport = 0;
   onCleanup(() => cancelAnimationFrame(scrollReport));
@@ -340,10 +344,13 @@ function TableContent(props: TablePaneProps) {
       observedSaved = next;
     });
   });
+  let firstQuery = true;
   createEffect(() => {
     const value = copyQuery(query()); props.notebook.changeSequence();
     const controller = new AbortController();
     appendController?.abort(); setAppending(false); setLoading(true);
+    // Later edits and sync changes coalesce for 150 ms; the first load of a pane is awaited by navigation, so it starts at once.
+    const delay = firstQuery ? 0 : 150; firstQuery = false;
     const timer = setTimeout(() => {
       void (async () => {
         const allFields = await api.fields(controller.signal);
@@ -369,7 +376,7 @@ function TableContent(props: TablePaneProps) {
           requestAnimationFrame(() => { if (scroll) { scrollHost().scrollTop = props.view.scroll; scroll.scrollLeft = props.view.horizontalScroll ?? 0; } });
         }
       })().catch(reason => { if (!controller.signal.aborted) { message(reason); setLoading(false); } });
-    }, 150);
+    }, delay);
     onCleanup(() => { clearTimeout(timer); controller.abort(); appendController?.abort(); });
   });
   const appendRows = async () => {
@@ -712,6 +719,16 @@ function TableContent(props: TablePaneProps) {
       catch (reason) { message(reason); }
     }
   };
+  /** Tab out of a cell editor commits it and lands on the neighboring cell, in reading order; the first and last cells stay put. */
+  const advanceCell = (rowId: string, fieldId: string, backward: boolean) => {
+    void commitEdit(false);
+    const rows = navigableRows(); const columns = visibleColumns();
+    const row = rows.findIndex(item => item.block.block.id === rowId); const column = columns.indexOf(fieldId);
+    if (row < 0 || column < 0) return;
+    const index = Math.max(0, Math.min(rows.length * columns.length - 1, row * columns.length + column + (backward ? -1 : 1)));
+    const next = { rowId: rows[Math.floor(index / columns.length)]!.block.block.id, fieldId: columns[index % columns.length]! };
+    setFocused(next); focusCell(next.rowId, next.fieldId);
+  };
   const runReplay = async (redo: boolean) => {
     setReplaying(true);
     try {
@@ -814,7 +831,7 @@ function TableContent(props: TablePaneProps) {
     return <Show when={current()?.row.block.block.id === row.block.block.id && current()?.field.id === id} fallback={<Show when={required().has(id) && !row.values[id]?.length && !row.attributes?.[id]?.length} fallback={renderValue(row, id)}><span class="table-needed">needed</span></Show>}>
       <PlainValueInput class="table-cell-input" field={field()} text={current()?.text ?? ''}
         onInput={text => setEditing(value => value ? { ...value, text } : null)}
-        onCommit={returnFocus => { void commitEdit(returnFocus); }} onCancel={() => { setEditing(null); region.focus(); }} />
+        onCommit={returnFocus => { void commitEdit(returnFocus); }} onCancel={() => { setEditing(null); focusCell(row.block.block.id, id); }} onAdvance={backward => advanceCell(row.block.block.id, id, backward)} />
     </Show>;
   };
   const renderCardCell = (row: QueryRow, field: FieldDefinition) => <div class={`table-card-field table-kind-${field.kind}`} classList={{ 'table-card-source': field.id === sourceField()?.id, 'table-card-gloss': field.name.trim().toLocaleLowerCase() === 'gloss', 'table-card-grouped-field': !!query().group && field.id === query().group?.key }} role="button" tabIndex={0} aria-label={`Open ${field.name} field`} onClick={event => { event.stopPropagation(); if (!(event.target as HTMLElement).closest('button')) { if (taskFieldName(field)) startEdit(row, field, event.currentTarget); else if (!field.id.startsWith('@')) openField(row, field); } }} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); if (taskFieldName(field)) startEdit(row, field, event.currentTarget); else if (!field.id.startsWith('@')) openField(row, field); } }}><span class="table-card-field-name">{field.name}</span>{renderValue(row, field.id, true)}</div>;
@@ -907,7 +924,6 @@ function TableContent(props: TablePaneProps) {
         <Show when={viewUndo()}><span>View saved ·</span><Button disabled={replaying()} onClick={() => { void replayCell(false).catch(message); }}>Undo</Button></Show>
       </>}>View deleted · <Button onClick={() => { void undoDelete().catch(message); }}>Undo</Button></Show></footer>
     </div>
-    <Show when={narrow() && querySheet()}><div class="table-query-shade" onPointerDown={() => { setPopup(null); setQuerySheet(null); }} /></Show>
     <Show when={narrow() && querySheet()}>{anchor => <Popup anchor={anchor() as HTMLElement} placement="sheet" label="Query" class="table-query-sheet" onDismiss={() => { setPopup(null); setQuerySheet(null); }}>
       <div class="table-popup-heading">Query</div>
       <p class="table-popup-note">{saved()?.name ?? title()}</p>
@@ -948,12 +964,13 @@ function TableContent(props: TablePaneProps) {
           for (const field of columnChoices()) if (!columns.some(column => column.key === field.id)) columns.push({ key: field.id, width: undefined });
           updateQuery({ ...query(), columns });
         }}>Only these</Button></Show>
-        <For each={columnChoices()}>{field => <label class="table-column-choice"><input type="checkbox" checked={visibleColumns().includes(field.id)} onChange={event => showField(field.id, event.currentTarget.checked)} />{field.name}</label>}</For>
+        {/* Rows are keyed by position: each query write rebuilds the field objects, and recreated checkboxes would drop keyboard focus. */}
+        <Index each={columnChoices()}>{field => <label class="table-column-choice"><input type="checkbox" checked={visibleColumns().includes(field().id)} onChange={event => showField(field().id, event.currentTarget.checked)} />{field().name}</label>}</Index>
         <Show when={sourceField()}>{field => <label class="table-column-choice"><input type="checkbox" checked={showRefs()} onChange={event => showField(refsColumn, event.currentTarget.checked)} />Refs<span class="table-column-fixed-note">From {field().name}</span></label>}</Show>
         <label class="table-width-control" for={`table-title-width-${props.pane}`}><span>Title width <output>{titleWidth()} px</output></span><input id={`table-title-width-${props.pane}`} type="range" min={titleWidthLimits.min} max={titleWidthLimits.max} value={titleWidth()} onInput={event => { const width = clampTitleWidth(event.currentTarget.valueAsNumber); setTitleWidth(width); const columns = recipeColumns(); columns.find(column => column.key === '@title')!.width = width; updateQuery({ ...query(), columns }); }} /></label>
         </Show>
         <div class="table-popup-heading">Phone card fields</div><p class="table-popup-note">Sort fields are always shown.</p>
-        <For each={columnChoices()}>{field => <label class="table-column-choice"><input type="checkbox" checked={query().card?.includes(field.id) ?? false} onChange={event => updateQuery({ ...query(), card: event.currentTarget.checked ? [...query().card ?? [], field.id] : (query().card ?? []).filter(id => id !== field.id) })} />{field.name}</label>}</For>
+        <Index each={columnChoices()}>{field => <label class="table-column-choice"><input type="checkbox" checked={query().card?.includes(field().id) ?? false} onChange={event => updateQuery({ ...query(), card: event.currentTarget.checked ? [...query().card ?? [], field().id] : (query().card ?? []).filter(id => id !== field().id) })} />{field().name}</label>}</Index>
         <Show when={query().type}><div class="table-template-actions"><Button onClick={() => addColumnMenu(state.anchor)}>Add field to tag template…</Button><Button onClick={event => props.onOpen({ kind: 'page', pageId: query().type! }, opensBeside(event))}>Open tag template</Button></div></Show>
       </Popup>}
       {state.kind === 'sources' && <SourcesPopup anchor={state.anchor} label={state.label} sources={state.sources} notebook={props.notebook} onDismiss={() => setPopup(null)} />}
@@ -1061,7 +1078,7 @@ function TableCellText(props: { children: (expanded: boolean) => JSX.Element }) 
 function NamePopup(props: { anchor: HTMLElement; action: 'save' | 'rename' | 'field'; name: string; onDismiss(): void; onSave(name: string): Promise<void> }) {
   const [name, setName] = createSignal(props.name); const [busy, setBusy] = createSignal(false); const [error, setError] = createSignal('');
   const submit = async () => { if (busy() || !name().trim()) return; setBusy(true); try { await props.onSave(name()); } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); } finally { setBusy(false); } };
-  return <Popup anchor={props.anchor} label={props.action === 'field' ? 'New field…' : props.action === 'rename' ? 'Rename view…' : 'Save as view…'} onDismiss={props.onDismiss} width={320}>
+  return <Popup anchor={props.anchor} label={props.action === 'field' ? 'New field…' : props.action === 'rename' ? 'Rename view…' : 'Save as view…'} dirty={() => name() !== props.name} onDismiss={props.onDismiss} width={320}>
     <form onSubmit={event => { event.preventDefault(); void submit(); }}><input class="input" placeholder={props.action === 'field' ? 'Field name' : 'View name'} aria-label={props.action === 'field' ? 'Field name' : 'View name'} value={name()} onInput={event => setName(event.currentTarget.value)} maxlength={props.action === 'field' ? undefined : 120} />
       <Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button onClick={props.onDismiss}>Cancel</Button><Button type="submit" class="bordered" disabled={!name().trim() || busy()}>Save</Button></div>
     </form>

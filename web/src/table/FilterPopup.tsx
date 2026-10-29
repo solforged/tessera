@@ -1,5 +1,4 @@
 import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
-import { Portal } from 'solid-js/web';
 import type { Block, FieldDefinition, FieldKind, Filter, FilterOp } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { instancePages, relationMembers } from '../fields/instances';
@@ -88,8 +87,11 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   };
+  let queryInput: HTMLInputElement | undefined;
   const pick = (row: FilterRow) => {
     setQuery(''); setError(''); setDraftValue(undefined);
+    // A mouse pick lands on a row, not the input; the next step is typed into it. Touch sheets keep the keyboard closed.
+    if (!props.sheet) queueMicrotask(() => queryInput?.focus({ preventScroll: true }));
     if (row.kind === 'field') { setField({ id: row.id, name: row.name }); setOp(props.sheet && props.fields.find(field => field.id === row.id)?.kind === 'choice' ? 'is' : null); }
     else if (row.kind === 'new-field') { setField({ id: null, name: row.name }); setOp(null); }
     else if (row.kind === 'op') {
@@ -101,7 +103,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
   };
   const placeholder = () => step() === 'field' ? 'Field name' : step() === 'op' ? 'Condition' : identity() ? 'Choose a target' : definition()?.kind === 'date' ? partialDatePlaceholder : definition()?.kind === 'choice' ? 'Choose an option' : 'Value';
   return <Show when={props.sheet} fallback={<Picker<FilterRow> anchor={props.anchor} width={320} label={props.label ?? (props.initialFilter ? 'Edit condition' : 'Add filter')} onDismiss={props.onDismiss}
-    query={query()} onQuery={setQuery} placeholder={placeholder()}
+    query={query()} onQuery={setQuery} placeholder={placeholder()} inputRef={input => { queryInput = input; }}
     prefix={<><Show when={field()}>{chosen => <span class="table-chip">{chosen().name}</span>}</Show><Show when={op()}>{chosen => <span class="table-chip">{filterOperatorLabel(chosen(), definition()?.kind)}</span>}</Show><Show when={unresolved()}><span class="table-chip">{unresolved()}</span></Show></>}
     status={<Show when={definition()?.kind === 'date' && (op() === 'lt' || op() === 'gt')}><label class="table-column-choice"><input type="checkbox" checked={orEmpty()} onChange={event => setOrEmpty(event.currentTarget.checked)} />Or empty</label></Show>}
     items={rows()} key={row => row.kind === 'field' ? row.id : row.kind === 'op' ? row.op : row.kind === 'value' ? row.value : 'new'}
@@ -117,7 +119,6 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
       : row.kind === 'new-field' ? <><Icon name="plus" /><span class="picker-text">New field “{row.name}”</span></>
         : row.kind === 'op' ? <span class="picker-text">{filterOperatorLabel(row.op, definition()?.kind)}</span>
           : <span class="picker-text" title={row.value}>{plainText(row.label, id => props.notebook.lookup(id))}</span>} />}>
-    <Portal><div class="table-sheet-shade" aria-hidden="true" onPointerDown={props.onDismiss} /></Portal>
     <Popup anchor={props.anchor} placement="sheet" class="table-filter-sheet" label="Filters" onDismiss={props.onDismiss} autofocus={false} style={{ '--bottom-nav-height': getComputedStyle(props.anchor).getPropertyValue('--bottom-nav-height') || '0px' }}>
       <div class="table-popup-heading">Filters<Button onClick={props.onDismiss}>Cancel</Button></div>
       <div class="table-filter-steps">

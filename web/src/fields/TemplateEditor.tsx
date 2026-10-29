@@ -180,10 +180,14 @@ export function TemplateEditor(props: { type: Type; fields: readonly FieldDefini
         </>}</Show>
         <Show when={filled()} fallback={<Show when={hasVisibleGap() && !changed()}>
           <span class="template-gap">{missing()} empty {missing() === 1 ? 'field' : 'fields'} on {gaps()!.length} {gaps()!.length === 1 ? atomNames().singular : atomNames().plural}</span>
-          <Button class="bordered" disabled={busy()} onClick={() => void fill()}>Fill missing fields</Button>
+          <Button class="bordered" disabled={busy()} onClick={event => {
+            // Fill swaps this button for an Undo status; keep keyboard focus in the row.
+            const actions = event.currentTarget.closest('.template-actions');
+            void fill().then(() => { if (filled() && (!document.activeElement || document.activeElement === document.body)) actions?.querySelector<HTMLElement>('.template-fill-undo')?.focus({ preventScroll: true }); });
+          }}>Fill missing fields</Button>
         </Show>}>{done => <>
           <span class="template-gap" role="status">Added {done().entries.length} {done().entries.length === 1 ? 'field' : 'fields'} to {done().owners} {done().owners === 1 ? atomNames().singular : atomNames().plural}</span>
-          <Button disabled={busy()} onClick={() => void undoFill()}>Undo</Button>
+          <Button class="template-fill-undo" disabled={busy()} onClick={() => void undoFill()}>Undo</Button>
         </>}</Show>
         <TypePresentation type={props.type} notebook={props.notebook} onError={props.onError} />
       </div>
