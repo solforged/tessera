@@ -28,7 +28,7 @@ Up and Down move within a column. Right moves to the selected row in the next co
 
 ## Saving
 
-Save desk asks for a name and saves all three queries as one view with the desk layout. Save changes updates an existing view. Undo save and Redo save, also available through the usual undo chords, reverse the latest save without changing rows. Missing fields are named and can be removed from the view.
+Save desk asks for a name and saves all three queries as one view with the desk layout. A typed name survives a click outside the form; Escape and Cancel close it. Save changes updates an existing view. Undo save and Redo save, also available through the usual undo chords, reverse the latest save without changing rows. Missing fields are named and can be removed from the view.
 
 Back and Forward restore all three queries, selected rows and the current column. Reload keeps the same pane state. Opening a saved desk restores its question and perspective from the linked conditions without changing the view or adding a save operation.
 

@@ -27,6 +27,8 @@ Statuses are Todo, Doing, Waiting (an hourglass), Done and Canceled. Task state,
 
 A task keeps its checkbox and compact planning facts at rest. Focus reveals one field bed, in Task template order, with `status`, `scheduled`, `deadline`, `priority`, `repeat` and `project` beside user fields and `+ Field`. Plan task opens this bed; status, planning shortcuts and clicks on facts open the corresponding field editor. Tab moves through the fields and Escape returns to the compact row. There is no separate planning slip.
 
+An editor opened from an outline row's task chip returns focus to that chip when it closes, rather than to the bed's own button.
+
 `status` opens its menu; choosing Done uses completion, so repeats advance and Undo restores the occurrence. `scheduled` and `deadline` use the date picker with optional time, and the deadline editor owns the warning lead. `priority` uses its choice menu and `repeat` uses the repeat editor. Its Mode and Unit menus carry chevrons. Removing an optional template slot leaves any existing value visible and does not change Agenda.
 
 `project` opens a searchable, title-ordered picker; choosing a project replaces the task's explicit `project` field in one undo step, and None removes it. A name that matches no project exactly adds `New project “Name”`, which makes a project page of that title (or makes an existing page of that title a project) and assigns the task to it.
@@ -66,7 +68,7 @@ A multi-word query that matches no date is prose (`@sam about the report`). The 
 
 ### Date picker
 
-Date pickers pair the text field with a Monday-start month grid shared with the [journal calendar](journal.md#period-ledgers). A picker that fits neither above nor below its trigger sits over it, inside the window. On touch it stays inside the pane above bottom navigation, with 44 px calendar cells.
+Date pickers pair the text field with a Monday-start month grid shared with the [journal calendar](journal.md#period-ledgers). A picker that fits neither above nor below its trigger sits over it, inside the window. On touch it stays inside the pane above bottom navigation, with 44 px calendar cells; below 600 px it is a bottom sheet, and a touch screen never raises the keyboard for it unasked.
 
 | Calendar mark | Appearance and meaning |
 |---|---|
@@ -78,6 +80,8 @@ Date pickers pair the text field with a Monday-start month grid shared with the 
 Planning marks count open tasks only, with accessible labels such as `3 scheduled · 1 deadline`. The task's other planning date keeps a separate related-date line. Planning counts load and cache per visible month, and refresh after workshop commits without moving the grid.
 
 Clicking a day applies it. Arrows move by day and week, Page Up and Page Down by month. The optional time, Clear and Apply stay in a fixed footer; only the calendar body scrolls when the viewport is short.
+
+Stepping to another month keeps the day you meant: the 31st lands on the 30th or 28th in a short month and returns to the 31st in the next long one. The grid has one tab stop, which moves with the month shown. A click outside leaves a picker holding a typed date or time open; Escape closes it, and focus returns to the control that opened it.
 
 ## Completion and repeats
 
@@ -195,7 +199,9 @@ The whole row takes the hover fill and long task text clamps at two lines. Plann
 
 The glyph completes on the displayed agenda date, including from lookahead, or reopens a finished task in Tasks. Right-click or ⌘⇧Enter on a focused row opens the shared status menu. The priority word opens the same priority choices as the Planning slip, including None. High is danger; medium and low stay faint. Tab reaches both controls and P opens priority from a focused row. Completed history shows a static check and never edits the live task.
 
-Completing, reopening or triaging a row uses its source page's undo history. ⌘Z or Ctrl+Z reverses that edit, including its saved occurrence and previous plan; Shift repeats the chord to redo. The keyboard stays on an Agenda row, or on the pane when none remain.
+Completing, reopening or triaging a row uses its source page's undo history. ⌘Z or Ctrl+Z reverses that edit, including its saved occurrence and previous plan; Shift repeats the chord to redo. A completed row pops its done glyph, then fades and collapses so the rows below close the gap. A group stays until its last row has gone, then its head collapses with it. Rows that arrive after the list first painted, including rows restored by Undo, fade in; a cold load and a change of day show their rows without animation.
+
+The keyboard stays in the list: when the row that holds focus, or the picker it opened, leaves, focus moves to the next row, then to the rows before it, and to the pane only when none remain. Escape from a row's status or priority menu returns focus to the button that opened it.
 
 ### Rescheduling
 
@@ -230,7 +236,7 @@ Day groups canonical tasks in this order:
 
 Every group uses the shared [section head](../design.md#color). Overdue tints its name `--danger`; Today counts open and finished work (`4 · 1 done`); folded groups dim their names to `--muted`. Today always has a head and count; when empty it shows one muted Nothing planned line.
 
-The Overdue head ends in one bordered Move all menu with To today and To tomorrow. Each moves every unfinished task in one command, keeping times and deadlines, and leaves a `Moved 6 to today · Undo` line until the next move. To today is disabled with an explanation when every task is already scheduled today, including tasks whose deadline is still overdue. The single menu keeps the rule and count in the heading on narrow panes.
+The Overdue head ends in one bordered Move all menu with To today and To tomorrow. Each moves every unfinished task in one command, keeping times and deadlines, and leaves a `Moved 6 to today · Undo` line until the next move. The moved rows fade out and arrive in their new group; the menu's trigger leaves with its section, so Undo on the line takes the keyboard, and the first restored row takes it back. To today is disabled with an explanation when every task is already scheduled today, including tasks whose deadline is still overdue. The single menu keeps the rule and count in the heading on narrow panes.
 
 Upcoming groups rows by their earliest future schedule or deadline, and excludes tasks already listed as overdue or planned. Each day is a sans subhead without a rule: the day's name at 13 px and weight 500 in `--muted` (Tomorrow, then weekdays), then its month and day in `--faint`, as `Tomorrow Oct 26`, `Tuesday Oct 27` and `Sunday Nov 1`, never ISO. A live task appears only once across these sections, even when both planning dates contribute to the strip. Collapsed Unplanned and Done groups retain undated work and completion history; a completed occurrence never suppresses its source's live task.
 

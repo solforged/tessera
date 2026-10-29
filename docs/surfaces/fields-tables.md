@@ -76,6 +76,8 @@ Apply changes the kind and all reviewed mappings in one undoable edit. Unmapped 
 
 Relation definitions show **Links to** below Kind, both on their page and in the Fields inspector. The checklist offers Source first, then the types, and applies as one undoable change; no selection reads **Any atom**. Members of the selected types qualify whether they are pages or tagged blocks inside a page, and Source admits any source. A reference outside the selected types stays written and reads as a problem.
 
+Links to, Hide, Shows as and Counts as keep focus on their button when their popup closes after a change, and selecting another field in the inspector closes any of them still open.
+
 Library Author, Editor and Translator start with Person and Group targets. Import and the one-time workshop backfill file untyped creator pages as Person without changing pages already filed elsewhere.
 
 Metadata suggestions, field-slot pickers and value pickers for such a field show members of the target types. Page titles and aliases match with the workshop's name folding; an exact alias match does not offer duplicate creation. Blocks match by label and show their page beside it. Blocks on the owner's page lead under **On this atom**, and the owner is never offered. A query that names no page exactly offers **Create person “Name”** and **Create group “Name”**, creating and filing the page together. A field that links to Source offers **Create source “Title”**, a manual record in the Inbox. A type with block members offers no creation.
@@ -222,7 +224,7 @@ Enter or double-click edits a single plain text, number, URL or identifier value
 
 Tasks offer user fields in Columns, Filters and Sort beside `status`, `scheduled`, `deadline`, `priority`, `repeat` and `project`. The built-in `project` field resolves explicit and inherited membership. Editing a user field changes the same entry shown under the atom. The legacy `@due` column still reads and edits `deadline`; saved recipes need no migration.
 
-Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value and returns focus to its cell before saving finishes. An immediate undo follows that save. Leaving with Tab or a click commits without taking focus back from the new target.
+Inline text editors keep authored line breaks. Shift-Enter adds a newline; Enter commits the value and returns focus to its cell before saving finishes. An immediate undo follows that save. Tab and Shift-Tab commit the value and land on the neighboring cell in reading order, staying put at the first and last cells; leaving with a click commits without taking focus back from the new target. Rows that re-sort after an edit glide to their new places, and a long list just updates.
 
 Cell focus follows the member and field, whether a note or a tagged block, so an edit that re-sorts the table keeps the keyboard on that member's value.
 

@@ -35,7 +35,9 @@ Progress pairs a short gilt bar with its percentage. A Reading source at zero re
 
 In a pane narrower than 560 px on a wide screen, the state, byline and year columns step aside and progress keeps only its number, so the title keeps its room. Below 600 px, every source ledger uses the same taller card layout, retaining the siglum beside any needed state and stacking the title, byline and compact metadata. Empty progress and highlight cells reserve no space.
 
-The leading slot shows a selection checkbox on hover, focus, or while any row is selected. On a phone the checkboxes stay hidden so covers show whole: Select in the heading reveals them and turns a tap on a source into a toggle rather than opening it, and Done, Clear selection, Escape or a new tab or search ends it. A long press still opens the source's details outside Select. A selected row takes `--selection` and the accent bar. While rows are selected, a bar of the same height replaces the search line: the count, Details (while the catalog card is closed), Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Beside an open card, a ledger narrower than 840 px (1000 px inside a collection, which adds Remove from collection) shows Browse, Export, Add to collection, Delete and Clear selection as glyphs named in tooltips, and Remove without its object, so the bar stays one line. Escape clears.
+The leading slot shows a selection checkbox on hover, focus, or while any row is selected. On a phone the checkboxes stay hidden so covers show whole: Select in the heading reveals them and turns a tap on a source into a toggle rather than opening it, and Done, Clear selection, Escape or a new tab or search ends it. A long press still opens the source's details outside Select. A selected row takes `--selection` and the accent bar.
+
+While rows are selected, a bar of the same height replaces the search line: the count, Details (while the catalog card is closed), Browse, Mark as (one batch for all of them), Export, Add to collection…, Delete and Clear selection. Beside an open card, a ledger narrower than 840 px (1000 px inside a collection, which adds Remove from collection) shows Browse, Export, Add to collection, Delete and Clear selection as glyphs named in tooltips, and Remove without its object, so the bar stays one line. Escape clears.
 
 Clicking a row opens the source page. It fills the pane to the right when one exists; otherwise it uses the Library's pane. ⌘-click opens it beside (Ctrl-click off Mac). The modifier never opens the source in the Library's pane instead. On a wide touch screen, opening a book uses the pane to the right or opens one beside. The opened book keeps a quiet current-page marker.
 
@@ -124,7 +126,7 @@ A Library with no sources offers Add your first source and a direct Add a source
 
 ### Add to library
 
-Add opens Add to library anchored under its button on desktop and as a bottom sheet on the touch cover layout: one field for a URL, ISBN, DOI or arXiv ID, then Choose file… at the leading edge and Enter details by hand at the trailing edge, each with its glyph. Enter submits; Looking up… shows while it works. On coarse pointers, Paste appears beside the field when clipboard reading is available. Scan ISBN appears when BarcodeDetector is available, opens the camera photo picker, and looks up an ISBN EAN-13 barcode from the photo; a photo without one reports `No ISBN barcode found in that photo.`.
+Add opens Add to library anchored under its button on desktop and as a bottom sheet on the touch cover layout: one field for a URL, ISBN, DOI or arXiv ID, then Choose file… at the leading edge and Enter details by hand at the trailing edge, each with its glyph. Enter submits; Looking up… shows while it works. A typed query or a started hand-entry form survives a click outside, and Escape or closing the sheet keeps it for the next opening until the source is added; Cancel in the hand-entry form returns to the field. On coarse pointers, Paste appears beside the field when clipboard reading is available. Scan ISBN appears when BarcodeDetector is available, opens the camera photo picker, and looks up an ISBN EAN-13 barcode from the photo; a photo without one reports `No ISBN barcode found in that photo.`.
 
 An identifier lookup previews a catalog card before anything is written:
 
@@ -166,7 +168,7 @@ Selecting a source through its leading slot or checkbox opens a 460 px catalog-c
 
 Changing the selection keeps the current card on screen until the next source's details are loaded, then swaps its content in place. Loading source details… shows only when no card is shown yet and loading takes over 300 ms.
 
-Browse steps aside while inspecting and its named button brings it back. Closing details clears selection. An edit that moves a source outside the current Library filter leaves its card open. A selected shelf cover has a 2 px gilt ring.
+Browse steps aside while inspecting and its named button brings it back. The card's × clears the selection and closes it. Escape closes the card alone, one layer per press: the selection stays and focus returns to its row, and a second Escape clears the selection. An edit that moves a source outside the current Library filter leaves its card open. A selected shelf cover has a 2 px gilt ring.
 
 | Context | Inspector layout |
 | --- | --- |
@@ -313,7 +315,7 @@ Drill-ins replace rows in the same popup and offer a header Back, including Snap
 
 Fill missing details is a fresh lookup that writes only empty fields; without an identifier it stays in the menu, disabled with No identifier.
 
-Edit details… keeps the source page open and shows the Library's 460 px catalog card beside it. While the card is open the page column takes the remaining width, down to 540 px; a narrower pane shows the card as a bottom sheet. × or Escape closes it, and edits update the header at once.
+Edit details… keeps the source page open and shows the Library's 460 px catalog card beside it. While the card is open the page column takes the remaining width, down to 540 px; a narrower pane shows the card as a bottom sheet. × or Escape closes it, the card fades out where it stands while the page glides back, focus returns to the control that opened it, and edits update the header at once.
 
 The remaining page column keeps field labels, block controls and highlight chapter headings inside its inset, rather than hanging their gutter outside the pane.
 

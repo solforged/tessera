@@ -28,13 +28,19 @@ Each item opens its ordinary outline inside Review; inline questions open zoomed
 
 After an action the next item opens. Undo revisit restores the prior date and state and removes the event from effective history. The control then offers Redo revisit. This history belongs to the queue action, not the next page's outline undo stack. There are no grades or streaks for this queue.
 
+When a row leaves the queue, the queue glides to its new height and the action bar and outline ride with it. The next note's outline loads out of sight beside the one it replaces, which leaves once the new one has rows, and a confirmation leaves with its row. Controls stay focusable while a revisit is written.
+
 ### Landing and decks
 
 Review is a pane on the outline measure, like [Library](library.md). Its mono register sits over the deck's static Piazzolla title. Open reviews stays at its right; Deck actions appears only for a saved deck and contains Edit deck and Delete deck. Both actions explain that an open review must end first when unavailable. The deck ledger is the only deck chooser.
 
 The landing's Due, New and All tabs head the overview's left column, sharing the tab-strip baseline with a 2 px gilt rule under the whole selected tab. There is no landing toolbar row. The landing is a ruled register rather than a dashboard: one hairline opens the overview, with no boxes. The selected queue follows its tabs with its total as a Piazzolla figure at `--text-figure`; Due says due now, while New and All say cards in this queue.
 
-One apparatus line follows: how many come due later today, after due now on New and All. Review N cards (Space) starts the bounded batch and is a gilt hairline button, as are Review's other start actions. An empty queue instead says All caught up, or Nothing new yet for New, in the display voice. When another card is scheduled, one mono line reads `Next card <date> · HH:mm` in the workshop's time zone. The date uses the shared civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's; due dates in the card list follow it too. There is no disabled start button or repeated empty sentence; paused cards keep their explanation. The fourteen-day forecast stays secondary at the right, square bars on a baseline rule; All includes deferred introductions. Below it, a finished deck's empty due list reads `No cards due · Show all N cards`; Show all switches to All.
+One apparatus line follows: how many come due later today, after due now on New and All. Review N cards (Space) starts the bounded batch and is a gilt hairline button, as are Review's other start actions. An empty queue instead says All caught up, or Nothing new yet for New, in the display voice.
+
+When another card is scheduled, one mono line reads `Next card <date> · HH:mm` in the workshop's time zone. The date uses the shared civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's. Due dates in the card list follow it too. There is no disabled start button or repeated empty sentence; paused cards keep their explanation.
+
+The fourteen-day forecast stays secondary at the right, square bars on a baseline rule; All includes deferred introductions. Below it, a finished deck's empty due list reads `No cards due · Show all N cards`; Show all switches to All.
 
 Forecast bars are buttons. Focus or click selects a date and updates the caption to its date under the shared civil-date rule and its due count. The selected bar is gilt. The first day is labeled with its day number; later bars use two-letter weekdays. A divider separates the two weeks. Every bar keeps that date and its due count in its tooltip and accessible name. Zero days retain a hairline in `--line`; there is no separate count row. Retention over thirty local days, Last 7 days, the streak and total cards follow as one mono ledger line between rules, then a deck ledger with Due, New and Cards. Last 7 days counts from local midnight six days before the selected date through that date's end, not from Monday. The session summary uses the same stats line.
 
@@ -119,6 +125,8 @@ On larger layouts the session footer offers plain Undo last grade at the left an
 
 Undo last grade stays available during a session and in the footer on Done, with ⌘Z or Ctrl+Z outside editable controls. It restores the card and its schedule; undoing the final grade reopens the finished session.
 
+While a grade or undo is saved, the grade buttons and other session controls are held shut without being disabled, so they neither dim nor lose focus and a click during the write is refused. A card that replaces another eases from the previous card's height and fades in, so the page below it glides. The last graded card stays on screen until the Done summary replaces it, in the same frame. Undoing from the Done summary keeps the summary on screen until the restored card has loaded. A second pane on the same session follows an undo made in the first: it shows the restored card too.
+
 If that restored card is later held or removed, an explicit unavailable state offers Next rather than silently replacing it. A transport failure remains an error, not an unavailable-card state.
 
 ## Tag recipes
@@ -149,6 +157,8 @@ The Done summary returns to the shared page insets and responsive title scale, w
 
 Deck forms retain the popup's viewport gutters on the cover, so fields and actions stay inside both edges.
 
+Typed filters and names survive a click outside the deck editor. Escape closes it and keeps the draft for its next opening, until it is saved or canceled.
+
 ## Pending grades and session persistence
 
 The current card stays until a grade is acknowledged. Pending commands survive offline reload with their original request bytes. Rejection preserves the command for copying and requires a fresh card snapshot. Unrelated local page edits do not invalidate the shown card.
@@ -162,3 +172,5 @@ A workshop with no cards hides the deck title and the Due, New and All tabs. It 
 The composer is a 560 px slip laid out like Add to today and like the card it makes. Its front/back body also lives in the shared creation slip, whose Into row chooses Today or the end of an existing page. A mono rubric line names New card in gilt and, at the right in `--faint`, where the card goes: `Fri 16 · end of journal` from Review, or the source title and paragraph from a highlight. Front is set in the 18 px display voice of a review card and folds from Back on a hairline. Each side has a mono label that turns gilt while it holds the caret. Both fields grow with their text to a cap, then scroll; neither has a resize grip.
 
 Enter in Front moves to Back and Shift-Enter breaks the line. ⌘↵ (Ctrl-Enter elsewhere) creates the card and closes; ⇧⌘↵ creates it and clears the draft for the next one, counting `2 cards added` in the standalone composer or `2 added` in the shared slip where the key hints were. Create stays disabled until both sides have text. Text that cannot make exactly one forward card, such as a second `>>`, shows the parser's message under the fields in `--danger` as you type. The shared slip preserves complete inferred card syntax until either side is edited. Its saves stay in Review and show Card added with Open and Undo; the empty-inventory standalone composer still opens Today on Create and stays in Review on Create another. On coarse pointers the composer is a bottom sheet without key hints or a duplicate Cancel.
+
+Typed text survives a click outside the composer. Escape closes it and keeps the text for the next opening; Create and Cancel end the draft. Make card from a highlight keeps one draft per highlight, so reopening it for another highlight starts clean.
