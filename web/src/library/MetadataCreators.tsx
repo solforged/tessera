@@ -35,6 +35,9 @@ export function MetadataCreators(props: {
   const [mergeTarget, setMergeTarget] = createSignal<Block>();
   const [query, setQuery] = createSignal('');
   const [error, setError] = createSignal('');
+  let addButton: HTMLButtonElement | undefined;
+  /** The row that held focus is gone and the button that opened it is new; WebKit never focuses a clicked button, so focus goes there explicitly. */
+  const focusAddButton = () => queueMicrotask(() => { if (!disposed && addButton?.isConnected) addButton.focus({ preventScroll: true }); });
   const [adding, setAdding] = createSignal(false);
   const [name, setName] = createSignal('');
   const [role, setRole] = createSignal<SourceCreator['role']>('author');
@@ -77,7 +80,7 @@ export function MetadataCreators(props: {
     if (!adding() || !name().trim() || busy()) return;
     try {
       await save([...props.value, { id: person?.id ?? null, name: person?.text ?? name().trim(), role: role() }]);
-      if (!disposed) { setAdding(false); setName(''); }
+      if (!disposed) { const inside = !!addRow?.contains(document.activeElement); setAdding(false); setName(''); if (inside) focusAddButton(); }
     } catch { /* The unsaved creator remains in place. */ }
   }
   async function move(index: number, direction: -1 | 1) {
@@ -145,12 +148,12 @@ export function MetadataCreators(props: {
         <MetadataField label="Person name" startEditing values={[creator().name]} disabled={busy() || props.disabled} scope={`Renames this person everywhere, not only on the selection. ${countText()}`} hint={<p class="metadata-hint">{countText()}. Every book and note linking this person follows the new name.</p>} onSave={value => rename(creator().id!, String(value))} onCancel={() => setRenaming(undefined)} onError={props.onError} />
       </Show>
     </div>}</Index>
-    <Show when={adding()} fallback={<Button class="metadata-empty metadata-add" icon="plus" disabled={busy() || props.disabled} onClick={() => { setName(''); setRole('author'); setAdding(true); }}>Add creator</Button>}>
+    <Show when={adding()} fallback={<Button ref={addButton} class="metadata-empty metadata-add" icon="plus" disabled={busy() || props.disabled} onClick={() => { setName(''); setRole('author'); setAdding(true); }}>Add creator</Button>}>
       <div ref={addRow} class="metadata-add-person" onFocusOut={() => queueMicrotask(() => { if (!disposed && !menu() && !addRow?.contains(document.activeElement)) void add(); })}>
         <div class="metadata-creator-line"><input ref={element => { addInput = element; queueMicrotask(() => { if (element.isConnected) { element.focus(); element.scrollIntoView({ block: 'nearest' }); } }); }} class="input" aria-label="Creator name" placeholder="Creator name" value={name()} disabled={busy() || props.disabled} onInput={event => setName(event.currentTarget.value)} onKeyDown={event => {
           if (event.isComposing) return;
           if (event.key === 'Enter') { event.preventDefault(); void add(); }
-          if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setAdding(false); setError(''); props.onError(''); }
+          if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setAdding(false); setError(''); props.onError(''); focusAddButton(); }
         }} /><Button class="metadata-role" aria-haspopup="menu" disabled={busy() || props.disabled} onPointerDown={event => event.preventDefault()} onClick={event => setMenu({ anchor: event.currentTarget, label: 'New creator role', items: roles.map(item => ({ label: item.label, checked: role() === item.role, action: () => { setRole(item.role); queueMicrotask(() => addInput?.focus()); } })) })}>{roles.find(item => item.role === role())?.label}<Icon name="down" /></Button></div>
         <p class="metadata-hint">{scope()}</p>
         <For each={similar()}>{page => <div class="metadata-person-match"><span>Same as <Button class="metadata-person-link" disabled={busy()} onPointerDown={event => event.preventDefault()} onClick={() => { void add(page); }}>{page.text}</Button>?</span><span class="metadata-hint">Choosing this person adds a link; it does not rename them.</span></div>}</For>

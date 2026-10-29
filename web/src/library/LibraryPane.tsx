@@ -211,11 +211,11 @@ export function LibraryPane(props: LibraryPaneProps) {
   }));
   let selectionAnchor: string | null = null;
   createEffect(on(queryKey, () => { setSelected(new Set<string>()); setInspectorOpen(false); setSelectMode(false); selectionAnchor = null; }));
-  const initialRead = cache.queries.get(queryKey());
+  const initialRead = cache.queries.get(queryKey())?.library ? cache.queries.get(queryKey()) : undefined;
   const [loadedKey, setLoadedKey] = createSignal(initialRead ? queryKey() : '');
   const [library, setLibrary] = createSignal<LibraryResult | undefined>(initialRead?.library);
   // Keep each row kind until its replacement arrives, even when the other tab loads.
-  const [sourceRows, setSourceRows] = createSignal<LibraryRow[] | undefined>(initialRead && tab() !== 'highlights' ? initialRead.library.rows : undefined);
+  const [sourceRows, setSourceRows] = createSignal<LibraryRow[] | undefined>(initialRead?.library && tab() !== 'highlights' ? initialRead.library.rows : undefined);
   const [highlights, setHighlights] = createSignal<HighlightResult | undefined>(initialRead?.highlights);
   const [unprocessedCount, setUnprocessedCount] = createSignal<number | undefined>(cache.unprocessedCount);
   const [highlightCount, setHighlightCount] = createSignal<number | undefined>(cache.highlightCount);
@@ -351,8 +351,8 @@ export function LibraryPane(props: LibraryPaneProps) {
     void props.notebook.api.library({ states: includeInbox ? ['reading', 'inbox'] : ['reading'], sort: order, direction, limit: 100000 }, controller.signal)
       .then(result => {
         if (controller.signal.aborted) return;
-        cache.reading = keepRows(reading(), result.rows.filter(row => row.source.state === 'reading'));
-        cache.upNext = keepRows(upNext(), result.rows.filter(row => row.source.state === 'inbox'));
+        cache.reading = keepRows(reading(), (result?.rows ?? []).filter(row => row.source.state === 'reading'));
+        cache.upNext = keepRows(upNext(), (result?.rows ?? []).filter(row => row.source.state === 'inbox'));
         batch(() => { setReading(cache.reading!); setUpNext(cache.upNext!); setReadingError(''); });
       }, reason => { if (!controller.signal.aborted) setReadingError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
@@ -584,7 +584,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   async function highlightMenu(row: HighlightRow, anchor: HTMLElement) {
     setCommandError('');
     try {
-      const actions = await highlightActions(row, `“${row.citation.quote}” · ${row.source_title}, ${row.citation.chapter_title ?? `¶${row.citation.ordinal + 1}`}`);
+      const actions = await highlightActions(row, `“${row.citation.quote}” · ${row.source_title}, ${row.citation.chapter_title ?? `¶${row.citation.ordinal + 1}`}`, anchor);
       if (!disposed && anchor.isConnected) setPopup({ kind: 'menu', anchor, label: 'Actions for highlight', items: [
         ...actions.secondaryItems,
         { label: 'Color', shortcut: '1–5', submenu: () => ({ title: 'Highlight color', items: [...highlightColors, null].map(color => ({
@@ -620,7 +620,7 @@ export function LibraryPane(props: LibraryPaneProps) {
     }
     if (scrollTo !== undefined) restoreScroll = scrollTo;
     const cached = cache.queries.get(key);
-    if (cached) commit(next, key, cached.library, cached.highlights);
+    if (cached?.library) commit(next, key, cached.library, cached.highlights);
   }
   /** Puts `next` and its rows on screen together, cross-fading from what was shown unless nothing visible changes. */
   function commit(next: LibraryViewState, key: string, sources: LibraryResult, cited: HighlightResult | undefined) {
@@ -712,6 +712,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         state.tab === 'highlights' ? props.notebook.api.highlights({ unprocessed: state.unprocessedOnly, colors: state.colors, tags: state.tags, limit: 200 }, controller.signal) : Promise.resolve(undefined),
       ]).then(([sources, cited]) => {
         if (controller.signal.aborted) return;
+        if (!sources) { setLoading(false); return; }
         cache.queries.set(key, { library: sources, highlights: cited });
         cache.library = sources;
         setLoading(false);
@@ -801,6 +802,10 @@ export function LibraryPane(props: LibraryPaneProps) {
   function backToSources() {
     setInspectorOpen(false); props.onSaveState?.('saved');
     requestAnimationFrame(() => { scroll.scrollTop = inspectorScroll; });
+  }
+  function closeInspector() {
+    backToSources();
+    queueMicrotask(() => libraryHost.querySelector<HTMLElement>('.library-checkbox[aria-checked="true"]')?.focus());
   }
   async function changeSelectedState(state: ReadingState) {
     if (saving()) return;
@@ -1090,10 +1095,10 @@ export function LibraryPane(props: LibraryPaneProps) {
         <footer class="library-highlight-dock">
           <div class="library-passage-pager"><Button icon="left" shortcut="↑ K" disabled={highlightIndex() <= 0} onClick={() => stepHighlight(-1)}>Previous <kbd>↑ K</kbd></Button><span class="library-highlight-meta">{highlightIndex() + 1} of {highlightQueue().length}</span><Button shortcut="J ↓" disabled={highlightIndex() >= highlightQueue().length - 1} onClick={() => stepHighlight(1)}>Next <kbd>J ↓</kbd><Icon name="right" /></Button></div>
           <div class="library-highlight-primary">
-            <Button class="bordered library-mark-processed" icon="check" shortcut="E" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'triage'); }}>{row().processed ? 'Mark unprocessed' : 'Mark processed'}<kbd>E</kbd></Button>
-            <Button class="bordered" icon="note" shortcut="N" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'note'); }}>{highlightActions.noteCount(row()) ? 'Open atom' : 'Add atom'}<kbd>N</kbd></Button>
-            <Button class="bordered" icon="review" shortcut="C" disabled={highlightBusy()} onClick={() => { void runHighlight(row(), 'card'); }}>Make card<kbd>C</kbd></Button>
-            <Button icon="more" label="More highlight actions" aria-haspopup="menu" disabled={highlightBusy()} onClick={event => { void highlightMenu(row(), event.currentTarget); }} />
+            <Button class="bordered library-mark-processed" icon="check" shortcut="E" aria-disabled={highlightBusy() || undefined} onClick={() => { if (!highlightBusy()) void runHighlight(row(), 'triage'); }}>{row().processed ? 'Mark unprocessed' : 'Mark processed'}<kbd>E</kbd></Button>
+            <Button class="bordered" icon="note" shortcut="N" aria-disabled={highlightBusy() || undefined} onClick={() => { if (!highlightBusy()) void runHighlight(row(), 'note'); }}>{highlightActions.noteCount(row()) ? 'Open atom' : 'Add atom'}<kbd>N</kbd></Button>
+            <Button class="bordered" icon="review" shortcut="C" aria-disabled={highlightBusy() || undefined} onClick={() => { if (!highlightBusy()) void runHighlight(row(), 'card'); }}>Make card<kbd>C</kbd></Button>
+            <Button icon="more" label="More highlight actions" aria-haspopup="menu" aria-disabled={highlightBusy() || undefined} onClick={event => { if (!highlightBusy()) void highlightMenu(row(), event.currentTarget); }} />
           </div>
         </footer>
       </section>;
@@ -1102,7 +1107,11 @@ export function LibraryPane(props: LibraryPaneProps) {
 
   return <div ref={libraryHost} class="library-pane" classList={{ 'library-search-open': searchOpen() || !!text(), 'library-highlights-tab': tab() === 'highlights', 'library-highlight-desk': highlightDesk(), 'library-highlight-passage-open': tab() === 'highlights' && coverLayout() && highlightPassageOpen(), 'library-reading-cards': readingCards(), 'library-cover-reading': coverLayout() && readingCards(), 'library-inspecting': inspectorShown(), 'library-inspector-narrow': inspectorShown() && narrowInspector() && !coverLayout(), 'library-inspector-phone': inspectorShown() && coverLayout(), 'library-select-mode': selectMode() }} data-pane={props.pane} data-pane-pending={!hasResult() ? '' : undefined} aria-label="Library" tabIndex={props.active ? 0 : -1} onFocusIn={props.onActivate} onPointerDown={props.onActivate}
     onKeyDown={event => {
-      if (event.key === 'Escape' && !event.defaultPrevented && (selected().size || selectMode()) && !popup() && !(event.target as HTMLElement).closest('input, textarea, [contenteditable="true"]')) { event.preventDefault(); event.stopPropagation(); clearSelection(); }
+      if (event.key === 'Escape' && !event.defaultPrevented && (selected().size || selectMode()) && !popup() && !(event.target as HTMLElement).closest('input, textarea, [contenteditable="true"]')) {
+        event.preventDefault(); event.stopPropagation();
+        // One layer per press: the card closes first and the selection stays, with focus back on its row.
+        if (inspecting()) closeInspector(); else clearSelection();
+      }
       if (!inspecting() && tab() !== 'highlights' && (event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === 'z' && collectionActions.canUndo() && !(event.target instanceof Element && event.target.closest('input, textarea, [contenteditable="true"]'))) {
         event.preventDefault(); event.stopPropagation(); void collectionActions.undo();
       }
@@ -1407,7 +1416,7 @@ function LibraryViewNamePopup(props: { anchor: HTMLElement; saved: LibraryView |
     try { await props.onSave(name()); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
   };
-  return <Popup anchor={props.anchor} label={props.saved ? 'Rename library view' : 'Save library view'} onDismiss={props.onDismiss}>
+  return <Popup anchor={props.anchor} label={props.saved ? 'Rename library view' : 'Save library view'} dirty={() => name().trim() !== (props.saved?.name ?? '').trim()} onDismiss={props.onDismiss}>
     <form onSubmit={event => { event.preventDefault(); void submit(); }}>
       <input class="input" aria-label="Library view name" placeholder="View name" value={name()} maxlength={120} disabled={props.busy} onInput={event => setName(event.currentTarget.value)} />
       <Show when={error()}><p class="library-error" role="alert">{error()}</p></Show>

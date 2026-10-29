@@ -10,7 +10,12 @@ export function createHighlightTagPrompt() {
   let disposed = false;
   onCleanup(() => { disposed = true; });
   return {
-    open(document: PageDocument, id: string) { setTarget({ document, id, anchor: window.document.activeElement as HTMLElement }); },
+    /** Opens beside `anchor`, else beside the focused control; a menu item that is closing cannot anchor it. */
+    open(document: PageDocument, id: string, anchor?: HTMLElement) {
+      const focused = window.document.activeElement;
+      const beside = anchor?.isConnected ? anchor : focused instanceof HTMLElement && focused !== window.document.body && !focused.closest('.popup, .popup-exit') ? focused : window.document.body;
+      setTarget({ document, id, anchor: beside });
+    },
     TagPopup: () => <Show keyed when={target()}>{value => {
       const [tag, setTag] = createSignal('');
       const [busy, setBusy] = createSignal(false);
@@ -35,7 +40,16 @@ export function createHighlightTagPrompt() {
         } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
         finally { if (!disposed) setBusy(false); }
       };
-      return <Popup anchor={value.anchor} label="Add tag" placement="top" onDismiss={dismiss}>
+      const body = window.document.body;
+      const citationId = value.anchor.dataset.citationId;
+      const paneElement = value.anchor.closest<HTMLElement>('.pane');
+      let last: DOMRect | null = value.anchor === body ? null : value.anchor.getBoundingClientRect();
+      // Every notebook change re-creates the highlight's span, so the popup follows whichever span is current.
+      const live = () => value.anchor.isConnected || !citationId ? value.anchor : (paneElement ?? window.document).querySelector<HTMLElement>(`[data-citation-id="${CSS.escape(citationId)}"]`);
+      const anchor = () => { const element = live(); if (element?.isConnected) last = element.getBoundingClientRect(); return last; };
+      const pane = () => paneElement?.getBoundingClientRect() ?? null;
+      const returnFocus = () => { const element = live(); return element?.isConnected && element !== body ? element : window.document.querySelector<HTMLElement>('.pane.active .reader-scroll'); };
+      return <Popup anchor={value.anchor === body ? body : anchor} label="Add tag" placement={value.anchor === body ? 'top' : 'anchor'} bounds={pane} returnFocus={returnFocus} dirty={() => !!tag().trim()} onDismiss={dismiss}>
         <form onSubmit={event => { event.preventDefault(); void submit(); }}>
           <input class="input" aria-label="Tag" placeholder="#tag" value={tag()} disabled={busy()} onInput={event => setTag(event.currentTarget.value)} />
           <Show when={error()}><p class="error" role="alert">{error()}</p></Show>

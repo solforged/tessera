@@ -77,7 +77,7 @@ export function CollectionNamePopup(props: { anchor: HTMLElement; name?: string;
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }
-  return <Popup anchor={props.anchor} label={props.name === undefined ? 'New collection' : 'Rename collection'} onDismiss={props.onDismiss}>
+  return <Popup anchor={props.anchor} label={props.name === undefined ? 'New collection' : 'Rename collection'} dirty={() => name().trim() !== (props.name ?? '').trim()} onDismiss={props.onDismiss}>
     <form onSubmit={event => { event.preventDefault(); void save(); }}>
       <label class="library-collection-name">Collection name<input class="input" aria-label="Collection name" value={name()} required disabled={busy()} onInput={event => setName(event.currentTarget.value)} /></label>
       <Show when={error()}><p class="library-error" role="alert">{error()}</p></Show>

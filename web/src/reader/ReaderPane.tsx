@@ -8,6 +8,8 @@ import type { Citation, HighlightRow, Passage, PassageHit, PassagePage, SourceVi
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, ReaderViewState } from '../shell/contract';
 import { setSystemBarsHidden } from '../shell/system-bars';
+import { createRetained } from '../shell/retained';
+import { crossfade } from '../ui/pane-motion';
 import { sourceMetadata } from '../library/details';
 import { formatProgress, highlightLocation } from '../library/query';
 import { createHighlightActions, highlightColors, setLinkedCitation } from '../library/highlights';
@@ -1006,7 +1008,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       const result = await api.highlights({ source_id: citation.source_id, unprocessed: false, limit: Number.MAX_SAFE_INTEGER }, requests.signal);
       const row = result.rows.find(value => value.citation.id === citation.id);
       if (!row) throw new Error('Citation not found.');
-      const { items, Header } = await actions(row, `“${row.citation.quote}” — ${row.source_title}, ${highlightLocation(row.citation, sections())}`);
+      const { items, Header } = await actions(row, `“${row.citation.quote}” — ${row.source_title}, ${highlightLocation(row.citation, sections())}`, anchor);
       if (!disposed && anchor.isConnected) setPopup({ kind: 'menu', anchor, items, Header });
     } catch (reason) { if (!disposed) setError(reason instanceof Error ? reason.message : String(reason)); }
   }
@@ -1182,11 +1184,18 @@ export function ReaderPane(props: ReaderPaneProps) {
     finally { if (!disposed) setEditing(false); }
   }
 
+  let readerRoot!: HTMLDivElement;
+  /** Full screen changes the whole window around the page; the page morphs between its two sizes instead of snapping. */
+  const setImmersive = (value: boolean) => crossfade(readerRoot, () => props.onImmersive(value));
+
   function readerKeyBlocked(event: KeyboardEvent, shifted = false) {
     if (!props.active || loading() || popup() || composing() || editing() || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return true;
     if (event.shiftKey && !shifted && event.key !== '{' && event.key !== '}') return true;
     const target = event.target;
-    return target instanceof Element && (!!target.closest('button, a[href], input, textarea, select, summary, [role="button"], [role="link"], [role="menuitem"]') || target instanceof HTMLElement && target.isContentEditable);
+    const control = target instanceof Element ? target.closest('button, a[href], input, textarea, select, summary, [role="button"], [role="link"], [role="menuitem"]') : null;
+    // A reading-tool button or a highlight only acts on Space and Enter, so the reader's other keys pass through it: closing a popover leaves focus on the control that opened it.
+    if (control?.matches('.reader-header button, .reader-masthead button, .reader-folio button, .reader-highlight') && event.key !== ' ' && event.key !== 'Enter') return false;
+    return !!control || target instanceof HTMLElement && target.isContentEditable;
   }
 
   function visibleCursor() {
@@ -1287,7 +1296,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       { label: 'Open source page', icon: 'page', action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, false) },
       { label: 'Merge overlapping highlights', icon: 'highlight', disabledReason: editing() ? 'Saving…' : undefined, action: () => { void mergeOverlapping(); } },
       { label: 'Undo last edit', icon: 'undo', disabledReason: actions.canUndo() || readerDocument.canUndo() ? undefined : 'Nothing to undo', action: () => { void undoHighlight(); } },
-      ...(coverReading() ? [] : [{ label: props.immersive ? 'Exit full screen' : 'Full screen', action: () => props.onImmersive(!props.immersive) }]),
+      ...(coverReading() ? [] : [{ label: props.immersive ? 'Exit full screen' : 'Full screen', action: () => setImmersive(!props.immersive) }]),
     ];
     return [
       { label: 'Open source', icon: 'page', shortcut: `${besideKey} beside`, action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, besidePressed) },
@@ -1308,7 +1317,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         { label: 'Next page', section: 'Pages', shortcut: '→ / Page Down / Space', action: () => { void turn(1); } },
         { label: 'Previous page', shortcut: '← / Page Up / Shift+Space', action: () => { void turn(-1); } },
       ] : []),
-      { label: props.immersive ? 'Exit full screen' : 'Full screen', shortcut: props.immersive ? 'F / Esc' : 'F', action: () => props.onImmersive(!props.immersive) },
+      { label: props.immersive ? 'Exit full screen' : 'Full screen', shortcut: props.immersive ? 'F / Esc' : 'F', action: () => setImmersive(!props.immersive) },
     ];
   });
   const trackBeside = (event: KeyboardEvent) => { besidePressed = opensBeside(event); };
@@ -1336,7 +1345,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     // Escape first clears a selection (selectionKey prevents it); the next one leaves full screen.
     if (event.key === 'f' || event.key === 'Escape' && props.immersive && !event.defaultPrevented && !selection() && window.getSelection()?.isCollapsed !== false) {
       event.preventDefault(); event.stopImmediatePropagation();
-      props.onImmersive(event.key === 'f' ? !props.immersive : false);
+      setImmersive(event.key === 'f' ? !props.immersive : false);
       return;
     }
     const key = event.key, moving = key === 'j' || key === 'k' || key === 's', resizing = '][}{'.includes(key) && key.length === 1;
@@ -1528,11 +1537,13 @@ export function ReaderPane(props: ReaderPaneProps) {
     return <><Show when={name().numeral}><b class="reader-section-numeral">{name().numeral}</b></Show><i class="reader-section-title">{name().title}</i></>;
   }
 
-  function SelectionTools() {
+  /** The toolbar outlives the selection by one exit fade, showing the selection it last had. */
+  const toolbar = createRetained(() => props.active && !popup() ? selection() : null);
+  function SelectionTools(shown: { current: SelectionToolbar | undefined; leaving: boolean }) {
     let element!: HTMLDivElement;
     const [placement, setPlacement] = createSignal({ left: 0, top: 0, width: 0, visible: false, docked: false });
     const place = () => {
-      const value = selection();
+      const value = shown.current;
       if (!element || !value) return;
       const viewport = scroll.getBoundingClientRect();
       if (!props.active || !viewport.width || !viewport.height) { setPlacement(previous => ({ ...previous, visible: false })); return; }
@@ -1570,12 +1581,12 @@ export function ReaderPane(props: ReaderPaneProps) {
       place();
       onCleanup(() => observer.disconnect());
     });
-    return <Portal><div ref={element} class="reader-selection-toolbar" classList={{ 'reader-selection-docked': placement().docked }} role="toolbar" aria-label="Highlight selection"
+    return <Portal><div ref={element} class="reader-selection-toolbar" classList={{ 'reader-selection-docked': placement().docked, 'reader-selection-leaving': shown.leaving }} role="toolbar" aria-label="Highlight selection" inert={shown.leaving}
       style={{ left: `${placement().left}px`, top: `${placement().top}px`, 'max-width': placement().width ? `${placement().width}px` : undefined, width: placement().docked ? `${placement().width}px` : undefined, visibility: placement().visible ? 'visible' : 'hidden' }}
       onPointerDown={event => event.preventDefault()}>
-      <div class="reader-selection-actions"><Button icon="highlight" disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(true); }}>Highlight and annotate <kbd>N</kbd></Button></div>
-      <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={editing() || !!selection()?.blockedReason} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
-      <Show when={selection()?.blockedReason}>{reason => <p role="status">{reason()}</p>}</Show>
+      <div class="reader-selection-actions"><Button icon="highlight" disabled={editing() || !!shown.current?.blockedReason} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing() || !!shown.current?.blockedReason} onClick={() => { void highlight(true); }}>Highlight and annotate <kbd>N</kbd></Button></div>
+      <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={editing() || !!shown.current?.blockedReason} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
+      <Show when={shown.current?.blockedReason}>{reason => <p role="status">{reason()}</p>}</Show>
       <Show when={editError()}><p class="error" role="alert">{editError()}</p></Show>
     </div></Portal>;
   }
@@ -1584,7 +1595,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   const spreadWidth = () => paged() && pageFrame().width ? `${pageFrame().width}px` : undefined;
   // Restoring the position waits on animation frames, which a held view transition never gives; so the reader marks
   // itself loading rather than pending, and the leaf turns to its masthead while the text fades in where it lands.
-  return <div class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden(), 'reader-chrome-over': chromeOverlays(), 'reader-loading': loading() }} data-pane-loading={loading() ? '' : undefined} style={readerStyle()} onPointerDown={props.onActivate}
+  return <div ref={readerRoot} class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden(), 'reader-chrome-over': chromeOverlays(), 'reader-loading': loading() }} data-pane-loading={loading() ? '' : undefined} style={readerStyle()} onPointerDown={props.onActivate}
     onFocusIn={props.onActivate} onPointerMove={pointerMoved}>
     {/* The cover screen owns its glass navigation bar and keeps the reading tools at the foot. */}
     <div ref={masthead} class="reader-masthead" onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
@@ -1592,7 +1603,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       <h2 title={title() || 'Reader'}>{title() || 'Reader'}</h2>
       <Show when={coverReading()}>
         <Button class="reader-settings-toggle" label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
-        <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => setPopup({ kind: 'actions', anchor: event.currentTarget })} />
+        <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => { event.currentTarget.focus({ preventScroll: true }); setPopup({ kind: 'actions', anchor: event.currentTarget }); }} />
       </Show>
     </div>
     <div ref={header} class="reader-header" role="toolbar" aria-label="Reading tools" style={{ 'max-width': spreadWidth() }} onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
@@ -1610,8 +1621,8 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
       <Show when={!coverReading()}>
         <Button class="reader-settings-toggle" label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
-        <Button class="reader-full-screen" icon={props.immersive ? 'contract' : 'expand'} label={props.immersive ? 'Exit full screen' : 'Full screen'} shortcut={props.immersive ? 'F or Esc' : 'F'} onClick={() => props.onImmersive(!props.immersive)} />
-        <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => setPopup({ kind: 'actions', anchor: event.currentTarget })} />
+        <Button class="reader-full-screen" icon={props.immersive ? 'contract' : 'expand'} label={props.immersive ? 'Exit full screen' : 'Full screen'} shortcut={props.immersive ? 'F or Esc' : 'F'} onClick={() => setImmersive(!props.immersive)} />
+        <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => { event.currentTarget.focus({ preventScroll: true }); setPopup({ kind: 'actions', anchor: event.currentTarget }); }} />
       </Show>
     </div>
     <Show when={error()}><p class="reader-error error" role="alert">{error()}</p></Show>
@@ -1687,8 +1698,8 @@ export function ReaderPane(props: ReaderPaneProps) {
         <Show when={(() => { const value = state(); return value.kind === 'note' && value.ordinal !== undefined ? value : null; })()}>{note => <Button onClick={() => { void openFootnote(note().ordinal!, note().locator!, note().anchor); }}>Open footnote</Button>}</Show>
       </Popup></Show>
     </>}</Show>
-    <Show when={props.active && !popup() && selection()}><SelectionTools /></Show>
-    <Show when={composing()}>{draft => <HighlightComposer notebook={props.notebook} draft={draft()} onClose={() => { setComposing(null); drawInk(composedCitation); }} />}</Show>
+    <Show when={toolbar()}><SelectionTools current={toolbar()?.value} leaving={!!toolbar()?.leaving} /></Show>
+    <Show when={composing()} keyed>{draft => <HighlightComposer notebook={props.notebook} draft={draft} onClose={() => { setComposing(null); drawInk(composedCitation); }} />}</Show>
     <Show when={props.active && removedNotice()}><div class="undo-toast reader-highlight-undo" role="status" onPointerEnter={() => setNoticeHeld(true)} onPointerLeave={() => setNoticeHeld(false)} onFocusIn={() => setNoticeHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNoticeHeld(false); }}>
       <span>Highlight removed</span><Button icon="undo" disabled={!actions.canUndo()} onClick={() => { void undoHighlight(); }}>Undo</Button><Button icon="close" label="Dismiss highlight removal notice" onClick={() => setRemovedNotice(false)} />
     </div></Show>

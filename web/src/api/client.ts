@@ -181,7 +181,10 @@ async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }
     throw new ApiError('The workshop service is not reachable.', 0, 'unreachable');
   }
   if (response.ok && decode) return decode(response);
-  const parsed: unknown = await response.json().catch(() => null);
+  let failed = false;
+  const parsed: unknown = await response.json().catch(() => { failed = true; return null; });
+  // An abort during the body read must not look like an empty successful response.
+  if (failed && init.signal?.aborted) throw init.signal.reason ?? new DOMException('The operation was aborted.', 'AbortError');
   if (!response.ok) {
     const envelope = (parsed as ErrorEnvelope | null)?.error;
     if (envelope?.code === 'notebook_changed') notebookChanged();

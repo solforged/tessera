@@ -80,7 +80,10 @@ export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: Note
           <Show when={people.error}><p class="library-error">Could not load People or Groups.</p></Show>
         </div>;
       }}</Index>
-      <Button icon="plus" class="library-add-creator" disabled={busy()} onClick={() => setCreators(previous => [...previous, { name: '', role: 'author' }])}>Add creator</Button>
+      <Button icon="plus" class="library-add-creator" disabled={busy()} onClick={() => {
+        setCreators(previous => [...previous, { name: '', role: 'author' }]);
+        queueMicrotask(() => { const inputs = form.querySelectorAll<HTMLInputElement>('.library-creator input[aria-label="Creator name"]'); inputs[inputs.length - 1]?.focus(); });
+      }}>Add creator</Button>
     </div></div>
     <For each={detailFields}>{([key, label, placeholder]) => <label class="library-details-row"><span>{label}</span><input class="input" aria-label={label} placeholder={placeholder || undefined} value={value()[key] ?? ''} disabled={busy()} onInput={event => patch(key, event.currentTarget.value)} /></label>}</For>
     <label class="library-details-row"><span>Identifier</span><input class="input" aria-label="Identifier" placeholder="ISBN, DOI or arXiv ID" value={value().identifiers[0] ?? ''} disabled={busy()} onInput={event => setValue(previous => ({ ...previous, identifiers: [event.currentTarget.value, ...previous.identifiers.slice(1)].filter(value => value.trim()) }))} /></label>
