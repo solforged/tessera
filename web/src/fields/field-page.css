@@ -62,7 +62,12 @@
 .field-preview-actions > :first-child { margin-right: auto; }
 .fields-master-detail { display: flex; align-items: flex-start; gap: var(--space-48); padding-top: var(--space-16); }
 .fields-master { flex: 1; min-width: 0; }
-.fields-master-detail > .field-inspector { flex: 0 0 var(--apparatus-width); min-width: 0; padding-left: var(--space-24); border-left: var(--rule-width) solid var(--line); }
+.fields-master-detail > .field-inspector { flex: 0 0 var(--apparatus-width); min-width: 0; padding-left: var(--space-24); border-left: var(--rule-width) solid var(--line); animation: field-inspector-in var(--motion-page) var(--motion-ease) both; }
+@keyframes field-inspector-in { from { opacity: 0; transform: translateX(calc(3 * var(--motion-distance))); } }
+.field-inspector .field-heading { flex-wrap: wrap; row-gap: var(--space-4); }
+.field-inspector .field-heading h1 { flex: 1 1 10ch; overflow-wrap: break-word; }
+/* Hide, Shows as, Counts as and Links to stay focusable while a write settles, so focus survives it; they only look and act disabled. */
+.field-kind-row > .button[aria-disabled="true"] { cursor: default; opacity: .45; }
 .fields-index tr[aria-selected="true"] td { background: var(--selection); }
 .fields-index tr[aria-selected="true"] td:first-child { box-shadow: inset var(--space-2) 0 var(--accent); }
 .fields-index tr[aria-selected="true"] .field-name { color: var(--accent); }

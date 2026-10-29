@@ -60,7 +60,9 @@ export function RelationPicker(props: {
     finally { setBusy(false); }
   }
   const blocks = () => !props.field.targets.length || !!members()?.blocks.length;
-  return <Picker<RelationRow> anchor={props.anchor} label={props.field.name} query={query()} onQuery={setQuery} placeholder={prompt()}
+  // Place the popup once, at the size of its first rows; refreshes after that keep it ready.
+  const loaded = () => members.state === 'errored' || (members.state !== 'pending' && members.state !== 'unresolved' && matches.state !== 'pending' && matches.state !== 'unresolved');
+  return <Picker<RelationRow> anchor={props.anchor} label={props.field.name} query={query()} onQuery={setQuery} placeholder={prompt()} ready={loaded()}
     items={busy() ? [] : rows()} key={row => row.kind === 'target' ? row.target.block.id : `create:${row.source ? SOURCE_TARGET : row.type?.id ?? ''}`}
     initial={Math.max(0, rows().findIndex(row => row.kind === 'target' && row.target.block.id === props.current))}
     isCurrent={row => row.kind === 'target' && row.target.block.id === props.current}

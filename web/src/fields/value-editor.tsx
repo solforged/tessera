@@ -15,6 +15,8 @@ import { fieldLabel, partialDatePlaceholder } from './kinds';
 export function PlainValueInput(props: {
   field?: FieldDefinition; text: string; class?: string;
   onInput(text: string): void; onCommit(returnFocus: boolean): void; onCancel(): void;
+  /** Tab and Shift+Tab: the caller commits and moves to the neighboring cell. Without it Tab keeps its browser meaning. */
+  onAdvance?(backward: boolean): void;
 }) {
   const placeholders = { date: partialDatePlaceholder, url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
   return <textarea class={`input ${props.class ?? ''}`} data-value-editor aria-label={`Edit ${props.field ? fieldLabel(props.field) : 'field'} value`}
@@ -26,6 +28,7 @@ export function PlainValueInput(props: {
       if (event.isComposing) return;
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); props.onCommit(true); }
       else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); props.onCancel(); }
+      else if (event.key === 'Tab' && props.onAdvance && !event.altKey && !event.ctrlKey && !event.metaKey) { event.preventDefault(); event.stopPropagation(); props.onAdvance(event.shiftKey); }
     }} onBlur={() => props.onCommit(false)} />;
 }
 

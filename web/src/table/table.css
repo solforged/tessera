@@ -187,7 +187,6 @@
     .app.keyboard-open .table-query-bar { bottom: calc(var(--bottom-inset) + var(--space-8)); }
   }
 }
-.table-query-shade { position: fixed; inset: 0; z-index: 49; background: color-mix(in srgb, var(--shell) 72%, transparent); }
 .table-query-sheet .table-toolbar { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-8); }
 .table-query-sheet .table-query-controls { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
 .table-query-sheet .table-query-controls > .button { justify-content: space-between; min-height: var(--touch-target); margin: 0; border: 0; border-bottom: var(--rule-width) solid var(--line); border-radius: 0; }
@@ -214,5 +213,4 @@
   .table-filter-options > .button { justify-content: space-between; text-align: left; }
   .table-filter-options > .button.selected { color: var(--accent); border-color: var(--accent); background: var(--selection); }
   .table-filter-sheet .table-filter-apply { flex: 1; }
-  .table-sheet-shade { position: fixed; inset: 0 0 calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)); z-index: 49; background: color-mix(in srgb, var(--shell) 72%, transparent); }
 }

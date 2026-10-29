@@ -52,7 +52,7 @@ export function TypePresentation(props: { type: Type; notebook: NotebookClient; 
         setPlural(props.type.plural ?? ''); setIcon(props.type.icon); setAnchor(event.currentTarget);
       }}>Icon and name…</Button>
     </div>
-    <Show when={anchor()}>{trigger => <Popup anchor={trigger()} label="Icon and name" fitContent onDismiss={() => setAnchor(null)}>
+    <Show when={anchor()}>{trigger => <Popup anchor={trigger()} label="Icon and name" fitContent dirty={() => plural() !== (props.type.plural ?? '') || icon() !== props.type.icon} onDismiss={() => setAnchor(null)}>
       <form class="type-presentation-form" onSubmit={event => { event.preventDefault(); void save(); }}>
         <h2 class="popup-title">Icon and name</h2>
         <div class="type-presentation-icons" role="group" aria-label="Tag icon"><For each={icons}>{name =>

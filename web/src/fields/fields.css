@@ -1,7 +1,7 @@
 /* Definitions use the same heading, apparatus and row rhythm as registers. */
 .fields-pane { --fields-width: var(--measure); display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; padding: var(--page-top-space) var(--pane-inset) 0; outline: none; }
 .fields-pane[data-inspector] { --fields-width: calc(var(--measure) + var(--space-48) + var(--apparatus-width)); }
-.fields-pane > :is(.fields-heading, .fields-toolbar, .fields-scroll, .fields-footer) { width: 100%; max-width: var(--fields-width); margin-inline: auto; }
+.fields-pane > :is(.fields-heading, .fields-toolbar, .fields-scroll, .fields-footer) { width: 100%; max-width: var(--fields-width); margin-inline: auto; transition: max-width var(--motion-page) var(--motion-ease); }
 .fields-heading { padding-bottom: var(--page-title-gap); }
 .fields-register { margin-bottom: var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .fields-title { margin: 0; font: var(--page-title-font); font-variation-settings: var(--optical-title); letter-spacing: var(--tracking-title); }

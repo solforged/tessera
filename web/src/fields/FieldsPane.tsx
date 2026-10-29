@@ -105,6 +105,13 @@ function DefinitionsPane(props: FieldsPaneProps) {
     setSelected(field.id); setPreviewKind(value);
   };
   const closeCreation = () => { setNewKindMenu(null); setCreating(null); };
+  const closeInspector = () => {
+    const id = selected();
+    if (!id) return;
+    const inInspector = pane.querySelector('.field-inspector')?.contains(document.activeElement);
+    setSelected(undefined); setPreviewKind(undefined);
+    if (inInspector || document.activeElement === document.body) pane.querySelector<HTMLElement>(`tr[data-field-id="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+  };
   const addField = () => {
     const document = doc();
     if (!document || !ready()) { setCreateError(document?.statusMessage() || document?.saveMessage() || 'Wait for field definitions to finish loading or saving.'); return; }
@@ -116,6 +123,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
     closeCreation(); setNewName(''); setCreateError(''); setSearch('');
   };
   return <div ref={pane} class="fields-pane" data-inspector={wide() && selected() ? '' : undefined} role="region" tabIndex={0} aria-label="Fields" onFocusIn={props.onActivate} onKeyDown={event => {
+    if (event.key === 'Escape' && selected() && !event.defaultPrevented && !(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement)) { event.preventDefault(); event.stopPropagation(); closeInspector(); return; }
     if (!(event.target instanceof HTMLInputElement) && (event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'z') {
       event.preventDefault(); event.stopPropagation();
       if (event.shiftKey) doc()?.redo(); else doc()?.undo();
@@ -138,7 +146,7 @@ function DefinitionsPane(props: FieldsPaneProps) {
         <Show when={fields().length} fallback={<p class="empty-state">No fields yet. Use New field, or type <code>name::</code> in an atom.</p>}>
           <Show when={visibleFields().length} fallback={<p class="empty-state">No matching fields. <Button onClick={() => setSearch('')}>Clear filter</Button></p>}>
             <table class="fields-index"><thead><tr><th scope="col">Name</th><th scope="col" class="fields-kind">Format</th><th scope="col" class="fields-count">Atoms</th><th scope="col">Templates</th></tr></thead><tbody>
-              <For each={pageFields()}>{field => <tr tabIndex={0} aria-selected={selected() === field.id} onClick={event => { if (!(event.target as HTMLElement).closest('button')) selectDefinition(field, opensBeside(event)); }} onDblClick={event => openDefinition(field, opensBeside(event))} onKeyDown={event => {
+              <For each={pageFields()}>{field => <tr data-field-id={field.id} tabIndex={0} aria-selected={selected() === field.id} onClick={event => { if (!(event.target as HTMLElement).closest('button')) selectDefinition(field, opensBeside(event)); }} onDblClick={event => openDefinition(field, opensBeside(event))} onKeyDown={event => {
                 if (event.target !== event.currentTarget) return;
                 if (event.key === 'Enter') { event.preventDefault(); openDefinition(field, opensBeside(event)); }
                 if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -156,11 +164,11 @@ function DefinitionsPane(props: FieldsPaneProps) {
           </Show>
         </Show>
       </Show>
-      </div><Show when={wide() && selected()}>{id => <FieldDetails fieldId={id()} previewKind={previewKind()} inspector notebook={props.notebook} document={doc()} onPreview={setPreviewKind} onOpen={props.onOpen} />}</Show></div>
+      </div><Show when={wide() && selected()}>{id => <FieldDetails fieldId={id()} previewKind={previewKind()} inspector notebook={props.notebook} document={doc()} onPreview={setPreviewKind} onOpen={props.onOpen} onClose={closeInspector} />}</Show></div>
     </div>
     <footer class="fields-footer"><span role="status">{visibleFields().length} of {fields().length} fields</span><Show when={visibleFields().length > 100}><div><Button disabled={!page()} onClick={() => setPage(value => value - 1)}>Previous</Button><span>Page {page() + 1}</span><Button disabled={(page() + 1) * 100 >= visibleFields().length} onClick={() => setPage(value => value + 1)}>Next</Button></div></Show></footer>
     <Show keyed when={kindMenu()}>{state => <Menu anchor={state.anchor} label={`Format for ${fieldLabel(state.field)}`} header={<p class="menu-note">{formatMenuNote}</p>} onDismiss={() => setKindMenu(null)} items={formatMenuItems(state.field.kind, kind => changeKind(state.field, kind))} />}</Show>
-    <Show when={creating()}>{anchor => <Popup anchor={anchor()} label="New field" class="fields-new" fitContent onDismiss={closeCreation}>
+    <Show when={creating()}>{anchor => <Popup anchor={anchor()} label="New field" class="fields-new" fitContent dirty={() => newName().trim() !== search().trim() || newKind() !== 'text'} onDismiss={closeCreation}>
       <h2 class="popup-title">New field</h2>
       <form onSubmit={event => { event.preventDefault(); addField(); }}>
         <div class="field-create-fields">

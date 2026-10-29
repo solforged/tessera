@@ -25,7 +25,8 @@ export function CriteriaEditor(props: { anchor: HTMLElement; subjectId: string; 
     props.onEdited(props.doc);
     props.onDismiss();
   }
-  return <Popup anchor={props.anchor} label="Edit criteria" class="criteria-editor" width={400} onDismiss={props.onDismiss}>
+  const dirty = () => fields().length !== props.criteria.fields.length || fields().some((id, index) => id !== props.criteria.fields[index]);
+  return <Popup anchor={props.anchor} label="Edit criteria" class="criteria-editor" width={400} dirty={dirty} onDismiss={props.onDismiss}>
     <h3>Edit criteria</h3>
     <Show when={!props.criteria.explicit}><p class="template-note">Derived from the perspectives' fields</p></Show>
     <ol class="template-fields"><For each={fields()}>{(id, index) => {
