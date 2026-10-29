@@ -26,6 +26,12 @@ export function createCapabilityPopups(context: Pick<OutlineContext, 'doc' | 'pr
     const [shown, setShown] = createSignal<WorkHistory>();
     createEffect(() => { if (!history.error) { const value = history(); if (value) setShown(value); } });
     const another = () => shown()?.active && shown()!.active!.block_id !== state.id;
+    // The Start or Stop button is replaced by its opposite when the clock changes; focus follows it instead of dropping to the page.
+    const keepToggleFocus = () => requestAnimationFrame(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected) return;
+      document.querySelector<HTMLElement>('.work-sessions-popup .work-session-toggle')?.focus({ preventScroll: true });
+    });
     async function start() {
       const startedAt = Date.now();
       await capabilities.run(state.id, async () => {
@@ -35,6 +41,7 @@ export function createCapabilityPopups(context: Pick<OutlineContext, 'doc' | 'pr
         await capabilities.save({ kind: 'startWork', id: state.id, startedAt });
         await refetch();
       });
+      keepToggleFocus();
     }
     async function change(kind: 'stopWork' | 'workNote', sessionId: string, note: string) {
       const session = shown()?.sessions.find(session => session.id === sessionId) ?? (shown()?.active?.id === sessionId ? shown()?.active : null);
@@ -43,8 +50,9 @@ export function createCapabilityPopups(context: Pick<OutlineContext, 'doc' | 'pr
         ? { kind, id: state.id, session, endedAt: Date.now(), note }
         : { kind, id: state.id, session, note });
       await refetch();
+      if (kind === 'stopWork') keepToggleFocus();
     }
-    return <Popup anchor={state.anchor} label="Work sessions" class="outline-capability-popup work-sessions-popup" onDismiss={() => capabilities.dismiss(state)}>
+    return <Popup anchor={state.anchor} ready={!!shown() || !!history.error} label="Work sessions" class="outline-capability-popup work-sessions-popup" onDismiss={() => capabilities.dismiss(state)}>
       <header class="task-planning-header">
         <p class="task-planning-kicker">Work</p>
         <h2 class="popup-title task-planning-title"><BlockText text={doc.block(state.id)?.text ?? ''} notebook={props.notebook} interactive={false} /></h2>

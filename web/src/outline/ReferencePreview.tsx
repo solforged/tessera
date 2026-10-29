@@ -257,7 +257,10 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     };
     return { id: token.id!, link: null, anchor, pane, keyboard: true, citation: hasCitationDetail(token), locator: token.locator };
   };
+  /** ⌘ pins a card only as a gesture of its own: pressed and released with no other key or click between. */
+  let metaAlone = false;
   const keydown = (event: KeyboardEvent) => {
+    if (event.key !== 'Meta') metaAlone = false;
     if (event.isComposing) return;
     const top = stack().at(-1);
     if ((top || event.code === 'Space' && event.altKey) && blocked()) { dismiss(); return; }
@@ -270,7 +273,7 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
       return;
     }
     if (!top) return;
-    if (event.key === 'Meta') { setPinned(keys => new Set([...keys, top.key])); return; }
+    if (event.key === 'Meta') { metaAlone = !event.repeat || metaAlone; return; }
     // Controls in a keyboard-opened card keep their native Enter, Space and Tab behaviour.
     if (top.panel?.contains(document.activeElement)) return;
     if (!top.keyboard || event.key === 'Escape' || ['Shift', 'Alt', 'Control'].includes(event.key)) return;
@@ -282,6 +285,13 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     // Typing carries on; the card made from the caret steps aside.
     truncate(0);
   };
+  const keyup = (event: KeyboardEvent) => {
+    if (event.key !== 'Meta') return;
+    const top = stack().at(-1);
+    if (metaAlone && top) setPinned(keys => new Set([...keys, top.key]));
+    metaAlone = false;
+  };
+  const cancelMeta = () => { metaAlone = false; };
 
   onMount(() => {
     void document.fonts.ready.then(() => setFontsReady(true));
@@ -300,6 +310,9 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     document.addEventListener('click', touchClick, true);
     document.addEventListener('click', click, true);
     document.addEventListener('keydown', keydown, true);
+    document.addEventListener('keyup', keyup, true);
+    document.addEventListener('pointerdown', cancelMeta, true);
+    window.addEventListener('blur', cancelMeta);
   });
   onCleanup(() => {
     clearTimeout(pending); clearTimeout(closing);
@@ -310,6 +323,9 @@ export function ReferencePreviews(props: ReferencePreviewsProps) {
     document.removeEventListener('pointerout', out);
     document.removeEventListener('pointermove', move);
     document.removeEventListener('keydown', keydown, true);
+    document.removeEventListener('keyup', keyup, true);
+    document.removeEventListener('pointerdown', cancelMeta, true);
+    window.removeEventListener('blur', cancelMeta);
     document.removeEventListener('pointerdown', touchStart, true);
     document.removeEventListener('pointermove', touchMove);
     document.removeEventListener('pointerup', touchEnd, true);

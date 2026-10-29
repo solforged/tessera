@@ -159,8 +159,6 @@
 .note-find-line > .button { align-self: stretch; }
 .note-find-input { position: relative; flex: 1; min-width: var(--apparatus-width); }
 .note-find-input > .input { width: 100%; }
-.note-find-completion { position: absolute; z-index: 20; top: 100%; left: 0; right: 0; display: flex; flex-direction: column; padding: var(--space-4); border: var(--rule-width) solid var(--line); background: var(--canvas); box-shadow: var(--popup-shadow); }
-.note-find-completion > .button { justify-content: flex-start; text-align: left; }
 .note-find .table-query-chips { padding-block: var(--space-8) 0; }
 .note-find-problem { margin: var(--space-8) 0; color: var(--faint); font: var(--apparatus); }
 .index-selectable { position: relative; display: flex; align-items: flex-start; gap: var(--space-8); break-inside: avoid; }

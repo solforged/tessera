@@ -243,6 +243,8 @@ function Pane(props: OutlinePaneProps) {
   let scrollingFrame = false;
   let scrollStable = 0;
   let previousScrollHeight = -1;
+  /** Set while a deletion settles: the page shortens, and the browser's scroll clamp is slid rather than snapped. */
+  let slideRemoval = false;
   let compositionSelection: { range: TextRange; id: string; original: string; from: number; to: number; committed?: string } | null = null;
   let compositionFrame = 0;
   const [createdFields, setCreatedFields] = createSignal<FieldDefinition[]>([]);
@@ -295,7 +297,7 @@ function Pane(props: OutlinePaneProps) {
   const contextDate = () => doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate();
   const rowAnchor = (id: string) => id === props.pageId ? heading ?? null : hosts.get(id)?.closest<HTMLElement>('[data-block-id]') ?? null;
   const readingAnchor = (id: string) => scroll?.querySelector<HTMLElement>(`[data-reading-id="${CSS.escape(id)}"]`) ?? rowAnchor(id);
-  const capabilities = createOutlineCapabilities({ doc, notebook: props.notebook, contextDate, caret, anchor: rowAnchor, onOpen: props.onOpen, onTaskFields: (id, field) => fieldSheet.openTask(id, field) });
+  const capabilities = createOutlineCapabilities({ doc, notebook: props.notebook, contextDate, caret, anchor: rowAnchor, onOpen: props.onOpen, onTaskFields: (id, field, opener) => fieldSheet.openTask(id, field, opener) });
 
   const fieldConversion = createFieldEntryConversion({
     doc, notebook: props.notebook, disposed: () => disposed, composing: composition, caret, focusEpoch: () => focusEpoch,
@@ -382,6 +384,8 @@ function Pane(props: OutlinePaneProps) {
 
   const [sourceFieldsVisible, setSourceFieldsVisible] = createSignal(initial.sourceFieldsVisible ?? false);
   const [sourceDetailsOpen, setSourceDetailsOpen] = createSignal(false);
+  /** The `···` button that opened the details, where focus returns when they close. */
+  let sourceDetailsOpener: HTMLElement | undefined;
   const [sourceColors, setSourceColors] = createSignal<string[]>([]);
   const [sourceGrouped, setSourceGrouped] = createSignal(true);
   const [revealedFields, setRevealedFields] = createSignal<ReadonlySet<string>>(new Set());
@@ -746,6 +750,16 @@ function Pane(props: OutlinePaneProps) {
     setListHeight(virtualizer.getTotalSize());
     scrollingFrame = false;
   }
+  /** Moves everything in the pane from `distance` px away back to where it settled, over the interface duration. */
+  function slideContent(distance: number) {
+    if (reducedMotion.matches) return;
+    const style = getComputedStyle(scroll);
+    const time = style.getPropertyValue('--motion-ui').trim();
+    const duration = parseFloat(time) * (time.endsWith('ms') ? 1 : 1000);
+    if (!duration) return;
+    const timing: KeyframeAnimationOptions = { duration, easing: style.getPropertyValue('--motion-ease').trim() };
+    for (const child of scroll.children) child.animate([{ transform: `translateY(${distance}px)` }, { transform: 'translateY(0)' }], timing);
+  }
   function settleScroll() {
     cancelAnimationFrame(anchorFrame);
     anchorFrame = 0;
@@ -773,6 +787,13 @@ function Pane(props: OutlinePaneProps) {
       offset = Math.max(0, Math.min(maximum, offset));
     }
     if (Math.abs(offset - before) > .5) scroll.scrollTop = offset;
+    if (slideRemoval) {
+      slideRemoval = false;
+      // Deleting the last rows near the bottom shortens the page, so the browser clamps scrollTop and every row below
+      // the anchor would jump up in one frame. Start the content where it stood and let it settle, as a fold close does.
+      const clamped = before - scroll.scrollTop;
+      if (clamped > 1) slideContent(-clamped);
+    }
     // Reveal wins. Later measurements retain this resulting position, not the pre-reveal anchor offset.
     if (row && anchor) {
       const position = row.getBoundingClientRect().top - bounds.top;
@@ -963,8 +984,9 @@ function Pane(props: OutlinePaneProps) {
     const epoch = focusEpoch;
     let result: EditResult | undefined;
     focusRestoresPending++;
+    slideRemoval = intent.kind === 'delete';
     measure('structural', () => anchored(() => { result = doc.edit(intent, previousCaret ? { ...previousCaret, selection } : null); }));
-    if (!result || !result.ok) { focusRestoresPending--; setMessage(result && !result.ok ? result.reason : 'The edit could not be applied.'); return result; }
+    if (!result || !result.ok) { slideRemoval = false; focusRestoresPending--; setMessage(result && !result.ok ? result.reason : 'The edit could not be applied.'); return result; }
     setMessage('');
     if (reading() && (rearrange || ['split', 'insert', 'merge', 'pasteBlocks', 'pasteRows'].includes(intent.kind) || intent.kind === 'replaceRange' && intent.mode !== 'text')) props.onProjection?.('outline');
     setTextRange(null);
@@ -1764,7 +1786,7 @@ function Pane(props: OutlinePaneProps) {
         } }))] });
       }}>{sectionName() || 'Opening'}</Button></div></Show>
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} relations={holderRelations()} sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))} onOpen={props.onOpen} /></Show>
-    <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} onClose={() => setSourceDetailsOpen(false)} /></Show>
+    <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} opener={sourceDetailsOpener} onClose={() => setSourceDetailsOpen(false)} /></Show>
     <div ref={heading} class="outline-heading" style={{ visibility: doc.root()?.source && !sourceApparatusReady() ? 'hidden' : undefined }}>
       <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{rootTitle()}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference), undefined, doc.block(id)?.position?.deleted_holder) || 'Empty atom'}</button></>}</For></nav></Show>
       <Show when={isNote()}><NoteEyebrow kinds={noteKinds.error ? undefined : noteKinds.latest} onOpen={props.onOpen} /></Show>
@@ -1806,7 +1828,7 @@ function Pane(props: OutlinePaneProps) {
         <RecipeSection typeId={value().page.id} notebook={props.notebook} onOpen={props.onOpen} />
       </Show>}</Show>
       <Show when={doc.root()?.source && !positionZoom()}><SourceHeader doc={doc} notebook={props.notebook} resetItems={sourceResets} onOpen={props.onOpen} onError={setMessage} onDelete={props.onDelete}
-        fields={definitions()} compact={!!zoom()} ready={pageReady() && sourceApparatusReady()} onReady={setSourceHeaderReady} onEditDetails={() => setSourceDetailsOpen(true)}
+        fields={definitions()} compact={!!zoom()} ready={pageReady() && sourceApparatusReady()} onReady={setSourceHeaderReady} onEditDetails={opener => { sourceDetailsOpener = opener; setSourceDetailsOpen(true); }}
         highlights={zoom() || sourceHighlights.error ? undefined : sourceHighlights()} colors={sourceColors()} onColors={setSourceColors} grouped={sourceGrouped()} onGrouped={setSourceGrouped} fieldsVisible={sourceFieldsVisible()} onFieldsVisible={visible => { setSourceFieldsVisible(visible); scheduleReport(); }} /></Show>
       <Show when={doc.root()?.templateCards}><CardSummary blockId={props.pageId} cards={[]} templateCount={doc.root()?.templateCards ?? 0} notebook={props.notebook} onOpen={props.onOpen} /></Show>
       <Show when={!zoom()}><projectSummary.Summary /></Show>

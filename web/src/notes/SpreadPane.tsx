@@ -31,6 +31,8 @@ export function SpreadPane(props: SpreadPaneProps) {
   const [query, setQuery] = createSignal('');
   const [save, setSave] = createSignal<HTMLElement>();
   const [title, setTitle] = createSignal('');
+  /** The suggested title the save form opened with; a different title is typed input an outside press must not discard. */
+  let suggestedTitle = '';
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const [matches] = createResource(() => picker() ? query() : false, text => props.notebook.api.complete(text, 50));
@@ -112,7 +114,7 @@ export function SpreadPane(props: SpreadPaneProps) {
   }}>
     <header class="spread-toolbar"><span class="spread-rubric">SPREAD</span><span class="section-rule" />
       <Button class="bordered" disabled={busy() || result.loading || ids().length >= 5 || !!result.error} onClick={event => { setQuery(''); setError(''); setPicker(event.currentTarget); }}>Add atom…</Button>
-      <Show when={!props.doc}><Button class="bordered" disabled={busy() || ids().length < 2 || !!result.error || result.loading} onClick={event => { setTitle(result.latest?.columns.map(column => column.title).join(' / ') ?? ''); setError(''); setSave(event.currentTarget); }}>Save spread</Button></Show>
+      <Show when={!props.doc}><Button class="bordered" disabled={busy() || ids().length < 2 || !!result.error || result.loading} onClick={event => { suggestedTitle = result.latest?.columns.map(column => column.title).join(' / ') ?? ''; setTitle(suggestedTitle); setError(''); setSave(event.currentTarget); }}>Save spread</Button></Show>
     </header>
     <Show when={error() || result.error}><p class="error" role="alert">{error() || String(result.error)}</p></Show>
     <Show when={ids().length < 2}><p class="empty-state">Select two to five atoms to compare them.</p></Show>
@@ -133,7 +135,7 @@ export function SpreadPane(props: SpreadPaneProps) {
       </tbody>
     </table></div><p class="spread-legend">= Shared value · ↔ Links to another column</p></>}</Show>
     <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Add atom" query={query()} onQuery={setQuery} placeholder="Find an atom…" items={choices()} key={row => row.id} row={row => <span>{row.text}</span>} onPick={row => add(row.id)} onDismiss={() => setPicker(undefined)} busy={matches.loading} error={matches.error ? String(matches.error) : undefined} empty="No matching atoms." />}</Show>
-    <Show when={save()}>{anchor => <Popup anchor={anchor()} label="Save spread" onDismiss={() => { if (!busy()) setSave(undefined); }}>
+    <Show when={save()}>{anchor => <Popup anchor={anchor()} label="Save spread" dirty={() => title() !== suggestedTitle} onDismiss={() => { if (!busy()) setSave(undefined); }}>
       <form class="spread-save" onSubmit={event => { event.preventDefault(); void saveSpread(false); }}>
         <label>Title<input autofocus value={title()} disabled={busy()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); void saveSpread(opensBeside(event)); } }} /></label>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
