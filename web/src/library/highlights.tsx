@@ -44,7 +44,22 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
   const documents = new Map<string, PageDocument>();
   const tagPrompt = createHighlightTagPrompt();
   const [lastDocument, setLastDocument] = createSignal<PageDocument>();
-  const [cardDraft, setCardDraft] = createSignal<{ document: PageDocument; row: HighlightRow; anchor?: DOMRect }>();
+  const [cardDraft, setCardDraft] = createSignal<{ document: PageDocument; row: HighlightRow; anchor?: DOMRect; pane: HTMLElement | null; opener: HTMLElement | null }>();
+  /** The caret handoff focuses the new atom's editor. If it has not taken focus after a couple of frames (WebKit), focus that pane's editor, else the control that started the card. */
+  const settleFocus = (origin: HTMLElement | null, opener: HTMLElement | null) => {
+    let frames = 0;
+    const check = () => {
+      if (disposed) return;
+      const active = globalThis.document.activeElement;
+      if (active && active !== globalThis.document.body && !active.closest('.library-pane') && !active.closest('.popup')) return;
+      if (++frames < 3) { requestAnimationFrame(check); return; }
+      const panes = [...globalThis.document.querySelectorAll<HTMLElement>('.pane')].filter(pane => pane !== origin && pane.querySelector('.outline-pane'));
+      const pane = panes.find(value => value.classList.contains('active')) ?? panes.at(-1);
+      const target = pane?.querySelector<HTMLElement>('[contenteditable="true"], textarea, .cm-content') ?? pane?.querySelector<HTMLElement>('.outline-pane') ?? (opener?.isConnected ? opener : null);
+      target?.focus({ preventScroll: true });
+    };
+    requestAnimationFrame(check);
+  };
   const [documentsVersion, setDocumentsVersion] = createSignal(0);
   const [removal, setRemoval] = createSignal<{ anchor: DOMRect; written: number; references: number; remove(): Promise<void> }>();
   let disposed = false;
@@ -63,18 +78,23 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
     const block = doc.block(child);
     return block && !block.archived && !block.templateCards && !parseCardText(block.text).cards.length;
   });
-  const menu = async (row: HighlightRow, copyText?: string): Promise<HighlightMenu> => {
+  /** `anchor` is the highlight (or its row) the menu opened from, so follow-up popups open beside it. */
+  const menu = async (row: HighlightRow, copyText?: string, anchor?: HTMLElement): Promise<HighlightMenu> => {
     const id = row.citation.block_id, pageId = row.block.page.id;
+    const active = globalThis.document.activeElement;
+    const opener = anchor ?? (active instanceof HTMLElement && active !== globalThis.document.body && !active.closest('.popup') ? active : null);
     const document = await loadDocument(pageId);
     const hasNote = notes(document, id).some(child => !!document.block(child)?.text.trim());
     const run = async (action: 'note' | 'card' | 'triage' | 'remove', confirmed = false, cancelInput?: (() => void) & { signal: AbortSignal }) => {
       await documentReady(document);
       if (disposed) return;
       if (action === 'card') {
-        // Hang the draft from the focused row; a menu item or the page body leaves it near the top of the viewport.
-        const focused = globalThis.document.activeElement;
-        const anchor = focused instanceof HTMLElement && focused !== globalThis.document.body && !focused.closest('.popup') ? focused.getBoundingClientRect() : undefined;
-        setCardDraft({ document, row, anchor });
+        // Hang the draft from the control that started it: the focus now, else the one captured before loading (a busy button can drop focus to the body).
+        const current = globalThis.document.activeElement;
+        const focused = current instanceof HTMLElement && current !== globalThis.document.body && !current.closest('.popup') ? current : opener?.isConnected ? opener : null;
+        const rect = focused?.getBoundingClientRect();
+        const pane = (anchor ?? focused)?.closest<HTMLElement>('.pane') ?? globalThis.document.querySelector<HTMLElement>('.pane.active');
+        setCardDraft({ document, row, anchor: rect, pane, opener: focused });
         return;
       }
       if (action === 'remove' && !confirmed) {
@@ -122,7 +142,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
       const cancelInput = action === 'note' ? pendingCaretInput.prepare() : undefined;
       void run(action, false, cancelInput).catch(reason => { cancelInput?.(); fail(reason); });
     };
-    const tag = () => { setLastDocument(document); tagPrompt.open(document, id); };
+    const tag = () => { setLastDocument(document); tagPrompt.open(document, id, anchor); };
     const color = document.block(id)?.citations.find(citation => citation.id === row.citation.id)?.color ?? null;
     const setColor = (color: Citation['color']) => {
       void (async () => {
@@ -176,7 +196,7 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
           void state.remove().then(() => { if (!disposed) setRemoval(undefined); }).catch(reason => { if (!disposed) { setError(reason instanceof Error ? reason.message : String(reason)); setBusy(false); } });
         }}>Remove highlight</Button></div>
       </Popup>;
-    }}</Show><Show keyed when={cardDraft()}>{draft => <CardComposer anchor={draft.anchor} initialBack={draft.row.citation.quote}
+    }}</Show><Show keyed when={cardDraft()}>{draft => <CardComposer anchor={draft.anchor} bounds={() => draft.pane?.getBoundingClientRect() ?? null} initialBack={draft.row.citation.quote}
       where={`${draft.row.source_title} · ¶${draft.row.citation.ordinal + 1}`} onDismiss={() => setCardDraft(undefined)}
       onSave={async (text, again) => {
         // Another card keeps the draft open, so only the last one opens its editor.
@@ -189,7 +209,10 @@ export function createHighlightActions(notebook: NotebookClient, onOpen: (target
           const id = result.created[0]!;
           setLastDocument(doc);
           if (cancelInput) {
-            if (!disposed && !cancelInput.signal.aborted) onOpen({ kind: 'page', pageId: draft.row.block.page.id, blockId: parentId, caretId: id, caretOffset: 0 }, true);
+            if (!disposed && !cancelInput.signal.aborted) {
+              onOpen({ kind: 'page', pageId: draft.row.block.page.id, blockId: parentId, caretId: id, caretOffset: 0 }, true);
+              settleFocus(draft.pane, draft.opener);
+            }
             else cancelInput();
           }
           await doc.flush();

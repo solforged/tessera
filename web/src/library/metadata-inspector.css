@@ -17,8 +17,10 @@
 .library-inspector-pending { display: none; }
 .metadata-inspector-visible:not(.metadata-inspector-phone) { animation: metadata-enter var(--motion-ui) var(--motion-ease) both; }
 .library-inspector-sheet:not(.library-inspector-pending) { animation: sheet-in var(--motion-ui) var(--motion-ease) both; }
+/* The docked host's frame fades in with its card, so the hairline and ground do not pop beside the gliding ledger. */
+.library-inspector-host:not(.library-inspector-pending, .library-inspector-sheet) { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 @keyframes metadata-enter { from { opacity: 0; translate: var(--metadata-entry-x) 0; } }
-@media (prefers-reduced-motion: reduce) { .metadata-inspector-visible, .library-inspector-sheet { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .metadata-inspector-visible, .library-inspector-sheet, .library-inspector-host { animation: none; } }
 .metadata-inspector-head { flex: none; padding: var(--space-24) var(--space-24) var(--space-8); }
 .metadata-inspector-heading, .metadata-inspector-heading > div { display: flex; align-items: center; gap: var(--space-8); }
 .metadata-inspector-heading { justify-content: space-between; gap: var(--space-4); color: var(--faint); font: var(--apparatus); }

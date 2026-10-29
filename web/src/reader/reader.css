@@ -229,6 +229,8 @@
 /* Once it is, they fade in where they stand, unless the pane navigation held the previous view until they were. */
 .pane-content:not([data-entered]) .reader-pane:not(.reader-loading) :is(.reader-scroll, .reader-folio) { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 .reader-selection-toolbar { box-sizing: border-box; position: fixed; z-index: 100; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-4); font-size: var(--text-control); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
+/* When the selection ends the toolbar fades out where it stands, still showing the selection it had, and cannot be hit. */
+.reader-selection-leaving { pointer-events: none; animation: fade-out var(--motion-fast) var(--motion-ease) both; }
 .reader-selection-actions { display: flex; flex-wrap: wrap; gap: var(--space-4); }
 .reader-selection-toolbar p { margin: var(--space-4); }
 .reader-selection-toolbar kbd { color: var(--muted); }

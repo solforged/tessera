@@ -1,4 +1,4 @@
-import { Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
+import { Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { ExtractedCreator, ExtractedMetadata, IngestJob, LookupPreview } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -12,9 +12,15 @@ import { emptyMetadata } from './details';
 /** Creators read as a catalogue line: names in order, editors and translators marked. */
 const roleMarks: Record<ExtractedCreator['role'], string> = { author: '', editor: ' (ed.)', translator: ' (trans.)' };
 
+export interface AddDraft { query: string; editing: { metadata: ExtractedMetadata; coverUrl: string | null } | null }
+
 export interface AddSourceBodyProps {
   notebook: NotebookClient;
   initialText?: string;
+  /** Resumes an earlier unsaved entry (query or hand-entry form). */
+  restore?: AddDraft;
+  /** Reports the unsaved entry whenever it changes, or null when there is none. */
+  onDraft?(draft: AddDraft | null): void;
   onTextChange?(text: string): void;
   onAdded(sourceId: string): void;
   onDismiss(again?: boolean): void;
@@ -32,13 +38,24 @@ const isIdentifier = (value: string) => /^(?:https?:\/\/\S+|(?:urn:)?isbn:?\s*[\
 
 /** The ingestion form can also live inside the creation slip without owning a popup. */
 export function AddSourceBody(props: AddSourceBodyProps) {
-  const [query, setQuery] = createSignal(props.initialText ?? '');
+  const [query, setQuery] = createSignal(props.restore?.query ?? props.initialText ?? '');
   const [preview, setPreview] = createSignal<LookupPreview>();
   /** The hand-entry form, blank or seeded from a lookup so its creators can be matched to people already here. */
-  const [editing, setEditing] = createSignal<{ metadata: ExtractedMetadata; coverUrl: string | null } | null>(null);
+  const [editing, setEditing] = createSignal<{ metadata: ExtractedMetadata; coverUrl: string | null } | null>(props.restore?.editing ?? null);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
-  const [draft, setDraft] = createSignal<ExtractedMetadata>();
+  const [draft, setDraft] = createSignal<ExtractedMetadata | undefined>(props.restore?.editing?.metadata);
+  createEffect(() => {
+    if (!props.onDraft) return;
+    const current = editing();
+    if (current) {
+      const metadata = draft() ?? current.metadata;
+      const filled = metadata.creators.some(creator => creator.name.trim()) || metadata.identifiers.some(value => value.trim())
+        || [metadata.title, metadata.subtitle, metadata.published, metadata.publisher, metadata.language].some(value => value?.trim());
+      props.onDraft(filled ? { query: query(), editing: { metadata, coverUrl: current.coverUrl } } : null);
+    }
+    else props.onDraft(query().trim() ? { query: query(), editing: null } : null);
+  });
   const [sources] = createResource(() => props.notebook.changeSequence(), async () => {
     try { return { rows: (await props.notebook.api.library({ limit: Number.MAX_SAFE_INTEGER })).rows, error: false }; }
     catch { return { rows: [], error: true }; }
@@ -66,6 +83,7 @@ export function AddSourceBody(props: AddSourceBodyProps) {
   function finish() {
     const again = keepOpen;
     keepOpen = false;
+    props.onDraft?.(null);
     props.onDismiss(again);
     if (again) {
       setEditing(null); setPreview(undefined); setQuery(''); props.onTextChange?.('');
@@ -155,12 +173,15 @@ export function AddSourceBody(props: AddSourceBodyProps) {
   }
   const Duplicate = () => <Show when={duplicate()}>{source => <div class="library-add-duplicate" role="status">
     <span>“{source().page.text}” is already in the library.</span>
-    <Button disabled={busy()} onClick={() => { props.onAdded(source().page.id); props.onDismiss(); }}>Open</Button>
+    <Button disabled={busy()} onClick={() => { props.onDraft?.(null); props.onAdded(source().page.id); props.onDismiss(); }}>Open</Button>
   </div>}</Show>;
   return <div class="library-add" onKeyDown={keydown} onDragOver={event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); event.stopPropagation(); void files(Array.from(event.dataTransfer.files)); } }}>
       <h2 class="popup-title">Add to library</h2>
       <Show when={!editing()} fallback={<>
-        <DetailsForm metadata={editing()!.metadata} notebook={props.notebook} autofocus submitLabel={duplicate() ? 'Add another copy' : 'Add'} onChange={setDraft} onSave={metadata => add(metadata, editing()!.coverUrl)} onCancel={() => setEditing(null)} />
+        <DetailsForm metadata={editing()!.metadata} notebook={props.notebook} autofocus submitLabel={duplicate() ? 'Add another copy' : 'Add'} onChange={setDraft} onSave={metadata => add(metadata, editing()!.coverUrl)} onCancel={() => {
+          setEditing(null);
+          queueMicrotask(() => fileInput.closest('.library-add')?.querySelector<HTMLInputElement>('input:not([type="file"])')?.focus());
+        }} />
         <Duplicate />
       </>}>
         <form onSubmit={event => { event.preventDefault(); void submit(); }}>
@@ -196,8 +217,11 @@ export function AddSourceBody(props: AddSourceBodyProps) {
     </div>;
 }
 
-export function AddSheet(props: AddSourceBodyProps & { anchor: HTMLElement; placement?: PopupPlacement }) {
-  return <Popup anchor={props.anchor} placement={props.placement} fitContent class="library-add" label="Add to library" onDismiss={props.onDismiss}>
-    <AddSourceBody {...props} />
+/** What the user has typed into the sheet, kept so an accidental dismiss does not lose it; cleared once the source is added. */
+let retainedDraft: AddDraft | null = null;
+
+export function AddSheet(props: Omit<AddSourceBodyProps, 'restore' | 'onDraft'> & { anchor: HTMLElement; placement?: PopupPlacement }) {
+  return <Popup anchor={props.anchor} placement={props.placement} fitContent class="library-add" label="Add to library" onDismiss={props.onDismiss} dirty={() => retainedDraft !== null}>
+    <AddSourceBody {...props} restore={retainedDraft ?? undefined} onDraft={draft => { retainedDraft = draft; }} />
   </Popup>;
 }

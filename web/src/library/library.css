@@ -30,6 +30,12 @@
 /* Beside an open catalogue card the ledger is narrow; the selection's actions drop their names to glyphs and tooltips so the bar stays one line. A collection's extra Remove needs the room sooner. */
 @container library-ledger (max-width: 840px) { .library-action-label { display: none; } .library-controls:has(.library-selection-count) { gap: var(--space-4); } }
 @container library-ledger (max-width: 1000px) { .library-controls:has(.library-remove-member) .library-action-label { display: none; } .library-controls:has(.library-remove-member) { gap: var(--space-4); } }
+/* The selection bar replaces the search line at the same height: its buttons never shrink into wrapped text, and below the width that fits every name they show glyphs and tooltips. */
+.library-controls:has(.library-selection-count) { container: library-controls / inline-size; }
+.library-controls:has(.library-selection-count) > .button { flex: none; white-space: nowrap; }
+@container library-controls (max-width: 880px) { .library-action-label { display: none; } }
+/* A busy highlight action keeps focus, so it dims instead of being disabled. */
+.library-highlight-primary .button[aria-disabled="true"] { opacity: .5; cursor: default; }
 /* A stable gutter matches the toolbar's, whether or not the list overflows. */
 .library-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--pane-inset) var(--page-bottom-space); scrollbar-gutter: stable; }
 .library-count, .library-progress, .library-highlight-count { display: inline-flex; align-items: center; gap: var(--space-4); flex-shrink: 0; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }

@@ -23,7 +23,10 @@ export interface HighlightNoteDraft {
  * keyboard. Text saves as it is typed, like an outline row; an empty note is removed on the way back.
  */
 export function HighlightComposer(props: { notebook: NotebookClient; draft: HighlightNoteDraft; onClose(): void }) {
-  const doc = props.notebook.open(props.draft.sourceId);
+  // The parent hands a new draft to a new composer, so the draft is read once; later reads of `props.draft` could be stale.
+  const draft = props.draft;
+  const doc = props.notebook.open(draft.sourceId);
+  const noteId = draft.noteId;
   const [text, setText] = createSignal('');
   const [ready, setReady] = createSignal(false);
   const [closing, setClosing] = createSignal(false);
@@ -71,16 +74,23 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
     onCleanup(() => observer.disconnect());
     void documentReady(doc).then(() => {
       if (disposed) return;
-      setText(doc.block(props.draft.noteId)?.text ?? '');
+      setText(doc.block(noteId)?.text ?? '');
       setReady(true);
       input.focus();
     }).catch(failed);
   });
-  onCleanup(() => { disposed = true; doc.release(); });
+  onCleanup(() => {
+    disposed = true;
+    // Any way out, not only close(): a pane closing or a route change must not leave an empty note under the highlight.
+    // `props.draft` is a stale accessor once the parent's Show has closed, so only the captured id is read here.
+    const block = ready() ? doc.block(noteId) : undefined;
+    if (block && !block.text.trim() && doc.edit({ kind: 'delete', ids: [noteId] }).ok) void doc.flush().catch(() => undefined).finally(() => doc.release());
+    else doc.release();
+  });
 
   function write(value: string) {
     setText(value);
-    const result = doc.edit({ kind: 'text', id: props.draft.noteId, text: value });
+    const result = doc.edit({ kind: 'text', id: noteId, text: value });
     setError(result.ok ? '' : result.reason);
   }
 
@@ -102,7 +112,7 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
   function close() {
     if (closing()) return;
     if (ready() && !text().trim()) {
-      const result = doc.edit({ kind: 'delete', ids: [props.draft.noteId] });
+      const result = doc.edit({ kind: 'delete', ids: [noteId] });
       if (!result.ok) { setError(result.reason); reclaimHistory(); return; }
     }
     setClosing(true);
@@ -123,15 +133,15 @@ export function HighlightComposer(props: { notebook: NotebookClient; draft: High
       }
     }}>
     <header class="reader-compose-header">
-      <h2>{props.draft.title}</h2>
-      <Show when={props.draft.byline}><p>{props.draft.byline}</p></Show>
+      <h2>{draft.title}</h2>
+      <Show when={draft.byline}><p>{draft.byline}</p></Show>
     </header>
-    <div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${props.draft.progress * 100}%` }} /></div>
+    <div class="reader-progress-rule" aria-hidden="true"><span style={{ width: `${draft.progress * 100}%` }} /></div>
     <section ref={context} class="reader-compose-context" aria-label="Passage">
-      <div class="reader-compose-meta"><span>{props.draft.section}</span><span>{formatProgress(props.draft.progress)}</span></div>
-      <Show when={props.draft.before}><p class="reader-compose-around">{props.draft.before}</p></Show>
-      <blockquote ref={quote}>{props.draft.quote}</blockquote>
-      <Show when={props.draft.after}><p class="reader-compose-around">{props.draft.after}</p></Show>
+      <div class="reader-compose-meta"><span>{draft.section}</span><span>{formatProgress(draft.progress)}</span></div>
+      <Show when={draft.before}><p class="reader-compose-around">{draft.before}</p></Show>
+      <blockquote ref={quote}>{draft.quote}</blockquote>
+      <Show when={draft.after}><p class="reader-compose-around">{draft.after}</p></Show>
     </section>
     <section class="reader-compose-sheet">
       {/* One way back: Keep note once there is text, Back to reading while it is empty (and the empty note goes). */}

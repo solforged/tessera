@@ -30,8 +30,9 @@ export function ReadingCard(props: { row: LibraryRow; notebook: NotebookClient; 
       props.notebook.api.source(id, controller.signal),
       props.notebook.api.highlights({ source_id: id, limit: null }, controller.signal),
     ]).then(([view, highlights]) => {
+      if (controller.signal.aborted) return;
       const marks = highlights.rows.flatMap(row => row.citation.snapshot_id === view.source.current_snapshot_id && row.citation.position !== undefined ? [{ at: row.citation.position, color: row.color }] : []);
-      if (!controller.signal.aborted) { sources.set(id, { source: view, highlights: marks }); setSource(view); setHighlights(marks); setError(''); }
+      sources.set(id, { source: view, highlights: marks }); setSource(view); setHighlights(marks); setError('');
     }, reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : String(reason)); });
     onCleanup(() => controller.abort());
   });

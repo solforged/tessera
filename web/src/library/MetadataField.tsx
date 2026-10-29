@@ -55,7 +55,16 @@ export function MetadataField(props: {
   let disposed = false;
   onCleanup(() => { disposed = true; props.onError?.(''); });
   const fail = (message: string) => { setError(message); props.onError?.(message); };
-  const restoreFocus = () => { queueMicrotask(() => trigger?.focus({ preventScroll: true })); };
+  /** Back to the field's button once the editor is gone. WebKit can leave focus on the body after the microtask (the removed input's blur lands late), so a frame later it is checked again and falls back to the selected row. */
+  const restoreFocus = () => {
+    const back = () => { if (trigger?.isConnected && !trigger.disabled) trigger.focus({ preventScroll: true }); };
+    queueMicrotask(back);
+    requestAnimationFrame(() => {
+      if (disposed || (document.activeElement && document.activeElement !== document.body)) return;
+      back();
+      if (document.activeElement === document.body) trigger?.closest('.library-pane')?.querySelector<HTMLElement>('.library-checkbox[aria-checked="true"]')?.focus({ preventScroll: true });
+    });
+  };
   const start = () => {
     setDraft(value()); setEditing(true); fail('');
   };
