@@ -24,3 +24,6 @@
 .running-clock-dot { width: calc(3 * var(--space-2)); height: calc(3 * var(--space-2)); border-radius: 50%; background: currentColor; animation: running-clock-pulse 2s var(--motion-ease) infinite; }
 @keyframes running-clock-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .running-clock-dot { animation: none; } }
+/* The chip arrives when work starts; the motion tokens are zero under reduced motion. */
+.outline-capability-metadata .running-clock.button { animation: running-clock-in var(--motion-ui) var(--motion-ease) both; }
+@keyframes running-clock-in { from { opacity: 0; translate: 0 var(--motion-distance); } }

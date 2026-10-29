@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo, createRoot, createSignal, onCleanup } from 'solid-js';
+import { For, Show, createEffect, createMemo, createRoot, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { AgendaItem, TaskRow, TaskState, TaskStatus, WorkSession } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -15,6 +15,8 @@ import { movableTo, rescheduleTasks } from './reschedule';
 import { priorityLabel, priorityMenuItems, statusIcons, statusLabels, statusMenuItems } from './TaskControls';
 import { relativeDate } from './relative-date';
 import { agendaTaskTime, isFinished, taskFacts } from './task-labels';
+import { handOffFocus, neighbourTaskIds } from './focus-handoff';
+import { enterRow, exitRow, heldRows, holdRows, popStatusGlyph, releaseRow } from './row-motion';
 import { shiftCalendarDate } from './week-calendar';
 import type { TaskSourceHistory } from './source-history';
 import './agenda.css';
@@ -57,37 +59,54 @@ export function TaskSourceRows(props: {
   showNow?: boolean;
   /** Week's gutter names an untimed deadline and uses only this day's exact plan clock. */
   deadlineLabel?: boolean;
+  /** Whether rows that mount now fade in; a host that remounts its sections (Agenda) decides this once its whole page has painted. */
+  enterRows?: boolean;
   onOpen(target: OpenTarget, beside: boolean): void;
   onChanged(): void;
 }) {
   const byId = createMemo(() => new Map(props.rows.map(row => [row.source.block.id, row])));
-  const ids = createMemo(() => {
+  const live = createMemo(() => {
     const keys = [...byId().keys()];
     if (!props.timetable) return keys;
     const times = new Map(keys.map(id => [id, agendaTaskTime(byId().get(id)!, props.plannedDate ?? props.date, !props.deadlineLabel) ?? '']));
     return keys.sort((left, right) => times.get(left)!.localeCompare(times.get(right)!));
   });
+  // A row the refetch removed keeps its place until its exit ends, so it can fade and collapse instead of vanishing.
+  let rendered: string[] = [];
+  const ids = createMemo(() => {
+    const keys = live(), kept = heldRows(), merged = [...keys];
+    for (const id of rendered) if (kept.has(id) && !keys.includes(id)) merged.splice(Math.min(rendered.indexOf(id), merged.length), 0, id);
+    return rendered = merged;
+  });
   // Untimed work leads the day; the now rule belongs only to its timed rows.
   const nowAt = createMemo(() => {
     if (!props.now || !props.timetable) return null;
-    const times = ids().map(id => agendaTaskTime(byId().get(id)!, props.plannedDate ?? props.date, !props.deadlineLabel));
+    const times = live().map(id => agendaTaskTime(byId().get(id)!, props.plannedDate ?? props.date, !props.deadlineLabel));
     if (!times.some(Boolean)) return null;
     const index = times.findIndex(time => !!time && time >= props.now!);
-    return index < 0 ? 'end' : ids()[index]!;
+    return index < 0 ? 'end' : live()[index]!;
   });
-  const gutter = createMemo(() => !!props.timetable && (props.gutter ?? ids().some(id => {
+  const gutter = createMemo(() => !!props.timetable && (props.gutter ?? live().some(id => {
     const row = byId().get(id)!;
     return !!agendaTaskTime(row, props.plannedDate ?? props.date, !props.deadlineLabel) || !!props.deadlineLabel && row.task.deadline === props.date;
   })));
+  // Rows that arrive after the list first painted fade in; the rows of the first paint, which the pane's own entrance already moves, stay still.
+  let settled = false;
+  createEffect(() => {
+    if (settled || !ids().length) return;
+    let cancelled = false;
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (!cancelled) settled = true; }));
+    onCleanup(() => { cancelled = true; });
+  });
   return <ul class="agenda-rows"><For each={ids()}>{(id, index) => {
-    const initial = byId().get(id)!;
+    const arrives = props.enterRows ?? settled, initial = byId().get(id)!;
     const section = () => {
       if (!props.sections) return null;
       const row = byId().get(id);
       const previous = byId().get(ids()[index() - 1]!);
       return row && 'section_id' in row && row.section_id && (!previous || !('section_id' in previous) || previous.section_id !== row.section_id) ? row.section_text : null;
     };
-    return <><Show when={section()}>{text => <li class="agenda-row-section"><SectionSubhead name={<BlockText text={text()} notebook={props.notebook} interactive={false} />} /></li>}</Show><TaskSourceRow row={byId().get(id) ?? initial} date={props.date} pageId={props.pageId} notebook={props.notebook} disabled={props.disabled} history={props.history} timetable={props.timetable} gutter={gutter()} plannedDate={props.plannedDate} plan={props.plan} deadlineLabel={props.deadlineLabel} showNow={props.showNow} now={props.now} nowBefore={nowAt() === id} onOpen={props.onOpen} onChanged={props.onChanged} /></>;
+    return <><Show when={section()}>{text => <li class="agenda-row-section"><SectionSubhead name={<BlockText text={text()} notebook={props.notebook} interactive={false} />} /></li>}</Show><TaskSourceRow row={byId().get(id) ?? initial} enter={arrives} date={props.date} pageId={props.pageId} notebook={props.notebook} disabled={props.disabled} history={props.history} timetable={props.timetable} gutter={gutter()} plannedDate={props.plannedDate} plan={props.plan} deadlineLabel={props.deadlineLabel} showNow={props.showNow} now={props.now} nowBefore={nowAt() === id} onOpen={props.onOpen} onChanged={props.onChanged} /></>;
   }}</For><Show when={nowAt() === 'end'}><li class="agenda-now agenda-now-end" aria-hidden="true"><Show when={props.showNow}><span>{props.now}</span></Show></li></Show></ul>;
 }
 
@@ -100,7 +119,7 @@ export function provenanceLabel(row: TaskRow | AgendaItem, today: string): strin
 /** The source button of the row `step` away, across sections of the same `[data-task-rows]` region. */
 function siblingSource(row: HTMLElement, step: 1 | -1): HTMLElement | null {
   const scope = row.closest('[data-task-rows]') ?? row.parentElement!;
-  const sources = [...scope.querySelectorAll<HTMLElement>('.agenda-row .agenda-source')];
+  const sources = [...scope.querySelectorAll<HTMLElement>('.agenda-row .agenda-source')].filter(source => row.contains(source) || !source.closest('.agenda-row')?.hasAttribute('data-leaving'));
   return sources[sources.findIndex(source => row.contains(source)) + step] ?? null;
 }
 
@@ -121,6 +140,8 @@ function TaskSourceRow(props: {
   now?: string;
   /** Draws the now rule above this row. */
   nowBefore?: boolean;
+  /** The row arrived after its list was shown, so it fades in. */
+  enter?: boolean;
   onOpen(target: OpenTarget, beside: boolean): void;
   onChanged(): void;
 }) {
@@ -129,16 +150,45 @@ function TaskSourceRow(props: {
   const [running, setRunning] = createSignal<{ anchor: HTMLElement; session: WorkSession; date: string; row: TaskRow | AgendaItem } | null>(null);
   const [picking, setPicking] = createSignal<HTMLElement | null>(null);
   const [menu, setMenu] = createSignal<{ kind: 'status' | 'priority'; anchor: HTMLElement } | null>(null);
+  /** A leaving row keeps its place in the list until its exit ends; `leaving` shows the done glyph at once. */
+  const [leaving, setLeaving] = createSignal<'done' | null>(null);
+  const releaseExit = () => { leftRow = null; releaseRow(item); setLeaving(null); };
+  onCleanup(() => releaseRow(item, false));
+  // A row the refetch keeps, such as a recurring task, eases back instead of snapping, but only once its exit is over: while the row is held the exit plays out.
+  let leftRow: TaskRow | AgendaItem | null = null;
+  createEffect(() => {
+    const row = props.row;
+    if (leftRow && row !== leftRow && !heldRows().has(row.source.block.id)) { leftRow = null; releaseExit(); }
+  });
+  /** The done glyph pops, then the row fades and collapses, and the rows below close the gap. It starts with the edit, since the refetch lands within a frame or two of it. */
+  const leaveRow = (kind: 'done' | 'out') => {
+    if (kind === 'done') { setLeaving('done'); popStatusGlyph(item.querySelector('.agenda-status .icon')); }
+    const motion = exitRow(item, kind === 'done' ? 90 : 0);
+    if (motion) { leftRow = props.row; holdRows([props.row.source.block.id], motion.finished); }
+  };
+  // Saving is only worth a line when it is slow, so a quick edit does not grow the row for a few frames.
+  const [slow, setSlow] = createSignal(false);
+  createEffect(() => {
+    if (!busy()) { setSlow(false); return; }
+    const timer = window.setTimeout(() => setSlow(true), 400);
+    onCleanup(() => window.clearTimeout(timer));
+  });
+  /** Where the keyboard goes when this row leaves while it, or the picker it opened, holds focus. */
+  const handoff = () => item.contains(document.activeElement) || picking() ? { ids: neighbourTaskIds(item), owner: item.closest<HTMLElement>('.agenda-pane') ?? item.closest<HTMLElement>('[data-task-rows]') } : null;
+  onMount(() => { if (props.enter) enterRow(item); });
   const historical = () => 'reasons' in props.row && props.row.reasons.includes('recently_completed');
   const unfinished = () => !historical() && !isFinished(props.row.task);
   const time = createMemo(() => props.timetable ? agendaTaskTime(props.row, props.plannedDate ?? props.date, !props.deadlineLabel) : 'time' in props.row ? props.row.time : null);
   const facts = createMemo(() => historical() ? [] : taskFacts(props.row.task, { date: props.plannedDate ?? props.date, today: props.notebook.todayDate(), listed: props.timetable || 'reasons' in props.row, timeShown: !!time() }));
   /** Opens the canonical source, runs one edit on its task block and saves it. */
-  const editSource = async (row: TaskRow | AgendaItem, edit: (doc: PageDocument) => Promise<boolean | void>) => {
+  const editSource = async (row: TaskRow | AgendaItem, edit: (doc: PageDocument) => Promise<boolean | void>, leave?: 'done' | 'out') => {
     if (busy() || props.disabled) return;
     item.querySelector<HTMLElement>('.agenda-source')?.focus({ preventScroll: true });
+    const next = leave ? handoff() : null;
     setBusy(true); setError('');
+    if (leave) { leaveRow(leave); if (next) handOffFocus(item, next.ids, next.owner); }
     const doc = props.history ? null : props.notebook.open(row.source.page.id);
+    let saved = false;
     try {
       if (props.history) { if (await props.history.edit(row, edit) === false) return; }
       else {
@@ -146,11 +196,13 @@ function TaskSourceRow(props: {
         if (await edit(doc!) === false) return;
         await doc!.flush();
       }
+      saved = true;
       setRunning(null);
       props.onChanged();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
+      if (leave && !saved) releaseExit();
       doc?.release();
       setBusy(false);
     }
@@ -172,7 +224,7 @@ function TaskSourceRow(props: {
     const stopping = active === undefined ? stopWork : active?.block_id === source.id ? stopWork : undefined;
     const result = doc.edit({ kind: 'completeTask', id: source.id, completedOn: date, ...(stopping ? { stopWork: stopping } : {}) });
     if (!result.ok) throw new Error(result.reason);
-  });
+  }, 'done');
   const reopen = () => editSource(props.row, async doc => {
     const source = doc.block(props.row.source.block.id);
     if (!source?.task || source.revision !== props.row.source.block.revision || !isFinished(source.task)) {
@@ -180,7 +232,7 @@ function TaskSourceRow(props: {
     }
     const result = doc.edit({ kind: 'task', id: source.id, value: { ...source.task, status: 'todo', completed_on: null } });
     if (!result.ok) throw new Error(result.reason);
-  });
+  }, 'out');
   const changeStatus = (status: TaskStatus | null, anchor: HTMLElement) => {
     if (status === props.row.task.status) return;
     if (status === 'done') { void complete(anchor, props.date); return; }
@@ -190,7 +242,7 @@ function TaskSourceRow(props: {
       if (!source?.task || source.revision !== row.source.block.revision) throw new Error('This task changed. Refresh or open its source before changing its status.');
       const result = doc.edit({ kind: 'task', id: source.id, value: status === null ? null : { ...source.task, status, completed_on: null } });
       if (!result.ok) throw new Error(result.reason);
-    });
+    }, status === null || status === 'cancelled' ? 'out' : undefined);
   };
   const changePriority = (priority: TaskState['priority']) => {
     const row = props.row;
@@ -219,10 +271,13 @@ function TaskSourceRow(props: {
   const reschedule = (date: string | null, time?: string | null) => {
     if (!date || busy() || props.disabled || !movableTo([props.row], date, time).length) return;
     // The row may leave this list; keep the keyboard, or the picker it opened, on the row after it.
-    const next = item.contains(document.activeElement) || picking() ? siblingSource(item, 1) ?? siblingSource(item, -1) : null;
+    const next = handoff(), leaves = date !== props.row.task.scheduled;
     setBusy(true); setError('');
+    // A row that is leaving starts at once: the refetch removes it within a frame or two of the commit.
+    if (leaves) { setPicking(null); leaveRow('out'); }
+    if (next) handOffFocus(item, next.ids, next.owner);
     void rescheduleTasks(props.notebook, [props.row], date, `Reschedule task to ${relativeDate(date, today())}`, time)
-      .then(() => { setPicking(null); props.onChanged(); next?.focus(); }, reason => setError(reason instanceof Error ? reason.message : String(reason)))
+      .then(() => { setPicking(null); props.onChanged(); }, reason => { if (leaves) releaseExit(); setError(reason instanceof Error ? reason.message : String(reason)); })
       .finally(() => setBusy(false));
   };
   /** On a focused row: j and k move, t today, m tomorrow, s a date, x complete, ⌥← and ⌥→ a day earlier or later. */
@@ -257,9 +312,9 @@ function TaskSourceRow(props: {
     <Show when={props.nowBefore}><span class="agenda-now" aria-hidden="true"><Show when={props.showNow}><span>{props.now}</span></Show></span></Show>
     <Show when={props.gutter}><span class="agenda-time-gutter" classList={{ 'week-ledger-due': !!props.deadlineLabel && !time() && props.row.task.deadline === props.date }}>{gutterLabel()}</span></Show>
     <Show when={props.row.task.status} fallback={<span class="agenda-status" />}>{status => <Show when={!historical()} fallback={<span class="agenda-status task-status-button" data-status="done" aria-label="Done"><Icon name="check" /></span>}>
-      <Button class="agenda-status task-status-button" data-status={status()} label={`${unfinished() ? 'Complete' : 'Reopen'} task (${statusLabels[status()]}): ${props.row.source.block.text}`} title={`${unfinished() ? `Complete on ${props.date}` : 'Reopen task'} · right-click for status`} disabled={busy() || props.disabled} aria-haspopup="menu" aria-expanded={menu()?.kind === 'status'}
+      <Button class="agenda-status task-status-button" data-status={leaving() ?? status()} label={`${unfinished() ? 'Complete' : 'Reopen'} task (${statusLabels[status()]}): ${props.row.source.block.text}`} title={`${unfinished() ? `Complete on ${props.date}` : 'Reopen task'} · right-click for status`} disabled={busy() || props.disabled} aria-expanded={menu()?.kind === 'status' ? true : undefined}
         onContextMenu={event => { event.preventDefault(); if (!busy() && !props.disabled) setMenu({ kind: 'status', anchor: event.currentTarget }); }}
-        onClick={event => { void (unfinished() ? complete(event.currentTarget, props.date) : reopen()); }}><Icon name={statusIcons[status()]} /></Button>
+        onClick={event => { void (unfinished() ? complete(event.currentTarget, props.date) : reopen()); }}><Icon name={statusIcons[leaving() ?? status()]} /></Button>
     </Show>}</Show>
     {/* The title reads first; provenance and planning follow as one sentence on the facts line. Only the clock is mono. */}
     <div class="agenda-row-text">
@@ -286,10 +341,10 @@ function TaskSourceRow(props: {
       </span>
     </Show>
     <Show when={picking()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor()} label="Reschedule" value={props.row.task.scheduled} time={props.row.task.scheduled_time} contextDate={props.notebook.todayDate()} onDismiss={() => setPicking(null)} onSelect={value => reschedule(value.date, value.time)} />}</Show>
-    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.kind === 'status' ? 'Task status' : 'Priority'} onDismiss={() => { setMenu(null); item.querySelector<HTMLElement>('.agenda-source')?.focus({ preventScroll: true }); }} items={state.kind === 'status'
+    <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.kind === 'status' ? 'Task status' : 'Priority'} onDismiss={() => setMenu(null)} items={state.kind === 'status'
       ? statusMenuItems(props.row.task, status => changeStatus(status, state.anchor), busy() || props.disabled ? 'Task is unavailable.' : undefined)
       : priorityMenuItems(props.row.task.priority, changePriority, busy() || props.disabled ? 'Task is unavailable.' : undefined)} />}</Show>
-    <Show when={busy()}><p class="agenda-message" role="status">Saving… <Show when={props.notebook.saveState() !== 'saved'}>{props.notebook.saveMessage() || props.notebook.saveState()}</Show></p></Show>
+    <Show when={slow()}><p class="agenda-message" role="status">Saving… <Show when={props.notebook.saveState() !== 'saved'}>{props.notebook.saveMessage() || props.notebook.saveState()}</Show></p></Show>
     <Show when={error()}><div class="agenda-error" role="alert"><span>{error()}</span><Button onClick={props.onChanged}>Refresh</Button></div></Show>
     <Show keyed when={running()}>{state => <Popup anchor={state.anchor} label="Stop work and complete?" onDismiss={() => { if (!busy()) setRunning(null); }}>
       <p>Stop work and complete this task on {state.date}?</p>

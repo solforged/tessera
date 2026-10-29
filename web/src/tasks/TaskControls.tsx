@@ -7,6 +7,7 @@ import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
+import { popStatusGlyph } from './row-motion';
 import './task-controls.css';
 
 export const statuses: TaskStatus[] = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
@@ -43,8 +44,7 @@ export function TaskStatusButton(props: { task: TaskState | null; disabled?: boo
   let control!: HTMLSpanElement;
   // Only a change seen while mounted pops the glyph; rows scrolled into view stay still.
   createEffect(on(() => props.task?.status, status => {
-    if (status !== 'done' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    queueMicrotask(() => control.querySelector('.task-status-button .icon')?.animate([{ scale: 0.4, opacity: 0.4 }, { scale: 1.15 }, { scale: 1, opacity: 1 }], { duration: 220, easing: 'cubic-bezier(.2, .8, .2, 1)' }));
+    if (status === 'done') queueMicrotask(() => popStatusGlyph(control.querySelector('.task-status-button .icon')));
   }, { defer: true }));
   const blocked = () => !!props.disabled || busy();
   const change = async (status: TaskStatus | null) => {
