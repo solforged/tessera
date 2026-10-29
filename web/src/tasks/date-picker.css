@@ -1,4 +1,6 @@
 :is(.popup, .popup-exit).date-picker { display: flex; width: var(--search-width); padding: 0; overflow: hidden; }
+/* A phone sheet stacks its grab bar and Close above the form instead of laying them side by side. */
+:is(.popup, .popup-exit).date-picker.popup-sheet { flex-direction: column; }
 .date-picker-form { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; }
 .date-picker-body { display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-8); min-height: 0; overflow: auto; padding: var(--space-12); }
 /* A single footer row keeps the anchored calendar closer to its trigger. */

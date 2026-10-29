@@ -18,6 +18,8 @@ import { agendaTaskTime, groupAgenda, groupDayAgenda, isFinished, upcomingDayLab
 import { SectionHead, SectionSubhead } from '../ui/SectionHead';
 import { captureSection, sectionTarget } from './today-template';
 import { TaskSourceRows } from './JournalAgenda';
+import { HeldSection } from './HeldSection';
+import { heldRows } from './row-motion';
 import { parseTaskDate } from './date-input';
 import { CaptureField } from '../capture/CaptureField';
 import { createClock } from './clock';
@@ -73,6 +75,27 @@ export function AgendaPane(props: AgendaPaneProps) {
   let weekRange: string | undefined;
   const [weekError, setWeekError] = createSignal('');
   const dayGroups = createMemo(() => groupDayAgenda(agenda()?.items ?? [], weekRows(), date()));
+  // Rows that mount once the page has painted fade in; the first paint, and a change of day, arrive with the pane's own motion.
+  const [arrived, setArrived] = createSignal(false);
+  createEffect(() => {
+    if (loading() || weekLoading() || (!agenda() && !tasks())) { setArrived(false); return; }
+    let cancelled = false;
+    requestAnimationFrame(() => requestAnimationFrame(() => { if (!cancelled) setArrived(true); }));
+    onCleanup(() => { cancelled = true; });
+  });
+  // Upcoming days keep their identity by date, and a day whose last row is leaving stays until it has gone.
+  let seenDays = new Map<string, string[]>();
+  const upcomingDates = createMemo(() => {
+    const held = heldRows(), days = dayGroups().upcoming, dates = days.map(day => day.date);
+    const kept = new Map(days.map(day => [day.date, day.rows.map(row => row.source.block.id)]));
+    for (const [date, ids] of seenDays) {
+      const retained = ids.filter(id => held.has(id));
+      if (!kept.has(date) && retained.length) { kept.set(date, retained); dates.push(date); }
+    }
+    seenDays = kept;
+    return dates.sort();
+  });
+  const upcomingRows = (date: string) => dayGroups().upcoming.find(day => day.date === date)?.rows ?? [];
   const [showUnplanned, setShowUnplanned] = createSignal(false);
   const [showDone, setShowDone] = createSignal(false);
   const [fields, setFields] = createSignal<FieldDefinition[]>([]);
@@ -138,6 +161,8 @@ export function AgendaPane(props: AgendaPaneProps) {
       const nextEnd = Number(calendar.dataset.endHour);
       const nextHourHeight = column.getBoundingClientRect().height / (nextEnd - nextStart);
       calendar.scrollTop = (topHour - nextStart) * nextHourHeight;
+      // The visible hour stays anchored (scrollTop moves by exactly the height added above it); the new hours settle in around it.
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) calendar.querySelector('.week-calendar-timeline')?.animate([{ opacity: 0.6 }, { opacity: 1 }], { duration: 180, easing: 'cubic-bezier(.2, .8, .2, 1)' });
     });
   };
   onMount(() => {
@@ -483,43 +508,37 @@ export function AgendaPane(props: AgendaPaneProps) {
         </Show>
         <Show when={mode() === 'agenda'} fallback={<TaskSourceRows rows={rows()} date={date()} pageId={dayPage()} sections={query().filter.sort === 'outline'} notebook={props.notebook} history={taskHistory} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />}>
           <overdueMove.Notice />
-          <Show when={dayGroups().overdue.length}>
-            <section class="agenda-day-section" aria-label={date() > props.notebook.todayDate() ? 'Before this day' : 'Overdue'}>
-              <SectionHead name={date() > props.notebook.todayDate() ? 'Before this day' : 'Overdue'} count={dayGroups().overdue.length} tone={date() <= props.notebook.todayDate() ? 'danger' : undefined}>
-                <Button class="bordered agenda-group-move" disabled={busy() || loading()} aria-haspopup="menu" aria-expanded={overdueMenuOpen()} onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Move overdue tasks', items: [
-                  { label: 'To today', disabledReason: !movableTo(dayGroups().overdue, props.notebook.todayDate()).length ? 'All tasks are already scheduled for today.' : undefined, action: () => overdueMove.move(dayGroups().overdue, props.notebook.todayDate()) },
-                  { label: 'To tomorrow', action: () => overdueMove.move(dayGroups().overdue, shiftCalendarDate(props.notebook.todayDate(), 1)!) },
-                ] })}>Move all<Icon name="down" /></Button>
-              </SectionHead>
-              <TaskSourceRows rows={dayGroups().overdue} date={date()} notebook={props.notebook} history={taskHistory} timetable gutter={dayGutter()} plan disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
-            </section>
-          </Show>
+          <HeldSection class="agenda-day-section" aria-label={date() > props.notebook.todayDate() ? 'Before this day' : 'Overdue'} rows={dayGroups().overdue}>
+            <SectionHead name={date() > props.notebook.todayDate() ? 'Before this day' : 'Overdue'} count={dayGroups().overdue.length} tone={date() <= props.notebook.todayDate() ? 'danger' : undefined}>
+              <Button class="bordered agenda-group-move" disabled={busy() || loading()} aria-haspopup="menu" aria-expanded={overdueMenuOpen()} onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Move overdue tasks', items: [
+                { label: 'To today', disabledReason: !movableTo(dayGroups().overdue, props.notebook.todayDate()).length ? 'All tasks are already scheduled for today.' : undefined, action: () => overdueMove.move(dayGroups().overdue, props.notebook.todayDate()) },
+                { label: 'To tomorrow', action: () => overdueMove.move(dayGroups().overdue, shiftCalendarDate(props.notebook.todayDate(), 1)!) },
+              ] })}>Move all<Icon name="down" /></Button>
+            </SectionHead>
+            <TaskSourceRows rows={dayGroups().overdue} enterRows={arrived()} date={date()} notebook={props.notebook} history={taskHistory} timetable gutter={dayGutter()} plan disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
+          </HeldSection>
           <section class="agenda-day-section" aria-label={date() === props.notebook.todayDate() ? 'Today' : 'Planned'}>
             <SectionHead name={date() === props.notebook.todayDate() ? 'Today' : 'Planned'} count={`${dayGroups().planned.length}${dayGroups().done.length ? ` · ${dayGroups().done.length} done` : ''}`} />
             <Show when={!loading() && !error() && !dayGroups().planned.length}><p class="agenda-message agenda-day-empty">Nothing planned</p></Show>
-            <TaskSourceRows rows={dayGroups().planned} date={date()} notebook={props.notebook} history={taskHistory} timetable gutter={dayGutter()} plan now={now()} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
+            <TaskSourceRows rows={dayGroups().planned} enterRows={arrived()} date={date()} notebook={props.notebook} history={taskHistory} timetable gutter={dayGutter()} plan now={now()} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
           </section>
           <section class="agenda-day-section agenda-lookahead" aria-label="Upcoming">
             <SectionHead name="Upcoming" count={dayGroups().upcoming.reduce((total, day) => total + day.rows.length, 0)} />
             <Show when={slowWeekLoading()}><p class="agenda-message" role="status">Loading planned tasks…</p></Show>
             <Show when={!weekLoading() && !dayGroups().upcoming.length && !weekError()}><p class="agenda-message agenda-day-empty">Nothing planned</p></Show>
-            <For each={dayGroups().upcoming}>{day => <div class="agenda-lookahead-day">
-              <SectionSubhead {...upcomingDayLabel(day.date, props.notebook.todayDate())} />
-              <TaskSourceRows rows={day.rows} date={date()} plannedDate={day.date} notebook={props.notebook} history={taskHistory} timetable gutter={dayGutter()} plan disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
-            </div>}</For>
+            <For each={upcomingDates()}>{day => <HeldSection tag="div" class="agenda-lookahead-day" rows={upcomingRows(day)}>
+              <SectionSubhead {...upcomingDayLabel(day, props.notebook.todayDate())} />
+              <TaskSourceRows rows={upcomingRows(day)} enterRows={arrived()} date={date()} plannedDate={day} notebook={props.notebook} history={taskHistory} timetable gutter={dayGutter()} plan disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
+            </HeldSection>}</For>
           </section>
-          <Show when={dayGroups().unplanned.length}>
-            <section class="agenda-day-section" aria-label="Unplanned">
-              <SectionHead name="Unplanned" count={dayGroups().unplanned.length} open={showUnplanned()} onToggle={() => setShowUnplanned(value => !value)} />
-              <Show when={showUnplanned()}><TaskSourceRows rows={dayGroups().unplanned} date={date()} notebook={props.notebook} history={taskHistory} timetable gutter={dayGutter()} plan disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} /></Show>
-            </section>
-          </Show>
-          <Show when={dayGroups().done.length}>
-            <section class="agenda-day-section" aria-label={date() === props.notebook.todayDate() ? 'Done today' : 'Done'}>
-              <SectionHead name={date() === props.notebook.todayDate() ? 'Done today' : 'Done'} count={dayGroups().done.length} open={showDone()} onToggle={() => setShowDone(value => !value)} />
-              <Show when={showDone()}><TaskSourceRows rows={dayGroups().done} date={date()} notebook={props.notebook} history={taskHistory} timetable gutter={dayGutter()} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} /></Show>
-            </section>
-          </Show>
+          <HeldSection class="agenda-day-section" aria-label="Unplanned" rows={dayGroups().unplanned}>
+            <SectionHead name="Unplanned" count={dayGroups().unplanned.length} open={showUnplanned()} onToggle={() => setShowUnplanned(value => !value)} />
+            <Show when={showUnplanned()}><TaskSourceRows rows={dayGroups().unplanned} enterRows={arrived()} date={date()} notebook={props.notebook} history={taskHistory} timetable gutter={dayGutter()} plan disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} /></Show>
+          </HeldSection>
+          <HeldSection class="agenda-day-section" aria-label={date() === props.notebook.todayDate() ? 'Done today' : 'Done'} rows={dayGroups().done}>
+            <SectionHead name={date() === props.notebook.todayDate() ? 'Done today' : 'Done'} count={dayGroups().done.length} open={showDone()} onToggle={() => setShowDone(value => !value)} />
+            <Show when={showDone()}><TaskSourceRows rows={dayGroups().done} enterRows={arrived()} date={date()} notebook={props.notebook} history={taskHistory} timetable gutter={dayGutter()} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} /></Show>
+          </HeldSection>
         </Show>
       </section>
       </Show>

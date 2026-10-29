@@ -18,9 +18,12 @@ import { taskFieldLabel, taskFieldName, taskFieldPlaceholder, taskFieldText, typ
 /** Task values and ordinary entries share one bed, without copying task state into child atoms. */
 export function TaskFieldBed(props: {
   notebook: NotebookClient; doc: PageDocument; id: string; fields: readonly FieldDefinition[]; template: readonly string[];
-  contextDate: string; sheet?: boolean; initialField?: TaskFieldName; onFieldOpened(): void; onDismiss(): void;
+  contextDate: string; sheet?: boolean; initialField?: TaskFieldName;
+  /** The control that asked for `initialField` (an outline row's task chip): closing the editor it opened returns focus there rather than to the bed's own button. */
+  opener?: HTMLElement | (() => HTMLElement | null | undefined);
+  onFieldOpened(): void; onDismiss(): void;
 }) {
-  const [editor, setEditor] = createSignal<{ field: FieldDefinition; anchor: HTMLElement; value?: string }>();
+  const [editor, setEditor] = createSignal<{ field: FieldDefinition; anchor: HTMLElement; value?: string; returnTo?: HTMLElement | (() => HTMLElement | null | undefined) }>();
   const [picker, setPicker] = createSignal<HTMLElement>();
   const [extra, setExtra] = createSignal<string[]>([]);
   const [error, setError] = createSignal('');
@@ -51,6 +54,8 @@ export function TaskFieldBed(props: {
   });
   const label = (field: FieldDefinition) => { const name = taskFieldName(field); return name ? taskFieldLabel(name) : field.name; };
   const message = (reason: unknown) => setError(reason instanceof Error ? reason.message : String(reason));
+  // Set around the click that opens the requested field, so only that editor returns to the opener.
+  let requestedOpener: typeof props.opener;
   const open = (field: FieldDefinition, anchor: HTMLElement, value?: string) => {
     if (!taskFieldName(field) && field.kind === 'checkbox') {
       try {
@@ -59,11 +64,14 @@ export function TaskFieldBed(props: {
       } catch (reason) { message(reason); }
       return;
     }
-    setError(''); setDraft(value ? props.doc.block(value)?.text ?? '' : ''); setEditor({ field, anchor, value });
+    setError(''); setDraft(value ? props.doc.block(value)?.text ?? '' : ''); setEditor({ field, anchor, value, returnTo: requestedOpener });
   };
   const closeEditor = () => {
-    const field = editor()?.field.id; setEditor(undefined);
-    queueMicrotask(() => bed?.querySelector<HTMLButtonElement>(`[data-task-field="${field}"]`)?.focus({ preventScroll: true }));
+    const state = editor(); setEditor(undefined);
+    queueMicrotask(() => {
+      const opener = typeof state?.returnTo === 'function' ? state.returnTo() : state?.returnTo;
+      (opener?.isConnected ? opener : bed?.querySelector<HTMLButtonElement>(`[data-task-field="${state?.field.id}"]`))?.focus({ preventScroll: true });
+    });
   };
   const write = async (text: string, relationPick?: Parameters<typeof writeFieldValue>[4]) => {
     const state = editor(); if (!state) return;
@@ -128,7 +136,7 @@ export function TaskFieldBed(props: {
   createEffect(on(() => props.initialField, name => {
     if (name) queueMicrotask(() => {
       const control = bed?.querySelector<HTMLButtonElement>(`[data-task-field][aria-label="Edit ${taskFieldLabel(name)}"]`);
-      if (control) { control.click(); props.onFieldOpened(); }
+      if (control) { requestedOpener = props.opener; control.click(); requestedOpener = undefined; props.onFieldOpened(); }
     });
   }));
   return <Show when={props.sheet} fallback={<Contents />}><Popup anchor={() => bed?.getBoundingClientRect() ?? null} label="Task fields" placement="sheet" class="task-field-sheet" onDismiss={props.onDismiss}><Contents /></Popup></Show>;

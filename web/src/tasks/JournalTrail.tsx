@@ -65,7 +65,7 @@ export function JournalTrail(props: { date: string; today?: boolean; journalPeri
     const open = ledger();
     if (!open) return;
     const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape' || document.querySelector('.popup')) return;
       event.preventDefault(); event.stopImmediatePropagation();
       setLedger(null); triggers.get(open.kind)?.focus();
     };

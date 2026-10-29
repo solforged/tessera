@@ -43,9 +43,13 @@ export function DatePicker(props: DatePickerProps) {
   let active = true;
   let composing = false;
   onCleanup(() => { active = false; });
+  // Typed input belongs to the picker: an outside click leaves it open rather than discarding the draft.
+  let saved = { date: date(), time: time(), warning: warning() };
+  const dirty = () => date() !== saved.date || time() !== saved.time || warning() !== saved.warning;
   createEffect(on([() => props.value, () => props.time], ([value, clock]) => {
     setDate(value ?? '');
     setTime(clock ?? '');
+    saved = { ...saved, date: value ?? '', time: clock ?? '' };
     setError('');
   }, { defer: true }));
 
@@ -125,7 +129,10 @@ export function DatePicker(props: DatePickerProps) {
     return pane?.getBoundingClientRect() ?? null;
   };
 
-  return <Popup anchor={props.anchor} label={props.label} onDismiss={props.onDismiss} class="date-picker" fitContent bounds={bounds}>
+  // On a phone the calendar is a sheet, like the task fields sheet, and a touch screen never opens its keyboard unasked.
+  const cover = window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
+  const coarse = window.matchMedia('(pointer: coarse)').matches;
+  return <Popup anchor={props.anchor} label={props.label} onDismiss={props.onDismiss} class="date-picker" placement={cover ? 'sheet' : 'anchor'} autofocus={coarse ? false : undefined} dirty={dirty} fitContent bounds={bounds}>
     <form class="date-picker-form" aria-busy={busy()} onKeyDown={keydown} onCompositionStart={() => { composing = true; }} onCompositionEnd={() => { composing = false; }} onSubmit={event => { event.preventDefault(); if (!composing) apply(); }}>
       <div class="date-picker-body">
         <div class="date-picker-field">
