@@ -36,7 +36,7 @@ Page drafts show kind-specific field rows beneath the gist: Parent question, Rev
 | Tab in a line | Moves to Into, except while date suggestions are open, where it flips Scheduled and Deadline |
 | ⌘Enter | Submits from any field |
 | Shift+⌘Enter | Submits and keeps the same kind ready for another |
-| Escape | Closes an open completion first and then the slip |
+| Escape | Closes an open completion first and then the slip. On a phone sheet it first closes an open Kind menu or Atom picker and returns focus to its trigger. Typed text is kept as a draft for the next slip of the same kind and destination; a click outside leaves a slip holding typed text open |
 | Cover sheet | Hides keyboard hints and Cancel; the sheet's Close dismisses it |
 
 Line drafts clear once accepted by the local outbox; cards keep their draft until acknowledgment. Reload resumes every accepted capture, including its destination, question state, task plan and chosen references. If local storage fails, the line keeps its text. Line, card and source creation in the slip never navigate: a shell notice names where the line went, such as Added to Inbox, Added under Meditations or Added to the chosen page, or says Card added or Added to library, with Open. For queued imports, Open shows the source when ready or the Library inbox while the job is pending. Lines and cards also offer Undo, deleting the inserted row or restoring a reused empty row. The notice uses the same eight-second, hover-and-focus-paused surface as page-deletion Undo.

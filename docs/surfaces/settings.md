@@ -55,6 +55,8 @@ Delete opens an inline Delete? confirmation with Cancel and Confirm. Other works
 
 Backup actions disable together while working, refresh the list when complete, and report failures in Settings' error slot.
 
+An inline confirmation (Delete?, Forget, Remove?) puts focus on Cancel, the safe choice, when it opens. Escape cancels it like Cancel does, and focus returns to the button that opened it. The same holds for the agent form: it opens with the caret in its first field, and closing it returns the caret to the button that opened it.
+
 Backup and agent-change timestamps use local ISO dates with 24-hour time in mono, such as `2026-10-20 06:51`.
 
 ## Backups in the browser
@@ -75,7 +77,7 @@ Restore and Start over cover the window while they work, then reload. A file tha
 
 A Mac serving without sync says so in one sentence under the heading: `Sync is off`, and that no phone can pair with it. Otherwise one muted mono line gives the Mac's version (`hyperion · 0.3.0 · schema 35`) and tailnet address. The Sharing switch follows, then the paired devices, a mono line with the changes kept for devices that have not caught up, and a bordered Pair a phone button with a plus. Pairing turns Sharing on first when needed, using the same action as the switch. If that is unavailable or fails, `Turn on Sharing first` appears under the button.
 
-Pair a phone opens a dialog: the QR code on white with the code under it in spaced mono, three numbered steps beside it, and the wait on a hairline. The wait turns to `<phone> is paired and copying the workshop.`
+Pair a phone opens a dialog once its code has arrived, so it never grows while it enters: the QR code on white with the code under it in spaced mono, three numbered steps beside it, and the wait on a hairline. A click outside does not cancel a pairing in progress. The wait turns to `<phone> is paired and copying the workshop.`
 
 Each paired device is a disclosure: its name, and its state at the right in `--danger` when it needs the person. Opened, it shows both sides' versions in mono, then the fix first: a version mismatch says which side is behind, in a block with a 2 px rubric rule at its left, with the update route. Last seen, refused since with the attempt count, and last attempt follow as a mono list, then Recent attempts as a small ledger of ISO time, result and count, and Forget. Forget asks `Forget <device>? It must pair again to sync.` inline with Cancel and Confirm. Device and Needs review disclosures use the same small turning chevron as Stored backups. The rail's summary opens Settings with its device expanded.
 

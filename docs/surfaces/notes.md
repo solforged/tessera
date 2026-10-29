@@ -58,11 +58,13 @@ Only populated jump letters appear, and only with Letter grouping. The strip sta
 
 Below the mode tabs, `Find in Concepts…` (using the kind's plural) matches plain words against title or Gloss. `links:`, `from:` and `cites:` resolve titles and aliases; `cites:` also resolves source sigla and citation keys. Quote a multiword value, for example `links:"Three generations of a dynasty"`. Names complete after the colon. Enter, a closing quote or leaving the input resolves each term to a removable table-style chip; unresolved names show `No note named “X”`. All terms and field filters intersect. `cites:` includes passage citations of any of the source's snapshots and any reference to its source page.
 
-On the touch cover, one search row follows the tabs on both List and Table. Its filter button opens a sheet containing Group, Filters and Save as view, plus Select atoms. The in-page New action is hidden; the glass top bar starts the same kind-locked creation slip.
+The names that complete after a colon open as a list under the field. Arrows highlight, Enter picks the highlighted name, and Escape closes the list for the text typed; typing on reopens it.
+
+On the touch cover, one search row follows the tabs on both List and Table. Its filter button opens a sheet containing Group, Filters and Save as view, plus Select atoms. Group, Filters and Save as view open inside that sheet rather than as sheets on a sheet, so Escape or the scrim first backs out of an open editor to the options list, and the next one closes the sheet. The in-page New action is hidden; the glass top bar starts the same kind-locked creation slip.
 
 Group offers Letter, Source cited, Atom linked, Created month, then the kind's populated fields. A note appears under every applicable heading. Source, link and field-value headings sort by descending distinct-note count, then name; None is last. Source headings show siglum then title, and link headings open their note. Created month is newest first. Both layout tabs count the current query, including a saved view's members, rather than all members of the kind.
 
-Save as view… keeps the query, layout and grouping in the existing view store. On the cover Index, saved views sit together in Views; desktop lists them under their kind. Reopening restores chips and grouping. Older table views remain Table with Letter grouping when opened as a list. List and Table retain the same query on switching.
+Save as view… keeps the query, layout and grouping in the existing view store. A typed view name survives a click outside its form, as does a changed title in Rename. On the cover Index, saved views sit together in Views; desktop lists them under their kind. Reopening restores chips and grouping. Older table views remain Table with Letter grouping when opened as a list. List and Table retain the same query on switching.
 
 Field grouping travels between List and Table: Table translates the finding aid's saved field grouping into its row grouping, and its Group menu updates the field grouping used on return to List.
 

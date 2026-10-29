@@ -204,6 +204,8 @@ Full screen, the corner-arrows button after `Aa` or `F`, turns the whole app win
 
 On Android the status and navigation bars leave and return with the active reader's controls, and a swipe from the screen's edge shows them for a moment. Inactive readers never hide the system bars or working-pane tabs. The native app keeps that bar mode through folding and keyboard changes. Closing a note after folding returns both bars to the reader's current mode. Full screen on a touch screen 600 px or wider also gives the page the status bar's room, and the toolbar returns below the bar. The cover screen keeps that room for its camera.
 
+Entering or leaving full screen morphs the page between its two sizes instead of snapping. The selection toolbar stays for one exit fade after the selection clears, showing the selection it last had.
+
 On touch the controls also fade on their own when the book has opened, a page turns, a jump lands or the page is scrolled, so they never cover what is read next.
 
 - A tap that closes a popup or clears a selection does only that.
