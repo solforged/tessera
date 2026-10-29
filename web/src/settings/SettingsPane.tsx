@@ -12,6 +12,7 @@ import { Picker } from '../ui/Picker';
 import { setThemePreference, themePreference } from '../shell/theme';
 import { size, sync } from '../sync/state';
 import { backupLabel, backupStale } from './backup';
+import { cancelConfirm, escapeConfirm, focusCancel } from './confirm-focus';
 import { HubDevices, PhoneDevices } from './DevicesSection';
 import { BrowserBackups } from './BrowserBackups';
 import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookOpening, notebookPlace, openNotebook, reloadNotebook, workshopName, workshopsHome } from './notebooks';
@@ -43,6 +44,9 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   // Back up now with nothing changed since the newest backup makes none; the status says so.
   const [unchanged, setUnchanged] = createSignal(false);
   const backupBusy = () => backingUp() || removingBackups() || restoringBackup();
+  const confirmTrigger = () => confirmBackup()?.startsWith('restore:') ? 'restore' : 'delete';
+  const cancelBackup = (from: Element) => cancelConfirm(from, confirmTrigger(), () => setConfirmBackup(null));
+  const cancelBackupOnEscape = (event: KeyboardEvent & { currentTarget: Element }) => escapeConfirm(event, confirmTrigger(), () => setConfirmBackup(null));
   const otherBytes = createMemo(() => backups()?.others.reduce((total, other) => total + other.size, 0) ?? 0);
   // The newest change's time tells a stale backup from an unchanged workshop.
   const [latestChange] = createResource(() => !EMBEDDED && props.notebook.changeSequence(), async () => {
@@ -289,12 +293,12 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
                 <Show when={confirmBackup() === `restore:${backup.path}`}><p class="settings-empty">Replace the workshop with this backup? A backup of the current workshop is taken first. Paired phones keep changes made since then until they sync again.</p></Show>
               </div>
               <span class="settings-backup-actions"><Show when={confirmBackup() === backup.path || confirmBackup() === `restore:${backup.path}`} fallback={<>
-                <Button disabled={backupBusy()} onClick={() => setConfirmBackup(`restore:${backup.path}`)}>Restore</Button>
-                <Show when={index() > 0}><Button class="danger" disabled={backupBusy()} onClick={() => setConfirmBackup(backup.path)}>Delete</Button></Show>
+                <Button data-confirm="restore" disabled={backupBusy()} onClick={() => setConfirmBackup(`restore:${backup.path}`)}>Restore</Button>
+                <Show when={index() > 0}><Button class="danger" data-confirm="delete" disabled={backupBusy()} onClick={() => setConfirmBackup(backup.path)}>Delete</Button></Show>
               </>}>
                 <Show when={confirmBackup() === backup.path}><span class="settings-backup-question">Delete?</span></Show>
-                <Button disabled={backupBusy()} onClick={() => setConfirmBackup(null)}>Cancel</Button>
-                <Button class="bordered danger" disabled={backupBusy()} onClick={() => { void (confirmBackup() === backup.path ? removeBackups(() => api.deleteBackup(backup.name)) : restoreBackup(backup.name)); }}>Confirm</Button>
+                <Button ref={focusCancel} disabled={backupBusy()} onClick={event => cancelBackup(event.currentTarget)} onKeyDown={cancelBackupOnEscape}>Cancel</Button>
+                <Button class="bordered danger" disabled={backupBusy()} onKeyDown={cancelBackupOnEscape} onClick={() => { void (confirmBackup() === backup.path ? removeBackups(() => api.deleteBackup(backup.name)) : restoreBackup(backup.name)); }}>Confirm</Button>
               </Show></span>
             </li>}</For></ul>
           </details></Show>
@@ -303,10 +307,10 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
             <summary><Icon name="right" />Other workshops · {size(otherBytes())}</summary>
             <ul><For each={backups()!.others}>{other => <li class="settings-backup-row">
               <span title={other.path}>{other.name ? workshopName(other.name) : `${other.workshop_id.slice(0, 10)}…`} · {other.count} {other.count === 1 ? 'backup' : 'backups'}{other.newest_at === null ? '' : ` · newest ${when(other.newest_at)}`} · {size(other.size)}</span>
-              <span class="settings-backup-actions"><Show when={confirmBackup() === other.path} fallback={<Button class="danger" disabled={backupBusy()} onClick={() => setConfirmBackup(other.path)}>Delete</Button>}>
+              <span class="settings-backup-actions"><Show when={confirmBackup() === other.path} fallback={<Button class="danger" data-confirm="delete" disabled={backupBusy()} onClick={() => setConfirmBackup(other.path)}>Delete</Button>}>
                 <span class="settings-backup-question">Delete all?</span>
-                <Button disabled={backupBusy()} onClick={() => setConfirmBackup(null)}>Cancel</Button>
-                <Button class="bordered danger" disabled={backupBusy()} onClick={() => { void removeBackups(() => api.deleteOtherBackups(other.workshop_id)); }}>Confirm</Button>
+                <Button ref={focusCancel} disabled={backupBusy()} onClick={event => cancelBackup(event.currentTarget)} onKeyDown={cancelBackupOnEscape}>Cancel</Button>
+                <Button class="bordered danger" disabled={backupBusy()} onKeyDown={cancelBackupOnEscape} onClick={() => { void removeBackups(() => api.deleteOtherBackups(other.workshop_id)); }}>Confirm</Button>
               </Show></span>
             </li>}</For></ul>
           </details></Show>

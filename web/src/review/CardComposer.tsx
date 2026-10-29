@@ -1,4 +1,4 @@
-import { Show, createMemo, createSignal, createUniqueId, onCleanup, onMount } from 'solid-js';
+import { Show, createEffect, createMemo, createSignal, createUniqueId, onCleanup, onMount } from 'solid-js';
 import { Button } from '../ui/Button';
 import { Popup } from '../ui/Popup';
 import type { PopupAnchor } from '../ui/Popup';
@@ -15,12 +15,22 @@ export interface CardComposerProps {
    * open for the next card, so the caller must not navigate. */
   onSave(text: string, again: boolean): Promise<void>;
   onDismiss(): void;
+  /** Constrains the popup to its pane as well as the viewport. */
+  bounds?: () => DOMRect | null;
 }
 
 export interface CardComposerBodyProps extends Omit<CardComposerProps, 'anchor' | 'where'> {
   initialText?: string;
   onTextChange?(text: string): void;
   onBusyChange?(busy: boolean): void;
+  /** True while the draft holds text the writer typed. */
+  onDirtyChange?(dirty: boolean): void;
+  /** Text to start from instead of the initial text: a draft the writer closed with Escape. */
+  restore?: { front: string; back: string };
+  /** Called with both sides after each edit. */
+  onEdit?(front: string, back: string): void;
+  /** Cancel was chosen: the draft ends. */
+  onDiscard?(): void;
   sheet?: boolean;
   status?: string;
   /** The slip has its own rubric; the standalone wrapper supplies this one. */
@@ -37,8 +47,8 @@ function fit(field: HTMLTextAreaElement) {
  * then its keys and Create on a hairline, as in Add to today. */
 export function CardComposerBody(props: CardComposerBodyProps) {
   const parsed = parseCardText(props.initialText ?? '').cards[0];
-  const [front, setFront] = createSignal(parsed?.front ?? props.initialText ?? '');
-  const [back, setBack] = createSignal(parsed?.back ?? props.initialBack ?? '');
+  const [front, setFront] = createSignal(props.restore?.front ?? parsed?.front ?? props.initialText ?? '');
+  const [back, setBack] = createSignal(props.restore?.back ?? parsed?.back ?? props.initialBack ?? '');
   const [original, setOriginal] = createSignal(parsed ? props.initialText : undefined);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
@@ -47,12 +57,15 @@ export function CardComposerBody(props: CardComposerBodyProps) {
   function changed() {
     setOriginal(undefined);
     props.onTextChange?.(back().trim() ? `${front()} >> ${back()}` : front());
+    props.onEdit?.(front(), back());
   }
   let frontField!: HTMLTextAreaElement;
   let backField!: HTMLTextAreaElement;
   let disposed = false;
   onCleanup(() => { disposed = true; });
   onMount(() => { fit(frontField); fit(backField); });
+  // Typed text, not a prefilled answer, is what an outside click must not discard.
+  createEffect(() => props.onDirtyChange?.(!!front().trim() || back().trim() !== (props.initialBack ?? '').trim()));
 
   // An unfinished side is not a problem to report; only text that cannot make one forward card is.
   const draft = createMemo((): { text: string } | { problem: string } | null => {
@@ -125,17 +138,26 @@ export function CardComposerBody(props: CardComposerBodyProps) {
             <span role="status">{status()}</span>
           </Show>
         </span>
-        <Show when={!props.sheet}><Button disabled={busy()} onClick={props.onDismiss}>{added() ? 'Done' : 'Cancel'}</Button></Show>
+        <Show when={!props.sheet}><Button disabled={busy()} onClick={() => { props.onDiscard?.(); props.onDismiss(); }}>{added() ? 'Done' : 'Cancel'}</Button></Show>
         <Button type="submit" class="bordered" disabled={busy() || !draft() || !!problem()}>Create card</Button>
       </footer>
     </form>;
 }
 
+/** The standalone composer's unsent text, by the answer it was opened with (a highlight's passage, or none). */
+const composerDrafts = new Map<string, { front: string; back: string }>();
+
 /** Highlights keep the standalone composer, with the same keys and save contract. */
 export function CardComposer(props: CardComposerProps) {
   const sheet = window.matchMedia('(pointer: coarse)').matches;
   const [busy, setBusy] = createSignal(false);
-  return <Popup anchor={props.anchor ?? document.body} label="Create a card" placement={sheet ? 'sheet' : props.anchor ? 'anchor' : 'top'} fitContent width={560} class="card-composer" onDismiss={() => { if (!busy()) props.onDismiss(); }}>
-    <CardComposerBody {...props} sheet={sheet} onBusyChange={setBusy} />
+  const [dirty, setDirty] = createSignal(false);
+  const key = props.initialBack ?? '';
+  const restore = composerDrafts.get(key);
+  // Escape and an outside click close the composer but keep what was typed for its next opening; Create and Cancel end the draft.
+  const save = async (text: string, again: boolean) => { await props.onSave(text, again); composerDrafts.delete(key); };
+  return <Popup anchor={props.anchor ?? document.body} label="Create a card" placement={sheet ? 'sheet' : props.anchor ? 'anchor' : 'top'} fitContent width={560} class="card-composer" bounds={props.bounds} dirty={dirty} onDismiss={() => { if (!busy()) props.onDismiss(); }}>
+    <CardComposerBody {...props} onSave={save} sheet={sheet} restore={restore} onBusyChange={setBusy} onDirtyChange={setDirty}
+      onEdit={(front, back) => { if (front.trim() || back.trim() !== key.trim()) composerDrafts.set(key, { front, back }); else composerDrafts.delete(key); }} onDiscard={() => { composerDrafts.delete(key); }} />
   </Popup>;
 }

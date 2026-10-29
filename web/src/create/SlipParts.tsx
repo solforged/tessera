@@ -9,6 +9,7 @@ import { Picker } from '../ui/Picker';
 import { readingRowText } from '../tasks/today-template';
 import { readingSources, recentCaptures, todayJournal } from './today-journal';
 import { importedSource } from './link-import';
+import { trackSlipLoading } from './slip-loading';
 
 type Other = { row: LibraryRow } | { url: string };
 
@@ -94,6 +95,7 @@ export function CapturedToday(props: { notebook: NotebookClient; refresh: number
     const page = await todayJournal(props.notebook);
     return page ? { pageId: page.root.id, blocks: recentCaptures(page, props.notebook.todayTemplate()) } : null;
   });
+  trackSlipLoading(() => lines.loading);
   const clock = createMemo(() => new Intl.DateTimeFormat('en-GB', { timeZone: props.notebook.settings()?.time_zone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
   return <Show when={lines.latest?.blocks.length}><section class="create-recent" aria-label="Captured today">
     <h3>Captured today</h3>

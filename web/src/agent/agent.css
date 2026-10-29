@@ -1,7 +1,8 @@
-/* The agent dock is a third column right of the workspace, framed like it, so opening beside never pushes it away. */
-.app.has-dock { grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--dock-width); }
-.app.has-dock.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr) var(--dock-width); }
-.agent-dock { grid-column: 3; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0 var(--space-12) var(--space-12) 0; overflow: hidden; border: var(--rule-width) solid var(--line); background: var(--canvas); }
+/* The agent dock is a third column right of the workspace, framed like it, so opening beside never pushes it away.
+   Its track (--dock-track, styles.css) always exists and grows from nothing, so the workspace glides with it. The dock
+   keeps its full width while the track grows, so it slides in from the edge and never reflows its thread. */
+.agent-dock { grid-column: 3; grid-row: 2; justify-self: start; width: calc(var(--dock-width) - var(--space-12)); display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0 var(--space-12) var(--space-12) 0; overflow: hidden; border: var(--rule-width) solid var(--line); background: var(--canvas); animation: dock-in var(--motion-ui) var(--motion-ease) both; }
+.agent-dock.leaving { animation-name: dock-out; pointer-events: none; }
 .agent-dock.drop-target { box-shadow: inset 0 0 0 calc(2 * var(--rule-width)) var(--accent); }
 .app.is-immersive > .agent-dock { display: none; }
 .rail-end > .button[aria-pressed="true"] { color: var(--agent); }
@@ -79,11 +80,17 @@
 .agent-form-actions { justify-content: flex-end; }
 .agent-add-model.button { margin-top: var(--space-12); }
 
-/* Narrower windows lay the dock over the panes, as the sidebar does; a phone gives it the whole screen. */
+/* Narrower windows lay the dock over the panes, as the sidebar does, and it slides in from the right; a phone gives it the whole screen.
+   The animation names stay the same across the breakpoint, so crossing it never replays the entry; only the keyframes differ. */
 @media (max-width: 1047px) {
-  .app.has-dock, .app.has-dock.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
   .agent-dock { position: fixed; top: calc(var(--rail-height) + var(--top-inset)); right: env(safe-area-inset-right); bottom: var(--bottom-inset); z-index: 30; width: min(var(--dock-width), 100vw); margin: 0; box-shadow: var(--popup-shadow); }
 }
 @media (max-width: 599px) {
   .agent-dock { top: var(--top-inset); left: 0; width: auto; border: 0; }
+}
+@keyframes dock-in { from { opacity: 0; } }
+@keyframes dock-out { to { opacity: 0; } }
+@media (max-width: 1047px) {
+  @keyframes dock-in { from { translate: 100% 0; } }
+  @keyframes dock-out { to { translate: 100% 0; } }
 }

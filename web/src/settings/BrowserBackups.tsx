@@ -4,6 +4,7 @@ import { browserNotebook } from '../demo/notebook';
 import { localToday } from '../demo/seed';
 import { size } from '../sync/state';
 import { Button } from '../ui/Button';
+import { cancelConfirm, escapeConfirm, focusCancel } from './confirm-focus';
 
 type Confirmation = { kind: 'file'; file: File } | { kind: 'upgrade' | 'reset' };
 const lastBackupKey = 'tessera.browser.lastBackup';
@@ -69,9 +70,11 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
     } catch (reason) { props.onError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setWorking(null); }
   };
+  const cancel = (from: Element) => cancelConfirm(from, confirm()?.kind ?? '', () => setConfirm(null));
+  const cancelOnEscape = (event: KeyboardEvent & { currentTarget: Element }) => escapeConfirm(event, confirm()?.kind ?? '', () => setConfirm(null));
   const confirmation = () => <>
-    <Button disabled={busy()} onClick={() => setConfirm(null)}>Cancel</Button>
-    <Button class="bordered danger" disabled={busy()} onClick={() => { void replace(); }}>Confirm</Button>
+    <Button ref={focusCancel} disabled={busy()} onClick={event => cancel(event.currentTarget)} onKeyDown={cancelOnEscape}>Cancel</Button>
+    <Button class="bordered danger" disabled={busy()} onClick={() => { void replace(); }} onKeyDown={cancelOnEscape}>Confirm</Button>
   </>;
   const restoreQuestion = () => {
     const action = confirm();
@@ -88,7 +91,7 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
     </div>
     <div class="settings-row">
       <div class="settings-label"><span class="settings-name">Restore a backup</span><p>{restoreQuestion()}</p></div>
-      <span class="settings-backup-actions"><Show when={confirm()?.kind === 'file'} fallback={<Button class="bordered" disabled={busy()} onClick={() => picker.click()}>Restore…</Button>}>{confirmation()}</Show></span>
+      <span class="settings-backup-actions"><Show when={confirm()?.kind === 'file'} fallback={<Button class="bordered" data-confirm="file" disabled={busy()} onClick={() => picker.click()}>Restore…</Button>}>{confirmation()}</Show></span>
       <input ref={picker} type="file" hidden disabled={busy()} onChange={event => {
         const file = event.currentTarget.files?.[0]; event.currentTarget.value = '';
         if (file) { props.onError(''); setConfirm({ kind: 'file', file }); }
@@ -101,7 +104,7 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
       </div>
       <span class="settings-backup-actions"><Show when={confirm()?.kind === 'upgrade'} fallback={<>
         <Button class="bordered" disabled={busy()} onClick={() => { void download(true); }}>{working() === 'upgrade' ? 'Preparing…' : 'Download'}</Button>
-        <Button class="bordered" disabled={busy()} onClick={() => { props.onError(''); setConfirm({ kind: 'upgrade' }); }}>Restore…</Button>
+        <Button class="bordered" data-confirm="upgrade" disabled={busy()} onClick={() => { props.onError(''); setConfirm({ kind: 'upgrade' }); }}>Restore…</Button>
       </>}>{confirmation()}</Show></span>
     </div>}</Show>
     <Show when={storage()}>{value => <div class="settings-row">
@@ -118,7 +121,7 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
       <div class="settings-label"><span class="settings-name">Start over</span>
         <p>{confirm()?.kind === 'reset' ? 'Erase this workshop? Download a backup first to keep it.' : 'Erases the workshop in this browser and returns to the first-run choice.'}</p>
       </div>
-      <span class="settings-backup-actions"><Show when={confirm()?.kind === 'reset'} fallback={<Button class="bordered danger" disabled={busy()} onClick={() => { props.onError(''); setConfirm({ kind: 'reset' }); }}>Start over…</Button>}>{confirmation()}</Show></span>
+      <span class="settings-backup-actions"><Show when={confirm()?.kind === 'reset'} fallback={<Button class="bordered danger" data-confirm="reset" disabled={busy()} onClick={() => { props.onError(''); setConfirm({ kind: 'reset' }); }}>Start over…</Button>}>{confirmation()}</Show></span>
     </div>
   </section>;
 }

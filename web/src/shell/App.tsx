@@ -1,4 +1,4 @@
-import { batch, createEffect, createMemo, createResource, createSignal, For, Index, lazy, Match, onCleanup, onMount, Show, Switch } from 'solid-js';
+import { batch, createEffect, createMemo, createResource, createSignal, For, Index, lazy, Match, on, onCleanup, onMount, Show, Switch } from 'solid-js';
 import type { Accessor, JSX } from 'solid-js';
 import { ulid } from 'ulid';
 import { api } from '../api/client';
@@ -24,7 +24,7 @@ import type { IconName } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup, type PopupAnchor } from '../ui/Popup';
-import { createPaneMotion, navigatePane, paneTargetIdentity } from '../ui/pane-motion';
+import { createPaneMotion, crossfade, navigatePane, paneMotionIdentity, paneTargetIdentity, reflowPanes } from '../ui/pane-motion';
 import { installTabRule } from '../ui/tab-rule';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { pendingCaretInput } from './pending-caret';
@@ -41,10 +41,12 @@ import { installPhoneGestures } from './phone-gestures';
 import { Palette } from './Palette';
 import { DeletedPages } from './DeletedPages';
 import { Shortcuts } from './Shortcuts';
+import { installDisclosureMotion } from './disclosure';
+import { createRetained } from './retained';
 import { installOpenedFiles } from '../library/opened-files';
 import { installQuickCapture } from './quick-capture';
 import { opensBeside } from './beside';
-import { besideSlot, dividerRatio, insertPane, MAX_PANES, paneCapacity, windowStart } from './pane-row';
+import { besideSlot, dividerRatio, insertPane, journalTurn, MAX_PANES, paneCapacity, revealedStart, windowStart } from './pane-row';
 import { blankCapture, createEvent } from '../create/request';
 import { resumeLinkImports } from '../create/link-import';
 import type { CreateRequest } from '../create/request';
@@ -214,6 +216,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     else if (narrow()) setSidebar(value => !value);
     else setSidebarCollapsed(value => !value);
   };
+  /** Below the desktop breakpoint the sidebar is a modal overlay: it takes focus, the scrim covers the panes, Escape closes it. */
+  const overlayOpen = () => !cover() && narrow() && sidebar();
   // Android resizes the WebView; browsers can resize only the visual viewport.
   const viewport = createVisualViewport();
   const keyboard = () => viewport().height < screen.height * 0.7;
@@ -245,6 +249,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const [notice, setNotice] = createSignal<CreateNotice>();
   const [noticeBusy, setNoticeBusy] = createSignal(false);
   const showNotice = (value: CreateNotice) => batch(() => { setNotice(value); setToastHeld(false); setToastShown(true); });
+  /** The toast stays mounted through its exit animation. */
+  const toast = createRetained(() => toastShown() && notice());
   const noticeAction = async (action: NonNullable<CreateNotice['actions']>[number]) => {
     if (noticeBusy()) return;
     const current = notice();
@@ -262,6 +268,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const todayDate = () => notebook.todayDate();
   const counts = deskCounts(notebook, todayDate);
   let searchButton!: HTMLButtonElement;
+  let sidebarToggle!: HTMLButtonElement;
+  let sidebarElement!: HTMLElement;
   const entry = (pane: PaneId) => { const session = sessions()[pane]; return session?.entries[session.index]; };
   const split = () => order().length > 1;
   const activeRoot = () => notebook.roots().find(root => root.id === pageIdOf(entry(active())));
@@ -283,20 +291,41 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   onCleanup(() => { pendingCaretInput.cancel(); for (const pane of order()) cancelNavigation(pane); });
   const focusPane = (pane: PaneId) => {
     const epoch = ++focusEpoch;
-    requestAnimationFrame(() => {
-      if (epoch !== focusEpoch) return;
+    const deadline = performance.now() + 2000;
+    // Where focus sat when navigation began (the sidebar button, or nothing): the only places a retry may take it from.
+    const origin = document.activeElement;
+    // A lazy pane has no content while its module loads and its data resolves: retry each frame until it has settled
+    // (its pending and loading markers clear) or two seconds pass. A press, a key or a newer focusPane cancels the
+    // retries, and so does focus landing anywhere else: a retry never pulls focus from where the user moved it.
+    const typed = () => { if (epoch === focusEpoch) focusEpoch++; };
+    window.addEventListener('keydown', typed, true);
+    const stop = () => window.removeEventListener('keydown', typed, true);
+    const attempt = () => {
+      if (epoch !== focusEpoch) { stop(); return; }
+      const retry = () => { if (performance.now() < deadline) requestAnimationFrame(attempt); else stop(); };
       const root = document.querySelector<HTMLElement>(`.pane[data-pane="${pane}"]`);
-      if (!root) return;
+      if (!root) { retry(); return; }
       setActive(pane);
-      const editor = cover() ? null : root.querySelector<HTMLElement>('.cm-content');
-      (editor?.getClientRects().length ? editor : root.querySelector<HTMLElement>('.review-card') ?? root.querySelector<HTMLElement>('.outline-pane, .table-pane, .research-desk, .fields-pane, .field-page-pane, .settings-pane, .agenda-pane, .review-pane'))?.focus({ preventScroll: true });
-    });
+      const focused = document.activeElement;
+      if (focused && focused !== document.body && focused !== origin && !root.contains(focused)) { stop(); return; }
+      const settled = !root.querySelector('[data-pane-pending], [data-pane-loading]');
+      if (!root.contains(document.activeElement)) {
+        const editor = cover() ? null : root.querySelector<HTMLElement>('.cm-content');
+        const target = editor?.getClientRects().length ? editor : root.querySelector<HTMLElement>('.review-card') ?? root.querySelector<HTMLElement>('.outline-pane, .table-pane, .research-desk, .fields-pane, .field-page-pane, .settings-pane, .agenda-pane, .review-pane, .notes-review, .library-pane, .index-pane, .directory-pane');
+        if (!target) { retry(); return; }
+        if (!target.hasAttribute('tabindex') && !target.isContentEditable) target.tabIndex = -1;
+        target.focus({ preventScroll: true });
+      }
+      if (!settled || !root.contains(document.activeElement)) retry(); else stop();
+    };
+    requestAnimationFrame(attempt);
   };
   /**
    * Opens `target` in `owner`, or beside it: in the pane right of `owner`, or in a new pane there. `insertAt` opens a
-   * new pane at that position in the row instead, as a drop between panes does.
+   * new pane at that position in the row instead, as a drop between panes does. `turn` is the way the leaf turns:
+   * forward from the right, or back from the left, as for an earlier journal day.
    */
-  const open = (target: OpenTarget, beside = false, owner = active(), restore?: PaneView, insertAt?: number) => {
+  const open = (target: OpenTarget, beside = false, owner = active(), restore?: PaneView, insertAt?: number, turn: 'forward' | 'back' = 'forward') => {
     beside = beside && canOpenBeside(owner);
     const slot = insertAt !== undefined ? { index: insertAt, existing: null } : beside ? besideSlot(order(), owner) : { index: -1, existing: owner };
     const pane: PaneId = slot.existing ?? newPaneId();
@@ -307,7 +336,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     else pendingCaretInput.cancel();
     if (target.kind === 'agenda' && target.viewId && !target.query) {
       void notebook.api.taskView(target.viewId).then(saved => {
-        if (request === navigationRequests[pane]) open({ ...target, query: saved.query, date: target.date ?? saved.query.context_date }, beside, owner, restore, insertAt);
+        if (request === navigationRequests[pane]) open({ ...target, query: saved.query, date: target.date ?? saved.query.context_date }, beside, owner, restore, insertAt, turn);
       }).catch(reason => { if (request === navigationRequests[pane]) reportError(reason); });
       return;
     }
@@ -353,8 +382,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         arrive();
       };
       if (target.kind === 'page' && target.caretId) arriveAtTarget();
-      else navigatePane(pane, 'forward', arriveAtTarget, target.kind === 'page' ? target.pageId : undefined);
-    } else arrive();
+      else navigatePane(pane, turn, arriveAtTarget, target.kind === 'page' ? target.pageId : undefined);
+    } else if (revealedStart(order(), fit(), start(), pane, keepFocus ? owner : undefined) !== start()) reflowPanes(arrive);
+    else arrive();
     function arrive() {
       setSidebar(false);
       if (target.kind === 'page') remember(target.pageId);
@@ -400,12 +430,15 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const journal = async (value: string | null, owner = active(), beside = false, journalPeriod?: Extract<OpenTarget, { kind: 'page' }>['journalPeriod']) => {
     beside = beside && canOpenBeside(owner);
     const pane: PaneId = beside ? besideSlot(order(), owner).existing ?? `${owner}:beside` : owner;
+    // An earlier day than the one showing turns back, as Back does.
+    const showing = notebook.roots().find(root => root.id === pageIdOf(entry(owner)));
+    const turn = journalTurn(pendingJournals[owner]?.date ?? (showing?.kind === 'journal' ? showing.text : undefined), value ?? todayDate());
     const request = cancelNavigation(pane);
     const controller = new AbortController();
     pendingJournals[pane] = { date: value ?? todayDate(), controller };
     try {
       const pageId = value === null ? await notebook.today(controller.signal) : await notebook.journal(value, controller.signal);
-      if (request === navigationRequests[pane]) open({ kind: 'page', pageId, ...(journalPeriod ? { journalPeriod } : {}) }, beside, owner);
+      if (request === navigationRequests[pane]) open({ kind: 'page', pageId, ...(journalPeriod ? { journalPeriod } : {}) }, beside, owner, undefined, undefined, turn);
     } catch (reason) {
       if (request === navigationRequests[pane]) reportError(reason);
     } finally {
@@ -470,13 +503,23 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     back: () => travel(active(), -1, true),
     scrollTop: scrollPaneTop,
   }));
+  const paneElement = (pane: PaneId) => document.querySelector<HTMLElement>(`.pane[data-pane="${CSS.escape(pane)}"]`);
+  /**
+   * Makes `pane` the active one and brings it into view. Where the row is tabs, the pane on show swaps with a fade;
+   * where a folded pane is revealed, the row glides; a pane already in view just takes focus.
+   */
+  const showPane = (pane: PaneId) => {
+    const from = paneElement(active());
+    const show = () => { setActive(pane); reveal(pane); focusPane(pane); };
+    if (tabbed() && from) crossfade(from, show, () => paneElement(pane));
+    else if (revealedStart(order(), fit(), start(), pane) !== start()) reflowPanes(show);
+    else show();
+  };
   /** Moves focus to the next pane in the row, wrapping at its end. */
   const switchPane = () => {
     if (!split()) return;
     const panes = order();
-    const pane = panes[(panes.indexOf(active()) + 1) % panes.length]!;
-    setActive(pane); reveal(pane);
-    focusPane(pane);
+    showPane(panes[(panes.indexOf(active()) + 1) % panes.length]!);
   };
   /** Forgets a pane that left the row. Its state goes after the row has unmounted it. */
   const dropPane = (pane: PaneId) => {
@@ -490,9 +533,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     if (!split()) return;
     const panes = order(), at = panes.indexOf(pane);
     const next = panes[at > 0 ? at - 1 : 1]!;
-    dropPane(pane);
-    setActive(next); reveal(next);
-    focusPane(next);
+    reflowPanes(() => {
+      dropPane(pane);
+      setActive(next); reveal(next);
+      focusPane(next);
+    });
   };
   // Panes the window cannot fit fold into spines; `start` is the first pane shown. Below 840 px the row becomes tabs.
   const tabbedQuery = window.matchMedia('(max-width: 839px)');
@@ -508,12 +553,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const fit = () => tabbed() ? order().length : paneCapacity(rowWidth(), order().length);
   const shown = (pane: PaneId) => { const at = order().indexOf(pane); return tabbed() || at >= start() && at < start() + fit(); };
   /** Scrolls the row so `pane` shows, then `keep` if it can stay in view too. */
-  const reveal = (pane: PaneId, keep?: PaneId) => {
-    const panes = order(), count = panes.length, width = fit();
-    let next = windowStart(count, width, start(), panes.indexOf(pane));
-    if (keep) next = windowStart(count, width, next, panes.indexOf(keep));
-    setStart(next);
-  };
+  const reveal = (pane: PaneId, keep?: PaneId) => setStart(revealedStart(order(), fit(), start(), pane, keep));
   // A narrower window or a closed pane keeps the active pane in view.
   createEffect(() => { const panes = order(), width = fit(), at = panes.indexOf(active()); setStart(value => windowStart(panes.length, width, value, Math.max(0, at))); });
   // Full screen belongs to one reader pane. It ends when that pane shows something else or the other pane takes over.
@@ -545,7 +585,27 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const pin = (id: string) => setPinned(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]);
   const pinView = (id: string) => setPinnedViews(values => values.includes(id) ? values.filter(value => value !== id) : [...values, id]);
   const openView = (view: View, beside = false, owner = active()) => open(view.query.note_kind && view.query.note_view?.layout === 'index' ? { kind: 'index', key: view.query.note_kind, viewId: view.id, query: copyQuery(view.query) } : { kind: 'table', typeId: view.query.type, viewId: view.id, query: copyQuery(view.query) }, beside, owner);
-  const showPalette = (kind: 'search' | 'commands') => setPopup({ kind, anchor: kind === 'search' ? searchButton : document.body, pane: active() });
+  const showPalette = (kind: 'search' | 'commands') => {
+    // One surface at a time: a draft slip keeps its text and takes the focus back, an untouched one makes way.
+    if (creation()) {
+      if (createDirty()) { refocusDraft(); return; }
+      setCreation(undefined);
+    }
+    setPopup({ kind, anchor: kind === 'search' ? searchButton : document.body, pane: active() });
+  };
+  /**
+   * What was open when the current press began. A popup anchored to the page dismisses on that press, before its
+   * opener's click runs, so the click alone cannot tell a second click on the opener from a first.
+   */
+  let pressedPopup: { state: PopupState; at: number } | undefined;
+  /** An opener's click toggles its popup: a second click closes what the first opened instead of rebuilding it. */
+  const toggleOpener = (kind: NonNullable<PopupState>['kind'], anchor: HTMLElement, open: () => void) => {
+    const press = pressedPopup && performance.now() - pressedPopup.at < 600 ? pressedPopup : undefined;
+    pressedPopup = undefined;
+    const current = press ? press.state : popup();
+    if (current?.kind === kind && current.anchor === anchor) setPopup(null);
+    else open();
+  };
   const chooseDate = (pane = active(), anchor: HTMLElement = document.querySelector<HTMLButtonElement>(`[data-pane="${pane}"] .journal-date`) ?? searchButton) => {
     setPopup({ kind: 'calendar', anchor, pane, date: journalDate(pane) });
   };
@@ -625,6 +685,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   /** A shortcut or widget tap while a draft is open returns to that draft; only a request carrying text replaces it. */
   const quickCreate = (request: CreateRequest) => {
     if (!creation() || !createDirty() || request.text) { openCreate(request); return; }
+    refocusDraft();
+  };
+  const refocusDraft = () => {
     const field = document.querySelector<HTMLElement>('.create-slip textarea, .create-slip input:not([type="file"])');
     if (field) { field.blur(); field.focus(); }
   };
@@ -648,29 +711,54 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     };
     window.addEventListener('tessera-open', nativeOpen);
     onCleanup(() => window.removeEventListener('tessera-open', nativeOpen));
-    const onNarrow = () => setNarrow(narrowQuery.matches);
+    // A breakpoint crossing switches layout modes; it is not a gesture, so the shell changes at once rather than easing through.
+    let layoutTimer = 0;
+    const layoutSwitched = () => {
+      document.documentElement.dataset.layoutSwitching = '';
+      clearTimeout(layoutTimer);
+      layoutTimer = window.setTimeout(() => delete document.documentElement.dataset.layoutSwitching, 100);
+    };
+    onCleanup(() => { clearTimeout(layoutTimer); delete document.documentElement.dataset.layoutSwitching; });
+    const onNarrow = () => { layoutSwitched(); setNarrow(narrowQuery.matches); };
     narrowQuery.addEventListener('change', onNarrow);
     onCleanup(() => narrowQuery.removeEventListener('change', onNarrow));
-    const onCover = () => { setCover(coverQuery.matches); if (coverQuery.matches) setSidebar(false); };
+    const onCover = () => { layoutSwitched(); setCover(coverQuery.matches); if (coverQuery.matches) setSidebar(false); };
     coverQuery.addEventListener('change', onCover);
     onCleanup(() => coverQuery.removeEventListener('change', onCover));
-    const onTabbed = () => setTabbed(tabbedQuery.matches);
+    const onTabbed = () => { layoutSwitched(); setTabbed(tabbedQuery.matches); };
     tabbedQuery.addEventListener('change', onTabbed);
     onCleanup(() => tabbedQuery.removeEventListener('change', onTabbed));
+    onCleanup(installDisclosureMotion());
+    // Popups that dismiss on the press that starts a click leave the opener's click unable to see what was open.
+    const onPress = () => { pressedPopup = { state: popup(), at: performance.now() }; };
+    const onPressKey = () => { pressedPopup = undefined; };
+    window.addEventListener('pointerdown', onPress, true);
+    window.addEventListener('keydown', onPressKey, true);
+    onCleanup(() => { window.removeEventListener('pointerdown', onPress, true); window.removeEventListener('keydown', onPressKey, true); });
     // Page deletion navigates away from its document. While it remains the
     // latest action, recover it before the replacement outline consumes Undo.
     const onPageUndo = (event: KeyboardEvent) => {
       if (event.isComposing || deletionUndoSequence() === null || !deleted()
         || !(mac ? event.metaKey : event.ctrlKey) || event.shiftKey || event.altKey
         || event.key.toLocaleLowerCase() !== 'z'
-        || document.querySelector('.popup:not(.reference-preview), .popup.reference-preview:focus-within')) return;
+        || document.querySelector('dialog:modal, .popup:not(.reference-preview), .popup.reference-preview:focus-within')) return;
       event.preventDefault(); event.stopImmediatePropagation();
       void restorePage();
     };
     window.addEventListener('keydown', onPageUndo, true);
     onCleanup(() => window.removeEventListener('keydown', onPageUndo, true));
     const onKey = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.isComposing || document.querySelector('.popup:not(.reference-preview), .popup.reference-preview:focus-within')) return;
+      // A modal dialog (image viewer, annotation composer, occlusion editor) owns the keyboard; shell chords would run behind it.
+      if (event.defaultPrevented || event.isComposing || document.querySelector('dialog:modal')) return;
+      // The keys sheet is a popup, which stops shell chords; its own chord closes it.
+      if ((mac ? event.metaKey : event.ctrlKey) && !event.shiftKey && !event.altKey && (event.key === '/' || event.code === 'Slash') && popup()?.kind === 'shortcuts') {
+        if (document.documentElement.dataset.windowControls) return;
+        event.preventDefault(); event.stopPropagation();
+        if (!event.repeat) setPopup(null);
+        return;
+      }
+      if (document.querySelector('.popup:not(.reference-preview), .popup.reference-preview:focus-within')) return;
+      if (event.key === 'Escape' && overlayOpen()) { event.preventDefault(); event.stopPropagation(); setSidebar(false); return; }
       // Native menu accelerators dispatch these commands themselves, including in full screen.
       if ((mac ? event.metaKey : event.ctrlKey) && !event.shiftKey && (event.code === 'KeyN' || event.key.toLocaleLowerCase() === 'n')) {
         if (document.documentElement.dataset.windowControls) return;
@@ -864,7 +952,9 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       const id: unknown = (event as CustomEvent).detail;
       if (typeof id !== 'string') return;
       const command = commands.list().find(command => command.id === id);
-      if (!command || command.disabledReason?.()) return;
+      if (!command || command.disabledReason?.() || document.querySelector('dialog:modal')) return;
+      // The native chord for the keys sheet toggles it.
+      if (id === 'shell.shortcuts' && popup()?.kind === 'shortcuts') { setPopup(null); return; }
       setPopup(null); setTypesMenu(null);
       command.run();
     };
@@ -1111,6 +1201,17 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     setDock(show);
     try { localStorage.setItem('tessera.agent.dock', show ? 'open' : 'closed'); } catch { /* The dock keeps its state for this tab. */ }
   }
+  /** The dock stays mounted through its exit, while its column closes. */
+  const dockHeld = createRetained(() => dock() || undefined);
+  // Closing the dock while the caret is in it hands the caret back to the panes.
+  createEffect(on(dock, open => { if (!open && document.querySelector('.agent-dock')?.contains(document.activeElement)) focusPane(active()); }, { defer: true }));
+  // The narrow sidebar is modal: focus moves into it on open and returns to its toggle on close.
+  createEffect(on(overlayOpen, open => {
+    if (open) { (sidebarElement.querySelector<HTMLElement>('.button.selected') ?? sidebarElement.querySelector<HTMLElement>('.button'))?.focus({ preventScroll: true }); return; }
+    if (sidebar() || cover()) return;
+    const focused = document.activeElement;
+    if (!focused || focused === document.body || sidebarElement.contains(focused)) sidebarToggle.focus({ preventScroll: true });
+  }, { defer: true }));
   const [dockExcluded, setDockExcluded] = createSignal<ReadonlySet<string>>(new Set());
   const [dockExtra, setDockExtra] = createSignal<ContextChip[]>([]);
   const contextKey = (ref: ContextRef) => `${ref.page_id}:${ref.block_id ?? ''}`;
@@ -1231,34 +1332,35 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   return <AgentMarks.Provider value={agentMarks}><div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${dock() ? 'has-dock' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`} style={{ '--visual-viewport-height': `${viewport().height}px`, '--visual-viewport-top': `${viewport().top}px`, '--visual-viewport-bottom-gap': `${Math.max(0, window.innerHeight - viewport().bottom)}px` }} onPointerDown={() => { focusEpoch++; }}>
     <header class="global-rail" aria-label="Global navigation" data-tauri-drag-region="deep">
       <div class="rail-start">
-        <Button icon="sidebar" label="Toggle sidebar" aria-expanded={sidebarVisible()} onClick={toggleSidebar} />
+        <Button ref={sidebarToggle} icon="sidebar" label="Toggle sidebar" aria-expanded={sidebarVisible()} onClick={toggleSidebar} />
         <span class="wordmark" title={info()?.path}>Tessera</span>
         <SyncMark open={!!syncAnchor()} onOpen={setSyncAnchor} />
       </div>
       <div class="rail-finder" role="group" aria-label="Find and commands">
-        <Button ref={searchButton} class="global-search" icon="find" label="Find or create" shortcut="⌃⇧F" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={() => showPalette('search')}><span>Find or create…</span><kbd>⌃⇧F</kbd></Button>
-        <Button class="global-commands" icon="command" label="Commands" shortcut="⌃⇧P" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'commands'} onClick={() => showPalette('commands')} />
+        <Button ref={searchButton} class="global-search" icon="find" label="Find or create" shortcut="⌃⇧F" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={() => toggleOpener('search', searchButton, () => showPalette('search'))}><span>Find or create…</span><kbd>⌃⇧F</kbd></Button>
+        <Button class="global-commands" icon="command" label="Commands" shortcut="⌃⇧P" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'commands'} onClick={() => toggleOpener('commands', document.body, () => showPalette('commands'))} />
       </div>
       <div class="rail-end">
         <Show when={!DEMO}><Button icon="agent" label="Agent" shortcut="⌃⇧A" aria-pressed={dock()} onClick={() => toggleDock()} /></Show>
-        <Button icon="panes" label="Layout" aria-haspopup="menu" aria-expanded={popup()?.kind === 'layout'} onClick={event => setPopup({ kind: 'layout', anchor: event.currentTarget, pane: active() })} />
+        <Button icon="panes" label="Layout" aria-haspopup="menu" aria-expanded={popup()?.kind === 'layout'} onClick={event => { const anchor = event.currentTarget; toggleOpener('layout', anchor, () => setPopup({ kind: 'layout', anchor, pane: active() })); }} />
       </div>
     </header>
-    <aside class="sidebar" aria-label="Workshop navigation" aria-hidden={!sidebarVisible()} inert={!sidebarVisible()}>
+    <aside ref={sidebarElement} class="sidebar" aria-label="Workshop navigation" aria-hidden={!sidebarVisible()} inert={!sidebarVisible()}>
       {renderNavigation(active)}
     </aside>
-    <Show when={!cover() && narrow() && sidebar()}><div class="sidebar-shade" aria-hidden="true" onClick={() => setSidebar(false)} /></Show>
-    <main class="workspace">
-      <Show when={split()}><div class="pane-tabs"><div class="pane-tab-strip mode-tabs tab-strip" role="tablist" aria-label="Working panes"><For each={order()}>{(pane, position) => <><Button role="tab" aria-selected={active() === pane} onClick={() => { if (active() !== pane) { setActive(pane); focusPane(pane); } }}><span class="pane-tab-number">{position() + 1}</span><span class="pane-tab-title">{paneName(pane)}</span></Button><Button class="pane-tab-close" icon="close" label={`Close ${paneName(pane)}`} shortcut={active() === pane ? '⌃⇧X' : undefined} onClick={() => closePane(pane)} /></>}</For></div></div></Show>
+    {/* The scrim stays mounted below the desktop breakpoint, so it fades out with the sidebar instead of vanishing. */}
+    <Show when={!cover() && narrow()}><div class="sidebar-shade" aria-hidden="true" onClick={() => setSidebar(false)} /></Show>
+    <main class="workspace" inert={overlayOpen()}>
+      <Show when={split()}><div class="pane-tabs"><div class="pane-tab-strip mode-tabs tab-strip" role="tablist" aria-label="Working panes"><For each={order()}>{(pane, position) => <><Button role="tab" aria-selected={active() === pane} onClick={() => { if (active() !== pane) showPane(pane); }}><span class="pane-tab-number">{position() + 1}</span><span class="pane-tab-title">{paneName(pane)}</span></Button><Button class="pane-tab-close" icon="close" label={`Close ${paneName(pane)}`} shortcut={active() === pane ? '⌃⇧X' : undefined} onClick={() => closePane(pane)} /></>}</For></div></div></Show>
       <Show when={error()}><div class="shell-error" role="alert"><Icon name="warning" /><span>{error()}</span><Button onClick={() => { if (offlineUnavailable()) { location.reload(); return; } setError(''); void today(); }}>Retry</Button></div></Show>
       <GlobalBanner notebook={notebook} onReview={reviewConflict} />
       <div ref={paneRow} class="panes"><For each={order()}>{(pane, position) => <>
-        <Show when={!shown(pane)}><button type="button" class="pane-spine" data-spine={pane} aria-label={`Show pane ${position() + 1}, ${paneName(pane)}`} title={paneName(pane)} onClick={() => { setActive(pane); reveal(pane); focusPane(pane); }}>
+        <Show when={!shown(pane)}><button type="button" class="pane-spine" data-spine={pane} aria-label={`Show pane ${position() + 1}, ${paneName(pane)}`} title={paneName(pane)} onClick={() => showPane(pane)}>
           <span class="pane-spine-number">{position() + 1}</span><span class="pane-spine-title">{paneName(pane)}</span>
         </button></Show>
         <Show when={!tabbed() && shown(pane) && position() > start()}>
           <PaneDivider left={order()[position() - 1]!} right={pane} follows={!!listKinds[entry(order()[position() - 1]!)?.target.kind ?? 'page']} weights={weights()}
-            onResize={(left, right) => setWeights(values => ({ ...values, [order()[position() - 1]!]: left, [pane]: right }))} onReset={() => setWeights({})} />
+            onResize={(left, right) => setWeights(values => ({ ...values, [order()[position() - 1]!]: left, [pane]: right }))} onReset={() => reflowPanes(() => setWeights({}))} />
         </Show>
         <Show when={entry(pane)}>
         <Pane pane={pane} number={position() + 1} folded={!shown(pane)} grow={weights()[pane] ?? 1} neighbour={position() < order().length - 1} session={() => sessions()[pane]!} active={active() === pane} split={split()} immersive={immersive() === pane} onImmersive={on => immerse(pane, on)} notebook={notebook} commands={commands} vim={vim()} vimMode={vimModes()[pane] ?? null} onVimMode={mode => setVimModes(values => ({ ...values, [pane]: mode }))} pinned={pinned().includes(pageIdOf(entry(pane)) ?? '')} pagePresentations={pagePresentations()} title={paneTitle(pane)} fieldName={fieldName} noteKind={indexKind(pane)}
@@ -1274,7 +1376,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
           onTargetChange={target => changeTarget(pane, target)}
           onTravel={delta => travel(pane, delta)}
           onClose={() => closePane(pane)}
-          onChooseDate={anchor => chooseDate(pane, anchor)}
+          onChooseDate={anchor => toggleOpener('calendar', anchor, () => chooseDate(pane, anchor))}
           onShiftDate={delta => shiftDate(delta, pane)}
           onPin={() => { const id = pageIdOf(entry(pane)); if (id) pin(id); }}
           onRename={() => runOutline('rename', pane)}
@@ -1290,24 +1392,25 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <Show when={!order().some(pane => entry(pane)) && !error()}><div class="startup-state">Opening today’s journal…</div></Show>
       <Show when={dragChip()}>{chip => <div class="pane-drag-chip" style={{ transform: `translate(${chip().x + 14}px, ${chip().y + 14}px)` }} aria-hidden="true">{chip().label}</div>}</Show>
     </main>
-    <Show when={dock()}>
-      <AgentDock notebook={notebook} session={agentSession} chips={dockChips()} excluded={dockExcluded()}
+    <Show when={dockHeld()}>{held =>
+      <AgentDock leaving={held().leaving} notebook={notebook} session={agentSession} chips={dockChips()} excluded={dockExcluded()}
         onToggleChip={key => setDockExcluded(values => { const next = new Set(values); if (!next.delete(key)) next.add(key); return next; })}
         onRemoveChip={key => setDockExtra(values => values.filter(chip => chip.key !== key))}
         onShow={showAgentEdit} onOpen={(target, beside) => open(target, beside)}
-        onSettings={() => open({ kind: 'settings', section: 'agent' }, true)} onClose={() => toggleDock(false)} />
+        onSettings={() => open({ kind: 'settings', section: 'agent' }, true)} onClose={() => toggleDock(false)} />}
     </Show>
     <SyncLifecycle notebook={notebook} anchor={syncAnchor()} onClose={() => setSyncAnchor(null)} onDevices={deviceId => open({ kind: 'settings', section: 'devices', deviceId })} />
     <SyncCover open={!!syncAnchor()} onOpen={setSyncAnchor} />
     <nav class="bottom-nav" aria-label="Workshop">
       <div class="bottom-tabs">
-        <Button icon="today" class={phoneTabFor(sessions()[active()]) === 'today' ? 'selected' : ''} onClick={() => { void selectPhoneTab('today').catch(reportError); }}><span>Today</span></Button>
-        <Button icon="agenda" class={phoneTabFor(sessions()[active()]) === 'agenda' ? 'selected' : ''} onClick={() => { void selectPhoneTab('agenda').catch(reportError); }}><span>Agenda</span><Show when={counts()?.overdue}>{count => <span class="bottom-nav-badge" aria-label={`${count()} overdue`}>{count()}</span>}</Show></Button>
-        <Button icon="review" class={phoneTabFor(sessions()[active()]) === 'review' ? 'selected' : ''} onClick={() => { void selectPhoneTab('review').catch(reportError); }}><span>Review</span></Button>
-        <Button icon="library" class={phoneTabFor(sessions()[active()]) === 'library' ? 'selected' : ''} aria-haspopup="menu" aria-expanded={!!typesMenu()}
+        <Button icon="today" class={phoneTabFor(sessions()[active()]) === 'today' ? 'selected' : ''} aria-current={phoneTabFor(sessions()[active()]) === 'today' ? 'page' : undefined} onClick={() => { void selectPhoneTab('today').catch(reportError); }}><span>Today</span></Button>
+        <Button icon="agenda" class={phoneTabFor(sessions()[active()]) === 'agenda' ? 'selected' : ''} aria-current={phoneTabFor(sessions()[active()]) === 'agenda' ? 'page' : undefined} onClick={() => { void selectPhoneTab('agenda').catch(reportError); }}><span>Agenda</span><Show when={counts()?.overdue}>{count => <span class="bottom-nav-badge" aria-label={`${count()} overdue`}>{count()}</span>}</Show></Button>
+        <Button icon="review" class={phoneTabFor(sessions()[active()]) === 'review' ? 'selected' : ''} aria-current={phoneTabFor(sessions()[active()]) === 'review' ? 'page' : undefined} onClick={() => { void selectPhoneTab('review').catch(reportError); }}><span>Review</span></Button>
+        {/* Long press lists the types, but Library itself is a destination, so it announces as one. */}
+        <Button icon="library" class={phoneTabFor(sessions()[active()]) === 'library' ? 'selected' : ''} aria-current={phoneTabFor(sessions()[active()]) === 'library' ? 'page' : undefined}
           onClick={() => { void selectPhoneTab('library').catch(reportError); }} onContextMenu={event => { event.preventDefault(); void showTypes(event.currentTarget); }}><span>Library</span></Button>
       </div>
-      <Button icon="search" label="Find" class={`bottom-find ${popup()?.kind === 'search' ? 'selected' : ''}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={event => setPopup({ kind: 'search', anchor: event.currentTarget, pane: active() })} />
+      <Button icon="search" label="Find" class={`bottom-find ${popup()?.kind === 'search' ? 'selected' : ''}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={event => { const anchor = event.currentTarget; toggleOpener('search', anchor, () => setPopup({ kind: 'search', anchor, pane: active() })); }} />
     </nav>
     <Show when={questionsMenu()}>{anchor => <Menu anchor={anchor()} label="Questions" onDismiss={() => setQuestionsMenu(undefined)} items={[
       { label: 'Open research desk', icon: 'panes', action: () => { setQuestionsMenu(undefined); open(deskTarget()); } },
@@ -1319,7 +1422,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     ]} />}</Show>
     <Show keyed when={popup()}>{state => <>
       <Show when={state.kind === 'search' || state.kind === 'commands'}>
-        <Palette anchor={state.anchor} pane={state.pane} mode={state.kind === 'commands' ? 'commands' : 'search'} commands={commands} notebook={notebook} noteKinds={index()?.kinds ?? []} onDismiss={() => setPopup(null)} onRestoreFocus={() => { if (!popup() && active() === state.pane) focusPane(state.pane); }} onOpen={(target, beside) => open(target, beside, state.pane)} onCreate={openCreate} />
+        <Palette anchor={state.anchor} pane={state.pane} mode={state.kind === 'commands' ? 'commands' : 'search'} commands={commands} notebook={notebook} noteKinds={index()?.kinds ?? []} onDismiss={() => setPopup(null)} onRestoreFocus={() => { if (!popup() && active() === state.pane) focusPane(state.pane); }} onOpen={(target, beside) => open(target, beside, state.pane)} onCreate={openCreate} onNotice={showNotice} />
       </Show>
       <Show when={state.kind === 'calendar'}>
         <Calendar notebook={notebook} anchor={state.anchor} date={state.date ?? journalDate(state.pane)} today={todayDate()} onToday={() => { void today(state.pane); }} onDismiss={() => setPopup(null)} onSelect={value => { void journal(value, state.pane); }} />
@@ -1334,7 +1437,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <DeletedPages anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onRestored={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />
       </Show>
       <Show when={state.kind === 'delete'}>
-        <Popup anchor={state.anchor} label="Delete atom" onDismiss={() => setPopup(null)} width={300} fitContent>
+        <Popup anchor={state.anchor} placement={cover() ? 'sheet' : 'anchor'} label="Delete atom" onDismiss={() => setPopup(null)} width={300} fitContent>
           <p>Delete “{notebook.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ?? rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}” and {state.source ? 'its highlights' : 'all its atoms'}?</p>
           <HolderDeletionImpact notebook={notebook} pageId={pageIdOf(entry(state.pane))} />
           <p class="muted">Undo this deletion, or use Restore deleted atom in Commands after reloading.</p>
@@ -1345,7 +1448,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <Menu anchor={state.anchor} label="Layout" onDismiss={() => setPopup(null)} items={[
           { label: 'Open active view beside', icon: 'panes', shortcut: '⌃⇧O', disabledReason: entry(state.pane) ? besideReason(state.pane) : 'No view is open', action: () => openPageBeside(state.pane) },
           { label: 'Next pane', icon: 'panes', shortcut: '⌃⇧]', disabledReason: split() ? undefined : 'Open a second pane first', action: switchPane },
-          { label: 'Even pane widths', icon: 'panes', disabledReason: !split() ? 'Open a second pane first' : Object.keys(weights()).length ? undefined : 'Panes are already even', action: () => setWeights({}) },
+          { label: 'Even pane widths', icon: 'panes', disabledReason: !split() ? 'Open a second pane first' : Object.keys(weights()).length ? undefined : 'Panes are already even', action: () => reflowPanes(() => setWeights({})) },
           { label: 'Close active pane', icon: 'close', shortcut: '⌃⇧X', disabledReason: split() ? undefined : 'Only one pane is open', action: () => closePane(state.pane) },
           { section: 'Navigation', label: sidebarVisible() ? 'Hide sidebar' : 'Show sidebar', icon: 'sidebar', action: toggleSidebar },
         ]} />
@@ -1353,7 +1456,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     </>}</Show>
     <Show keyed when={creation()}>{state => <CreateSlip notebook={notebook} request={state.request} anchor={state.anchor} onDismiss={closeCreate} onOpen={(target, beside) => open(target, beside, state.pane)} onNotice={showNotice} onDraft={setCreateDirty} />}</Show>
     <ReferencePreviews notebook={notebook} navigationKey={`${active()}:${order().map(pane => sessions()[pane]?.generation ?? 0).join(':')}`} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
-    <Show when={toastShown() && notice()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setToastHeld(true)} onPointerLeave={() => setToastHeld(false)} onFocusIn={() => setToastHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastHeld(false); }}><span>{value().message}</span><For each={value().actions}>{action => <Button disabled={noticeBusy()} onClick={() => void noticeAction(action)}>{action.label}</Button>}</For><Button icon="close" label="Dismiss notification" onClick={() => setToastShown(false)} /></div>}</Show>
+    <Show when={toast()}>{item => <div class="undo-toast" classList={{ leaving: item().leaving }} inert={item().leaving} role="status" onPointerEnter={() => setToastHeld(true)} onPointerLeave={() => setToastHeld(false)} onFocusIn={() => setToastHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastHeld(false); }}><span>{item().value.message}</span><For each={item().value.actions}>{action => <Button disabled={noticeBusy()} onClick={() => void noticeAction(action)}>{action.label}</Button>}</For><Button icon="close" label="Dismiss notification" onClick={() => setToastShown(false)} /></div>}</Show>
     <NotebookOpening />
   </div></AgentMarks.Provider>;
 }
@@ -1508,7 +1611,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   let menuButton!: HTMLButtonElement;
   let content!: HTMLDivElement;
   const motionIdentity = createMemo(() => paneTargetIdentity(current().target));
-  createPaneMotion(() => content, motionIdentity);
+  createPaneMotion(() => content, createMemo(() => paneMotionIdentity(current().target)));
   const [scrolled, setScrolled] = createSignal(false);
   createEffect(() => { paneGeneration(); motionIdentity(); setScrolled(false); });
   onMount(() => {
@@ -1607,7 +1710,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   };
   // Journals and other untitled roots have no projections, so their zooms carry neither the tabs nor Read's reason.
   const projectionTabsShown = () => root()?.kind === 'page' || !!outlineView().zoom && !!doc()?.block(outlineView().zoom!)?.position;
-  const ProjectionTabs = () => <div class="mode-tabs tab-strip page-projection-tabs" role="tablist" aria-label="Atom projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} title={value === 'read' ? projectionReason(value) : value === 'compare' ? compareReason() : undefined} aria-description={value === 'read' ? projectionReason(value) : value === 'compare' ? compareReason() : undefined} onClick={event => setProjection(value, opensBeside(event))}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div>;
+  const ProjectionTabs = () => <div class="mode-tabs tab-strip page-projection-tabs" data-mode-panel=".outline-pane" role="tablist" aria-label="Atom projection"><For each={['read', 'outline', 'compare'] as const}>{value => <Button role="tab" aria-selected={projection() === value} disabled={value === 'read' ? !!projectionReason(value) : value === 'compare' && !!compareReason()} title={value === 'read' ? projectionReason(value) : value === 'compare' ? compareReason() : undefined} aria-description={value === 'read' ? projectionReason(value) : value === 'compare' ? compareReason() : undefined} onClick={event => setProjection(value, opensBeside(event))}>{value === 'read' ? 'Read' : value === 'outline' ? 'Outline' : 'Compare'}</Button>}</For></div>;
   const breadcrumbs = createMemo(() => {
     const page = doc(); const zoom = 'zoom' in current().view ? outlineView().zoom : null; if (!page || !zoom) return [];
     const result = []; let block = page.block(zoom);
@@ -1728,7 +1831,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     if (current().target.kind === 'index') kindCreate()?.run(anchor);
     else props.onCreate(current().target.kind === 'agenda'
       ? { kind: 'task', text: '', into: { kind: 'journal' }, lockKind: true, scheduledDate: (current().view as AgendaViewState).date }
-      : blankCapture());
+      : blankCapture(), anchor);
   };
   return <section class="pane" classList={{ active: props.active, immersive: props.immersive, folded: props.folded }} style={{ 'flex-grow': props.grow }} data-pane={props.pane} data-page-style={pageStyle()} aria-label={`Pane ${props.number}`} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
     <header class="pane-header" classList={{ 'pane-scrolled': scrolled(), 'pane-tab-root': tabRoot() }}>
@@ -1770,7 +1873,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       </>}</Show>
       <Show when={showNew()}><Button class="pane-new" icon="plus" label={newLabel()} aria-haspopup="dialog" onClick={event => create(event.currentTarget)} /></Show>
       <Show when={cover() && current().target.kind === 'directory'}><Button class="pane-settings" icon="settings" label="Settings" onClick={() => props.onOpen({ kind: 'settings' }, false)} /></Show>
-      <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Atom menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
+      <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Atom menu" aria-haspopup="menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>

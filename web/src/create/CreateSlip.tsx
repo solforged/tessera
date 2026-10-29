@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
+import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal, onCleanup, onMount, type Accessor } from 'solid-js';
 import type { NotebookClient, CaptureReceipt } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { shortDay } from '../shell/desk-counts';
@@ -9,7 +9,7 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
-import { Popup, type PopupAnchor } from '../ui/Popup';
+import { InlinePopups, Popup, type PopupAnchor } from '../ui/Popup';
 import { CaptureField } from '../capture/CaptureField';
 import { CardComposerBody } from '../review/CardComposer';
 import { AddSourceBody } from '../library/AddSheet';
@@ -20,6 +20,7 @@ import { CapturedToday, LinkPreview, ReadingUnder, shortTitle, underText } from 
 import { titledLink } from './today-journal';
 import { linkWhenImported } from './link-import';
 import type { UnderChoice } from './SlipParts';
+import { SlipLoadingContext } from './slip-loading';
 import { captureSection, isWritten, section, sectionTarget } from '../tasks/today-template';
 import './create.css';
 
@@ -47,14 +48,35 @@ const lineKinds: { kind: CreateKind; label: string; icon: IconName }[] = [
 ];
 const webAddress = (text: string) => /^https?:\/\/\S+$/i.test(text.trim()) ? text.trim() : null;
 
+/** Lines a slip lost to Escape, Cancel or Close, offered back when the same kind of slip opens empty again. */
+const abandoned = new Map<string, string>();
+/** Find's "as…" slip starts from its own text and kind chooser, so it neither takes nor leaves a draft. */
+const draftKey = (request: CreateRequest) => request.focus ? null : JSON.stringify([request.kind, request.into ?? null, !!request.lockKind, request.scheduledDate ?? null]);
+
 export function CreateSlip(props: CreateSlipProps) {
-  return <Popup anchor={props.anchor ?? document.body} placement={cover() ? 'sheet' : props.anchor ? 'anchor' : 'top'} width={560} fitContent class="create-slip" label="Create" onDismiss={props.onDismiss} autofocus={props.request.focus === 'kind' && !props.request.lockKind ? false : undefined}>
-    <CreateSlipBody {...props} onOpen={(target, beside) => { props.onDismiss(); props.onOpen(target, beside); }} sheet={cover()} />
+  const key = props.request.text ? null : draftKey(props.request);
+  const earlier = key ? abandoned.get(key) : undefined;
+  if (key) abandoned.delete(key);
+  const request = earlier ? { ...props.request, text: earlier } : props.request;
+  let draft = request.text;
+  let closeEditor: (() => boolean) | undefined;
+  const [dirty, setDirty] = createSignal(false);
+  // Hold the first frame until the slip has its fields and recent captures, so it never grows while fading in.
+  const [settled, setSettled] = createSignal(false);
+  // Escape on a phone sheet first closes an open Kind or Atom editor; only then does it close the slip.
+  const cancel = () => {
+    if (closeEditor?.()) return;
+    const slot = draftKey(props.request);
+    if (slot && draft.trim()) abandoned.set(slot, draft);
+    props.onDismiss();
+  };
+  return <Popup anchor={props.anchor ?? document.body} placement={cover() ? 'sheet' : props.anchor ? 'anchor' : 'top'} width={560} fitContent modal ready={settled()} dirty={dirty} class="create-slip" label="Create" onDismiss={cancel} autofocus={props.request.focus === 'kind' && !props.request.lockKind ? false : undefined}>
+    <CreateSlipBody {...props} request={request} onOpen={(target, beside) => { props.onDismiss(); props.onOpen(target, beside); }} onCancel={cancel} onEditors={close => { closeEditor = close; }} onText={value => { draft = value; }} onDraft={value => { setDirty(value); props.onDraft?.(value); }} onSettled={() => setSettled(true)} sheet={cover()} />
   </Popup>;
 }
 
 /** The native capture panel supplies its own window instead of a Popup. Remount to replace its draft. */
-export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
+export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean; onCancel?(): void; onEditors?(close: () => boolean): void; onText?(text: string): void; onSettled?(): void }) {
   const [kind, setKind] = createSignal<CreateKind>(props.request.kind);
   const [text, setText] = createSignal(props.request.text);
   const [gist, setGist] = createSignal('');
@@ -87,7 +109,24 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
   const [under, setUnder] = createSignal<UnderChoice>();
   const [linkTitle, setLinkTitle] = createSignal<string | null>(null);
   const [linkLibrary, setLinkLibrary] = createSignal(false);
+  // A card's back is not the slip's text, so the card form reports its own typed content.
+  const [cardDirty, setCardDirty] = createSignal(false);
   const [recipes] = createResource(() => kind().startsWith('type:') && noteKind()?.type_id || false, async id => (await props.notebook.api.cardTemplates(id)).filter(recipe => recipe.applied));
+  const [loaders, setLoaders] = createSignal<Accessor<boolean>[]>([]);
+  const track = (loading: Accessor<boolean>) => { setLoaders(list => [...list, loading]); onCleanup(() => setLoaders(list => list.filter(value => value !== loading))); };
+  track(() => recipes.loading);
+  track(() => kind().startsWith('type:') && !index());
+  /** On the phone sheet the Kind menu and Atom picker live inside the slip: close the open one, returning focus to its trigger. */
+  const closeEditor = () => {
+    const trigger = kindMenu() ?? picker();
+    if (!props.sheet || !trigger) return false;
+    setKindMenu(undefined); setPicker(undefined);
+    queueMicrotask(() => { if (trigger.isConnected) trigger.focus({ preventScroll: true }); });
+    return true;
+  };
+  props.onEditors?.(closeEditor);
+  /** Escape, Cancel and Close abandon the draft; saving and creating dismiss without it. */
+  const cancel = () => { if (!closeEditor()) (props.onCancel ?? props.onDismiss)(); };
   const atom = () => { const destination = into(); return destination.kind === 'under' ? destination.pageId : undefined; };
   const destinationTitle = () => atom() ? props.notebook.lookup(atom()!)()?.text ?? props.notebook.roots().find(page => page.id === atom())?.text ?? 'Atom' : '';
   const pageDraft = () => kind() === 'project' || kind().startsWith('type:') || (kind() === 'note' || kind() === 'question') && into().kind === 'page';
@@ -119,12 +158,26 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
       changeKind((inferred === 'source' && webAddress(value) && template().links === 'link' ? 'link' : inferred) ?? props.request.kind, false);
     }
   }
-  createEffect(() => props.onDraft?.(text().trim().length > 0 || gist().trim().length > 0));
+  createEffect(() => props.onDraft?.(text().trim().length > 0 || gist().trim().length > 0 || kind() === 'card' && cardDirty()));
+  createEffect(() => props.onText?.(text()));
+  createEffect(() => { if (!loaders().some(loading => loading())) props.onSettled?.(); });
   onMount(() => {
+    // A slow service must not keep the slip hidden; whatever arrives later still fits.
+    const timer = setTimeout(() => props.onSettled?.(), 250);
+    onCleanup(() => clearTimeout(timer));
     if (text() && !chosen) changeText(text());
-    if (props.request.focus === 'kind' && !props.request.lockKind) queueMicrotask(() => {
-      if (body.isConnected) body.querySelector<HTMLButtonElement>('.create-chip')?.focus();
-    });
+    if (props.request.focus === 'kind' && !props.request.lockKind) {
+      // The popup appears once its content settles, and a hidden chip cannot take focus.
+      const focusChip = (attempt: number) => {
+        const chip = body.querySelector<HTMLButtonElement>('.create-chip');
+        if (!chip?.isConnected) return;
+        chip.focus({ preventScroll: true });
+        // A modal popup holds focus on its own panel until the page behind it is inert and its content has appeared.
+        const held = document.activeElement === document.body || document.activeElement === chip.closest('.popup');
+        if (held && attempt < 15) requestAnimationFrame(() => focusChip(attempt + 1));
+      };
+      queueMicrotask(() => focusChip(0));
+    }
   });
   function chooseInto(value: CreateInto) { destinationChosen = true; setInto(value); }
   function announce(receipt: CaptureReceipt, message: string) {
@@ -170,35 +223,39 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean }) {
     </div>
     <Show when={sectionId() === 'reading' && kind() !== 'card'}><ReadingUnder notebook={props.notebook} value={under()} onChange={setUnder} /></Show>
   </Show>;
-  return <div ref={body} class="create-body" onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); props.onDismiss(); } }}>
-    <header class="capture-head"><span><span class="capture-title">{action()}</span> <span class="capture-where">{where()}</span></span><span class="capture-where">{shortDay(props.notebook.todayDate())}</span></header>
-    <Show when={!lineBody()}>
-      <Show when={!props.request.lockKind}><div class="create-kind-line">{chip()}</div></Show>
-      {destination()}
-    </Show>
-    <Switch>
-      <Match when={pageDraft()}><PageDraft notebook={props.notebook} kind={kind()} noteKind={noteKind()} text={text()} gist={gist()} sheet={!!props.sheet} onTextChange={changeText} onGistChange={setGist} onDismiss={props.onDismiss} onOpen={props.onOpen} onCreated={props.onCreated} onAdded={() => { chosen = true; setAdded(value => value + 1); }} status={status()} defaultBeside={props.defaultBeside} /></Match>
-      <Match when={kind() === 'card'}><CardComposerBody initialText={text()} onTextChange={changeText} sheet={props.sheet} status={status()} onSave={saveCard} onDismiss={props.onDismiss} /></Match>
-      <Match when={kind() === 'source'}><AddSourceBody notebook={props.notebook} initialText={text()} onTextChange={changeText} onDismiss={again => { if (again) { chosen = true; setText(''); setAdded(value => value + 1); } else props.onDismiss(); }} onJob={job => props.onNotice?.({ message: 'Added to library', actions: [{ label: 'Open', run: async () => {
-        const current = (await props.notebook.api.ingestJobs()).find(value => value.id === job.id);
-        props.onOpen(current?.source_id ? { kind: 'page', pageId: current.source_id } : { kind: 'library', tab: 'inbox' }, false);
-      } }] })} onAdded={sourceId => props.onNotice?.({ message: 'Added to library', actions: [{ label: 'Open', run: () => props.onOpen({ kind: 'page', pageId: sourceId }, false) }] })} /><Show when={status()}><p class="create-keys" role="status">{status()}</p></Show></Match>
-      <Match when={lineBody()}><CaptureField notebook={props.notebook} contextDate={() => props.request.scheduledDate ?? props.notebook.todayDate()} schedule={kind() === 'task' && !!props.request.scheduledDate} initialText={text()} fixedKind taskOnly={kind() === 'task'} question={kind() === 'question'} targetPageId={atom()} section={target()} onTextChange={changeText} label={action()} placeholder={kind() === 'link' ? 'Paste a link' : 'Write a line'} onSaved={saved} onCancel={props.onDismiss}
-        leading={props.request.lockKind ? undefined : chip()} prepare={kind() === 'link' ? value => webAddress(value) ? titledLink(value, linkTitle()) : value : undefined}
-        inputRef={input => { if (props.request.focus === 'kind' && !props.request.lockKind) return; input.focus(); input.setSelectionRange(input.value.length, input.value.length); }}>
-        {state => <>
-          <Show when={kind() === 'link' && webAddress(text())}>{url => <LinkPreview notebook={props.notebook} url={url()} library={linkLibrary()} onLibrary={setLinkLibrary} onTitle={setLinkTitle} />}</Show>
-          {destination()}
-          <Show when={!atom()}><CapturedToday notebook={props.notebook} refresh={added()} onOpen={(pageId, blockId) => props.onOpen({ kind: 'page', pageId, blockId }, false)} /></Show>
-          <footer class="create-foot"><span class="create-keys"><Show when={status()} fallback={<Show when={!props.sheet}><kbd>↵</kbd> Add <kbd>⇧↵</kbd> Add another <kbd>esc</kbd> Close</Show>}>{value => <span role="status">{value()}</span>}</Show></span><Show when={!props.sheet}><Button onClick={props.onDismiss}>Cancel</Button></Show><Button class="bordered create-add" disabled={state.busy() || !text().trim()} onClick={() => state.submit(false)}>{atom() ? `Add to ${destinationTitle()}` : `Add ${landing()}`}</Button></footer>
-        </>}
-      </CaptureField></Match>
-    </Switch>
+  /** On the phone sheet these render inside the sheet, beside their trigger, rather than as siblings floating over it. */
+  const editors = () => <>
     <Show when={kindMenu()}>{anchor => <Menu anchor={anchor()} label="Kind" onDismiss={() => setKindMenu(undefined)} items={[
       ...lineKinds.map(value => ({ label: value.label, icon: value.icon, checked: kind() === value.kind, action: () => changeKind(value.kind, true) })),
       { label: 'Project', section: 'More', icon: 'flag' as const, checked: kind() === 'project', action: () => changeKind('project', true) },
       ...moreKinds().filter(value => value.key !== 'project').map(value => ({ label: value.name, section: 'More', icon: noteKindIcon(value), checked: kind() === `type:${value.key}`, action: () => changeKind(`type:${value.key}`, true) })),
     ]} />}</Show>
     <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Atom" query={query()} onQuery={setQuery} placeholder="Find an atom" items={pages()?.rows ?? []} key={value => value.page.id} onDismiss={() => setPicker(undefined)} onPick={value => { chooseInto({ kind: 'under', pageId: value.page.id }); setPicker(undefined); }} row={value => <><Icon name="page" /><span class="picker-text">{value.page.text}</span></>} empty="No matching atoms." error={pages.error ? String(pages.error) : undefined} />}</Show>
-  </div>;
+  </>;
+  return <SlipLoadingContext.Provider value={track}><div ref={body} class="create-body" onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); cancel(); } }}>
+    <header class="capture-head"><span><span class="capture-title">{action()}</span> <span class="capture-where">{where()}</span></span><span class="capture-where">{shortDay(props.notebook.todayDate())}</span></header>
+    <Show when={!lineBody()}>
+      <Show when={!props.request.lockKind}><div class="create-kind-line">{chip()}</div></Show>
+      {destination()}
+    </Show>
+    <Switch>
+      <Match when={pageDraft()}><PageDraft notebook={props.notebook} kind={kind()} noteKind={noteKind()} text={text()} gist={gist()} sheet={!!props.sheet} onTextChange={changeText} onGistChange={setGist} onDismiss={cancel} onOpen={props.onOpen} onCreated={props.onCreated} onAdded={() => { chosen = true; setAdded(value => value + 1); }} status={status()} defaultBeside={props.defaultBeside} /></Match>
+      <Match when={kind() === 'card'}><CardComposerBody initialText={text()} onTextChange={changeText} sheet={props.sheet} status={status()} onSave={saveCard} onDismiss={props.onDismiss} onDirtyChange={setCardDirty} /></Match>
+      <Match when={kind() === 'source'}><AddSourceBody notebook={props.notebook} initialText={text()} onTextChange={changeText} onDismiss={again => { if (again) { chosen = true; setText(''); setAdded(value => value + 1); } else props.onDismiss(); }} onJob={job => props.onNotice?.({ message: 'Added to library', actions: [{ label: 'Open', run: async () => {
+        const current = (await props.notebook.api.ingestJobs()).find(value => value.id === job.id);
+        props.onOpen(current?.source_id ? { kind: 'page', pageId: current.source_id } : { kind: 'library', tab: 'inbox' }, false);
+      } }] })} onAdded={sourceId => props.onNotice?.({ message: 'Added to library', actions: [{ label: 'Open', run: () => props.onOpen({ kind: 'page', pageId: sourceId }, false) }] })} /><Show when={status()}><p class="create-keys" role="status">{status()}</p></Show></Match>
+      <Match when={lineBody()}><CaptureField notebook={props.notebook} contextDate={() => props.request.scheduledDate ?? props.notebook.todayDate()} schedule={kind() === 'task' && !!props.request.scheduledDate} initialText={text()} fixedKind taskOnly={kind() === 'task'} question={kind() === 'question'} targetPageId={atom()} section={target()} onTextChange={changeText} label={action()} placeholder={kind() === 'link' ? 'Paste a link' : 'Write a line'} onSaved={saved} onCancel={cancel}
+        leading={props.request.lockKind ? undefined : chip()} prepare={kind() === 'link' ? value => webAddress(value) ? titledLink(value, linkTitle()) : value : undefined}
+        inputRef={input => { if (props.request.focus === 'kind' && !props.request.lockKind) return; input.focus(); input.setSelectionRange(input.value.length, input.value.length); }}>
+        {state => <>
+          <Show when={kind() === 'link' && webAddress(text())}>{url => <LinkPreview notebook={props.notebook} url={url()} library={linkLibrary()} onLibrary={setLinkLibrary} onTitle={setLinkTitle} />}</Show>
+          {destination()}
+          <Show when={!atom()}><CapturedToday notebook={props.notebook} refresh={added()} onOpen={(pageId, blockId) => props.onOpen({ kind: 'page', pageId, blockId }, false)} /></Show>
+          <footer class="create-foot"><span class="create-keys"><Show when={status()} fallback={<Show when={!props.sheet}><kbd>↵</kbd> Add <kbd>⇧↵</kbd> Add another <kbd>esc</kbd> Close</Show>}>{value => <span role="status">{value()}</span>}</Show></span><Show when={!props.sheet}><Button onClick={cancel}>Cancel</Button></Show><Button class="bordered create-add" disabled={state.busy() || !text().trim()} onClick={() => state.submit(false)}>{atom() ? `Add to ${destinationTitle()}` : `Add ${landing()}`}</Button></footer>
+        </>}
+      </CaptureField></Match>
+    </Switch>
+    <Show when={props.sheet} fallback={editors()}><InlinePopups>{editors()}</InlinePopups></Show>
+  </div></SlipLoadingContext.Provider>;
 }

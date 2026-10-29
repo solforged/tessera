@@ -2,6 +2,7 @@ import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
 import { planningCountLabel } from '../tasks/planning-marks';
 import type { PlanningMarks } from '../tasks/planning-marks';
 import { Button } from './Button';
+import { inMonth } from './month-day';
 import './month-grid.css';
 
 /** Calendar dates are local dates, never UTC slices. */
@@ -32,9 +33,12 @@ export interface MonthGridProps {
 export function MonthGrid(props: MonthGridProps) {
   const [focused, setFocused] = createSignal(props.value ?? props.today);
   const [month, setMonth] = createSignal(noon(focused()));
+  // The day the reader means to be on, so stepping through a short month and on does not leave the 31st behind.
+  let wantedDay = noon(focused()).getDate();
   let grid!: HTMLDivElement;
   createEffect(on(() => props.value, value => {
     if (!value) return;
+    wantedDay = noon(value).getDate();
     setFocused(value);
     setMonth(noon(value));
   }, { defer: true }));
@@ -50,15 +54,20 @@ export function MonthGrid(props: MonthGridProps) {
     const start = new Date(first); start.setDate(1 - (first.getDay() + 6) % 7);
     return Array.from({ length: 42 }, (_, index) => { const day = new Date(start); day.setDate(start.getDate() + index); return day; });
   });
-  const showMonth = (amount: number) => setMonth(value => new Date(value.getFullYear(), value.getMonth() + amount, 1, 12));
+  // Changing month moves the day that holds the grid's one tab stop into the month shown, or Tab could not enter the grid.
+  const showMonth = (amount: number) => {
+    const next = inMonth(month(), amount, wantedDay);
+    setMonth(new Date(next.getFullYear(), next.getMonth(), 1, 12));
+    setFocused(localDate(next));
+  };
   const keydown = (event: KeyboardEvent) => {
     const step = ({ ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 } as Record<string, number>)[event.key];
     const months = event.key === 'PageUp' ? -1 : event.key === 'PageDown' ? 1 : 0;
     if (!step && !months) return;
     event.preventDefault();
-    const next = noon(focused());
-    if (step) next.setDate(next.getDate() + step);
-    else next.setMonth(next.getMonth() + months);
+    let next = noon(focused());
+    if (step) { next.setDate(next.getDate() + step); wantedDay = next.getDate(); }
+    else next = inMonth(next, months, wantedDay);
     setFocused(localDate(next));
     if (next.getMonth() !== month().getMonth() || next.getFullYear() !== month().getFullYear()) setMonth(new Date(next.getFullYear(), next.getMonth(), 1, 12));
     queueMicrotask(() => grid.querySelector<HTMLElement>('[tabindex="0"]')?.focus());
@@ -84,7 +93,7 @@ export function MonthGrid(props: MonthGridProps) {
           tabIndex={date === focused() ? 0 : -1} disabled={props.disabled}
           aria-label={`${day.toLocaleDateString(undefined, { dateStyle: 'full' })}${label() ? `, ${label()}` : ''}`}
           aria-pressed={date === props.value} aria-current={date === props.today ? 'date' : undefined} title={label() || undefined}
-          onFocus={() => setFocused(date)} onClick={() => props.onPick(date)}>
+          onFocus={() => { wantedDay = day.getDate(); setFocused(date); }} onClick={() => props.onPick(date)}>
           {day.getDate()}<span class="month-grid-markers" aria-hidden="true">
             <Show when={planning()?.scheduled}><span class="month-grid-scheduled" /></Show>
             <Show when={planning()?.deadline}><span class="month-grid-deadline" /></Show>

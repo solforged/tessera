@@ -1,5 +1,5 @@
 .notes-review { display: flex; flex-direction: column; min-height: 0; height: 100%; overflow: auto; scrollbar-gutter: stable; padding: 0 var(--pane-inset) var(--page-bottom-space); }
-.notes-review > :not(.revisit-outline) { width: 100%; max-width: var(--measure); margin-inline: auto; }
+.notes-review > :not(.revisit-outlines) { width: 100%; max-width: var(--measure); margin-inline: auto; }
 .revisit-empty .empty-state { margin-block: 0 var(--space-8); }
 .revisit-empty > .button { color: var(--muted); }
 .revisit-empty > .button:hover { color: var(--accent); }
@@ -14,8 +14,10 @@
 .revisit-date-group > [aria-pressed="true"] { color: var(--accent); }
 .revisit-action-bar, .note-revisit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
 .revisit-action-bar { padding-block: var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
-/* The note's outline keeps the pane's full width and its own insets. */
-.revisit-outline { flex: 1; min-height: calc(var(--space-48) * 6); margin-inline: calc(-1 * var(--pane-inset)); }
+/* The note's outline keeps the pane's full width and its own insets. The next note's outline loads in the same cell, hidden, then replaces the old one in a single frame. */
+.revisit-outlines { display: grid; flex: 1; min-height: calc(var(--space-48) * 6); margin-inline: calc(-1 * var(--pane-inset)); }
+.revisit-outline { grid-area: 1 / 1; min-width: 0; }
+.revisit-outline-entering { visibility: hidden; pointer-events: none; }
 .revisit-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-12); }
 /* In a note's apparatus line Revisit is one more mono item: muted, gilt on hover and once its date is due. */
 .note-line .note-revisit { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-8); }

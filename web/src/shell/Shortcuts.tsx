@@ -30,7 +30,8 @@ export function Shortcuts(props: { commands: CommandRegistry; onDismiss(): void 
   const sheet = window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches;
   return <Popup anchor={document.body} placement={sheet ? 'sheet' : 'top'} width={820} fitContent class="shortcuts" label="Keys and syntax" onDismiss={props.onDismiss}>
     <header class="shortcuts-head"><h2 class="popup-title">Keys and syntax</h2><kbd>⌘/</kbd></header>
-    <div class="shortcuts-columns">
+    {/* The sheet takes focus here, so PageDown, Space and the arrows scroll it. */}
+    <div class="shortcuts-columns" tabIndex={0} role="region" aria-label="Keys and syntax reference">
       <section class="shortcuts-syntax" aria-label="Syntax">
         <h3 class="shortcuts-section">Write</h3>
         <dl><For each={syntax}>{row => <><dt><code>{row.write}</code></dt><dd>{row.means}</dd></>}</For></dl>

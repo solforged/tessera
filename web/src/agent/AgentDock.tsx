@@ -46,6 +46,8 @@ export function AgentDock(props: {
   onOpen(target: OpenTarget, beside: boolean): void;
   onSettings(): void;
   onClose(): void;
+  /** The dock is on its way out: it plays its exit and takes no input. */
+  leaving?: boolean;
 }) {
   const [providers, { refetch }] = createResource(() => props.notebook.api.agentProviders());
   const [chosen, setChosen] = createSignal(localStorage.getItem(PROVIDER_KEY));
@@ -61,6 +63,8 @@ export function AgentDock(props: {
   let thread!: HTMLDivElement;
   let composer!: HTMLTextAreaElement;
   onMount(() => composer.focus({ preventScroll: true }));
+  // Reopening during the exit keeps this dock mounted; it takes the caret back as a fresh one would.
+  createEffect(on(() => props.leaving, leaving => { if (!leaving) composer.focus({ preventScroll: true }); }, { defer: true }));
   // Providers may change in Settings, often in another window.
   const refresh = () => { void refetch(); };
   window.addEventListener('focus', refresh);
@@ -111,7 +115,7 @@ export function AgentDock(props: {
     </Switch>
   </div>}</Show>;
 
-  return <aside class="agent-dock" aria-label="Agent">
+  return <aside class="agent-dock" classList={{ leaving: props.leaving }} inert={props.leaving} aria-label="Agent">
     <header class="agent-head">
       <Icon class="agent-glyph" name="agent" />
       <h2>Agent</h2>

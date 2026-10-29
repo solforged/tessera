@@ -39,24 +39,52 @@ a { color: var(--accent); }
 .mode-tabs.tab-strip > .button { border-bottom: 0; border-radius: 0; }
 :is(.popup, .popup-exit) { position: fixed; z-index: 50; max-width: calc(100vw - var(--space-16)); overflow: auto; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-8); }
 :is(.popup, .popup-exit)::before { content: ''; position: absolute; top: 0; left: var(--space-12); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
+/* The panel itself takes focus when nothing inside can; the ring belongs on controls, not on the box. */
+.popup:is(:focus, :focus-visible) { outline: none; }
+/* A popup placed above its trigger rises out of it: the shift's sign follows the side it opened on, in and out. */
+.popup[data-side="above"], .popup-exit[data-side="above"] { --popup-shift: 1; }
 .popup-enter { animation: popup-in var(--motion-ui) var(--motion-ease) both; }
 .popup-exit { z-index: 49; pointer-events: none; animation: popup-out var(--motion-fast) var(--motion-ease) both; }
 .popup-exit-shield { position: fixed; pointer-events: auto; touch-action: none; }
-@keyframes popup-in { from { opacity: 0; transform: translateY(calc(-1 * var(--motion-distance))); } to { opacity: 1; transform: translateY(0); } }
-@keyframes popup-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(calc(-1 * var(--motion-distance))); } }
+@keyframes popup-in { from { opacity: 0; transform: translateY(calc(var(--popup-shift, -1) * var(--motion-distance))); } to { opacity: 1; transform: translateY(0); } }
+@keyframes popup-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(calc(var(--popup-shift, -1) * var(--motion-distance))); } }
 /* A sheet rises from the bottom edge at full width, its top corners rounded, clear of the home indicator. */
 .popup-sheet { max-width: none; border-width: 1px 0 0; border-radius: var(--radius-popup) var(--radius-popup) 0 0; padding: var(--space-16) var(--space-16) calc(var(--space-16) + var(--bottom-inset)); }
 .popup-sheet.popup-enter { animation-name: sheet-in; }
 .popup-sheet.popup-exit { animation-name: sheet-out; }
+/* One popup replacing another in the same tick crossfades in place instead of replaying the full entrance. */
+.popup-enter.popup-swap { animation-name: popup-swap-in; animation-duration: var(--motion-fast); }
+@keyframes popup-swap-in { from { opacity: 0; } to { opacity: 1; } }
+/* Content that grows after the popup is up (rows arriving, a confirm opening) glides away from the trigger; shrinking snaps. */
+.popup-growing { transition: max-height var(--motion-ui) var(--motion-ease), height var(--motion-ui) var(--motion-ease), top var(--motion-ui) var(--motion-ease); }
+/* A released drag glides back to rest; while held the sheet follows the finger with no easing. */
+.popup-sheet { transition: translate var(--motion-fast) var(--motion-ease); }
+.popup-sheet.popup-growing { transition: translate var(--motion-fast) var(--motion-ease), max-height var(--motion-ui) var(--motion-ease), height var(--motion-ui) var(--motion-ease), top var(--motion-ui) var(--motion-ease); }
 .popup-sheet-tools { display: flex; flex: none; align-items: center; gap: var(--space-8); margin-bottom: var(--space-8); }
 .popup-sheet-grab { display: flex; flex: 1; align-items: center; justify-content: center; min-height: var(--touch-target); touch-action: none; cursor: grab; }
 .popup-sheet-grab::before { content: ''; width: var(--space-32); height: var(--space-4); border-radius: var(--radius-pill); background: var(--faint); }
 .popup-sheet-close.button { flex: none; min-width: var(--touch-target); min-height: var(--touch-target); }
-.popup-sheet-dragging { user-select: none; }
+.popup-sheet-dragging { user-select: none; transition: none; }
 .popup-sheet-dragging .popup-sheet-grab { cursor: grabbing; }
 @keyframes sheet-in { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes sheet-out { from { transform: translateY(0); } to { transform: translateY(100%); } }
+/* The scrim behind a sheet dims the page and fades with the sheet; it sits just under it, and leaves with it. */
+.popup-scrim { position: fixed; inset: 0; z-index: 49; background: color-mix(in srgb, var(--shell) 72%, transparent); }
+.popup-scrim-enter { animation: scrim-in var(--motion-ui) var(--motion-ease) both; }
+.popup-scrim-exit { z-index: 48; pointer-events: none; animation: scrim-out var(--motion-fast) var(--motion-ease) both; }
+@keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scrim-out { from { opacity: 1; } to { opacity: 0; } }
 .menu { min-width: 220px; }
+/* A drill-in swaps pages inside one box: the box glides between their widths and heights while the old page fades out over
+   the new one fading in (Menu measures and animates it; reduced motion swaps at once). Focus can rest on the box itself
+   after a tap. The box is a block formatting context of its own, so a last row's margin counts in its height whether or
+   not it is clipping; otherwise the clip during a glide would absorb a margin that the box takes back when it ends. */
+.menu-viewport { position: relative; display: flow-root; }
+.menu-viewport:focus { outline: none; }
+.menu-gliding, .menu-gliding .menu-viewport { overflow: hidden; }
+/* The glide already follows the new height frame by frame; the popup's own growth transition would lag behind it. */
+.menu.menu-gliding { transition: none; }
+.menu-ghost { position: absolute; top: 0; left: 0; pointer-events: none; }
 .menu-item { display: flex; align-items: center; width: 100%; gap: var(--space-8); padding: var(--space-4) var(--space-8); min-height: var(--row-height); background: transparent; border: 0; border-radius: var(--radius-control); font-size: var(--text-control); line-height: var(--line-control); text-align: left; transition: background-color var(--motion-fast) var(--motion-ease); }
 /* Keyboard focus in a menu is the selection fill with a gilt edge, the same as a selected row, not a ring. */
 .menu-item:hover { background: var(--selection); }
@@ -105,7 +133,12 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
    Android's WebView leaves the status bar out of the top inset and can leave the gesture bar out of the bottom one, so the
    app reports them as --system-top and --system-bottom. */
 :root { --top-inset: max(env(safe-area-inset-top), var(--system-top, 0px)); --bottom-inset: max(env(safe-area-inset-bottom), var(--system-bottom, 0px)); }
-.app { height: 100dvh; display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr); grid-template-rows: var(--rail-height) minmax(0, 1fr); overflow: hidden; padding: var(--top-inset) env(safe-area-inset-right) var(--bottom-inset) env(safe-area-inset-left); background: var(--shell); transition: grid-template-columns var(--motion-ui) var(--motion-ease); }
+/* A theme flip or a layout-mode flip (a breakpoint crossing) is a state change, not a gesture: nothing eases through it. */
+:root[data-theme-switching] *, :root[data-theme-switching] *::before, :root[data-theme-switching] *::after { transition: none !important; }
+:root[data-layout-switching] :is(.app, .sidebar, .sidebar-shade, .workspace, .agent-dock) { transition: none !important; }
+/* The dock's track is always there and grows from nothing, so the workspace glides with it instead of snapping. */
+.app { --dock-track: 0px; height: 100dvh; display: grid; grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--dock-track); grid-template-rows: var(--rail-height) minmax(0, 1fr); overflow: hidden; padding: var(--top-inset) env(safe-area-inset-right) var(--bottom-inset) env(safe-area-inset-left); background: var(--shell); transition: grid-template-columns var(--motion-ui) var(--motion-ease); }
+.app.has-dock { --dock-track: var(--dock-width); }
 /* The rail: the wordmark at the left, the finder centred on the window, layout at the right. */
 .global-rail { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--space-16); padding: 0 var(--space-12); min-width: 0; }
 .rail-start { display: flex; align-items: center; gap: var(--space-8); min-width: 0; }
@@ -172,7 +205,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .page-list > summary { cursor: pointer; list-style: none; }
 .page-list > summary::-webkit-details-marker { display: none; }
 .page-list > summary .icon { width: var(--icon-size-small); height: var(--icon-size-small); transition: transform var(--motion-fast) var(--motion-ease); }
-.page-list:not([open]) > summary .icon { transform: rotate(-90deg); }
+.page-list:is(:not([open]), [data-closing]) > summary .icon { transform: rotate(-90deg); }
 .sidebar-empty { margin: 0 0 0 var(--space-32); font-size: var(--text-meta); line-height: var(--line-meta); color: var(--muted); }
 /* The foot names the open notebook and how it reaches other devices, apart from the places you work in. */
 .sidebar-foot { display: flex; align-items: center; gap: var(--space-2); margin-top: auto; padding-top: var(--space-8); border-top: var(--rule-width) solid var(--line); }
@@ -208,7 +241,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .directory-pane .sidebar-scroll { overflow: visible; }
 .directory-pane .sidebar-foot { margin-top: var(--space-24); }
 .workspace { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; min-width: 0; min-height: 0; margin: 0 var(--space-12) var(--space-12) 0; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius-workspace); background: var(--canvas); transition: margin-left var(--motion-ui) var(--motion-ease); }
-.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+.sidebar-collapsed { grid-template-columns: 0 minmax(0, 1fr) var(--dock-track); }
 .sidebar-collapsed .sidebar { visibility: hidden; pointer-events: none; opacity: 0; transform: translateX(-100%); transition-delay: 0s, 0s, var(--motion-ui); }
 .sidebar-collapsed .workspace { margin-left: var(--space-12); }
 .pane-tabs { display: none; align-items: stretch; gap: var(--space-8); padding-inline: var(--space-8) var(--space-4); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); transition: opacity var(--motion-ui) var(--motion-ease); }
@@ -336,17 +369,28 @@ span.pane-breadcrumbs { display: block; overflow: hidden; text-overflow: ellipsi
 @keyframes rise-in { from { opacity: 0; translate: 0 var(--motion-distance); } to { opacity: 1; translate: 0 0; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes rise-out { from { opacity: 1; translate: 0 0; } to { opacity: 0; translate: 0 var(--motion-distance); } }
 /* A pane navigation turns one leaf (navigatePane in ui/pane-motion.ts): the outgoing content lifts away toward the
    side it leaves by, and the incoming one settles from the side it lies on, forward from the right, back from the left.
-   The rest of the window changes at once, and pointer input passes through to the page underneath. */
+   Every pane shares one name, so the turn never depends on a pane's id. The page itself is not captured (no name on the
+   root): only the named parts become snapshots and the rest of the window stays live and changes at once. WebKit
+   hit-tests the snapshot layer as the document, so a captured page swallowed every click and dropped :hover on the
+   sidebar for as long as a turn ran. */
+:root { view-transition-name: none; }
 ::view-transition { pointer-events: none; }
-::view-transition-group(root), ::view-transition-new(root) { animation: none; }
-::view-transition-old(root) { display: none; }
-::view-transition-group(pane-main), ::view-transition-group(pane-side), ::view-transition-group(source-cover) { animation-duration: var(--motion-page); animation-timing-function: var(--motion-ease); }
-::view-transition-old(pane-main), ::view-transition-old(pane-side) { animation: leaf-out var(--motion-fast) var(--motion-ease) both; }
-::view-transition-new(pane-main), ::view-transition-new(pane-side) { animation: leaf-in var(--motion-page) var(--motion-ease) both; }
-:root[data-pane-direction="back"]::view-transition-old(pane-main), :root[data-pane-direction="back"]::view-transition-old(pane-side) { animation-name: leaf-out-back; }
-:root[data-pane-direction="back"]::view-transition-new(pane-main), :root[data-pane-direction="back"]::view-transition-new(pane-side) { animation-name: leaf-in-back; }
+::view-transition-group(pane-leaf), ::view-transition-group(source-cover) { animation-duration: var(--motion-page); animation-timing-function: var(--motion-ease); }
+::view-transition-old(pane-leaf) { animation: leaf-out var(--motion-fast) var(--motion-ease) both; }
+::view-transition-new(pane-leaf) { animation: leaf-in var(--motion-page) var(--motion-ease) both; }
+:root[data-pane-direction="back"]::view-transition-old(pane-leaf) { animation-name: leaf-out-back; }
+:root[data-pane-direction="back"]::view-transition-new(pane-leaf) { animation-name: leaf-in-back; }
+/* The row of panes changing (reflowPanes, and a pane opening beside): panes, spines and dividers glide to their new
+   place and width, and a pane and its spine share a name, so one gives way to the other. Each snapshot keeps its natural
+   size and its group crops it, so a pane reflowing to a new width shows its old layout shrinking away and its new layout
+   uncovered, never stretched. A pane that only enters settles like a leaf; one that only leaves fades out. */
+::view-transition-group(*.pane-row) { animation-duration: var(--motion-page); animation-timing-function: var(--motion-ease); }
+::view-transition-old(*.pane-row), ::view-transition-new(*.pane-row) { block-size: 100%; object-fit: none; object-position: left top; }
+::view-transition-new(*.pane-row):only-child { animation: leaf-in var(--motion-page) var(--motion-ease) both; }
+::view-transition-old(*.pane-row):only-child { animation: leaf-out var(--motion-fast) var(--motion-ease) both; }
 /* A cover travels between the shelf and its source page above both leaves. */
 ::view-transition-group(source-cover) { z-index: 1; }
 ::view-transition-old(source-cover), ::view-transition-new(source-cover) { animation-duration: var(--motion-page); animation-timing-function: var(--motion-ease); }
@@ -355,13 +399,20 @@ span.pane-breadcrumbs { display: block; overflow: hidden; text-overflow: ellipsi
 ::view-transition-group(mode-panel) { animation-duration: var(--motion-ui); animation-timing-function: var(--motion-ease); }
 @keyframes leaf-in { from { opacity: 0; translate: var(--motion-leaf) 0; } }
 @keyframes leaf-in-back { from { opacity: 0; translate: calc(-1 * var(--motion-leaf)) 0; } }
-@keyframes leaf-out { to { opacity: 0; translate: calc(-.5 * var(--motion-leaf)) 0; } }
-@keyframes leaf-out-back { to { opacity: 0; translate: calc(.5 * var(--motion-leaf)) 0; } }
-/* Disclosures open and close in place, like Recent. */
-details::details-content { opacity: 0; overflow: clip; block-size: 0; interpolate-size: allow-keywords; transition: block-size var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease), content-visibility var(--motion-ui) allow-discrete; }
+/* A turn that replaces one still settling (ui/pane-motion.ts `leafResume`) sets --leaf-resume (opacity) and --leaf-lean
+   (how far the leaf still lies toward the side it came from, signed) so the old leaf lifts away from where it is. */
+@keyframes leaf-out { from { opacity: var(--leaf-resume, 1); translate: calc(var(--leaf-lean, 0) * var(--motion-leaf)) 0; } to { opacity: 0; translate: calc(-.5 * var(--motion-leaf)) 0; } }
+@keyframes leaf-out-back { from { opacity: var(--leaf-resume, 1); translate: calc(var(--leaf-lean, 0) * var(--motion-leaf)) 0; } to { opacity: 0; translate: calc(.5 * var(--motion-leaf)) 0; } }
+/* Disclosures open and close in place, like Recent. Where `interpolate-size` is missing (WebKit, Firefox) the height
+   cannot ease from CSS, so shell/disclosure.ts glides the element itself. */
+details::details-content { opacity: 0; overflow: clip; block-size: 0; interpolate-size: allow-keywords; }
+@supports (interpolate-size: allow-keywords) {
+  details::details-content { transition: block-size var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease), content-visibility var(--motion-ui) allow-discrete; }
+}
 details[open]::details-content { opacity: 1; block-size: auto; }
 .undo-toast > span { min-width: 0; overflow-wrap: anywhere; }
 .undo-toast > button { flex: none; white-space: nowrap; }
+.undo-toast.leaving { animation: rise-out var(--motion-ui) var(--motion-ease) both; pointer-events: none; }
 .popup-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 :is(.popup, .popup-exit) p { margin: 4px 0 12px; }
 :is(.popup, .popup-exit) label { display: block; margin-bottom: 8px; font-size: var(--text-control); }
@@ -379,7 +430,15 @@ details[open]::details-content { opacity: 1; block-size: auto; }
 .palette:not(.palette-search) .picker-input { min-height: var(--row-height); }
 .picker-input:focus-visible { outline: none; }
 .picker-list { overflow: auto; padding: var(--space-4); }
-.picker-row { display: flex; align-items: center; gap: var(--space-8); min-height: var(--row-height); padding: var(--space-2) var(--space-8); border-radius: var(--radius-control); font-size: var(--text-control); line-height: var(--line-control); cursor: default; transition: background-color var(--motion-fast) var(--motion-ease); }
+/* A list that is loading keeps its rows, dimmed, and shows the wait as a gilt line sliding along its top edge, so no row moves. */
+.picker-group { transition: opacity var(--motion-ui) var(--motion-ease); }
+.picker-list[data-stale] > :is(.picker-row, .picker-group) { opacity: .6; }
+.picker-list[aria-busy="true"] { background: linear-gradient(90deg, transparent, var(--accent), transparent) -67% 0 / 40% var(--rule-width) no-repeat; animation: picker-loading 1100ms linear infinite; }
+@keyframes picker-loading { from { background-position: -67% 0; } to { background-position: 167% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .picker-list[aria-busy="true"] { background-position: 0 0; background-size: 100% var(--rule-width); animation: none; }
+}
+.picker-row { display: flex; align-items: center; gap: var(--space-8); min-height: var(--row-height); padding: var(--space-2) var(--space-8); border-radius: var(--radius-control); font-size: var(--text-control); line-height: var(--line-control); cursor: default; transition: background-color var(--motion-fast) var(--motion-ease), opacity var(--motion-ui) var(--motion-ease); }
 .picker-row > .icon { flex: none; color: var(--muted); }
 .picker-row.selected { background: var(--selection); box-shadow: inset var(--rule-width) 0 var(--accent); }
 .picker-row[aria-disabled="true"] { color: var(--muted); }
@@ -462,10 +521,13 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .palette > .scope-bar { order: 2; }
 }
 @media (max-width: 1047px) {
-  .app { grid-template-columns: 0 minmax(0, 1fr); }
+  .app { grid-template-columns: 0 minmax(0, 1fr) var(--dock-track); }
+  /* The dock lies over the panes here, as the sidebar does, so it takes no track. */
+  .app.has-dock { --dock-track: 0px; }
   .sidebar { position: fixed; top: calc(var(--rail-height) + var(--top-inset)); bottom: var(--bottom-inset); left: env(safe-area-inset-left); z-index: 30; background: var(--shell); border-right: 1px solid var(--line); box-shadow: var(--popup-shadow); visibility: hidden; pointer-events: none; opacity: 0; transform: translateX(-100%); transition-delay: 0s, 0s, var(--motion-ui); }
   .sidebar-expanded .sidebar { visibility: visible; pointer-events: auto; opacity: 1; transform: translateX(0); transition-delay: 0s; }
-  .sidebar-shade { position: fixed; inset: calc(var(--rail-height) + var(--top-inset)) 0 var(--bottom-inset); z-index: 29; background: color-mix(in srgb, var(--shell) 72%, transparent); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
+  .sidebar-shade { position: fixed; inset: calc(var(--rail-height) + var(--top-inset)) 0 var(--bottom-inset); z-index: 29; background: color-mix(in srgb, var(--shell) 72%, transparent); visibility: hidden; pointer-events: none; opacity: 0; transition: opacity var(--motion-ui) var(--motion-ease), visibility 0s var(--motion-ui); }
+  .sidebar-expanded .sidebar-shade { visibility: visible; pointer-events: auto; opacity: 1; transition-delay: 0s; }
   .workspace { margin-left: var(--space-12); }
   .rail-finder { width: min(var(--search-width), 36vw); }
 }
@@ -503,6 +565,10 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   html.phone-scroll-sentinel, .phone-scroll-sentinel body { min-height: calc(100dvh + 1px); }
   .phone-scroll-sentinel .app { position: fixed; inset: 0; }
   .pane.phone-back-dragging { will-change: transform; user-select: none; box-shadow: var(--popup-shadow); }
+  /* An edge swipe that commits has already slid the pane away; the previous one settles in from the left, starting
+     part visible so the frame after the slide is never an empty canvas (shell/phone-gestures.ts). */
+  .pane-content.phone-back-arrive { animation: phone-back-arrive var(--motion-page) var(--motion-ease) both; }
+  @keyframes phone-back-arrive { from { opacity: .4; translate: calc(-1 * var(--motion-leaf)) 0; } }
   .app > .global-rail, .app > .sidebar, .pane-breadcrumbs .breadcrumb-library, .breadcrumb-library + .breadcrumb-separator { display: none; }
   .workspace, .sidebar-collapsed .workspace { grid-row: 1; margin: 0; border: 0; border-radius: 0; }
   .pane-content::before, .pane-content::after { display: none; }
@@ -521,7 +587,9 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .pane-breadcrumbs .button:last-child { min-width: 0; max-width: 100%; text-align: center; }
   .pane-save-state:has(.save-dot) { display: none; }
   :is(.popup, .popup-exit).popup-sheet::before { content: none; }
-  .bottom-nav { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: flex-start; gap: calc(var(--space-8) + var(--space-2)); height: var(--bottom-nav-height); padding: 0 var(--space-16) var(--space-8); }
+  .bottom-nav { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: flex-start; gap: calc(var(--space-8) + var(--space-2)); height: var(--bottom-nav-height); padding: 0 var(--space-16) var(--space-8); overflow: clip; transition: height var(--motion-ui) var(--motion-ease), padding var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease), visibility 0s; }
+  /* A review session takes the screen: the bar folds away and returns, rather than snapping the pane taller in one frame. */
+  .app:has(.pane.active .review-session-active) .bottom-nav { height: 0; padding-block: 0; opacity: 0; visibility: hidden; pointer-events: none; transition-delay: 0s, 0s, 0s, var(--motion-ui); }
   .bottom-tabs { display: flex; flex: 1; min-width: 0; height: calc(var(--bottom-nav-height) - var(--space-8)); padding: var(--space-4); border-radius: var(--radius-pill); }
   .bottom-tabs > .button { position: relative; flex: 1; min-width: 0; flex-direction: column; justify-content: center; gap: var(--space-2); height: 100%; padding: 0; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); }
   .bottom-nav .bottom-tabs > .button.selected { background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--accent); }
@@ -550,7 +618,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .directory-empty-kinds > summary { display: flex; align-items: center; justify-content: space-between; min-height: var(--touch-target); color: var(--muted); font: var(--apparatus); cursor: pointer; list-style: none; }
   .directory-empty-kinds > summary::-webkit-details-marker { display: none; }
   .directory-empty-kinds > summary .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
-  .directory-empty-kinds:not([open]) > summary .icon { transform: rotate(-90deg); }
+  .directory-empty-kinds:is(:not([open]), [data-closing]) > summary .icon { transform: rotate(-90deg); }
   .directory-pane .sidebar-view { gap: 0; }
   .directory-pane .directory-view-menu.button { flex: none; width: var(--touch-target); }
   .directory-pane .sidebar-foot { flex-direction: column; align-items: stretch; gap: 0; }
