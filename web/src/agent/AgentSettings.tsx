@@ -1,10 +1,11 @@
-import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
+import { For, Show, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
 import type { ProviderInput, ProviderView } from '../api/types';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
+import { cancelConfirm, escapeConfirm, focusCancel } from '../settings/confirm-focus';
 import './agent.css';
 
 type Protocol = ProviderView['protocol'];
@@ -32,6 +33,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
   const [protocolAnchor, setProtocolAnchor] = createSignal<HTMLElement | null>(null);
   const [removing, setRemoving] = createSignal<string | null>(null);
   let formElement!: HTMLFormElement;
+  let section!: HTMLElement;
   const fieldErrors = createMemo(() => {
     const errors: Partial<Record<'name' | 'base_url' | 'model', string>> = {};
     const value = draft();
@@ -70,7 +72,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
     const entry: ProviderInput = { ...(value.id ? { id: value.id } : {}), name: value.name.trim(), protocol: value.protocol, base_url: value.base_url.trim(), model: value.model.trim(), api_key: key };
     const list = saved()?.providers ?? [];
     const providers = value.id ? inputs().map(item => item.id === value.id ? entry : item) : [...inputs(), entry];
-    if (await save(providers, saved()?.default ?? (list.length ? list[0]!.id : null))) setDraft(null);
+    if (await save(providers, saved()?.default ?? (list.length ? list[0]!.id : null))) closeForm();
   };
   const remove = async (provider: ProviderView) => {
     const rest = inputs(provider.id);
@@ -94,8 +96,18 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
       : { name: 'Anthropic', protocol: 'anthropic', base_url: presets[0]!.base_url, model: '', api_key: '', has_key: false, clearKey: false });
   };
   const update = (patch: Partial<Draft>) => setDraft(value => value && { ...value, ...patch });
+  /** Closing the form returns the caret to the button that opened it. */
+  const closeForm = () => {
+    const id = draft()?.id;
+    setProtocolAnchor(null); setDraft(null);
+    queueMicrotask(() => section.querySelector<HTMLElement>(id ? `[data-edit="${CSS.escape(id)}"]` : '.agent-add-model')?.focus({ preventScroll: true }));
+  };
 
-  const Form = (form: { value: Draft }) => <form ref={formElement} class="agent-provider-form" noValidate onSubmit={event => { event.preventDefault(); void submit(); }}>
+  const Form = (form: { value: Draft }) => {
+    // A form that opens takes the caret in its first field and comes into view, its Save row included.
+    onMount(() => { formElement.querySelector<HTMLElement>('input')?.focus({ preventScroll: true }); formElement.scrollIntoView({ block: 'nearest' }); });
+    return <form ref={formElement} class="agent-provider-form" noValidate onSubmit={event => { event.preventDefault(); void submit(); }}
+      onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented && !event.isComposing) { event.preventDefault(); event.stopPropagation(); closeForm(); } }}>
     <Show when={!form.value.id}><div class="agent-presets mode-tabs" role="group" aria-label="Fill in a provider">
       <For each={presets}>{preset => <Button aria-pressed={form.value.base_url === preset.base_url} onClick={() => update({ name: preset.label, protocol: preset.protocol, base_url: preset.base_url })}>{preset.label}</Button>}</For>
     </div></Show>
@@ -119,12 +131,13 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
       onInput={event => update({ api_key: event.currentTarget.value })} /></label>
     <Show when={form.value.has_key}><label class="agent-clear-key"><input type="checkbox" checked={form.value.clearKey} onChange={event => update({ clearKey: event.currentTarget.checked, api_key: '' })} /><span>Forget the saved key</span></label></Show>
     <div class="agent-form-actions">
-      <Button class="text-button" onClick={() => { setProtocolAnchor(null); setDraft(null); }}>Cancel</Button>
+      <Button class="text-button" onClick={closeForm}>Cancel</Button>
       <Button class="bordered" type="submit" disabled={busy()}>Save model</Button>
     </div>
-  </form>;
+    </form>;
+  };
 
-  return <section id={props.id} aria-labelledby={`${props.id}-heading`} aria-busy={busy()}>
+  return <section ref={section} id={props.id} aria-labelledby={`${props.id}-heading`} aria-busy={busy()}>
     {props.heading}
     <p class="settings-empty">The agent dock talks to a model you choose: a hosted one with your own key, or one running on this machine. Models and keys are kept on this machine, outside the workshop and its backups.</p>
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
@@ -137,14 +150,14 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
           <p class="settings-mono agent-provider-address">{provider.base_url}</p>
           <Show when={tested()[provider.id]}>{result => <p role="status" classList={{ error: result() !== 'Answered' && result() !== 'Testing…' }}>{result()}</p>}</Show>
         </div>
-        <div class="agent-provider-actions"><Show when={removing() === provider.id} fallback={<>
+        <div class="agent-provider-actions" onKeyDown={event => { if (removing() === provider.id) escapeConfirm(event, 'remove', () => setRemoving(null)); }}><Show when={removing() === provider.id} fallback={<>
           <Show when={several() && !isDefault(provider.id)}><Button class="text-button" disabled={busy()} onClick={() => { void save(inputs(), provider.id); }}>Make default</Button></Show>
           <Button class="text-button" disabled={tested()[provider.id] === 'Testing…'} onClick={() => { void test(provider); }}>Test</Button>
-          <Button class="text-button" onClick={() => edit(provider)}>Edit</Button>
-          <Button class="text-button danger" disabled={busy()} onClick={() => setRemoving(provider.id)}>Remove</Button>
+          <Button class="text-button" data-edit={provider.id} onClick={() => edit(provider)}>Edit</Button>
+          <Button class="text-button danger" data-confirm="remove" disabled={busy()} onClick={() => setRemoving(provider.id)}>Remove</Button>
         </>}>
           <span class="settings-backup-question">Remove{provider.has_key ? ' it and its key' : ''}?</span>
-          <Button disabled={busy()} onClick={() => setRemoving(null)}>Cancel</Button>
+          <Button ref={focusCancel} disabled={busy()} onClick={event => cancelConfirm(event.currentTarget, 'remove', () => setRemoving(null))}>Cancel</Button>
           <Button class="bordered danger" disabled={busy()} onClick={() => { void remove(provider); }}>Confirm</Button>
         </Show></div>
       </div>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { besideSlot, dividerRatio, insertPane, MIN_PANE_WIDTH, paneCapacity, SPINE_WIDTH, windowStart } from './pane-row';
+import { besideSlot, dividerRatio, insertPane, journalTurn, MIN_PANE_WIDTH, paneCapacity, revealedStart, SPINE_WIDTH, windowStart } from './pane-row';
 
 describe('opening beside', () => {
   test('lands in the pane right of the origin, never the origin', () => {
@@ -49,6 +49,32 @@ describe('fitting panes to the window', () => {
 
   test('never leaves an empty slot at the end of the row', () => {
     expect(windowStart(3, 2, 2, 2)).toBe(1);
+  });
+});
+
+describe('revealing a pane', () => {
+  test('moves the window only when the pane is out of it', () => {
+    expect(revealedStart(['a', 'b', 'c', 'd'], 2, 1, 'c')).toBe(1);
+    expect(revealedStart(['a', 'b', 'c', 'd'], 2, 1, 'a')).toBe(0);
+    expect(revealedStart(['a', 'b', 'c', 'd'], 2, 0, 'd')).toBe(2);
+  });
+
+  test('keeps the neighbour the reveal came from in view when the window can hold both', () => {
+    expect(revealedStart(['a', 'b', 'c', 'd'], 2, 0, 'c', 'b')).toBe(1);
+    expect(revealedStart(['a', 'b', 'c', 'd'], 3, 0, 'd', 'b')).toBe(1);
+  });
+});
+
+describe('turning to a journal day', () => {
+  test('an earlier day than the one showing turns back, a later one forward', () => {
+    expect(journalTurn('2026-10-13', '2026-10-12')).toBe('back');
+    expect(journalTurn('2026-10-13', '2026-10-14')).toBe('forward');
+    expect(journalTurn('2026-10-13', '2026-09-30')).toBe('back');
+  });
+
+  test('arriving from anything but a journal day, or at the same day, turns forward', () => {
+    expect(journalTurn(undefined, '2026-10-12')).toBe('forward');
+    expect(journalTurn('2026-10-13', '2026-10-13')).toBe('forward');
   });
 });
 

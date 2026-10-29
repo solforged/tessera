@@ -19,12 +19,21 @@ const stored = (): ThemePreference => {
 
 const [preference, setPreference] = createSignal<ThemePreference>(stored());
 
+let settled = false;
+
 function apply() {
   const value = preference();
   const theme = value === 'system' ? (lightQuery.matches ? 'light' : 'dark') : value;
-  document.documentElement.dataset.theme = theme;
-  const canvas = getComputedStyle(document.documentElement).getPropertyValue('--canvas').trim();
+  const root = document.documentElement;
+  const changed = root.dataset.theme !== theme;
+  // Colors flip in one frame: controls must not ease from the old theme while surfaces and text already show the new one.
+  if (changed && settled) root.dataset.themeSwitching = '';
+  root.dataset.theme = theme;
+  const canvas = getComputedStyle(root).getPropertyValue('--canvas').trim();
   if (canvas) document.querySelector('meta[name="theme-color"]')?.setAttribute('content', canvas);
+  // The style recalculation above ran with transitions off; they come back once that frame has painted.
+  if (changed && settled) requestAnimationFrame(() => requestAnimationFrame(() => delete root.dataset.themeSwitching));
+  settled = true;
 }
 
 export const themePreference = preference;

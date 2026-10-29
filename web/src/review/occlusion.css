@@ -7,8 +7,12 @@
 .occlusion-revealed { fill: none; stroke: var(--accent); stroke-width: var(--space-2); }
 .occlusion-hint, .occlusion-letter { fill: var(--canvas); font-family: var(--font-mono); pointer-events: none; }
 .occlusion-thumbnail { width: var(--shelf-cover-width); margin: 0; }
-.occlusion-editor { position: fixed; inset: 0; display: flex; flex-direction: column; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; padding: var(--top-inset, 0) env(safe-area-inset-right) var(--bottom-inset, 0) env(safe-area-inset-left); background: var(--canvas); color: var(--text); }
-.occlusion-editor::backdrop { background: var(--canvas); }
+.occlusion-editor { position: fixed; inset: 0; display: flex; flex-direction: column; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; padding: var(--top-inset, 0) env(safe-area-inset-right) var(--bottom-inset, 0) env(safe-area-inset-left); background: var(--canvas); color: var(--text); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
+/* The dialog's own fill covers the page; a backdrop would not fade with it. */
+.occlusion-editor::backdrop { background: transparent; }
+/* A dialog that has unmounted fades out as an inert copy (review/dialog-motion.ts). */
+.dialog-exit { z-index: 45; pointer-events: none; animation: dialog-out var(--motion-fast) var(--motion-ease) both; }
+@keyframes dialog-out { from { opacity: 1; } to { opacity: 0; } }
 .occlusion-header, .occlusion-footer { display: flex; align-items: center; gap: var(--space-16); padding: var(--space-12) var(--space-16); }
 .occlusion-header p, .occlusion-footer span { flex: 1; margin: 0; }
 .occlusion-header p { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

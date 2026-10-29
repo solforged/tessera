@@ -21,6 +21,7 @@ import { draftFieldRows } from './draft';
 import type { DraftFieldsState, DraftValue } from './draft';
 import { draftPattern } from '../fields/card-patterns';
 import { parseCardText } from '../review/card-text';
+import { trackSlipLoading } from './slip-loading';
 
 type Editing = { anchor: HTMLElement } & ({ kind: 'parent' | 'revisit' | 'review-date' | 'deadline' | 'holder' } | { kind: 'value'; field: FieldDefinition });
 
@@ -34,6 +35,7 @@ export function DraftFields(props: {
   const [register] = createResource(() => props.kind.startsWith('type:') && props.fieldIds.length ? props.notebook.changeSequence() : false, () => props.notebook.api.fields());
   const [page] = createResource(() => props.existingId ? [props.existingId, props.notebook.changeSequence()] as const : false, async ([id]) => ({ id, page: await props.notebook.api.page(id) }));
   const definitions = createMemo(() => (props.recipes?.length ? props.fieldIds : props.fieldIds.slice(0, 4)).flatMap(id => register()?.fields.find(field => field.id === id) ?? []));
+  trackSlipLoading(() => register.loading || page.loading);
   const existing = (field: FieldDefinition) => draftFieldRows(props.existingId && page()?.id === props.existingId ? page()!.page.rows.map(row => row.block) : [], props.existingId ?? '', field.id);
   const setValue = (field: FieldDefinition, value: DraftValue) => props.onChange({ ...props.value, values: { ...props.value.values, [field.id]: value } });
   const question = (value: Partial<DraftFieldsState['question']>) => props.onChange({ ...props.value, question: { ...props.value.question, ...value } });

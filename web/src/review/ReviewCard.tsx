@@ -9,6 +9,7 @@ import { Popup } from '../ui/Popup';
 import { cardKindLabel, clozeSegments, parseCardText } from './card-text';
 import { CardBack, CardFront, ClozeText } from './CardSides';
 import { gradeIntervals, gradeLabels } from './query';
+import { settleHeight } from './settle';
 import type { ReviewSource } from './ReviewSource';
 import './review-card.css';
 
@@ -32,6 +33,8 @@ export interface ReviewCardProps {
 const grades = (['again', 'hard', 'good', 'easy'] as const).map((grade, index) => ({ grade, label: gradeLabels[grade], shortcut: String(index + 1) }));
 /** A word or short phrase, such as a vocabulary card, is set large; sentences keep reading size. */
 const terse = (text: string) => text.length <= 40 && !text.includes('\n');
+/** On the cover screen a confirmation is a bottom sheet, as the shell's delete confirmation is. */
+const coverLayout = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
 
 export function ReviewCard(props: ReviewCardProps) {
   const [revealedItems, setRevealedItems] = createSignal(0);
@@ -45,6 +48,7 @@ export function ReviewCard(props: ReviewCardProps) {
   const [actions, setActions] = createSignal<HTMLElement | null>(null);
   const answerId = createUniqueId();
   const locked = () => !!props.busy || pending();
+  const lockedAttr = () => locked() ? 'true' as const : undefined;
   // One size per card: large only when both sides are short, so a short question never outsizes its answer.
   const large = () => !props.item.card.answer_blocks.length && terse(props.item.card.front) && terse(props.item.card.back);
   const [siblings] = createResource(() => props.item.card.kind === 'occlusion' ? props.item.card.source_block_id : false, id => props.notebook.api.sourceCards(id).then(cards => cards.filter(card => card.active)));
@@ -97,11 +101,24 @@ export function ReviewCard(props: ReviewCardProps) {
       if (!disposed && current === generation) setPending(false);
     }
   }
+  /** Brings the grades into view inside the review scroller once the answer has settled; it never takes focus. A card taller than the scroller
+   * loses its top first: the grades are what the writer needs next. Without a grade strip (a list still revealing) the card's top stays in view. */
+  function keepInView() {
+    const scroller = region.closest<HTMLElement>('.review-scroll');
+    if (disposed || !scroller || !region.querySelector('.review-card-answer, .recipe-answer, .review-card-grades')) return;
+    const card = region.getBoundingClientRect(), view = scroller.getBoundingClientRect();
+    const hidden = card.bottom - view.bottom;
+    const over = region.querySelector('.review-card-grades') ? hidden : Math.min(hidden, card.top - view.top);
+    if (over > 0) scroller.scrollBy({ top: over, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
   function reveal() {
     if (locked() || revealed()) return;
     const focused = region.contains(region.ownerDocument.activeElement);
+    const from = region.offsetHeight;
     setRevealedItems(value => value + 1);
     if (focused) region.focus({ preventScroll: true });
+    const settling = settleHeight(region, from);
+    if (settling) void settling.finished.then(keepInView, () => {}); else keepInView();
   }
   function grade(value: Grade) {
     if (!revealed() || locked()) return;
@@ -148,11 +165,11 @@ export function ReviewCard(props: ReviewCardProps) {
     reveal();
   }}>
     <div class="review-card-meta">
-      <Button class="review-card-source" title={`${props.context ? 'Open in the book' : 'Open source'} · ${besideHint}`} disabled={locked()} onClick={event => props.onSource(opensBeside(event))}>
+      <Button class="review-card-source" title={`${props.context ? 'Open in the book' : 'Open source'} · ${besideHint}`} aria-disabled={lockedAttr()} onClick={event => props.onSource(opensBeside(event))}>
         <Show when={props.context} fallback={<BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} omitParent={props.item.card.kind === 'descriptor'} />}>{context => <span>{context().source.source.siglum} · {context().source.page.text}<Show when={context().chapter}> · {context().chapter}</Show> · ¶{context().citation.ordinal + 1}</span>}</Show>
       </Button>
       <span class="review-card-kind">{kindLabel()}</span>
-      <Button icon="more" label="Card actions" aria-haspopup="menu" disabled={locked()} onClick={event => setActions(event.currentTarget)} />
+      <Button icon="more" label="Card actions" aria-haspopup="menu" aria-disabled={lockedAttr()} onClick={event => setActions(event.currentTarget)} />
     </div>
     <Show when={props.item.card.template}>{template => <p class="review-card-meta recipe-provenance"><span>from #{template().type_name}</span><span>{template().name}</span></p>}</Show>
     <Show when={changed()}><p class="review-card-change-notice">Wording changed since your last review.</p></Show>
@@ -167,7 +184,7 @@ export function ReviewCard(props: ReviewCardProps) {
     </section>}</Show>
     </>}>{recipe => <>
       <section class="recipe-front" aria-label="Front"><span class="recipe-index">01</span><div><div class="recipe-label">{recipe().front_label}</div><div class="review-card-side">{props.item.card.front}</div></div></section>
-      <Show when={!revealed() && recipe().hint}>{hint => <div class="recipe-hint"><span>{hint().label}</span><Show when={hintShown()} fallback={<Button disabled={locked()} onClick={() => setHintShown(true)}>Show hint</Button>}><span>{hint().value}</span></Show></div>}</Show>
+      <Show when={!revealed() && recipe().hint}>{hint => <div class="recipe-hint"><span>{hint().label}</span><Show when={hintShown()} fallback={<Button aria-disabled={lockedAttr()} onClick={() => setHintShown(true)}>Show hint</Button>}><span>{hint().value}</span></Show></div>}</Show>
       <Show when={revealed()}><section id={answerId} class="recipe-answer" aria-label="Answer">
         <div class="recipe-label">{recipe().back_label}</div><div class="review-card-side">{props.item.card.back}</div>
         <Show when={recipe().details.length}><dl class="recipe-apparatus"><For each={recipe().details}>{detail => <><dt>{detail.label}</dt><dd classList={{ 'recipe-prose': detail.prose }}>{detail.value}</dd></>}</For></dl></Show>
@@ -176,7 +193,7 @@ export function ReviewCard(props: ReviewCardProps) {
     <Show when={props.item.card.kind === 'list' && revealedItems() > 0}><p class="review-list-progress" role="status">{revealedItems()} of {itemCount()}</p></Show>
     <Show when={revealed() && props.context?.following}><blockquote class="review-card-following">{props.context!.following}</blockquote></Show>
     <Show when={revealed()} fallback={<div class="review-card-actions">
-      <Button class="bordered" label={revealedItems() ? 'Reveal next item' : props.item.card.template ? 'Show answer' : 'Reveal answer'} shortcut="Space" aria-keyshortcuts="Space" aria-expanded={revealedItems() > 0} aria-controls={answerId} disabled={locked()} onClick={reveal}>{revealedItems() ? 'Reveal next item' : props.item.card.template ? 'Show answer' : 'Reveal answer'} <kbd>Space</kbd></Button>
+      <Button class="bordered" label={revealedItems() ? 'Reveal next item' : props.item.card.template ? 'Show answer' : 'Reveal answer'} shortcut="Space" aria-keyshortcuts="Space" aria-expanded={revealedItems() > 0} aria-controls={answerId} aria-disabled={lockedAttr()} onClick={reveal}>{revealedItems() ? 'Reveal next item' : props.item.card.template ? 'Show answer' : 'Reveal answer'} <kbd>Space</kbd></Button>
     </div>}>
       <Show when={changed() && props.item.last_review}>{last => <section class="review-card-comparison" aria-label="Changed card text">
         <div class="review-card-comparison-versions">
@@ -196,12 +213,12 @@ export function ReviewCard(props: ReviewCardProps) {
           </div>
         </div>
         <div class="review-card-progress" role="group" aria-label="Review progress">
-          <Button aria-pressed={!resetOnGrade()} disabled={locked()} onClick={() => setResetOnGrade(false)}>Keep progress</Button>
-          <Button aria-pressed={resetOnGrade()} disabled={locked()} onClick={() => setResetOnGrade(true)}>Start over</Button>
+          <Button aria-pressed={!resetOnGrade()} aria-disabled={lockedAttr()} onClick={() => setResetOnGrade(false)}>Keep progress</Button>
+          <Button aria-pressed={resetOnGrade()} aria-disabled={lockedAttr()} onClick={() => setResetOnGrade(true)}>Start over</Button>
         </div>
       </section>}</Show>
       <div class="review-card-grades" role="group" aria-label="Grade answer">
-        <For each={grades}>{choice => <Button class="review-card-grade" classList={{ 'review-card-grade-default': choice.grade === 'good', 'review-card-grade-again': choice.grade === 'again' }} label={choice.label} shortcut={choice.shortcut} aria-keyshortcuts={choice.grade === 'good' ? `${choice.shortcut} Space Enter` : choice.shortcut} aria-label={`${choice.label}${choice.grade === 'good' ? ' · default' : ''}${interval(choice.grade) ? ` · ${interval(choice.grade)}` : ''}`} disabled={locked()} onClick={() => grade(choice.grade)}>
+        <For each={grades}>{choice => <Button class="review-card-grade" classList={{ 'review-card-grade-default': choice.grade === 'good', 'review-card-grade-again': choice.grade === 'again' }} label={choice.label} shortcut={choice.shortcut} aria-keyshortcuts={choice.grade === 'good' ? `${choice.shortcut} Space Enter` : choice.shortcut} aria-label={`${choice.label}${choice.grade === 'good' ? ' · default' : ''}${interval(choice.grade) ? ` · ${interval(choice.grade)}` : ''}`} aria-disabled={lockedAttr()} onClick={() => grade(choice.grade)}>
           <span class="review-card-grade-label">{choice.label} <kbd>{choice.shortcut}</kbd></span>
           <Show when={interval(choice.grade)}>{value => <span class="review-card-interval">{value()}</span>}</Show>
         </Button>}</For>
@@ -215,7 +232,7 @@ export function ReviewCard(props: ReviewCardProps) {
       { label: 'Undo last grade', divider: true, disabledReason: props.undoDisabled ? 'Nothing graded yet.' : undefined, action: props.onUndo },
       { label: 'End review', action: () => props.onEnd(anchor) },
     ]} />}</Show>
-    <Show when={resetAnchor()}>{anchor => <Popup anchor={anchor()} label="Reset progress" class="review-card-reset" onDismiss={() => setResetAnchor(null)}>
+    <Show when={resetAnchor()}>{anchor => <Popup anchor={anchor()} placement={coverLayout.matches ? 'sheet' : 'anchor'} label="Reset progress" class="review-card-reset" onDismiss={() => setResetAnchor(null)}>
       <p>Reset this card’s schedule? Review history stays.</p>
       <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
       <div class="popup-actions">

@@ -10,6 +10,7 @@ import { blankDraftFields, createPageDraft } from './draft';
 import { foldName } from '../outline/names';
 import { titleKey } from '../document/title-key';
 import { kindNoun } from './kinds';
+import { trackSlipLoading } from './slip-loading';
 
 const gistPrompt: Record<string, (noun: string) => string> = {
   note: () => 'First line, optional',
@@ -54,6 +55,7 @@ export function PageDraft(props: {
   const [kinds] = createResource(() => found() || false, key => props.notebook.api.noteKinds(key));
   const member = () => !!found() && (props.kind === 'note' || kinds()?.some(kind => kind.key === (props.noteKind?.key ?? props.kind)));
   const typePage = () => mode() === 'type' && !!props.noteKind && titleKey(query()) === titleKey(props.noteKind.name);
+  trackSlipLoading(() => type.loading || recipes.loading || existing.loading || similar.loading);
   const matches = createMemo(() => query() ? (similar() ?? []).filter(row => row.id !== found()).slice(0, 4) : []);
   const fit = () => { title.style.height = 'auto'; title.style.height = `${title.scrollHeight}px`; };
   onMount(() => { fit(); title.focus(); title.setSelectionRange(title.value.length, title.value.length); });

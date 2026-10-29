@@ -39,6 +39,21 @@ export function windowStart(count: number, fit: number, start: number, focus: nu
   return Math.max(0, Math.min(next, count - fit));
 }
 
+/**
+ * The first shown pane after `pane` is revealed, and `keep` too where it can stay in view. Opening and switching only
+ * need a row transition when this moves the window.
+ */
+export function revealedStart(order: readonly PaneId[], fit: number, start: number, pane: PaneId, keep?: PaneId): number {
+  let next = windowStart(order.length, fit, start, order.indexOf(pane));
+  if (keep) next = windowStart(order.length, fit, next, order.indexOf(keep));
+  return next;
+}
+
+/** Which way the leaf turns to a journal day: earlier than the one showing turns back, as Back does, any other forward. */
+export function journalTurn(showing: string | undefined, day: string): 'forward' | 'back' {
+  return showing !== undefined && day < showing ? 'back' : 'forward';
+}
+
 const snaps = [[1 / 3, '⅓'], [1 / 2, '½'], [2 / 3, '⅔']] as const;
 /**
  * The left pane's share of a pair being resized, kept above both panes' minimum width and pulled to a third, a half or

@@ -50,7 +50,20 @@ export function installPhoneGestures(options: { cover(): boolean; canBack(): boo
     const finish = () => {
       if (gesture !== current) return;
       clear();
-      if (commit && options.cover() && options.canBack()) options.back();
+      if (!commit || !options.cover() || !options.canBack()) return;
+      options.back();
+      // The pane has slid away; the one before it settles in from the left, as it does for the Back button.
+      const arriving = current.pane.querySelector<HTMLElement>(':scope > .pane-content');
+      if (!arriving || reduced.matches) return;
+      arriving.classList.add('phone-back-arrive');
+      const done = (event: Event) => {
+        if (event.target !== arriving) return;
+        arriving.classList.remove('phone-back-arrive');
+        arriving.removeEventListener('animationend', done);
+        arriving.removeEventListener('animationcancel', done);
+      };
+      arriving.addEventListener('animationend', done);
+      arriving.addEventListener('animationcancel', done);
     };
     if (reduced.matches) { finish(); return; }
     const style = getComputedStyle(current.pane);

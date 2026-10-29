@@ -23,6 +23,7 @@ import { pendingCaretInput } from './pending-caret';
 import { inferKind, type CreateRequest } from '../create/request';
 import { createPageDraft } from '../create/draft';
 import type { PopupAnchor } from '../ui/Popup';
+import type { CreateNotice } from '../create/CreateSlip';
 import { typeSpelling } from '../outline/type-completion';
 import { textTokens } from '../document/text-tokens';
 import { displayTitle } from '../outline/names';
@@ -42,7 +43,7 @@ function createLabel(entry: CreateEntry): string {
 }
 
 /** Find or create pages, search blocks, or prefix commands with `>`. Tab drills into a result's children. */
-export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'search' | 'commands'; commands: CommandRegistry; notebook: NotebookClient; noteKinds?: readonly NoteKind[]; onDismiss(): void; onRestoreFocus(): void; onOpen(target: OpenTarget, beside: boolean): void; onCreate(request: CreateRequest, anchor?: PopupAnchor): void }) {
+export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'search' | 'commands'; commands: CommandRegistry; notebook: NotebookClient; noteKinds?: readonly NoteKind[]; onDismiss(): void; onRestoreFocus(): void; onOpen(target: OpenTarget, beside: boolean): void; onCreate(request: CreateRequest, anchor?: PopupAnchor): void; onNotice?(notice: CreateNotice): void }) {
   const capturedCommands = props.commands.list().map(command => command.capture?.() ?? command);
   const sections = new Map<Command['section'], Command[]>();
   for (const command of capturedCommands) {
@@ -61,6 +62,8 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   let queryInput: HTMLInputElement | undefined;
   onCleanup(() => { disposed = true; });
   const mode = () => query().startsWith('>') ? 'commands' : 'search';
+  // The frame keeps the size it opened with, so typing or deleting `>` swaps the list without moving or resizing the panel.
+  const frame: 'search' | 'commands' = props.mode;
   const text = () => mode() === 'commands' ? query().slice(1).trim() : query().trim();
   const [findScope, setFindScope] = createSignal<FindScope>('Everything');
   const [selectedEntry, setSelectedEntry] = createSignal<Entry>();
@@ -235,12 +238,19 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     const pending = pendingCaretInput.prepare();
     try {
       const { pageId, caretId, caretOffset } = await createPageDraft(props.notebook, { kind, text: title });
-      if (disposed) { pending(); return; }
+      if (disposed) {
+        // Dismissed while the service was working: the atom exists, so say so and offer it rather than leave it orphaned.
+        pending();
+        props.onNotice?.({ message: `Created ${kind === 'question' ? 'question' : 'atom'} “${title}”`, actions: [{ label: 'Open', run: () => props.onOpen({ kind: 'page', pageId }, false) }] });
+        return;
+      }
       if (!caretId) pending();
       props.onDismiss(); props.onOpen({ kind: 'page', pageId, ...(caretId ? { caretId, caretOffset } : {}) }, beside);
     } catch (reason) {
       pending();
-      if (!disposed) setCreateError(reason instanceof Error ? reason.message : String(reason));
+      const message = reason instanceof Error ? reason.message : String(reason);
+      if (disposed) props.onNotice?.({ message: `Couldn’t create “${title}” · ${message}` });
+      else setCreateError(message);
     } finally { setCreating(false); }
   };
   const busy = () => mode() === 'search' && (text() !== debounced() || hits.loading || scopedPage.loading || passagesLoading() || highlights.loading || library.loading);
@@ -300,13 +310,13 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     const label = group(entry);
     return label === 'No matching atoms' ? label : label ? `${label} · ${groupCounts()[label]}${entry.kind === 'passage' ? ' passages' : ''}` : undefined;
   };
-  return <><Portal><div class="find-backdrop" aria-hidden="true" /></Portal><Picker<Entry> anchor={props.anchor} placement="top" width={mode() === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${mode() === 'search' ? 'palette-search' : ''}`} onDismiss={props.onDismiss}
+  return <><Portal><div class="find-backdrop" aria-hidden="true" /></Portal><Picker<Entry> anchor={props.anchor} placement="top" width={frame === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${frame === 'search' ? 'palette-search' : ''}`} onDismiss={props.onDismiss}
     style={{ '--visual-viewport-height': `${viewportSize().height}px`, '--visual-viewport-top': `${viewportSize().top}px` }}
     query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find or create an atom' : 'Find a command'}
     inputRef={input => { queryInput = input; }}
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
     queryActions={<Button class="find-cancel" onClick={props.onDismiss}>Cancel</Button>}
-    preview={<Show when={mode() === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} fields={fields.error ? [] : fields()?.fields ?? []} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
+    preview={<Show when={frame === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} fields={fields.error ? [] : fields()?.fields ?? []} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
     onSelect={setSelectedEntry}
     status={<><h2 class="find-title">{mode() === 'search' ? 'Find' : 'Commands'}</h2><Show when={mode() === 'search'}><div class="find-scopes mode-tabs tab-strip" role="group" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); queryInput?.focus({ preventScroll: true }); }}>{value === 'Pages' ? 'Atoms' : value}</Button>}</For></div></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
     items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'more' ? `more:${entry.page.id}` : entry.kind === 'command' ? entry.command.id : entry.kind === 'highlight' ? entry.row.citation.id : entry.kind === 'passage' ? entry.hit.passage.id : `create:${entry.action}`}
@@ -411,8 +421,9 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
   });
   createEffect(() => {
     const entry = props.entry;
-    setContent(undefined); setError(''); setLoading(false);
-    if (!entry || entry.kind === 'command' || entry.kind === 'create') return;
+    setError(''); setLoading(false);
+    // The last preview stays up while the next loads; only an entry with nothing to preview clears it.
+    if (!entry || entry.kind === 'command' || entry.kind === 'create') { setContent(undefined); return; }
     if (entry.kind === 'hit' || entry.kind === 'more') {
       const id = entry.kind === 'hit' ? entry.hit.page.id : entry.page.id;
       // Optimistic roots can enter the results while the create picker closes.
@@ -449,12 +460,12 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
     void load().then(value => {
       if (!controller.signal.aborted) { setContent(value); setLoading(false); }
     }, reason => {
-      if (!controller.signal.aborted) { setError(String(reason?.message ?? reason)); setLoading(false); }
+      if (!controller.signal.aborted) { setContent(undefined); setError(String(reason?.message ?? reason)); setLoading(false); }
     });
     onCleanup(() => controller.abort());
   });
-  return <aside class="find-preview" classList={{ 'find-preview-block': !!content()?.targetId }} aria-label="Selected result preview">
-    <Show when={loading()}><p class="empty-state">Loading preview…</p></Show>
+  return <aside class="find-preview" classList={{ 'find-preview-block': !!content()?.targetId }} aria-label="Selected result preview" aria-busy={loading()}>
+    <Show when={loading() && !content()}><p class="empty-state">Loading preview…</p></Show>
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
     <Show when={content()}>{value => <>
       <header class="find-preview-header">{/* Covers are paths inside a book, served through its snapshot. */}<Show when={value().cover}>{cover => <ResourceImage snapshotId={cover().snapshotId} href={cover().href} alt="" />}</Show><div><h2>{value().title}</h2><Show when={value().location}><small>{value().location}</small></Show></div></header>
@@ -476,6 +487,12 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
       </div>
       <footer class="find-preview-keys"><kbd>↵ {value().passages ? 'Open in the book' : 'Open atom'}</kbd><kbd>{besideKey}↵ Beside</kbd></footer>
     </>}</Show>
-    <Show when={!content() && !loading() && !error()}><p class="empty-state">{props.entry?.kind === 'create' ? props.entry.action === 'choose' ? 'Choose a type for the new atom' : createLabel(props.entry) : 'Select a result to preview it.'}</p></Show>
+    <Show when={!content() && !loading() && !error()}>
+      <Show when={props.entry?.kind === 'command' ? props.entry.command : undefined} fallback={<p class="empty-state">{props.entry?.kind === 'create' ? props.entry.action === 'choose' ? 'Choose a type for the new atom' : createLabel(props.entry) : 'Select a result to preview it.'}</p>}>{command => <>
+        <header class="find-preview-header"><div><h2>{command().title}</h2><small>{command().section === 'Page' ? 'This atom' : command().section}</small></div></header>
+        <Show when={command().disabledReason?.() || command().description}>{text => <div class="find-preview-prose"><p>{text()}</p></div>}</Show>
+        <footer class="find-preview-keys"><Show when={!command().disabledReason?.()}><kbd>↵ Run</kbd></Show><Show when={command().keys?.length}><kbd>{command().keys!.join(' / ')}</kbd></Show></footer>
+      </>}</Show>
+    </Show>
   </aside>;
 }

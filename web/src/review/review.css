@@ -31,7 +31,10 @@
 .review-pending { color: var(--faint); }
 .review-notice { padding: var(--space-8) var(--space-24); color: var(--muted); background: var(--surface); font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
 .review-notice[role="alert"] { color: var(--danger); }
-.review-stale { color: var(--warning); font-size: var(--text-control); line-height: var(--line-control); }
+.review-stale { color: var(--warning); font-size: var(--text-control); line-height: var(--line-control); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
+/* A control held shut while a write is in flight keeps its look: no flicker for a grade, a quiet dim once the wait outlasts the 300 ms loading delay (ui/loading.ts). */
+.review-pane .button[aria-disabled="true"] { cursor: default; animation: review-dim var(--motion-ui) var(--motion-ease) 300ms both; }
+@keyframes review-dim { to { opacity: .45; } }
 .review-stale p { margin: 0 0 var(--space-8); }
 .review-stale-versions { display: flex; flex-wrap: wrap; gap: var(--space-16); margin-block: var(--space-12); color: var(--text); }
 .review-stale-versions section { flex: 1 1 calc(var(--measure) / 3); min-width: 0; }
@@ -47,19 +50,22 @@
 .review-history time { font-variant-numeric: tabular-nums; }
 .review-history-text { color: var(--text); }
 .review-confirm { width: var(--search-width); font-size: var(--text-control); line-height: var(--line-control); }
-.deck-editor { width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
+/* The editor takes the measure, but never more than its pane (DeckEditor sets --popup-room), so Save stays on screen in a split. */
+.deck-editor { width: min(var(--measure), calc(var(--popup-room, 100vw) - var(--space-16))); font-size: var(--text-control); line-height: var(--line-control); }
 .deck-editor form { display: flex; flex-direction: column; gap: var(--space-12); }
 .deck-editor-name { display: flex; flex-direction: column; gap: var(--space-4); }
 .deck-editor-queue { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
 .deck-editor-match { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .deck-editor p { margin: 0; overflow-wrap: anywhere; }
+/* Saving reports in the action row, so the popup keeps its height while the deck is written. */
+.deck-editor-saving { align-self: center; flex: 1; min-width: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 /* The landing is a ruled register, not a dashboard: one hairline opens the overview, the due count is a serif figure, and the
    apparatus (today's split, the stats line) is mono between rules. */
 .review-landing { display: flex; flex-direction: column; gap: var(--section-gap); }
 .review-overview { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: var(--space-48); padding-top: var(--space-16); border-top: var(--rule-width) solid var(--line); }
 .review-forecast { min-width: 0; padding: var(--space-24); border: 1px solid var(--line); border-radius: var(--radius-popup); }
 .review-landing .review-forecast { padding: 0; border: 0; border-radius: 0; }
-.review-today-load { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-12); min-width: 0; }
+.review-today-load, .review-queue-content { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-12); min-width: 0; }
 .review-today-load .review-queue-controls { align-self: stretch; margin-right: 0; }
 .review-landing h2, .review-forecast h2, .review-missed h3 { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .review-stat-value { font: var(--weight-body) var(--text-figure)/var(--line-figure) var(--font-display); font-variation-settings: var(--optical-heading); font-variant-numeric: lining-nums tabular-nums; }
@@ -131,7 +137,9 @@
 .review-missed p, .review-missed-answer { margin-block: var(--space-16); font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 /* The unfolded touch screen reads the cited passage beside the card, without opening a second pane. */
 .review-source-passage { display: none; }
+/* A card that replaces another fades in; the old one stays until it does, so a grade never paints an empty pane. */
 .review-session-layout { min-width: 0; padding-top: var(--section-gap); }
+.review-session-swap { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 .review-source-passage header { display: flex; justify-content: space-between; gap: var(--space-16); color: var(--faint); font: var(--apparatus); }
 .review-source-passage p { white-space: pre-wrap; font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-display); font-variation-settings: var(--optical-reader); }
 .review-source-passage .review-source-heading { font-weight: var(--weight-title); font-variation-settings: var(--optical-heading); }
@@ -152,8 +160,10 @@
 }
 /* On the cover, a live session owns the navigation's space; reveal and grades stay under the thumb. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .app:has(.pane.active .review-session-active) .bottom-nav { display: none; }
   .pane.active:has(.review-session-active) > .pane-header { display: none; }
+  /* A confirmation on the cover is a full-width sheet: its answers share the row and keep a thumb-sized target. */
+  :is(.review-confirm, .review-card-reset).popup-sheet .popup-actions { gap: var(--space-8); }
+  :is(.review-confirm, .review-card-reset).popup-sheet .popup-actions > .button { flex: 1; min-height: var(--touch-target); justify-content: center; }
   .review-cover-label { display: inline; }
   .review-desktop-label { display: none; }
   .review-start.button { min-height: var(--touch-target); }

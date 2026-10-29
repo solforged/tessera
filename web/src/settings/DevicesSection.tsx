@@ -11,6 +11,7 @@ import { SyncExplanation, SyncFix, currentHealth } from '../sync/SyncStatus';
 import { syncHealth, versionLine } from '../sync/health';
 import { settleRejection } from '../sync/rejections';
 import { ago, hubDevices, plural, replica, size, sync, syncConflicts } from '../sync/state';
+import { cancelConfirm, escapeConfirm, focusCancel } from './confirm-focus';
 
 const message = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
 
@@ -18,6 +19,7 @@ interface DeviceProps { heading: JSX.Element; notebook: NotebookClient; deviceId
 
 /** The Mac's device rows contain the fix and evidence for each relationship. */
 export function HubDevices(props: DeviceProps & { onCount(count: number): void }) {
+  let pairButton: HTMLButtonElement | undefined;
   const [busy, setBusy] = createSignal(false);
   const [pairing, setPairing] = createSignal(false);
   const [pairNeedsSharing, setPairNeedsSharing] = createSignal(false);
@@ -74,26 +76,26 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
               <Show when={device().last_attempt_at}><dt>Last attempt</dt><dd>{ago(device().last_attempt_at!, sync.now())}</dd></Show>
             </dl>
             <AttemptLedger attempts={device().attempts} when={props.when} />
-            <div class="devices-actions"><Show when={forgetting() === id} fallback={<Button class="danger" onClick={() => setForgetting(id)}>Forget</Button>}>
+            <div class="devices-actions"><Show when={forgetting() === id} fallback={<Button class="danger" data-confirm="forget" onClick={() => setForgetting(id)}>Forget</Button>}>
               <span class="settings-backup-question">Forget {device().name}? It must pair again to sync.</span>
-              <Button onClick={() => setForgetting(null)}>Cancel</Button>
-              <Button class="bordered danger" onClick={() => { void forget(id); }}>Confirm</Button>
+              <Button ref={focusCancel} onClick={event => cancelConfirm(event.currentTarget, 'forget', () => setForgetting(null))} onKeyDown={event => escapeConfirm(event, 'forget', () => setForgetting(null))}>Cancel</Button>
+              <Button class="bordered danger" onClick={() => { void forget(id); }} onKeyDown={event => escapeConfirm(event, 'forget', () => setForgetting(null))}>Confirm</Button>
             </Show></div>
           </div>
         </details>;
       }}</For>
       <Show when={value().retained.changes > 0}><p class="settings-mono devices-retained">Keeping {plural(value().retained.changes, 'change')} for devices that have not caught up ({size(value().retained.bytes)}).</p></Show>
-      <div class="settings-action devices-pair"><Button class="bordered" icon="plus" disabled={busy()} onClick={() => { void pair(); }}>Pair a phone</Button>
+      <div class="settings-action devices-pair"><Button ref={pairButton} class="bordered" icon="plus" disabled={busy()} onClick={() => { void pair(); }}>Pair a phone</Button>
         <Show when={!value().sharing.on && (pairNeedsSharing() || !value().sharing.available)}><span class="settings-hint" role="status">Turn on Sharing first</span></Show>
       </div>
-      <Show when={pairing()}><PairDialog url={value().sharing.url} onDone={() => { setPairing(false); void sync.refresh(); }} /></Show>
+      <Show when={pairing()}><PairDialog url={value().sharing.url} returnFocus={() => pairButton ?? null} onDone={() => { setPairing(false); void sync.refresh(); }} /></Show>
     </>}</Show>
     <NeedsReview notebook={props.notebook} onOpenPage={props.onOpenPage} onError={props.onError} />
   </>;
 }
 
 /** The QR code and short code a phone pairs with. It closes itself once the phone has paired. */
-function PairDialog(props: { url: string | null; onDone(): void }) {
+function PairDialog(props: { url: string | null; returnFocus(): HTMLElement | null; onDone(): void }) {
   const [code, setCode] = createSignal<PairingCode | null>(null);
   const [status, setStatus] = createSignal<PairingStatus['state']>('none');
   const [paired, setPaired] = createSignal<string | null>(null);
@@ -120,8 +122,8 @@ function PairDialog(props: { url: string | null; onDone(): void }) {
     const seconds = Math.max(0, Math.ceil(((code()?.expires_at ?? 0) - now()) / 1000));
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
   };
-  return <Popup anchor={document.body} placement="top" width={600} label="Pair a phone" class="pair-dialog" onDismiss={close}>
-    {/* One wrapper from the start, so the popup sees the content grow once the code arrives. */}
+  // The dialog opens once its code has arrived, so it does not grow while it enters; an outside press must not cancel a pairing in progress.
+  return <Popup anchor={document.body} placement="top" width={600} label="Pair a phone" class="pair-dialog" returnFocus={props.returnFocus} ready={!!code() || !!error()} dirty={() => status() === 'waiting'} onDismiss={close}>
     <div class="pair">
     <header class="pair-head">
       <div><p class="pair-register">This Mac → your phone</p><h2>Pair a phone</h2></div>

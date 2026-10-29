@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
+import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { Portal } from 'solid-js/web';
 import { ulid } from 'ulid';
 import type { ImageRef, Occlusion, OcclusionMask } from '../api/types';
@@ -8,6 +8,7 @@ import { NotebookImage } from '../ui/NotebookImage';
 import { groupLetter } from './card-text';
 import { MaskShape } from './OcclusionFigure';
 import { prepareOcclusionDraft } from './occlusion-draft';
+import { retireDialog } from './dialog-motion';
 import './occlusion.css';
 
 type Point = { x: number; y: number };
@@ -25,7 +26,7 @@ export function OcclusionEditor(props: { id: string; image: ImageRef; caption: s
   const [error, setError] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const undo: Occlusion[] = [], redo: Occlusion[] = [];
-  let root!: HTMLDialogElement, overlay!: SVGSVGElement;
+  let root!: HTMLDialogElement, overlay!: SVGSVGElement, keepEditing: HTMLButtonElement | undefined;
   let gesture: Gesture | undefined, longPress: number | undefined, inputHistory = '';
   const selectedGroup = createMemo(() => selected().length === 1 ? draft().groups.find(group => group.id === selected()[0]) : undefined);
   const dirty = () => JSON.stringify(initial) !== JSON.stringify(draft());
@@ -46,7 +47,8 @@ export function OcclusionEditor(props: { id: string; image: ImageRef; caption: s
     if (dirty()) setDiscard(true); else props.onClose();
   }
   function escape() {
-    if (selected().length || areaMode()) { setSelected([]); setAreaMode(false); }
+    if (discard()) setDiscard(false);
+    else if (selected().length || areaMode()) { setSelected([]); setAreaMode(false); }
     else close();
   }
   function clean(state: Occlusion) {
@@ -139,6 +141,15 @@ export function OcclusionEditor(props: { id: string; image: ImageRef; caption: s
   }
   function keydown(event: KeyboardEvent) {
     event.stopPropagation();
+    if (discard()) {
+      if (event.key === 'Escape') { event.preventDefault(); setDiscard(false); }
+      else if (event.key === 'Tab') {
+        const buttons = [...root.querySelectorAll<HTMLElement>('.occlusion-discard button')];
+        const at = buttons.indexOf(document.activeElement as HTMLElement), next = buttons[(at + (event.shiftKey ? buttons.length - 1 : 1)) % buttons.length];
+        event.preventDefault(); next?.focus();
+      }
+      return;
+    }
     const input = (event.target as Element).closest('input, textarea');
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); history(!event.shiftKey); return; }
     if (event.key === 'Escape') { event.preventDefault(); escape(); return; }
@@ -166,7 +177,16 @@ export function OcclusionEditor(props: { id: string; image: ImageRef; caption: s
     finally { setBusy(false); }
   }
   onMount(() => root.showModal());
-  onCleanup(() => clearTimeout(longPress));
+  // The prompt owns the dialog: everything beneath it is inert while it shows, and focus follows it in and back out.
+  createEffect(on(discard, open => {
+    for (const child of root.children) if (!child.classList.contains('occlusion-discard')) (child as HTMLElement).inert = open;
+    if (open) queueMicrotask(() => keepEditing?.focus());
+    else overlay.focus({ preventScroll: true });
+  }, { defer: true }));
+  onCleanup(() => {
+    clearTimeout(longPress);
+    retireDialog(root, 'occlusion-editor');
+  });
   return <Portal><dialog ref={root} class="occlusion-editor" aria-label="Edit image masks" onCancel={event => { event.preventDefault(); escape(); }} onKeyDown={keydown}>
     <header class="occlusion-header"><p>{props.caption || 'Image'}</p><Button disabled={busy()} onClick={close}>Close</Button></header>
     <div class="occlusion-toolbar" role="toolbar" aria-label="Edit image masks">
@@ -194,6 +214,6 @@ export function OcclusionEditor(props: { id: string; image: ImageRef; caption: s
     <Show when={selectedGroup()}>{group => <div class="occlusion-inputs"><For each={['hint', 'answer'] as const}>{key => <label>{key === 'hint' ? 'Hint' : 'Answer'}<input class="input" value={group()[key] ?? ''} onBlur={() => { inputHistory = ''; }} onInput={event => { const text = event.currentTarget.value; change(state => { state.groups.find(value => value.id === group().id)![key] = text; }, `${group().id}:${key}`); }} /></label>}</For></div>}</Show>
     <Show when={error()}><p role="alert">{error()}</p></Show>
     <footer class="occlusion-footer"><span>{draft().groups.length} {draft().groups.length === 1 ? 'card' : 'cards'} · {draft().masks.length} {draft().masks.length === 1 ? 'mask' : 'masks'}</span><Button disabled={busy()} onClick={close}>Cancel</Button><Button class="bordered" disabled={busy()} onClick={() => void save()}>Save</Button></footer>
-    <Show when={discard()}><div class="occlusion-discard" role="alertdialog" aria-label="Discard changes to these masks?"><p>Discard changes to these masks?</p><Button onClick={() => setDiscard(false)}>Keep editing</Button><Button onClick={() => props.onClose()}>Discard</Button></div></Show>
+    <Show when={discard()}><div class="occlusion-discard" role="alertdialog" aria-modal="true" aria-label="Discard changes to these masks?"><p>Discard changes to these masks?</p><Button ref={keepEditing} onClick={() => setDiscard(false)}>Keep editing</Button><Button onClick={() => props.onClose()}>Discard</Button></div></Show>
   </dialog></Portal>;
 }
