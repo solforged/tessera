@@ -35,7 +35,7 @@ export interface FieldSheet {
   Popups(): JSX.Element;
   /** Open the shared picker, including for an owner that does not yet have a field area. */
   pick(owner: string, anchor: HTMLElement): void;
-  openTask(owner: string, field?: TaskFieldName): void;
+  openTask(owner: string, field?: TaskFieldName, opener?: HTMLElement): void;
   hover(id: string | null): void;
   fill(entry: string): void;
   start(id: string): boolean;
@@ -77,16 +77,16 @@ export function createFieldSheet(context: Pick<OutlineContext,
   reveal(owner: string): void;
 }): FieldSheet {
   const { doc, props, definitionsById, definitions, indices, selected, editing, zoom, folds, apply, setMessage, templateFor, baseDepth } = context;
-  const [taskRequest, setTaskRequest] = createSignal<{ owner: string; field?: TaskFieldName }>();
+  const [taskRequest, setTaskRequest] = createSignal<{ owner: string; field?: TaskFieldName; opener?: HTMLElement }>();
   const [dismissedTask, setDismissedTask] = createSignal<string>();
   createEffect(on(selected, owner => {
     setDismissedTask(undefined);
     if (taskRequest()?.owner !== owner) setTaskRequest(undefined);
   }));
-  function openTask(owner: string, field?: TaskFieldName) {
+  function openTask(owner: string, field?: TaskFieldName, opener?: HTMLElement) {
     context.setSelected(owner);
     setDismissedTask(undefined);
-    setTaskRequest({ owner, field });
+    setTaskRequest({ owner, field, opener });
   }
   const fieldOf = (id: string) => definitionsById().get(fieldEntryId(doc.block(id)?.text ?? '') ?? '');
   const memberships = new Map<string, readonly string[]>();
@@ -361,7 +361,8 @@ export function createFieldSheet(context: Pick<OutlineContext,
         <TaskFieldBed notebook={props.notebook} doc={doc} id={area.state.owner} fields={definitions()} template={area.state.template}
           contextDate={doc.root()?.kind === 'journal' ? doc.root()!.text : props.notebook.todayDate()} sheet={window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches}
           initialField={taskRequest()?.owner === area.state.owner ? taskRequest()?.field : undefined}
-          onFieldOpened={() => setTaskRequest(request => request?.owner === area.state.owner ? { owner: request.owner } : request)}
+          opener={taskRequest()?.owner === area.state.owner ? taskRequest()?.opener : undefined}
+          onFieldOpened={() => setTaskRequest(request => request?.owner === area.state.owner ? { owner: request.owner, opener: request.opener } : request)}
           onDismiss={() => { setTaskRequest(undefined); context.rowFocus(area.state.owner); setDismissedTask(area.state.owner); }} />
       </div></Show>;
     }

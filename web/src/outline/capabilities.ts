@@ -25,7 +25,7 @@ export function createOutlineCapabilities(options: {
   caret(): Caret | null;
   anchor(id: string): PopupAnchor | null;
   onOpen(target: OpenTarget, beside: boolean): void;
-  onTaskFields?(id: string, field?: TaskFieldName): void;
+  onTaskFields?(id: string, field?: TaskFieldName, opener?: HTMLElement): void;
 }) {
   const { doc, notebook } = options;
   const [popup, setPopup] = createSignal<CapabilityPopup | null>(null);
@@ -54,7 +54,8 @@ export function createOutlineCapabilities(options: {
   function open(id: string, kind: CapabilityKind, anchor = options.anchor(id)) {
     if (!anchor || !doc.block(id)) return;
     if (options.onTaskFields && ['task', 'status', 'priority', 'schedule', 'deadline', 'repeat'].includes(kind)) {
-      options.onTaskFields(id, kind === 'task' ? undefined : kind === 'schedule' ? 'scheduled' : kind as TaskFieldName);
+      // The planning chip (a button, or a fact inside one) is where focus returns when the field editor closes.
+      options.onTaskFields(id, kind === 'task' ? undefined : kind === 'schedule' ? 'scheduled' : kind as TaskFieldName, anchor instanceof HTMLElement ? anchor.closest('button') ?? undefined : undefined);
       return;
     }
     setPopup({ id, kind, anchor });

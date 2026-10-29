@@ -11,6 +11,8 @@
 /* The viewer takes the screen: caption and Close on one line, the image as large as fits below. */
 .image-viewer { position: fixed; inset: 0; z-index: 45; display: flex; flex-direction: column; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; padding: var(--top-inset, 0) env(safe-area-inset-right) var(--bottom-inset, 0) env(safe-area-inset-left); background: var(--shell); color: var(--text); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 .image-viewer::backdrop { background: transparent; }
+/* Its exit ghost (a copy retired by `retireDialog`) leaves with a fade; the durations are zero under reduced motion. */
+.image-viewer.dialog-exit { animation: dialog-out var(--motion-fast) var(--motion-ease) both; pointer-events: none; }
 .image-viewer-header { display: flex; flex-shrink: 0; align-items: center; gap: var(--space-16); padding: var(--space-12) var(--space-16); }
 .image-viewer-caption { flex: 1; min-width: 0; margin: 0; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .image-viewer-stage { display: flex; flex: 1; min-height: 0; align-items: center; justify-content: center; padding: 0 var(--space-16) var(--space-16); }

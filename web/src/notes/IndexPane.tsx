@@ -1,5 +1,5 @@
 import { opensBeside, listOpensBeside } from '../shell/beside';
-import { createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show, Switch, Match, untrack } from 'solid-js';
+import { batch, createEffect, createMemo, createResource, createSignal, For, onCleanup, onMount, Show, Switch, Match, untrack } from 'solid-js';
 import { ulid } from 'ulid';
 import type { IndexKind, KindIndex, NoteEntry, NoteIndex, NoteKind, NoteSummary, Operation, Query, View } from '../api/types';
 import { missingFilter } from '../fields/required';
@@ -19,7 +19,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
-import { Popup } from '../ui/Popup';
+import { InlinePopups, Popup } from '../ui/Popup';
 import { createSettledChanges, createSlowFlag } from '../ui/loading';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { indexKindTarget, kindLabel, kindPlural, kindTally, noteKindIcon, startableKinds, tagOnly } from './kinds';
@@ -308,6 +308,32 @@ function KindIndexPane(props: IndexPaneProps) {
     finally { setBusy(false); }
   };
 
+  /** A row is rebuilt by background writes, so the opener is found again by note id, not kept as an element. */
+  const noteOpener = (state: NotePopup): HTMLElement | null => state.anchor.isConnected ? state.anchor : scroll.querySelector<HTMLElement>(`[data-note-actions="${CSS.escape(state.note.id)}"]`);
+  const editorOpen = () => !!(groupMenu() || filterMenu() || saveAnchor());
+  /** Leaving the options sheet takes its editors with it, so none reappears as a sheet of its own. */
+  const closeOptions = () => batch(() => { setGroupMenu(undefined); setFilterMenu(undefined); setSaveAnchor(undefined); setOptionsAnchor(undefined); });
+  // Dismissing the sheet (Escape, scrim) first backs out of an open editor to the options list.
+  const dismissOptions = () => {
+    if (!editorOpen()) { closeOptions(); return; }
+    // The options item that opened the editor takes focus back, so the keyboard stays inside the sheet.
+    const opener = groupMenu() ?? filterMenu() ?? saveAnchor();
+    batch(() => { setGroupMenu(undefined); setFilterMenu(undefined); setSaveAnchor(undefined); });
+    requestAnimationFrame(() => { if (opener?.isConnected && optionsAnchor()) opener.focus({ preventScroll: true }); });
+  };
+  // On a phone the options sheet is the one popup surface: Group, Filters and Save as view open inside it, not as sheets on sheets.
+  const optionEditors = () => <>
+    <Show when={groupMenu()}>{anchor => <Menu anchor={anchor()} label="Group" onDismiss={() => setGroupMenu(undefined)} items={[
+      ...Object.entries({ letter: 'Letter', source: 'Source cited', link: 'Atom linked', created: 'Created month' }).map(([key, label]) => ({ label, checked: grouping() === key, action: () => updateQuery({ ...query(), note_view: { layout: 'index', grouping: key } }) })),
+      ...(kindFields() ?? []).map(field => ({ label: field.name, checked: grouping() === `field:${field.id}`, action: () => updateQuery({ ...query(), note_view: { layout: 'index', grouping: `field:${field.id}` } }) })),
+    ]} />}</Show>
+    <Show when={filterMenu()}>{anchor => <FilterPopup anchor={anchor()} initialField="" fields={kindFields() ?? []} notebook={props.notebook} sheet={cover()} onDismiss={() => setFilterMenu(undefined)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setFilterMenu(undefined); }} />}</Show>
+    <Show when={saveAnchor()}>{anchor => <Popup anchor={anchor()} placement={cover() ? 'sheet' : 'anchor'} label="Save as view…" dirty={() => viewName().trim() !== ''} onDismiss={() => setSaveAnchor(undefined)}>
+      <form onSubmit={event => { event.preventDefault(); void saveView(); }}><input class="input" aria-label="View name" placeholder="View name" value={viewName()} onInput={event => setViewName(event.currentTarget.value)} maxlength={120} />
+        <Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button onClick={() => setSaveAnchor(undefined)}>Cancel</Button><Button type="submit" class="bordered" disabled={busy() || !viewName().trim()}>Save</Button></div>
+      </form>
+    </Popup>}</Show>
+  </>;
   return <div ref={scroll} class={`index-pane ${props.kindKey === 'unfiled' ? 'index-unfiled' : props.kindKey === 'source' ? 'index-sources' : ''}`} classList={{ 'index-selecting': selecting() }} role="region" tabIndex={0} aria-label={`${title()} list`} aria-busy={index.loading || definitions.loading || matches.loading} data-pane-pending={pending() ? '' : undefined} onFocusIn={props.onActivate} onScroll={scrollChanged}>
     <div class="index-sheet">
       <Show when={props.kindKey === 'unfiled' || props.kindKey === 'source'}><p class="index-eyebrow index-kind-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : 'Bibliography'}</p></Show>
@@ -364,7 +390,7 @@ function KindIndexPane(props: IndexPaneProps) {
                       <Show when={preview(note)} fallback={<span class="index-preview index-blank-preview">{summary(note)?.referenced_from.length ? `Referenced by ${summary(note)!.referenced_from.map(page => page.title).join(' · ')}` : 'No text yet'}</span>}><span class="index-preview">{preview(note)}</span></Show>
                       <span class="index-apparatus">{apparatus(summary(note))}</span>
                     </button>
-                    <div class="index-queue-actions"><Button class="index-file bordered" onClick={event => showPopup('file', note, event.currentTarget)}>File</Button><Button class="bordered" icon="more" label={`Actions for ${note.title}`} onClick={event => showPopup('menu', note, event.currentTarget)} /></div>
+                    <div class="index-queue-actions"><Button class="index-file bordered" onClick={event => showPopup('file', note, event.currentTarget)}>File</Button><Button class="bordered" icon="more" label={`Actions for ${note.title}`} data-note-actions={note.id} onClick={event => showPopup('menu', note, event.currentTarget)} /></div>
                   </div>}</For>
                 </section>}</For>
               </div><Show when={selectedNote()}>{note => <aside class="index-inspector" aria-label="Selected atom">
@@ -411,26 +437,18 @@ function KindIndexPane(props: IndexPaneProps) {
         </Switch>
       </Show></Show>
     </div>
-    <Show when={optionsAnchor()}>{anchor => <Popup anchor={anchor()} placement="sheet" class="index-options-sheet" label="List options" onDismiss={() => setOptionsAnchor(undefined)}>
+    <Show when={optionsAnchor()}>{anchor => <Popup anchor={anchor()} placement="sheet" class="index-options-sheet" label="List options" onDismiss={dismissOptions}>
       <h2 class="table-popup-heading">List options</h2>
       <Button aria-haspopup="menu" onClick={event => setGroupMenu(event.currentTarget)}>Group <Icon name="down" /></Button>
       <Button aria-haspopup="dialog" onClick={event => setFilterMenu(event.currentTarget)}>Filters <span class="faint">{query().filters.length || ''}</span></Button>
       <Button onClick={event => { setViewName(''); setSaveAnchor(event.currentTarget); }}>Save as view…</Button>
-      <Button onClick={() => { setSelecting(true); setOptionsAnchor(undefined); }}>Select atoms</Button>
-      <div class="popup-actions"><Button class="bordered" onClick={() => setOptionsAnchor(undefined)}>Done</Button></div>
+      <Button onClick={() => { setSelecting(true); closeOptions(); }}>Select atoms</Button>
+      <InlinePopups>{optionEditors()}</InlinePopups>
+      <div class="popup-actions"><Button class="bordered" onClick={closeOptions}>Done</Button></div>
     </Popup>}</Show>
-    <Show when={groupMenu()}>{anchor => <Menu anchor={anchor()} label="Group" onDismiss={() => setGroupMenu(undefined)} items={[
-      ...Object.entries({ letter: 'Letter', source: 'Source cited', link: 'Atom linked', created: 'Created month' }).map(([key, label]) => ({ label, checked: grouping() === key, action: () => updateQuery({ ...query(), note_view: { layout: 'index', grouping: key } }) })),
-      ...(kindFields() ?? []).map(field => ({ label: field.name, checked: grouping() === `field:${field.id}`, action: () => updateQuery({ ...query(), note_view: { layout: 'index', grouping: `field:${field.id}` } }) })),
-    ]} />}</Show>
-    <Show when={filterMenu()}>{anchor => <FilterPopup anchor={anchor()} initialField="" fields={kindFields() ?? []} notebook={props.notebook} sheet={cover()} onDismiss={() => setFilterMenu(undefined)} onAdd={filter => { updateQuery(addFilter(query(), filter)); setFilterMenu(undefined); }} />}</Show>
-    <Show when={saveAnchor()}>{anchor => <Popup anchor={anchor()} placement={cover() ? 'sheet' : 'anchor'} label="Save as view…" onDismiss={() => setSaveAnchor(undefined)}>
-      <form onSubmit={event => { event.preventDefault(); void saveView(); }}><input class="input" aria-label="View name" placeholder="View name" value={viewName()} onInput={event => setViewName(event.currentTarget.value)} maxlength={120} />
-        <Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button onClick={() => setSaveAnchor(undefined)}>Cancel</Button><Button type="submit" class="bordered" disabled={busy() || !viewName().trim()}>Save</Button></div>
-      </form>
-    </Popup>}</Show>
+    <Show when={!optionsAnchor()}>{optionEditors()}</Show>
     <Show keyed when={popup()}>{state => <Switch>
-      <Match when={state.kind === 'menu'}><Menu anchor={state.anchor} label={`Actions for ${state.note.title}`} title="Atom actions" onDismiss={() => setPopup(undefined)} header={<div class="index-action-header"><p class="index-eyebrow">Atom actions</p><h2>{state.note.title}</h2><p class="index-apparatus">{apparatus(summary(state.note))}</p><Show when={!summary(state.note)?.text_blocks}><p class="muted">{summary(state.note)?.referenced_from.length ? `Referenced by ${summary(state.note)!.referenced_from.map(page => page.title).join(' · ')}` : 'No text yet'}</p></Show></div>} items={[
+      <Match when={state.kind === 'menu'}><Menu anchor={state.anchor} returnFocus={() => noteOpener(state)} label={`Actions for ${state.note.title}`} title="Atom actions" onDismiss={() => setPopup(undefined)} header={<div class="index-action-header"><p class="index-eyebrow">Atom actions</p><h2>{state.note.title}</h2><p class="index-apparatus">{apparatus(summary(state.note))}</p><Show when={!summary(state.note)?.text_blocks}><p class="muted">{summary(state.note)?.referenced_from.length ? `Referenced by ${summary(state.note)!.referenced_from.map(page => page.title).join(' · ')}` : 'No text yet'}</p></Show></div>} items={[
         { label: 'Open', action: () => props.onOpen({ kind: 'page', pageId: state.note.id }, window.matchMedia('(pointer: coarse) and (min-width: 900px)').matches) },
         { label: 'File under…', action: () => showPopup('file', state.note, state.anchor) },
         { label: 'Rename…', action: () => showPopup('rename', state.note, state.anchor) },
@@ -440,10 +458,10 @@ function KindIndexPane(props: IndexPaneProps) {
           { label: 'Copy reference', icon: 'link', action: () => { void navigator.clipboard.writeText(`[[${state.note.id}]]`).catch(reason => setError(`Couldn't copy: ${String(reason)}`)); } },
         ] }) },
       ]} /></Match>
-      <Match when={state.kind === 'file'}><FilingPicker notebook={props.notebook} notes={state.notes ?? [state.note]} anchor={state.anchor} onDismiss={() => setPopup(undefined)} onFiled={change => didFile(state.notes ?? [state.note], change)} /></Match>
-      <Match when={state.kind === 'rename'}><RenameNote notebook={props.notebook} note={state.note} anchor={state.anchor} onDismiss={() => setPopup(undefined)} /></Match>
-      <Match when={state.kind === 'merge'}><PageMergePicker notebook={props.notebook} from={{ id: state.note.id, text: state.note.title }} anchor={state.anchor} onDismiss={() => setPopup(undefined)} onMerged={() => { setPopup(undefined); setVersion(value => value + 1); }} /></Match>
-      <Match when={state.kind === 'delete'}><Popup anchor={state.anchor} placement={cover() ? 'sheet' : 'anchor'} class="index-note-popup" label="Delete atom" onDismiss={() => { if (!busy()) setPopup(undefined); }}>
+      <Match when={state.kind === 'file'}><FilingPicker notebook={props.notebook} notes={state.notes ?? [state.note]} anchor={state.anchor} returnFocus={() => noteOpener(state)} onDismiss={() => setPopup(undefined)} onFiled={change => didFile(state.notes ?? [state.note], change)} /></Match>
+      <Match when={state.kind === 'rename'}><RenameNote notebook={props.notebook} note={state.note} anchor={state.anchor} returnFocus={() => noteOpener(state)} onDismiss={() => setPopup(undefined)} /></Match>
+      <Match when={state.kind === 'merge'}><PageMergePicker notebook={props.notebook} from={{ id: state.note.id, text: state.note.title }} anchor={state.anchor} returnFocus={() => noteOpener(state)} onDismiss={() => setPopup(undefined)} onMerged={() => { setPopup(undefined); setVersion(value => value + 1); }} /></Match>
+      <Match when={state.kind === 'delete'}><Popup anchor={state.anchor} placement={cover() ? 'sheet' : 'anchor'} class="index-note-popup" label="Delete atom" returnFocus={() => noteOpener(state)} onDismiss={() => { if (!busy()) setPopup(undefined); }}>
         <p>Delete “{state.note.title}” and all its atoms?</p><p class="muted">You can undo this deletion.</p><Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button disabled={busy()} onClick={() => setPopup(undefined)}>Cancel</Button><Button class="danger bordered" disabled={busy() || !props.onDeletePages || !!actionReason(state.note, 'delete')} title={actionReason(state.note, 'delete')} onClick={() => void deleteNote(state.note)}>Delete atom</Button></div>
       </Popup></Match>
     </Switch>}</Show>
@@ -493,7 +511,7 @@ function NewKindAction(props: Pick<IndexPaneProps, 'kindKey' | 'kind' | 'noteboo
 
 
 interface FilingChoice { id: string; title: string; create: boolean }
-function FilingPicker(props: { notebook: NotebookClient; notes: NoteEntry[]; anchor: HTMLElement; onDismiss(): void; onFiled(change: FiledNotes): void }) {
+function FilingPicker(props: { notebook: NotebookClient; notes: NoteEntry[]; anchor: HTMLElement; returnFocus(): HTMLElement | null; onDismiss(): void; onFiled(change: FiledNotes): void }) {
   const [query, setQuery] = createSignal('');
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
@@ -528,14 +546,14 @@ function FilingPicker(props: { notebook: NotebookClient; notes: NoteEntry[]; anc
     } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { for (const doc of docs) doc.release(); setBusy(false); }
   };
-  return <Picker<FilingChoice> anchor={props.anchor} placement={cover() ? 'sheet' : 'anchor'} fitContent autofocus={!cover()} class="index-note-popup index-filing-popup" style={{ '--filing-visible-rows': Math.min(3, choices().length) }} label={`File ${heading()}`} onDismiss={() => { if (!busy()) props.onDismiss(); }}
+  return <Picker<FilingChoice> anchor={props.anchor} returnFocus={props.returnFocus} placement={cover() ? 'sheet' : 'anchor'} fitContent autofocus={!cover()} class="index-note-popup index-filing-popup" style={{ '--filing-visible-rows': Math.min(3, choices().length) }} label={`File ${heading()}`} onDismiss={() => { if (!busy()) props.onDismiss(); }}
     query={query()} onQuery={setQuery} placeholder="Find or create a tag" items={choices()} key={choice => choice.id}
     onPick={choice => void file(choice)} disabledReason={() => busy() ? 'Filing…' : undefined} busy={types.loading} error={error() || (types.error ? String(types.error) : undefined)} empty="No matching tags."
     status={<div class="index-filing-head"><p class="index-eyebrow">{props.notes.length === 1 ? 'File an atom' : `File ${props.notes.length} atoms`}</p><h2>{heading()}</h2></div>}
     row={choice => <><Icon name={choice.create ? 'plus' : 'tag'} /><span class="picker-text">{choice.create ? `Create tag “${choice.title}” and file` : choice.title}</span></>} />;
 }
 
-function RenameNote(props: { notebook: NotebookClient; note: NoteEntry; anchor: HTMLElement; onDismiss(): void }) {
+function RenameNote(props: { notebook: NotebookClient; note: NoteEntry; anchor: HTMLElement; returnFocus(): HTMLElement | null; onDismiss(): void }) {
   const [title, setTitle] = createSignal(props.note.title);
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
@@ -548,8 +566,8 @@ function RenameNote(props: { notebook: NotebookClient; note: NoteEntry; anchor: 
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { doc.release(); setBusy(false); }
   };
-  return <Show when={!merge()} fallback={<PageMergePicker notebook={props.notebook} from={{ id: props.note.id, text: props.note.title }} anchor={props.anchor} onDismiss={props.onDismiss} onMerged={props.onDismiss} />}>
-    <Popup anchor={props.anchor} placement={cover() ? 'sheet' : 'anchor'} class="index-note-popup" label="Rename atom" onDismiss={() => { if (!busy()) props.onDismiss(); }}>
+  return <Show when={!merge()} fallback={<PageMergePicker notebook={props.notebook} from={{ id: props.note.id, text: props.note.title }} anchor={props.anchor} returnFocus={props.returnFocus} onDismiss={props.onDismiss} onMerged={props.onDismiss} />}>
+    <Popup anchor={props.anchor} placement={cover() ? 'sheet' : 'anchor'} class="index-note-popup" label="Rename atom" returnFocus={props.returnFocus} dirty={() => title() !== props.note.title} onDismiss={() => { if (!busy()) props.onDismiss(); }}>
       <label>Title<input class="input" value={title()} disabled={busy()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.key === 'Enter' && !event.isComposing && !collision()) void rename(); }} /></label>
       <Show when={error()}><p class="error" role="alert">{error()}</p></Show><div class="popup-actions"><Button disabled={busy()} onClick={props.onDismiss}>Cancel</Button><Show when={collision()} fallback={<Button class="bordered" disabled={busy() || !title().trim()} onClick={() => void rename()}>Save title</Button>}>{page => <Button class="bordered" onClick={() => setMerge(true)}>Merge into “{page().text}”…</Button>}</Show></div>
     </Popup>

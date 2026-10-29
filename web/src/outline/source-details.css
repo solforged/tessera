@@ -1,14 +1,17 @@
 /* Match the Library's catalogue card; the page takes the remaining measure. */
 .source-details-column { position: absolute; top: var(--page-top-space); left: calc(var(--pane-inset) + (100cqi + min(var(--measure), 100cqi - 460px - var(--space-48)) + var(--space-48) - 460px) / 2); width: 460px; height: calc(100% - var(--page-top-space) - var(--space-24)); border-left: var(--rule-width) solid var(--line); }
 .source-details-pending { display: none; }
+/* The card fades out toward the edge it entered from while the page glides back; reduced motion zeroes both durations. */
+.source-details-leaving { animation: source-details-out var(--motion-ui) var(--motion-ease) both; pointer-events: none; }
+@keyframes source-details-out { to { opacity: 0; translate: var(--motion-leaf) 0; } }
 .popup.source-details-sheet { padding: 0; height: 85dvh; }
 .source-details-sheet .metadata-inspector { height: 85dvh; }
 @container outline-pane (min-width: 1096px) {
-  .outline-pane:has(> .source-details-column:not(.source-details-pending)) > :is(.outline-heading, .outline-list, .related-sections, .add-first-block) { --source-page-measure: min(var(--measure), 100cqi - 460px - var(--space-48)); --outline-column-start: calc((100cqi - var(--source-page-measure) - var(--space-48) - 460px) / 2); max-width: var(--source-page-measure); }
-  .outline-pane:has(> .source-details-column:not(.source-details-pending)) > :is(.outline-heading, .related-sections, .add-first-block) { margin-left: var(--outline-column-start); margin-right: 0; }
+  .outline-pane:has(> .source-details-column:not(.source-details-pending, .source-details-leaving)) > :is(.outline-heading, .outline-list, .related-sections, .add-first-block) { --source-page-measure: min(var(--measure), 100cqi - 460px - var(--space-48)); --outline-column-start: calc((100cqi - var(--source-page-measure) - var(--space-48) - 460px) / 2); max-width: var(--source-page-measure); }
+  .outline-pane:has(> .source-details-column:not(.source-details-pending, .source-details-leaving)) > :is(.outline-heading, .related-sections, .add-first-block) { margin-left: var(--outline-column-start); margin-right: 0; }
   /* The remaining page column is narrow even when the pane is wide: keep its editing rail inside it. */
-  .outline-pane:has(> .source-details-column:not(.source-details-pending)) > .outline-list { width: var(--source-page-measure); margin-left: var(--outline-column-start); margin-right: 0; max-width: var(--source-page-measure); }
-  .outline-pane.has-sigla:has(> .source-details-column:not(.source-details-pending)) > .outline-list { --sigla-rail-space: max(0px, calc(var(--siglum-width) + var(--space-8) - var(--outline-column-start))); margin-left: calc(var(--outline-column-start) + var(--sigla-rail-space)); max-width: calc(var(--source-page-measure) - var(--sigla-rail-space)); }
-  .outline-pane.source-page:has(> .source-details-column:not(.source-details-pending)) > .outline-list .outline-row:not(.source-highlight, .source-highlights-start) { left: 0; }
-  .outline-pane:has(> .source-details-column:not(.source-details-pending)) > .outline-apparatus { display: none; }
+  .outline-pane:has(> .source-details-column:not(.source-details-pending, .source-details-leaving)) > .outline-list { width: var(--source-page-measure); margin-left: var(--outline-column-start); margin-right: 0; max-width: var(--source-page-measure); }
+  .outline-pane.has-sigla:has(> .source-details-column:not(.source-details-pending, .source-details-leaving)) > .outline-list { --sigla-rail-space: max(0px, calc(var(--siglum-width) + var(--space-8) - var(--outline-column-start))); margin-left: calc(var(--outline-column-start) + var(--sigla-rail-space)); max-width: calc(var(--source-page-measure) - var(--sigla-rail-space)); }
+  .outline-pane.source-page:has(> .source-details-column:not(.source-details-pending, .source-details-leaving)) > .outline-list .outline-row:not(.source-highlight, .source-highlights-start) { left: 0; }
+  .outline-pane:has(> .source-details-column:not(.source-details-pending, .source-details-leaving)) > .outline-apparatus { display: none; }
 }

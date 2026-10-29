@@ -8,12 +8,15 @@ import { NotebookImage } from '../ui/NotebookImage';
 import { Button } from '../ui/Button';
 import { BlockText } from './BlockText';
 import { OcclusionEditor } from '../review/OcclusionEditor';
+import { retireDialog } from '../review/dialog-motion';
 import './image.css';
 
 /** The whole image at the largest size the screen allows, with its caption beneath; Escape or Close returns to the outline. */
 export function ImageViewer(props: { image: ImageRef; caption: string; notebook: NotebookClient; onClose(): void; onEditMasks(): void }) {
   let root!: HTMLDialogElement;
   onMount(() => root.showModal());
+  // The dialog leaves with a fade of its own, as it arrives; the ghost never holds focus or takes input.
+  onCleanup(() => retireDialog(root, 'image-viewer'));
   return <Portal><dialog ref={root} class="image-viewer" aria-label={props.caption || 'Image'} onCancel={event => { event.preventDefault(); props.onClose(); }}
     onClick={event => { if (event.target === event.currentTarget || (event.target as Element).classList.contains('image-viewer-stage')) props.onClose(); }}>
     <header class="image-viewer-header">
@@ -88,7 +91,14 @@ export function createOutlineImages(context: Pick<OutlineContext, 'doc' | 'props
   });
   function ImagePopups() {
     const block = () => context.doc.block(viewer() ?? '');
-    const close = () => { setViewer(undefined); context.restoreFocus(); };
+    const close = () => {
+      const id = viewer();
+      setViewer(undefined);
+      // The figure's own button opened the viewer; focus goes back to it, not to the pane.
+      const opener = id ? context.rowAnchor(id)?.querySelector<HTMLElement>('.outline-image button') : null;
+      if (opener) opener.focus({ preventScroll: true });
+      else context.restoreFocus();
+    };
     const editing = () => context.doc.block(editor() ?? '');
     return <>
       <input ref={input} hidden type="file" aria-label="Insert image" accept={accepted.join(',')} multiple onChange={event => {

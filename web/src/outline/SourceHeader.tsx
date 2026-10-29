@@ -33,7 +33,7 @@ export function SourceHeader(props: {
   doc: PageDocument; notebook: NotebookClient;
   onOpen: OutlinePaneProps['onOpen']; onError(message: string): void;
   resetItems(): MenuItem[];
-  onEditDetails(): void;
+  onEditDetails(opener: HTMLElement): void;
   onDelete?: OutlinePaneProps['onDelete'];
   compact?: boolean;
   highlights?: HighlightResult; colors: string[]; grouped: boolean; fieldsVisible: boolean;
@@ -123,7 +123,7 @@ export function SourceHeader(props: {
     } catch (error) { fail(error); return; }
     if (!anchor.isConnected) return;
     setMenu({ anchor, label: 'Source actions', title: 'Source actions', context: props.doc.root()?.text, items: [
-      { label: 'Edit details…', action: props.onEditDetails },
+      { label: 'Edit details…', action: () => props.onEditDetails(anchor) },
       { label: 'Copy citation key', disabledReason: props.doc.root()?.source?.citation_key ? undefined : 'No citation key', action: () => { void navigator.clipboard.writeText(props.doc.root()!.source!.citation_key!).catch(fail); } },
       { label: 'Collections…', divider: true, submenu: () => ({ title: 'Collections', items: [
         { label: 'Add to collection…', action: () => setCollectionPicker(anchor) },

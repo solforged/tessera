@@ -4,6 +4,8 @@
 /* A gloss fades in at its measured anchor; even the entry motion keeps its box still. */
 .reference-preview.popup-enter { animation-name: reference-preview-in; }
 @keyframes reference-preview-in { from { opacity: 0; } to { opacity: 1; } }
+/* The exit mirrors the entry: `popup-out` stays (the primitive times its retirement by it) but its slide is zeroed. */
+.reference-preview.popup-exit { --motion-distance: 0px; }
 .reference-preview-card { display: flex; flex-direction: column; min-height: 100%; }
 .reference-preview-header { padding: var(--space-12) var(--space-16); }
 .reference-preview-topline { display: flex; align-items: center; gap: var(--space-8); }

@@ -39,7 +39,7 @@ export function pageMergeDisabledReason(root: BlockState | undefined, capabiliti
 }
 
 /** Both the title collision and page menu require the same permanent confirmation. */
-export function PageMergeConfirmation(props: { anchor: PopupAnchor; notebook: NotebookClient; from: Page; into: Page; onDismiss(): void; onMerged(id: string): void }) {
+export function PageMergeConfirmation(props: { anchor: PopupAnchor; notebook: NotebookClient; from: Page; into: Page; returnFocus?: () => HTMLElement | null; onDismiss(): void; onMerged(id: string): void }) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal('');
   const [capabilities] = createResource(() => props.from.id, id => props.notebook.api.capabilities(id));
@@ -55,7 +55,7 @@ export function PageMergeConfirmation(props: { anchor: PopupAnchor; notebook: No
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally { setBusy(false); }
   };
-  return <Popup anchor={props.anchor} class="outline-capability-popup page-merge-confirmation" label={`Merge “${props.from.text}” into “${props.into.text}”?`} onDismiss={() => { if (!busy()) props.onDismiss(); }}>
+  return <Popup anchor={props.anchor} returnFocus={props.returnFocus} class="outline-capability-popup page-merge-confirmation" label={`Merge “${props.from.text}” into “${props.into.text}”?`} onDismiss={() => { if (!busy()) props.onDismiss(); }}>
     <h3 class="popup-title">Merge “{props.from.text}” into “{props.into.text}”?</h3>
     <p class="muted">References and atoms will move to “{props.into.text}”. This merge is permanent. “{props.from.text}” stays as an alias.</p>
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
@@ -64,7 +64,7 @@ export function PageMergeConfirmation(props: { anchor: PopupAnchor; notebook: No
   </Popup>;
 }
 
-export function PageMergePicker(props: { anchor: PopupAnchor; notebook: NotebookClient; from: Page; onDismiss(): void; onMerged(id: string): void }) {
+export function PageMergePicker(props: { anchor: PopupAnchor; notebook: NotebookClient; from: Page; returnFocus?: () => HTMLElement | null; onDismiss(): void; onMerged(id: string): void }) {
   const [query, setQuery] = createSignal('');
   const [target, setTarget] = createSignal<Block>();
   const [pages] = createResource(() => {
@@ -79,10 +79,10 @@ export function PageMergePicker(props: { anchor: PopupAnchor; notebook: Notebook
     const text = titleKey(query().trim());
     return pages.error ? [] : (pages() ?? []).filter(page => titleKey(page.text).includes(text));
   });
-  return <Show keyed when={target()} fallback={<Picker<Block> anchor={props.anchor} label="Merge into" onDismiss={props.onDismiss}
+  return <Show keyed when={target()} fallback={<Picker<Block> anchor={props.anchor} returnFocus={props.returnFocus} label="Merge into" onDismiss={props.onDismiss}
     query={query()} onQuery={setQuery} placeholder="Find an atom" items={matches()} key={page => page.id}
     onPick={page => setTarget(page)} busy={pages.loading} error={pages.error ? String(pages.error) : undefined} empty="No matching atoms."
     row={page => <><Icon name="page" /><span class="picker-text">{page.text}</span></>} />}>
-    {into => <PageMergeConfirmation anchor={props.anchor} notebook={props.notebook} from={props.from} into={into} onDismiss={props.onDismiss} onMerged={props.onMerged} />}
+    {into => <PageMergeConfirmation anchor={props.anchor} returnFocus={props.returnFocus} notebook={props.notebook} from={props.from} into={into} onDismiss={props.onDismiss} onMerged={props.onMerged} />}
   </Show>;
 }

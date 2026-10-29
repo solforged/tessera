@@ -215,17 +215,41 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     return false;
   }
   const [valueEditor, setValueEditor] = createSignal<{ id: string; field: FieldDefinition; anchor: HTMLElement } | null>(null);
+  /** An empty value being opened: its editor mounts once the row has stopped moving. */
+  const [pendingValue, setPendingValue] = createSignal<string | null>(null);
+  /** The value's own button, so the open editor marks it expanded and a second press closes it; else the row body. */
+  const valueAnchor = (id: string) => rowAnchor(id)?.querySelector<HTMLElement>('.outline-value-cell > .outline-value-edit') ?? rowAnchor(id)?.querySelector<HTMLElement>('.outline-value-cell > button') ?? rowAnchor(id)?.querySelector<HTMLElement>('.outline-body') ?? rowAnchor(id) ?? null;
   /** Controlled values never enter the raw reference editor, including keyboard Enter. */
   function openValueEditor(id: string, anchor?: HTMLElement): boolean {
     const field = definitionsById().get(fieldEntryId(doc.block(doc.outline.parentOf(id))?.text ?? '') ?? '');
     if (!hasValueEditor(field, doc.block(id)?.text ?? '', contextDate())) return false;
+    // Focus and the template offer both open the editor for a new value; one mounted editor serves both, so the
+    // first never retires as a ghost beside the second.
+    const open = valueEditor();
+    if ((open?.id === id && open.anchor.isConnected) || pendingValue() === id) return true;
     startFilling(id);
     context.rowFocus(id, false, true);
     // Focus tears down the raw editor and may replace its row. Anchor the settled row, not its old button.
-    const element = rowAnchor(id)?.querySelector<HTMLElement>('.outline-body') ?? rowAnchor(id) ?? (anchor?.isConnected ? anchor : null);
+    const element = valueAnchor(id) ?? (anchor?.isConnected ? anchor : null);
     if (!element) return false;
     setCompletion(null);
-    setValueEditor({ id, field: field!, anchor: element });
+    const mount = (anchor: HTMLElement) => setValueEditor({ id, field: field!, anchor });
+    if (doc.block(id)?.text) { mount(element); return true; }
+    // A new value's row gains its slot and measured height after it appears. The editor waits until the row holds
+    // still for two frames, so it enters at its final place instead of sliding there while it fades in.
+    setPendingValue(id);
+    let last = element.getBoundingClientRect().top, steady = 0, frames = 0;
+    const settle = () => {
+      if (context.disposed || pendingValue() !== id) return;
+      const current = valueAnchor(id);
+      if (!current) { setPendingValue(null); return; }
+      const top = current.getBoundingClientRect().top;
+      steady = Math.abs(top - last) < .5 ? steady + 1 : 0;
+      last = top;
+      if (steady >= 2 || ++frames >= 12) { setPendingValue(null); mount(current); }
+      else requestAnimationFrame(settle);
+    };
+    requestAnimationFrame(settle);
     return true;
   }
   /** New template values use exactly the same picker as existing values. */
@@ -236,6 +260,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     });
   }
   function dismissValueEditor(id: string) {
+    setPendingValue(null);
     setValueEditor(null);
     const previous = emptyExtraValuePrevious(doc, id, definitionsById());
     if (previous) {
@@ -244,6 +269,9 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       else context.rowFocus(previous);
     }
     restoreFocus();
+    // Escape and picks leave focus on the pane; the value's own button is where the keyboard was.
+    const active = document.activeElement;
+    if (!active || active === document.body || active.classList.contains('outline-pane')) valueAnchor(id)?.focus({ preventScroll: true });
   }
   function popupKey(event: KeyboardEvent) {
     const state = completion();
@@ -390,7 +418,21 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     for (const field of byId.values()) rows.push({ kind: 'field', field });
     return rows;
   }
-  const completionRows = createMemo<CompletionRow[]>(() => rowsFor(completion(), matches.loading || matches.error ? undefined : matches()));
+  // Every keystroke fetches a new result set. The previous rows of the same kind stay until it arrives, so the list
+  // keeps its height instead of collapsing to a stub and growing back.
+  let settledMatches: { mode: string; found: CompletionMatches } | undefined;
+  const matchesMode = (key: string | false) => key ? key.slice(0, key.indexOf(':')) : '';
+  const shownMatches = createMemo<CompletionMatches | undefined>(() => {
+    if (matches.error) return undefined;
+    const key = completionKey();
+    if (!matches.loading) {
+      const found = matches();
+      settledMatches = found && key ? { mode: matchesMode(key), found } : undefined;
+      return found;
+    }
+    return settledMatches && key && settledMatches.mode === matchesMode(key) ? settledMatches.found : undefined;
+  });
+  const completionRows = createMemo<CompletionRow[]>(() => rowsFor(completion(), shownMatches()));
   /** An offered picker highlights no row, since Enter leaves it to the editor. */
   const pickable = (index: number) => !completion()?.offered && completionIndex() === index;
   /** As in Find or create, a query that names nothing exactly offers creation after the matches. */
@@ -588,6 +630,13 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     if (state?.relationTarget) return state.relationTarget.anchor.getBoundingClientRect();
     return state && context.editor ? caretRect(state.from) : null;
   }
+  /** Completions stay inside the pane they were typed in, so they never cover the global search or the pane header. */
+  function paneBounds(): DOMRect | null {
+    const state = completion();
+    const origin: Element | null | undefined = state?.manual?.anchor ?? state?.relationTarget?.anchor ?? context.editor?.view.dom;
+    const pane = origin?.closest('.outline-pane') ?? origin?.closest('.pane[data-pane]');
+    return pane?.isConnected ? pane.getBoundingClientRect() : null;
+  }
   /** The slash menu: block verbs from the command list plus syntax inserts; each row shows its faster key. */
   function slashItems(): SlashItem[] {
     const keys = (commandId: string) => context.commandDefinitions.find(command => command.id === commandId)?.keys?.[0];
@@ -671,7 +720,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
     return { text: rest, caret: next };
   }
 function CompletionPopups(){ return <>
-    <Show when={completion()}><Popup anchor={completionAnchor} width={480} class="picker" label={completion()?.relationTarget ? 'Relation target' : completion()?.manual ? 'Add tag…' : completion()?.types ? 'Tag' : completion()?.fields ? 'Field' : completion()?.quote ? 'Quote' : completion()?.blocks ? 'Atom reference' : 'Reference completion'} role={completion()?.manual || completion()?.relationTarget ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!(completion()?.manual || completion()?.relationTarget)}>
+    <Show when={completion()}><Popup anchor={completionAnchor} bounds={paneBounds} width={480} class="picker" label={completion()?.relationTarget ? 'Relation target' : completion()?.manual ? 'Add tag…' : completion()?.types ? 'Tag' : completion()?.fields ? 'Field' : completion()?.quote ? 'Quote' : completion()?.blocks ? 'Atom reference' : 'Reference completion'} role={completion()?.manual || completion()?.relationTarget ? 'dialog' : 'listbox'} onDismiss={dismissCompletion} autofocus={!!(completion()?.manual || completion()?.relationTarget)}>
       <Show when={completion()?.manual || completion()?.relationTarget}><div class="picker-query"><Icon name={completion()?.relationTarget ? 'link' : 'tag'} class="picker-prefix" /><input class="picker-input" aria-label={completion()?.relationTarget ? 'Relation target' : 'Tag title'} placeholder={completion()?.relationTarget ? 'Find a target' : 'Tag title'} value={completion()?.query ?? ''} onInput={event => { setCompletion(state => state ? { ...state, query: event.currentTarget.value } : null); setCompletionIndex(0); }} onKeyDown={event => { if (!event.isComposing && popupKey(event)) { event.preventDefault(); event.stopPropagation(); } }} /></div></Show>
       <div ref={completionList} class="picker-list" onMouseDown={event => event.preventDefault()}>
         <Show when={completion()?.blocks}><div class="picker-section">{completion()?.quote ? 'Quote' : 'Atom reference'}</div></Show>
@@ -696,7 +745,7 @@ function CompletionPopups(){ return <>
       onDismiss={() => dismissValueEditor(state.id)} onError={setMessage} onAdvance={backward => advanceFilling(state.id, backward)}
       onCreateOption={async text => { const change = await createOptionValue(props.notebook, doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text); context.showNotice('Option added.', change.undo); }}
       onWrite={(text, relationPick) => { writeFieldValue(doc, { field: state.field, ownerId: doc.outline.parentOf(doc.outline.parentOf(state.id)), valueId: state.id }, text, undefined, relationPick); }} />}</Show>
-    <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} width={320} class="picker" label={dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'} role="listbox" onDismiss={dismissDate}>
+    <Show when={dateCompletion()}><Popup anchor={() => caretRect(dateCompletion()?.from ?? 0)} bounds={paneBounds} width={320} class="picker" label={dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'} role="listbox" autofocus={false} onDismiss={dismissDate}>
       <div class="picker-list" onMouseDown={event => event.preventDefault()}>
         <div class="picker-row" role="presentation"><span class="picker-text">{dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'}</span><span class="picker-meta"><kbd>Tab</kbd></span></div>
         <For each={dateRows()}>{(row, index) => <div role="option" aria-selected={dateIndex() === index()} class="picker-row" classList={{ selected: dateIndex() === index() }} onClick={() => chooseDate(index())}>
@@ -711,7 +760,7 @@ function CompletionPopups(){ return <>
     <Show keyed when={tokenDate()}>{state => <DatePicker notebook={props.notebook} anchor={state.anchor} label={state.field === 'deadline' ? 'Deadline' : 'Schedule task'} value={doc.block(state.id)?.task?.[state.field] ?? null} initialQuery={state.query} time={null} contextDate={props.notebook.todayDate()}
       onDismiss={() => { setTokenDate(null); if (editing() === state.id) editAt(state.id, caret()?.id === state.id ? caret()!.offset : state.to, true); }}
       onSelect={value => { if (value.date) applyDateChoice(state, state.text, { label: value.date, date: value.date, time: value.time }); }} />}</Show>
-    <Show when={slashCompletion()}><Popup anchor={() => caretRect(slashCompletion()?.from ?? 0)} width={320} class="picker" label="Commands" role="listbox" onDismiss={dismissSlash}>
+    <Show when={slashCompletion()}><Popup anchor={() => caretRect(slashCompletion()?.from ?? 0)} bounds={paneBounds} width={320} class="picker" label="Commands" role="listbox" autofocus={false} onDismiss={dismissSlash}>
       <div ref={slashList} class="picker-list" onMouseDown={event => event.preventDefault()}>
         <For each={slashRows()}>{(row, index) => <>
           <Show when={index() === 0 || slashRows()[index() - 1]!.section !== row.section}><div class="picker-section">{row.section}</div></Show>
@@ -723,5 +772,5 @@ function CompletionPopups(){ return <>
       </div>
     </Popup></Show>
 </>; }
-  return { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor: () => setValueEditor(null), valueEditorId: () => valueEditor()?.id, pendingReference: (id: string) => pendingReferences.has(id), pendingType: (id: string) => pendingTypes.has(id), syncCompletions, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
+  return { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor: () => { setPendingValue(null); setValueEditor(null); }, valueEditorId: () => valueEditor()?.id ?? pendingValue() ?? undefined, pendingReference: (id: string) => pendingReferences.has(id), pendingType: (id: string) => pendingTypes.has(id), syncCompletions, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups };
 }

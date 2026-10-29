@@ -21,6 +21,7 @@ import { IncomingRelations } from './RelationLines';
 import type { HolderRelation } from './Apparatus';
 import { hasCitationDetail } from './source-reads';
 import { typeKeys } from '../fields/templates';
+import { createRetainedOpen } from './retained-open';
 
 export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'doc' | 'zoom' | 'zoomTo' | 'localPositions'>) {
   const { props, doc, zoom, zoomTo, localPositions } = context;
@@ -206,9 +207,10 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     const unavailable = () => scoped() ? blockBacklinks.error : relatedError();
     const pending = () => scoped() ? blockBacklinks.loading && !blockBacklinks() : relatedResource.loading && !related();
     const open = () => expanded() ?? (count() > 0 || !!unavailable());
+    const mounted = createRetainedOpen(open);
     return <details class="related-section backlinks-section" classList={{ 'related-section-empty': !count() && !unavailable() && !pending() }} open={open()} onToggle={event => setExpanded(event.currentTarget.open)}>
       <summary class="related-section-heading"><span class="related-section-name">{!count() && !unavailable() && !pending() ? section.cited ? 'No citations yet' : zoom() ? 'No links to this atom yet' : 'No backlinks yet' : section.cited ? 'Cited in' : zoom() ? 'Linked to this atom' : 'Backlinks'}</span><span class="section-rule" aria-hidden="true" /><span class="related-section-count">{unavailable() ? 'Unavailable' : pending() ? 'Loading…' : count()}</span><Icon name="down" /></summary>
-      <Show when={open()}>
+      <Show when={mounted()}>
         <Show when={scoped() ? blockBacklinks.error : relatedError()}><p role="alert">Couldn't load backlinks.</p></Show>
         <For each={pages()}>{pageId => {
           const group = () => groups().get(pageId)!;
@@ -263,9 +265,10 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       }
     }
     const empty = () => mentions() !== undefined && !mentions.error && mentions()?.total === 0;
+    const mounted = createRetainedOpen(open);
     return <details class="related-section unlinked-mentions" classList={{ 'related-section-empty': empty() || !open() && mentions() === undefined && !mentions.error }} onToggle={event => setOpen(event.currentTarget.open)}>
       <summary class="related-section-heading"><span class="related-section-name">{empty() ? 'No unlinked mentions yet' : 'Unlinked mentions'}</span><span class="section-rule" aria-hidden="true" /><Show when={mentions() !== undefined || mentions.error || mentions.loading}><span class="related-section-count">{mentions.error ? 'Unavailable' : mentions()?.total ?? 'Loading…'}</span></Show><Icon name="down" /></summary>
-      <Show when={open()}>
+      <Show when={mounted()}>
         <Show when={mentions.error}><p role="alert">Couldn't load unlinked mentions.</p></Show>
         <Show when={error()}><p role="alert">{error()}</p></Show>
         <For each={ids()}>{id => {
@@ -284,6 +287,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   function Related(propsRelated: { title: string; rows: { block: Block; page: Block }[]; relations?: boolean; revealId?: string; expanded?: boolean; onExpanded?(expanded: boolean): void }) {
     const [open, setOpen] = createSignal(false);
     const expanded = createMemo(() => propsRelated.expanded ?? open());
+    const mounted = createRetainedOpen(expanded);
     const revealId = createMemo(() => propsRelated.rows.some(row => row.block.id === propsRelated.revealId) ? propsRelated.revealId : undefined);
     createEffect(() => { if (revealId()) { setOpen(true); propsRelated.onExpanded?.(true); } });
     return <details class="related-section" classList={{ 'related-section-empty': !propsRelated.rows.length && !relatedError() && !relatedResource.loading }} open={expanded()} onToggle={event => {
@@ -291,7 +295,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       setOpen(next);
       if (next !== propsRelated.expanded) propsRelated.onExpanded?.(next);
     }}><summary class="related-section-heading"><span class="related-section-name">{propsRelated.title}</span><span class="section-rule" aria-hidden="true" /><span class="related-section-count">{relatedError() ? 'Unavailable' : relatedResource.loading && !related() ? 'Loading…' : propsRelated.rows.length}</span><Icon name="down" /></summary>
-      <Show when={expanded()}>
+      <Show when={mounted()}>
       <Show when={!relatedError()} fallback={<p role="alert">Couldn't load related atoms.</p>}>
       <For each={propsRelated.rows}>{result => {
         const live = props.notebook.lookup(result.block.id);

@@ -1,5 +1,6 @@
 import { opensBeside, besideHint } from '../shell/beside';
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
+import { For, Show, batch, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
+import { createStore, reconcile, unwrap } from 'solid-js/store';
 import { ulid } from 'ulid';
 import type { CardUnit } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -15,9 +16,12 @@ import { OcclusionFigure } from '../review/OcclusionFigure';
 
 export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks?: readonly { id?: string; name: string }[]; templateCount?: number; notebook: NotebookClient; register?: (control: { open(anchor: HTMLElement): void } | undefined) => void; onOpen(target: OpenTarget, beside: boolean): void }) {
   const keys = createMemo(() => props.cards.map(card => card.key).join('\n'));
-  const [stored, setStored] = createSignal<CardUnit[]>([]);
+  // Keyed by card id: a refetch updates rows in place, so the focused button in a row survives it.
+  const [stored, setStored] = createStore<CardUnit[]>([]);
   const [storedSequence, setStoredSequence] = createSignal(-1);
   const [loading, setLoading] = createSignal(true);
+  // The popup opens once its first answer (cards, none, or an error) has arrived, so it is placed at full size and focus can enter it.
+  const [settled, setSettled] = createSignal(false);
   const [error, setError] = createSignal('');
   const [retry, setRetry] = createSignal(0);
   const [anchor, setAnchor] = createSignal<HTMLElement | null>(null);
@@ -28,7 +32,7 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks
   const [now, setNow] = createSignal(Date.now());
   let disposed = false;
   onCleanup(() => { disposed = true; });
-  function open(trigger: HTMLElement) { setNow(Date.now()); setAnchor(trigger); }
+  function open(trigger: HTMLElement) { setNow(Date.now()); setSettled(false); setAnchor(trigger); }
   onMount(() => props.register?.({ open }));
   onCleanup(() => props.register?.(undefined));
 
@@ -40,23 +44,27 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks
     onCleanup(() => controller.abort());
     if (!anchor()) return;
     setError(''); setLoading(true);
-    if (!cardKeys && !props.templateCount) { setStored([]); setLoading(false); return; }
-    if (props.notebook.lookup(id)()?.revision === 0) return;
+    if (!cardKeys && !props.templateCount) { batch(() => { setStored(reconcile([], { key: 'id' })); setLoading(false); setSettled(true); }); return; }
+    if (props.notebook.lookup(id)()?.revision === 0) { setSettled(true); return; }
     void props.notebook.api.sourceCards(id, controller.signal).then(cards => {
       if (controller.signal.aborted) return;
-      setStored(cards.filter(card => card.active));
-      setStoredSequence(sequence);
-      setNow(Date.now()); setLoading(false);
+      batch(() => {
+        setStored(reconcile(cards.filter(card => card.active), { key: 'id' }));
+        setStoredSequence(sequence);
+        setNow(Date.now()); setLoading(false); setSettled(true);
+      });
     }, reason => {
       if (controller.signal.aborted) return;
-      setError(reason instanceof Error ? reason.message : String(reason));
-      setLoading(false);
+      batch(() => {
+        setError(reason instanceof Error ? reason.message : String(reason));
+        setLoading(false); setSettled(true);
+      });
     });
   });
 
   const ordered = createMemo(() => {
-    const byKey = new Map(stored().map(card => [card.key, card]));
-    return [...props.cards.flatMap(card => byKey.get(card.key) ?? []), ...stored().filter(card => card.key.startsWith('tpl:'))];
+    const byKey = new Map(stored.map(card => [card.key, card]));
+    return [...props.cards.flatMap(card => byKey.get(card.key) ?? []), ...stored.filter(card => card.key.startsWith('tpl:'))];
   });
   const label = createMemo(() => {
     const count = props.cards.length + (props.templateCount ?? 0);
@@ -69,9 +77,10 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks
     const id = deck.id ?? await props.notebook.pageByTitle(deck.name, false);
     if (!disposed && id) props.onOpen({ kind: 'review', deckId: id }, beside);
   }
-  const confirmation = createMemo(() => stored().find(card => card.id === confirm()));
+  const confirmation = createMemo(() => stored.find(card => card.id === confirm()));
   function dismiss() { setAnchor(null); setConfirm(null); setResetError(''); setHoldError(''); }
-  async function hold(cards: CardUnit[], held: boolean) {
+  async function hold(shown: CardUnit[], held: boolean) {
+    const cards = shown.map(card => unwrap(card));
     if (busy() || loading() || error()) return;
     setBusy(true); setHoldError('');
     let doc;
@@ -117,7 +126,7 @@ export function CardSummary(props: { blockId: string; cards: ParsedCard[]; decks
       <Show when={label().due}><span class="outline-card-count">· {label().due} due</span></Show>
       <Show when={label().held}><span class="outline-card-count">· {label().held} not yet</span></Show>
     </span></Show>
-    <Show when={anchor()}>{trigger => <Popup anchor={trigger()} label="Cards" class="outline-capability-popup outline-cards-popup" onDismiss={dismiss}>
+    <Show when={anchor()}>{trigger => <Popup anchor={trigger()} ready={settled()} label="Cards" class="outline-capability-popup outline-cards-popup" onDismiss={dismiss}>
       <Show when={loading() && !ordered().length}><p class="outline-capability-notice" role="status">Loading cards…</p></Show>
       <Show when={error()}><p class="error" role="alert">{error()} <Button onClick={() => setRetry(value => value + 1)}>Retry</Button></p></Show>
       <Show when={!error() && ordered().length}><div class="outline-cards-list">
