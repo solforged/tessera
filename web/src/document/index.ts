@@ -118,6 +118,7 @@ export class Notebook implements NotebookClient, DocumentHost {
     if (this.parsedTemplate?.value !== value || !this.parsedTemplate) this.parsedTemplate = { value, template: parseTodayTemplate(value) };
     return this.parsedTemplate.template;
   };
+  settingsError = this.settingError[0];
   settingsMessage = () => this.settingError[0]() ? `Couldn’t save · ${this.settingError[0]()}` : this.settingsBusy() ? 'Saving…' : this.connection() === 'offline' ? 'Offline' : 'Saved';
   canUndoSetting = () => { this.revision[0](); return !this.settingsBusy() && this.settingUndo.length > 0; };
   canRedoSetting = () => { this.revision[0](); return !this.settingsBusy() && this.settingRedo.length > 0; };

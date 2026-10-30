@@ -19,6 +19,15 @@ export function normalizeHubUrl(text: string): string {
   return /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
+/** What a Mac is called from its address, as Tailscale names machines: `https://hyperion.tail1a2b.ts.net:4319` is Hyperion. */
+export function macName(url: string): string {
+  let host: string;
+  try { host = new URL(url).hostname; } catch { return 'Your Mac'; }
+  if (/^\d+(\.\d+){3}$/.test(host) || host.includes(':')) return host;
+  const name = host.split('.')[0]!;
+  return name.charAt(0).toLocaleUpperCase() + name.slice(1);
+}
+
 /** Scan the Mac's QR code with the camera. Null when the person backs out or the code is not a pairing link. */
 export async function scanPairing(): Promise<PairingTarget | null> {
   let permission = await checkPermissions();

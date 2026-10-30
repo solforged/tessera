@@ -5,6 +5,7 @@
 //! `DELETE /api/backups/{name}` removes an earlier snapshot. Retention is automatic.
 //! `DELETE /api/backups/others/{workshop_id}` removes another workshop's backups.
 //! `GET /api/check` verifies the notebook and `POST /api/check/repair` rebuilds its derived tables.
+//! `GET /api/notebook/size` reports the bytes the open workshop's folder holds: its database and every stored object.
 //! `/api/notebooks` lists known notebooks and switches the service to another one.
 
 #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
@@ -476,7 +477,9 @@ fn notebook_routes() -> Router<AppState> {
         .route("/api/history", get(history))
         .route("/api/history/{seq}/undo", post(undo_change));
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-    let routes = routes.merge(replica::routes());
+    let routes = routes
+        .route("/api/notebook/size", get(notebook_size))
+        .merge(replica::routes());
     routes
 }
 
@@ -729,6 +732,22 @@ async fn notebook_info(State(state): State<AppState>) -> Result<Json<NotebookInf
         ));
     }
     run(&state, |notebook| notebook.info()).await.map(Json)
+}
+
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+#[derive(Serialize)]
+struct NotebookSize {
+    size: u64,
+}
+
+/// What the workshop takes on disk, for Settings › About. Each file counts once, including its write-ahead log.
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
+async fn notebook_size(State(state): State<AppState>) -> Result<Json<NotebookSize>, ApiError> {
+    let info = run(&state, |notebook| notebook.info()).await?;
+    tokio::task::spawn_blocking(move || backup_size(&info.path, false))
+        .await
+        .map_err(ApiError::internal)?
+        .map(|size| Json(NotebookSize { size }))
 }
 
 async fn check_notebook(State(state): State<AppState>) -> Result<Json<CheckReport>, ApiError> {
@@ -2525,5 +2544,57 @@ mod tests {
         let values: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(values["backups"].as_array().unwrap().len(), 4);
         assert_eq!(values["backups"][0]["size"], expected);
+    }
+
+    #[tokio::test]
+    async fn notebook_size_counts_every_file_in_the_workshop_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let notebook = Arc::new(Mutex::new(
+            Notebook::open(dir.path().join("notebook")).unwrap(),
+        ));
+        let info = notebook.lock().info().unwrap();
+        let changes = broadcast::channel(32).0;
+        let library =
+            library::Library::start(notebook.clone(), changes.clone(), library::extract).unwrap();
+        let app = Router::new()
+            .route("/api/notebook/size", get(notebook_size))
+            .with_state(AppState {
+                notebook,
+                assets: None,
+                changes,
+                library,
+                port: 4561,
+                backup: Arc::new(tokio::sync::Mutex::new(None)),
+                backup_store: Some(dir.path().join("backups")),
+                sync_port: 4562,
+                pairing: Arc::new(Mutex::new(pairing::Pairing::default())),
+                sharing: Arc::new(tokio::sync::Mutex::new(())),
+                replica: Arc::default(),
+                sync_health: Arc::default(),
+                switcher: None,
+                agent: Arc::new(
+                    agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap(),
+                ),
+            });
+        async fn size(app: &Router) -> u64 {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::get("/api/notebook/size")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            value["size"].as_u64().unwrap()
+        }
+        let before = size(&app).await;
+        assert!(before > 0);
+        std::fs::create_dir_all(info.path.join("objects/ab")).unwrap();
+        std::fs::write(info.path.join("objects/ab/object"), [0; 4096]).unwrap();
+        assert_eq!(size(&app).await, before + 4096);
     }
 }

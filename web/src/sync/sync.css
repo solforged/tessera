@@ -25,8 +25,6 @@
 .sync-sheet-head h2, .sync-setup-head h2 { margin: var(--space-4) 0 0; font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); }
 .sync-setup .error { margin: 0 var(--space-16) var(--space-8); }
 .sync-setup .sync-hint { margin: 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-.sync-joining .sync-dot { flex: none; width: var(--space-4); height: var(--space-4); border-radius: var(--radius-pill); background: var(--accent); }
-
 
 /* The first-run choice: two numbered options, then a quiet promise. */
 .sync-setup-head { padding: var(--space-16) var(--space-16) var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
@@ -41,7 +39,29 @@
 .sync-form label { display: flex; flex-direction: column; gap: var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 .sync-form input { font: var(--figures); letter-spacing: var(--tracking-apparatus); }
 .sync-setup-foot { padding: var(--space-12) var(--space-16) var(--space-16); border-top: var(--rule-width) solid var(--line); }
-.sync-joining { display: flex; align-items: center; gap: var(--space-8); margin: 0; padding: var(--space-24) var(--space-16); color: var(--muted); }
+
+/* Joining: the Mac by name over an indeterminate bar, then what is happening and what follows. The service reports no stages while it
+   copies, so the list says what is under way and none is ticked early. */
+.sync-joining { margin: var(--space-16) var(--space-16) 0; padding: var(--space-12) var(--space-16) var(--space-4); border-radius: var(--leaf-radius); background: var(--leaf); box-shadow: inset 0 1px 0 var(--lit-edge), 0 0 0 .5px color-mix(in srgb, var(--line) 70%, transparent); }
+.sync-joining-mac { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-12); margin: 0; }
+.sync-joining-mac > span:first-child { font: var(--weight-display-heading) 20px/26px var(--font-display); }
+.sync-joining-mac > span:last-child { color: var(--faint); font: var(--weight-body) 13px/18px var(--font-body); }
+.sync-bar { height: 6px; margin-top: 14px; overflow: hidden; border-radius: 3px; background: var(--well); box-shadow: var(--well-shade); }
+.sync-bar > i { display: block; width: 46%; height: 100%; border-radius: 3px; background: var(--text); opacity: .85; animation: sync-slide 1.6s ease-in-out infinite alternate; }
+@keyframes sync-slide { to { translate: 117% 0; } }
+.sync-stages { margin: var(--space-8) 0 0; padding: 0; list-style: none; }
+.sync-stages > li { display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 0 var(--space-4); color: var(--faint); font: var(--weight-body) 17px/22px var(--font-body); }
+.sync-stages > li[data-stage="doing"] { color: var(--text); }
+.sync-stages strong { display: block; font-weight: var(--weight-control); }
+.sync-stages small { display: block; color: var(--muted); font: var(--weight-body) 13px/18px var(--font-body); }
+.sync-ring { position: relative; flex: none; width: 24px; height: 24px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line); }
+[data-stage="doing"] > .sync-ring { box-shadow: inset 0 0 0 2.5px var(--line); }
+[data-stage="doing"] > .sync-ring::after { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2.5px solid transparent; border-top-color: var(--text); border-right-color: var(--text); rotate: 35deg; animation: sync-spin 1s linear infinite; }
+@keyframes sync-spin { to { rotate: 395deg; } }
+@media (prefers-reduced-motion: reduce) {
+  .sync-bar > i { margin-left: 27%; animation: none; }
+  [data-stage="doing"] > .sync-ring::after { animation: none; }
+}
 
 .sync-summary .sync-sheet-head { padding: var(--space-16); }
 .sync-summary .sync-sheet-head h2 { font-size: var(--text-h2); line-height: var(--line-h2); }
@@ -90,4 +110,50 @@
 }
 @media (max-width: 599px) and (pointer: coarse) and (prefers-reduced-transparency: reduce) {
   .app > .sync-cover.button { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* On a phone the setup is a sheet: eyebrow and title in Plex and Piazzolla, the two choices as leaves with the screen's one stamp,
+   Type code a form of wells with a way back, and joining a sheet with no grabber or close while the Mac's workshop copies. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .popup-scrim:has(+ .popup.sync-setup) { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+  .popup.popup-sheet.sync-setup { padding: 0 var(--space-12) max(var(--space-16), var(--bottom-inset)); }
+  .sync-setup-head { padding: var(--space-8) var(--space-8) 0; border-bottom: 0; }
+  .sync-register { font: var(--weight-control) 13px/18px var(--font-body); letter-spacing: normal; }
+  .sync-setup-head h2 { margin: 2px 0 0; font: var(--weight-title) 28px/34px var(--font-display); }
+  .sync-setup-head > p:last-child { margin: 6px 0 0; font: var(--weight-body) 15px/22px var(--font-body); }
+  .sync-setup .error { margin: var(--space-12) var(--space-8) 0; }
+  .sync-choice { margin: var(--space-12) var(--space-4) 0; padding: 18px 18px 16px; border-radius: var(--leaf-radius); background: color-mix(in srgb, var(--raised), var(--text) 5%); box-shadow: inset 0 1px 0 var(--lit-edge), 0 0 0 .5px color-mix(in srgb, var(--line) 70%, transparent); }
+  :root[data-theme="light"] .sync-choice { background: color-mix(in srgb, var(--raised), #fff 60%); }
+  .sync-choice + .sync-choice { margin-top: var(--space-12); border-top: 0; }
+  .sync-setup-head + .sync-choice { margin-top: 20px; }
+  .sync-choice h3 { font: var(--weight-display-heading) 20px/26px var(--font-display); }
+  .sync-choice > p { margin: 6px 0 0; font: var(--weight-body) 15px/22px var(--font-body); }
+  .sync-actions { flex-wrap: nowrap; gap: 10px; margin-top: 16px; }
+  .sync-actions > .button { flex: 1; }
+  .sync-actions > .sync-primary { flex: 1.25; }
+  .sync-choice + .sync-choice .sync-actions { margin-top: 14px; }
+  .sync-choice + .sync-choice .sync-actions > .button { flex: none; }
+  .sync-setup .sync-hint { font: var(--weight-body) 13px/18px var(--font-body); letter-spacing: normal; }
+  .sync-choice .sync-hint { margin-top: var(--space-12); }
+  .sync-setup-foot { padding: var(--space-16) 0 0; border-top: 0; text-align: center; }
+
+  .sync-setup.is-typing .error { margin-inline: 0; }
+  .sync-lede { margin: 0; padding: 14px 0 0; color: var(--muted); font: var(--weight-body) 15px/22px var(--font-body); }
+  .sync-form { gap: 0; margin: 0; padding: 22px 0 0; }
+  .sync-form label { gap: 7px; color: var(--muted); font: var(--weight-control) 13px/18px var(--font-body); }
+  .sync-form label > span { padding: 0 var(--space-16); }
+  .sync-form label + label { margin-top: 18px; }
+  .sync-form .input { height: 48px; min-height: 48px; padding: 0 var(--space-16); border: 0; border-radius: 24px; color: var(--text); font: var(--weight-body) 17px/22px var(--font-body); letter-spacing: normal; }
+  .sync-form .sync-code { font: var(--weight-body) 19px/24px var(--font-mono); letter-spacing: .12em; }
+  .sync-form .sync-hint { padding: var(--space-8) var(--space-16) 0; }
+  .sync-form .sync-actions { margin-top: 22px; }
+  .sync-back.button { position: absolute; z-index: 2; top: 21px; left: var(--space-12); width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 22px; background: var(--ink-wash); box-shadow: none; }
+  .sync-back.button:is(:hover, :active):not(:disabled) { background: var(--ink-wash); }
+  .sync-back > .icon { width: 18px; height: 18px; stroke-width: 1.5; }
+
+  .is-joining .popup-sheet-tools { display: none; }
+  .is-joining .sync-setup-head { padding-top: 30px; }
+  .sync-joining { margin: 22px var(--space-4) 0; padding: 14px 18px var(--space-8); background: color-mix(in srgb, var(--raised), var(--text) 5%); }
+  :root[data-theme="light"] .sync-joining { background: color-mix(in srgb, var(--raised), #fff 60%); }
+  .is-joining .sync-setup-foot { padding: 14px var(--space-8) 0; text-align: left; }
 }

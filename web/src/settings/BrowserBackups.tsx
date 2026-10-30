@@ -5,6 +5,7 @@ import { localToday } from '../demo/seed';
 import { size } from '../sync/state';
 import { Button } from '../ui/Button';
 import { cancelConfirm, escapeConfirm, focusCancel } from './confirm-focus';
+import { Group } from './Group';
 
 type Confirmation = { kind: 'file'; file: File } | { kind: 'upgrade' | 'reset' };
 const lastBackupKey = 'tessera.browser.lastBackup';
@@ -81,7 +82,7 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
     return action?.kind === 'file' ? `Replace this workshop with ${action.file.name}?` : 'Replaces this workshop with one from a file. Download a backup first to keep this one.';
   };
   return <section id={props.id} aria-labelledby={`${props.id}-heading`} aria-busy={busy()}>
-    {props.heading}
+    <Group heading={props.heading}>
     <div class="settings-row">
       <div class="settings-label"><span class="settings-name">Workshop file</span>
         <p>One file with every atom, card and book. Keep it somewhere outside this browser.</p>
@@ -123,5 +124,6 @@ export function BrowserBackups(props: { id: string; heading: JSX.Element; when(v
       </div>
       <span class="settings-backup-actions"><Show when={confirm()?.kind === 'reset'} fallback={<Button class="bordered danger" data-confirm="reset" disabled={busy()} onClick={() => { props.onError(''); setConfirm({ kind: 'reset' }); }}>Start over…</Button>}>{confirmation()}</Show></span>
     </div>
+    </Group>
   </section>;
 }

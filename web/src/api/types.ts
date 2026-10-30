@@ -287,6 +287,8 @@ export interface NotebookInfo {
   sqlite_version: string;
 }
 
+export interface NotebookSize { size: number }
+
 export interface ServiceInfo {
   version: string;
   build: string | null;
