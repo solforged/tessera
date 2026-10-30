@@ -1,0 +1,116 @@
+/* Overlays: palette rows, and on a phone (`max-width: 599px` with a coarse pointer, the scope styles.css gates its phone layout on)
+   the pull-down menu, the floating sheet, the context menu's lifted row and the notice. Everything under the media query is
+   phone only: desktop and narrow-desktop popups keep the rules in styles.css. Selectors carry one more class than the rules in
+   styles.css they replace, so the order the stylesheets load in never decides. */
+
+/* A palette row: icon buttons sharing one line (outdent, indent, up, down), each its own menu item. */
+.menu-palette { display: flex; gap: var(--space-4); padding: var(--space-4) var(--space-8); }
+.menu-palette-button { display: grid; flex: 1; place-items: center; min-height: var(--row-height); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--text); transition: background-color var(--motion-fast) var(--motion-ease); }
+.menu-palette-button:hover { background: var(--selection); }
+.menu-palette-button:focus-visible { outline: none; background: var(--selection); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--accent); }
+.menu-palette-button[aria-disabled="true"] { cursor: default; color: var(--muted); opacity: .55; }
+/* The close cross and the sheet's title belong to the phone's sheet head; elsewhere the sheet keeps its word. */
+.popup-sheet-title, .popup-sheet-close .icon { display: none; }
+
+@media (max-width: 599px) and (pointer: coarse) {
+  /* Popups sit above the floating chrome (nav bar, tab bar) and below nothing. */
+  :root .popup, :root .popup-exit { z-index: 95; }
+  :root .popup-exit { z-index: 94; }
+  :root .popup-scrim { z-index: 80; background: #00000059; }
+  :root .popup-scrim-exit { z-index: 79; }
+  :root[data-theme="light"] .popup-scrim { background: #3b2c1438; }
+
+  /* ---------- Pull-down menu: glass at its button, 44 pt rows, trailing icons, hairline groups, no dimming ---------- */
+  :is(.popup, .popup-exit).menu-pull { width: max-content; min-width: 268px; max-width: min(340px, calc(100vw - 32px)); padding: 6px 0; border: 0; border-radius: 24px; overscroll-behavior: contain;
+    background: color-mix(in srgb, var(--raised) 84%, transparent); -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(170%); backdrop-filter: blur(var(--glass-blur, 22px)) saturate(170%);
+    box-shadow: var(--glass-shadow), 0 18px 48px #00000030, inset 0 0 0 .5px var(--glass-edge), inset 0 1px 0 var(--lit-edge); transform-origin: var(--popup-origin-x, 100%) 0; }
+  :is(.popup, .popup-exit).menu-pull[data-side="above"] { transform-origin: var(--popup-origin-x, 100%) 100%; }
+  :is(.popup, .popup-exit).menu-pull::before { content: none; }
+  /* It grows from its button's centre, a little scale and a fade; leaving is the same shorter. */
+  .popup.menu-pull.popup-enter:not(.popup-swap) { animation-name: menu-pull-in; }
+  .popup-exit.menu-pull { animation-name: menu-pull-out; }
+  @keyframes menu-pull-in { from { opacity: 0; scale: .92; } to { opacity: 1; scale: 1; } }
+  @keyframes menu-pull-out { from { opacity: 1; scale: 1; } to { opacity: 0; scale: .96; } }
+
+  .menu-pull .menu-item { position: relative; min-height: 44px; gap: 12px; padding: 0 18px; border-radius: 0; font: 400 17px/22px var(--font-body); }
+  .menu-pull .menu-label { order: 1; min-width: 0; }
+  .menu-pull .menu-item > kbd, .menu-pull .menu-item > span.icon { display: none; }
+  .menu-pull .menu-item > .icon { width: 20px; height: 20px; }
+  .menu-pull .menu-item > .icon:not(.menu-check):not(.menu-drill) { order: 3; color: currentColor; }
+  .menu-pull .menu-item > .menu-check { order: 4; }
+  .menu-pull .menu-item > .menu-drill { order: 5; width: 16px; height: 16px; }
+  /* A row that opens more is told by its chevron alone. */
+  .menu-pull .menu-item-drill > .icon:not(.menu-drill) { display: none; }
+  .menu-pull .menu-item.danger { color: var(--danger); }
+  .menu-pull .menu-item[aria-disabled="true"] { opacity: .4; color: inherit; }
+  .menu-pull .menu-disabled-reason { font: 400 13px/16px var(--font-body); color: var(--faint); }
+  /* A finger lights a row only while it presses; the selection fill and the gilt edge are for the keyboard. */
+  .menu-pull .menu-item:hover { background: transparent; }
+  .menu-pull .menu-item:active:not([aria-disabled="true"]), .menu-pull .menu-item:focus-visible { background: var(--ink-wash, color-mix(in srgb, var(--text) 8%, transparent)); box-shadow: none; }
+  /* Hairlines run between rows, inset to the text; a group divider is a band, and the row below it has no hairline. */
+  .menu-pull .menu-item + .menu-item::before, .menu-pull .menu-palette + .menu-item::before { content: ''; position: absolute; top: 0; left: 18px; right: 18px; height: .5px; background: var(--line); }
+  .menu-pull .menu-divider + .menu-item::before, .menu-pull .menu-section + .menu-item::before { display: none; }
+  .menu-pull .menu-divider { height: 8px; margin: 4px 0; border: 0; background: color-mix(in srgb, var(--text) 6%, transparent); }
+  .menu-pull .menu-section, .menu-pull .menu-caption { padding: 8px 18px 6px; font: var(--apparatus); letter-spacing: var(--tracking-apparatus); color: var(--faint); }
+  .menu-pull .menu-note { max-width: none; margin: 4px 18px 8px; }
+  /* A drilled-in page names itself on its way back. */
+  .menu-pull .menu-back { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-bottom: 4px; padding: 0 18px 0 14px; border: 0; background: transparent; color: var(--text); font: 600 15px/20px var(--font-body); text-align: left; box-shadow: inset 0 -.5px 0 var(--line); }
+  .menu-pull .menu-back > .icon { width: 16px; height: 16px; color: var(--faint); }
+  .menu-pull .menu-back:active { background: var(--ink-wash, color-mix(in srgb, var(--text) 8%, transparent)); }
+  /* A palette row: equal glyph buttons divided by hairlines. */
+  .menu-pull .menu-palette { gap: 0; padding: 0 6px; }
+  .menu-pull .menu-palette-button { min-height: 44px; border-radius: 0; }
+  .menu-pull .menu-palette-button:first-child { border-radius: 14px 0 0 14px; }
+  .menu-pull .menu-palette-button:last-child { border-radius: 0 14px 14px 0; }
+  .menu-pull .menu-palette-button + .menu-palette-button { box-shadow: inset .5px 0 0 var(--line); }
+  .menu-pull .menu-palette-button .icon { width: 22px; height: 22px; }
+  .menu-pull .menu-palette-button:hover { background: transparent; }
+  .menu-pull .menu-palette-button:active:not([aria-disabled="true"]), .menu-pull .menu-palette-button:focus-visible { background: var(--ink-wash, color-mix(in srgb, var(--text) 8%, transparent)); box-shadow: inset .5px 0 0 var(--line); }
+
+  /* ---------- Sheet: floats inset with a grabber and a head; Popup places it 8 pt in from the edges ---------- */
+  :is(.popup, .popup-exit).popup-sheet { padding: 0 var(--space-12) max(var(--space-16), var(--bottom-inset)); border: 0; border-radius: var(--sheet-radius, 34px); background: var(--paper-grain), var(--raised); box-shadow: 0 -2px 40px #0000004d, inset 0 1px 0 var(--lit-edge); }
+  .popup-sheet.popup-enter { animation-name: phone-sheet-in; }
+  .popup-sheet.popup-exit { animation-name: phone-sheet-out; }
+  @keyframes phone-sheet-in { from { transform: translateY(calc(100% + 16px)); } to { transform: translateY(0); } }
+  @keyframes phone-sheet-out { from { transform: translateY(0); } to { transform: translateY(calc(100% + 16px)); } }
+  /* The head is one 44 pt row under the grabber: the title centred, the close circle at the right. */
+  .popup-sheet .popup-sheet-tools { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; column-gap: var(--space-8); min-height: 44px; margin: 0 calc(-1 * var(--sheet-pad-r, 0px)) 0 calc(-1 * var(--sheet-pad-l, 0px)); padding: 21px var(--space-12) 6px; box-sizing: content-box; }
+  .popup-sheet .popup-sheet-grab { position: absolute; inset: 0; z-index: 0; display: block; min-height: 0; }
+  .popup-sheet .popup-sheet-grab::before { content: ''; position: absolute; top: 6px; left: 50%; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: color-mix(in srgb, var(--text) 24%, transparent); }
+  .popup-sheet .popup-sheet-title { display: block; grid-column: 2; position: relative; margin: 0; text-align: center; font: var(--weight-display-heading) 20px/26px var(--font-display); pointer-events: none; }
+  .popup-sheet .popup-sheet-close.button { position: relative; grid-column: 3; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; justify-content: center; border: 0; border-radius: 22px; background: var(--ink-wash, color-mix(in srgb, var(--text) 8%, transparent)); box-shadow: none; }
+  .popup-sheet .popup-sheet-close.button:is(:hover, :active):not(:disabled) { background: var(--ink-wash, color-mix(in srgb, var(--text) 8%, transparent)); }
+  .popup-sheet .popup-sheet-close .icon { display: block; width: 18px; height: 18px; stroke-width: 1.5; }
+  .popup-sheet .popup-sheet-close-word { display: none; }
+
+  /* ---------- Context menu: the page dims and blurs, the row lifts, the menu opens under it ---------- */
+  .context-backdrop { position: fixed; inset: 0; z-index: 80; background: #00000059; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); touch-action: none; animation: fade-in var(--motion-ui) var(--motion-ease) both; }
+  :root[data-theme="light"] .context-backdrop { background: #3b2c1438; }
+  .context-lift { position: fixed; z-index: 92; overflow: hidden; border-radius: var(--leaf-radius, 14px); background: var(--paper-grain), var(--raised); color: var(--text); pointer-events: none; touch-action: none;
+    box-shadow: 0 18px 46px #0000004d, 0 2px 6px #00000030, inset 0 1px 0 var(--lit-edge), 0 0 0 .5px color-mix(in srgb, var(--line) 80%, transparent); transform-origin: 50% 0; animation: context-lift-in var(--motion-ui) var(--motion-ease) both; }
+  @keyframes context-lift-in { from { scale: 1; box-shadow: 0 0 0 #0000, 0 0 0 #0000, inset 0 1px 0 var(--lit-edge); } to { scale: 1.02; } }
+  .context-menu.menu-pull { z-index: 95; }
+  /* While a finger rests on a row that opens a context menu, the system's own selection callout stays away. */
+  [data-pressing], [data-pressing] * { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+  /* ---------- Notice: one glass capsule above the tab bar ---------- */
+  :root .undo-toast { position: fixed; left: var(--space-16); right: var(--space-16); bottom: calc(var(--phone-tabbar-top, calc(var(--bottom-nav-height, 70px) + var(--bottom-inset))) + var(--space-12)); z-index: 75; width: auto; max-width: none; min-height: 52px; gap: var(--space-4); padding: var(--space-4) var(--space-8) var(--space-4) 20px; border: 0; border-radius: 26px; transform: none;
+    background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur, 22px)) saturate(170%); backdrop-filter: blur(var(--glass-blur, 22px)) saturate(170%);
+    box-shadow: var(--glass-shadow), inset 0 0 0 .5px var(--glass-edge), inset 0 1px 0 var(--lit-edge); font: 400 15px/20px var(--font-body); }
+  :root .undo-toast > :is(span, .notice-text) { flex: 1; }
+  :root .undo-toast :is(b, strong) { font-weight: 600; }
+  /* Its actions are plain text buttons, as tall as a fingertip. */
+  :root .undo-toast .button { min-height: 44px; padding: 0 var(--space-12); border: 0; border-radius: 22px; background: transparent; box-shadow: none; font-weight: 600; }
+  :root .undo-toast .button:active:not(:disabled) { background: var(--ink-wash, color-mix(in srgb, var(--text) 8%, transparent)); }
+  :root .undo-toast .button.icon-only { width: 44px; padding: 0; }
+  /* A notice that offers an action closes itself; the cross stays for a bare statement. */
+  :root .undo-toast.notice-actionable .notice-dismiss { display: none; }
+  /* The sync cover is a 36 pt capsule 8 pt over the tab bar; a notice rests above it. */
+  :root .app.has-sync-cover:not(.is-reading):not(.is-immersive):not(.keyboard-open) .undo-toast { bottom: calc(var(--phone-tabbar-top, calc(var(--bottom-nav-height, 70px) + var(--bottom-inset))) + 44px + var(--space-8)); }
+  /* Where the tab bar is not showing, the notice rests near the bottom edge. */
+  :root .app:is(.is-reading, .is-immersive, .keyboard-open) .undo-toast, :root .app:has(.review-session-active) .undo-toast { bottom: calc(var(--bottom-inset) + var(--space-12)); }
+}
+
+@media (max-width: 599px) and (pointer: coarse) and (prefers-reduced-transparency: reduce) {
+  :is(.popup, .popup-exit).menu-pull, :root .undo-toast { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}

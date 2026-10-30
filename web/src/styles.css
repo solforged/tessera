@@ -109,7 +109,8 @@ a { color: var(--accent); }
 .menu-head-control:hover { color: var(--text); }
 .menu-context { grid-column: 1 / -1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; max-width: 36ch; margin-top: var(--space-8); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); overflow-wrap: anywhere; }
 .menu-note { max-width: 36ch; margin: var(--space-4) var(--space-8) 0; padding-top: var(--space-8); border-top: var(--rule-width) solid var(--line); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-/* On a phone a titled menu is a sheet: full-width rows a thumb can hit, its head clear of the rows. */
+/* A menu a caller places as a sheet (a long list on the cover): full-width rows a thumb can hit, its head clear of the rows.
+   Every other phone menu is a pull-down at its button (ui/overlays.css). */
 .menu-sheet .menu-item { min-height: var(--touch-target); }
 .menu-sheet .menu-head { padding-bottom: var(--space-12); }
 .menu-sheet :is(.menu-context, .menu-note) { max-width: none; }
@@ -655,7 +656,6 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   /* A book reads edge to edge, under its own masthead rather than the pane header. */
   .app.is-reading .pane.active > .pane-header { display: none; }
   .app.is-reading .workspace { margin: 0; border: 0; border-radius: 0; background: var(--canvas); transition: none; }
-  .undo-toast { bottom: calc(var(--bottom-nav-height) + var(--space-12) + var(--bottom-inset)); }
   .directory-pane .directory-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-12); margin-bottom: var(--space-16); }
   .directory-pane .directory-head > h1 { order: -1; }
   .directory-pane .directory-head > p { margin: 0; }

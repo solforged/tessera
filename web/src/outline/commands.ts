@@ -314,7 +314,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
         if (!impact.values.length) { await remove(); return; }
         const anchor = rowAnchor(selectedRoots[0]!);
         if (!anchor) return;
-        setMenu({ anchor, label: 'Delete choice options', title: 'Delete choice options?', context: `${plural(impact.values.length, 'value')} · ${plural(new Set(impact.values.map(value => value.owner)).size, 'owner')}. Labels and child notes stay.`, items: [
+        const consequence = `${plural(impact.values.length, 'value')} · ${plural(new Set(impact.values.map(value => value.owner)).size, 'owner')}. Labels and child notes stay.`;
+        setMenu({ anchor, label: 'Delete choice options', title: 'Delete choice options?', context: consequence, caption: `Delete choice options? ${consequence}`, items: [
           { label: 'Cancel', action: () => {} },
           { label: 'Delete options', danger: true, action: () => { void remove().catch(reason => setMessage(reason instanceof Error ? reason.message : String(reason))); } },
         ] });
@@ -371,7 +372,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     const problem = doc.block(id)?.position?.problem;
     if (!problem) return;
     if (!selectedSet().has(id)) rowFocus(id);
-    setMenu({ anchor, label: 'Holder', title: 'Holder', context: problem, items: [...holderFixes(id), { label: 'Change holder…', action: () => context.openRelation(id, 'holder', anchor) }] });
+    setMenu({ anchor, label: 'Holder', title: 'Holder', context: problem, caption: problem, items: [...holderFixes(id), { label: 'Change holder…', action: () => context.openRelation(id, 'holder', anchor) }] });
   }
   /** Keep routine work in one short menu; transformations and capabilities stay one step away. */
   function blockMenu(id: string, anchor: HTMLElement) {
