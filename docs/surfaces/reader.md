@@ -267,6 +267,8 @@ Entering the cover reader changes the workspace gutters at once, before restorin
 
 The selection toolbar docks across the foot of the page in thumb reach, clear of the system's own text menu beside the selection. It is no wider than the rendered reading measure, with 44 px buttons sharing the width and no key hints. It moves to the head only when the selection runs down there. Scrolling keeps the toolbar while text remains selected and updates its placement.
 
+In the iPhone app, the system's own selection menu leads with the highlight actions: a dot for each highlight color, then any text actions, with Copy, Look Up, Translate and Share behind its arrow. A dot's name is its VoiceOver label and appears beside it once the arrow opens the full list. The [native bridge](../usage.md#ios-app) carries the choice back to the page.
+
 ### Highlight and annotate sheet
 
 On a touch screen, Highlight and annotate, and Add atom on a highlight without a written note, keep the passage in view instead of opening the source page. A sheet covers the shell, showing in order:
