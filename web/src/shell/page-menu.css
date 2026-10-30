@@ -1,0 +1,6 @@
+/* The atom menu on a phone: the ··· circle stays lit in gilt while its pull-down is open, and Info is a small sheet. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .nav-group > .button.page-menu-button.page-menu-button[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+  .page-info { padding: var(--space-4) 0 var(--space-8); }
+  .page-info-id { color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+}

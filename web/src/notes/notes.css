@@ -146,10 +146,10 @@
   .index-queue-row { align-items: flex-start; padding-block: var(--space-12); }
   .index-queue-actions { flex-direction: row; gap: var(--space-4); }
   .index-source-title { font-size: var(--text-h2); line-height: var(--line-h2); }
-  .index-note-popup, .menu:has(.index-action-header) { top: auto !important; left: var(--space-4) !important; right: var(--space-4); bottom: calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)); width: auto !important; max-width: none; max-height: calc(85dvh - var(--bottom-nav-height, 56px) - var(--bottom-inset)) !important; padding: var(--space-16); }
+  .index-note-popup { top: auto !important; left: var(--space-4) !important; right: var(--space-4); bottom: calc(var(--bottom-nav-height, 56px) + var(--bottom-inset)); width: auto !important; max-width: none; max-height: calc(85dvh - var(--bottom-nav-height, 56px) - var(--bottom-inset)) !important; padding: var(--space-16); }
   .index-note-popup .input { width: 100%; }
   .index-filing-popup { --filing-row-height: calc(var(--space-32) + var(--space-12)); }
-  .menu:has(.index-action-header) .menu-item, .index-filing-popup .picker-row { min-height: calc(var(--space-32) + var(--space-12)); }
+  .index-filing-popup .picker-row { min-height: calc(var(--space-32) + var(--space-12)); }
   body:has(.app.keyboard-open) .index-note-popup { bottom: var(--bottom-inset); }
 }
 

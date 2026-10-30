@@ -35,6 +35,10 @@ export interface CardComposerBodyProps extends Omit<CardComposerProps, 'anchor' 
   status?: string;
   /** The slip has its own rubric; the standalone wrapper supplies this one. */
   where?: string;
+  /** The form's id, so a button elsewhere (the phone sheet's head) can submit it. */
+  formId?: string;
+  /** Whether the draft can be saved now, for a button drawn outside the form. */
+  onReady?(ready: boolean): void;
 }
 
 /** Grow with the text up to the CSS max-height, then scroll. */
@@ -74,6 +78,7 @@ export function CardComposerBody(props: CardComposerBodyProps) {
     try { return { text: forwardCardText(front(), back()) }; } catch (reason) { return { problem: reason instanceof Error ? reason.message : String(reason) }; }
   });
   const problem = () => { const value = draft(); return value && 'problem' in value ? value.problem : ''; };
+  createEffect(() => { const value = draft(); props.onReady?.(!busy() && !!value && 'text' in value); });
 
   async function save(again: boolean) {
     const value = draft();
@@ -116,7 +121,7 @@ export function CardComposerBody(props: CardComposerBodyProps) {
   };
 
   const status = () => busy() ? 'Saving…' : props.status ?? (added() ? `${added()} ${added() === 1 ? 'card' : 'cards'} added` : '');
-  return <form class="card-composer-form" onSubmit={event => { event.preventDefault(); void save(false); }} onKeyDown={keydown} aria-busy={busy()}>
+  return <form id={props.formId} class="card-composer-form" onSubmit={event => { event.preventDefault(); void save(false); }} onKeyDown={keydown} aria-busy={busy()}>
       <Show when={props.where !== undefined}><header class="card-composer-head">
         <span class="card-composer-title">New card</span>
         <span class="card-composer-where">{props.where}</span>

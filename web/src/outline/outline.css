@@ -430,15 +430,25 @@
 .outline-editing-bar { display: none; }
 @media (pointer: coarse) {
   .outline-row:not(.row-editing) { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+  /* A press held on the row opens its menu (the row's long press), so the hover ··· has no place on a touch screen. */
+  .outline-row > .row-menu { display: none !important; }
 }
 @media (max-width: 599px) and (pointer: coarse) {
-  body:has(.outline-editing-bar) .pane.active .outline-pane { padding-bottom: calc(var(--page-bottom-space) + var(--touch-target)); scroll-padding-bottom: calc(var(--touch-target) + var(--space-8)); }
-  .outline-editing-bar { position: fixed; z-index: 40; display: flex; align-items: center; gap: var(--space-8); box-sizing: border-box; min-height: var(--touch-target); padding-inline: var(--space-8); transform: translateY(-100%); border-top: 1px solid var(--glass-edge); background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); box-shadow: var(--glass-shadow); }
-  .outline-editing-bar .button { min-height: var(--touch-target); min-width: var(--touch-target); padding-inline: var(--space-12); }
-  .outline-editing-bar .outline-editing-done { margin-left: auto; color: var(--accent); }
-  @media (prefers-reduced-transparency: reduce) {
-    .outline-editing-bar { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
-  }
+  /* Nothing at rest says a row can be pressed: no selected or hovered band, and the place you write is told by a gilt bullet. */
+  .outline-pane .outline-row:is(:hover, .row-selected, .row-covered), .outline-pane .outline-row:is(:hover, .row-selected, .row-covered) > .row-depth { background: transparent; border-left-color: transparent; }
+  .outline-pane .outline-row.row-editing .row-bullet { color: var(--accent); }
+  body:has(.outline-editing-bar) .pane.active .outline-pane { padding-bottom: calc(var(--page-bottom-space) + 54px); scroll-padding-bottom: calc(54px + var(--space-8)); }
+  /* The accessory floats over the keyboard's top edge as a glass capsule of tools and one gilt Done circle. */
+  .outline-editing-bar { position: fixed; z-index: 40; display: flex; align-items: center; justify-content: space-between; box-sizing: border-box; padding: 0 10px 6px; transform: translateY(-100%); pointer-events: none; }
+  .outline-editing-bar > * { pointer-events: auto; }
+  .outline-editing-tools { display: flex; align-items: center; height: 48px; padding: 0 4px; border-radius: 24px; }
+  .outline-editing-tools .button { display: grid; place-items: center; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 22px; background: transparent; box-shadow: none; color: var(--text); }
+  .outline-editing-tools .button > .icon { width: 22px; height: 22px; }
+  .outline-editing-tools .button:active:not(:disabled) { background: var(--ink-wash); }
+  .outline-editing-tools .button:disabled { opacity: .35; }
+  .outline-editing-divider { flex: none; width: .5px; height: 22px; margin: 0 4px; background: var(--glass-edge); }
+  .outline-editing-bar .outline-editing-done.button { display: grid; place-items: center; flex: none; width: 48px; min-width: 48px; height: 48px; min-height: 48px; padding: 0; border: 0; border-radius: 24px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--raised)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 var(--lit-edge), var(--glass-shadow); }
+  .outline-editing-done > .icon { width: 22px; height: 22px; stroke-width: 1.8; }
   @media (hover: none) {
     /* A held finger can leave WebKit's :hover on the newly opened sheet after touchend. */
     .outline-menu .menu-item:hover:not(:active, :focus-visible) { background: transparent; }

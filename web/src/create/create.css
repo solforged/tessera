@@ -96,3 +96,23 @@
   .create-into, .create-under-options { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .create-into > *, .create-under-options > * { flex: none; }
 }
+/* New on the cover sheet: the close circle at the left, "New" between, and Add as the gilt stamp at the right of the one head row;
+   the line is a well, then Kind and Into are one segment each, with nothing under them but the keyboard. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .create-slip .popup-sheet-tools { grid-template-columns: minmax(64px, 1fr) auto minmax(64px, 1fr); }
+  .create-slip .popup-sheet-close.button { grid-column: 1; grid-row: 1; justify-self: start; }
+  .create-slip .popup-sheet-title { grid-row: 1; }
+  .create-slip .popup-sheet-tools > div:not(.popup-sheet-grab) { position: relative; grid-column: 3; grid-row: 1; justify-self: end; }
+  .create-slip .popup-sheet-tools .button.stamp { min-width: 64px; height: 44px; min-height: 44px; padding-inline: var(--space-16); border-radius: 22px; }
+  .create-body > .capture-field, .create-body > .card-composer-form { padding: var(--space-4) var(--phone-gutter) 0; }
+  .create-slip .capture-line { gap: 0; padding-inline: var(--space-16); border-radius: 16px; background: var(--well); box-shadow: var(--well-shade); transition: box-shadow var(--motion-fast) var(--motion-ease); }
+  .create-slip .capture-line:focus-within { box-shadow: var(--well-shade), inset 0 -2px 0 var(--accent); }
+  .create-slip .capture-line > .icon { display: none; }
+  .create-slip .capture-input { min-height: 56px; padding: 0; border: 0; background: transparent; font: var(--weight-body) 17px/24px var(--font-body); }
+  .create-slip .capture-input:focus-visible { border: 0; }
+  .create-controls { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-12) var(--phone-gutter) 0; }
+  .create-into-label { margin: var(--space-4) var(--space-4) 0; color: var(--faint); font: var(--apparatus); }
+  .create-into-seg > button { display: block; overflow: hidden; padding: 0 var(--space-8); line-height: 40px; text-overflow: ellipsis; }
+  .create-controls > .create-into, .create-controls > .create-under { padding-inline: 0; }
+  .create-slip .card-composer-foot .button[type="submit"] { display: none; }
+}

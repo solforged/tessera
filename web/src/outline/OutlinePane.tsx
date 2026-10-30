@@ -1424,6 +1424,7 @@ function Pane(props: OutlinePaneProps) {
     margin,
     sigla,
     blockMenu: (id, anchor) => blockMenu(id, anchor),
+    rowContext: (id, source) => rowContext(id, source),
     holderMenu: (id, anchor) => holderMenu(id, anchor),
     pointerStart: (event, id, element) => pointerStart(event, id, element),
     attach,
@@ -1448,7 +1449,7 @@ function Pane(props: OutlinePaneProps) {
   const { openViewEmbed, ViewEmbedPopups } = createViewEmbedActions(context);
   const { openMoveToPage, MoveToPagePopup } = createMoveToPage(context);
   const { setCompletion, setCompletionIndex, offerValue, openValueEditor, closeValueEditor, valueEditorId, pendingReference, pendingType, syncCompletions, updateCompletion, updateTriggers, taskPrefix, rewriteEditing, referenceInput, forgetReferenceSpace, slashKey, dateKey, popupKey, CompletionPopups } = createOutlineCompletions(context, id => { fieldSheet.start(id); }, (id, backward) => fieldSheet.advance(id, backward));
-  const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
+  const { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, rowContext, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy } = createOutlineCommands(context);
   const { horizontal, adjacent, split, editorKey, structuralKey, pruneEmptyValue, resetRowKey, resetVerticalGoal } = createOutlineKeyboard(context, (event, id) => fieldSheet.key(event, id));
   const { selectedOffsets, pointerStart, pointerMove, pointerEnd, clipboard, paste, beforeInput } = createOutlineInteractions(context);
   const fieldSheet = createFieldSheet(context, {
@@ -1767,6 +1768,21 @@ function Pane(props: OutlinePaneProps) {
     }
     return groups;
   });
+  /** The accessory bar's Link and Tag write the opening of a reference or a tag at the caret; the completions take it from there. */
+  function insertMark(mark: 'link' | 'tag') {
+    const view = editor?.view;
+    if (!view || composition()) return;
+    const { from, to } = view.state.selection.main;
+    if (mark === 'link') {
+      const insert = from === to ? '[[]]' : `[[${view.state.sliceDoc(from, to)}]]`;
+      view.dispatch({ changes: { from, to, insert }, selection: { anchor: from === to ? from + 2 : from + insert.length }, userEvent: 'input.type' });
+    } else {
+      const before = view.state.sliceDoc(Math.max(0, to - 1), to);
+      const insert = `${before && !/\s/.test(before) ? ' ' : ''}#`;
+      view.dispatch({ changes: { from: to, insert }, selection: { anchor: to + insert.length }, userEvent: 'input.type' });
+    }
+    view.focus();
+  }
   return <>
     <div ref={scroll} class="outline-pane" classList={{ 'has-apparatus': apparatus(), 'has-sigla': sigla().size > 0, 'source-page': !!doc.root()?.source && !zoom(), 'outline-dragging': drag.dragging(), 'projection-compare': props.projection === 'compare' }} style={{ visibility: pageReady() ? undefined : 'hidden' }} aria-busy={!pageReady()} data-pane-pending={pageReady() ? undefined : ''} data-pane={props.pane} data-projection={reading() ? 'read' : 'outline'} tabIndex={0} role="tree" aria-label={reading() ? 'Atom reading register' : 'Atom outline'} aria-owns={ids().map(id => `outline-${props.pane}-${id}`).join(' ')} onFocusIn={event => { props.onActivate(); if ((event.target as Element).closest('.cm-editor')) setEditorFocused(true); }} onFocusOut={report} onKeyDown={event => { finishFoldMotion(); structuralKey(event); }} onWheel={() => { finishFoldMotion(); cancelScroll(); }} onScroll={scrolled}>
       <Show when={doc.root()?.kind === 'page' && !zoom() && props.projection !== 'compare'}><div ref={navigator} class="section-navigator" classList={{ 'section-navigator-shown': longPage() && scrolledAway() }} onKeyDown={event => event.stopPropagation()}><Button aria-haspopup="menu" onClick={event => {
@@ -1940,9 +1956,17 @@ function Pane(props: OutlinePaneProps) {
     <Show when={editingBarVisible()}><Portal><div ref={editingBar} class="outline-editing-bar" role="toolbar" aria-label="Outline editing"
       style={{ top: `${viewport().bottom}px`, left: `${viewport().left}px`, width: `${viewport().width}px` }}
       onPointerDown={event => event.preventDefault()} onMouseDown={event => event.preventDefault()}>
-      <Button disabled={composition()} onClick={() => apply({ kind: 'outdent', ids: roots() }, true)}>Outdent</Button>
-      <Button disabled={composition()} onClick={() => apply({ kind: 'indent', ids: roots() }, true)}>Indent</Button>
-      <Button class="outline-editing-done" onClick={() => { const id = editing(); editor?.view.contentDOM.blur(); if (id) rowFocus(id, false, true); }}>Done</Button>
+      <div class="outline-editing-tools glass">
+        <Button icon="outdent" label="Outdent" disabled={composition()} onClick={() => apply({ kind: 'outdent', ids: roots() }, true)} />
+        <Button icon="indent" label="Indent" disabled={composition()} onClick={() => apply({ kind: 'indent', ids: roots() }, true)} />
+        <i class="outline-editing-divider" aria-hidden="true" />
+        <Button icon="maketask" label="Make task" disabled={composition() || !!doc.block(editing() ?? '')?.task?.status} onClick={() => { const id = editing(); if (id) capabilities.invoke(capabilities.status(id, 'todo')); }} />
+        <Button icon="link" label="Link" disabled={composition()} onClick={() => insertMark('link')} />
+        <Button icon="tag" label="Tag" disabled={composition()} onClick={() => insertMark('tag')} />
+        <i class="outline-editing-divider" aria-hidden="true" />
+        <Button icon="undo" label="Undo" disabled={composition() || !doc.canUndo()} onClick={() => undo()} />
+      </div>
+      <Button class="outline-editing-done" icon="check" label="Done" onClick={() => { const id = editing(); editor?.view.contentDOM.blur(); if (id) rowFocus(id, false, true); }} />
     </div></Portal></Show>
     <div class="outline-notices">
       <Show when={notice()}>{value => <NoticeView text={value().label} busy={noticeBusy()} dismissLabel={value().action ? undefined : 'Dismiss change notice'}

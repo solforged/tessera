@@ -9,7 +9,9 @@ import { parseCardText } from '../review/card-text';
 import { newTask } from '../tasks/quick-date';
 import { statusMenuItems } from '../tasks/TaskControls';
 import { isFinished } from '../tasks/task-labels';
-import type { MenuItem } from '../ui/Menu';
+import type { MenuItem, MenuPaletteButton } from '../ui/Menu';
+import type { IconName } from '../ui/Icon';
+import { openContextMenu } from '../ui/context-menu';
 import { textTokens } from '../document/text-tokens';
 import type { OutlineContext } from './context';
 import { insertCard, makeCloze as wrapCloze } from './card-insert';
@@ -37,7 +39,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   | 'setZoom' | 'selectedSet' | 'sourceResets' | 'setCompletionIndex' | 'setCompletion'
   | 'rowAnchor' | 'rewriteEditing' | 'activeRange'
   | 'fields' | 'definitionsById' | 'pickField' | 'showNotice' | 'openRelation' | 'openMoveToPage' | 'positionReason' | 'placeReason' | 'usePlace'
-  | 'chooseImage' | 'openImage' | 'editOcclusion'
+  | 'chooseImage' | 'openImage' | 'editOcclusion' | 'restoreFocus'
   | 'fields' | 'definitionsById' | 'pickField' | 'showNotice' | 'openRelation' | 'positionReason' | 'placeReason' | 'usePlace'
 >) {
   const {
@@ -48,7 +50,7 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     apply, roots, setRowRange, fold, zoomTo, zoom,
     zoomOut, anchored, setShowArchived, scheduleReport, undo, setConflicts,
     indices, setFolds, setZoom, selectedSet, sourceResets, setCompletionIndex,
-    setCompletion, rowAnchor, rewriteEditing, pickField,
+    setCompletion, rowAnchor, rewriteEditing, pickField, restoreFocus,
   } = context;
   const { fieldEntry, fieldMenu } = createFieldMenu(context);
   function openTable(beside: boolean) {
@@ -374,8 +376,8 @@ export function createOutlineCommands(context: Pick<OutlineContext,
     if (!selectedSet().has(id)) rowFocus(id);
     setMenu({ anchor, label: 'Holder', title: 'Holder', context: problem, caption: problem, items: [...holderFixes(id), { label: 'Change holder…', action: () => context.openRelation(id, 'holder', anchor) }] });
   }
-  /** Keep routine work in one short menu; transformations and capabilities stay one step away. */
-  function blockMenu(id: string, anchor: HTMLElement) {
+  /** What both of a row's menus draw from: the row's commands, its capability managers and its Make rows. Selects the row. */
+  function blockMenuModel(id: string, anchor: HTMLElement) {
     if (!selectedSet().has(id)) rowFocus(id);
     const rowCommands = commandsFor(() => id);
     const item = (commandId: string, label?: string): MenuItem => {
@@ -445,6 +447,13 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       }] : []),
       ...(!hasCards ? [group('Card…', 'Cards', () => cardItems(id))] : []),
     ];
+    return { entry, item, group, managers, makeItems, hasCards };
+  }
+  /** Keep routine work in one short menu; transformations and capabilities stay one step away. */
+  function blockMenu(id: string, anchor: HTMLElement) {
+    const model = blockMenuModel(id, anchor);
+    if (!model) return;
+    const { entry, item, group, managers, makeItems } = model;
     setMenu({ anchor, label: 'Atom actions', title: 'Atom actions', context: plainText(entry.text, target => props.notebook.lookup(target)), items: [
       item('edit', 'Edit'), item('insert-below', 'Insert below'),
       group('Move…', 'Move', () => [
@@ -461,6 +470,37 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       { ...item('archive', entry.archived ? 'Unarchive' : 'Archive'), divider: true },
       { ...item('delete', 'Delete…'), danger: true },
     ] });
+  }
+  /** A phone's long-press menu, over the row lifted from the page: the outline moves as one palette row, the common acts, what the
+   * row can turn into, and Delete alone at the foot. Zoom (the bullet), Open beside and Insert below (Return) are not offered. */
+  function rowContext(id: string, source: HTMLElement) {
+    const model = blockMenuModel(id, source);
+    if (!model) return;
+    const { entry, item, group, managers, makeItems, hasCards } = model;
+    const move = (commandId: string, label: string, icon: IconName): MenuPaletteButton => { const { disabledReason, action } = item(commandId); return { label, icon, disabledReason, action }; };
+    const act = (commandId: string, label: string, icon: IconName): MenuItem => ({ ...item(commandId, label), shortcut: undefined, icon });
+    const turnInto = makeItems.filter(choice => choice.label !== 'Task' && choice.label !== 'Card…');
+    const groups: MenuItem[][] = [
+      [{ label: 'Move', palette: [move('outdent', 'Outdent', 'outdent'), move('indent', 'Indent', 'indent'), move('move-up', 'Move up', 'up'), move('move-down', 'Move down', 'down')] }],
+      [
+        ...(!entry.task ? [act('make-task', 'Make task', 'maketask')] : []),
+        ...(!hasCards ? [act('add-card', 'Add card', 'addcard')] : []),
+        ...managers,
+        { label: 'Add field', icon: 'field' as const, action: () => pickField(id, source) },
+        { label: 'Turn into', submenu: () => ({ title: 'Turn into', items: [
+          ...turnInto,
+          ...(!hasCards ? [{ label: 'Cloze', action: () => addCard(id, 'cloze') }, group('Card…', 'Cards', () => cardItems(id).filter(choice => choice.label !== 'Card' && choice.label !== 'Cloze'))] : []),
+        ] }) },
+      ],
+      [
+        act('move-to-page', 'Move to atom', 'moveto'),
+        ...(doc.root()?.kind === 'journal' ? [act('integrate', 'File to…', 'moveto')] : []),
+        act('copy-reference', 'Copy reference', 'link'),
+        act('archive', entry.archived ? 'Unarchive' : 'Archive', 'archive'),
+      ],
+      [{ ...act('delete', 'Delete', 'trash'), danger: true }],
+    ];
+    openContextMenu({ source, label: 'Atom actions', items: groups.flatMap(rows => rows.map((row, at) => at ? row : { ...row, divider: true })), onClose: restoreFocus });
   }
   /** Keyboard menus hand focus back to the row or editor that opened them before their action runs. */
   function keyboardMenu(id: string, label: string, items: MenuItem[]) {
@@ -564,5 +604,5 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       leader('z', 'Zoom in', () => zoomTo(id)),
     ]);
   }
-  return { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy };
+  return { openTable, investigationItems, markRelation, relationMenu, commandDefinitions, unregister, blockMenu, rowContext, holderMenu, fieldMenu, statusMenu, priorityMenu, openPlanning, openProject, leaderMenu, makeCloze, referenceMenu, copy };
 }
