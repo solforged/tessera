@@ -1,11 +1,13 @@
-import { For, createMemo, createResource, createSignal } from 'solid-js';
+import { For, Show, createMemo, createResource, createSignal } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { CaptureField } from '../capture/CaptureField';
 import type { NotebookClient, PageDocument } from '../document/contract';
+import { createPhone } from '../tasks/journal-phone';
 import { isFinished } from '../tasks/task-labels';
 import { captureSection, isWritten, readingRowSource, sectionTarget, writtenSections } from '../tasks/today-template';
 import type { TodaySection } from '../tasks/today-template';
 import { foldName } from './names';
+import { Button } from '../ui/Button';
 import { SectionHead } from '../ui/SectionHead';
 import { embedTarget } from './streams';
 import { referenceSource } from './source-reads';
@@ -134,10 +136,11 @@ function sectionCount(doc: PageDocument, section: TodaySection, children: readon
 
 /**
  * A section's own line: the section ⌘E captures into gets the boxed field with its reminder; other sections a quiet
- * placeholder row that writes nothing until something is entered.
+ * placeholder row that writes nothing until something is entered. `inline` makes any section's line a plain one and
+ * `autofocus` puts the caret in it, for the phone's Add to capsules.
  */
-export function SectionCapture(props: { notebook: NotebookClient; section: TodaySection; onCaptured?(): void }) {
-  const boxed = () => props.section.id === captureSection(props.notebook.todayTemplate()).id;
+export function SectionCapture(props: { notebook: NotebookClient; section: TodaySection; inline?: boolean; autofocus?: boolean; onCaptured?(): void }) {
+  const boxed = () => !props.inline && props.section.id === captureSection(props.notebook.todayTemplate()).id;
   const target = () => sectionTarget(props.notebook.todayTemplate(), props.section.id);
   return <div class="section-capture" classList={{ 'section-capture-boxed': boxed() }}
     onPointerDown={event => event.stopPropagation()} onMouseDown={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
@@ -145,17 +148,35 @@ export function SectionCapture(props: { notebook: NotebookClient; section: Today
       trailing={boxed() ? '⌘E from anywhere' : undefined}
       label={`Capture to ${props.section.name}`}
       placeholder={boxed() ? `Capture to ${props.section.name}: a thought, a link, [] a task, a question?` : `Write in ${props.section.name}…`}
-      inputRef={input => { if (captureFocus() === props.section.id) { setCaptureFocus(null); queueMicrotask(() => input.focus()); } }}
+      inputRef={input => { if (props.autofocus || captureFocus() === props.section.id) { setCaptureFocus(null); queueMicrotask(() => input.focus()); } }}
       onSaved={() => { setCaptureFocus(props.section.id); props.onCaptured?.(); }} />
   </div>;
 }
 
-/** Heads and capture lines for sections the day has not written yet. */
+/**
+ * Heads and capture lines for sections the day has not written yet. A phone folds them to one line, "Add to Inbox
+ * Reading": a capsule for each section, which opens that section's capture line and writes its heading with the first entry.
+ */
 export function MissingSections(props: { notebook: NotebookClient; sections: readonly TodaySection[] }) {
-  return <For each={props.sections}>{section => <section class="journal-missing-section" aria-label={section.name}>
+  const phone = createPhone();
+  const [adding, setAdding] = createSignal<string | null>(null);
+  return <Show when={phone()} fallback={<For each={props.sections}>{section => <section class="journal-missing-section" aria-label={section.name}>
     <SectionHead name={section.name} />
     <SectionCapture notebook={props.notebook} section={section} />
-  </section>}</For>;
+  </section>}</For>}>
+    <div class="journal-add-to" role="group" aria-label="Add to a section">
+      <span aria-hidden="true">Add to</span>
+      <For each={props.sections}>{section => <Button kind="tint" aria-expanded={adding() === section.id} aria-label={`Add to ${section.name}`} onClick={() => setAdding(section.id)}>{section.name}</Button>}</For>
+    </div>
+    <Show when={props.sections.find(section => section.id === adding())}>{section => <div class="journal-add-to-field"
+      onFocusOut={event => {
+        // Leaving an empty line puts the capsules back; a line with text keeps its place.
+        if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+        if (!event.currentTarget.querySelector('input')?.value) setAdding(null);
+      }}>
+      <SectionCapture notebook={props.notebook} section={section()} inline autofocus onCaptured={() => setAdding(null)} />
+    </div>}</Show>
+  </Show>;
 }
 
 // Creators change rarely and a day holds few sources, so each source is read once per session.

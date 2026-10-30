@@ -28,6 +28,8 @@ export function ListGroup(props: {
 export interface ListRowProps {
   /** A 20 px glyph at the start of the row; separators then start at the text, not under the glyph. */
   icon?: IconName;
+  /** A leading figure that is not a glyph, such as a cover; it takes the glyph's place and the row's text starts after it. */
+  lead?: JSX.Element;
   /** The row's text. Names of things (pages, works) are set in the display face with `name`. */
   children: JSX.Element;
   /** `thing` sets the text in Piazzolla, as the names of things are; `work` also italicises it. */
@@ -55,9 +57,10 @@ export interface ListRowProps {
 
 /** One row of a ListGroup. A button when it pushes or has an onClick, otherwise a plain row. */
 export function ListRow(props: ListRowProps) {
-  const [local, rest] = splitProps(props, ['icon', 'children', 'name', 'detail', 'count', 'value', 'trailing', 'push', 'onClick', 'danger', 'disabled', 'class', 'label']);
+  const [local, rest] = splitProps(props, ['icon', 'lead', 'children', 'name', 'detail', 'count', 'value', 'trailing', 'push', 'onClick', 'danger', 'disabled', 'class', 'label']);
   const body = () => <>
     <Show when={local.icon}>{icon => <Icon name={icon()} />}</Show>
+    <Show when={local.lead}><span class="list-row-lead">{local.lead}</span></Show>
     <span class="list-row-text">
       <span class="list-row-label" classList={{ 'list-row-thing': local.name === 'thing' || local.name === 'work', 'list-row-work': local.name === 'work' }}>{local.children}</span>
       <Show when={local.detail}><span class="list-row-detail">{local.detail}</span></Show>

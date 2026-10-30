@@ -1,0 +1,67 @@
+/* Today on a phone (the Today plates). Desktop keeps its tiles, boxed day stepper and Open agenda; these rules apply only
+   under the phone query, and the matching markup is chosen in JournalHeader and JournalTrail. */
+@media (max-width: 599px) and (pointer: coarse) {
+  /* The eyebrow and the day are one block; sideways swipes on it change the day, vertical drags scroll. */
+  .journal-title-block { touch-action: pan-y; }
+  .journal-trail { gap: 0; }
+  .journal-trail-today { color: inherit; }
+  .journal-trail-separator { padding-inline: 5px; }
+  .journal-fig { font-family: var(--font-mono); font-size: var(--text-apparatus); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+  .journal-title-row { margin-bottom: 14px; }
+  .journal-header .journal-title-row > h1 { font: var(--weight-title) 34px/40px var(--font-display); }
+
+  /* The digest: what is due to review and the book in progress, as two full-width rows. */
+  .journal-digest.list-group { margin: 0; }
+  .journal-digest .list-row { min-height: 64px; gap: 14px; padding: 0 14px; --sep-left: 62px; }
+  .journal-digest .list-row-lead { width: 34px; }
+  .journal-digest .list-row-lead > .icon { width: 22px; height: 22px; color: var(--muted); stroke-width: 1.2; }
+  .journal-digest .list-row-lead > .library-cover { width: 30px; border-radius: 3px; box-shadow: 0 1px 3px var(--contact-shadow), 0 0 0 .5px color-mix(in srgb, var(--text) 18%, transparent); }
+  .journal-digest .library-cover img { filter: var(--image-filter); }
+  .journal-digest .list-row-text { padding-block: 0; }
+  .journal-digest .list-row-label { font: var(--weight-control) 17px/22px var(--font-body); }
+  .journal-digest .list-row-label .journal-fig { font-size: 15px; font-weight: var(--weight-control); }
+  .journal-digest .list-row-thing { font: italic var(--weight-source-title) 18px/22px var(--font-display); }
+  .journal-digest .list-row-detail { margin-top: 0; font: var(--weight-body) 14px/18px var(--font-body); white-space: nowrap; }
+  .journal-digest .list-row-detail .journal-fig { font-size: 12.5px; }
+
+  /* Plan is a plain head, "Plan  3 today", with its count in prose and no rule. */
+  .journal-plan { margin-top: 0; }
+  .journal-plan .section-head { align-items: baseline; justify-content: space-between; padding: 26px 0 10px; }
+  .journal-plan .section-rule { display: none; }
+  .journal-plan .section-head-name { font: var(--weight-display-heading) 24px/30px var(--font-display); }
+  .journal-plan .section-head-count { color: var(--muted); font: var(--weight-body) 14px/18px var(--font-body); letter-spacing: 0; }
+  .journal-plan .section-head-count .journal-fig { font-size: 12.5px; }
+  .journal-plan-body { margin-top: 0; }
+
+  /* Carried over is a neutral leaf: danger only on its words, whole titles on their own lines, one tint action. */
+  .journal-carried-leaf { display: flex; align-items: center; gap: 12px; margin: 0 0 var(--space-4); padding: 14px 12px 14px 16px; }
+  .journal-carried-body.button, .journal-carried-body { flex: 1; min-width: 0; padding: 0; border: 0; border-radius: 0; background: none; color: inherit; font: inherit; text-align: left; -webkit-tap-highlight-color: transparent; }
+  .journal-carried-leaf .journal-carried-count { display: block; color: var(--danger); font: var(--weight-heading) 15px/20px var(--font-body); }
+  .journal-carried-leaf .journal-carried-count .journal-fig { font-size: 14px; font-weight: var(--weight-heading); }
+  .journal-carried-leaf .journal-carried-titles { display: block; flex: none; margin-top: 3px; overflow: visible; color: var(--muted); font: var(--weight-body) 14px/19px var(--font-body); text-overflow: clip; white-space: normal; }
+  .journal-carried-titles > span { display: block; }
+  .journal-carried-leaf > .button { flex: none; }
+
+  /* The day picker's button wears the gilt ring while its sheet is open. */
+  .pane-header .journal-date.nav-button[aria-expanded="true"] { box-shadow: var(--glass-shadow), inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent); }
+
+  /* Sections the day has not written yet are one line of capsules until something lands in them. */
+  .journal-add-to { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 0 4px; color: var(--faint); font: var(--weight-body) 15px/20px var(--font-body); }
+  .journal-add-to > .button { color: var(--text); }
+  .journal-add-to-field { padding: 4px 0 0; }
+
+  /* The outline below Plan is calmer: section heads without a rule, and a reference is the sentence's own text under a hairline. */
+  .row-notes-head .section-rule, .row-section-tail > .section-rule { display: none; }
+  .row-notes-head .section-head-name { font: var(--weight-display-heading) 24px/30px var(--font-display); }
+  .row-section-banner:has(> .row-notes-head:last-child) { margin-bottom: var(--space-12); }
+  /* Notes nest by 24 px and the bullet sits in the text's gutter, so a note's body starts 22 px in. */
+  .outline-pane:has(.journal-header) .outline-row { --indent-unit: 24px; }
+  .outline-pane:has(.journal-header) .outline-row > .row-bullet { margin-left: -12px; }
+  .outline-pane:has(.journal-header) .outline-reference:not(.outline-reference-ambiguous, .outline-citation) { color: inherit; text-decoration-thickness: 1px; text-decoration-color: var(--control-border); text-underline-offset: 3px; }
+  /* A task block's plan reads "Today 17:30": the day in faint prose, the clock a mono figure. */
+  .outline-pane:has(.journal-header) .outline-capability-metadata .outline-task-facts { color: var(--faint); font: var(--weight-body) 14px/18px var(--font-body); letter-spacing: 0; }
+  .outline-pane:has(.journal-header) .outline-task-facts > span > span:not(.outline-task-priority) { display: inline-block; }
+  .outline-pane:has(.journal-header) .outline-task-facts > span > span:not(.outline-task-priority)::first-letter { text-transform: uppercase; }
+  .outline-pane:has(.journal-header) .journal-time { color: var(--muted); font: var(--weight-body) 14px/18px var(--font-mono); font-variant-numeric: tabular-nums; }
+  .outline-pane:has(.journal-header) .outline-task-late .journal-time { color: inherit; }
+}
