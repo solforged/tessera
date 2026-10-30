@@ -24,7 +24,7 @@
 .index-entry-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font: var(--weight-display-heading) var(--text-h2)/var(--line-h3) var(--font-display); }
 .index-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: var(--space-4); color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
 .index-apparatus { display: block; margin: var(--space-4) 0 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; }
-.index-entry:not(.index-cross-reference):hover .index-entry-title, .index-source-title:hover { color: var(--accent); }
+@media (hover: hover) { .index-entry:not(.index-cross-reference):hover .index-entry-title, .index-source-title:hover { color: var(--accent); } }
 .index-entry:focus-visible, .index-see-target:focus-visible, .index-queue-note:focus-visible, .index-source-title:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
 .index-cross-reference { cursor: default; font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-display); }
 .index-alias { color: var(--muted); font-style: italic; }
@@ -120,24 +120,43 @@
   .index-source-byline .button { display: inline-flex; min-height: var(--target-size); }
 }
 @media (max-width: 599px) and (pointer: coarse) {
-  .index-head { margin-top: 0; }
+  /* The head is the plates' large title: a count line in Plex (its figure in mono), then the title in 34 pt Piazzolla; the
+     kind's glyph stays in the Index and sidebar. */
+  .index-head, .index-sheet > .index-head:has(+ :is(.type-mode-tabs, .index-queue-tabs, .index-source-tabs, .question-inquiry-tabs)) { flex-direction: column; align-items: stretch; gap: var(--space-2); margin: 0 0 var(--space-12); }
+  .index-head h1 { flex: none; font: var(--phone-title-font); }
+  .index-head h1 > .icon { display: none; }
+  .index-census { order: -1; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+  .index-census .fig, .index-apparatus .fig { font: var(--figures); font-variant-numeric: tabular-nums; }
+  .index-sheet > .type-mode-tabs { margin-bottom: 0; }
+  /* A List/Table strip says what the eyebrow already does: the figure stays on Fields and Cards, where it counts something else. */
+  .type-mode-tabs > .button:nth-child(-n+2) > .faint { display: none; }
+  .type-mode-tabs > .button > .faint { margin-left: 5px; color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; }
+  .index-columns { margin-top: var(--space-8); }
   .index-new-kind.button, .index-desktop-control.button { display: none; }
-  .index-phone-control.button { display: inline-flex; flex: none; min-height: var(--touch-target); min-width: var(--touch-target); }
-  .index-pane .note-find-line { flex-wrap: nowrap; }
+  .index-phone-control.button { display: inline-flex; flex: none; }
+  /* The find field is the search well, with the list options at its end. */
+  .index-pane .note-find { margin-block: 14px 0; }
+  .index-pane .note-find-line { flex-wrap: nowrap; gap: var(--space-8); }
   .index-pane .note-find-input { min-width: 0; }
-  .index-pane .note-find-input > .input { min-height: var(--touch-target); }
+  .index-pane .search .input, .index-pane .search .input:is(:focus, :focus-visible):not(:disabled) { min-height: 0; border: 0; padding: 0; background: transparent; box-shadow: none; font: inherit; }
+  .index-pane .search > .index-phone-control.button { align-self: center; width: 32px; min-width: 32px; min-height: 32px; margin-right: -8px; }
   .index-sheet:has(.index-letters) .index-columns { padding-right: var(--space-8); }
   .index-pane:not(.index-selecting) .index-select-target { display: none; }
   .index-selecting .index-select { opacity: 1; }
   .index-selection { gap: var(--space-8); flex-wrap: wrap; }
   .index-selection .button { min-height: var(--touch-target); }
   .index-options-sheet > .button { width: 100%; justify-content: space-between; min-height: var(--touch-target); border-bottom: var(--rule-width) solid var(--line); border-radius: 0; }
-  .index-group { position: relative; margin-bottom: var(--space-12); padding-left: var(--space-24); }
-  .index-group h2 { position: absolute; inset: var(--space-8) auto auto 0; margin: 0; }
+  /* A list of names, not a table of contents: each row is a name, its gloss and apparatus, and a chevron; letter heads, when
+     they appear, are small muted Plex. */
+  .index-group { margin-bottom: 0; padding-left: 0; }
+  .index-group h2 { position: static; margin: 0; padding-top: var(--space-12); color: var(--muted); font: var(--weight-control) 13px/16px var(--font-body); }
   .index-group h2 .section-rule, .index-group-count { display: none; }
-  .index-entry { padding-block: var(--space-8) var(--space-12); border-bottom: var(--rule-width) solid var(--line); }
-  .index-entry-title { font-size: var(--text-h2); line-height: var(--line-h2); }
-  .index-preview { font-size: var(--text-body); line-height: var(--line-body); }
+  .index-entry { position: relative; padding: var(--space-4) 28px var(--space-12) 0; border-bottom: 0; }
+  .index-entry-title { font: var(--weight-display-heading) 20px/28px var(--font-display); }
+  .index-preview { margin-top: var(--space-2); font: var(--weight-body) 15px/22px var(--font-body); }
+  .index-apparatus { margin-top: var(--space-2); font: var(--weight-body) 13px/18px var(--font-body); letter-spacing: normal; }
+  .index-chevron { position: absolute; top: 12px; right: 0; display: inline-flex; color: var(--faint); }
+  .index-chevron > .icon { width: 13px; height: 13px; stroke-width: 1.7; }
   .index-letters.mode-tabs { position: sticky; z-index: 12; top: var(--space-8); float: right; display: flex; flex-direction: column; width: var(--touch-target); max-height: calc(100dvh - var(--bottom-nav-height) - var(--bottom-inset) - var(--pane-header-height) - var(--space-16)); margin: 0 calc(-1 * var(--pane-inset)) 0 0; padding: 0; overflow: auto; border: 0; background: var(--canvas); box-shadow: none; scrollbar-width: none; }
   .index-letters > .button { flex: none; min-width: var(--touch-target); min-height: var(--touch-target); padding: 0; border: 0; }
   .index-letters > .tab-rule { display: none; }

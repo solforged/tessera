@@ -22,7 +22,7 @@ import { Picker } from '../ui/Picker';
 import { InlinePopups, Popup } from '../ui/Popup';
 import { createSettledChanges, createSlowFlag } from '../ui/loading';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
-import { indexKindTarget, kindLabel, kindPlural, kindTally, noteKindIcon, startableKinds, tagOnly } from './kinds';
+import { censusNoun, indexKindTarget, kindLabel, kindPlural, kindTally, noteKindIcon, startableKinds, tagOnly } from './kinds';
 import { filingGroups, filingOperations, settleFindingAid, wholeKindIndex } from './finding-aid';
 import type { FindingAidSnapshot } from './finding-aid';
 import { CreateSlip } from '../create/CreateSlip';
@@ -49,6 +49,10 @@ const cover = () => window.matchMedia('(max-width: 599px) and (pointer: coarse)'
 
 const tally = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 const apparatus = (summary: NoteSummary | undefined) => summary ? [summary.block_count ? tally(summary.block_count, 'prose atom') : '', summary.backlinks ? tally(summary.backlinks, 'backlink') : ''].filter(Boolean).join(' · ') : '';
+/** A count with its figure marked, so a phone sets the number in mono. */
+const figured = (count: number, noun: string) => <><span class="fig">{count}</span> {noun}{count === 1 ? '' : 's'}</>;
+/** Past this many rows a phone's list takes letter heads and the jump rail. */
+const phoneLetterRows = 30;
 // The last read of each index shows at once when the pane opens again, while a fresh read replaces it.
 const directoryReads = new WeakMap<NotebookClient, NoteIndex>();
 const kindReads = new WeakMap<NotebookClient, Map<string, KindIndex>>();
@@ -205,6 +209,11 @@ function KindIndexPane(props: IndexPaneProps) {
   const shown = () => display()?.index;
   const groups = () => display()?.groups ?? [];
   const displayedGrouping = () => display()?.grouping;
+  // A phone sets letter heads only when letters share a row or the list is long, and the jump rail only for a long one:
+  // nine people under nine different letters need neither.
+  const entryCount = () => groups().reduce((total, group) => total + group.entries.length, 0);
+  const headed = () => displayedGrouping() !== 'letter' || !cover() || entryCount() > phoneLetterRows || groups().some(group => group.entries.length > 1);
+  const railed = () => displayedGrouping() === 'letter' && (!cover() || entryCount() > phoneLetterRows);
   const pending = () => !display() && !index.error && !definitions.error && !matches.error && !missingFields().length;
   const slow = createSlowFlag(pending);
   const toggleSelection = (id: string, extend: boolean) => {
@@ -236,6 +245,11 @@ function KindIndexPane(props: IndexPaneProps) {
   const preview = (note: NoteEntry) => readableText(summary(note)?.preview ?? '', lookup);
   // A page entry is titled as its page is; a tagged block entry keeps its tags as words.
   const entryTitle = (note: NoteEntry) => note.id === note.page_id ? displayTitle(note.title, lookup) : readableText(note.title, lookup);
+  const entryApparatus = (value: NoteSummary) => {
+    const field = value.field ? plainText(value.field.value, lookup) : '';
+    const counted = value.block_count ? figured(value.block_count, 'prose atom') : value.backlinks ? figured(value.backlinks, 'backlink') : undefined;
+    return field && counted ? <>{field} · {counted}</> : field || counted;
+  };
   // The inspector's opening prose continues from the preview rather than repeating it.
   const excerpt = (note: NoteEntry) => (summary(note)?.prose_excerpt ?? []).map(text => readableText(text, lookup)).filter(text => text.trim() && text.trim() !== preview(note).trim());
   const queue = createMemo(() => filingGroups(index.latest?.notes ?? [], index.latest?.summaries ?? {}));
@@ -336,9 +350,11 @@ function KindIndexPane(props: IndexPaneProps) {
   </>;
   return <div ref={scroll} class={`index-pane ${props.kindKey === 'unfiled' ? 'index-unfiled' : props.kindKey === 'source' ? 'index-sources' : ''}`} classList={{ 'index-selecting': selecting() }} role="region" tabIndex={0} aria-label={`${title()} list`} aria-busy={index.loading || definitions.loading || matches.loading} data-pane-pending={pending() ? '' : undefined} onFocusIn={props.onActivate} onScroll={scrollChanged}>
     <div class="index-sheet">
-      <Show when={props.kindKey === 'unfiled' || props.kindKey === 'source'}><p class="index-eyebrow index-kind-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : 'Bibliography'}</p></Show>
+      <Show when={!cover() && (props.kindKey === 'unfiled' || props.kindKey === 'source')}><p class="index-eyebrow index-kind-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : 'Bibliography'}</p></Show>
       <div class="index-head"><h1><Icon name={noteKindIcon(props.kind ?? props.kindKey)} />{saved()?.name ?? title()}</h1>
-        <Show when={count() != null && !missingFields().length}><span class="index-tally">{kindTally(count()!, props.kindKey)}</span></Show>
+        <Show when={count() != null && !missingFields().length}><Show when={cover()} fallback={<span class="index-tally">{kindTally(count()!, props.kindKey)}</span>}>
+          <span class="index-census"><span class="fig">{count()!.toLocaleString()}</span> {censusNoun(count()!, props.kindKey, props.kind)}{props.kindKey === 'unfiled' ? ' · filing queue' : props.kindKey === 'source' ? ' · bibliography' : ''}</span>
+        </Show></Show>
         <Show when={noteMode() && !missingFields().length}><RequiredGaps gaps={incomplete.latest?.map(field => ({ field_id: field.field_id, missing: field.owners.size }))} name={fieldName} onShow={showMissing} /></Show>
         <NewKindAction kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} onNewAction={props.onNewAction} members={index.latest?.notes} visible={!!groups().length} />
       </div>
@@ -352,7 +368,7 @@ function KindIndexPane(props: IndexPaneProps) {
           <Button class="bordered index-desktop-control" aria-haspopup="menu" onClick={event => setGroupMenu(event.currentTarget)}>Group <Icon name="down" /></Button>
           <Button class="bordered index-desktop-control" onClick={event => setFilterMenu(event.currentTarget)}>Filters</Button>
           <Button class="bordered index-desktop-control" onClick={event => { setViewName(''); setSaveAnchor(event.currentTarget); }}>Save as view…</Button>
-          <Button class="bordered index-phone-control" icon="query" label="List options" aria-haspopup="dialog" aria-expanded={!!optionsAnchor()} onClick={event => setOptionsAnchor(event.currentTarget)} />
+          <Button kind="plain" class="index-phone-control" icon="filter" label="List options" aria-haspopup="dialog" aria-expanded={!!optionsAnchor()} onClick={event => setOptionsAnchor(event.currentTarget)} />
         </NoteFind>
         <Show when={definitions() && query().filters.length}><div class="table-query-chips"><For each={query().filters}>{(filter, at) => <span class="table-chip">{filterLabel(filter, [...noteAttributes, ...definitions()?.fields ?? []], props.notebook, query().field_names)}<Button label="Remove filter" onClick={() => updateQuery(removeFilter(query(), at()))}>×</Button></span>}</For></div></Show>
         <Show when={missingFields().length}><MissingFields fields={missingFields()} busy={busy()} onRemove={id => { void removeMissingField(id); }} /><p class="faint">Results paused; remove the missing field or undo its deletion.</p></Show>
@@ -419,16 +435,17 @@ function KindIndexPane(props: IndexPaneProps) {
           </Match>
           <Match when={true}>
             <Show when={groups().length} fallback={<Show when={index.latest?.notes.length} fallback={<EmptyKind kindKey={props.kindKey} kind={props.kind} notebook={props.notebook} onOpen={props.onOpen} />}><p class="empty-state">No atoms found.</p></Show>}>
-              <Show when={displayedGrouping() === 'letter'}><nav class="index-letters mode-tabs tab-strip" aria-label="Jump to letter"><span class="index-jump-label">Jump</span><For each={groups()}>{group => <Button aria-pressed={(letter() || groups()[0]?.letter) === group.letter} onClick={() => jump(group.letter)}>{group.letter}</Button>}</For></nav></Show>
-              <div class="index-columns" classList={{ 'index-by-heading': displayedGrouping() !== 'letter' }}><For each={groups()}>{group => <section class="index-group" data-letter={displayedGrouping() === 'letter' ? group.letter : undefined} aria-label={group.letter}>
-                <h2><Show when={group.siglum}><span>{group.siglum}</span></Show><Show when={group.target} fallback={<span>{group.letter}</span>}>{target => <Button onClick={event => props.onOpen({ kind: 'page', pageId: target() }, listOpensBeside(event, !!props.neighbour))}>{group.letter}</Button>}</Show><span class="section-rule" /><span class="index-group-count">{group.noteCount || ''}</span></h2>
+              <Show when={railed()}><nav class="index-letters mode-tabs tab-strip" aria-label="Jump to letter"><span class="index-jump-label">Jump</span><For each={groups()}>{group => <Button aria-pressed={(letter() || groups()[0]?.letter) === group.letter} onClick={() => jump(group.letter)}>{group.letter}</Button>}</For></nav></Show>
+              <div class="index-columns" classList={{ 'index-by-heading': displayedGrouping() !== 'letter' }}><For each={groups()}>{group => <section class="index-group" classList={{ 'index-headless': !headed() }} data-letter={displayedGrouping() === 'letter' ? group.letter : undefined} aria-label={group.letter}>
+                <Show when={headed()}><h2><Show when={group.siglum}><span>{group.siglum}</span></Show><Show when={group.target} fallback={<span>{group.letter}</span>}>{target => <Button onClick={event => props.onOpen({ kind: 'page', pageId: target() }, listOpensBeside(event, !!props.neighbour))}>{group.letter}</Button>}</Show><span class="section-rule" /><span class="index-group-count">{group.noteCount || ''}</span></h2></Show>
                 <For each={group.entries}>{entry => entry.kind === 'note' ? <div class="index-selectable" classList={{ selected: picked().includes(entry.note.id) }}>
                   <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${entry.note.title}`} checked={picked().includes(entry.note.id)} onClick={event => toggleSelection(entry.note.id, event.shiftKey)} /></label>
                   <button type="button" class="index-entry" data-open-page={entry.note.page_id} data-open-block={entry.note.id !== entry.note.page_id ? entry.note.id : undefined} data-open-label={entry.note.title} onClick={event => selectOrOpen(entry.note, event)}>
                     <span class="index-entry-title" title={entryTitle(entry.note)}>{entryTitle(entry.note)}</span><Show when={needs(entry.note.id)}>{names => <span class="index-needs">needs {names()}</span>}</Show><Show when={preview(entry.note)}><span class="index-preview">{preview(entry.note)}</span></Show>
-                    <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <Show when={value().field || value().block_count || value().backlinks}><span class="index-apparatus">{[value().field ? plainText(value().field!.value, lookup) : '', value().block_count ? tally(value().block_count, 'prose atom') : value().backlinks ? tally(value().backlinks, 'backlink') : ''].filter(Boolean).join(' · ')}</span></Show>}</Show>}>
+                    <Show when={isCollection()} fallback={<Show when={summary(entry.note)}>{value => <Show when={value().field || value().block_count || value().backlinks}><span class="index-apparatus">{entryApparatus(value())}</span></Show>}</Show>}>
                       <Show when={collectionCounts.latest?.get(entry.note.id) != null}><span class="index-apparatus">{tally(collectionCounts.latest!.get(entry.note.id)!, 'source')}</span></Show>
                     </Show>
+                    <Show when={cover()}><span class="index-chevron" aria-hidden="true"><Icon name="right" /></span></Show>
                   </button>
                 </div> : <div class="index-entry index-cross-reference"><span class="index-alias">{entry.reference.alias}</span>{', '}<span class="index-see">see</span>{' '}<For each={entry.reference.targets}>{(target, at) => <>{at() ? '; ' : ''}<button type="button" class="index-see-target" onClick={event => props.onOpen({ kind: 'page', pageId: target.id }, listOpensBeside(event, !!props.neighbour))}>{target.title}</button></>}</For></div>}</For>
               </section>}</For></div>

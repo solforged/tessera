@@ -30,6 +30,7 @@ import { TaskStatusButton } from '../tasks/TaskControls';
 import { createProjectSummary } from '../projects/ProjectSummary';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { isPhone } from '../ui/phone';
 import { Menu } from '../ui/Menu';
 import { NoticeView, type NoticeAction } from '../ui/Notice';
 import { Popup } from '../ui/Popup';
@@ -1829,7 +1830,7 @@ function Pane(props: OutlinePaneProps) {
           <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} title={pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>
         }</Show><Button onClick={closeTitle}>Cancel</Button>
       </Show>
-      <Show when={doc.root()?.kind === 'page' && !doc.root()?.source && !fields.error && fields() && fields()?.page_id !== props.pageId}><div class="outline-header-actions"><Button class={emptyRootBlock() ? 'outline-table-quiet' : undefined} icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(opensBeside(event))}>Table<Show when={isCollection() ? related()?.collection?.total : !doc.root()?.project && !type.error && type()?.members}>{count => <span class="table-member-count">{count()}</span>}</Show></Button></div></Show>
+      <Show when={!isPhone() && doc.root()?.kind === 'page' && !doc.root()?.source && !fields.error && fields() && fields()?.page_id !== props.pageId}><div class="outline-header-actions"><Button class={emptyRootBlock() ? 'outline-table-quiet' : undefined} icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(opensBeside(event))}>Table<Show when={isCollection() ? related()?.collection?.total : !doc.root()?.project && !type.error && type()?.members}>{count => <span class="table-member-count">{count()}</span>}</Show></Button></div></Show>
       </div>
       </Show>
       <Show when={isNote()}><NoteAliases doc={doc} fields={definitions()} onEdit={entry => {
@@ -1839,7 +1840,7 @@ function Pane(props: OutlinePaneProps) {
         if (value) editAt(value, doc.block(value)?.text.length ?? 0, true);
       }} /><NoteLine pageId={props.pageId} notebook={props.notebook}><Show when={doc.status() === 'ready' && !doc.root()?.question}><NoteRevisit id={props.pageId} notebook={props.notebook} /></Show></NoteLine></Show>
       <Show when={isReadingSubject(doc) && !reading() && !zoom()}><div class="reading-register-actions"><span class="reading-counts">{readingCounts(register().slips)}</span><Show when={localPositions() > 1}><Button onClick={() => props.onProjection?.('compare')}>Compare</Button></Show><Button onClick={event => openRelation(props.pageId, 'reading', event.currentTarget)}>Add perspective</Button></div></Show>
-      <RowRelations id={zoom() ?? props.pageId} />
+      <RowRelations id={zoom() ?? props.pageId} heading />
       <Show when={!zoom() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields' && !type.error && type()}>{value => <Show when={value().members || value().fields.length || value().starting.length || value().card_templates}>
         <TemplateEditor type={value()} fields={definitions()} notebook={props.notebook} onError={setMessage} onOpen={props.onOpen} />
         <RecipeSection typeId={value().page.id} notebook={props.notebook} onOpen={props.onOpen} />

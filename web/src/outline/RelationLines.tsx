@@ -7,6 +7,9 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { plainText, targetLabel } from './names';
 import { incomingRelationLabels, relationLabels } from './relations';
+import { createWorkTest } from './source';
+import { isPhone } from '../ui/phone';
+import { ListGroup, ListRow } from '../ui/List';
 import './relations.css';
 
 interface RelationProps {
@@ -57,8 +60,40 @@ export function IncomingFieldLine(props: RelationProps & { rows: readonly Incomi
   </div></Show>;
 }
 
+interface Mention { key: string; name: string; relation: string; pageId: string; blockId?: string }
+const mentionsShown = 5;
+
+/** A phone gathers what points at the page into one group: the pointing atom's name at the start, what it calls this page at the end. */
+function MentionedIn(props: RelationProps & { relations: readonly RelationRow[]; fields: readonly IncomingFieldValue[] }) {
+  const work = createWorkTest(props.notebook);
+  const [all, setAll] = createSignal(false);
+  const mentions = createMemo(() => {
+    const result: Mention[] = [];
+    const seen = new Set<string>();
+    for (const row of props.relations) {
+      const source = row.source.block.block;
+      const holder = row.source.holder_id;
+      const text = holder ? props.notebook.lookup(holder)()?.text : props.notebook.lookup(source.id)()?.text ?? source.text;
+      result.push({ key: `relation:${source.id}:${row.kind}`, name: plainText(text ?? '', id => props.notebook.lookup(id)) || (holder ? 'Loading holder…' : 'Empty atom'), relation: incomingRelationLabels[row.kind], pageId: row.source.block.page.id, blockId: source.kind === 'block' ? source.id : undefined });
+    }
+    for (const row of props.fields) {
+      const key = `field:${row.owner.id}:${row.field_id}`;
+      if (listedElsewhere(row) || seen.has(key)) continue;
+      seen.add(key);
+      const owner = row.owner;
+      result.push({ key, name: targetLabel(props.notebook.lookup(owner.id)()?.text ?? owner.text, id => props.notebook.lookup(id)) || 'Empty atom', relation: row.field_name, pageId: owner.page_id, blockId: owner.id === owner.page_id ? undefined : owner.id });
+    }
+    return result;
+  });
+  const shown = () => all() ? mentions() : mentions().slice(0, mentionsShown);
+  return <Show when={mentions().length}><div class="mentioned-in" onMouseDown={event => event.stopPropagation()}><ListGroup label="Mentioned in">
+    <For each={shown()}>{mention => <ListRow push name={work(mention.pageId) && !mention.blockId ? 'work' : 'thing'} value={mention.relation} onClick={() => props.onOpen({ kind: 'page', pageId: mention.pageId, blockId: mention.blockId }, false)}>{mention.name}</ListRow>}</For>
+    <Show when={!all() && mentions().length > mentionsShown}><ListRow count={mentions().length - mentionsShown} onClick={() => setAll(true)}>Show all</ListRow></Show>
+  </ListGroup></div></Show>;
+}
+
 /** Visible targets share the outline's settled-change clock; unreferenced rows issue no query. */
-export function IncomingRelations(props: RelationProps & { target: string; version: number; enabled?: boolean }) {
+export function IncomingRelations(props: RelationProps & { target: string; version: number; enabled?: boolean; /** The page's own header: a phone shows its incoming relations as Mentioned in. */ heading?: boolean }) {
   let request: AbortController | undefined;
   onCleanup(() => request?.abort());
   const [rows] = createResource(() => props.enabled === false || props.notebook.lookup(props.target)()?.revision === 0 ? false : `${props.target}:${props.version}:${props.notebook.connection() === 'live'}`, async () => {
@@ -73,8 +108,12 @@ export function IncomingRelations(props: RelationProps & { target: string; versi
   });
   return <Show when={props.enabled !== false}>
     <Show when={!rows.error} fallback={<div class="relation-line" role="status">Arguments unavailable.</div>}>
-      <IncomingRelationLine rows={rows()?.relations ?? []} notebook={props.notebook} onOpen={props.onOpen} />
-      <IncomingFieldLine rows={rows()?.fields ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+      <Show when={props.heading && isPhone()} fallback={<>
+        <IncomingRelationLine rows={rows()?.relations ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+        <IncomingFieldLine rows={rows()?.fields ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+      </>}>
+        <MentionedIn relations={rows()?.relations ?? []} fields={rows()?.fields ?? []} notebook={props.notebook} onOpen={props.onOpen} />
+      </Show>
     </Show>
   </Show>;
 }

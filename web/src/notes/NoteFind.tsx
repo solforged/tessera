@@ -5,6 +5,8 @@ import type { NotebookClient } from '../document/contract';
 import { foldName } from '../outline/names';
 import { BlockText } from '../outline/BlockText';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
+import { isPhone } from '../ui/phone';
 import { Popup } from '../ui/Popup';
 import { notePredicates, parseNoteFind } from './finding-aid';
 import type { NotePredicate } from './finding-aid';
@@ -94,8 +96,8 @@ export function NoteFind(props: { query: Query; plural: string; notebook: Notebo
     if (event.key === 'Enter') { event.preventDefault(); void commit(draft()).catch(reason => setProblem(String(reason))); }
   };
   return <div class="note-find">
-    <div class="note-find-line"><div class="note-find-input">
-      <input ref={field} class="input" role="combobox" aria-autocomplete="list" aria-expanded={open()} aria-controls={open() ? listId : undefined} aria-activedescendant={open() && highlight() >= 0 ? `${listId}-${highlight()}` : undefined} aria-label={`Find in ${props.plural}`} placeholder={`Find in ${props.plural}…`} value={draft()} onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); if (/\b(links|from|cites|is|revisit):/.test(draft())) void commit(draft()).catch(reason => setProblem(String(reason))); }} onInput={event => input(event.currentTarget.value)} onKeyDown={keydown} />
+    <div class="note-find-line" classList={{ search: isPhone() }}><Show when={isPhone()}><Icon name="search" /></Show><div class="note-find-input">
+      <input ref={field} class="input" role="combobox" aria-autocomplete="list" aria-expanded={open()} aria-controls={open() ? listId : undefined} aria-activedescendant={open() && highlight() >= 0 ? `${listId}-${highlight()}` : undefined} aria-label={`Find in ${props.plural}`} placeholder={`Find in ${props.plural}${isPhone() ? '' : '…'}`} value={draft()} onFocus={() => setFocused(true)} onBlur={() => { setFocused(false); if (/\b(links|from|cites|is|revisit):/.test(draft())) void commit(draft()).catch(reason => setProblem(String(reason))); }} onInput={event => input(event.currentTarget.value)} onKeyDown={keydown} />
       <Show when={open()}><Popup anchor={field} placement="below" role="listbox" label="Atom names" class="picker" width={Math.max(field.offsetWidth, 280)} autofocus={false} onDismiss={() => setClosedOn(draft())}>
         <div id={listId} class="picker-list" onMouseDown={event => event.preventDefault()}>
           <For each={options()}>{(item, index) => <div id={`${listId}-${index()}`} role="option" aria-selected={highlight() === index()} class="picker-row" classList={{ selected: highlight() === index() }} onPointerMove={() => setHighlight(index())} onClick={() => choose(item.id)}>

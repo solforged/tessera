@@ -1,6 +1,6 @@
 import { autoPlural } from '../fields/presentation';
 import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
-import type { IndexKind, NoteIndex, NoteKind } from '../api/types';
+import type { IndexKind, NoteIndex, NoteKind, Shelf } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { paths, type IconName } from '../ui/glyphs';
 import type { OpenTarget } from '../shell/contract';
@@ -43,12 +43,21 @@ export function kindTally(count: number, key: string): string {
   return `${count.toLocaleString()} ${noun}${count === 1 ? '' : 's'}`;
 }
 
+/** The noun after a count on a phone's eyebrow, where the figure is set apart in mono: `people`, `concept`, `tasks`. */
+export function censusNoun(count: number, key: string, kind?: Pick<NoteKind, 'key' | 'name' | 'plural'>): string {
+  if (!kind || ['task', 'question', 'source', 'project'].includes(key)) return kindTally(count, key).replace(/^\S+ /, '');
+  return count === 1 ? kind.key in startableKinds ? kind.name.toLocaleLowerCase() : kind.name : kindPlural(kind);
+}
+
 /** A tag-only kind opens its useful member table rather than an empty note index. */
 export function indexKindTarget(kind: IndexKind): OpenTarget {
   return tagOnly(kind)
     ? { kind: 'table', typeId: kind.type_id, viewId: null, query: typeQuery(kind.type_id) }
     : { kind: 'index', key: kind.key };
 }
+
+/** The Index's finding-aid heads, in order; spreads follow under their own head. */
+export const shelves: readonly (readonly [Shelf, string])[] = [['notes', 'Atoms'], ['sources', 'Sources'], ['work', 'Work'], ['tags', 'Tags'], ['loose', 'Loose']];
 
 /** The sidebar index, refreshed after committed changes like the desk counts. A failed read hides it rather than going stale. */
 export function noteIndex(notebook: NotebookClient): Accessor<NoteIndex | undefined> {

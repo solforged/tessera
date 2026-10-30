@@ -5,6 +5,7 @@ import type { NotebookClient } from '../document/contract';
 import type { Block, FieldDefinition } from '../api/types';
 import type { OpenTarget } from '../shell/contract';
 import { Icon } from '../ui/Icon';
+import { isPhone } from '../ui/phone';
 import { TypePill } from './references';
 import { isCapabilityTag } from './capabilities';
 import { createCitationSources } from './source-reads';
@@ -35,6 +36,12 @@ interface Props {
 
 interface DisplayToken extends InlineToken { label: string; visibleStart: number; target: Block | null | undefined; literal: boolean; matches?: NameMatch[] }
 interface TokenGroup { mark?: CardMark; tokens: InlineToken[] }
+
+/** A date typed in writing stays whole on a phone, where its line would otherwise break at a hyphen. */
+function unbreakableDates(text: string): JSX.Element {
+  if (!/\d{4}-\d{2}-\d{2}/.test(text) || !isPhone()) return text;
+  return <>{text.split(/(\d{4}-\d{2}-\d{2})/).map((part, index) => index % 2 ? <span class="date-literal">{part}</span> : part)}</>;
+}
 
 /** A whole-row `((ID))` reads as a quote of its target wherever a block shows as text: backlinks, breadcrumbs, search. */
 export function BlockText(props: Props) {
@@ -77,7 +84,7 @@ function TokenText(props: Props) {
       const literal = group.mark?.kind !== 'operator' && (token.kind === 'text' || token.kind === 'reference' && !isStableReference(token) && !isViewReference(token) && !ambiguous);
       const target = isStableReference(token) || token.kind === 'tag' && token.id ? props.notebook.lookup(token.id!)() : undefined;
       const field = props.field?.id === token.id ? props.field : undefined;
-      const baseLabel = isViewReference(token) ? views()?.find(view => view.id === token.id)?.name || token.alias || 'Saved view' : ambiguous ? token.alias || token.id! : token.kind === 'url' ? token.alias ?? token.value : group.mark?.kind === 'operator' || literal ? token.value : token.kind === 'tag' ? `#${tagLabel(token, id => props.notebook.lookup(id))}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id), undefined, props.deletedHolder && props.deletedHolder.id === token.id ? deletedHolderLabel(props.deletedHolder) : undefined);
+      const baseLabel = isViewReference(token) ? views()?.find(view => view.id === token.id)?.name || token.alias || 'Saved view' : ambiguous ? token.alias || token.id! : token.kind === 'url' ? token.alias ?? token.value : group.mark?.kind === 'operator' || literal ? token.value : token.kind === 'tag' ? `${isPhone() ? '' : '#'}${tagLabel(token, id => props.notebook.lookup(id))}` : field ? token.alias || field.name : referenceLabel(token, target, id => props.notebook.lookup(id), undefined, props.deletedHolder && props.deletedHolder.id === token.id ? deletedHolderLabel(props.deletedHolder) : undefined);
       const source = props.citationApparatus ? citationSources()?.get(token.id!) : undefined;
       const label = (source?.siglum ?? baseLabel) + (!literal && token.locator ? `${source ? ' · ' : '\u2009'}${token.locator}` : '');
       const result: DisplayToken = { ...token, label, target, literal, visibleStart, matches: ambiguous ? resolved : undefined };
@@ -95,7 +102,7 @@ function TokenText(props: Props) {
     const selection = props.selection;
     const hits = highlights().filter(([start, end]) => start < token.visibleStart + token.label.length && end > token.visibleStart);
     const locatorStart = !token.literal && token.locator ? token.label.length - token.locator.length - (props.citationApparatus && citationSources()?.has(token.id!) ? 3 : 1) : token.label.length;
-    if (!selection && !hits.length) return <>{token.label.slice(0, locatorStart)}<Show when={locatorStart < token.label.length}><span class="reference-locator">{token.label.slice(locatorStart)}</span></Show></>;
+    if (!selection && !hits.length) return <>{token.literal ? unbreakableDates(token.label.slice(0, locatorStart)) : token.label.slice(0, locatorStart)}<Show when={locatorStart < token.label.length}><span class="reference-locator">{token.label.slice(locatorStart)}</span></Show></>;
     const selected = selection && (token.literal
       ? [Math.max(0, selection[0] - token.start), Math.min(token.label.length, selection[1] - token.start)] as const
       : selection[0] < token.end && selection[1] > token.start ? [0, token.label.length] as const : null);

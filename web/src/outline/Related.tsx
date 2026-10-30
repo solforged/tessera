@@ -8,7 +8,9 @@ import type { OutlineIndex } from '../document/outline-index';
 import { linkMentionEdit } from '../document/link-mention';
 import { isStableReference, textTokens } from '../document/text-tokens';
 import { documentReady } from '../tasks/JournalAgenda';
-import { relativeDate } from '../tasks/relative-date';
+import { journalLabel, relativeDate } from '../tasks/relative-date';
+import { isPhone } from '../ui/phone';
+import { createWorkTest } from './source';
 import { BlockBreadcrumb, BlockText } from './BlockText';
 import { plainText } from './names';
 import { BacklinkSource, BlockReferenceCount } from './Backlinks';
@@ -168,8 +170,9 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     const count = () => propsCount.id === props.pageId ? 0 : countById().get(propsCount.id) ?? 0;
     return <Show when={count() > 0}><BlockReferenceCount id={propsCount.id} count={count()} version={relatedVersion()} notebook={props.notebook} onOpen={props.onOpen} /></Show>;
   }
-  function RowRelations(row: { id: string }) {
-    return <IncomingRelations target={row.id} version={relatedVersion()} enabled={row.id === props.pageId || row.id === zoom() || (countById().get(row.id) ?? 0) > 0} notebook={props.notebook} onOpen={props.onOpen} />;
+  /** `heading` marks the page's own header, where a phone gathers its incoming relations into Mentioned in. */
+  function RowRelations(row: { id: string; heading?: boolean }) {
+    return <IncomingRelations target={row.id} version={relatedVersion()} heading={row.heading} enabled={row.id === props.pageId || row.id === zoom() || (countById().get(row.id) ?? 0) > 0} notebook={props.notebook} onOpen={props.onOpen} />;
   }
   /** Blocks on this page a source names only through an alias; a plain reference already reads as its target. */
   const hiddenTargets = (text: string, targets: string[]) => {
@@ -179,6 +182,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
   const [blockBacklinks] = createResource(() => zoom() && doc.block(zoom()!)?.revision !== 0 ? [zoom()!, relatedVersion(), limit()] as const : false,
     ([id, , count]) => api.backlinks(id, count));
   function Backlinks(section: { cited?: boolean }) {
+    const work = createWorkTest(props.notebook);
     const [expanded, setExpanded] = createSignal<boolean>();
     const [shown, setShown] = createSignal(100);
     const scoped = () => !!zoom() && !section.cited;
@@ -218,7 +222,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
           const sources = createMemo(() => new Map(group().sources.map(row => [row.source.id, row])));
           const ids = createMemo(() => [...sources().keys()]);
           return <section class="backlink-group">
-            <h3 class="backlink-group-heading"><Button role="link" onClick={event => props.onOpen({ kind: 'page', pageId }, opensBeside(event))}>{page().kind === 'journal' ? relativeDate(page().text, props.notebook.todayDate()) : page().text}</Button><span>{ids().length}</span></h3>
+            <h3 class="backlink-group-heading" classList={{ 'backlink-work': work(pageId) }}><Button role="link" onClick={event => props.onOpen({ kind: 'page', pageId }, opensBeside(event))}>{page().kind === 'journal' ? isPhone() ? journalLabel(page().text, props.notebook.todayDate()) : relativeDate(page().text, props.notebook.todayDate()) : page().text}</Button><span>{ids().length}</span></h3>
             <For each={ids()}>{id => <div class="backlink-entry">
               <BacklinkSource block={sources().get(id)!.source} page={group().page} notebook={props.notebook} onOpen={props.onOpen} />
               <For each={hiddenTargets(sources().get(id)!.source.text, sources().get(id)!.targets)}>{target => <Button class="backlink-target" onClick={() => zoomTo(target)}>→ {plainText(doc.block(target)?.text ?? props.notebook.lookup(target)()?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty atom'}</Button>}</For>

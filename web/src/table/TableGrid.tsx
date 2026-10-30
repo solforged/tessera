@@ -1,5 +1,5 @@
 import { listOpensBeside } from '../shell/beside';
-import { For, Show, createMemo } from 'solid-js';
+import { For, Show, createEffect, createMemo, onCleanup } from 'solid-js';
 import type { JSX } from 'solid-js';
 import type { FieldDefinition, QueryRow, TaskState, TaskStatus } from '../api/types';
 import { createGridRows } from './register';
@@ -13,6 +13,7 @@ import { taskFieldName } from '../tasks/task-fields';
 import { newTask } from '../tasks/quick-date';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { longPress } from '../ui/context-menu';
 import './table.css';
 
 export interface TableGridProps {
@@ -31,6 +32,10 @@ export interface TableGridProps {
   title(row: QueryRow, phone?: boolean): JSX.Element; cell(row: QueryRow, field: string): JSX.Element;
   cardFields(row: QueryRow): FieldDefinition[]; cardCell(row: QueryRow, field: FieldDefinition): JSX.Element;
   refs?: boolean; refsHeading?: string; reference?(row: QueryRow, phone: boolean): JSX.Element;
+  /** A phone draws each row as a leaf: the name, then a property row for each field the row has, then its references. */
+  phone?: boolean;
+  /** A long press on a phone card; the pane opens the row's menu on it. */
+  onRowPress?(row: QueryRow, card: HTMLElement): void;
 }
 
 /** Query attributes carry the same task values as built-in field columns, even when those columns are hidden. */
@@ -69,6 +74,15 @@ export function TableGrid(props: TableGridProps) {
     const entry = rows()[index], previous = rows()[index - 1];
     return !entry || !previous || !!entry.group || (!props.grouped && props.tagged?.rowId === entry.row.block.block.id) || previous.row.block.block.kind !== 'block' || previous.row.block.page.id !== entry.row.block.page.id;
   };
+  let cards!: HTMLDivElement;
+  createEffect(() => {
+    const press = props.onRowPress; if (!press) return;
+    onCleanup(longPress(cards, ({ x, y }) => {
+      const card = document.elementFromPoint(x, y)?.closest<HTMLElement>('.table-card');
+      const row = card && rows().find(entry => entry.row.block.block.id === card.dataset.blockId)?.row;
+      if (card && row) press(row, card);
+    }, { ignore: 'input, textarea' }));
+  });
   return <>
     <table ref={props.gridRef} class="type-table table-grid" role="grid"><colgroup><col style={{ width: 'var(--table-title-width)' }} /><For each={props.columns}>{id => <col style={{ width: props.columnWidth(id) }} />}</For><Show when={props.refs}><col style={{ width: 'var(--table-refs-width)' }} /></Show></colgroup>
       <thead><tr><th scope="col" class="table-title-column"><Button aria-haspopup={props.onHeader ? 'menu' : undefined} onClick={event => props.onHeader?.(event.currentTarget)}>Title</Button><Show when={props.onResize}><span class="table-resize" role="separator" aria-label="Resize Title" aria-orientation="vertical" onPointerDown={event => props.onResize?.(event, '@title')} /></Show></th>
@@ -83,22 +97,27 @@ export function TableGrid(props: TableGridProps) {
           <Show when={props.refs}><td class="table-refs">{props.reference?.(row, false)}</td></Show>
         </tr></>; }}</For></tbody>
     </table>
-    <div class="table-cards" role="list" aria-label="Members"><For each={rows()}>{(entry, index) => { const row = entry.row;
+    <div ref={cards} class="table-cards" role="list" aria-label="Members"><For each={rows()}>{(entry, index) => { const row = entry.row;
       const task = createMemo(() => rowTask(row, props.field));
       const facts = createMemo(() => { const value = task(); const today = props.notebook.todayDate(); return value ? taskFacts(value, { date: today, today }) : []; });
-      const summary = createMemo(() => task() ? [] : props.columns.slice(0, 2).flatMap(id => {
+      // A phone card lists every field in property rows, so the first two columns need no summary line above them.
+      const summary = createMemo(() => task() || props.phone ? [] : props.columns.slice(0, 2).flatMap(id => {
         const values = row.attributes?.[id] ?? row.values[id] ?? [];
         const text = values.map(value => plainText(value.text, target => props.notebook.lookup(target))).filter(Boolean).join(', ');
         return text ? [{ id, text }] : [];
       }));
+      const hidden = (field: FieldDefinition) => task() ? ['status', 'scheduled', 'deadline', 'priority'].includes(taskFieldName(field) ?? '') : !props.phone && props.columns.slice(0, 2).includes(field.id);
+      const filled = (field: FieldDefinition) => [...row.values[field.id] ?? [], ...row.attributes?.[field.id] ?? []].some(value => value.text.trim());
+      const listed = createMemo(() => props.cardFields(row).filter(field => !hidden(field) && (!props.phone || filled(field))));
       return <>
       <Show when={entry.group}>{group => <div class="table-card-group"><Button aria-expanded={!entry.hidden} onClick={() => props.onGroup?.(group().key)}><Icon name={entry.hidden ? 'right' : 'down'} />{group().title}<span class="table-popup-count">{group().count}</span></Button></div>}</Show>
       <Show when={!props.grouped && props.tagged?.rowId === row.block.block.id}><div class="table-card-group" role="presentation"><span class="table-member-group-label">Tagged atoms <span>{props.tagged?.count}</span></span></div></Show>
-      <article hidden={entry.hidden} class="table-card" data-block-id={row.block.block.id} classList={{ selected: props.selected === row.block.block.id, 'table-card-finished': !!task() && isFinished(task()!) }} role="listitem" onClick={event => { if (!(event.target as HTMLElement).closest('button, [role="button"], input, textarea, a, .cm-editor')) props.onOpen(row, listOpensBeside(event, !!props.neighbour)); }}>
-        <Show when={props.editingTitle === row.block.block.id} fallback={<Button class="table-card-title" onClick={event => props.onOpen(row, listOpensBeside(event, !!props.neighbour))}><Show when={task()?.status}>{status => <span class="table-card-status" role="img" aria-label={statusLabels[status()]} title={statusLabels[status()]}><Icon name={statusIcons[status()]} /></span>}</Show><span class="table-card-text"><BlockText text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text} notebook={props.notebook} interactive={false} cards /></span><span class="table-card-arrow" aria-hidden="true">›</span></Button>}>{props.title(row, true)}</Show><Show when={row.block.block.kind === 'block' && pageNamed(index())}><div class="table-page-title">in {row.block.page.text}</div></Show>
+      <article hidden={entry.hidden} class="table-card" data-block-id={row.block.block.id} classList={{ leaf: props.phone, selected: !props.phone && props.selected === row.block.block.id, 'table-card-finished': !!task() && isFinished(task()!) }} role="listitem" onClick={event => { if (!(event.target as HTMLElement).closest('button, [role="button"], input, textarea, a, .cm-editor')) props.onOpen(row, listOpensBeside(event, !!props.neighbour)); }}>
+        <Show when={props.editingTitle === row.block.block.id} fallback={<Button class="table-card-title" onClick={event => props.onOpen(row, listOpensBeside(event, !!props.neighbour))}><Show when={task()?.status}>{status => <span class="table-card-status" role="img" aria-label={statusLabels[status()]} title={statusLabels[status()]}><Icon name={statusIcons[status()]} /></span>}</Show><span class="table-card-text"><BlockText text={props.notebook.lookup(row.block.block.id)()?.text ?? row.block.block.text} notebook={props.notebook} interactive={false} cards /></span><span class="table-card-arrow" aria-hidden="true"><Icon name="right" /></span></Button>}>{props.title(row, true)}</Show><Show when={row.block.block.kind === 'block' && pageNamed(index())}><div class="table-page-title">in {row.block.page.text}</div></Show>
         <Show when={facts().length || summary().length}><div class="table-card-facts"><For each={facts()}>{fact => <span title={fact.label} classList={{ 'table-card-late': !!fact.late, 'table-card-warning': !!fact.warning && !fact.late, 'table-card-priority-high': fact.priority === 'high' }}>{fact.text}</span>}</For><For each={summary()}>{value => <span title={fieldName(value.id)}>{value.text}</span>}</For></div></Show>
-        <Show when={props.onRowMenu}><Button class="table-row-menu" icon="more" label={`Actions for ${row.block.block.text}`} aria-haspopup="menu" onClick={event => { event.stopPropagation(); props.onRowMenu?.(row, event.currentTarget); }} /></Show>
-        <div class="table-card-fields"><For each={props.cardFields(row).filter(field => task() ? !['status', 'scheduled', 'deadline', 'priority'].includes(taskFieldName(field) ?? '') : !props.columns.slice(0, 2).includes(field.id))}>{field => props.cardCell(row, field)}</For><Show when={props.refs}>{props.reference?.(row, true)}</Show></div>
+        <Show when={props.onRowMenu && !props.phone}><Button class="table-row-menu" icon="more" label={`Actions for ${row.block.block.text}`} aria-haspopup="menu" onClick={event => { event.stopPropagation(); props.onRowMenu?.(row, event.currentTarget); }} /></Show>
+        <Show when={!props.phone || listed().length}><div class="table-card-fields"><For each={listed()}>{field => props.cardCell(row, field)}</For><Show when={props.refs && !props.phone}>{props.reference?.(row, true)}</Show></div></Show>
+        <Show when={props.refs && props.phone}>{props.reference?.(row, true)}</Show>
       </article></>; }}</For></div>
   </>;
 }
