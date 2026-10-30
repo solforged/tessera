@@ -2,6 +2,7 @@ import { Show, createResource, createSignal } from 'solid-js';
 import { Picker } from '../ui/Picker';
 import { Icon } from '../ui/Icon';
 import type { PopupAnchor } from '../ui/Popup';
+import { isPhone } from '../ui/phone';
 import type { OutlineContext } from './context';
 import { completeNames } from './names';
 
@@ -38,7 +39,8 @@ export function createMoveToPage(context: Pick<OutlineContext, 'props' | 'doc' |
         } catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
         finally { setBusy(false); }
       };
-      return <Picker anchor={current.anchor} label="Move to atom" query={query()} onQuery={setQuery} placeholder="Find a destination atom" items={names()?.rows ?? []} key={match => match.page.id}
+      // A phone's picker is a sheet, so the page behind dims and takes no press while it is up.
+      return <Picker anchor={current.anchor} placement={isPhone() ? 'sheet' : undefined} label="Move to atom" query={query()} onQuery={setQuery} placeholder="Find a destination atom" items={names()?.rows ?? []} key={match => match.page.id}
         onDismiss={dismiss} onPick={match => { void pick(match.page.id, match.page.text); }} busy={names.loading || busy()} error={error() || (names.error ? String(names.error) : undefined)}
         empty="No matching atoms. Try another name." row={match => <><Icon name="note" /><span class="picker-text">{match.page.text}</span><Show when={match.alias}><span class="reference-via">via {match.alias}</span></Show></>} />;
     }}</Show>;
