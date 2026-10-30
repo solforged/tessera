@@ -1,10 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { journalDayLabel, journalISOWeek, journalMonthGrid, journalQuarter, journalWeek, journalWeekDays, journalYearMonths, spokenJournalDate } from './journal-date';
+import { journalBarTitle, journalDayLabel, journalISOWeek, journalMonthGrid, journalQuarter, journalWeek, journalWeekDays, journalYearMonths, spokenJournalDate } from './journal-date';
 
 describe('journal date presentation', () => {
   test('speaks a civil date without changing its stored ISO label', () => {
     expect(spokenJournalDate('2026-10-13')).toBe('Tuesday, October 13');
     expect(spokenJournalDate('2026-01-01')).toBe('Thursday, January 1');
+  });
+  test('titles a phone nav bar in prose, the weekday over the month and day', () => {
+    expect(journalBarTitle('2026-10-29')).toEqual({ title: 'Thursday', detail: 'October 29' });
+    expect(journalBarTitle('2026-01-01')).toEqual({ title: 'Thursday', detail: 'January 1' });
   });
   test('uses ISO weeks at both ends of the calendar year', () => {
     expect(journalWeek('2026-10-10')).toBe(41);

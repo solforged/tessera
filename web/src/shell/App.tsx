@@ -23,6 +23,10 @@ import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
+import { PaneChromeContext } from '../ui/NavBar';
+import { installInputModality } from '../ui/input-modality';
+import type { BarTitle, PaneChrome } from '../ui/NavBar';
+import { journalBarTitle } from '../tasks/journal-date';
 import { Popup, type PopupAnchor } from '../ui/Popup';
 import { createPaneMotion, crossfade, navigatePane, paneMotionIdentity, paneTargetIdentity, reflowPanes } from '../ui/pane-motion';
 import { installTabRule } from '../ui/tab-rule';
@@ -729,6 +733,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     tabbedQuery.addEventListener('change', onTabbed);
     onCleanup(() => tabbedQuery.removeEventListener('change', onTabbed));
     onCleanup(installDisclosureMotion());
+    onCleanup(installInputModality());
     // Popups that dismiss on the press that starts a click leave the opener's click unable to see what was open.
     const onPress = () => { pressedPopup = { state: popup(), at: performance.now() }; };
     const onPressKey = () => { pressedPopup = undefined; };
@@ -1402,7 +1407,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     <SyncLifecycle notebook={notebook} anchor={syncAnchor()} onClose={() => setSyncAnchor(null)} onDevices={deviceId => open({ kind: 'settings', section: 'devices', deviceId })} />
     <SyncCover open={!!syncAnchor()} onOpen={setSyncAnchor} />
     <nav class="bottom-nav" aria-label="Workshop">
-      <div class="bottom-tabs">
+      <div class="bottom-tabs glass">
         <Button icon="today" class={phoneTabFor(sessions()[active()]) === 'today' ? 'selected' : ''} aria-current={phoneTabFor(sessions()[active()]) === 'today' ? 'page' : undefined} onClick={() => { void selectPhoneTab('today').catch(reportError); }}><span>Today</span></Button>
         <Button icon="agenda" class={phoneTabFor(sessions()[active()]) === 'agenda' ? 'selected' : ''} aria-current={phoneTabFor(sessions()[active()]) === 'agenda' ? 'page' : undefined} onClick={() => { void selectPhoneTab('agenda').catch(reportError); }}><span>Agenda</span><Show when={counts()?.overdue}>{count => <span class="bottom-nav-badge" aria-label={`${count()} overdue`}>{count()}</span>}</Show></Button>
         <Button icon="review" class={phoneTabFor(sessions()[active()]) === 'review' ? 'selected' : ''} aria-current={phoneTabFor(sessions()[active()]) === 'review' ? 'page' : undefined} onClick={() => { void selectPhoneTab('review').catch(reportError); }}><span>Review</span></Button>
@@ -1410,7 +1415,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <Button icon="library" class={phoneTabFor(sessions()[active()]) === 'library' ? 'selected' : ''} aria-current={phoneTabFor(sessions()[active()]) === 'library' ? 'page' : undefined}
           onClick={() => { void selectPhoneTab('library').catch(reportError); }} onContextMenu={event => { event.preventDefault(); void showTypes(event.currentTarget); }}><span>Library</span></Button>
       </div>
-      <Button icon="search" label="Find" class={`bottom-find ${popup()?.kind === 'search' ? 'selected' : ''}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={event => { const anchor = event.currentTarget; toggleOpener('search', anchor, () => setPopup({ kind: 'search', anchor, pane: active() })); }} />
+      <Button icon="search" label="Find" class={`bottom-find glass ${popup()?.kind === 'search' ? 'selected' : ''}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'search'} onClick={event => { const anchor = event.currentTarget; toggleOpener('search', anchor, () => setPopup({ kind: 'search', anchor, pane: active() })); }} />
     </nav>
     <Show when={questionsMenu()}>{anchor => <Menu anchor={anchor()} label="Questions" onDismiss={() => setQuestionsMenu(undefined)} items={[
       { label: 'Open research desk', icon: 'panes', action: () => { setQuestionsMenu(undefined); open(deskTarget()); } },
@@ -1614,13 +1619,27 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
   createPaneMotion(() => content, createMemo(() => paneMotionIdentity(current().target)));
   const [scrolled, setScrolled] = createSignal(false);
   createEffect(() => { paneGeneration(); motionIdentity(); setScrolled(false); });
+  let header!: HTMLElement;
   onMount(() => {
-    // Panes own their scroll containers; capture also sees scrolls from lazy-loaded surfaces.
+    // Panes own their scroll containers; capture also sees scrolls from lazy-loaded surfaces. On a phone the nav bar's
+    // inline title arrives once the page's large title (its first h1, or the element marked data-large-title) has gone
+    // under the bar; where there is none it is a scroll past 48 px.
+    let frame = 0, last: HTMLElement | undefined;
+    const measure = () => {
+      frame = 0;
+      if (cover()) {
+        const title = Array.from(content.querySelectorAll<HTMLElement>('[data-large-title], h1')).find(element => element.getClientRects().length > 0);
+        if (title) { setScrolled(title.getBoundingClientRect().bottom < header.getBoundingClientRect().bottom); return; }
+      }
+      if (last) setScrolled(last.scrollTop > 48);
+    };
     const onScroll = (event: Event) => {
-      if (event.target instanceof HTMLElement) setScrolled(event.target.scrollTop > 48);
+      if (!(event.target instanceof HTMLElement)) return;
+      last = event.target;
+      frame ||= requestAnimationFrame(measure);
     };
     content.addEventListener('scroll', onScroll, { capture: true, passive: true });
-    onCleanup(() => content.removeEventListener('scroll', onScroll, true));
+    onCleanup(() => { content.removeEventListener('scroll', onScroll, true); cancelAnimationFrame(frame); });
   });
   createEffect(() => {
     const id = docId(); setDoc(undefined); setPageKinds(undefined); if (!id) return;
@@ -1718,6 +1737,24 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     return result;
   });
   const breadcrumbTitle = createMemo(() => root()?.kind === 'page' ? displayTitle(root()!.text, id => props.notebook.lookup(id)) : root()?.text ?? 'Loading…');
+  // A phone's nav bar names the pane in prose once the large title has scrolled under it; a surface can say it itself (ui/NavBar.tsx).
+  const [barEnd, setBarEnd] = createSignal<HTMLElement>();
+  const [titleOverride, setTitleOverride] = createSignal<BarTitle>();
+  const chrome: PaneChrome = { end: () => cover() ? barEnd() : undefined, title: value => setTitleOverride(value) };
+  const barTitle = (): BarTitle => {
+    const override = titleOverride();
+    if (override) return override;
+    if (pageId()) {
+      const zoomed = breadcrumbs().at(-1);
+      if (zoomed) return { title: plainText(zoomed.text, id => props.notebook.lookup(id), undefined, zoomed.position?.deleted_holder) || 'Empty atom' };
+      const page = root();
+      return page?.kind === 'journal' && /^\d{4}-\d{2}-\d{2}$/.test(page.text) ? journalBarTitle(page.text) : { title: breadcrumbTitle() };
+    }
+    const reader = readerTarget();
+    if (reader) return { title: props.notebook.lookup(reader.sourceId)()?.text ?? 'Reader' };
+    const target = current().target;
+    return { title: target.kind === 'field' ? props.fieldName(target.fieldId) : props.title ?? paneLabel(target) };
+  };
   // Typing queues edits in the local outbox for at most a second before sending, and most sends are
   // acknowledged within milliseconds; announcing each one would flash the header on every keystroke.
   // Saving… appears only when a send stays unacknowledged for longer than SAVE_NOTICE_DELAY.
@@ -1833,12 +1870,15 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       ? { kind: 'task', text: '', into: { kind: 'journal' }, lockKind: true, scheduledDate: (current().view as AgendaViewState).date }
       : blankCapture(), anchor);
   };
-  return <section class="pane" classList={{ active: props.active, immersive: props.immersive, folded: props.folded }} style={{ 'flex-grow': props.grow }} data-pane={props.pane} data-page-style={pageStyle()} aria-label={`Pane ${props.number}`} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
-    <header class="pane-header" classList={{ 'pane-scrolled': scrolled(), 'pane-tab-root': tabRoot() }}>
-      <Show when={tabRoot()}><Button class="pane-index" icon="contents" label="Index" onClick={() => props.onOpen({ kind: 'directory' }, false)}><span>Index</span></Button></Show>
-      <div class="pane-navigation"><Button class="pane-back" icon="left" label="Back" shortcut="⌃⇧H" disabled={props.session().index <= 0} onClick={() => props.onTravel(-1)} /><Button class="pane-forward" icon="right" label="Forward" shortcut="⌃⇧L" disabled={props.session().index >= props.session().entries.length - 1} onClick={() => props.onTravel(1)} /></div>
+  return <PaneChromeContext.Provider value={chrome}><section class="pane" classList={{ active: props.active, immersive: props.immersive, folded: props.folded }} style={{ 'flex-grow': props.grow }} data-pane={props.pane} data-page-style={pageStyle()} aria-label={`Pane ${props.number}`} onPointerDown={props.onActivate} onFocusIn={props.onActivate}>
+    <header ref={header} class="pane-header" classList={{ 'pane-scrolled': scrolled(), 'pane-tab-root': tabRoot() }}>
+      <div class="pane-bar-start">
+        <Show when={tabRoot()}><Button class="pane-index nav-button" icon="contents" label="Index" onClick={() => props.onOpen({ kind: 'directory' }, false)}><span>Index</span></Button></Show>
+        <div class="pane-navigation"><Button class="pane-back nav-button" icon="left" label="Back" shortcut="⌃⇧H" disabled={props.session().index <= 0} onClick={() => props.onTravel(-1)} /><Button class="pane-forward" icon="right" label="Forward" shortcut="⌃⇧L" disabled={props.session().index >= props.session().entries.length - 1} onClick={() => props.onTravel(1)} /></div>
+      </div>
       <Icon class="pane-kind" name={kindIcon()} />
       <Show when={props.split}><span class="pane-number" aria-hidden="true">{props.number}</span></Show>
+      <Show when={cover()}><div class="pane-bar-title" classList={{ 'pane-bar-title-glass': !!barTitle().glass }} aria-hidden="true"><span>{barTitle().title}</span><Show when={barTitle().detail}><small>{barTitle().detail}</small></Show></div></Show>
       <Show when={pageId()}>
         <nav class="pane-breadcrumbs" aria-label="Atom breadcrumbs" style={{ visibility: root() ? undefined : 'hidden' }}><Show when={root()?.source && !breadcrumbs().length}><Button class="breadcrumb-library" title="Library" onClick={event => props.onOpen({ kind: 'library' }, opensBeside(event))}>Library</Button><span class="breadcrumb-separator">/</span></Show><Button title={breadcrumbTitle()} onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{breadcrumbTitle()}</Button><For each={breadcrumbs()}>{block => {
           const title = createMemo(() => plainText(block.text, id => props.notebook.lookup(id), undefined, block.position?.deleted_holder) || 'Empty atom');
@@ -1846,7 +1886,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
         }}</For></nav>
         <Show when={root()?.kind === 'journal'}><nav class="journal-navigation" aria-label="Journal navigation">
           <Button icon="left" label="Previous journal day" onClick={() => props.onShiftDate(-1)} />
-          <Button class="journal-date" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
+          <Button class="journal-date nav-button" icon="calendar" label="Choose journal date" aria-haspopup="dialog" onClick={event => props.onChooseDate(event.currentTarget)} />
           <Button icon="right" label="Next journal day" onClick={() => props.onShiftDate(1)} />
         </nav></Show>
         <Show when={projectionTabsShown()}><ProjectionTabs /></Show>
@@ -1871,9 +1911,14 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Show when={current().target.kind === 'field' ? current().target as Extract<OpenTarget, { kind: 'field' }> : undefined}>{target => <>
         <nav class="pane-breadcrumbs" aria-label="Field breadcrumbs"><Button title="Fields" onClick={event => props.onOpen({ kind: 'fields' }, opensBeside(event))}>Fields</Button><span class="breadcrumb-separator">/</span><Button title={props.fieldName(target().fieldId)} onClick={event => props.onOpen({ kind: 'field', fieldId: target().fieldId }, opensBeside(event))}>{props.fieldName(target().fieldId)}</Button></nav>
       </>}</Show>
-      <Show when={showNew()}><Button class="pane-new" icon="plus" label={newLabel()} aria-haspopup="dialog" onClick={event => create(event.currentTarget)} /></Show>
-      <Show when={cover() && current().target.kind === 'directory'}><Button class="pane-settings" icon="settings" label="Settings" onClick={() => props.onOpen({ kind: 'settings' }, false)} /></Show>
-      <Show when={pageId()}><Button ref={menuButton} class="page-menu-button" icon="more" label="Atom menu" aria-haspopup="menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
+      <div class="pane-bar-end">
+        <div class="pane-bar-surface" ref={setBarEnd} />
+        <div class="pane-bar-group nav-group">
+          <Show when={showNew()}><Button class="pane-new nav-button" icon="plus" label={newLabel()} aria-haspopup="dialog" onClick={event => create(event.currentTarget)} /></Show>
+          <Show when={cover() && current().target.kind === 'directory'}><Button class="pane-settings nav-button" icon="settings" label="Settings" onClick={() => props.onOpen({ kind: 'settings' }, false)} /></Show>
+          <Show when={pageId()}><Button ref={menuButton} class="page-menu-button nav-button" icon="more" label="Atom menu" aria-haspopup="menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
+        </div>
+      </div>
       <Show when={props.split}><Button class="pane-secondary" icon="close" label="Close pane" shortcut="⌃⇧X" onClick={props.onClose} /></Show>
     </header>
     <Show when={doc()?.saveState() === 'error' || doc()?.saveState() === 'conflict'}><div class="pane-error" role="alert">{doc()?.saveMessage()}</div></Show>
@@ -1914,5 +1959,5 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     <Show when={depthMenu()}>{anchor => <Menu anchor={anchor()} label="Depth" onDismiss={() => setDepthMenu(null)}
       items={depthStops.map(stop => ({ label: depthLabels[stop], icon: `depth-${stop}` as const, checked: depth() === stop, action: () => outlineCommand(`depth-${stop}`)?.run() }))} />}</Show>
     <Show keyed when={mergeFrom()}>{from => <PageMergePicker anchor={menuButton} notebook={props.notebook} from={from} onDismiss={() => setMergeFrom(undefined)} onMerged={id => { setMergeFrom(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
-  </section>;
+  </section></PaneChromeContext.Provider>;
 }

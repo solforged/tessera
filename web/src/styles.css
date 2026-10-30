@@ -15,12 +15,12 @@ a { color: var(--accent); }
 :is(.button, .conflict-actions button):active:not(:disabled) { background: color-mix(in srgb, var(--text) 9%, transparent); box-shadow: inset 0 1px 2px var(--contact-shadow); }
 .button[aria-pressed="true"], .button.selected { background: var(--selection); color: var(--accent); }
 /* Bordered controls (menu triggers, date ranges) are blind stamps: a leaf with a hairline, not a frame. */
-:is(.button.bordered, .conflict-actions button) { border-color: var(--line); background: var(--leaf); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 0 var(--contact-shadow); }
+:is(.button.bordered, .button.tint, .conflict-actions button) { border-color: var(--line); background: var(--leaf); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 0 var(--contact-shadow); }
 /* A primary action is a gilt stamp; a press drives it into the sheet. */
 .button.stamp { border-color: color-mix(in srgb, var(--accent) 75%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 18%, transparent), color-mix(in srgb, var(--accent) 7%, transparent)); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--accent) 35%, transparent), 0 1px 1px var(--contact-shadow); color: var(--accent); }
 .button.stamp:hover:not(:disabled) { border-color: var(--accent); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 24%, transparent), color-mix(in srgb, var(--accent) 10%, transparent)); }
 .button.stamp:active:not(:disabled) { translate: 0 1px; box-shadow: inset 0 1px 2px var(--contact-shadow); }
-:is(.button.bordered, .conflict-actions button):hover:not(:disabled) { border-color: var(--control-border); }
+:is(.button.bordered, .button.tint, .conflict-actions button):hover:not(:disabled) { border-color: var(--control-border); }
 .button.danger { color: var(--danger); }
 .button.icon-only { width: var(--row-height); padding: var(--space-4); }
 .button > .icon { transition: scale var(--motion-fast) var(--motion-ease), rotate var(--motion-fast) var(--motion-ease); }
@@ -134,6 +134,19 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .input[type="search"]::-webkit-search-cancel-button:hover { background: var(--text); }
 .input::placeholder { color: var(--faint); }
 .empty-state { margin: var(--space-12) var(--space-8); color: var(--muted); font-size: var(--text-control); }
+/* The phone's shared vocabulary (docs/design.md, Phone). Glass is the material of floating controls: the nav bar's
+   circles, the tab bar, a title over text. A leaf is a tile or a group of rows, lit along its top. A search well is a
+   capsule with its glyph inside and a gilt baseline on focus. */
+.glass, .button.glass { background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%); backdrop-filter: blur(var(--glass-blur)) saturate(170%); box-shadow: var(--glass-shadow), inset 0 0 0 .5px var(--glass-edge), inset 0 1px 0 var(--lit-edge); }
+.leaf { border-radius: var(--leaf-radius); background: var(--leaf); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 2px var(--contact-shadow), 0 0 0 .5px color-mix(in srgb, var(--line) 70%, transparent); }
+.search { display: flex; align-items: center; gap: var(--space-8); height: 40px; padding: 0 14px; border-radius: 20px; background: var(--well); box-shadow: var(--well-shade); color: var(--faint); font: var(--weight-body) 17px/22px var(--font-body); transition: box-shadow var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); }
+.search > .icon { width: 18px; height: 18px; flex: none; }
+.search:focus-within { color: var(--text); box-shadow: var(--well-shade), inset 0 -2px 0 var(--accent); }
+.search input { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; outline: none; }
+.search input::placeholder { color: var(--faint); }
+.search > .button { flex: none; width: 32px; min-height: 32px; margin-right: -8px; padding: 0; border: 0; border-radius: var(--radius-pill); color: var(--muted); }
+.search > .button > .icon { width: 20px; height: 20px; }
+.search input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; width: var(--icon-size); height: var(--icon-size); background: var(--faint); cursor: pointer; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
 
 /* Safe-area insets keep the shell clear of system bars where the page draws edge to edge (Android); elsewhere they are zero.
    Android's WebView leaves the status bar out of the top inset and can leave the gesture bar out of the bottom one, so the
@@ -298,6 +311,9 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 /* Pane headers carry document navigation and actions, never global search. */
 .pane-header { display: flex; align-items: center; gap: var(--space-4); flex-shrink: 0; flex-wrap: wrap; min-height: var(--pane-header-height); padding: var(--space-4) var(--space-8); border-bottom: 1px solid var(--line); font-size: var(--text-control); line-height: var(--line-control); }
 .pane-header > .button, .pane-save-state, .vim-mode { flex-shrink: 0; }
+/* The header's start, end and slot wrappers only matter on a phone, where they lay out the nav bar; elsewhere they vanish. */
+.pane-bar-start, .pane-bar-end, .pane-bar-surface, .pane-bar-group, .pane-bar-portal { display: contents; }
+:is(.pane-bar-start, .pane-bar-end, .pane-bar-group) > .button { flex-shrink: 0; }
 .pane-navigation { display: flex; flex-shrink: 0; margin-right: var(--space-2); }
 .pane-kind { flex: none; width: var(--icon-size-small); height: var(--icon-size-small); margin-right: var(--space-4); color: var(--muted); }
 .pane.active .pane-kind { color: var(--accent); }
@@ -569,7 +585,8 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .bottom-nav, .pane-header .pane-index, .pane-header .pane-new { display: none; }
 }
 @media (max-width: 599px) and (pointer: coarse) {
-  .app { --bottom-nav-height: 70px; --pane-header-height: 52px; height: var(--visual-viewport-height, 100dvh); margin-top: var(--visual-viewport-top, 0px); grid-template-rows: minmax(0, 1fr) auto; background: var(--canvas); }
+  /* The page runs the full height: the nav bar and tab bar float over it, so the app keeps no top or bottom inset of its own. */
+  .app { --bottom-nav-height: calc(var(--phone-tabbar-top) + var(--space-8) - var(--bottom-inset)); --pane-header-height: var(--phone-top); position: relative; height: var(--visual-viewport-height, 100dvh); margin-top: var(--visual-viewport-top, 0px); grid-template-rows: minmax(0, 1fr); padding-block: 0; background: var(--canvas); }
   html.phone-scroll-sentinel, .phone-scroll-sentinel body { min-height: calc(100dvh + 1px); }
   .phone-scroll-sentinel .app { position: fixed; inset: 0; }
   .pane.phone-back-dragging { will-change: transform; user-select: none; box-shadow: var(--popup-shadow); }
@@ -580,31 +597,60 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .app > .global-rail, .app > .sidebar, .pane-breadcrumbs .breadcrumb-library, .breadcrumb-library + .breadcrumb-separator { display: none; }
   .workspace, .sidebar-collapsed .workspace { grid-row: 1; margin: 0; border: 0; border-radius: 0; }
   .pane-content::before, .pane-content::after { display: none; }
-  .pane-header { padding-inline: var(--space-12); gap: var(--space-4); border-bottom: 0; box-shadow: none; transition: box-shadow var(--motion-ui) var(--motion-ease); }
-  .pane-header.pane-scrolled { box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); }
-  .pane-header :is(.pane-index, .pane-back, .pane-new, .pane-settings, .page-menu-button, .journal-date) { flex: none; height: var(--touch-target); min-height: var(--touch-target); }
-  .pane-header :is(.pane-back, .pane-new, .pane-settings, .page-menu-button, .journal-date) { width: var(--touch-target); min-width: var(--touch-target); padding: 0; justify-content: center; }
-  .pane-header .pane-index { border-radius: var(--radius-pill); padding: 0 var(--space-12); }
-  .pane-header :is(.pane-back, .pane-new, .pane-settings, .page-menu-button, .journal-date) { border-radius: var(--radius-pill); }
+  /* The nav bar floats over the page with no hairline: the page scrolls under it behind a firm scroll-edge blur at the top, and
+     only the bar's controls take taps. Root tabs have the Index capsule at the left, pushed pages a back circle; the pane's
+     own controls are circles at the right, and a surface adds more through NavEnd (ui/NavBar.tsx). */
+  .pane-header { position: absolute; z-index: 4; top: 0; left: 0; right: 0; height: var(--phone-top); min-height: 0; flex-wrap: nowrap; align-items: center; gap: var(--space-8); padding: var(--phone-bar-top) var(--space-16) 0; border: 0; box-shadow: none; pointer-events: none; }
+  .pane-header::before { content: ''; position: absolute; z-index: -1; inset: 0 0 auto; height: calc(var(--phone-top) + 38px); pointer-events: none; background: linear-gradient(color-mix(in srgb, var(--canvas) 94%, transparent) calc(var(--phone-top) - var(--space-8)), color-mix(in srgb, var(--canvas) 0%, transparent)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(#000 calc(100% - 46px), transparent); mask-image: linear-gradient(#000 calc(100% - 46px), transparent); }
+  .pane-header :is(.button, .nav-group) { pointer-events: auto; }
+  .pane-bar-start, .pane-bar-end, .pane-bar-surface { display: flex; align-items: center; gap: var(--space-8); }
+  .pane-bar-start { order: 1; flex: none; }
+  .pane-bar-end { order: 4; flex: none; margin-left: auto; }
+  .pane-bar-surface:empty { display: none; }
+  .pane-bar-portal { display: contents; }
+  .journal-navigation { display: contents; }
+  .pane-header .journal-date { order: 3; }
+  .pane-header :is(.pane-kind, .pane-number, .pane-breadcrumbs, .page-projection-tabs, .depth-dial, .vim-mode, .pane-secondary) { display: none; }
+  .button.nav-button { flex: none; display: inline-grid; place-items: center; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 22px; color: var(--text); font: var(--weight-control) 15px/20px var(--font-body); }
+  .button.nav-button:not(.icon-only) { display: inline-flex; width: auto; gap: 6px; padding: 0 16px 0 12px; }
+  .nav-button > .icon { width: 22px; height: 22px; stroke-width: 1.3; }
+  .nav-group, .pane-bar-title-glass, .button.nav-button { background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%); backdrop-filter: blur(var(--glass-blur)) saturate(170%); box-shadow: var(--glass-ring); }
+  .button.nav-button:is(:hover, :active):not(:disabled) { background: var(--glass-fill); box-shadow: var(--glass-ring); }
+  .button.nav-button:active:not(:disabled) { background: color-mix(in srgb, var(--text) 10%, var(--glass-fill)); }
+  .nav-group { flex: none; display: flex; align-items: center; height: 44px; padding: 0 var(--space-4); border-radius: 22px; }
+  .nav-group:has(> .button:only-child) { padding: 0; }
+  .nav-group:not(:has(> .button)) { display: none; }
+  .nav-group > .button.nav-button, .nav-group > .button.nav-button:is(:hover, :active):not(:disabled) { background: none; -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none; }
+  .nav-group > .button.nav-button:active:not(:disabled) { background: var(--ink-wash); }
   .pane-navigation { margin: 0; }
   .pane-tab-root .pane-navigation, .pane-navigation .pane-forward, .pane-back:disabled, .journal-navigation .button:not(.journal-date) { display: none; }
   .app .pane-header:not(.pane-tab-root) .pane-navigation { display: flex; }
-  .pane-header :is(.page-projection-tabs, .depth-dial) { display: none; }
-  .pane-breadcrumbs { flex: 1 1 0; min-width: 0; justify-content: center; color: var(--text); font: var(--weight-heading) var(--text-control)/var(--line-control) var(--font-body); letter-spacing: normal; text-align: center; opacity: 0; transition: opacity var(--motion-ui) var(--motion-ease); }
-  .pane-scrolled .pane-breadcrumbs { opacity: 1; }
-  .pane-breadcrumbs .button:last-child { min-width: 0; max-width: 100%; text-align: center; }
+  /* The inline title: the pane's name in prose, which arrives once the large title has scrolled under the bar. */
+  .pane-bar-title { order: 2; flex: 1; min-width: 0; color: var(--text); font: var(--weight-heading) 16px/20px var(--font-body); text-align: center; opacity: 0; translate: 0 var(--space-4); pointer-events: none; transition: opacity var(--motion-ui) var(--motion-ease), translate var(--motion-ui) var(--motion-ease); }
+  .pane-bar-title > span, .pane-bar-title > small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pane-bar-title > small { color: var(--faint); font: var(--weight-body) 12px/15px var(--font-body); }
+  .pane-scrolled .pane-bar-title { opacity: 1; translate: 0 0; }
+  .pane-bar-title.pane-bar-title-glass { flex: 0 1 auto; min-width: 0; margin-inline: auto; padding: var(--space-4) var(--space-16); border-radius: 22px; }
+  /* Save state speaks only when something needs attention; then it takes the title's place. */
+  .pane-header .pane-save-state { order: 2; flex: 1; min-width: 0; justify-content: center; overflow: hidden; font: var(--weight-control) var(--text-meta)/var(--line-meta) var(--font-body); text-align: center; white-space: normal; }
   .pane-save-state:has(.save-dot) { display: none; }
+  .pane-header:has(.pane-save-state:not(:has(.save-dot))) .pane-bar-title { display: none; }
   :is(.popup, .popup-exit).popup-sheet::before { content: none; }
-  .bottom-nav { grid-column: 1 / -1; grid-row: 2; display: flex; align-items: flex-start; gap: calc(var(--space-8) + var(--space-2)); height: var(--bottom-nav-height); padding: 0 var(--space-16) var(--space-8); overflow: clip; transition: height var(--motion-ui) var(--motion-ease), padding var(--motion-ui) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease), visibility 0s; }
-  /* A review session takes the screen: the bar folds away and returns, rather than snapping the pane taller in one frame. */
-  .app:has(.pane.active .review-session-active) .bottom-nav { height: 0; padding-block: 0; opacity: 0; visibility: hidden; pointer-events: none; transition-delay: 0s, 0s, 0s, var(--motion-ui); }
-  .bottom-tabs { display: flex; flex: 1; min-width: 0; height: calc(var(--bottom-nav-height) - var(--space-8)); padding: var(--space-4); border-radius: var(--radius-pill); }
-  .bottom-tabs > .button { position: relative; flex: 1; min-width: 0; flex-direction: column; justify-content: center; gap: var(--space-2); height: 100%; padding: 0; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-control); }
-  .bottom-nav .bottom-tabs > .button.selected { background: color-mix(in srgb, var(--text) 9%, transparent); color: var(--accent); }
-  .bottom-find.button { flex: none; width: calc(var(--bottom-nav-height) - var(--space-8)); height: calc(var(--bottom-nav-height) - var(--space-8)); padding: 0; border: 0; border-radius: var(--radius-pill); }
+  /* The tab bar floats: four places in a glass capsule and Find in its own circle, over a scroll-edge blur at the foot. */
+  .bottom-nav { position: absolute; z-index: 6; inset: auto 0 0; grid-area: auto; display: flex; align-items: stretch; gap: 10px; padding: 0 var(--space-16) var(--phone-tabbar-bottom); pointer-events: none; transition: opacity var(--motion-ui) var(--motion-ease), translate var(--motion-ui) var(--motion-ease), visibility 0s; }
+  .bottom-nav::before { content: ''; position: absolute; z-index: -1; inset: auto 0 0; height: calc(var(--phone-tabbar-top) + 52px); pointer-events: none; background: linear-gradient(color-mix(in srgb, var(--canvas) 0%, transparent), color-mix(in srgb, var(--canvas) 78%, transparent) 60%); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); -webkit-mask-image: linear-gradient(transparent, #000 45%); mask-image: linear-gradient(transparent, #000 45%); }
+  /* A review session takes the screen: the bar slips away and returns, rather than snapping the pane taller in one frame. */
+  .app:has(.pane.active .review-session-active) .bottom-nav { opacity: 0; translate: 0 var(--space-24); visibility: hidden; pointer-events: none; transition-delay: 0s, 0s, var(--motion-ui); }
+  .bottom-tabs { pointer-events: auto; flex: 1; min-width: 0; display: flex; height: var(--phone-tabbar-height); padding: var(--space-4); border-radius: calc(var(--phone-tabbar-height) / 2); }
+  .bottom-tabs > .button { position: relative; flex: 1; min-width: 0; min-height: 0; height: 100%; flex-direction: column; justify-content: center; gap: var(--space-2); padding: 0; border: 0; border-radius: 27px; color: var(--muted); font: var(--weight-control) 10.5px/12px var(--font-body); text-align: center; }
+  .bottom-tabs > .button > .icon { width: 22px; height: 22px; stroke-width: 1.3; }
+  .bottom-tabs > .button:is(:hover, :active):not(:disabled) { background: transparent; box-shadow: none; }
+  .bottom-tabs > .button.selected, .bottom-tabs > .button.selected:is(:hover, :active):not(:disabled) { background: var(--ink-wash); color: var(--accent); }
+  .bottom-find.button { pointer-events: auto; flex: none; width: var(--phone-tabbar-height); min-width: var(--phone-tabbar-height); height: var(--phone-tabbar-height); padding: 0; border: 0; border-radius: 50%; color: var(--text); }
+  .bottom-find > .icon { width: 22px; height: 22px; stroke-width: 1.3; }
+  .bottom-find.button:is(:hover, :active):not(:disabled) { background: var(--glass-fill); box-shadow: var(--glass-ring); }
   .bottom-find.selected { color: var(--accent); }
-  .bottom-nav-badge { position: absolute; top: var(--space-2); right: var(--space-4); min-width: var(--space-16); padding-inline: var(--space-2); border-radius: var(--radius-pill); background: var(--danger); color: var(--canvas); font: var(--weight-control) var(--text-apparatus)/var(--line-apparatus) var(--font-body); font-variant-numeric: tabular-nums; }
-  :is(.bottom-tabs, .bottom-find.button, .pane-header .pane-index, .pane-header .pane-back, .pane-header .pane-new, .pane-header .pane-settings, .pane-header .page-menu-button, .pane-header .journal-date) { background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%); backdrop-filter: blur(var(--glass-blur)) saturate(160%); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--glass-edge); }
+  .bottom-nav-badge { position: absolute; top: 5px; left: calc(50% + 7px); min-width: 16px; height: 16px; padding: 0 var(--space-4); border-radius: 8px; background: var(--danger); color: var(--canvas); font: var(--weight-heading) 10px/16px var(--font-body); font-variant-numeric: tabular-nums; text-align: center; }
   .app.keyboard-open .bottom-nav, .app.is-immersive .bottom-nav, .app.is-reading .bottom-nav { display: none; }
   /* A book reads edge to edge, under its own masthead rather than the pane header. */
   .app.is-reading .pane.active > .pane-header { display: none; }
@@ -631,9 +677,38 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .directory-pane .directory-view-menu.button { flex: none; width: var(--touch-target); }
   .directory-pane .sidebar-foot { flex-direction: column; align-items: stretch; gap: 0; }
   .directory-pane .sidebar-foot > .button { flex: none; min-width: 0; width: 100%; }
+  /* Buttons are capsules of three kinds: stamp (the screen's one gilt primary), tint (an ink wash; the old bordered box is one) and plain
+     (text in ink). sm is the 34 pt inline size and lg the 52 pt full-width one at the foot of a screen. */
+  .button:is(.stamp, .tint, .bordered), .conflict-actions button { min-height: 44px; padding: 0 18px; border: 0; border-radius: var(--radius-pill); justify-content: center; gap: 6px; font-size: 15px; line-height: 20px; text-align: center; }
+  .button.plain { min-height: 44px; padding: 0 8px; border-radius: var(--radius-pill); font-size: 15px; line-height: 20px; }
+  .button:is(.tint, .bordered), .conflict-actions button { background: var(--ink-wash); box-shadow: none; }
+  .button:is(.tint, .bordered):is(:hover, :active):not(:disabled), .conflict-actions button:is(:hover, :active):not(:disabled) { background: var(--ink-wash); border-color: transparent; box-shadow: none; }
+  .button:is(.tint, .bordered):active:not(:disabled), .conflict-actions button:active:not(:disabled) { background: color-mix(in srgb, var(--text) 14%, transparent); }
+  .button.stamp, .button.stamp:is(:hover, :active):not(:disabled) { background: color-mix(in srgb, var(--accent) 14%, var(--leaf)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 var(--lit-edge), 0 1px 2px var(--contact-shadow); font-weight: var(--weight-heading); }
+  .button:is(.stamp, .tint, .bordered).icon-only { width: 44px; padding: 0; }
+  .button.sm { min-height: 34px; padding-inline: 14px; font-size: 14px; line-height: 18px; }
+  .button.plain.sm { padding-inline: 8px; }
+  .button.lg { width: 100%; min-height: 52px; border-radius: 26px; font-size: 17px; line-height: 22px; }
+  /* The strip that switches a screen's views reads in Plex at body size, with the gilt rule under the current one. */
+  .mode-tabs.tab-strip { gap: 22px; }
+  .mode-tabs.tab-strip > .button { padding: 0; font: var(--weight-control) 15px/20px var(--font-body); letter-spacing: normal; }
+  /* Touch, not keyboard: no key hints, a gilt caret, and no focus ring until a hardware keyboard's Tab. */
+  kbd { display: none; }
+  :root { caret-color: var(--accent); }
+  :root:not([data-keyboard]) :focus-visible { outline: none; }
+  .editor-host .cm-editor :is(.cm-cursor, .cm-dropCursor) { border-left-color: var(--accent); }
+  /* No band paints on the row being edited; the caret says where you are. */
+  .outline-pane .outline-row.row-editing, .outline-pane .outline-row.row-editing > .row-depth { background: transparent; border-left-color: transparent; }
+  /* A page's scrollers run under both bars; what scrolls into view (a caret, an anchor) stops clear of them. */
+  .pane-content :is(.outline-pane, .directory-pane, .index-pane, .agenda-pane, .library-scroll, .review-scroll, .settings-pane, .notes-review, .field-page-pane, .card-templates-pane, .type-fields-pane, .research-desk, .spread-unsaved) { scroll-padding-top: var(--phone-top); scroll-padding-bottom: var(--phone-tabbar-top); }
+  /* The title in the bar replaces the section line that sat in the page's top space. */
+  .section-navigator { display: none; }
+  /* Banners float under the nav bar instead of pushing the page down. */
+  .workspace { position: relative; }
+  .workspace > :is(.shell-error, .save-banner), .pane > :is(.pane-error, .page-projection-reason) { position: absolute; z-index: 5; top: var(--phone-top); left: var(--space-12); right: var(--space-12); margin: 0; padding: var(--space-8) var(--space-16); border: 0; border-radius: 16px; background: var(--raised); box-shadow: var(--popup-shadow); }
 }
 @media (max-width: 599px) and (pointer: coarse) and (prefers-reduced-transparency: reduce) {
-  :is(.bottom-tabs, .bottom-find.button, .pane-header .pane-index, .pane-header .pane-back, .pane-header .pane-new, .pane-header .pane-settings, .pane-header .page-menu-button, .pane-header .journal-date) { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  :is(.nav-group, .pane-bar-title-glass, .button.nav-button, .glass, .button.glass) { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .mode-tabs > .tab-rule, .sidebar .button::before { transition: none; }
