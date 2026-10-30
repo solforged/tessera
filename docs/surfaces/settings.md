@@ -20,9 +20,7 @@ Sections use the same numbered apparatus heads as field definitions, in this ord
 
 Under 600 px (a split pane or the Fold cover), the header tightens. Controls stack under their descriptions except the switch, and the time-zone trigger fills the width. Paths wrap after slashes, not inside folder names. Pane chrome and mode tabs keep 44 px touch targets.
 
-On the cover layout (under 600 px with a coarse pointer), section names stay in the scroll instead of a horizontal chip row. This avoids clipped names and leaves more room for the settings themselves. Each section forms an inset group on `--raised`, with token spacing and rounded corners, a plain sentence-case heading and hairlines between rows. Controls and disclosures keep `--touch-target` hit areas.
-
-The cover title, save status, Undo and Redo scroll away with the page, leaving only the shell's glass title bar while reading lower sections. This avoids a second Settings title and gives the groups more room. Section links reserve header space only where the page header is sticky. Desktop and wider layouts keep their existing sticky header and section index.
+On a phone (under 600 px with a coarse pointer), Settings is an iOS grouped list, not this page; see [On a phone](#on-a-phone).
 
 ## Preferences
 
@@ -104,3 +102,25 @@ History is its own pane in Settings' frame, opened from the Settings header or t
 About shows the workshop's path, its creation date as an ISO date in the journal zone, and the service's version as one mono list. A closed Diagnostics disclosure holds the workshop id and the service's URL, assets and launch agent, since they are read rarely and changed never.
 
 An absent launch agent moves out of Diagnostics into the list and reads `Not installed`, with the faint explanation `Opening Tessera.app installs it.` No command-line setup is needed.
+
+## On a phone
+
+Under 600 px with a coarse pointer, Settings is a grouped list. The title is a large Piazzolla Settings that gives way to the shell's inline title as it scrolls under the bar. There is no section index, no save status, and no Undo, Redo or History: a setting saves as it changes. Each section is a group: its name in Plex 13 px over a rounded leaf of rows at least 52 pt tall, with its footnote under the leaf in faint 13 px. Hairlines run from the text to the leaf's edge.
+
+A row has its name and scope on the first line, one muted 13 px sentence under it and its control at the right. A choice (Theme, New captures into, A pasted link becomes) is a segmented control under its sentence. Journal day is a full-width 44 pt well that opens the time-zone picker without focusing its search field. The switch is 51 × 31 pt: a well with a muted knob; on, an ink track with a leaf-coloured knob; locked, at 40% opacity with the reason on the row. The page is the same list the Mac shows, in the same order; Workshops and Backups appear only when a browser on a phone reaches a Mac's service.
+
+### Today on the phone
+
+Today's template is three groups: Today (the sections), Captures (New captures into, A pasted link becomes) and Top of Today shows. A section is a row: its name in Piazzolla, its role and, for a locked one, its reason (`Always on`, `New captures land here, so it stays on`) in 13 px, the switch, and a 44 pt handle of three bars at the trailing edge. Holding the handle lifts the row under the finger (scale 1.025, a shadow, a haptic tap). The rows it passes slide aside, the pane scrolls when the finger nears its top or bottom, and letting go saves the new order. A cancelled drag puts the row back. Add a section is the last row of the group: a plus and the name field. Alt+Up and Alt+Down still reorder with a keyboard attached.
+
+### Devices, Models and About on the phone
+
+Devices is one row, Use my Mac's workshop, with a tint Set up button. Once paired it is the Mac's disclosure row (its name, its state at the right, a chevron) that opens to the facts in [Devices on the phone](#devices-on-the-phone). Models is a group whose last row is Add model with a plus; opening it swaps the row for a one-column form of 48 pt wells with a full-width Cancel and Save model.
+
+About is rows: Workshop (its name in Piazzolla), Size (mono; the folder's bytes from `GET /api/notebook/size`, which the app's own service answers where backups do not exist), Created (a short date in the journal zone) and, where a service runs, Version. Where it is stored and Diagnostics are closed disclosure rows. The first says where the workshop lives, prints its path from `Library/` on inside an app container, and offers Copy the path; the second holds the workshop id and the service's addresses.
+
+### Setting up a phone
+
+First launch and Pair again open Where is your workshop? as a floating sheet over a blurred screen: an eyebrow (`Workshop · this phone`), the title in Piazzolla, and two leaves. Use my Mac's workshop has Scan code, the screen's one stamp, and Type code. Start a workshop on this phone has a tint button. Type code swaps the body for a form under a title bar with a 44 pt way back: a line saying where to make the code, then two 48 pt wells, the Mac's address and the Code in spaced mono, and Pair as a full-width stamp. A wrong or expired code returns to this form with the reason above it.
+
+Pairing is a sheet that cannot be dismissed: no grabber, no close. It names the Mac, shows an indeterminate bar, and lists what is under way (Pairing and copying the workshop) and what follows (Opening Today). The service reports no stages while it copies, so the list ticks none early. Reduced motion stills the bar and the spinner.

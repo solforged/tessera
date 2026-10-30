@@ -437,6 +437,8 @@ export interface NotebookClient {
   todayTemplate(): TodayTemplate;
   setSetting(key: 'time_zone' | 'vim' | 'confirm_view_delete' | 'today_template', value: string): Promise<void>;
   settingsBusy(): boolean;
+  /** Why the last settings save failed, or empty. */
+  settingsError(): string;
   settingsMessage(): string;
   canUndoSetting(): boolean;
   canRedoSetting(): boolean;

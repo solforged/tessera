@@ -79,6 +79,21 @@
 .agent-provider-form > .agent-clear-key { grid-column: 2; color: var(--muted); }
 .agent-form-actions { justify-content: flex-end; }
 .agent-add-model.button { margin-top: var(--space-12); }
+@media (max-width: 599px) and (pointer: coarse) {
+  /* In a phone's leaf a model is a row; its actions wrap under it, and the form is one column of wells inside the leaf. */
+  .agent-provider-row { flex-wrap: wrap; }
+  .agent-provider-actions { flex: 1 0 100%; justify-content: flex-start; margin-top: var(--space-4); }
+  .agent-provider-form { display: flex; flex-direction: column; align-items: stretch; max-width: none; gap: var(--space-12); margin: 0; padding: var(--space-16); border: 0; }
+  .agent-provider-form > label { display: flex; flex-direction: column; gap: 6px; }
+  .agent-provider-form > label > span:first-child { padding: 0 var(--space-12); font: var(--weight-control) 13px/18px var(--font-body); }
+  .agent-provider-form .input { height: 48px; min-height: 48px; padding: 0 var(--space-16); border: 0; border-radius: 24px; font-size: 17px; }
+  .agent-provider-form .input[aria-invalid="true"] { box-shadow: 0 0 0 1.5px var(--danger); }
+  .agent-protocol.button { height: 48px; min-height: 48px; padding: 0 var(--space-16); border: 0; border-radius: 24px; background: var(--well); box-shadow: var(--well-shade); }
+  .agent-presets.mode-tabs { margin-inline: calc(var(--space-16) * -1); padding-inline: var(--space-16); }
+  .agent-form-actions { justify-content: stretch; }
+  .agent-form-actions > .button { flex: 1; }
+  .agent-provider-form > .agent-clear-key { grid-column: auto; padding: 0 var(--space-12); }
+}
 
 /* Narrower windows lay the dock over the panes, as the sidebar does, and it slides in from the right; a phone gives it the whole screen.
    The animation names stay the same across the breakpoint, so crossing it never replays the entry; only the keyframes differ. */

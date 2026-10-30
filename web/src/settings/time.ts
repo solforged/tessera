@@ -33,3 +33,9 @@ export function isoMinute(value: number, zone: string): string {
 export function isoDate(value: number, zone: string): string {
   return isoMinute(value, zone).slice(0, 10);
 }
+
+/** `Oct 29`, or `Oct 29, 2025` in a year other than `now`'s: a date in prose, in `zone`. */
+export function shortDate(value: number, zone: string, now = Date.now()): string {
+  const year = (at: number) => new Intl.DateTimeFormat('en', { timeZone: zone, year: 'numeric' }).format(at);
+  return new Intl.DateTimeFormat('en', { timeZone: zone, month: 'short', day: 'numeric', ...(year(value) === year(now) ? {} : { year: 'numeric' }) }).format(value);
+}

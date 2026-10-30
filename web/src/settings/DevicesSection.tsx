@@ -4,6 +4,8 @@ import { api } from '../api/client';
 import type { PairingCode, PairingStatus, RejectedChange, SyncAttempt } from '../api/types';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { ListRow } from '../ui/List';
+import { isPhone } from '../ui/phone';
 import { Popup } from '../ui/Popup';
 import { SyncSetup } from '../sync/SyncSetup';
 import type { NotebookClient } from '../document/contract';
@@ -12,6 +14,7 @@ import { syncHealth, versionLine } from '../sync/health';
 import { settleRejection } from '../sync/rejections';
 import { ago, hubDevices, plural, replica, size, sync, syncConflicts } from '../sync/state';
 import { cancelConfirm, escapeConfirm, focusCancel } from './confirm-focus';
+import { Group } from './Group';
 
 const message = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
 
@@ -51,7 +54,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
     void hubDevices.refresh();
   };
   return <>
-    {props.heading}
+    <Group heading={props.heading}>
     <Show when={checked() && !hubDevices.state()}>
       <p class="settings-empty">Sync is off. This Mac is not serving its workshop to other devices, so no phone can pair with it.</p>
     </Show>
@@ -91,6 +94,7 @@ export function HubDevices(props: DeviceProps & { onCount(count: number): void }
       <Show when={pairing()}><PairDialog url={value().sharing.url} returnFocus={() => pairButton ?? null} onDone={() => { setPairing(false); void sync.refresh(); }} /></Show>
     </>}</Show>
     <NeedsReview notebook={props.notebook} onOpenPage={props.onOpenPage} onError={props.onError} />
+    </Group>
   </>;
 }
 
@@ -138,7 +142,7 @@ function PairDialog(props: { url: string | null; returnFocus(): HTMLElement | nu
       </figure>
       <ol class="pair-steps">
         <li><span class="section-number">01</span>Open Tessera on the phone.</li>
-        <li><span class="section-number">02</span><span>Choose <strong>Use my Mac's workshop</strong>.</span></li>
+        <li><span class="section-number">02</span><span>Choose <strong>Use my Mac’s workshop</strong>.</span></li>
         <li><span class="section-number">03</span>Scan this code.</li>
       </ol>
     </div>}</Show>}>
@@ -167,13 +171,16 @@ function PairDialog(props: { url: string | null; returnFocus(): HTMLElement | nu
 export function PhoneDevices(props: DeviceProps) {
   const [setup, setSetup] = createSignal(false);
   void sync.refresh();
+  const phone = isPhone();
   return <>
-    {props.heading}
+    <Group heading={props.heading}>
     <Show when={sync.state()}>{state => <Show when={replica()} fallback={<>
-      <div class="settings-row">
+      <Show when={phone} fallback={<div class="settings-row">
         <div class="settings-label"><span class="settings-name">Use my Mac's workshop</span><p>A copy of your Mac's workshop. Changes go both ways.</p></div>
         <Button class="bordered" disabled={state().role !== 'none'} onClick={() => setSetup(true)}>Set up</Button>
-      </div>
+      </div>}>
+        <ListRow detail="A copy of your Mac’s workshop. Changes go both ways." trailing={<Button kind="tint" disabled={state().role !== 'none'} onClick={() => setSetup(true)}>Set up</Button>}>Use my Mac’s workshop</ListRow>
+      </Show>
       <Show when={setup()}><SyncSetup onDone={() => setSetup(false)} /></Show>
     </>}>{value => <>
       <details class="devices-disclosure" data-device-id={value().device_id} open={props.deviceId === value().device_id}>
@@ -192,6 +199,7 @@ export function PhoneDevices(props: DeviceProps) {
       <Show when={value().offline.books > 0}><div class="settings-row"><div class="settings-label"><span class="settings-name">Offline books</span><p>{plural(value().offline.books, 'book')} · {size(value().offline.bytes)}</p></div><span class="settings-aside">On this device</span></div></Show>
     </>}</Show>}</Show>
     <NeedsReview notebook={props.notebook} onOpenPage={props.onOpenPage} onError={props.onError} />
+    </Group>
   </>;
 }
 

@@ -70,6 +70,7 @@ import type {
   QueryResult,
   View,
   NotebookInfo,
+  NotebookSize,
   KnownNotebooks,
   PageView,
   ProjectRecord,
@@ -208,6 +209,8 @@ const segment = encodeURIComponent;
 
 export interface ApiClient {
   notebook(signal?: AbortSignal): Promise<NotebookInfo>;
+  /** Bytes the workshop's folder holds on disk. The browser build keeps it in the page and cannot say. */
+  notebookSize(signal?: AbortSignal): Promise<NotebookSize>;
   service(signal?: AbortSignal): Promise<ServiceInfo>;
   backups(signal?: AbortSignal): Promise<Backups>;
   createBackup(signal?: AbortSignal): Promise<CreatedBackup>;
@@ -358,6 +361,7 @@ export function createApi(base = '', actorName = `tessera-web:${ulid()}`): ApiCl
   const resourceUrl = (snapshotId: string, href: string) => href.startsWith('/api/library/covers/') ? `${base}${href}` : `${base}/api/snapshots/${segment(snapshotId)}/resources/${href.split('/').map(segment).join('/')}`;
   return {
     notebook: (signal?: AbortSignal) => get<NotebookInfo>('/notebook', signal),
+    notebookSize: (signal?: AbortSignal) => DEMO ? Promise.reject(new ApiError('The workshop lives in this page, which has no folder to measure.', 400, 'unsupported')) : get<NotebookSize>('/notebook/size', signal),
     ...(!EMBEDDED ? {
       service: (signal?: AbortSignal) => get<ServiceInfo>('/service', signal),
       backups: (signal?: AbortSignal) => get<Backups>('/backups', signal),

@@ -5,7 +5,10 @@ import type { ProviderInput, ProviderView } from '../api/types';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
+import { ListRow } from '../ui/List';
+import { isPhone } from '../ui/phone';
 import { cancelConfirm, escapeConfirm, focusCancel } from '../settings/confirm-focus';
+import { Group } from '../settings/Group';
 import './agent.css';
 
 type Protocol = ProviderView['protocol'];
@@ -102,6 +105,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
     setProtocolAnchor(null); setDraft(null);
     queueMicrotask(() => section.querySelector<HTMLElement>(id ? `[data-edit="${CSS.escape(id)}"]` : '.agent-add-model')?.focus({ preventScroll: true }));
   };
+  const phone = isPhone();
 
   const Form = (form: { value: Draft }) => {
     // A form that opens takes the caret in its first field and comes into view, its Save row included.
@@ -138,8 +142,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
   };
 
   return <section ref={section} id={props.id} aria-labelledby={`${props.id}-heading`} aria-busy={busy()}>
-    {props.heading}
-    <p class="settings-empty">The agent dock talks to a model you choose: a hosted one with your own key, or one running on this machine. Models and keys are kept on this machine, outside the workshop and its backups.</p>
+    <Group heading={props.heading} note="The agent dock talks to a model you choose: a hosted one with your own key, or one running on this machine. Models and keys are kept on this machine, outside the workshop and its backups.">
     <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
     <Show when={saved.error}><p class="error" role="alert">{message(saved.error)}</p></Show>
     <For each={saved()?.providers}>{provider => <Show when={draft()?.id !== provider.id} fallback={<Form value={draft()!} />}>
@@ -162,8 +165,11 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
         </Show></div>
       </div>
     </Show>}</For>
-    <Show when={draft() && !draft()!.id} fallback={<Show when={!draft()}><Button class="bordered agent-add-model" icon="plus" onClick={() => edit()}>Add model</Button></Show>}>
+    <Show when={draft() && !draft()!.id} fallback={<Show when={!draft()}><Show when={phone} fallback={<Button class="bordered agent-add-model" icon="plus" onClick={() => edit()}>Add model</Button>}>
+      <ListRow icon="plus" class="agent-add-model" onClick={() => edit()}>Add model</ListRow>
+    </Show></Show>}>
       <Form value={draft()!} />
     </Show>
+    </Group>
   </section>;
 }

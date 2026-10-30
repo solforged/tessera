@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
 import { api } from '../api/client';
-import type { Backups } from '../api/types';
+import type { Backups, NotebookInfo } from '../api/types';
 import { DEMO, EMBEDDED, MOBILE } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import type { OpenTarget, PaneId, SettingsViewState } from '../shell/contract';
@@ -9,6 +9,7 @@ import { besideHint, opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
+import { isPhone } from '../ui/phone';
 import { setThemePreference, themePreference } from '../shell/theme';
 import { size, sync } from '../sync/state';
 import { backupLabel, backupStale } from './backup';
@@ -19,9 +20,14 @@ import { forgetNotebook, knownNotebooks, loadNotebooks, notebookLabel, notebookO
 import { AgentSettings } from '../agent/AgentSettings';
 import { deviceZone as currentDeviceZone, isoDate, isoMinute, workshopZone, zoneAliases as aliases } from './time';
 import { TodaySettings } from './TodaySettings';
+import { PhoneAbout } from './About';
+import { Choice } from './Choice';
+import { Group } from './Group';
 import '../fields/field-page.css';
 import './settings.css';
 import './devices.css';
+
+const themes = [{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] as const;
 
 export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; section?: 'notebooks' | 'devices' | 'agent' | 'today'; deviceId?: string | null; notebook: NotebookClient; onOpen(target: OpenTarget, beside: boolean): void; onViewChange(view: SettingsViewState): void }) {
   const [error, setError] = createSignal('');
@@ -32,6 +38,12 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   const [service] = createResource(() => !EMBEDDED, async () => {
     try { return await api.service(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
+  });
+  // The phone gets a grouped list; its About also says how big the workshop is. The browser build cannot measure a folder.
+  const phone = isPhone();
+  const [workshopSize] = createResource(() => phone && !DEMO, async () => {
+    try { return (await api.notebookSize()).size; }
+    catch { return undefined; }
   });
   const [backups, { refetch: refreshBackups, mutate: updateBackups }] = createResource(() => !EMBEDDED, async () => {
     try { return await api.backups(); }
@@ -155,8 +167,18 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     region.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
   };
   const when = (value: number) => isoMinute(value, zone());
-  const heading = (index: number, key: string, label: string, aside?: JSX.Element) =>
-    <h2 class="field-section-head" id={`${sectionId(key)}-heading`}><span class="field-rubric">{String(index).padStart(2, '0')}</span><span>{label}</span><span class="section-rule" />{aside}</h2>;
+  const heading = (index: number, key: string, label: string, aside?: JSX.Element) => phone
+    ? <span class="settings-group-label" id={`${sectionId(key)}-heading`}>{label}</span>
+    : <h2 class="field-section-head" id={`${sectionId(key)}-heading`}><span class="field-rubric">{String(index).padStart(2, '0')}</span><span>{label}</span><span class="section-rule" />{aside}</h2>;
+  const zoneText = () => zones().find(value => value.id === zone())?.label ?? '';
+  const diagnostics = (value: NotebookInfo) => <dl>
+    <dt>Id</dt><dd>{value.id}</dd>
+    {!EMBEDDED && <Show when={service()}>{service => <>
+      <dt>URL</dt><dd class="settings-path">{pathText(`http://127.0.0.1:${service().port}`)}</dd>
+      <dt>Assets</dt><dd class="settings-path">{pathText(service().assets)}</dd>
+      <Show when={service().launch_agent.installed}><dt>Launch agent</dt><dd>Installed</dd></Show>
+    </>}</Show>}
+  </dl>;
   const pathText = (value: string) => value.split('/').map((part, index) => <>{index > 0 && <>/<wbr /></>}{part}</>);
   createEffect(() => {
     const key = current();
@@ -201,41 +223,45 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
       <div class="settings-main">
         <header class="settings-header" data-scrolled={scrolled() ? '' : undefined}>
           <div class="settings-heading"><h1>Settings</h1></div>
-          <span class="settings-status" role="status">{props.notebook.settingsMessage()}</span>
-          <Button icon="undo" label="Undo setting" shortcut="⌘Z" disabled={!props.notebook.canUndoSetting()} onClick={() => { void settingHistory(false); }} />
-          <Button icon="redo" label="Redo setting" shortcut="⌘⇧Z" disabled={!props.notebook.canRedoSetting()} onClick={() => { void settingHistory(true); }} />
-          <Button icon="clock" label="History" title={`Every change to this workshop, with Undo · ${besideHint}`} onClick={event => props.onOpen({ kind: 'history' }, opensBeside(event))} />
-          <nav class="settings-index" aria-label="Settings sections">
-            <For each={sections()}>{section => <button type="button" class="settings-index-item" data-section={section.key} aria-current={current() === section.key ? 'location' : undefined} onClick={() => reveal(section.key)}>
-              <span>{section.label}</span><Show when={section.count > 0}><span class="settings-count">{section.count}</span></Show>
-            </button>}</For>
-          </nav>
+          <Show when={!phone}>
+            <span class="settings-status" role="status">{props.notebook.settingsMessage()}</span>
+            <Button icon="undo" label="Undo setting" shortcut="⌘Z" disabled={!props.notebook.canUndoSetting()} onClick={() => { void settingHistory(false); }} />
+            <Button icon="redo" label="Redo setting" shortcut="⌘⇧Z" disabled={!props.notebook.canRedoSetting()} onClick={() => { void settingHistory(true); }} />
+            <Button icon="clock" label="History" title={`Every change to this workshop, with Undo · ${besideHint}`} onClick={event => props.onOpen({ kind: 'history' }, opensBeside(event))} />
+            <nav class="settings-index" aria-label="Settings sections">
+              <For each={sections()}>{section => <button type="button" class="settings-index-item" data-section={section.key} aria-current={current() === section.key ? 'location' : undefined} onClick={() => reveal(section.key)}>
+                <span>{section.label}</span><Show when={section.count > 0}><span class="settings-count">{section.count}</span></Show>
+              </button>}</For>
+            </nav>
+          </Show>
         </header>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
+        {/* Settings save at once, so on a phone only a failed save speaks, as a notice under the title. */}
+        <Show when={phone && props.notebook.settingsError()}>{reason => <p class="error" role="alert">Couldn’t save · {reason()}</p>}</Show>
         <section id={sectionId('preferences')} aria-labelledby={`${sectionId('preferences')}-heading`}>
-          {heading(1, 'preferences', 'Preferences')}
-          <div class="settings-row">
-            <div class="settings-label"><span class="settings-name">Theme<span class="settings-scope">This device</span></span><p>Follows the system unless you choose light or dark.</p></div>
-            <div class="mode-tabs settings-segments" role="group" aria-label="Theme">
-              <For each={[['system', 'System'], ['light', 'Light'], ['dark', 'Dark']] as const}>{([value, label]) =>
-                <Button aria-pressed={themePreference() === value} onClick={() => setThemePreference(value)}>{label}</Button>}</For>
+          <Group heading={heading(1, 'preferences', 'Preferences')}>
+            <div class="settings-row">
+              <div class="settings-label"><span class="settings-name">Theme<span class="settings-scope">This device</span></span><p>Follows the system unless you choose light or dark.</p></div>
+              <Choice label="Theme" value={themePreference()} options={themes} onChange={setThemePreference} />
             </div>
-          </div>
-          <div class="settings-row settings-vim">
-            <div class="settings-label"><span class="settings-name"><label for={`settings-vim-${props.pane}`}>Vim keys</label><span class="settings-scope">Workshop</span></span><p>Normal, insert and visual modes inside an atom; j and k move between atoms.</p></div>
-            <input id={`settings-vim-${props.pane}`} class="settings-switch" type="checkbox" role="switch" checked={props.notebook.vim()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('vim', String(event.currentTarget.checked)); }} />
-          </div>
-          <div class="settings-row">
-            <div class="settings-label"><span class="settings-name"><label for={`settings-confirm_view_delete-${props.pane}`}>Ask before deleting views</label><span class="settings-scope">Workshop</span></span><p>Library, task and table views.</p></div>
-            <input id={`settings-confirm_view_delete-${props.pane}`} class="settings-switch" type="checkbox" role="switch" checked={props.notebook.confirmViewDelete()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('confirm_view_delete', String(event.currentTarget.checked)); }} />
-          </div>
-          <div class="settings-row">
-            <div class="settings-label"><span class="settings-name">Journal day<span class="settings-scope">Workshop</span></span><p>Decides which day Today opens and when scheduled times fall.</p></div>
-            <Button class="bordered settings-select" aria-label="Time zone" aria-haspopup="listbox" aria-expanded={zoneAnchor() !== null} disabled={props.notebook.settingsBusy()} title={zone()} onClick={event => { setZoneTime(Date.now()); setZoneAnchor(event.currentTarget); }}>
-              <span class="settings-select-text"><Show when={zone() === deviceZone}><span>Device</span></Show><span class="settings-mono">{zones().find(value => value.id === zone())?.label}</span></span><Icon name="down" />
-            </Button>
-          </div>
-          <Show when={zoneAnchor()}>{anchor => <Picker<{ id: string; label: string }> anchor={anchor()} placement="below" class="settings-zone-picker" width={360} label="Choose time zone" onDismiss={() => { setZoneAnchor(null); setZoneQuery(''); }}
+            <div class="settings-row settings-vim">
+              <div class="settings-label"><span class="settings-name"><label for={`settings-vim-${props.pane}`}>Vim keys</label><span class="settings-scope">Workshop</span></span><p>Normal, insert and visual modes inside an atom; j and k move between atoms.</p></div>
+              <input id={`settings-vim-${props.pane}`} class="settings-switch" type="checkbox" role="switch" checked={props.notebook.vim()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('vim', String(event.currentTarget.checked)); }} />
+            </div>
+            <div class="settings-row">
+              <div class="settings-label"><span class="settings-name"><label for={`settings-confirm_view_delete-${props.pane}`}>Ask before deleting views</label><span class="settings-scope">Workshop</span></span><p>Library, task and table views.</p></div>
+              <input id={`settings-confirm_view_delete-${props.pane}`} class="settings-switch" type="checkbox" role="switch" checked={props.notebook.confirmViewDelete()} disabled={props.notebook.settingsBusy()} onChange={event => { void change('confirm_view_delete', String(event.currentTarget.checked)); }} />
+            </div>
+            <div class="settings-row">
+              <div class="settings-label"><span class="settings-name">Journal day<span class="settings-scope">Workshop</span></span><p>Decides which day Today opens and when scheduled times fall.</p></div>
+              <Button class="bordered settings-select" aria-label="Time zone" aria-haspopup="listbox" aria-expanded={zoneAnchor() !== null} disabled={props.notebook.settingsBusy()} title={zone()} onClick={event => { setZoneTime(Date.now()); setZoneAnchor(event.currentTarget); }}>
+                <span class="settings-select-text"><Show when={zone() === deviceZone}><span>Device</span></Show><Show when={phone} fallback={<span class="settings-mono">{zoneText()}</span>}>
+                  <span class="settings-zone-rest">{zoneText().split(' · ')[0]} · <span class="settings-mono">{zoneText().split(' · ')[1]}</span></span>
+                </Show></span><Icon name="down" />
+              </Button>
+            </div>
+          </Group>
+          <Show when={zoneAnchor()}>{anchor => <Picker<{ id: string; label: string }> anchor={anchor()} placement="below" class="settings-zone-picker" width={360} label="Choose time zone" autofocus={!phone} onDismiss={() => { setZoneAnchor(null); setZoneQuery(''); }}
             query={zoneQuery()} onQuery={setZoneQuery} placeholder="Search time zones"
             items={zoneRows()} key={value => value.id} isCurrent={value => value.id === zone()} empty="No matching time zone."
             onPick={value => { setZoneAnchor(null); setZoneQuery(''); void change('time_zone', value.id); }}
@@ -244,8 +270,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         <TodaySettings id={sectionId('today')} heading={heading(number('today'), 'today', 'Today')} pane={props.pane} notebook={props.notebook} />
         {DEMO && !MOBILE && <BrowserBackups id={sectionId('backups')} heading={heading(number('backups'), 'backups', 'Backups')} when={when} onError={setError} />}
         {!EMBEDDED && <section id={sectionId('notebooks')} aria-labelledby={`${sectionId('notebooks')}-heading`} aria-busy={notebookOpening() !== null}>
-          {heading(number('notebooks'), 'notebooks', 'Workshops')}
-          <Show when={workshopsHome()}>{home => <p class="settings-empty">Workshops made by name live in <span class="settings-mono settings-path">{pathText(home())}</span>. Opening one reloads this window.</p>}</Show>
+          <Group heading={heading(number('notebooks'), 'notebooks', 'Workshops')} note={workshopsHome() ? <>Workshops made by name live in <span class="settings-mono settings-path">{pathText(workshopsHome()!)}</span>. Opening one reloads this window.</> : undefined}>
           <For each={knownNotebooks()?.notebooks}>{entry => <div class="settings-row notebooks-entry" data-current={entry.current ? '' : undefined}>
             <div class="settings-label">
               <span class="settings-name">{notebookLabel(entry)}<Show when={entry.current}><span class="settings-scope">Open</span></Show></span>
@@ -272,10 +297,10 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
               <Button class="bordered" disabled={!notebookPath().trim() || notebookOpening() !== null} onClick={() => switchTo(notebookPath().trim(), true)}>New</Button>
             </span>
           </form>
+          </Group>
         </section>}
         {!EMBEDDED && <section id={sectionId('backups')} aria-labelledby={`${sectionId('backups')}-heading`} aria-busy={backupBusy()}>
-          {heading(number('backups'), 'backups', 'Backups')}
-          <p class="settings-empty">This workshop is backed up once a day and before each update, unless nothing has changed. One a day is kept for a week and one a week for a month, with the copies taken before an update or restore kept for a week.</p>
+          <Group heading={heading(number('backups'), 'backups', 'Backups')} note="This workshop is backed up once a day and before each update, unless nothing has changed. One a day is kept for a week and one a week for a month, with the copies taken before an update or restore kept for a week.">
           <div class="settings-row">
             <div class="settings-label"><span class="settings-name">Database and files</span><Show when={backups()}>{value => <>
               <p role="status"><Show when={!restoringBackup()} fallback="Restoring…"><Show when={value().backups[0]} fallback="No backups yet.">{backup => <>Last backup <time class="settings-mono" dateTime={new Date(backup().created_at).toISOString()}>{when(backup().created_at)}</time>{unchanged() ? '; nothing has changed since' : ''}</>}</Show></Show></p>
@@ -314,6 +339,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
               </Show></span>
             </li>}</For></ul>
           </details></Show>
+          </Group>
         </section>}
         {devices && <section id={sectionId('devices')} aria-labelledby={`${sectionId('devices')}-heading`}>
           <Show when={MOBILE || sync.state()?.role === 'replica'} fallback={<HubDevices heading={heading(number('devices'), 'devices', 'Devices')} when={when} onError={setError} onCount={setDeviceCount} notebook={props.notebook} deviceId={props.deviceId} onOpenPage={pageId => props.onOpen({ kind: 'page', pageId }, false)} />}>
@@ -322,27 +348,23 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         </section>}
         {!DEMO && <AgentSettings id={sectionId('agent')} heading={heading(number('agent'), 'agent', 'Models')} />}
         <section id={sectionId('about')} aria-labelledby={`${sectionId('about')}-heading`}>
-          {heading(number('about'), 'about', 'About')}
-          <Show when={info()}>{value => <dl>
-            <dt>Workshop</dt><dd class="settings-path">{pathText(value().path)}</dd>
-            <dt>Created</dt><dd>{isoDate(value().created_at, zone())}</dd>
-            {!EMBEDDED && <Show when={service()}>{service => <>
-              <dt>Version</dt><dd>{service().version}<Show when={service().build}>{build => <> · {build()}</>}</Show></dd>
-              {/* A missing launch agent needs the person; an installed one is a diagnostic. */}
-              <Show when={!service().launch_agent.installed}><dt>Launch agent</dt><dd>Not installed<span class="settings-hint">Opening Tessera.app installs it.</span></dd></Show>
-            </>}</Show>}
-          </dl>}</Show>
-          <Show when={info()}>{value => <details class="settings-more">
-            <summary><Icon name="right" />Diagnostics</summary>
-            <dl>
-              <dt>Id</dt><dd>{value().id}</dd>
-              {!EMBEDDED && <Show when={service()}>{service => <>
-                <dt>URL</dt><dd class="settings-path">{pathText(`http://127.0.0.1:${service().port}`)}</dd>
-                <dt>Assets</dt><dd class="settings-path">{pathText(service().assets)}</dd>
-                <Show when={service().launch_agent.installed}><dt>Launch agent</dt><dd>Installed</dd></Show>
-              </>}</Show>}
-            </dl>
-          </details>}</Show>
+          <Group heading={heading(number('about'), 'about', 'About')}>
+            <Show when={phone && info()} fallback={<>
+              <Show when={info()}>{value => <dl>
+                <dt>Workshop</dt><dd class="settings-path">{pathText(value().path)}</dd>
+                <dt>Created</dt><dd>{isoDate(value().created_at, zone())}</dd>
+                {!EMBEDDED && <Show when={service()}>{service => <>
+                  <dt>Version</dt><dd>{service().version}<Show when={service().build}>{build => <> · {build()}</>}</Show></dd>
+                  {/* A missing launch agent needs the person; an installed one is a diagnostic. */}
+                  <Show when={!service().launch_agent.installed}><dt>Launch agent</dt><dd>Not installed<span class="settings-hint">Opening Tessera.app installs it.</span></dd></Show>
+                </>}</Show>}
+              </dl>}</Show>
+              <Show when={info()}>{value => <details class="settings-more">
+                <summary><Icon name="right" />Diagnostics</summary>
+                {diagnostics(value())}
+              </details>}</Show>
+            </>}>{value => <PhoneAbout info={value()} service={service()} bytes={workshopSize()} zone={zone()}>{diagnostics(value())}</PhoneAbout>}</Show>
+          </Group>
         </section>
       </div>
     </div>
