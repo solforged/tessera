@@ -2572,9 +2572,7 @@ mod tests {
                 replica: Arc::default(),
                 sync_health: Arc::default(),
                 switcher: None,
-                agent: Arc::new(
-                    agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap(),
-                ),
+                agent: Arc::new(agent::Runtime::new(Some(dir.path().join("agent.json"))).unwrap()),
             });
         async fn size(app: &Router) -> u64 {
             let response = app

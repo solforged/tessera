@@ -572,7 +572,7 @@
   .outline-heading .outline-title-row { margin-top: 2px; }
   .date-literal { white-space: nowrap; }
   .outline-pane:not(:has(.journal-header, .reading-register)) .outline-row.inline-field-value[data-field-role="attribute"][aria-level] {
-    flex-wrap: nowrap; align-items: center; gap: var(--space-16); min-height: 48px; padding: 0 var(--space-16); border-left: 0; border-radius: 0;
+    flex-wrap: nowrap; align-items: center; gap: 0 var(--space-16); min-height: 48px; padding: 0 var(--space-16); border-left: 0; border-radius: 0;
     background: var(--leaf); box-shadow: 0 0 0 .5px color-mix(in srgb, var(--line) 70%, transparent); font: var(--weight-body) 16px/22px var(--font-body);
   }
   .outline-pane:not(:has(.journal-header, .reading-register)) .outline-row.inline-field-value[data-field-role="attribute"][aria-level]:not(.inline-field-value[data-field-role="attribute"] + .outline-row) { border-radius: var(--leaf-radius) var(--leaf-radius) 0 0; box-shadow: inset 0 1px 0 var(--lit-edge), 0 0 0 .5px color-mix(in srgb, var(--line) 70%, transparent); clip-path: inset(-1px -1px 0 -1px); }
@@ -590,16 +590,19 @@
   .outline-pane:not(:has(.journal-header, .reading-register)) .outline-row.inline-field-value[data-field-role="attribute"][aria-level] .outline-field-values { justify-content: flex-end; gap: 6px; }
   .outline-pane:not(:has(.journal-header, .reading-register)) .outline-row.inline-field-value[data-field-role="attribute"][aria-level] .outline-field-values > .outline-value-cell::before { content: none; }
   /* Values a field holds several of are pills in a hue of their own, as tags are. */
-  .outline-field-values > .outline-value-cell { min-height: 0; height: 26px; padding: 0 10px; border-radius: 13px; background: color-mix(in srgb, var(--pill-hue, var(--type-6)) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pill-hue, var(--type-6)) 30%, transparent); color: var(--pill-hue, var(--type-6)); font: var(--weight-control) 13px/16px var(--font-body); }
+  .outline-field-values > .outline-value-cell:not(:has(> .field-empty-value)) { min-height: 0; height: 26px; padding: 0 10px; border-radius: 13px; background: color-mix(in srgb, var(--pill-hue, var(--type-6)) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pill-hue, var(--type-6)) 30%, transparent); color: var(--pill-hue, var(--type-6)); font: var(--weight-control) 13px/16px var(--font-body); }
   .outline-field-values > .outline-value-cell > .outline-value-text { min-height: 0; padding: 0; font: inherit; color: inherit; }
   .outline-field-values { min-height: 0; }
   .outline-row.inline-field-value:has(> .field-slots) { flex-wrap: wrap; }
   .outline-row.inline-field-value > .field-slots { flex: 0 0 calc(100% + 2 * var(--space-16)); margin: 0 calc(-1 * var(--space-16)); padding: 0; background: transparent; }
   .field-slots-root .field-slot { position: relative; gap: var(--space-16); min-height: 48px; padding: 0 var(--space-16); border: 0; border-radius: 0; font: var(--weight-body) 16px/22px var(--font-body); }
   .field-slots-root .field-slot::before { content: ''; position: absolute; top: 0; left: var(--space-16); right: 0; height: .5px; background: var(--line); }
-  .field-slots-root .field-slot-label { flex: none; padding: 0; color: var(--muted); }
+  .outline-pane:not(:has(.journal-header, .reading-register)) .field-slots-root .field-slot-label { flex: none; padding: 0; color: var(--muted); font: var(--weight-body) 16px/22px var(--font-body); letter-spacing: normal; }
   .field-slots-root .field-slot-label > .icon { display: none; }
-  .field-slots-root .field-slot-value { text-align: right; }
+  .field-slots-root .field-slot-value { display: flex; align-items: center; justify-content: flex-end; min-height: 48px; text-align: right; }
+  /* An empty value is the same row as a filled one: its Add… is muted, at the end, on the label's line. */
+  .outline-row.inline-field-value > .outline-body .field-empty-value { min-height: 48px; text-align: right; }
+  .outline-row.inline-field-value .field-slot-add, .field-slots-root .field-slot-add { color: var(--muted); font: var(--weight-body) 16px/22px var(--font-body); }
   .field-area-controls.field-area-root { position: relative; min-height: 48px; margin: 0; padding: 0 var(--space-16); }
   .field-area-controls.field-area-root::before { content: ''; position: absolute; top: 0; left: var(--space-16); right: 0; height: .5px; background: var(--line); }
   .field-area-root .field-area-add { gap: 10px; min-height: 48px; padding: 0; background: transparent; color: var(--text); font: var(--weight-body) 16px/22px var(--font-body); letter-spacing: normal; }

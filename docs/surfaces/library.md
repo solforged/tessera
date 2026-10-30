@@ -116,7 +116,7 @@ Cards load the source's contents and text length and cancel their requests when 
 
 Clicking a card opens its source page. On the cover screen it opens the reader at the saved position instead, as Today's reading line does, and Open page in the card's actions reaches the source page. It fills the pane to the right when one exists; otherwise it uses the Library's pane. ⌘-click opens it beside (Ctrl-click off Mac), as with rows. A wide touch screen opens it beside by default. Cards wrap into a vertical stack in narrow panes without dropping books.
 
-On the cover, Reading is the first and initial state tab, the cards replace duplicate Reading rows, and the Inbox follows as `Up next · Inbox` in 60 × 96 pt covers beside an italic title and the author. A source without a cover gets a generated one: its title in Piazzolla italic on a 26% wash of one of the six type hues (picked from the title, so a book keeps its colour), a hairline frame inside the edge and the author's surname in small capitals. No reading-session totals, pace or finish estimates are shown.
+On the cover, Reading is the first and initial state tab, the cards replace duplicate Reading rows, and the Inbox follows as `Up next · Inbox` in 60 × 96 pt covers beside an italic title and the author. A source without a cover gets a generated one: its title in Piazzolla italic on a 26% wash of one of the six type hues (picked from the title, so a book keeps its color), a hairline frame inside the edge and the author's surname in small capitals. No reading-session totals, pace or finish estimates are shown.
 
 ### Empty library
 
