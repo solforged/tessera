@@ -1,0 +1,47 @@
+/* Find on a phone: a capsule field with a glass × beside it, a segment for the scope, and results running down from the field.
+   Nothing is highlighted at rest; the keys of a hardware keyboard bring the cursor row back (.palette-keyed). */
+@media (max-width: 599px) and (pointer: coarse) {
+  .find-backdrop { display: block; position: fixed; inset: 0; z-index: 49; background: var(--canvas); }
+  .palette.palette { top: var(--visual-viewport-top, 0px) !important; left: 0 !important; width: 100% !important; max-width: none; height: calc(var(--visual-viewport-height, 100dvh) - var(--bottom-inset)); max-height: calc(var(--visual-viewport-height, 100dvh) - var(--bottom-inset)) !important; display: flex; flex-direction: column; padding: var(--phone-bar-top) 0 0; border: 0; border-radius: 0; background: var(--canvas); box-shadow: none; overflow: hidden; }
+  .palette::before, .palette:not(.palette-search) > .picker-query::before { display: none; }
+  .palette > .find-title { display: none; }
+
+  .palette > .find-seg > button { padding: 0 var(--space-4); }
+  /* The field is the capsule; the cancel circle hangs outside its right edge, so the whole row is one 52 pt bar. */
+  .palette > .picker-query { position: relative; flex: none; height: 44px; margin: 4px 68px 4px var(--phone-gutter); padding: 0 var(--space-16); gap: 10px; border: 0; border-radius: 22px; background: var(--well); box-shadow: var(--well-shade); color: var(--faint); transition: box-shadow var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); }
+  .palette > .picker-query:focus-within { color: var(--text); box-shadow: var(--well-shade), inset 0 -2px 0 var(--accent); }
+  .palette .picker-prefix { flex: none; width: 20px; height: 20px; color: inherit; }
+  .palette .picker-input { min-height: 0; height: 100%; border: 0; border-radius: 0; padding: 0; font: var(--weight-body) 17px/22px var(--font-body); }
+  .palette .picker-input::placeholder { color: var(--faint); }
+  .palette .find-clear.button { position: relative; flex: none; width: 20px; min-width: 20px; height: 20px; min-height: 20px; padding: 0; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--text) 22%, transparent); color: var(--canvas); box-shadow: none; }
+  .palette .find-clear.button::after { content: ''; position: absolute; inset: -12px; }
+  .palette .find-clear.button > .icon { width: 11px; height: 11px; stroke-width: 2; }
+  .palette .find-cancel.button { position: absolute; left: calc(100% + var(--space-8)); top: 0; display: inline-grid; min-height: 44px; }
+  .palette > .picker-query .visually-hidden { position: absolute; }
+
+  .palette > .find-seg { flex: none; margin: 2px var(--phone-gutter) 0; }
+  .palette > .scope-bar { flex: none; margin: var(--space-8) var(--phone-gutter) 0; border: 0; border-radius: var(--leaf-radius); }
+
+  .palette > .picker-list { flex: 1; min-height: 0; padding: 4px 0 calc(var(--space-16) + var(--bottom-inset)); overscroll-behavior: contain; }
+  .palette .picker-section { padding: var(--space-4) var(--phone-gutter) 0; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+  .palette .picker-group { margin-bottom: 10px; }
+
+  /* Rows are the list's own: a glyph, a title in the voice of what it is, a muted line under it, a hairline between. */
+  .palette .picker-list .picker-row { position: relative; align-items: flex-start; gap: 14px; min-height: 44px; padding: 7px var(--phone-gutter); border-radius: 0; }
+  .palette .picker-list .picker-row > .icon { width: 20px; height: 20px; margin-top: 2px; color: var(--muted); }
+  .palette .picker-list .picker-row + .picker-row::before { content: ''; position: absolute; top: 0; left: calc(var(--phone-gutter) + 34px); right: 0; height: .5px; background: var(--line); pointer-events: none; }
+  .palette .picker-list .picker-row:active { background: var(--ink-wash); }
+  .palette .picker-list .picker-row.selected { background: transparent; box-shadow: none; }
+  .palette.palette-keyed .picker-list .picker-row.selected { background: var(--ink-wash); }
+  .palette .picker-list .picker-row .picker-text { white-space: normal; font: var(--weight-body) 17px/24px var(--font-body); }
+  .palette .find-result small { font: var(--weight-body) 13px/18px var(--font-body); letter-spacing: normal; color: var(--muted); }
+  .palette .find-result small.find-meta { display: flex; gap: 6px; white-space: nowrap; }
+  .palette .find-meta > span + span::before { content: '·'; margin-right: 6px; color: var(--faint); }
+  .palette .fig { font-family: var(--font-mono); font-size: var(--text-apparatus); font-variant-numeric: tabular-nums; }
+  .palette .find-work { font: italic var(--weight-source-title) 17px/24px var(--font-display); }
+  .palette .find-make { font-weight: var(--weight-control); }
+  .palette .picker-row:has(.find-make) > .icon { color: var(--text); }
+  .palette .picker-list .picker-row .picker-text.find-more { font-size: 15px; color: var(--muted); }
+  .palette.palette-search mark { background: color-mix(in srgb, var(--accent) 24%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; margin: 0 -1px; }
+  .palette .empty-state, .palette .error { margin: var(--space-16) var(--phone-gutter); }
+}

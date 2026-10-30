@@ -18,8 +18,10 @@ import { fieldLabel } from '../fields/kinds';
 import { querySources } from '../table/attributes';
 import { deskTarget } from '../desk/query';
 import '../desk/desk.css';
+import './page-menu.css';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { ListGroup, ListRow, PropertyRow } from '../ui/List';
 import type { IconName } from '../ui/Icon';
 import { longPress, openContextMenu } from '../ui/context-menu';
 import { Menu } from '../ui/Menu';
@@ -1772,10 +1774,15 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     } } satisfies MenuItem] : []),
   ];
   const pageInfo = () => props.notebook.roots().find(page => page.id === pageId());
+  // Dates read in prose on a phone: "Oct 23" this year, "Oct 23, 2025" before.
   const createdDate = () => {
     const page = pageInfo();
-    return page ? new Intl.DateTimeFormat('en-CA', { timeZone: props.notebook.settings()?.time_zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(page.created_at) : '';
+    if (!page) return '';
+    const zone = props.notebook.settings()?.time_zone;
+    const year = (date: number | Date) => new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric' }).format(date);
+    return new Intl.DateTimeFormat('en-US', { timeZone: zone, month: 'short', day: 'numeric', ...year(page.created_at) === year(Date.now()) ? {} : { year: 'numeric' } }).format(page.created_at);
   };
+  const [info, setInfo] = createSignal(false);
   // A phone keeps the title in its bar; projection and depth remain explicit, checked choices here.
   const viewItems = (): MenuItem[] => [
     ...(['read', 'outline', 'compare'] as const).map(value => ({
@@ -1790,21 +1797,21 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       action: () => outlineCommand(`depth-${stop}`)?.run(),
     })) : []),
   ];
-  const items = (): MenuItem[] => [
-    ...(cover() && projectionTabsShown() ? [{ label: 'View', icon: 'rows', submenu: () => ({ title: 'View', items: viewItems() }) } satisfies MenuItem] : []),
-    { label: 'Copy reference', icon: 'link', action: () => { void copyPage(true); } },
-    ...(titled() ? [
-      { label: 'Rename', icon: 'edit', divider: true, action: props.onRename },
-      { label: 'Merge into…', icon: 'merge', disabledReason: pageMergeDisabledReason(root(), doc()?.capabilities(pageId()!)), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } },
-    ] satisfies MenuItem[] : []),
-    { label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', divider: !titled(), action: props.onPin },
-    ...(!cover() ? [{ label: 'Open beside', icon: 'panes', disabledReason: props.besideReason, action: props.onPageBeside } satisfies MenuItem] : []),
-    ...(titled() ? [{ label: 'Description…', icon: 'note', divider: true, submenu: () => ({ title: 'Description', items: [
-      { label: 'Gloss', icon: 'edit', disabledReason: outlineCommand('gloss')?.disabledReason?.(), action: () => outlineCommand('gloss')?.run() },
-      { label: 'Add alias', icon: 'edit', disabledReason: outlineCommand('alias')?.disabledReason?.(), action: () => outlineCommand('alias')?.run() },
-    ] }) } satisfies MenuItem] : []),
-    { label: 'Add field…', icon: 'field', divider: !titled(), disabledReason: outlineCommand('add-field-root')?.disabledReason?.(), action: () => outlineCommand('add-field-root')?.run() },
+  const copyItem = (): MenuItem => ({ label: 'Copy reference', icon: 'link', action: () => { void copyPage(true); } });
+  const renameItems = (): MenuItem[] => titled() ? [
+    { label: 'Rename', icon: 'edit', action: props.onRename },
+    { label: 'Merge into…', icon: 'merge', disabledReason: pageMergeDisabledReason(root(), doc()?.capabilities(pageId()!)), action: () => { const page = root(); if (page) setMergeFrom({ id: page.id, text: page.text }); } },
+  ] : [];
+  const pinItem = (): MenuItem => ({ label: props.pinned ? 'Unpin' : 'Pin', icon: 'pin', action: props.onPin });
+  const descriptionItems = (): MenuItem[] => titled() ? [{ label: 'Description…', icon: 'note', submenu: () => ({ title: 'Description', items: [
+    { label: 'Gloss', icon: 'edit', disabledReason: outlineCommand('gloss')?.disabledReason?.(), action: () => outlineCommand('gloss')?.run() },
+    { label: 'Add alias', icon: 'edit', disabledReason: outlineCommand('alias')?.disabledReason?.(), action: () => outlineCommand('alias')?.run() },
+  ] }) }] : [];
+  const fieldItems = (): MenuItem[] => [
+    { label: 'Add field…', icon: 'field', disabledReason: outlineCommand('add-field-root')?.disabledReason?.(), action: () => outlineCommand('add-field-root')?.run() },
     { label: 'Tags…', icon: 'tag', disabledReason: outlineCommand('types-root')?.disabledReason?.(), action: () => outlineCommand('types-root')?.run() },
+  ];
+  const capabilityItems = (): MenuItem[] => [
     ...(makeItems().length ? [{ label: 'Make…', icon: 'plus', submenu: () => ({ title: 'Make', items: makeItems(), note: 'Each adds to this atom and keeps its text.' }) } satisfies MenuItem] : []),
     ...(root()?.task ? [{ label: 'Task…', icon: 'select', disabledReason: outlineCommand('task-root')?.disabledReason?.(), action: () => rootCapability('task') } satisfies MenuItem] : []),
     ...(root()?.project ? [{ label: 'Project…', icon: 'flag', disabledReason: outlineCommand('project-root')?.disabledReason?.(), action: () => rootCapability('project') } satisfies MenuItem] : []),
@@ -1812,15 +1819,33 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     ...(stream() ? [{ label: 'Stream…', icon: 'link', submenu: () => ({ title: 'Stream', items: [
       { label: 'Remove stream', icon: 'trash', danger: true, disabledReason: outlineCommand('stream-root')?.disabledReason?.(), action: () => outlineCommand('stream-root')?.run() },
     ] }) } satisfies MenuItem] : []),
-    { label: 'Appearance…', icon: 'rows', divider: true, submenu: () => ({ title: 'Appearance', items: [
-      ...(projection() === 'outline' ? [{ label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Atom is still loading', action: () => props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }) } satisfies MenuItem] : []),
-      { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
-    ] }) },
-    { label: 'Delete atom…', icon: 'trash', divider: true, danger: true, disabledReason: builtInTagReason(root()?.text ?? '', doc()?.capabilities(pageId()!), 'delete'), action: () => props.onDelete(menuButton) },
-    ...(cover() && pageInfo() ? [{ label: 'Info', icon: 'note', divider: true, submenu: () => ({ title: 'Info', items: [
-      { label: 'Copy ID', icon: 'link', secondary: pageInfo()!.id, action: () => { void copyPage(false); } },
-    ], note: `Created ${createdDate()}` }) } satisfies MenuItem] : []),
   ];
+  const appearanceItem = (): MenuItem => ({ label: 'Appearance…', icon: 'rows', submenu: () => ({ title: 'Appearance', items: [
+    ...(projection() === 'outline' ? [{ label: pageStyle() === 'prose' ? 'Show bullets' : 'Hide bullets', icon: 'bullet', disabledReason: root() ? undefined : 'Atom is still loading', action: () => props.onPagePresentation(pageId()!, { ...presentation(), bullets: pageStyle() === 'prose' }) } satisfies MenuItem] : []),
+    { label: outlineView().showArchived ? 'Hide archived' : 'Show archived', icon: 'archive', action: props.onArchived },
+  ] }) });
+  const deleteItem = (): MenuItem => ({ label: 'Delete atom…', icon: 'trash', danger: true, disabledReason: builtInTagReason(root()?.text ?? '', doc()?.capabilities(pageId()!), 'delete'), action: () => props.onDelete(menuButton) });
+  const items = (): MenuItem[] => [
+    copyItem(),
+    ...renameItems().map((item, at) => at ? item : { ...item, divider: true }),
+    { ...pinItem(), divider: !titled() },
+    { label: 'Open beside', icon: 'panes', disabledReason: props.besideReason, action: props.onPageBeside },
+    ...descriptionItems().map(item => ({ ...item, divider: true })),
+    ...fieldItems().map((item, at) => at ? item : { ...item, divider: !titled() }),
+    ...capabilityItems(),
+    { ...appearanceItem(), divider: true },
+    { ...deleteItem(), divider: true },
+  ];
+  // A phone's pull-down is groups of rows: the page's own acts, what it holds, what it can be, then Info and Delete. A day belongs
+  // to the calendar, so a journal day offers no Delete.
+  const phoneItems = (): MenuItem[] => [
+    [...(projectionTabsShown() ? [{ label: 'View', icon: 'rows', submenu: () => ({ title: 'View', items: viewItems() }) } satisfies MenuItem] : []), copyItem(), ...(titled() && !root()?.source ? [{ label: `Show in ${pageKinds()?.find(kind => kind.type_id)?.plural ?? ''} table`.replace('  ', ' '), icon: 'table', disabledReason: outlineCommand('open-table')?.disabledReason?.(), action: () => outlineCommand('open-table')?.run() } satisfies MenuItem] : []), pinItem()],
+    [...renameItems(), ...descriptionItems()],
+    fieldItems(),
+    [...capabilityItems(), appearanceItem()],
+    pageInfo() ? [{ label: 'Info', icon: 'info', action: () => setInfo(true) } satisfies MenuItem] : [],
+    titled() ? [deleteItem()] : [],
+  ].filter(group => group.length).flatMap(group => group.map((item, at) => at ? item : { ...item, divider: true }));
   // The place or kind the pane shows, in the same glyphs the sidebar uses.
   const kindIcon = (): IconName => {
     if (pageId()) {
@@ -1930,7 +1955,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Match when={current().target.kind === 'reader'}><ReaderPane pane={props.pane} target={current().target as Extract<OpenTarget, { kind: 'reader' }>} view={snapshotView(current().view) as ReaderViewState} notebook={props.notebook} active={props.active} immersive={props.immersive} onImmersive={props.onImmersive} onActivate={props.onActivate} onOpen={(target, beside) => { if (generation === props.session().generation) props.onOpen(target, beside); }} onViewChange={view => { if (generation === props.session().generation) props.onViewChange(view); }}
         onBack={() => { if (props.session().index > 0) props.onTravel(-1); else props.onOpen({ kind: 'page', pageId: (current().target as Extract<OpenTarget, { kind: 'reader' }>).sourceId }, false); }} /></Match>
     </Switch>}</Show></div>
-    <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Atom actions" title="Atom actions" context={root()?.kind === 'page' ? displayTitle(root()!.text, id => props.notebook.lookup(id)) : root()?.text} items={items()} onDismiss={() => setMenu(null)} header={
+    <Show when={menu()}>{anchor => <Menu anchor={anchor()} label="Atom actions" title="Atom actions" context={root()?.kind === 'page' ? displayTitle(root()!.text, id => props.notebook.lookup(id)) : root()?.text} items={cover() ? phoneItems() : items()} onDismiss={() => setMenu(null)} header={
       <Show when={!cover() && pageInfo()}>{page => <div class="page-menu-info">
         <b>{page().id}</b>
         <Button class="bordered" onClick={() => { void copyPage(false); }}>{copyMessage() === 'Copied ID' ? 'Copied' : 'Copy ID'}</Button>
@@ -1938,6 +1963,14 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
         <Show when={copyMessage()}><span class={copyMessage().startsWith("Couldn't copy:") ? 'error' : 'visually-hidden'} role="status">{copyMessage()}</span></Show>
       </div>}</Show>
     } />}</Show>
+    <Show when={info() && pageInfo()}>{page => <Popup anchor={menuButton} placement="sheet" label="Info" title="Info" fitContent returnFocus={menuButton} onDismiss={() => { setInfo(false); setCopyMessage(''); }}>
+      <div class="page-info">
+        <ListGroup>
+          <PropertyRow label="Created">{createdDate()}</PropertyRow>
+          <ListRow icon="link" detail={<span class="page-info-id">{page().id}</span>} onClick={() => { void copyPage(false); }}>{copyMessage() === 'Copied ID' ? 'Copied ID' : 'Copy ID'}</ListRow>
+        </ListGroup>
+      </div>
+    </Popup>}</Show>
     <Show when={depthMenu()}>{anchor => <Menu anchor={anchor()} label="Depth" onDismiss={() => setDepthMenu(null)}
       items={depthStops.map(stop => ({ label: depthLabels[stop], icon: `depth-${stop}` as const, checked: depth() === stop, action: () => outlineCommand(`depth-${stop}`)?.run() }))} />}</Show>
     <Show keyed when={mergeFrom()}>{from => <PageMergePicker anchor={menuButton} notebook={props.notebook} from={from} onDismiss={() => setMergeFrom(undefined)} onMerged={id => { setMergeFrom(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>

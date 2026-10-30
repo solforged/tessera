@@ -12,6 +12,9 @@ import { Icon } from '../ui/Icon';
 import { ResourceImage } from '../library/ResourceImage';
 import { Picker } from '../ui/Picker';
 import { Button } from '../ui/Button';
+import { Seg } from '../ui/Seg';
+import { isPhone } from '../ui/phone';
+import './find.css';
 import { createVisualViewport } from '../ui/visual-viewport';
 import type { Command, CommandRegistry, OpenTarget, PaneId } from './contract';
 import { besideKey, opensBeside } from './beside';
@@ -35,10 +38,11 @@ type Entry = SearchEntry | { kind: 'command'; command: Command } | CreateEntry
   | { kind: 'highlight'; row: HighlightRow } | { kind: 'passage'; hit: PassageHit };
 type FindScope = 'Everything' | 'Highlights' | 'Books' | 'Pages';
 
-function createLabel(entry: CreateEntry): string {
+function createLabel(entry: CreateEntry, phone = false): string {
   if (entry.action === 'source') return `Add “${entry.title}” to library`;
   if (entry.action === 'tag') return `Create an atom with ${entry.title}`;
   if (entry.action === 'choose') return 'Choose a type…';
+  if (entry.action === 'page' && phone) return `Create “${entry.title}”`;
   return `Create ${entry.action} “${entry.title}”`;
 }
 
@@ -60,6 +64,9 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
   const [createError, setCreateError] = createSignal('');
   let disposed = false;
   let queryInput: HTMLInputElement | undefined;
+  // A phone's Find has no highlighted row at rest, since nothing there is a keyboard cursor; one arrow key from a hardware keyboard brings it.
+  const phone = isPhone();
+  const [keyed, setKeyed] = createSignal(false);
   onCleanup(() => { disposed = true; });
   const mode = () => query().startsWith('>') ? 'commands' : 'search';
   // The frame keeps the size it opened with, so typing or deleting `>` swaps the list without moving or resizing the panel.
@@ -171,10 +178,11 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     const exact = !parent && title ? cachedExactPage(props.notebook, title)
       ?? rows.find(hit => hit.block.kind === 'page' && titleKey(hit.block.text) === titleKey(title))?.block : null;
     const result: Entry[] = [];
-    if (!parent && (findScope() === 'Everything' || findScope() === 'Highlights') && title) {
-      result.push(...(highlights.error ? [] : highlights()?.rows ?? []).filter(row => highlightMatches(row, title)).map((row): Entry => ({ kind: 'highlight', row })));
-    }
-    const shownHighlightBlocks = new Set(result.filter((entry): entry is Extract<Entry, { kind: 'highlight' }> => entry.kind === 'highlight').map(entry => entry.row.block.block.id));
+    const highlightRows: Entry[] = !parent && (findScope() === 'Everything' || findScope() === 'Highlights') && title
+      ? (highlights.error ? [] : highlights()?.rows ?? []).filter(row => highlightMatches(row, title)).map((row): Entry => ({ kind: 'highlight', row })) : [];
+    // On a phone the best match leads: atoms first, then the highlights that mention the words.
+    if (!phone) result.push(...highlightRows);
+    const shownHighlightBlocks = new Set(highlightRows.filter((entry): entry is Extract<Entry, { kind: 'highlight' }> => entry.kind === 'highlight').map(entry => entry.row.block.block.id));
     const allowed = (hit: BlockInPage) => parent || findScope() === 'Everything'
       || findScope() === 'Books' && books().has(hit.page.id)
       || findScope() === 'Pages' && !books().has(hit.page.id);
@@ -192,6 +200,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       }
     }
     if (!parent) result.sort((a, b) => Number(isDefinition(a)) - Number(isDefinition(b)));
+    if (phone) result.push(...highlightRows);
     if (!parent && title && !exact && (findScope() === 'Everything' || findScope() === 'Pages')) {
       const tag = textTokens(title);
       if (tag.length === 1 && tag[0]?.kind === 'tag') {
@@ -201,7 +210,8 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
       }
       const inferred = inferKind(title);
       if (inferred === 'source' || inferred === 'question') result.push({ kind: 'create', action: inferred, title });
-      result.push({ kind: 'create', action: 'page', title }, { kind: 'create', action: 'choose', title });
+      result.push({ kind: 'create', action: 'page', title });
+      if (!phone) result.push({ kind: 'create', action: 'choose', title });
     }
     if (!parent) result.push(...passageHits().map((hit): Entry => ({ kind: 'passage', hit })));
     return result;
@@ -305,20 +315,30 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     }
     return counts;
   });
+  // The phone names only the best match, the first atom, once words are typed; the other atoms follow it unlabeled.
+  const bestMatch = createMemo(() => {
+    const first = entries()[0];
+    return phone && mode() === 'search' && text() && first?.kind === 'hit' && !isDefinition(first) ? first : undefined;
+  });
   const sectionsWithCounts = (entry: Entry) => {
     if (entry.kind === 'command') return entry.command.section === 'Page' ? 'This atom' : entry.command.section;
     const label = group(entry);
+    if (phone && mode() === 'search' && label && label === pageGroupLabel() && entry.kind !== 'create') return entry === bestMatch() ? 'Best match' : undefined;
     return label === 'No matching atoms' ? label : label ? `${label} · ${groupCounts()[label]}${entry.kind === 'passage' ? ' passages' : ''}` : undefined;
   };
-  return <><Portal><div class="find-backdrop" aria-hidden="true" /></Portal><Picker<Entry> anchor={props.anchor} placement="top" width={frame === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${frame === 'search' ? 'palette-search' : ''}`} onDismiss={props.onDismiss}
+  return <><Portal><div class="find-backdrop" aria-hidden="true" /></Portal><Picker<Entry> anchor={props.anchor} placement="top" width={frame === 'search' ? 1060 : 560} label={mode() === 'search' ? 'Find or create' : 'Find command'} class={`palette ${frame === 'search' ? 'palette-search' : ''} ${keyed() ? 'palette-keyed' : ''}`} onDismiss={props.onDismiss}
     style={{ '--visual-viewport-height': `${viewportSize().height}px`, '--visual-viewport-top': `${viewportSize().top}px` }}
-    query={query()} onQuery={value => { setCreateError(''); setQuery(value); }} placeholder={mode() === 'search' ? 'Find or create an atom' : 'Find a command'}
-    inputRef={input => { queryInput = input; }}
+    query={query()} onQuery={value => { setCreateError(''); setKeyed(false); setQuery(value); }} placeholder={mode() === 'search' ? 'Find or create an atom' : 'Find a command'}
+    inputRef={input => {
+      queryInput = input;
+      input.enterKeyHint = 'search'; input.autocomplete = 'off'; input.autocapitalize = 'off'; input.spellcheck = false;
+      input.addEventListener('keydown', event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp' || event.key === 'PageDown' || event.key === 'PageUp') setKeyed(true); });
+    }}
     prefix={<Icon name={mode() === 'search' ? 'search' : 'command'} class="picker-prefix" />}
-    queryActions={<Button class="find-cancel" onClick={props.onDismiss}>Cancel</Button>}
+    queryActions={<><Show when={phone && mode() === 'search' && query()}><Button class="find-clear" icon="close" label="Clear" onMouseDown={event => event.preventDefault()} onClick={() => { setCreateError(''); setKeyed(false); setQuery(''); queryInput?.focus({ preventScroll: true }); }} /></Show><Button class="find-cancel nav-button" icon="close" label="Cancel" onClick={props.onDismiss} /></>}
     preview={<Show when={frame === 'search' && wide()}><FindPreview entry={selectedEntry()} query={text()} notebook={props.notebook} fields={fields.error ? [] : fields()?.fields ?? []} book={selectedEntry()?.kind === 'hit' ? books().get((selectedEntry() as Extract<Entry, { kind: 'hit' }>).hit.page.id) : undefined} /></Show>}
     onSelect={setSelectedEntry}
-    status={<><h2 class="find-title">{mode() === 'search' ? 'Find' : 'Commands'}</h2><Show when={mode() === 'search'}><div class="find-scopes mode-tabs tab-strip" role="group" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); queryInput?.focus({ preventScroll: true }); }}>{value === 'Pages' ? 'Atoms' : value}</Button>}</For></div></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
+    status={<><h2 class="find-title">{mode() === 'search' ? 'Find' : 'Commands'}</h2><Show when={mode() === 'search'}><Show when={phone} fallback={<div class="find-scopes mode-tabs tab-strip" role="group" aria-label="Search scope"><For each={['Everything', 'Highlights', 'Books', 'Pages'] as FindScope[]}>{value => <Button aria-pressed={findScope() === value} onClick={() => { setFindScope(value); setScopes([]); queryInput?.focus({ preventScroll: true }); }}>{value === 'Pages' ? 'Atoms' : value}</Button>}</For></div>}><Seg<FindScope> class="find-seg" label="Search scope" value={findScope()} options={[{ value: 'Everything', label: 'Everything' }, { value: 'Highlights', label: 'Highlights' }, { value: 'Books', label: 'Books' }, { value: 'Pages', label: 'Atoms' }]} onChange={value => { setFindScope(value); setScopes([]); queryInput?.focus({ preventScroll: true }); }} /></Show></Show><Show when={scope()}>{parent => <div class="scope-bar"><Icon name="up" /><BlockText text={parent().block.text} notebook={props.notebook} interactive={false} /><kbd>⇧Tab</kbd></div>}</Show></>}
     items={entries()} key={entry => entry.kind === 'hit' ? entry.hit.block.id : entry.kind === 'more' ? `more:${entry.page.id}` : entry.kind === 'command' ? entry.command.id : entry.kind === 'highlight' ? entry.row.citation.id : entry.kind === 'passage' ? entry.hit.passage.id : `create:${entry.action}`}
     section={sectionsWithCounts}
     disabledReason={entry => creating() ? 'Creating atom…' : entry.kind === 'command' ? entry.command.disabledReason?.() : undefined}
@@ -334,19 +354,20 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     busy={busy()} error={error()} empty={mode() === 'search' ? 'No matching atoms' : 'No matching commands.'}
     row={(entry, selected) => entry.kind === 'hit'
       ? <HitRow hit={entry.hit} query={text()} notebook={props.notebook} selected={selected} book={books().get(entry.hit.page.id)} noteKind={resultKind(entry.hit.page.id)} />
-      : entry.kind === 'more' ? <><Icon name="page" /><span class="picker-text">+{entry.count} more in {displayTitle(entry.page.text, id => props.notebook.lookup(id))}</span></>
+      : entry.kind === 'more' ? (phone ? <><Icon name="right" /><span class="picker-text find-more"><span class="fig">{entry.count}</span> more in {displayTitle(entry.page.text, id => props.notebook.lookup(id))}</span></> : <><Icon name="page" /><span class="picker-text">+{entry.count} more in {displayTitle(entry.page.text, id => props.notebook.lookup(id))}</span></>)
       : entry.kind === 'highlight' ? <><span class={`find-color highlight-color-${entry.row.color ?? 'none'}`} style={{ background: entry.row.color ? `var(--highlight-${entry.row.color})` : 'transparent', 'box-shadow': entry.row.color ? undefined : 'inset 0 0 0 1px var(--faint)' }} /><span class="find-result"><span class="find-quote"><MatchText text={entry.row.citation.quote} query={text()} /></span><small>Highlight · {location(entry.row.citation.source_id, entry.row.citation.ordinal, entry.row.citation.chapter_title)}</small></span></>
       : entry.kind === 'passage' ? <><span class="find-paragraph" aria-hidden="true">¶</span><span class="find-result"><span class="find-quote"><For each={entry.hit.snippet_parts}>{part => <Show when={part.match} fallback={part.text}><mark>{part.text}</mark></Show>}</For></span><small>{location(entry.hit.source_id, entry.hit.passage.ordinal)}</small></span></>
       : entry.kind === 'command' ? <CommandRow command={entry.command} selected={selected} />
-        : <><Icon name="plus" /><span class="picker-text">{createLabel(entry)}</span><Show when={selected && (entry.action === 'page' || entry.action === 'question')}><kbd class="picker-hint picker-create-hint">⇧↵ beside</kbd></Show></>} /></>;
+        : <><Icon name="plus" /><span class="picker-text" classList={{ 'find-make': phone && entry.action === 'page' }}>{createLabel(entry, phone)}</span><Show when={selected && (entry.action === 'page' || entry.action === 'question')}><kbd class="picker-hint picker-create-hint">⇧↵ beside</kbd></Show></>} /></>;
 }
 
 function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient; selected: boolean; book?: LibraryRow; noteKind?: NoteKind }) {
   const isPage = () => props.hit.block.id === props.hit.page.id;
+  const phone = isPhone();
   const icon = createPageIcon(props.notebook, () => props.hit.block);
   return <>
     <Icon name={isPage() && props.noteKind ? noteKindIcon(props.noteKind) : icon()} />
-    <span class="picker-text find-result"><span classList={{ 'find-snippet': !isPage() }}><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{displayTitle(props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text, id => props.notebook.lookup(id))}</small></Show><Show when={isPage() && props.book}>{book => <small>Book · {Math.round(book().progress * 100)}% · {book().highlights} highlights</small>}</Show></span>
+    <span class="picker-text find-result"><span classList={{ 'find-snippet': !isPage(), 'find-work': isPage() && !!props.book }}><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{displayTitle(props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text, id => props.notebook.lookup(id))}</small></Show><Show when={isPage() && props.book}>{book => <Show when={phone} fallback={<small>Book · {Math.round(book().progress * 100)}% · {book().highlights} highlights</small>}><small class="find-meta"><span>Book</span><span class="fig">{Math.round(book().progress * 100)}%</span><span class="fig">{book().highlights} highlights</span></small></Show>}</Show><Show when={phone && isPage() && !props.book && props.noteKind}>{kind => <small class="find-meta"><span>{kind().name}</span></small>}</Show></span>
     <Show when={isPage() && props.hit.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>
     <Show when={props.selected}><kbd class="picker-hint">{besideKey}↵ beside</kbd></Show>
   </>;

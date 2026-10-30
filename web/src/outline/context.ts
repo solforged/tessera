@@ -155,6 +155,8 @@ export interface OutlineContext {
   margin: Accessor<number>;
   sigla: Accessor<Map<string, string>>;
   blockMenu: (id: string, anchor: HTMLElement) => void;
+  /** A phone's long-press menu for a row: the row lifts over a blurred page and the menu opens under it. */
+  rowContext: (id: string, source: HTMLElement) => void;
   /** The fixes for a perspective whose holder is not a person or group. */
   holderMenu: (id: string, anchor: HTMLElement) => void;
   pointerStart: (event: MouseEvent, id: string, element: HTMLElement) => void;
