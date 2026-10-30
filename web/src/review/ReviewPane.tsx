@@ -15,6 +15,9 @@ import { localDate } from '../ui/MonthGrid';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { createSlowFlag } from '../ui/loading';
+import { ListGroup, ListRow } from '../ui/List';
+import { NavButton, NavEnd, NavGroup, NavTitle } from '../ui/NavBar';
+import { phoneQuery } from '../ui/phone';
 import { documentReady } from '../tasks/JournalAgenda';
 import { civilDate, relativeDate } from '../tasks/relative-date';
 import { CardComposer } from './CardComposer';
@@ -26,6 +29,8 @@ import { CardBack, CardFront } from './CardSides';
 import { ReviewCard } from './ReviewCard';
 import { settleHeight } from './settle';
 import { copyCardQuery, formatInterval, gradeLabels, gradeOperation, loadReviewCard, openReviewSession, sameCardSnapshot, selectionLabels, sessionQueue } from './query';
+import { nextDueLine, rememberedLine, tallyGrades } from './session-end';
+import { createPhone } from './use-phone';
 import { ReviewSourcePassage, reviewSource } from './ReviewSource';
 import type { ReviewSource } from './ReviewSource';
 import './review.css';
@@ -51,7 +56,7 @@ type DeckCounts = { id: string | null; name: string; due: number; new: number; a
 const selections = Object.keys(selectionLabels) as CardSelection[];
 /** A touch screen has no Enter key to aim, so the landing leaves focus alone instead of ringing its button. */
 const touchOnly = window.matchMedia('(hover: none) and (pointer: coarse)');
-const coverLayout = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
+const coverLayout = window.matchMedia(phoneQuery);
 /** Holds a control shut without `disabled`, which would dim it and drop its focus for a write that takes milliseconds. */
 const dis = (value: boolean) => value ? 'true' as const : undefined;
 
@@ -73,6 +78,7 @@ export function ReviewPane(props: ReviewPaneProps) {
 }
 
 function CardReviewPane(props: ReviewPaneProps) {
+  const phone = createPhone();
   const [deckId, setDeckId] = createSignal(props.view.deckId);
   const [sessionId, setSessionId] = createSignal(props.view.sessionId);
   const [decks, setDecks] = createSignal<Deck[]>([]);
@@ -108,6 +114,7 @@ function CardReviewPane(props: ReviewPaneProps) {
   const [search, setSearch] = createSignal('');
   const [actions, setActions] = createSignal<HTMLElement | null>(null);
   const [sessionActions, setSessionActions] = createSignal<HTMLElement | null>(null);
+  const [createMenu, setCreateMenu] = createSignal<HTMLElement | null>(null);
   const [composer, setComposer] = createSignal<HTMLElement | null>(null);
   const [editor, setEditor] = createSignal<{ anchor: HTMLElement; deck: Deck | null } | null>(null);
   const [deletion, setDeletion] = createSignal<{ anchor: HTMLElement; deck: Deck } | null>(null);
@@ -150,6 +157,11 @@ function CardReviewPane(props: ReviewPaneProps) {
   const holdOutgoing = createMemo(() => !!outgoing() && !!session() && !shown() && (!rows().length || locked()) && !restoredCardId() && !readError() && !stale() && !commandError() && !done());
   // While the summary is held, or a finished review's last card is still up, the session chrome keeps the shape it had.
   const sessionActive = createMemo(() => !leaving() && !!openSession() || (loading() || holdOutgoing() || holding()) && !!outgoing() && !!session());
+  // The phone's session chrome (glass bar, progress, no tab bar) also holds the Done screen, which a larger layout leaves bare.
+  const sessionChrome = createMemo(() => sessionActive() || done() || leaving());
+  /** The card on screen, or the one held there until what replaces it has loaded. */
+  const cardSnapshot = createMemo(() => shown() ?? (loading() || holdOutgoing() || holding() ? outgoing() : null));
+  const tally = createMemo(() => tallyGrades(events()));
   // A graded card is held from the grade until the next card, the summary or a failure replaces it, whatever order the signals in between settle in.
   createEffect(() => { if (holding() && (shown() || done() || readError() || stale() || commandError() || restoredCardId() || !session())) setHolding(false); });
   createEffect(on(done, (now, was) => { if (was && !now) setLeaving(true); }));
@@ -654,25 +666,45 @@ function CardReviewPane(props: ReviewPaneProps) {
   const deckName = createMemo(() => scope() ?? (deckId() ? nameForDeck(deckId()!) ?? 'Unavailable deck' : 'All cards'));
   const progressLabel = () => `${Math.min(gradedCount() + 1, gradedCount() + rows().length)} of ${gradedCount() + rows().length}`;
   const emptyWorkshop = () => !session() && ready() && inventory() === 0;
-  return <div ref={paneRoot} class="review-pane" classList={{ 'review-session-active': sessionActive(), 'review-session-done': done() || leaving() }} data-pane={props.pane} role="region" aria-label="Review" tabIndex={0} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
-    <Show when={!emptyWorkshop()}><div class="review-head">
-      <Show when={sessionActive()}><header class="review-glass-bar" aria-label="Review session">
-        <Button class="review-session-close" aria-disabled={dis(locked() || loading() || !!readError())} onClick={() => void closeSession('finished', { deckId: deckId(), sessionId: null, selection: selection() })}>Close</Button>
-        <div class="review-glass-title"><h1>{deckName()}</h1><span class="review-progress-label">{leaving() ? '\u00a0' : ready() ? progressLabel() : 'Loading cards…'}</span></div>
-        <Button icon="more" label="Session actions" aria-haspopup="menu" aria-expanded={!!sessionActions()} aria-disabled={dis(locked() || loading())} onClick={event => setSessionActions(event.currentTarget)} />
-      </header></Show>
-      <header class="review-header">
-        <div ref={heading} class="review-heading">
-          <div class="review-register">Review</div>
-          <h1>{deckName()}</h1>
-        </div>
-        <Show when={!sessionActive()}>
-          <Show when={otherSessions().length}><Button class="review-open-sessions" aria-disabled={dis(locked() || loading())} aria-haspopup="dialog" onClick={event => { setSearch(''); setPicker(event.currentTarget); }}>Open reviews<span class="review-count">{otherSessions().length}</span></Button></Show>
-          <Show when={selectedDeck()}><Button class="review-deck-actions" icon="more" label="Deck actions" aria-haspopup="menu" aria-disabled={dis(locked() || loading())} onClick={event => setActions(event.currentTarget)} /></Show>
+  const progressParts = () => {
+    const count = gradedCount() + rows().length;
+    return <><span class="review-fig">{Math.min(gradedCount() + 1, count)}</span> of <span class="review-fig">{count}</span></>;
+  };
+  const laterToday = (value: ReviewStats) => Math.max(0, value.due_review + value.due_new - (counts().due ?? 0));
+  // The queue tabs head the overview on a larger screen; a phone sets them over the card list they switch.
+  const queueControls = () => <div role="group" aria-label="Review queue" class="review-queue-controls mode-tabs tab-strip" data-mode-panel={phone() ? '.review-cards-body' : '.review-queue-content'}><For each={selections}>{value => <Button aria-pressed={query().selection === value} aria-disabled={dis(locked() || loading())} onClick={() => selectQueue(value)}>{selectionLabels[value]}<Show when={counts()[value] !== undefined}><span class="review-count">{counts()[value]}</span></Show></Button>}</For></div>;
+  // On a phone the deck's large title scrolls with the landing and settles into the nav bar; elsewhere it stays above the scroller.
+  const titleBlock = () => <header class="review-header">
+    <div ref={heading} class="review-heading">
+      <div class="review-register">Review</div>
+      <h1>{deckName()}</h1>
+    </div>
+    <Show when={!sessionActive() && !phone()}>
+      <Show when={otherSessions().length}><Button class="review-open-sessions" aria-disabled={dis(locked() || loading())} aria-haspopup="dialog" onClick={event => { setSearch(''); setPicker(event.currentTarget); }}>Open reviews<span class="review-count">{otherSessions().length}</span></Button></Show>
+      <Show when={selectedDeck()}><Button class="review-deck-actions" icon="more" label="Deck actions" aria-haspopup="menu" aria-disabled={dis(locked() || loading())} onClick={event => setActions(event.currentTarget)} /></Show>
+    </Show>
+  </header>;
+  return <div ref={paneRoot} class="review-pane" classList={{ 'review-session-active': sessionActive(), 'review-session-done': done() || leaving(), 'review-session-chrome': sessionChrome() }} data-pane={props.pane} role="region" aria-label="Review" tabIndex={0} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onKeyDown={keydown}>
+    <Show when={phone() && !sessionChrome()}>
+      <NavTitle title={deckName()} detail="Review" />
+      <Show when={ready() && !emptyWorkshop()}><NavEnd>
+        <Show when={selectedDeck()} fallback={<NavButton icon="plus" label="New" aria-haspopup="menu" aria-expanded={!!createMenu()} onClick={event => setCreateMenu(event.currentTarget)} />}>
+          <NavGroup label="Review actions">
+            <NavButton icon="plus" label="New" aria-haspopup="menu" aria-expanded={!!createMenu()} onClick={event => setCreateMenu(event.currentTarget)} />
+            <NavButton icon="more" label="Deck actions" aria-haspopup="menu" aria-expanded={!!actions()} aria-disabled={dis(locked() || loading())} onClick={event => setActions(event.currentTarget)} />
+          </NavGroup>
         </Show>
-      </header>
+      </NavEnd></Show>
+    </Show>
+    <Show when={!emptyWorkshop()}><div class="review-head">
+      <Show when={sessionChrome()}><header class="review-glass-bar" aria-label="Review session">
+        <NavButton class="review-session-close" icon="close" label="Close" aria-disabled={dis(locked() || loading() || !!readError())} onClick={() => void closeSession('finished', { deckId: deckId(), sessionId: null, selection: selection() })} />
+        <div class="review-glass-title"><h1>{deckName()}</h1><span class="review-progress-label">{leaving() ? '\u00a0' : ready() ? progressParts() : 'Loading cards…'}</span></div>
+        <Show when={!leaving() && (!done() || latestGrade())}><NavButton icon="more" label={done() ? 'Session actions' : 'Card actions'} aria-haspopup="menu" aria-expanded={!!sessionActions()} aria-disabled={dis(locked() || loading())} onClick={event => setSessionActions(event.currentTarget)} /></Show>
+      </header></Show>
+      <Show when={!phone() || sessionChrome()}>{titleBlock()}</Show>
       <Show when={session()}><div class="review-toolbar">
-        <Show when={sessionActive() && ready()}><div class="review-session-progress">
+        <Show when={(phone() ? sessionChrome() : sessionActive()) && ready()}><div class="review-session-progress">
           <span class="review-progress-label">{leaving() ? '\u00a0' : progressLabel()}</span>
           <GradeStrip grades={grades()} remaining={rows().length} />
         </div></Show>
@@ -685,6 +717,7 @@ function CardReviewPane(props: ReviewPaneProps) {
     <Show when={commandError()}><div class="pane-error" role="alert">{commandError()}</div></Show>
     <Show when={readError()}><div class="pane-error" role="alert">{readError()} <Button aria-disabled={dis(locked())} onClick={() => setRetry(value => value + 1)}>Refresh</Button></div></Show>
     <div ref={scroll} class="review-scroll" onScroll={publish}>
+      <Show when={phone() && !sessionChrome() && !emptyWorkshop()}>{titleBlock()}</Show>
       <Show when={slowPending() || slowReady()}><p class="review-pending" role="status">{pending() || 'Loading cards…'}</p></Show>
       <Show when={total() > loadedCount() && !done()}><p class="review-pending">Showing {loadedCount()} of {total()} matching cards. Narrow the deck’s source filters to review the rest.</p></Show>
       <Show when={emptyWorkshop()}><section class="review-empty" aria-label="No cards yet">
@@ -695,7 +728,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       <Show when={!session() && ready() && inventory() !== 0 && stats()}>{value => <div class="review-landing">
         <div class="review-overview">
           <section class="review-today-load" aria-label="Selected review queue">
-            <div role="group" aria-label="Review queue" class="review-queue-controls mode-tabs tab-strip" data-mode-panel=".review-queue-content"><For each={selections}>{value => <Button aria-pressed={query().selection === value} aria-disabled={dis(locked() || loading())} onClick={() => selectQueue(value)}>{selectionLabels[value]}<Show when={counts()[value] !== undefined}><span class="review-count">{counts()[value]}</span></Show></Button>}</For></div>
+            <Show when={!phone()}>{queueControls()}</Show>
             <div class="review-queue-content">
             <Show when={rows().length} fallback={<>
               <div class="review-caught-up">{query().selection === 'new' ? 'Nothing new yet' : 'All caught up'}</div>
@@ -704,40 +737,54 @@ function CardReviewPane(props: ReviewPaneProps) {
               <div class="review-stat-value">{total()}<small>{query().selection === 'due' ? 'due now' : 'cards in this queue'}</small></div>
               <p>{[
                 query().selection === 'due' ? '' : `${counts().due ?? 0} due now`,
-                `${Math.max(0, value().due_review + value().due_new - (counts().due ?? 0))} later today`,
+                phone() ? laterToday(value()) ? `${laterToday(value())} more later today` : 'Nothing more later today' : `${laterToday(value())} later today`,
               ].filter(Boolean).join(' · ')}</p>
-              <Button ref={startButton} class="stamp review-start" aria-disabled={dis(locked() || loading() || !!readError())} onClick={() => void start()}><span class="review-cover-label">Start</span><span class="review-desktop-label">Review {rows().length} {rows().length === 1 ? 'card' : 'cards'} <kbd>Space</kbd></span></Button>
+              <Button ref={startButton} class="stamp review-start" icon={phone() ? 'play' : undefined} size={phone() ? 'lg' : undefined} aria-disabled={dis(locked() || loading() || !!readError())} onClick={() => void start()}><span class="review-cover-label">Start review</span><span class="review-desktop-label">Review {rows().length} {rows().length === 1 ? 'card' : 'cards'} <kbd>Space</kbd></span></Button>
             </Show>
             <Show when={!rows().length && value().held_cards}><p class="review-held">{value().held_cards} {value().held_cards === 1 ? 'card is' : 'cards are'} paused or marked Not yet. Start or resume them from their source atoms.</p></Show>
             </div>
+            <Show when={phone() && otherSessions().length}><ListGroup class="review-open-list">
+              <ListRow push count={otherSessions().length} aria-haspopup="dialog" onClick={event => { if (locked() || loading()) return; setSearch(''); setPicker(event.currentTarget as HTMLElement); }}>Open reviews</ListRow>
+            </ListGroup></Show>
           </section>
           <ReviewForecast stats={value()} today={props.notebook.todayDate()} />
         </div>
         <dl class="review-stats">
-          <div><dt>Retention</dt><dd title="Non-Again grades over the last 30 days">{value().retention === null ? '—' : Math.round(value().retention! * 100)}<Show when={value().retention !== null}><small>%</small></Show></dd></div>
+          <div><dt>Retention</dt><dd title="Non-Again grades over the last 30 days">{value().retention === null ? '—' : Math.round(value().retention! * 100)}<Show when={value().retention !== null}><small class="review-pct">%</small></Show></dd></div>
           <div><dt>Last 7 days</dt><dd>{value().reviews_past_week}<small>{value().reviews_past_week === 1 ? 'review' : 'reviews'}</small></dd></div>
           <div><dt>Streak</dt><dd>{value().streak}<small>{value().streak === 1 ? 'day' : 'days'}</small></dd></div>
-          <div><dt>Cards</dt><dd>{value().total_cards}</dd></div>
+          <div class="review-stat-cards"><dt>Cards</dt><dd>{value().total_cards}</dd></div>
         </dl>
         <section class="review-decks" aria-label="Decks">
-          <header><h2>Decks</h2><Button icon="plus" aria-disabled={dis(locked())} onClick={event => props.onCreate({ kind: 'card', text: '' }, event.currentTarget)}>New card</Button><Button icon="plus" aria-disabled={dis(locked())} onClick={event => setEditor({ anchor: event.currentTarget, deck: null })}>New deck</Button></header>
+          <header><h2>Decks</h2><Show when={!phone()}><Button icon="plus" aria-disabled={dis(locked())} onClick={event => props.onCreate({ kind: 'card', text: '' }, event.currentTarget)}>New card</Button><Button icon="plus" aria-disabled={dis(locked())} onClick={event => setEditor({ anchor: event.currentTarget, deck: null })}>New deck</Button></Show></header>
           <Show when={ledger().length === 1}><p class="review-decks-intro">Tag a card to make a deck. Save a deck for other filters.</p></Show>
-          <table><thead><tr><th>Deck</th><th>Due</th><th>New</th><th>Cards</th></tr></thead><tbody><For each={ledger()}>{deck => <tr>
+          <Show when={phone()} fallback={<table><thead><tr><th>Deck</th><th>Due</th><th>New</th><th>Cards</th></tr></thead><tbody><For each={ledger()}>{deck => <tr>
             <td><Button class="review-ledger-deck" classList={{ selected: deck.id === deckId() }} aria-disabled={dis(locked() || loading())} onClick={event => requestMove({ deckId: deck.id, sessionId: null }, event.currentTarget)}>{deck.name}</Button></td><td>{deck.due}</td><td>{deck.new}</td><td>{deck.all}</td>
-          </tr>}</For></tbody></table>
+          </tr>}</For></tbody></table>}>
+            {/* The ledger as a phone reads it: a deck's name, its size and new cards in one line, and what is due as the figure at the right. */}
+            <ListGroup class="review-deck-list">
+              <For each={ledger()}>{deck => <ListRow push name="thing" class={`${deck.id === deckId() ? 'selected' : ''}${deck.due ? '' : ' idle'}`} count={deck.due}
+                detail={<><span><span class="review-fig">{deck.all}</span> cards</span><span class="review-dot">·</span><span><span class="review-fig">{deck.new}</span> new</span></>}
+                onClick={event => { if (locked() || loading()) return; requestMove({ deckId: deck.id, sessionId: null }, event.currentTarget as HTMLElement); }}>{deck.name}</ListRow>}</For>
+            </ListGroup>
+          </Show>
         </section>
         <Show when={landingCards()}>{cards => <section class="review-cards" aria-label="Cards">
+          <Show when={phone()}><h2>Cards</h2>{queueControls()}</Show>
+          <div class="review-cards-body">
           <Show when={cards().total > 0} fallback={<p class="review-cards-empty">
             <span>{query().selection === 'due' ? 'No cards due' : query().selection === 'new' ? 'No new cards' : 'No cards in this deck'}</span>
             <Show when={query().selection !== 'all' && (counts().all ?? 0) > 0}><span aria-hidden="true">·</span><Button class="review-show-all" aria-disabled={dis(locked() || loading())} title={locked() || loading() ? 'Wait for cards to finish loading or saving.' : undefined} onClick={() => selectQueue('all')}>Show all <span class="review-count">{counts().all}</span> {counts().all === 1 ? 'card' : 'cards'}</Button></Show>
           </p>}>
-            <h2><span>Cards</span><span class="section-rule" /><span class="review-count">{cards().total}</span></h2>
+            <Show when={!phone()}><h2><span>Cards</span><span class="section-rule" /><span class="review-count">{cards().total}</span></h2></Show>
             <For each={cards().rows}>{row => <ReviewQueueRow row={row} notebook={props.notebook} onOpen={props.onOpen} />}</For>
             <Show when={cards().total > cards().rows.length}><p class="review-cards-more">{cards().total - cards().rows.length} more</p></Show>
           </Show>
+          </div>
         </section>}</Show>
       </div>}</Show>
       <Show when={(done() || leaving()) && session()}>{value => <section class="review-done" aria-label="Session summary" tabIndex={-1}>
+        <Show when={phone()} fallback={<>
         <h2>{gradedCount()} reviewed this session in {reviewDuration((value().ended_at ?? grades().at(-1)?.created_at ?? value().started_at) - value().started_at)}</h2>
         <dl class="review-stats">
           <div><dt>Good or easy</dt><dd>{grades().filter(event => event.grade === 'good' || event.grade === 'easy').length}</dd></div>
@@ -749,6 +796,24 @@ function CardReviewPane(props: ReviewPaneProps) {
         <Show when={stats()}>{value => <ReviewForecast stats={value()} today={props.notebook.todayDate()} />}</Show>
         <Show when={missed().length}><section class="review-missed"><h3>Missed</h3><For each={missed()}>{event => <ReviewMissedCard event={event} notebook={props.notebook} />}</For></section></Show>
         <div class="review-done-actions"><Button class="stamp review-start" aria-disabled={dis(locked() || loading())} onClick={() => void backToToday()}>Back to Today</Button><Show when={missed().length}><Button class="bordered" aria-disabled={dis(locked() || loading())} onClick={() => void reviewMissed()}>Review missed</Button></Show><Button aria-disabled={dis(locked() || loading())} onClick={() => moveTo({ deckId: deckId(), sessionId: null })}>Back to decks</Button></div>
+        </>}>
+          {/* A phone closes a review with one screen: how it went, what comes next, and Done. */}
+          <div class="review-end">
+            <div class="review-register">{deckName()}</div>
+            <h2>Done for today</h2>
+            <div class="review-stat-value">{tally().graded}<small>{tally().graded === 1 ? 'card reviewed' : 'cards reviewed'}</small></div>
+            <p class="review-end-sub">{figures(rememberedLine(tally()))}</p>
+            <dl class="review-stats review-end-grades">
+              <div><dt>Again</dt><dd>{tally().again}</dd></div>
+              <div><dt>Hard</dt><dd>{tally().hard}</dd></div>
+              <div><dt>Good</dt><dd>{tally().good}</dd></div>
+              <div><dt>Easy</dt><dd>{tally().easy}</dd></div>
+            </dl>
+            <Show when={stats()}>{forecast => <p class="review-end-line"><Icon name="calendar" /><span>{figures(nextDueLine(forecast().forecast, props.notebook.todayDate()))}</span></p>}</Show>
+            <p class="review-end-line"><Icon name="clock" /><span>Took {figures(reviewDuration((value().ended_at ?? grades().at(-1)?.created_at ?? value().started_at) - value().started_at))}</span></p>
+          </div>
+          <div class="review-done-actions"><Button kind="stamp" size="lg" class="review-start" aria-disabled={dis(locked() || loading())} onClick={() => moveTo({ deckId: deckId(), sessionId: null })}>Done</Button></div>
+        </Show>
       </section>}</Show>
       <Show when={stale()}><section class="review-stale" aria-label="Card changed">
         <p role="alert">{stale()}</p>
@@ -760,11 +825,11 @@ function CardReviewPane(props: ReviewPaneProps) {
         </Show>
         <Button class="bordered" aria-disabled={dis(locked() || loading() || !!readError())} onClick={acceptUpdated}>{updated() ? 'Review current card' : 'Next card'}</Button>
       </section></Show>
-      <Show keyed when={shown() ?? (loading() || holdOutgoing() || holding() ? outgoing() : null)}>{snapshot => <>
+      <Show keyed when={cardSnapshot()}>{snapshot => <>
         <div ref={settleLayout} class="review-session-layout" classList={{ 'review-has-context': !!snapshot.context }}>
           <ReviewCard item={snapshot.item} context={snapshot.context} onReveal={setAnswerRevealed} onEdit={beside => { publish(); props.onOpen({ kind: 'page', pageId: snapshot.item.source.page.id, blockId: snapshot.item.source.block.id, editOcclusion: snapshot.item.card.kind === 'occlusion' }, beside); }} notebook={props.notebook} previews={snapshot.previews.current} resetPreviews={snapshot.previews.reset} busy={locked() || loading() || !!readError() || !!stale() || needsReload() || !openSession()} onGrade={(value, restart) => grade(value, restart, snapshot)} onReset={() => reset(snapshot)} onSource={beside => {
             publish(); props.onOpen(snapshot.context && !snapshot.item.card.template ? { kind: 'reader', sourceId: snapshot.context.citation.source_id, snapshotId: snapshot.context.citation.snapshot_id, at: snapshot.context.citation.start.passage_id, citationId: snapshot.context.citation.id } : { kind: 'page', pageId: snapshot.item.source.page.id, blockId: snapshot.item.source.block.id }, beside);
-          }} onUndo={() => void undoGrade()} undoDisabled={undoDisabled()} onEnd={anchor => { setCommandError(''); setClosing(anchor); }} />
+          }} onUndo={() => void undoGrade()} undoDisabled={undoDisabled()} onEnd={anchor => { setCommandError(''); setClosing(anchor); }} actionsAnchor={sessionActions()} onActionsDismiss={() => setSessionActions(null)} />
           <Show when={snapshot.context}>{context => <ReviewSourcePassage context={context()} revealed={answerRevealed()} />}</Show>
         </div>
         <Show when={snapshot.item.last_review}><ReviewHistory cardId={snapshot.item.card.id} kind={snapshot.item.card.kind} template={!!snapshot.item.card.template} notebook={props.notebook} /></Show>
@@ -776,9 +841,13 @@ function CardReviewPane(props: ReviewPaneProps) {
         <Button class="review-end" aria-disabled={dis(locked() || loading() || !!readError())} aria-haspopup="dialog" onClick={event => { setCommandError(''); setClosing(event.currentTarget); }}>End review</Button>
       </Show>
     </footer></Show>
-    <Show keyed when={sessionActions()}>{anchor => <Menu anchor={anchor} label="Session actions" title="Session actions" onDismiss={() => setSessionActions(null)} items={[
+    <Show keyed when={!cardSnapshot() && sessionActions()}>{anchor => <Menu anchor={anchor} label="Session actions" title="Session actions" onDismiss={() => setSessionActions(null)} items={[
       { label: 'Undo last grade', disabledReason: undoDisabled() ? latestGrade() ? 'Wait for the review to finish loading or saving.' : 'Grade a card first.' : undefined, action: () => void undoGrade() },
-      { label: 'End review', disabledReason: locked() || loading() || !!readError() ? 'Wait for the review to finish loading or saving.' : undefined, action: () => { setCommandError(''); setClosing(anchor); } },
+      ...(done() ? missed().length ? [{ label: 'Review missed', disabledReason: locked() || loading() ? 'Wait for the review to finish loading or saving.' : undefined, action: () => void reviewMissed() }] : [] : [{ label: 'End review', disabledReason: locked() || loading() || !!readError() ? 'Wait for the review to finish loading or saving.' : undefined, action: () => { setCommandError(''); setClosing(anchor); } }]),
+    ]} />}</Show>
+    <Show keyed when={createMenu()}>{anchor => <Menu anchor={anchor} label="New" onDismiss={() => setCreateMenu(null)} items={[
+      { label: 'New card', icon: 'addcard', disabledReason: locked() ? 'Wait for the review to finish saving.' : undefined, action: () => props.onCreate({ kind: 'card', text: '' }, anchor) },
+      { label: 'New deck', icon: 'plus', disabledReason: locked() ? 'Wait for the review to finish saving.' : undefined, action: () => setEditor({ anchor, deck: null }) },
     ]} />}</Show>
     <Show keyed when={composer()}>{anchor => <CardComposer anchor={anchor} where={`${shortDay(props.notebook.todayDate())} · end of journal`} bounds={paneBounds} onSave={createCard} onDismiss={() => setComposer(null)} />}</Show>
     <Show keyed when={picker()}>{anchor => <Picker<ReviewSession> anchor={anchor} label="Open reviews" query={search()} onQuery={setSearch} placeholder="Find a review" items={sessionChoices()} key={value => value.id} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); requestMove({ deckId: value.deck_id, sessionId: value.id }, anchor); }} row={value => <><Icon name={value.id === sessionId() ? 'check' : 'page'} /><span class="picker-text">{sessionLabel(value)}</span></>} empty="No open reviews." />}</Show>
@@ -814,9 +883,11 @@ function ReviewQueueRow(props: { row: CardRow; notebook: NotebookClient; onOpen:
     return text.split('\n', 1)[0] ?? '';
   });
   const due = createMemo(() => props.row.card.schedule.last_reviewed_at === null ? null : relativeDate(civilDate(props.row.card.schedule.due_at, props.notebook.settings()?.time_zone), props.notebook.todayDate()));
+  // A phone calls only a card from an earlier day late; one due earlier today is simply today's.
+  const late = createMemo(() => props.row.card.schedule.last_reviewed_at !== null && civilDate(props.row.card.schedule.due_at, props.notebook.settings()?.time_zone) < props.notebook.todayDate());
   return <Button class="review-queue-row" onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, opensBeside(event))}>
     <span class="review-queue-text"><span class="review-queue-front"><Show when={props.row.card.kind === 'occlusion'} fallback={<CardFront plain={!!props.row.card.template} kind={props.row.card.kind} front={front()} back={props.row.card.back} notebook={props.notebook} />}>{front()}</Show></span><span class="review-queue-meta"><span class="review-queue-kind">{kind()}</span><span class="review-queue-source">{plainText(props.row.source.page.text, id => props.notebook.lookup(id))}</span></span></span>
-    <span class="review-queue-due" classList={{ overdue: due() !== null && props.row.card.schedule.due_at < Date.now() }}>{due() ?? 'new'}</span>
+    <span class="review-queue-due" classList={{ overdue: due() !== null && props.row.card.schedule.due_at < Date.now(), late: late() }}>{due() ?? 'new'}</span>
   </Button>;
 }
 
@@ -831,6 +902,11 @@ function reviewDuration(milliseconds: number): string {
   return seconds < 60 ? `${seconds} sec` : `${Math.floor(seconds / 60)} min${seconds % 60 ? ` ${seconds % 60} sec` : ''}`;
 }
 
+/** Figures in a sentence are set in mono, as a phone's counts and times are: `Took 3 min`. */
+function figures(text: string) {
+  return text.split(/(\d+)/).map((part, index) => index % 2 ? <span class="review-fig">{part}</span> : part);
+}
+
 function GradeStrip(props: { grades: ReviewEvent[]; remaining?: number }) {
   const segments = createMemo<(Grade | 'current' | 'waiting')[]>(() => [...props.grades.map(event => event.grade!), ...Array.from({ length: props.remaining ?? 0 }, (_, index) => index === 0 ? 'current' as const : 'waiting' as const)]);
   return <div class="review-grade-strip" role="img" aria-label={`${props.grades.length} reviewed${props.remaining ? `, ${props.remaining} remaining` : ''}`}><For each={segments()}>{grade => <i class={`review-grade-segment review-grade-${grade}`} title={grade === 'current' ? 'Current card' : grade === 'waiting' ? 'Waiting' : gradeLabels[grade]} />}</For></div>;
@@ -841,12 +917,12 @@ function ReviewForecast(props: { stats: ReviewStats; today: string }) {
   const [selectedDate, setSelectedDate] = createSignal<string | null>(null);
   const selected = createMemo(() => props.stats.forecast.find(day => day.date === selectedDate()) ?? props.stats.forecast[0]);
   return <section class="review-forecast" aria-label="Next two weeks due forecast">
-    <header><h2>Next two weeks</h2><span>{props.stats.forecast.reduce((sum, day) => sum + day.count, 0)} due</span></header>
+    <header><h2>Next two weeks</h2><span><span class="review-fig">{props.stats.forecast.reduce((sum, day) => sum + day.count, 0)}</span> due</span></header>
     <div class="review-forecast-bars"><For each={props.stats.forecast}>{(day, index) => {
       const weekday = new Date(`${day.date}T12:00:00Z`).toLocaleDateString(undefined, { weekday: 'short', timeZone: 'UTC' });
       const label = `${relativeDate(day.date, props.today)} · ${day.count} due`;
-      return <button type="button" class="review-forecast-day" classList={{ 'review-forecast-selected': selected()?.date === day.date, 'review-forecast-empty': day.count === 0, 'review-forecast-week-start': index() === 7 }} aria-label={label} aria-pressed={selected()?.date === day.date} title={label} onFocus={() => setSelectedDate(day.date)} onClick={() => setSelectedDate(day.date)}>
-        <span class="review-forecast-track"><i style={{ height: `${day.count / maximum() * 100}%` }} /></span><span>{index() === 0 ? Number(day.date.slice(-2)) : weekday.slice(0, 2)}</span>
+      return <button type="button" class="review-forecast-day" classList={{ 'review-forecast-selected': selected()?.date === day.date, 'review-forecast-empty': day.count === 0, 'review-forecast-week-start': index() === 7, 'review-forecast-today': index() === 0 }} aria-label={label} aria-pressed={selected()?.date === day.date} title={label} onFocus={() => setSelectedDate(day.date)} onClick={() => setSelectedDate(day.date)}>
+        <span class="review-forecast-track"><i style={{ height: `${day.count / maximum() * 100}%` }} data-count={day.count || undefined} /></span><span>{index() === 0 ? Number(day.date.slice(-2)) : weekday.slice(0, 2)}</span>
       </button>;
     }}</For></div>
     <p class="review-forecast-caption" role="status" aria-live="polite"><Show when={selected()}>{day => <><time dateTime={day().date}>{relativeDate(day().date, props.today)}</time> · {day().count} due</>}</Show></p>

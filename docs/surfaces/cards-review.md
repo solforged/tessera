@@ -56,11 +56,13 @@ Start takes focus on a mouse-and-keyboard device, but touch leaves it alone and 
 
 On the cover layout, the Review tab opens the deck overview rather than implicitly resuming a saved open session. Due counts remain in the deck ledger and Start begins the selected queue. Open reviews explicitly resumes an unfinished session; reload and pane history still preserve an explicitly selected session. Larger layouts keep their automatic recovery of an open review.
 
+On the cover layout the landing is a phone screen rather than a ruled register. The glass nav bar holds Index at the left and + at the right, which opens a pull-down with New card and New deck (or Deck actions when a saved deck is selected). The deck's register and Piazzolla title scroll with the page and settle into the bar's inline title. The due figure, its later-today line and one gilt Start review stamp follow; Open reviews is a leaf row under it only while a session is unfinished. The forecast keeps its two weeks as round bars with only today in gilt, a small figure over each nonzero bar and a hairline between the weeks. Retention, Last 7 days and Streak are one leaf of three cells. Decks are bare rows, the deck's name in Piazzolla with its size and new cards beneath and what is due as the figure at the right; the selected deck's name is gilt. Due, New and All are a strip directly above the card list they switch, and the list's rows run to the screen's edge with hairlines starting at the text. A row's due label is prose (`Yesterday`, `Today`, `New`), and only an overdue label is rubric.
+
 ### Session progress
 
 A session replaces the landing with one segment per card in the progress toolbar. Its grades survive reload. The deck title keeps its landing size and stays static; deck actions and Open reviews leave the session.
 
-During a live cover session, the shell pane header steps aside for the session's glass top bar. Close finishes the session and returns directly to the selected deck's overview, preserving every committed grade. The bar names the deck and the current card, such as `1 of 9`; its Session actions menu offers Undo last grade and End review. The segmented progress strip remains below the bar.
+During a live cover session, the shell pane header steps aside for the session's glass top bar. Close finishes the session and returns directly to the selected deck's overview, preserving every committed grade. The bar names the deck and the current card, such as `1 of 9`; the one ··· at its right is a pull-down anchored at its button that holds Open source, Edit card, Reset progress, Undo last grade and End review, so the card carries no ··· of its own. The segmented progress strip remains below the bar.
 
 | Card state or grade | Segment appearance |
 | --- | --- |
@@ -71,6 +73,8 @@ During a live cover session, the shell pane header steps aside for the session's
 | Waiting cards | Neutral |
 
 A completed or explicitly closed session with at least one review keeps its count, elapsed duration, grade breakdown, tomorrow's load, streak, forecast and missed cards. A closed session with no reviews returns straight to the landing. Review missed starts another real session restricted to those Again cards.
+
+On the cover layout a finished session closes with one screen under the same glass bar, its progress strip full: Done for today, the cards reviewed as a Piazzolla figure, one sentence saying how many were remembered (not Again), a leaf of four cells for Again, Hard, Good and Easy, a line naming when the next card is due and how many more fall in two weeks, and how long the review took. Done is the one gilt stamp and returns to the deck's overview, where the bottom nav returns. The bar's ··· on this screen holds Undo last grade and, when any card was missed, Review missed.
 
 ## Card sheet
 
@@ -93,10 +97,10 @@ Once revealed, a cited card shows prose following its quotation from the snapsho
 | Layout | Behavior |
 | --- | --- |
 | Unfolded touch screen at least 900 px wide | The card sits left and its passage sits right with the citation highlighted. The passage waits for reveal so it cannot give the answer away. |
-| Cover | The bottom nav, shell pane header and session footer step aside during a live session. Its glass bar offers Close back to the overview, deck name, progress and Session actions. Tapping non-control card space reveals. Interval-bearing grades form the sole bottom bar in a two-by-two block. Undo last grade and End review remain in Card actions as well. The footer and bottom nav return on Done. |
+| Cover | The bottom nav, shell pane header and session footer step aside during a live session, and stay away on the Done screen. The glass bar offers Close back to the overview, deck name, progress and the card's ··· pull-down. The card is a leaf that fills the screen: its source and kind sit as one centred line at the top, and the prompt sits centred a little above the middle. After reveal the question steps back to a smaller muted line above a short rule and the answer takes the title size. Tapping non-control card space reveals. Before reveal one gilt Reveal answer stamp is the sole bottom bar; after it, the four interval-bearing grades are a row of tinted capsules with the interval under each name, and only Again's label is rubric. Swiping the revealed card right grades Good and left grades Again with a light haptic; a short drag springs back, and a faint hint at the card's foot names both directions until one swipe has been used. Hard and Easy are reachable only on the capsules. |
 | Larger layouts | Review history stays available. |
 
-Good is ringed in gilt as the default, and Space or Enter selects it after reveal; 1–4 remain available. Again's label is rubric.
+Good is ringed in gilt as the default on larger layouts, and Space or Enter selects it after reveal; 1–4 remain available. On the cover layout no grade is focused at rest. Again's label is rubric.
 
 Review history shows each event as an apparatus toggle line: local ISO date and 24-hour time in mono, grade and interval change, such as `2026-10-17 07:40 · Again · new → 1 day`. Toggling the line expands its shown front and back beneath it, without a nested disclosure.
 

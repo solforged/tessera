@@ -157,36 +157,138 @@
   .review-has-context .review-card-following { display: none; }
   .review-has-context :is(.review-card-actions, .review-card-comparison, .review-card-grades:not(.review-card-comparison + *)) { margin-top: auto; }
 }
-/* On the cover, a live session owns the navigation's space; reveal and grades stay under the thumb. */
+/* On the phone the landing is a large title over a hero, one gilt Start, a quiet chart, a stats leaf and rows; a session owns the
+   screen (glass bar, progress, card leaf, one control row) and ends on its own Done screen. Figures are mono, prose is Plex. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .pane.active:has(.review-session-active) > .pane-header { display: none; }
+  .review-fig { font-family: var(--font-mono); font-size: .92em; font-variant-numeric: tabular-nums; letter-spacing: normal; }
+  .pane.active:has(.review-session-chrome) > .pane-header { display: none; }
   /* A confirmation on the cover is a full-width sheet: its answers share the row and keep a thumb-sized target. */
   :is(.review-confirm, .review-card-reset).popup-sheet .popup-actions { gap: var(--space-8); }
   :is(.review-confirm, .review-card-reset).popup-sheet .popup-actions > .button { flex: 1; min-height: var(--touch-target); justify-content: center; }
   .review-cover-label { display: inline; }
   .review-desktop-label { display: none; }
   .review-start.button { min-height: var(--touch-target); }
-  .review-session-active .review-header { display: none; }
-  .review-glass-bar { display: flex; align-items: center; gap: var(--space-8); padding: var(--space-8) var(--space-12); }
-  .review-glass-bar > .button { flex: none; min-height: var(--touch-target); min-width: var(--touch-target); border-radius: var(--radius-pill); background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%); backdrop-filter: blur(var(--glass-blur)) saturate(160%); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--glass-edge); }
-  .review-glass-bar .review-session-close { padding-inline: var(--space-16); }
-  .review-glass-title { flex: 1; min-width: 0; padding-left: var(--space-4); }
-  .review-glass-title h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
-  .review-session-active .review-toolbar { padding: var(--space-4) var(--pane-inset) 0; }
-  .review-session-active .review-session-progress { min-height: 0; }
-  .review-session-active .review-session-progress > .review-progress-label { display: none; }
-  .review-session-active .review-session-layout { padding-top: var(--space-24); }
-  .review-session-active .review-scroll { display: flex; flex-direction: column; padding-bottom: var(--space-8); }
-  .review-session-active .review-session-layout { display: flex; flex: 1; }
-  .review-session-active .review-card { flex: 1; }
-  .review-session-active :is(.review-card-actions, .review-card-comparison, .review-card-grades:not(.review-card-comparison + *)) { margin-top: auto; }
-  .review-session-active .review-history { display: none; }
-  .review-session-active .review-session-actions { display: none; }
+
+  /* ---------- Landing ---------- */
+  /* The large title scrolls with the page and settles into the nav bar as its inline title. */
+  .review-scroll > .review-header { max-width: none; margin: 0; padding: var(--page-top-space) 0 var(--space-12); }
+  .review-scroll > .review-header + * { margin-top: 0; }
+  .review-heading { min-height: 0; }
+  .review-heading h1 { margin: 2px 0 0; font: var(--weight-title) 34px/40px var(--font-display); }
+  .review-landing { gap: 0; }
+  .review-overview { display: block; padding-top: var(--space-4); border-top: 0; }
+  .review-today-load, .review-queue-content { align-items: stretch; gap: 0; }
+  /* The due count is the reset's serif figure, with its unit in the serif beside it. */
+  .review-stat-value { display: flex; align-items: baseline; gap: var(--space-12); font: var(--weight-title) var(--text-figure)/var(--line-figure) var(--font-display); letter-spacing: -.01em; }
+  .review-stat-value small { margin-left: 0; color: var(--muted); font: var(--weight-body) var(--text-h2)/var(--line-h2) var(--font-display); letter-spacing: normal; }
+  .review-today-load p { margin: var(--space-2) 0 0; color: var(--faint); font: 400 15px/20px var(--font-body); letter-spacing: normal; }
+  .review-start.button.lg { margin-top: var(--space-16); min-height: 52px; }
+  .review-open-list.list-group { margin: var(--space-12) 0 0; }
+  /* Two weeks, quietly: round bars, only today in gilt, a small figure over each nonzero bar, a hairline between the weeks. */
+  .review-landing .review-forecast { padding: 26px 0 0; }
+  .review-forecast header { align-items: baseline; padding-bottom: 6px; }
+  .review-forecast header > span { color: var(--faint); font: 400 13px/16px var(--font-body); letter-spacing: normal; }
+  .review-forecast header > span .review-fig { font-size: 13px; }
+  .review-landing .review-forecast-bars { gap: 0; margin-top: 0; padding-bottom: 0; border-bottom: 0; }
+  .review-forecast-day { justify-content: flex-end; align-items: stretch; gap: 0; height: 96px; min-height: 0; -webkit-tap-highlight-color: transparent; }
+  .review-forecast-track { height: 56px; justify-content: center; }
+  .review-forecast-track > i { position: relative; width: 14px; border-radius: 4px; background: color-mix(in srgb, var(--text) 20%, transparent); }
+  .review-forecast-track > i::before { content: attr(data-count); position: absolute; bottom: calc(100% + 3px); left: 50%; translate: -50% 0; color: var(--faint); font: 400 11px/14px var(--font-mono); font-variant-numeric: tabular-nums; }
+  .review-forecast-empty .review-forecast-track > i { min-height: 2px; border-radius: 1px; background: color-mix(in srgb, var(--text) 14%, transparent); }
+  .review-forecast-day > span:not(.review-forecast-track) { margin-top: 6px; color: var(--faint); font: 400 11.5px/14px var(--font-body); letter-spacing: normal; }
+  .review-forecast-day.review-forecast-selected { color: var(--faint); }
+  .review-forecast-day.review-forecast-selected .review-forecast-track > i { background: color-mix(in srgb, var(--text) 20%, transparent); }
+  .review-forecast-day.review-forecast-empty.review-forecast-selected .review-forecast-track > i { background: color-mix(in srgb, var(--text) 14%, transparent); }
+  .review-forecast-day.review-forecast-today .review-forecast-track > i { background: var(--accent); }
+  .review-forecast-day.review-forecast-today .review-forecast-track > i::before, .review-forecast-day.review-forecast-today > span:not(.review-forecast-track) { color: var(--accent); }
+  .review-forecast-day.review-forecast-today > span:not(.review-forecast-track) { font-family: var(--font-mono); }
+  .review-forecast-week-start::before { inset-block: 18px 20px; inset-inline-start: 0; }
+  .review-forecast-caption { display: none; }
+  /* Retention, the week and the streak are one leaf of cells; the card total lives on the All cards deck row. */
+  .review-landing > .review-stats, .review-end-grades { flex-wrap: nowrap; gap: 0; margin: 20px 0 0; padding: 13px 0 12px; border: 0; border-radius: var(--leaf-radius); background: var(--leaf); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 2px var(--contact-shadow), 0 0 0 .5px color-mix(in srgb, var(--line) 70%, transparent); }
+  .review-stats > div { flex: 1; min-width: 0; flex-direction: column-reverse; align-items: flex-start; gap: 1px; padding: 0 14px; }
+  .review-stats > div + div { box-shadow: inset 1px 0 0 color-mix(in srgb, var(--line) 80%, transparent); }
+  .review-stats dd { font: 500 20px/26px var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: normal; }
+  .review-stats small { margin-left: var(--space-4); color: var(--muted); font: 400 13px/16px var(--font-body); }
+  .review-stats .review-pct { margin-left: 0; color: inherit; font: inherit; }
+  .review-stats dt { margin-top: 1px; color: var(--faint); font: var(--apparatus); letter-spacing: normal; }
+  .review-stats > .review-stat-cards { display: none; }
+  /* Decks and cards are bare rows that run to the screen's edge, hairlines starting at the text. */
+  .review-decks header { padding: 28px 0 6px; }
+  .review-decks header h2, .review-landing .review-cards h2 { margin: 0; color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); letter-spacing: normal; }
+  .review-landing .review-cards h2 { display: block; padding: 28px 0 6px; }
+  .review-decks-intro { margin: 0 0 var(--space-8); }
+  .review-deck-list.list-group { margin: 0 calc(-1 * var(--pane-inset)) 0 0; }
+  .review-deck-list .list-leaf { overflow: visible; border-radius: 0; background: none; box-shadow: none; }
+  .review-deck-list .list-row { min-height: 62px; gap: 12px; padding-inline: 0 var(--pane-inset); --sep-left: 0px; }
+  .review-deck-list .list-row-text { padding-block: 10px; }
+  .review-deck-list .list-row-thing { font: var(--weight-source-title) var(--text-h3)/22px var(--font-display); }
+  .review-deck-list .selected .list-row-label { color: var(--accent); }
+  .review-deck-list .list-row-detail { margin-top: 0; color: var(--faint); font: 400 13px/18px var(--font-body); }
+  .review-deck-list .list-row-detail > span { white-space: nowrap; }
+  .review-deck-list .list-row-detail .review-fig { font-size: 12px; }
+  .review-dot { margin: 0 5px; color: var(--faint); }
+  .review-deck-list .list-row-count { color: var(--text); font: 500 17px/22px var(--font-mono); }
+  .review-deck-list .idle .list-row-count { color: var(--faint); }
+  .review-deck-list .list-row-count + .list-chev { margin-left: 0; }
+  .review-cards .review-queue-controls { margin: 0; }
+  .review-queue-controls .button { gap: 0; }
+  .review-queue-controls .review-count { margin-left: 5px; }
+  .review-queue-controls [aria-pressed="true"] .review-count { color: var(--faint); }
+  .review-cards-body { margin-right: calc(-1 * var(--pane-inset)); }
+  .review-cards-empty { padding: var(--space-16) var(--pane-inset) 0 0; }
+  .review-queue-row.button { position: relative; align-items: flex-start; gap: 12px; width: 100%; min-height: 64px; padding: 11px var(--pane-inset) 11px 0; border-bottom: 0; }
+  .review-queue-row.button + .review-queue-row.button::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: .5px; background: var(--line); }
+  .review-queue-text { gap: 1px; }
+  .review-queue-front { font: var(--weight-source-title) var(--text-h3)/22px var(--font-display); }
+  .review-queue-meta { gap: 0; color: var(--faint); font: 400 13px/18px var(--font-body); letter-spacing: normal; }
+  .review-queue-source { order: 1; }
+  .review-queue-kind { order: 2; font: inherit; letter-spacing: normal; text-transform: none; }
+  .review-queue-kind::before { content: '·'; margin: 0 5px; color: var(--faint); }
+  .review-queue-due { padding-top: 3px; font: 400 13px/18px var(--font-body); white-space: nowrap; }
+  .review-queue-due::first-letter { text-transform: uppercase; }
+  .review-queue-due.overdue { color: var(--faint); }
+  .review-queue-due.late { color: var(--danger); }
+  .review-cards-more { padding-top: var(--space-8); }
+
+  /* ---------- Session ---------- */
+  /* The pane header steps aside for a glass bar of the same shape: a close circle, the deck and its progress, the card's ···. */
+  .review-session-chrome .review-header { display: none; }
+  .review-glass-bar { position: relative; display: flex; align-items: center; justify-content: space-between; height: var(--phone-top); padding: var(--phone-bar-top) var(--space-16) 0; }
+  .review-glass-title { position: absolute; top: var(--phone-bar-top); left: 76px; right: 76px; display: flex; flex-direction: column; justify-content: center; height: 52px; padding: 0; text-align: center; pointer-events: none; }
+  .review-glass-title h1 { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; font: var(--weight-heading) 16px/20px var(--font-body); }
+  .review-glass-title .review-progress-label { color: var(--faint); font: 400 12px/15px var(--font-body); letter-spacing: normal; }
+  .review-glass-title .review-fig { font-size: 12px; }
+  .review-session-chrome .review-toolbar { padding: var(--space-8) var(--pane-inset) 0; }
+  .review-session-chrome .review-session-progress { min-height: 0; }
+  .review-session-chrome .review-session-progress > .review-progress-label { display: none; }
+  /* The bar fills gilt as cards are graded; the grade itself is not colour-coded. */
+  .review-grade-segment { transition: background-color var(--motion-ui) var(--motion-ease); }
+  .review-grade-segment:not(.review-grade-waiting) { background: var(--accent); }
+  .review-session-chrome .review-scroll { display: flex; flex-direction: column; padding: 0; }
+  .review-session-active .review-session-layout { display: flex; flex: 1; min-height: 0; padding-top: 22px; }
+  .review-session-active .review-card { flex: 1; min-height: 0; }
+  .review-session-chrome .review-history, .review-session-chrome .review-session-actions { display: none; }
   .review-session-actions { padding: var(--space-4) var(--space-16) max(var(--space-8), var(--bottom-inset)); }
-  .review-overview { grid-template-columns: 1fr; gap: var(--space-24); }
-  .review-done-actions { position: sticky; bottom: 0; padding-block: var(--space-12); background: var(--canvas); }
+
+  /* ---------- Done ---------- */
+  .review-session-chrome .review-done { flex: 1; min-height: 0; gap: 0; padding: 0 var(--pane-inset) calc(var(--bottom-inset) + var(--space-8)); }
+  .review-end { padding-top: 40px; }
+  .review-end .review-register { color: var(--faint); font: var(--apparatus); letter-spacing: normal; }
+  .review-end h2 { margin: 2px 0 0; font: var(--weight-title) 34px/40px var(--font-display); }
+  .review-end .review-stat-value { margin-top: 22px; }
+  .review-end-sub { min-height: 20px; color: var(--faint); }
+  .review-end-sub .review-fig, .review-end-line .review-fig { color: var(--text); font-size: 14px; }
+  .review-end-grades { margin-top: 28px; }
+  .review-end-grades > div { align-items: center; padding: 0 6px; text-align: center; }
+  .review-end-grades dd { font-size: 22px; }
+  .review-end-line { display: flex; align-items: flex-start; gap: var(--space-12); margin: 26px 0 0; color: var(--muted); font: 400 15px/22px var(--font-body); }
+  .review-end-line + .review-end-line { margin-top: var(--space-12); }
+  .review-end-line > .icon { flex: none; width: 20px; height: 20px; margin-top: var(--space-2); color: var(--faint); stroke-width: 1.3; }
+  .review-done-actions { position: static; margin-top: auto; padding: var(--space-24) 0 0; background: none; }
   .review-done-actions > .review-start { flex: 1; }
+  .review-overview { grid-template-columns: 1fr; }
 }
-@media (max-width: 599px) and (pointer: coarse) and (prefers-reduced-transparency: reduce) {
-  .review-glass-bar > .button { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
+@media (max-width: 599px) and (pointer: coarse) and (prefers-reduced-motion: reduce) {
+  .review-grade-segment { transition: none; }
 }

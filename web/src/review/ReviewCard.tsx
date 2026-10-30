@@ -4,12 +4,18 @@ import type { NotebookClient } from '../document/contract';
 import { BlockBreadcrumb } from '../outline/BlockText';
 import { besideHint, opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
+import { Icon } from '../ui/Icon';
+import type { IconName } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
 import { cardKindLabel, clozeSegments, parseCardText } from './card-text';
 import { CardBack, CardFront, ClozeText } from './CardSides';
 import { gradeIntervals, gradeLabels } from './query';
 import { settleHeight } from './settle';
+import { phoneQuery } from '../ui/phone';
+import { attachSwipe } from './swipe';
+import type { SwipeGrade } from './swipe';
+import { createPhone } from './use-phone';
 import type { ReviewSource } from './ReviewSource';
 import './review-card.css';
 
@@ -28,13 +34,18 @@ export interface ReviewCardProps {
   onUndo(): void;
   undoDisabled: boolean;
   onEnd(anchor: HTMLElement): void;
+  /** On a phone the session bar's ··· opens the card's actions; it hands over the button the menu is anchored to. */
+  actionsAnchor?: HTMLElement | null;
+  onActionsDismiss?(): void;
 }
 
 const grades = (['again', 'hard', 'good', 'easy'] as const).map((grade, index) => ({ grade, label: gradeLabels[grade], shortcut: String(index + 1) }));
 /** A word or short phrase, such as a vocabulary card, is set large; sentences keep reading size. */
 const terse = (text: string) => text.length <= 40 && !text.includes('\n');
 /** On the cover screen a confirmation is a bottom sheet, as the shell's delete confirmation is. */
-const coverLayout = window.matchMedia('(max-width: 599px) and (pointer: coarse)');
+const coverLayout = window.matchMedia(phoneQuery);
+/** Set once a card has been graded by swiping: the hint at the foot of the card has done its job. */
+const swipeUsedKey = 'tessera.review-swipe-used';
 
 export function ReviewCard(props: ReviewCardProps) {
   const [revealedItems, setRevealedItems] = createSignal(0);
@@ -46,6 +57,8 @@ export function ReviewCard(props: ReviewCardProps) {
   const [error, setError] = createSignal('');
   const [resetAnchor, setResetAnchor] = createSignal<HTMLElement | null>(null);
   const [actions, setActions] = createSignal<HTMLElement | null>(null);
+  const phone = createPhone();
+  const [swipeHint, setSwipeHint] = createSignal(localStorage.getItem(swipeUsedKey) === null);
   const answerId = createUniqueId();
   const locked = () => !!props.busy || pending();
   const lockedAttr = () => locked() ? 'true' as const : undefined;
@@ -69,6 +82,7 @@ export function ReviewCard(props: ReviewCardProps) {
   const intervals = createMemo(() => gradeIntervals(resetOnGrade() ? props.resetPreviews : props.previews));
   const interval = (grade: Grade) => intervals()[grade];
   let region!: HTMLDivElement;
+  let leaf!: HTMLDivElement;
   let generation = 0;
   let disposed = false;
 
@@ -159,17 +173,55 @@ export function ReviewCard(props: ReviewCardProps) {
     region.addEventListener('keydown', keydown);
     onCleanup(() => region.removeEventListener('keydown', keydown));
   });
+  // A phone grades by dragging the card sideways: right is Good, left is Again. The capsules stay the visible path.
+  onMount(() => {
+    onCleanup(attachSwipe(leaf, {
+      enabled: () => coverLayout.matches && revealed() && !locked() && !resetAnchor(),
+      onDrag(dx, armed) {
+        leaf.dataset.dragging = '';
+        leaf.dataset.swipe = armed ?? '';
+        leaf.style.transform = `translateX(${dx}px) rotate(${dx / 40}deg)`;
+      },
+      onCommit: fling,
+      onCancel: settleLeaf,
+    }));
+  });
+  // A grade that is refused brings the card back.
+  createEffect(() => { if (error()) settleLeaf(); });
+  function settleLeaf() {
+    delete leaf.dataset.dragging;
+    delete leaf.dataset.swipe;
+    leaf.style.removeProperty('transform');
+    leaf.style.removeProperty('opacity');
+  }
+  function fling(value: SwipeGrade) {
+    try { localStorage.setItem(swipeUsedKey, '1'); } catch { /* storage is off: the hint simply stays */ }
+    setSwipeHint(false);
+    delete leaf.dataset.dragging;
+    const away = value === 'good' ? 1 : -1;
+    leaf.style.transform = `translateX(${away * 120}%) rotate(${away * 8}deg)`;
+    leaf.style.opacity = '0';
+    grade(value);
+  }
+  /** A phone sets an interval's figure in mono and its unit in prose: `3 days`. */
+  const intervalText = (value: string) => {
+    const [figure, ...unit] = value.split(' ');
+    return phone() ? <><span class="review-fig">{figure}</span> {unit.join(' ')}</> : value;
+  };
+  const glyph = (name: IconName): IconName | undefined => phone() ? name : undefined;
 
-  return <div ref={region} class="review-card" classList={{ 'review-recipe': !!props.item.card.template }} role="region" aria-label="Review card" aria-busy={locked()} tabIndex={0} onClick={event => {
+  return <div ref={region} class="review-card" classList={{ 'review-recipe': !!props.item.card.template, 'review-answering': revealedItems() > 0 }} role="region" aria-label="Review card" aria-busy={locked()} tabIndex={0} onClick={event => {
     if ((event.target as Element).closest('button, a, summary, input, textarea, [role="button"]') || !window.getSelection()?.isCollapsed) return;
     reveal();
   }}>
+    {/* The leaf holds what is asked and answered; on a phone the reveal and the grades sit below it, on the page. Elsewhere it adds no box. */}
+    <div ref={leaf} class="review-card-leaf">
     <div class="review-card-meta">
       <Button class="review-card-source" title={`${props.context ? 'Open in the book' : 'Open source'} · ${besideHint}`} aria-disabled={lockedAttr()} onClick={event => props.onSource(opensBeside(event))}>
         <Show when={props.context} fallback={<BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} omitParent={props.item.card.kind === 'descriptor'} />}>{context => <span>{context().source.source.siglum} · {context().source.page.text}<Show when={context().chapter}> · {context().chapter}</Show> · ¶{context().citation.ordinal + 1}</span>}</Show>
       </Button>
       <span class="review-card-kind">{kindLabel()}</span>
-      <Button icon="more" label="Card actions" aria-haspopup="menu" aria-disabled={lockedAttr()} onClick={event => setActions(event.currentTarget)} />
+      <Show when={!phone()}><Button icon="more" label="Card actions" aria-haspopup="menu" aria-disabled={lockedAttr()} onClick={event => setActions(event.currentTarget)} /></Show>
     </div>
     <Show when={props.item.card.template}>{template => <p class="review-card-meta recipe-provenance"><span>from #{template().type_name}</span><span>{template().name}</span></p>}</Show>
     <Show when={changed()}><p class="review-card-change-notice">Wording changed since your last review.</p></Show>
@@ -192,8 +244,10 @@ export function ReviewCard(props: ReviewCardProps) {
     </>}</Show>
     <Show when={props.item.card.kind === 'list' && revealedItems() > 0}><p class="review-list-progress" role="status">{revealedItems()} of {itemCount()}</p></Show>
     <Show when={revealed() && props.context?.following}><blockquote class="review-card-following">{props.context!.following}</blockquote></Show>
+    <Show when={phone() && revealed()}><div class="review-card-swipe" classList={{ used: !swipeHint() }} aria-hidden="true"><span><Icon name="left" />Again</span><span>Good<Icon name="right" /></span></div></Show>
+    </div>
     <Show when={revealed()} fallback={<div class="review-card-actions">
-      <Button class="bordered" label={revealedItems() ? 'Reveal next item' : props.item.card.template ? 'Show answer' : 'Reveal answer'} shortcut="Space" aria-keyshortcuts="Space" aria-expanded={revealedItems() > 0} aria-controls={answerId} aria-disabled={lockedAttr()} onClick={reveal}>{revealedItems() ? 'Reveal next item' : props.item.card.template ? 'Show answer' : 'Reveal answer'} <kbd>Space</kbd></Button>
+      <Button class={phone() ? undefined : 'bordered'} kind={phone() ? 'stamp' : undefined} size={phone() ? 'lg' : undefined} label={revealedItems() ? 'Reveal next item' : props.item.card.template ? 'Show answer' : 'Reveal answer'} shortcut="Space" aria-keyshortcuts="Space" aria-expanded={revealedItems() > 0} aria-controls={answerId} aria-disabled={lockedAttr()} onClick={reveal}>{revealedItems() ? 'Reveal next item' : props.item.card.template ? 'Show answer' : 'Reveal answer'} <kbd>Space</kbd></Button>
     </div>}>
       <Show when={changed() && props.item.last_review}>{last => <section class="review-card-comparison" aria-label="Changed card text">
         <div class="review-card-comparison-versions">
@@ -218,19 +272,19 @@ export function ReviewCard(props: ReviewCardProps) {
         </div>
       </section>}</Show>
       <div class="review-card-grades" role="group" aria-label="Grade answer">
-        <For each={grades}>{choice => <Button class="review-card-grade" classList={{ 'review-card-grade-default': choice.grade === 'good', 'review-card-grade-again': choice.grade === 'again' }} label={choice.label} shortcut={choice.shortcut} aria-keyshortcuts={choice.grade === 'good' ? `${choice.shortcut} Space Enter` : choice.shortcut} aria-label={`${choice.label}${choice.grade === 'good' ? ' · default' : ''}${interval(choice.grade) ? ` · ${interval(choice.grade)}` : ''}`} aria-disabled={lockedAttr()} onClick={() => grade(choice.grade)}>
+        <For each={grades}>{choice => <Button class="review-card-grade" kind={phone() ? 'tint' : undefined} classList={{ 'review-card-grade-default': choice.grade === 'good', 'review-card-grade-again': choice.grade === 'again' }} label={choice.label} shortcut={choice.shortcut} aria-keyshortcuts={choice.grade === 'good' ? `${choice.shortcut} Space Enter` : choice.shortcut} aria-label={`${choice.label}${choice.grade === 'good' ? ' · default' : ''}${interval(choice.grade) ? ` · ${interval(choice.grade)}` : ''}`} aria-disabled={lockedAttr()} onClick={() => grade(choice.grade)}>
           <span class="review-card-grade-label">{choice.label} <kbd>{choice.shortcut}</kbd></span>
-          <Show when={interval(choice.grade)}>{value => <span class="review-card-interval">{value()}</span>}</Show>
+          <Show when={interval(choice.grade)}>{value => <span class="review-card-interval">{intervalText(value())}</span>}</Show>
         </Button>}</For>
       </div>
     </Show>
     <Show when={error() && !resetAnchor()}><p class="error review-card-error" role="alert">{error()}</p></Show>
-    <Show keyed when={actions()}>{anchor => <Menu anchor={anchor} label="Card actions" onDismiss={() => setActions(null)} items={[
-      { label: props.context ? 'Open in the book' : 'Open source', action: () => props.onSource(false) },
-      { label: 'Edit card', action: () => props.onEdit(false) },
-      { label: 'Reset progress', disabledReason: !revealed() ? 'Reveal the answer first.' : props.item.card.schedule.last_reviewed_at === null ? 'This card has no progress yet.' : undefined, action: () => setResetAnchor(anchor) },
-      { label: 'Undo last grade', divider: true, disabledReason: props.undoDisabled ? 'Nothing graded yet.' : undefined, action: props.onUndo },
-      { label: 'End review', action: () => props.onEnd(anchor) },
+    <Show keyed when={phone() ? props.actionsAnchor : actions()}>{anchor => <Menu anchor={anchor} label="Card actions" onDismiss={() => phone() ? props.onActionsDismiss?.() : setActions(null)} items={[
+      { label: props.context ? 'Open in the book' : 'Open source', icon: glyph(props.context ? 'book' : 'page'), action: () => props.onSource(false) },
+      { label: 'Edit card', icon: glyph('edit'), action: () => props.onEdit(false) },
+      { label: 'Reset progress', icon: glyph('history'), disabledReason: !revealed() ? 'Reveal the answer first.' : props.item.card.schedule.last_reviewed_at === null ? 'This card has no progress yet.' : undefined, action: () => setResetAnchor(anchor) },
+      { label: 'Undo last grade', icon: glyph('undo'), divider: true, disabledReason: props.undoDisabled ? 'Nothing graded yet.' : undefined, action: props.onUndo },
+      { label: 'End review', icon: glyph('close'), action: () => props.onEnd(anchor) },
     ]} />}</Show>
     <Show when={resetAnchor()}>{anchor => <Popup anchor={anchor()} placement={coverLayout.matches ? 'sheet' : 'anchor'} label="Reset progress" class="review-card-reset" onDismiss={() => setResetAnchor(null)}>
       <p>Reset this card’s schedule? Review history stays.</p>
