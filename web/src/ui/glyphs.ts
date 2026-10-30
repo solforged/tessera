@@ -77,6 +77,15 @@ export const paths = {
   group: 'M7 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z M13 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z M1.5 13a3.5 3.5 0 0 1 7 0 M7.5 13a3.5 3.5 0 0 1 7 0',
   concept: ['M8 2 14 8 8 14 2 8Z', 'M9 8a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z'],
   thesis: 'M2 14h12 M8 14V2 M5 5l3-3 3 3',
+  // Phone chrome: outline moves, the filter sliders inside a search well, an info mark, the appearance letters, and the row actions.
+  outdent: 'M2 2.5h12 M8 6.5h6 M8 9.5h6 M2 13.5h12 M5 6l-3 2.5L5 11',
+  indent: 'M2 2.5h12 M8 6.5h6 M8 9.5h6 M2 13.5h12 M2 6l3 2.5L2 11',
+  filter: 'M2 4.5h1.7 M7.3 4.5H14 M7.3 4.5a1.8 1.8 0 1 1-3.6 0 1.8 1.8 0 0 1 3.6 0Z M2 11.5h6.7 M12.3 11.5H14 M12.3 11.5a1.8 1.8 0 1 1-3.6 0 1.8 1.8 0 0 1 3.6 0Z',
+  info: 'M14 8A6 6 0 1 1 2 8a6 6 0 0 1 12 0Z M8 7.5V11 M8 5h.01',
+  appearance: 'm2 13 3.5-10L9 13 M3.4 9.5h4.2 M10 13l2.2-6 2.2 6 M10.7 11.3h3',
+  moveto: 'M2 8h9 M8 4.5 11.5 8 8 11.5 M14 2.5v11',
+  maketask: 'M3 2h10a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z M5.5 8.2l2 2 3.2-4',
+  addcard: 'M4 2.5h8 M2.5 5.5h11a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Z M8 7.5v4 M6 9.5h4',
 } as const satisfies Record<string, Glyph>;
 
 export type IconName = keyof typeof paths;

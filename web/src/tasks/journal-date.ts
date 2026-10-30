@@ -8,6 +8,11 @@ export function spokenJournalDate(date: string): string {
   return spoken(date, { weekday: 'long', month: 'long', day: 'numeric' });
 }
 
+/** A phone nav bar's inline title for a journal day: the weekday over the month and day, never the ISO date. */
+export function journalBarTitle(date: string): { title: string; detail: string } {
+  return { title: spoken(date, { weekday: 'long' }), detail: spoken(date, { month: 'long', day: 'numeric' }) };
+}
+
 export function journalDayLabel(date: string): string {
   return spoken(date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 }
