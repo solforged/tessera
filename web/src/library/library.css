@@ -359,6 +359,35 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
   .library-reading-books { grid-template-columns: minmax(0, 1fr); }
   .library-reading-card .library-cover { width: calc(var(--space-48) + var(--space-12)); }
 }
+/* The phone's Reading now card, Up next rows and generated covers: a stamp, a plain 4 pt bar and the time left in figures. */
+.library-reading-continue, .library-reading-bar, .library-reading-time-phone { display: none; }
+.library-cover-generated { container-type: inline-size; display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; border-radius: 4px; background: color-mix(in srgb, var(--hue) 26%, var(--raised)); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 3px var(--contact-shadow), 0 0 0 .5px color-mix(in srgb, var(--hue) 50%, var(--line)); }
+.library-cover-generated::before { content: ""; position: absolute; inset: 6.7cqw; border-radius: 2px; box-shadow: inset 0 0 0 .75px color-mix(in srgb, var(--hue) 55%, transparent); pointer-events: none; }
+.library-cover-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 5; max-width: 100%; margin: 28cqw 7cqw 0; color: var(--text); font: italic var(--weight-source-title) 21.7cqw/25cqw var(--font-display); overflow-wrap: break-word; }
+.library-cover-author { max-width: 100%; margin: 0 7cqw 18cqw; overflow: hidden; color: color-mix(in srgb, var(--text) 62%, transparent); font: 500 10.8cqw/13.3cqw var(--font-body); letter-spacing: .14em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+@media (max-width: 599px) and (pointer: coarse) {
+  .library-reading-more.button, .library-book-more.button { display: none; }
+  .library-reading-card.button { gap: 0; padding: var(--space-16); border-radius: var(--leaf-radius, 14px); }
+  .library-reading-head { gap: var(--space-16); }
+  .library-reading-card .library-cover { width: 96px; height: 154px; aspect-ratio: auto; border-radius: 4px; }
+  .library-reading-text { gap: 0; align-self: stretch; }
+  .library-reading-title { -webkit-line-clamp: 3; font: italic var(--weight-source-title) 24px/28px var(--font-display); }
+  .library-reading-author { margin-top: var(--space-4); font: 400 15px/20px var(--font-body); }
+  .library-reading-chapter { padding-top: var(--space-8); font: 400 15px/20px var(--font-display); }
+  .library-reading-continue { display: inline-flex; align-items: center; align-self: flex-start; gap: 6px; min-height: 34px; margin-top: auto; padding: 0 14px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--accent) 14%, var(--leaf)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 var(--lit-edge), 0 1px 2px var(--contact-shadow); color: var(--accent); font: var(--weight-heading) 14px/18px var(--font-body); }
+  .library-reading-card > .book-map { display: none; }
+  .library-reading-bar { display: block; flex: none; height: 4px; margin-top: var(--space-16); border-radius: 2px; background: color-mix(in srgb, var(--text) 12%, transparent); overflow: hidden; }
+  .library-reading-bar > i { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
+  .library-reading-position { margin-top: 9px; color: var(--muted); font: 400 13px/16px var(--font-body); letter-spacing: 0; }
+  .library-reading-time-phone { display: inline; }
+  .library-reading-time-desktop { display: none; }
+  .library-up-next-book.button { position: relative; align-items: center; gap: var(--space-16); min-height: 112px; padding: var(--space-8) 0; border-bottom: 0; }
+  .library-up-next-book.button::after { content: ""; position: absolute; right: 0; bottom: 0; left: 76px; height: var(--rule-width); background: var(--line); }
+  .library-up-next-book:last-child::after { display: none; }
+  .library-up-next-book .library-cover { flex: none; width: 60px; height: 96px; aspect-ratio: auto; }
+  .library-up-next-book .library-title { font: italic var(--weight-source-title) 18px/24px var(--font-display); }
+  .library-up-next-book .library-book-byline { margin-top: 2px; font: 400 15px/20px var(--font-body); color: var(--muted); }
+}
 /* Every phone source row shares the same cover, shelfmark and metadata layout. */
 @media (max-width: 599px) {
   .library-rows:has(.library-source-row):not(.library-rows-shelf) { border-top: 0; }

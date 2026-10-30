@@ -38,6 +38,11 @@ import type { PageChunk } from './paged';
 import { absorbedPassages, bookKeys, chapterOpenings, contentsTitle, isFrontMatter, isProseExcerpt, repeatsBook, sectionLabel, sectionName, titlePageWords } from './openings';
 import type { Opening } from './openings';
 import { mergeMembers, overlappingHighlights } from './highlight-merge';
+import { NavButton, NavEnd, NavGroup, NavTitle } from '../ui/NavBar';
+import { isPhone } from '../ui/phone';
+import { setThemeOverride } from '../shell/theme';
+import { Figures } from './Figures';
+import { hideEditMenu, nativeEditMenu, onEditMenu, showEditMenu } from './edit-menu';
 import './reader.css';
 
 export interface ReaderPaneProps {
@@ -52,7 +57,7 @@ export interface ReaderPaneProps {
   /** The reader fills the app window, without the sidebar, rail or pane header. */
   immersive: boolean;
   onImmersive(immersive: boolean): void;
-  /** Leaves the reader; the cover screen's masthead has no pane header to do it from. */
+  /** Leaves the reader, as the system Back gesture does on the cover screen. */
   onBack(): void;
 }
 
@@ -158,7 +163,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     for (const passage of passages.values()) { if (passage.kind === 'quote') quotes++; else if (passage.kind === 'paragraph') plain++; }
     return quotes >= 12 && quotes > plain;
   });
-  let scroll!: HTMLDivElement, probe!: HTMLDivElement, header!: HTMLDivElement, masthead!: HTMLDivElement, frame: HTMLDivElement | undefined, flow: HTMLDivElement | undefined, margin: HTMLElement | undefined;
+  let scroll!: HTMLDivElement, probe!: HTMLDivElement, header!: HTMLDivElement, frame: HTMLDivElement | undefined, flow: HTMLDivElement | undefined, margin: HTMLElement | undefined;
   let pointerStart: { x: number; y: number; touch: boolean } | null = null, wheelTotal = 0, lastWheel = 0, lastTurn = 0, countFrame = 0;
   /** A finger dragging the page sideways in Pages: its offset and speed, once it has moved far enough to tell a swipe from a scroll. */
   let drag: { axis: 'x' | 'y' | null; offset: number; time: number; velocity: number } | null = null;
@@ -177,6 +182,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   let dismissingTap = false;
   let settingsViewport: { ordinal: number; offset: number; character?: number } | null = null, settingsAtStart = false, settingsFromPages = false, settingsVersion = 0;
   const requests = new AbortController();
+  /** What a phone's nav bar covers at the top of the page (the page's `scroll-padding-top`): text passes under it, but a jump lands, and the reading point is taken, just below it. */
+  const [topInset, setTopInset] = createSignal(0);
   const virtualizer = createVirtualizer<HTMLDivElement, HTMLDivElement>({
     get count() { return total(); },
     getScrollElement: () => scroll,
@@ -185,6 +192,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     // Row measurements can mount and resize other observed rows. Deliver them after the resize cycle.
     useAnimationFrameWithResizeObserver: true,
     get paddingStart() { return titleHeight(); },
+    get scrollPaddingStart() { return topInset(); },
     get rangeExtractor() {
       const selected = keyboardRange() ?? selection(), current = cursor();
       return (range: Parameters<typeof defaultRangeExtractor>[0]) => {
@@ -196,6 +204,16 @@ export function ReaderPane(props: ReaderPaneProps) {
     },
   });
   const items = createMemo(() => new Map(virtualizer.getVirtualItems().map(item => [item.index, item])));
+  createEffect(() => {
+    coverReading();
+    const element = scroll;
+    if (!element) return;
+    const measure = () => setTopInset(parseFloat(getComputedStyle(element).scrollPaddingTop) || 0);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    onCleanup(() => observer.disconnect());
+  });
   const citations = createMemo(() => {
     version();
     const values = new Map<string, Citation>();
@@ -246,6 +264,25 @@ export function ReaderPane(props: ReaderPaneProps) {
     const entry = chapterEntry();
     return entry && !isFrontMatter(entry.title) ? sectionLabel(entry.title) : '';
   });
+  /** Where each contents entry's own stretch ends (at the next entry), and where it and everything under it ends. */
+  const tocSpans = createMemo(() => {
+    const entries = contents(), length = currentSnapshot()?.text_length ?? 0, spans = new Map<TocEntry, { end: number; subtree: number }>();
+    entries.forEach((entry, index) => {
+      if (entry.start === undefined) return;
+      let end: number | undefined, subtree: number | undefined;
+      for (let next = index + 1; next < entries.length && subtree === undefined; next++) {
+        const value = entries[next]!;
+        if (value.start === undefined || value.start <= entry.start) continue;
+        end ??= value.start;
+        if (value.level <= entry.level) subtree = value.start;
+      }
+      spans.set(entry, { end: end ?? length, subtree: subtree ?? length });
+    });
+    return spans;
+  });
+  /** What the phone says of time: left in the book under its title, left in the chapter under the chapter's name (the book where there are no chapters). */
+  const bookTime = () => bookLeft() === null ? '' : atEnd() ? 'Finished' : `${timeLeft(bookLeft()!)} left in book`;
+  const whereTime = () => atEnd() ? 'Finished' : chapterName() && chapterLeft() !== null ? `${timeLeft(chapterLeft()!)} left in chapter` : bookTime();
   /** Chapter openings by first passage, composed from the contents rather than the file's heading markup. */
   const openings = createMemo(() => chapterOpenings(contents(), book()));
   /** The cover beside the title page: the one on the source page, else the file's. */
@@ -272,7 +309,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     return result;
   });
   /**
-   * Full screen and the cover screen read with the chrome out of the way: the masthead, toolbar and book map fade
+   * Full screen and the cover screen read with the chrome out of the way: the nav bar, toolbar and book map fade
    * after the mouse rests (full screen with a mouse) or on a centre tap (touch), and return on movement, focus, a
    * popup or another tap. With a mouse they keep their room, so the text never reflows; the line under the map stays.
    * On touch (the cover screen, or full screen on a touch screen) they lie over the page instead, so the page has the
@@ -292,7 +329,7 @@ export function ReaderPane(props: ReaderPaneProps) {
   function hideChrome() {
     if (popup() || selection()) return;
     const focused = document.activeElement;
-    if (focused instanceof HTMLElement && (header.contains(focused) || masthead.contains(focused))) {
+    if (focused instanceof HTMLElement && (header.contains(focused) || navBar()?.contains(focused))) {
       if (keyboardFocus) return;
       focused.blur();
     }
@@ -306,6 +343,24 @@ export function ReaderPane(props: ReaderPaneProps) {
     setSystemBarsHidden(true);
     onCleanup(() => setSystemBarsHidden(false));
   });
+  // A book's own Day or Night holds the whole window while it reads on a phone (Appearance › Page); Auto follows the app.
+  createEffect(() => {
+    const page = readerSettings().page;
+    if (!props.active || !coverReading() || page === 'auto') return;
+    setThemeOverride(page === 'day' ? 'light' : 'dark');
+    onCleanup(() => setThemeOverride(null));
+  });
+  // On a phone the contents open on their first entry with the chapter being read inside the window; only a chapter lower down brings the list to it.
+  createEffect(on(() => popup()?.kind, kind => {
+    if (kind !== 'contents' || !coverReading()) return;
+    const settle = () => {
+      const list = document.querySelector<HTMLElement>('.reader-picker .picker-list'), row = list?.querySelector<HTMLElement>('[aria-current="true"]');
+      if (!list || !row) return;
+      const at = row.getBoundingClientRect(), box = list.getBoundingClientRect();
+      if (at.bottom > box.bottom) list.scrollTop += at.top - box.top - (box.height - at.height) / 2;
+    };
+    requestAnimationFrame(() => requestAnimationFrame(settle));
+  }));
   // On the cover screen the reader owns a history entry, so the system Back gesture (Android) closes an open sheet and
   // then leaves the book as its back arrow does, rather than leaving the app. Leaving another way pops the entry.
   createEffect(() => {
@@ -768,8 +823,8 @@ export function ReaderPane(props: ReaderPaneProps) {
         if (options.character >= start + node.length) continue;
         const rect = characterRect(node, options.character - start);
         // Citation reveals clear the top fade; position restoration keeps its exact character anchor.
-        const top = scroll.getBoundingClientRect().top;
-        const chrome = options.reveal && chromeOverlays() && !chromeHidden() ? Math.max(0, (coverReading() ? masthead : header).getBoundingClientRect().bottom - top) : 0;
+        const top = scroll.getBoundingClientRect().top + topInset();
+        const chrome = options.reveal && chromeOverlays() && !chromeHidden() && !coverReading() ? Math.max(0, header.getBoundingClientRect().bottom - top) : 0;
         const inset = options.reveal ? chrome + cssValue('--space-24') + cssValue('--space-4') : 0;
         if (rect) scroll.scrollTop += rect.top - top - inset;
         break;
@@ -852,12 +907,12 @@ export function ReaderPane(props: ReaderPaneProps) {
       }
       return spanning === null ? null : { ordinal: spanning, offset: 0 };
     }
-    const viewport = scroll.getBoundingClientRect();
+    const viewport = scroll.getBoundingClientRect(), edge = viewport.top + topInset();
     let first: { ordinal: number; offset: number } | null = null;
     for (const row of scroll.querySelectorAll<HTMLElement>('[data-passage-id]')) {
       const rect = row.getBoundingClientRect(), ordinal = Number(row.dataset.ordinal);
-      if (rect.bottom <= viewport.top || rect.top >= viewport.bottom) continue;
-      if (!first || ordinal < first.ordinal) first = { ordinal, offset: rect.top - viewport.top };
+      if (rect.bottom <= edge || rect.top >= viewport.bottom) continue;
+      if (!first || ordinal < first.ordinal) first = { ordinal, offset: rect.top - edge };
     }
     return first;
   }
@@ -1185,6 +1240,8 @@ export function ReaderPane(props: ReaderPaneProps) {
   }
 
   let readerRoot!: HTMLDivElement;
+  /** The cover screen's navigation bar: the pane header, which the reader's title and controls live in. */
+  const navBar = () => readerRoot.closest('.pane')?.querySelector<HTMLElement>(':scope > .pane-header') ?? null;
   /** Full screen changes the whole window around the page; the page morphs between its two sizes instead of snapping. */
   const setImmersive = (value: boolean) => crossfade(readerRoot, () => props.onImmersive(value));
 
@@ -1194,7 +1251,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     const target = event.target;
     const control = target instanceof Element ? target.closest('button, a[href], input, textarea, select, summary, [role="button"], [role="link"], [role="menuitem"]') : null;
     // A reading-tool button or a highlight only acts on Space and Enter, so the reader's other keys pass through it: closing a popover leaves focus on the control that opened it.
-    if (control?.matches('.reader-header button, .reader-masthead button, .reader-folio button, .reader-highlight') && event.key !== ' ' && event.key !== 'Enter') return false;
+    if (control?.matches('.reader-header button, .pane-header button, .reader-folio button, .reader-highlight') && event.key !== ' ' && event.key !== 'Enter') return false;
     return !!control || target instanceof HTMLElement && target.isContentEditable;
   }
 
@@ -1294,8 +1351,8 @@ export function ReaderPane(props: ReaderPaneProps) {
     // A touch screen without a keyboard has the selection bar, swipes and taps for these, so only the source's actions show.
     if (touchOnly.matches) return [
       { label: 'Open source page', icon: 'page', action: () => props.onOpen({ kind: 'page', pageId: props.target.sourceId }, false) },
-      { label: 'Merge overlapping highlights', icon: 'highlight', disabledReason: editing() ? 'Saving…' : undefined, action: () => { void mergeOverlapping(); } },
-      { label: 'Undo last edit', icon: 'undo', disabledReason: actions.canUndo() || readerDocument.canUndo() ? undefined : 'Nothing to undo', action: () => { void undoHighlight(); } },
+      { label: 'Merge overlapping highlights', icon: 'merge', disabledReason: editing() ? 'Saving…' : undefined, action: () => { void mergeOverlapping(); } },
+      { label: 'Undo', icon: 'undo', divider: true, disabledReason: actions.canUndo() || readerDocument.canUndo() ? undefined : 'Nothing to undo', action: () => { void undoHighlight(); } },
       ...(coverReading() ? [] : [{ label: props.immersive ? 'Exit full screen' : 'Full screen', action: () => setImmersive(!props.immersive) }]),
     ];
     return [
@@ -1537,11 +1594,35 @@ export function ReaderPane(props: ReaderPaneProps) {
     return <><Show when={name().numeral}><b class="reader-section-numeral">{name().numeral}</b></Show><i class="reader-section-title">{name().title}</i></>;
   }
 
-  /** The toolbar outlives the selection by one exit fade, showing the selection it last had. */
-  const toolbar = createRetained(() => props.active && !popup() ? selection() : null);
+  /** The toolbar outlives the selection by one exit fade, showing the selection it last had. The iOS app has none: its system selection menu carries the colours and Annotate (edit-menu.ts). */
+  const nativeMenu = nativeEditMenu();
+  const toolbar = createRetained(() => props.active && !popup() && !nativeMenu ? selection() : null);
+  if (nativeMenu) {
+    let offered: SelectionToolbar | null = null;
+    createEffect(() => {
+      const value = props.active && !popup() && !composing() && !editing() ? selection() : null;
+      if (value && !value.blockedReason) { offered = value; showEditMenu(); } else hideEditMenu();
+    });
+    onCleanup(onEditMenu(tap => {
+      if (!props.active) return;
+      // The system may have collapsed the selection by the time its menu reports the tap; the selection it was shown for stands.
+      if (!selection() && offered) setSelection(offered);
+      void highlight(tap.kind === 'annotate', tap.kind === 'highlight' ? tap.color : null);
+    }));
+    onCleanup(hideEditMenu);
+  }
   function SelectionTools(shown: { current: SelectionToolbar | undefined; leaving: boolean }) {
     let element!: HTMLDivElement;
-    const [placement, setPlacement] = createSignal({ left: 0, top: 0, width: 0, visible: false, docked: false });
+    const [placement, setPlacement] = createSignal({ left: 0, top: 0, width: 0, visible: false, docked: false, capsule: false });
+    // A phone's panel is a capsule of the five colours and Annotate, with its other actions a page behind the chevron.
+    const [more, setMore] = createSignal(false);
+    createEffect(on(() => shown.current, () => setMore(false), { defer: true }));
+    const blocked = () => editing() || !!shown.current?.blockedReason;
+    const copy = () => {
+      const text = shown.current?.quote;
+      if (text) void navigator.clipboard?.writeText(text).catch(() => undefined);
+      window.getSelection()?.removeAllRanges(); setSelection(null);
+    };
     const place = () => {
       const value = shown.current;
       if (!element || !value) return;
@@ -1552,12 +1633,22 @@ export function ReaderPane(props: ReaderPaneProps) {
       const gap = parseFloat(getComputedStyle(element).getPropertyValue('--space-4'));
       // Touch screens dock the toolbar at the foot of the page, in thumb reach and clear of the system's own text menu
       // beside the selection, and at the head only when the selection runs down there. It keeps to the reading measure.
+      // A phone's panel is the capsule the system's own menu is: over the selection, under it where there is no room above,
+      // and at the foot above the reading tools where there is none under it either.
       if (coarsePointer.matches) {
-        const height = element.offsetHeight, foot = bottom - height - gap;
+        const height = element.offsetHeight;
+        const tools = chromeOverlays() && !chromeHidden() ? header.getBoundingClientRect().top : bottom;
+        const foot = Math.min(bottom, tools) - height - gap;
+        if (isPhone()) {
+          const width = element.offsetWidth, bar = navBar()?.getBoundingClientRect().bottom ?? top;
+          const above = value.rect.top - height - gap, below = value.rect.bottom + gap;
+          setPlacement({ left: Math.max(left + gap, Math.min((value.rect.left + value.rect.right - width) / 2, right - width - gap)), top: above >= bar ? above : below <= foot ? below : foot, width: 0, visible: true, docked: true, capsule: true });
+          return;
+        }
         const measure = (paged() ? frame : scroll.querySelector('.reader-list'))?.getBoundingClientRect();
         const measureLeft = Math.max(left, measure?.left ?? left), measureRight = Math.min(right, measure?.right ?? right);
         const width = Math.max(0, Math.min(measureRight - measureLeft, probe.getBoundingClientRect().width));
-        setPlacement({ left: (measureLeft + measureRight - width) / 2, top: value.rect.bottom > foot - gap ? top + gap : foot, width, visible: width > 0, docked: true });
+        setPlacement({ left: (measureLeft + measureRight - width) / 2, top: value.rect.bottom > foot - gap ? top + gap : foot, width, visible: width > 0, docked: true, capsule: false });
         return;
       }
       const width = Math.min(element.offsetWidth, right - left), height = element.offsetHeight;
@@ -1572,7 +1663,7 @@ export function ReaderPane(props: ReaderPaneProps) {
         + Math.max(0, Math.min(at.left + width, rect.right) - Math.max(at.left, rect.left))
         * Math.max(0, Math.min(at.top + height, rect.bottom) - Math.max(at.top, rect.top)), 0);
       const at = candidates.reduce((best, at) => overlap(at) < overlap(best) ? at : best, candidates[0] ?? { left, top });
-      setPlacement({ ...at, width: right - left, visible: true, docked: false });
+      setPlacement({ ...at, width: right - left, visible: true, docked: false, capsule: false });
     };
     createEffect(place);
     onMount(() => {
@@ -1581,11 +1672,25 @@ export function ReaderPane(props: ReaderPaneProps) {
       place();
       onCleanup(() => observer.disconnect());
     });
-    return <Portal><div ref={element} class="reader-selection-toolbar" classList={{ 'reader-selection-docked': placement().docked, 'reader-selection-leaving': shown.leaving }} role="toolbar" aria-label="Highlight selection" inert={shown.leaving}
-      style={{ left: `${placement().left}px`, top: `${placement().top}px`, 'max-width': placement().width ? `${placement().width}px` : undefined, width: placement().docked ? `${placement().width}px` : undefined, visibility: placement().visible ? 'visible' : 'hidden' }}
+    return <Portal><div ref={element} class="reader-selection-toolbar" classList={{ 'reader-selection-docked': placement().docked && !placement().capsule, 'reader-selection-capsule': placement().capsule, 'reader-selection-leaving': shown.leaving }} role="toolbar" aria-label="Highlight selection" inert={shown.leaving}
+      style={{ left: `${placement().left}px`, top: `${placement().top}px`, 'max-width': placement().width ? `${placement().width}px` : undefined, width: placement().docked && !placement().capsule ? `${placement().width}px` : undefined, visibility: placement().visible ? 'visible' : 'hidden' }}
       onPointerDown={event => event.preventDefault()}>
-      <div class="reader-selection-actions"><Button icon="highlight" disabled={editing() || !!shown.current?.blockedReason} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={editing() || !!shown.current?.blockedReason} onClick={() => { void highlight(true); }}>Highlight and annotate <kbd>N</kbd></Button></div>
-      <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={editing() || !!shown.current?.blockedReason} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
+      <Show when={isPhone()} fallback={<>
+        <div class="reader-selection-actions"><Button icon="highlight" disabled={blocked()} onClick={() => { void highlight(false); }}>Highlight <kbd>H</kbd></Button><Button disabled={blocked()} onClick={() => { void highlight(true); }}>Highlight and annotate <kbd>N</kbd></Button></div>
+        <div class="reader-selection-actions"><For each={highlightColors}>{(color, index) => <Button aria-label={`Highlight ${color}`} title={`Highlight ${color} (${index() + 1})`} disabled={blocked()} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /><kbd>{index() + 1}</kbd></Button>}</For></div>
+      </>}>
+        <div class="reader-selection-actions">
+          <Show when={!more()} fallback={<>
+            <Button class="reader-selection-page" icon="left" label="Colours and Annotate" onClick={() => setMore(false)} />
+            <Button disabled={blocked()} onClick={() => { void highlight(false); }}>Highlight</Button>
+            <Button onClick={copy}>Copy</Button>
+          </>}>
+            <For each={highlightColors}>{color => <Button class="reader-selection-dot" label={`Highlight ${color}`} disabled={blocked()} onClick={() => { void highlight(false, color); }}><span class={`highlight-color-dot highlight-color-${color}`} aria-hidden="true" /></Button>}</For>
+            <Button disabled={blocked()} onClick={() => { void highlight(true); }}>Annotate</Button>
+            <Button class="reader-selection-page" icon="right" label="Highlight and Copy" onClick={() => setMore(true)} />
+          </Show>
+        </div>
+      </Show>
       <Show when={shown.current?.blockedReason}>{reason => <p role="status">{reason()}</p>}</Show>
       <Show when={editError()}><p class="error" role="alert">{editError()}</p></Show>
     </div></Portal>;
@@ -1593,22 +1698,39 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   /** In Pages the toolbar and the foot span the spread; in Scroll they keep the reading measure. */
   const spreadWidth = () => paged() && pageFrame().width ? `${pageFrame().width}px` : undefined;
+  /** A contents entry on the phone: its name in display type, a tick once it has been read through, and for the chapter being read its gilt name, time left and ring. */
+  function TocRow(row: { entry: TocEntry }) {
+    const now = () => row.entry === currentSection();
+    const span = () => tocSpans().get(row.entry);
+    const done = () => !now() && !!span() && span()!.subtree <= here();
+    const share = () => { const value = span(); return value && now() ? Math.round(Math.max(0, Math.min(1, (here() - row.entry.start!) / Math.max(1, value.end - row.entry.start!))) * 100) : null; };
+    const left = () => { const value = span(); return value && now() ? timeLeft(value.end - here()) : null; };
+    return <span class="reader-toc-entry" classList={{ 'reader-toc-now': now() }} aria-current={now() ? 'true' : undefined} style={{ '--level': Math.max(0, row.entry.level - 1) }}>
+      <span class="reader-toc-check"><Show when={now()}><Icon name="check" /></Show></span>
+      <span class="reader-toc-name"><span>{contentsTitle(row.entry.title)}</span><Show when={coverReading() && left()}>{time => <small><Figures text={`${time()} left`} /></small>}</Show></span>
+      <Show when={coverReading()}>
+        <Show when={share() !== null} fallback={<Show when={done()}><span class="reader-toc-read"><Icon name="check" /></span></Show>}>
+          <span class="reader-toc-progress"><span><Figures text={`${share()}%`} /></span><span class="reader-ring" style={{ '--p': share() ?? 0 }} /></span>
+        </Show>
+      </Show>
+    </span>;
+  }
   // Restoring the position waits on animation frames, which a held view transition never gives; so the reader marks
-  // itself loading rather than pending, and the leaf turns to its masthead while the text fades in where it lands.
+  // itself loading rather than pending, and the leaf turns to its nav bar while the text fades in where it lands.
   return <div ref={readerRoot} class="reader-pane" classList={{ 'reader-chrome-hidden': chromeHides() && chromeHidden(), 'reader-chrome-over': chromeOverlays(), 'reader-loading': loading() }} data-pane-loading={loading() ? '' : undefined} style={readerStyle()} onPointerDown={props.onActivate}
     onFocusIn={props.onActivate} onPointerMove={pointerMoved}>
-    {/* The cover screen owns its glass navigation bar and keeps the reading tools at the foot. */}
-    <div ref={masthead} class="reader-masthead" onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
-      <Button icon="left" label="Back" onClick={() => props.onBack()} />
-      <h2 title={title() || 'Reader'}>{title() || 'Reader'}</h2>
-      <Show when={coverReading()}>
-        <Button class="reader-settings-toggle" label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
-        <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => { event.currentTarget.focus({ preventScroll: true }); setPopup({ kind: 'actions', anchor: event.currentTarget }); }} />
-      </Show>
-    </div>
+    {/* The cover screen's navigation bar is the pane header (shell/App.tsx): the book as a glass title that opens the progress card, then Aa and ···. The reading tools are one capsule at the foot. */}
+    <Show when={coverReading()}>
+      <NavTitle title={title() || 'Reader'} glass detail={bookTime() ? <Figures text={bookTime()} /> : undefined} onClick={mapChapters().length ? anchor => setPopup({ kind: 'progress', anchor }) : undefined} />
+      <NavEnd><NavGroup label="Reading">
+        <NavButton class="reader-settings-toggle reader-aa" label="Reader settings" aria-haspopup="dialog" aria-expanded={popup()?.kind === 'settings'} onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</NavButton>
+        <NavButton icon="more" label="Reader actions" aria-haspopup="menu" aria-expanded={popup()?.kind === 'actions'} onPointerDown={event => event.preventDefault()} onClick={event => { event.currentTarget.focus({ preventScroll: true }); setPopup({ kind: 'actions', anchor: event.currentTarget }); }} />
+      </NavGroup></NavEnd>
+    </Show>
     <div ref={header} class="reader-header" role="toolbar" aria-label="Reading tools" style={{ 'max-width': spreadWidth() }} onFocusIn={event => { keyboardFocus = (event.target as Element).matches(':focus-visible'); showChrome(true); }}>
+      <Show when={coverReading() && jumpReturn()}>{back => <Button class="reader-return" icon="left" label={`Back to ${back().label}`} onClick={() => { void returnFromJump(); }} />}</Show>
       <Show when={noteReturn()}><Button icon="left" label="Back to footnote reference" onClick={() => { void returnFromFootnote(); }} /></Show>
-      <Button class="reader-contents" icon="contents" label="Contents" aria-haspopup={textWidth() === null ? 'dialog' : undefined} disabled={!contents().length} onClick={event => {
+      <Button class="reader-contents" icon="contents" label={coverReading() ? undefined : 'Contents'} aria-label={coverReading() ? `Contents. ${[chapterName(), whereTime()].filter(Boolean).join(', ')}` : undefined} aria-haspopup={textWidth() === null ? 'dialog' : undefined} disabled={!contents().length} onClick={event => {
         if (textWidth() !== null && margin?.isConnected) {
           setPopup(null);
           const entry = margin.querySelector<HTMLElement>('[aria-current]') ?? margin.querySelector<HTMLElement>('button');
@@ -1616,14 +1738,17 @@ export function ReaderPane(props: ReaderPaneProps) {
         } else {
           setQuery(''); setPopup({ kind: 'contents', anchor: event.currentTarget });
         }
-      }}><span><Show when={!loading() && currentSection()} fallback="Contents">{entry => <SectionLabel title={entry().title} />}</Show></span><Icon name="down" /></Button>
-      <Button icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span>{sourceHighlights().length}</span></Show></Button>
+      }}><Show when={coverReading()} fallback={<><span><Show when={!loading() && currentSection()} fallback="Contents">{entry => <SectionLabel title={entry().title} />}</Show></span><Icon name="down" /></>}>
+        <span class="reader-where"><span class="reader-where-name"><Show when={chapterName()} fallback="Contents"><SectionLabel title={chapterEntry()!.title} /></Show></span><small><Figures text={whereTime()} /></small></span>
+      </Show></Button>
+      <Button class="reader-highlights" icon="highlight" label="Highlights" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'highlights', anchor: event.currentTarget }); }}><Show when={sourceHighlights().length}><span class="reader-count">{sourceHighlights().length}</span></Show></Button>
       <Button icon="search" label="Find in source" aria-haspopup="dialog" disabled={!snapshot()} onClick={event => { setQuery(''); setPopup({ kind: 'find', anchor: event.currentTarget }); }} />
       <Show when={!coverReading()}>
         <Button class="reader-settings-toggle" label="Reader settings" aria-haspopup="dialog" onClick={event => setPopup({ kind: 'settings', anchor: event.currentTarget })}>Aa</Button>
         <Button class="reader-full-screen" icon={props.immersive ? 'contract' : 'expand'} label={props.immersive ? 'Exit full screen' : 'Full screen'} shortcut={props.immersive ? 'F or Esc' : 'F'} onClick={() => setImmersive(!props.immersive)} />
         <Button icon="more" label="Reader actions" aria-haspopup="menu" onPointerDown={event => event.preventDefault()} onClick={event => { event.currentTarget.focus({ preventScroll: true }); setPopup({ kind: 'actions', anchor: event.currentTarget }); }} />
       </Show>
+      <Show when={coverReading()}><div class="reader-track" role="progressbar" aria-label="Read in the book" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(position() * 100)}><i style={{ width: `${position() * 100}%` }} /></div></Show>
     </div>
     <Show when={error()}><p class="reader-error error" role="alert">{error()}</p></Show>
     <Show when={loading()}><p class="reader-status" role="status">Loading…</p></Show>
@@ -1680,15 +1805,16 @@ export function ReaderPane(props: ReaderPaneProps) {
       <Show when={state().kind === 'progress'}><ProgressCard anchor={state().anchor} sheet={coverReading()} chapters={mapChapters()} length={currentSnapshot()?.text_length ?? 0} at={here()} highlights={marks()}
         added={source()?.source.added_at ?? null} today={props.notebook.todayDate()} onDismiss={() => setPopup(null)}
         onJump={chapter => { const entry = contents().find(value => value.start === chapter.start && value.ordinal !== null); if (entry) void openSection(entry); else setPopup(null); }} /></Show>
-      <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" title="Reader actions" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Contents" placeholder="Find a section" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={Math.max(0, toc().indexOf(currentSection()!))}
-        row={entry => <span class="reader-toc-entry" aria-current={entry === currentSection() ? 'true' : undefined} style={{ '--level': Math.max(0, entry.level - 1) }}><span class="reader-toc-check"><Show when={entry === currentSection()}><Icon name="check" /></Show></span><span>{contentsTitle(entry.title)}</span></span>}
+      <Show when={state().kind === 'actions'}><Menu anchor={state().anchor} label="Reader actions" title="Reader actions" class="reader-more" items={readerActions()} onDismiss={() => setPopup(null)} /></Show>
+      <Show when={state().kind === 'contents'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Contents" title="Contents" prefix={coverReading() ? <Icon name="search" /> : undefined} placeholder="Find a section" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={toc()} key={entry => entry.locator} initial={coverReading() ? undefined : Math.max(0, toc().indexOf(currentSection()!))}
+        row={entry => <TocRow entry={entry} />}
         onPick={entry => { void openSection(entry); }} empty="No sections" onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'highlights'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Highlights" placeholder="Find a highlight" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
-        row={row => <div class="reader-highlight-entry"><span class={`highlight-color-dot highlight-color-${row.citation.color ?? 'none'}`} aria-hidden="true" /><span class="reader-highlight-quote">{row.citation.quote}</span><span class="reader-highlight-section">{contentsTitle(highlightLocation(row.citation, sections()))}</span></div>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
+      <Show when={state().kind === 'highlights'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Highlights" title="Highlights" prefix={coverReading() ? <Icon name="search" /> : undefined} placeholder="Find a highlight" autofocus={!coarsePointer.matches} query={query()} onQuery={setQuery} items={filteredHighlights()} key={row => row.citation.id}
+        section={coverReading() ? (row: HighlightRow) => contentsTitle(highlightLocation(row.citation, sections())) || undefined : undefined}
+        row={row => <div class="reader-highlight-entry"><span class={`highlight-color-dot highlight-color-${row.citation.color ?? 'none'}`} aria-hidden="true" /><span class="reader-highlight-quote">{row.citation.quote}</span><Show when={!coverReading()}><span class="reader-highlight-section">{contentsTitle(highlightLocation(row.citation, sections()))}</span></Show></div>} busy={highlightsLoading()} error={highlightsError()} empty="No highlights"
         onPick={row => { void jumpHighlight(row.citation); }} onDismiss={() => setPopup(null)} /></Show>
       <Show when={state().kind === 'menu'}><Menu anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Actions for highlight" items={(() => { const value = state(); return value.kind === 'menu' ? value.items : []; })()} header={(() => { const value = state(); return value.kind === 'menu' && value.Header ? <value.Header onDismiss={() => setPopup(null)} /> : undefined; })()} onDismiss={() => setPopup(null)} /></Show>
-      <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Find in source" placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
+      <Show when={state().kind === 'find'}><Picker class="reader-picker" anchor={state().anchor} placement={coverReading() ? 'sheet' : 'anchor'} label="Find in source" title="Find in source" prefix={coverReading() ? <Icon name="search" /> : undefined} placeholder="Find in source" query={query()} onQuery={setQuery} items={hits()} key={hit => `${hit.snapshot_id}:${hit.passage.id}`}
         status={<div class="reader-find-status"><span role="status">{hits().length} passages{morePassages() ? ' shown' : ''}</span><Show when={morePassages()}>{' '}<Button disabled={searching()} onClick={() => { void loadSearchPage(); }}>Load more passages</Button></Show></div>}
         row={hit => <span class="reader-search-entry"><span class="reader-search-snippet"><For each={hit.snippet_parts}>{part => part.match ? <mark class="reader-search-match">{part.text}</mark> : part.text}</For></span><span class="reader-highlight-section">Passage {hit.passage.ordinal + 1}<Show when={sectionAt(hit.passage.ordinal)}>{entry => <> · {sectionLabel(entry().title)}</>}</Show></span></span>} busy={searching() && !hits().length} error={searchError()} empty={query().trim() ? 'No passages found' : 'Search this source'}
         onPick={hit => { setPopup(null); const back = hit.snapshot_id === snapshot() ? returnMark() : null; switchSnapshot(hit.snapshot_id); void jump(hit.passage.ordinal).then(moved => { if (moved) offerReturn(back); }).catch(reason => { restoring = false; setError(reason instanceof Error ? reason.message : String(reason)); }); }}

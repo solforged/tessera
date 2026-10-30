@@ -14,6 +14,9 @@ import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { Popup } from '../ui/Popup';
+import { NavButton, NavEnd } from '../ui/NavBar';
+import { openContextMenu } from '../ui/context-menu';
+import { isPhone } from '../ui/phone';
 import { Picker } from '../ui/Picker';
 import { downloadBlob } from '../ui/download';
 import { createSlowFlag } from '../ui/loading';
@@ -334,7 +337,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   const coverChanged = () => setCoverLayout(coverMedia.matches);
   coverMedia.addEventListener('change', coverChanged);
   onCleanup(() => coverMedia.removeEventListener('change', coverChanged));
-  let addButton!: HTMLButtonElement;
+  let addButton: HTMLButtonElement | undefined;
   const primaryTabs = tabs.slice(0, 3);
   const overflowTabs = tabs.slice(3);
   // Every Reading source gets a card, including books not yet started; the cover adds its Inbox below.
@@ -377,7 +380,7 @@ export function LibraryPane(props: LibraryPaneProps) {
   }
   onMount(() => {
     if (initialView.tab !== props.view.tab) props.onViewChange({ ...initialView });
-    if (props.add) { openAdd(addButton); props.onAddOpened?.(); }
+    if (props.add) { openAdd(addButton ?? libraryHost); props.onAddOpened?.(); }
     if (props.details?.length) {
       setSelected(new Set(props.details)); setInspectorOpen(true);
       props.onDetailsOpened?.();
@@ -915,13 +918,14 @@ export function LibraryPane(props: LibraryPaneProps) {
       { label: 'Markdown', action: () => { if (ids.length) void download('markdown', ids); else void downloadQuery('markdown', query); } },
     ] });
   }
-  async function rowMenu(row: LibraryRow, anchor: HTMLElement) {
+  /** `press` is the source's row when a long press asked: its actions open as a context menu over it instead of a menu at its button. */
+  async function rowMenu(row: LibraryRow, anchor: HTMLElement, press?: HTMLElement) {
     setCommandError('');
     let memberships: string[], pages: Block[];
     try { [memberships, pages] = await Promise.all([sourceCollections(props.notebook.api, row.page.id), collectionPages(props.notebook.api)]); }
     catch (reason) { setCommandError(reason instanceof Error ? reason.message : String(reason)); return; }
     if (disposed || !anchor.isConnected) return;
-    setPopup({ kind: 'menu', anchor, label: 'Source actions', source: row, items: [
+    const items: MenuItem[] = [
       ...(row.source.current_snapshot_id ? [{ label: row.source.last_read_at != null ? 'Continue reading' : 'Read', icon: 'book' as const, action: () => props.onOpen({ kind: 'reader', sourceId: row.page.id }, false) }] : []),
       ...(readingTarget(row).kind === 'reader' && reading().some(value => value.page.id === row.page.id) ? [{ label: 'Open page', icon: 'page' as const, action: () => openSource({ kind: 'page', pageId: row.page.id }, false) }] : []),
       { label: 'Details', action: () => showDetails([row.page.id]) },
@@ -938,7 +942,9 @@ export function LibraryPane(props: LibraryPaneProps) {
       { label: 'Export CSL JSON', icon: 'download', action: () => { void download('csl', [row.page.id]); } },
       { label: 'Export Markdown', icon: 'download', action: () => { void download('markdown', [row.page.id]); } },
       { label: 'Delete…', section: coverLayout() ? 'Delete' : undefined, divider: !coverLayout(), icon: 'trash', danger: true, disabledReason: saving() ? 'Saving…' : undefined, action: () => confirmDelete(anchor, [row]) },
-    ] });
+    ];
+    if (press) openContextMenu({ source: press, label: 'Source actions', items });
+    else setPopup({ kind: 'menu', anchor, label: 'Source actions', source: row, items });
   }
   function rowKey(event: KeyboardEvent, target: OpenTarget) {
     if (event.isComposing || event.altKey || (event.metaKey || event.ctrlKey) && (event.key !== 'Enter' || !opensBeside(event))) return;
@@ -986,15 +992,15 @@ export function LibraryPane(props: LibraryPaneProps) {
   function sourceLongPress(row: LibraryRow, selectable: () => boolean = () => true) {
     let timer: number | undefined;
     let pressed = false;
-    let x = 0, y = 0;
+    let x = 0, y = 0, host: HTMLElement | undefined;
     const cancel = () => { clearTimeout(timer); timer = undefined; };
     const choosing = () => selectMode() && selectable();
     onCleanup(cancel);
     return {
       onPointerDown: (event: PointerEvent) => {
         if (!coverLayout() || choosing() || event.button !== 0 || (event.target as HTMLElement).closest('.library-checkbox, .library-book-more, .library-start-reading, [aria-haspopup]')) return;
-        x = event.clientX; y = event.clientY; pressed = false;
-        timer = window.setTimeout(() => { pressed = true; showDetails([row.page.id]); }, 500);
+        host = event.currentTarget as HTMLElement; x = event.clientX; y = event.clientY; pressed = false;
+        timer = window.setTimeout(() => { pressed = true; void rowMenu(row, host!, host!); }, 450);
       },
       onPointerMove: (event: PointerEvent) => { if (Math.hypot(event.clientX - x, event.clientY - y) > 8) cancel(); },
       onPointerUp: cancel,
@@ -1002,7 +1008,7 @@ export function LibraryPane(props: LibraryPaneProps) {
       onContextMenu: (event: MouseEvent) => {
         if (!coverLayout()) return;
         event.preventDefault(); cancel();
-        if (!choosing()) { pressed = true; showDetails([row.page.id]); }
+        if (!choosing()) { pressed = true; host = event.currentTarget as HTMLElement; void rowMenu(row, host, host); }
       },
       'on:click': { capture: true, handleEvent: (event: MouseEvent) => {
         if (pressed) { event.preventDefault(); event.stopPropagation(); pressed = false; return; }
@@ -1122,11 +1128,23 @@ export function LibraryPane(props: LibraryPaneProps) {
     <div class="library-ledger" inert={inspectorShown() && narrowInspector() && !coverLayout()}>
     <header class="library-toolbar">
       <div class="library-cover-header"><div class="library-cover-heading"><div class="library-register">Sources and highlights</div><h1>Library</h1></div>
-        <Show when={!collectionsIndex() && tab() !== 'highlights' && (displayedSources().length || readingCards() && reading().length)}><Button class="library-select-toggle" aria-pressed={selectMode()} onClick={() => { if (selectMode()) clearSelection(); else setSelectMode(true); }}>{selectMode() ? 'Done' : 'Select'}</Button></Show>
-        <Show when={coverLayout() || collectionsIndex() || tab() === 'highlights'}><Button icon="search" label="Search library" aria-expanded={searchOpen() || !!text()} onClick={() => {
+        <Show when={coverLayout() && tab() !== 'highlights'}><NavEnd><NavButton icon="more" label="Library actions" aria-haspopup="menu" onClick={event => {
+          const anchor = event.currentTarget;
+          const selectable = !collectionsIndex() && (displayedSources().length || readingCards() && reading().length);
+          setPopup({ kind: 'menu', anchor, label: 'Library actions', items: [
+            { label: 'Add source', icon: 'plus', action: () => openAdd(anchor) },
+            ...(selectable ? [{ label: selectMode() ? 'Done' : 'Select', icon: selectMode() ? 'check' as const : 'select' as const, divider: true, action: () => { if (selectMode()) clearSelection(); else setSelectMode(true); } }] : []),
+          ] });
+        }} /></NavEnd></Show>
+        <Show when={coverLayout() && tab() === 'highlights'}><NavEnd><NavButton icon="search" label="Search highlights" aria-expanded={searchOpen() || !!text()} onClick={() => {
           setSearchOpen(value => !value);
           if (searchOpen()) queueMicrotask(() => scroll.closest('.library-pane')?.querySelector<HTMLInputElement>('.library-search')?.focus());
-        }} /></Show><Show when={tab() !== 'highlights'}><Button ref={addButton} class="bordered" icon="plus" label="Add to library" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => openAdd(event.currentTarget)} /></Show></div>
+        }} /></NavEnd></Show>
+        <Show when={!coverLayout() && !collectionsIndex() && tab() !== 'highlights' && (displayedSources().length || readingCards() && reading().length)}><Button class="library-select-toggle" aria-pressed={selectMode()} onClick={() => { if (selectMode()) clearSelection(); else setSelectMode(true); }}>{selectMode() ? 'Done' : 'Select'}</Button></Show>
+        <Show when={!coverLayout() && (collectionsIndex() || tab() === 'highlights')}><Button icon="search" label="Search library" aria-expanded={searchOpen() || !!text()} onClick={() => {
+          setSearchOpen(value => !value);
+          if (searchOpen()) queueMicrotask(() => scroll.closest('.library-pane')?.querySelector<HTMLInputElement>('.library-search')?.focus());
+        }} /></Show><Show when={!coverLayout() && tab() !== 'highlights'}><Button ref={addButton} class="bordered" icon="plus" label="Add to library" aria-haspopup={EMBEDDED ? undefined : 'dialog'} aria-expanded={EMBEDDED ? undefined : popup()?.kind === 'add'} onClick={event => openAdd(event.currentTarget)} /></Show></div>
       {/* Primary tabs stay fixed; More names the selected secondary or saved view. */}
       <div class="library-tabs library-primary-tabs mode-tabs tab-strip" role="group" aria-label="Library state">
         <For each={primaryTabs}>{item => {
@@ -1260,7 +1278,7 @@ export function LibraryPane(props: LibraryPaneProps) {
         <Show when={coverLayout() && upNext().length}><section class="library-up-next" aria-label="Up next">
           <h2 class="library-reading-heading">Up next · Inbox</h2>
           <For each={upNext()}>{row => <Button class="library-up-next-book" onClick={event => openSource({ kind: 'page', pageId: row.page.id }, opensBeside(event))} {...sourceLongPress(row, () => false)}>
-            <span class="library-siglum">{row.source.siglum}</span><span><span class="library-title">{displayTitle(row.page.text, lookup)}</span><span class="library-book-byline" title={sourceByline(row)}>{sourceByline(row)}</span></span>
+            <Show when={isPhone()} fallback={<span class="library-siglum">{row.source.siglum}</span>}><SourceCover row={row} siglum={row.source.siglum} title={displayTitle(row.page.text, lookup)} /></Show><span><span class="library-title">{displayTitle(row.page.text, lookup)}</span><span class="library-book-byline" title={sourceByline(row)}>{sourceByline(row)}</span></span>
           </Button>}</For>
         </section></Show>
       </Show>

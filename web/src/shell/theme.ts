@@ -20,10 +20,12 @@ const stored = (): ThemePreference => {
 const [preference, setPreference] = createSignal<ThemePreference>(stored());
 
 let settled = false;
+/** What the reader's page theme holds the whole window to while a book is open (Day or Night); null lets the preference decide. */
+let override: 'light' | 'dark' | null = null;
 
 function apply() {
   const value = preference();
-  const theme = value === 'system' ? (lightQuery.matches ? 'light' : 'dark') : value;
+  const theme = override ?? (value === 'system' ? (lightQuery.matches ? 'light' : 'dark') : value);
   const root = document.documentElement;
   const changed = root.dataset.theme !== theme;
   // Colors flip in one frame: controls must not ease from the old theme while surfaces and text already show the new one.
@@ -37,6 +39,12 @@ function apply() {
 }
 
 export const themePreference = preference;
+
+export function setThemeOverride(value: 'light' | 'dark' | null) {
+  if (override === value) return;
+  override = value;
+  apply();
+}
 
 export function setThemePreference(value: ThemePreference) {
   try {

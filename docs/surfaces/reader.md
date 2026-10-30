@@ -17,7 +17,7 @@ One toolbar line sits at the reading measure and spans the spread in [Pages](#pa
 5. Full screen.
 6. An actions menu: Open source, then reader shortcuts with their keys, including the five highlight colors and page-turn keys in Pages. Commands that need a selection say so.
 
-On the touch cover screen, the toolbar splits into two glass surfaces using the shell's glass tokens. The top navigation bar has a circular Back button, the book title centered and ellipsized, then circular `Aa` and actions buttons. Back returns through the pane's history to the Library when opened there. A bottom capsule above the home indicator holds Contents with the current section, Highlights with its count and Find in source. The book map and foot line lift above that capsule while the controls show, without moving the reading text. With reduced transparency, the glass surfaces use `--raised`.
+On the touch cover screen, the pane header's masthead is gone and the toolbar splits into two glass surfaces using the shell's glass tokens. The top navigation bar has a circular Back button, then the book title in Piazzolla italic centered with the reading time left beneath it (tapping it opens the [progress card](#progress-card)), then circular `Aa` and actions buttons. Back returns through the pane's history to the Library when opened there. A bottom capsule above the home indicator holds the current section's name with the time left in it, Highlights with its count, Find in source and, after a jump, a circular return button; a hairline track in the capsule shows the progress. The foot line is left out on the phone. The nav bar and capsule fade away together when the controls hide. With reduced transparency, the glass surfaces use `--raised`.
 
 Progress sits at the foot, under the text. The [book map](#book-map) sits above one mono line: the chapter's numeral and italic title, its time left, and `N% · time left in the book` at the right. The last item opens the [progress card](#progress-card). The chapter name is absent in front matter. In a foot narrower than 460 px, a shortened chapter label remains in a two-line folio rather than disappearing. In Pages, the foot spans the spread as the toolbar does.
 
@@ -78,7 +78,7 @@ Contents entries that only repeat the book's title, running heads the file marke
 
 Reader settings are a device preference shared by every reader pane. Saved choices are preserved. Changing a setting keeps the first visible passage in place. Switching from Pages to Scroll keeps the first visible character, including within a long passage.
 
-On touch, settings open as a bottom sheet. Width shows only where Narrow is narrower than the text's room, so a phone, where all three widths fill the screen, leaves it out. Short landscape screens put the setting groups in one horizontally scrolling row so the reading page remains visible above them.
+On touch, settings open as a bottom sheet titled Appearance: Layout and Typeface as segments, Size as a stepper with the sample line, Line spacing as segments and a Page row (Auto, Day, Night) that sets the reading page's theme on this device without changing the app's. Width shows only where Narrow is narrower than the text's room, so a phone, where all three widths fill the screen, leaves it out. Short landscape screens put the setting groups in one horizontally scrolling row so the reading page remains visible above them.
 
 | Setting | Choices | Default |
 | --- | --- | --- |
@@ -87,6 +87,7 @@ On touch, settings open as a bottom sheet. Width shows only where Narrow is narr
 | Size | 15 to 22 px | 17 px |
 | Width | Narrow 28em; Medium 34em; Wide at the outline measure | Medium |
 | Line spacing | 1.5; 1.65; 1.8 | 1.65 |
+| Page (touch) | Auto; Day; Night | Auto |
 
 ### Text and media
 
@@ -107,7 +108,7 @@ Contents opens on the current section, marked with a check, when no persistent m
 
 The Highlights picker's section column stays 12ch wide beside the quote. Clicking a highlight already in the text keeps the reader's scroll position. Highlight bands remain visible on chapter-opening first lines.
 
-On the touch cover, Contents, Highlights and Find open from the bottom capsule as bottom sheets. Contents and Highlights leave the query field unfocused so they do not open the keyboard; Find focuses its query. Contents keeps the current entry in view. Reader picker choices and progress chapter rows are at least 44 px high on touch. On narrow screens, highlight locations sit below their quotes rather than sharing a line.
+On the touch cover, Contents, Highlights and Find open from the bottom capsule as bottom sheets. Contents lists chapters with a tick for the one you are in and a progress ring for it (the current entry in gilt, its figures in mono); Highlights groups by chapter, each row led by a dot in the highlight's color. Contents and Highlights leave the query field unfocused so they do not open the keyboard; Find focuses its query. Contents keeps the current entry in view and reveals it with a short glide. Reader picker choices and progress chapter rows are at least 44 px high on touch. On narrow screens, highlight locations sit below their quotes rather than sharing a line.
 
 Contents falls back to the EPUB guide and fills in lazily when the navigation document is empty. Inferred spine entries leave out isolated epigraph quotations rather than turning their prose into chapter titles. A passage's tooltip names its number and section: `Passage 37 · Chapter 1`.
 
@@ -265,9 +266,9 @@ Entering the cover reader changes the workspace gutters at once, before restorin
 
 ### Touch selection
 
-The selection toolbar docks across the foot of the page in thumb reach, clear of the system's own text menu beside the selection. It is no wider than the rendered reading measure, with 44 px buttons sharing the width and no key hints. It moves to the head only when the selection runs down there. Scrolling keeps the toolbar while text remains selected and updates its placement.
+The selection toolbar docks across the foot of the page in thumb reach, clear of the system's own text menu beside the selection. In a browser it is a glass capsule of the five highlight dots, Annotate and an arrow opening Highlight and Copy. It moves to the head only when the selection runs down there. Scrolling keeps the toolbar while text remains selected and updates its placement.
 
-In the iPhone app, the system's own selection menu leads with the highlight actions: a dot for each highlight color, then any text actions, with Copy, Look Up, Translate and Share behind its arrow. A dot's name is its VoiceOver label and appears beside it once the arrow opens the full list. The [native bridge](../usage.md#ios-app) carries the choice back to the page.
+In the iPhone app, the system's own selection menu leads with the highlight actions: a dot for each highlight color, then any text actions, with Copy, Look Up, Translate and Share behind its arrow. A dot's name is its VoiceOver label and appears beside it once the arrow opens the full list. The [native bridge](../usage.md#ios-app) carries the choice back to the page, and the web capsule stays out while the native menu is in use.
 
 ### Highlight and annotate sheet
 
