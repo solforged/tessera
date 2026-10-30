@@ -322,6 +322,13 @@ static char TesseraScrollDelegateKey;
 	if (self) {
 		bridge.webView = self;
 		objc_setAssociatedObject(self, &TesseraBridgeKey, bridge, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+		// The caret and selection handles take the web view's tint: gilt, the
+		// app's --accent (tokens.css), instead of the system blue.
+		self.tintColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traits) {
+			return traits.userInterfaceStyle == UIUserInterfaceStyleDark
+				? [UIColor colorWithRed:0xd8 / 255.0 green:0xaa / 255.0 blue:0x55 / 255.0 alpha:1]
+				: [UIColor colorWithRed:0x93 / 255.0 green:0x65 / 255.0 blue:0x0f / 255.0 alpha:1];
+		}];
 
 		Class contentView = NSClassFromString(@"WKContentView");
 		Method accessory = class_getInstanceMethod(contentView, @selector(inputAccessoryView));
