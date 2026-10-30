@@ -131,6 +131,8 @@ The Xcode project in `crates/tessera-mobile/gen/apple` is committed. `project.ym
 
 The same native entry point sends `tessera:status-bar-tap` to the page when iOS asks the outer web view to scroll to the top. The shell keeps the outer document one pixel from the top so UIKit delivers that callback, then scrolls the active pane instead. Other scroll delegate methods still reach WebKit.
 
+The entry point also bridges the page to the phone's hardware. At document start it defines `window.tesseraNative = { haptics: true, editMenu: true }`, which no other host sets. `window.webkit.messageHandlers.tesseraHaptic.postMessage(kind)` plays `light`, `medium`, `selection`, `success` or `warning` feedback and ignores other kinds. `tesseraEditMenu.postMessage({ mode: 'highlight', actions: [{ id, label, color? }] })` puts those actions at the front of the system's text-selection menu: an action with a hex `color` is a filled dot, one without is its label, and Copy, Look Up, Translate and Share follow behind the menu's arrow. Tapping one dispatches `tessera:edit-menu` on `window` with `detail: { id }`. `{ mode: 'none' }` leaves the system menu alone, and so does every new document until the page posts again. Only the main frame is heard. The page posts the state while the selection exists, since the menu is built each time it opens.
+
 `tauri ios init` replaces these hand edits as well as the app icons, which are cut from `crates/tessera-desktop/icons/icon.svg` without the rounded tile because iOS masks the corners itself. Preserve those changes when regenerating the project.
 
 ## Browser app
