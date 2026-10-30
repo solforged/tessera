@@ -31,6 +31,7 @@ import { createProjectSummary } from '../projects/ProjectSummary';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Menu } from '../ui/Menu';
+import { NoticeView, type NoticeAction } from '../ui/Notice';
 import { Popup } from '../ui/Popup';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { BlockText } from './BlockText';
@@ -1921,7 +1922,7 @@ function Pane(props: OutlinePaneProps) {
       <Show when={relatedError() || related()?.tagged.length}><Related title="Tagged atoms" rows={relatedError() ? [] : related()?.tagged ?? []} /></Show>
     </div></Show>
     <Show when={doc.status() === 'ready' && zoom()}><div class="related-sections"><Backlinks /></div></Show>
-    <Show keyed when={menu()}>{state => <Menu class="outline-menu" anchor={state.anchor} label={state.label} title={state.title} context={state.context} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>
+    <Show keyed when={menu()}>{state => <Menu class="outline-menu" anchor={state.anchor} label={state.label} title={state.title} context={state.context} caption={state.caption} header={state.header} items={state.items} onDismiss={() => { setMenu(null); restoreFocus(); }} />}</Show>
     <Show keyed when={mergeTarget()}>{target => <PageMergeConfirmation anchor={target.anchor} notebook={props.notebook} from={target.from} into={target.page} onDismiss={() => setMergeTarget(undefined)} onMerged={id => { setMergeTarget(undefined); props.onOpen({ kind: 'page', pageId: id }, false); }} />}</Show>
     <Show when={tagTemplate()}>{target => <Popup anchor={target().anchor} label={receiptType.error ? 'Tag fields' : `Fields for #${receiptType()?.page.text ?? ''}`} class="tag-template-popup" width={560} fitContent ready={!receiptType.loading || !!receiptType.error} onDismiss={() => setTagTemplate(undefined)}>
       <Show when={receiptType.error}><p class="error" role="alert">Couldn't load template · {String(receiptType.error)}</p></Show>
@@ -1944,15 +1945,9 @@ function Pane(props: OutlinePaneProps) {
       <Button class="outline-editing-done" onClick={() => { const id = editing(); editor?.view.contentDOM.blur(); if (id) rowFocus(id, false, true); }}>Done</Button>
     </div></Portal></Show>
     <div class="outline-notices">
-      <Show when={notice()}>{value => <div class="undo-toast" role="status" onPointerEnter={() => setNoticeHeld(true)} onPointerLeave={() => setNoticeHeld(false)} onFocusIn={() => setNoticeHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNoticeHeld(false); }}>
-        <span>{value().label}</span>
-        <Show when={value().undo}><Button class="notice-undo" icon="undo" disabled={noticeBusy()} onClick={() => { void undoNotice(); }}>Undo</Button></Show>
-        <Show when={value().action}>{action => <>
-          <Button class="notice-undo" disabled={noticeBusy()} onClick={() => { void runNoticeAction(); }}>{action().label}</Button>
-          <Button class="notice-undo" disabled={noticeBusy()} onClick={() => setNotice(null)}>Not now</Button>
-        </>}</Show>
-        <Show when={!value().action}><Button icon="close" label="Dismiss change notice" disabled={noticeBusy()} onClick={() => setNotice(null)} /></Show>
-      </div>}</Show>
+      <Show when={notice()}>{value => <NoticeView text={value().label} busy={noticeBusy()} dismissLabel={value().action ? undefined : 'Dismiss change notice'}
+        actions={[...value().undo ? [{ label: 'Undo', icon: 'undo' as const, run: undoNotice }] : [], ...value().action ? [{ label: value().action!.label, run: runNoticeAction }, { label: 'Not now', run: () => { setNotice(null); } }] : []] satisfies NoticeAction[]}
+        onAction={action => void action.run()} onDismiss={() => setNotice(null)} onHold={held => setNoticeHeld(held)} />}</Show>
     </div>
   </>;
 }

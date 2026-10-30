@@ -5,6 +5,9 @@ import { visualViewportBounds } from './visual-viewport';
 import { anchorInBounds, anchoredPopupPosition, popupBounds } from './popup-position';
 import type { PopupSide } from './popup-position';
 import { Button } from './Button';
+import { Icon } from './Icon';
+import { isPhone } from './phone';
+import './overlays.css';
 
 export type PopupAnchor = HTMLElement | DOMRect | (() => DOMRect | null);
 /** Anchored panels normally fit either side; `below` keeps growing lists under their trigger. */
@@ -43,8 +46,13 @@ export interface PopupProps {
    * `top`, anchored to the page body, or as a sheet, and for every sheet; menus, listboxes, pickers and previews are not
    * modal and close when Tab leaves them. */
   modal?: boolean;
-  /** A sheet dims the page behind it; the scrim fades in and out with the sheet and a press on it dismisses. Default on. */
+  /** A sheet dims the page behind it; the scrim fades in and out with the sheet and a press on it dismisses. Default on.
+   * `scrim={false}` is the no-dim variant: the page stays visible (and inert) behind the sheet, and a press on it still
+   * dismisses, for a sheet that edits what lies behind it (reader settings). */
   scrim?: boolean;
+  /** The sheet's name in its head, centred between the grabber and the close circle. Phone sheets only: without it the
+   * head carries just the grabber and the close circle, and the content names itself. */
+  title?: string;
 }
 /** A sheet owns one popup surface; its editors render in that surface rather than opening another. */
 const InlinePopupContext = createContext(false);
@@ -79,6 +87,8 @@ const CONTROL = 'button, [role="button"], summary, [aria-haspopup]';
 const EXPANDABLE = `${CONTROL}, [role], [tabindex], a[href], input, select, textarea`;
 const TABBABLE = 'a[href], button, input:not([type="hidden"]), select, textarea, summary, [tabindex], [contenteditable=""], [contenteditable="true"]';
 const SETTLE_MS = 90;
+/** How far a phone sheet floats in from the screen's left, right and bottom edges. */
+const PHONE_SHEET_INSET = 8;
 // What the user may be typing into: focus that sat in one of these before a popup opened returns to it, not to the trigger.
 const EDITING = 'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], .cm-content';
 
@@ -229,7 +239,7 @@ function retirePanel(panel: HTMLDivElement, scrim: HTMLElement | undefined, host
   }
 
   const bounds = panel.getBoundingClientRect();
-  const animation = panel.getAnimations().find(animation => animation instanceof CSSAnimation && (animation.animationName === 'popup-out' || animation.animationName === 'sheet-out'));
+  const animation = panel.getAnimations().find(animation => animation instanceof CSSAnimation && /^(popup|sheet|phone-sheet|menu-pull)-out$/.test(animation.animationName));
   const timing = animation?.effect?.getComputedTiming();
   const duration = timing?.activeDuration;
   const end = timing?.endTime;
@@ -280,7 +290,7 @@ function retirePanel(panel: HTMLDivElement, scrim: HTMLElement | undefined, host
   void animation.finished.then(remove, remove);
 }
 
-interface Position { left: number; top: number; height: number; visible: boolean; clipped?: boolean; side?: PopupSide }
+interface Position { left: number; top: number; height: number; visible: boolean; clipped?: boolean; side?: PopupSide; originX?: number }
 
 /** Mount conditionally. Only the topmost popup owns Escape, Tab and outside presses. */
 export function Popup(props: PopupProps) {
@@ -288,6 +298,8 @@ export function Popup(props: PopupProps) {
   let panel!: HTMLDivElement;
   let scrim: HTMLDivElement | undefined;
   const layer: Layer = { modal: props.modal ?? (props.placement === 'sheet' || ((props.role ?? 'dialog') === 'dialog' && (props.placement === 'top' || props.anchor === document.body))) };
+  // A sheet on a phone floats inset from the screen's edges (styles in overlays.css); elsewhere it docks to the bottom edge.
+  const sheetInset = props.placement === 'sheet' && isPhone() ? PHONE_SHEET_INSET : 0;
   const [position, setPosition] = createSignal<Position>({ left: 8, top: 8, height: 0, visible: false });
   // Placed and shown (focusable) from the first measure; revealed once the content has stopped changing, so a popup
   // whose rows land a frame later enters at its final size instead of growing mid-fade.
@@ -388,10 +400,12 @@ export function Popup(props: PopupProps) {
     dirty = false;
     const viewport = popupBounds(visualViewportBounds(), props.placement === undefined || props.placement === 'anchor' || props.placement === 'below' ? props.bounds?.() : null);
     if (props.placement === 'sheet') {
+      // The phone head spans the sheet's full width whatever padding the surface gave it, so it learns that padding here.
+      if (sheetInset) { const padding = getComputedStyle(panel); panel.style.setProperty('--sheet-pad-l', padding.paddingLeft); panel.style.setProperty('--sheet-pad-r', padding.paddingRight); }
       // A menu sheet may rise to just under the top bar so a full page menu needs no inner scroll; forms keep 85%.
-      const cap = props.role === 'menu' ? viewport.height - 32 : Math.round(viewport.height * 0.85);
+      const cap = (props.role === 'menu' ? viewport.height - 32 : Math.round(viewport.height * 0.85)) - sheetInset;
       const height = Math.min(contentHeight(), cap);
-      commit({ left: viewport.left, top: viewport.bottom - height, height, visible: true, clipped: panel.scrollHeight > height });
+      commit({ left: viewport.left + sheetInset, top: viewport.bottom - height - sheetInset, height, visible: true, clipped: panel.scrollHeight > height });
       return;
     }
     // A panel wider than the room it may take (a 760 px editor in a 600 px pane) is held inside it; the stylesheet's own limit
@@ -412,7 +426,9 @@ export function Popup(props: PopupProps) {
     if (!props.fixedSize) size = undefined;
     const height = props.fixedSize && size?.width === width ? size.height : contentHeight();
     if (props.fixedSize && size?.width !== width) size = { width, height };
-    commit(anchoredPopupPosition(rect, viewport, width, height, props.role === 'menu' ? Infinity : 560, locked, props.placement === 'below', props.role !== 'menu' && props.role !== 'listbox'));
+    const placed = anchoredPopupPosition(rect, viewport, width, height, props.role === 'menu' ? Infinity : 560, locked, props.placement === 'below', props.role !== 'menu' && props.role !== 'listbox');
+    // The trigger's centre across the panel, where a phone pull-down grows from.
+    commit({ ...placed, originX: (rect.left + rect.right) / 2 - placed.left });
   };
   /** Whether the anchor has scrolled or been laid out wholly beyond what clips it (its pane, scroller, header or the window). */
   const anchorGone = () => {
@@ -651,14 +667,17 @@ export function Popup(props: PopupProps) {
     queueMicrotask(() => { retiredThisTick = false; });
     if (panel && revealed()) retirePanel(panel, scrim, mount, performance.now() - lastInside < 500);
   });
-  const width = () => props.placement === 'sheet' ? '100vw' : props.width ? `${Math.max(0, Math.min(props.width, popupBounds(visualViewportBounds(), props.bounds?.()).width - 16))}px` : undefined;
+  const width = () => props.placement === 'sheet' ? sheetInset ? `calc(100vw - ${2 * sheetInset}px)` : '100vw' : props.width ? `${Math.max(0, Math.min(props.width, popupBounds(visualViewportBounds(), props.bounds?.()).width - 16))}px` : undefined;
   const sheet = () => props.placement === 'sheet';
   return <Portal mount={mount ?? undefined}>
     <Show when={sheet() && props.scrim !== false}><div ref={element => { scrim = element; }} class={`popup-scrim${revealed() ? ' popup-scrim-enter' : ''}`} style={{ visibility: revealed() ? 'visible' : 'hidden', opacity: revealed() ? undefined : 0 }} aria-hidden="true" /></Show>
-    <div ref={panel} id={id} tabindex="-1" class={`popup${sheet() ? ' popup-sheet' : ''}${revealed() ? ` popup-enter${swap ? ' popup-swap' : ''}` : ''}${growing() ? ' popup-growing' : ''}${dragDistance() ? ' popup-sheet-dragging' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} aria-modal={layer.modal ? 'true' : undefined} data-side={position().side} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: width(), height: props.fixedSize && position().visible ? `${position().height}px` : undefined, 'max-height': `${position().height}px`, overflow: position().clipped ? 'auto' : undefined, visibility: position().visible ? 'visible' : 'hidden', opacity: revealed() ? undefined : 0, translate: dragDistance() ? `0 ${dragDistance()}px` : undefined }}>
+    <div ref={panel} id={id} tabindex="-1" class={`popup${sheet() ? ' popup-sheet' : ''}${revealed() ? ` popup-enter${swap ? ' popup-swap' : ''}` : ''}${growing() ? ' popup-growing' : ''}${dragDistance() ? ' popup-sheet-dragging' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} aria-modal={layer.modal ? 'true' : undefined} data-side={position().side} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: width(), height: props.fixedSize && position().visible ? `${position().height}px` : undefined, 'max-height': `${position().height}px`, overflow: position().clipped ? 'auto' : undefined, visibility: position().visible ? 'visible' : 'hidden', opacity: revealed() ? undefined : 0, translate: dragDistance() ? `0 ${dragDistance()}px` : undefined, '--popup-origin-x': position().originX === undefined ? undefined : `${position().originX}px` }}>
+      {/* The grab strip lies under the whole head, so the title drags the sheet too. On a phone the close is a glass circle with a
+          cross; the word stays for screen readers and for sheets on tablets and narrow windows. */}
       <Show when={sheet()}><div class="popup-sheet-tools">
         <div class="popup-sheet-grab" aria-hidden="true" onPointerDown={dragStart} onPointerMove={dragMove} onPointerUp={dragEnd} onPointerCancel={dragEnd} onLostPointerCapture={dragEnd} />
-        <Button class="popup-sheet-close" label={`Close ${props.label}`} onClick={() => dismiss(true)}>Close</Button>
+        <Show when={props.title}>{title => <h2 class="popup-sheet-title">{title()}</h2>}</Show>
+        <Button class="popup-sheet-close" label={`Close ${props.label}`} onClick={() => dismiss(true)}><span class="popup-sheet-close-word">Close</span><Icon name="close" /></Button>
       </div></Show>
       {props.children}
     </div>

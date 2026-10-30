@@ -17,7 +17,7 @@ export function AgentMark(props: { id: string }) {
   };
   return <Show when={marks.mark(props.id)}>{mark => <>
     <Button ref={button} class="agent-mark" icon="agent" label="Changed by the agent" aria-haspopup="menu" aria-expanded={!!anchor()} onClick={() => setAnchor(value => value ? null : button)} />
-    <Show when={anchor()}>{element => <Menu anchor={element()} label="Agent change" title="Agent change" context={mark().summary} onDismiss={() => { setAnchor(null); setRefusal(null); }} items={[
+    <Show when={anchor()}>{element => <Menu anchor={element()} label="Agent change" title="Agent change" context={mark().summary} caption={mark().summary} onDismiss={() => { setAnchor(null); setRefusal(null); }} items={[
       { label: 'Undo', icon: 'undo', disabledReason: refusal() ?? undefined, action: undo },
     ]} />}</Show>
   </>}</Show>;

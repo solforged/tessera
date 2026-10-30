@@ -21,12 +21,14 @@ import '../desk/desk.css';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
+import { longPress, openContextMenu } from '../ui/context-menu';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { PaneChromeContext } from '../ui/NavBar';
 import { installInputModality } from '../ui/input-modality';
 import type { BarTitle, PaneChrome } from '../ui/NavBar';
 import { journalBarTitle } from '../tasks/journal-date';
+import { dismissNotice, showNotice as showToast } from '../ui/Notice';
 import { Popup, type PopupAnchor } from '../ui/Popup';
 import { createPaneMotion, crossfade, navigatePane, paneMotionIdentity, paneTargetIdentity, reflowPanes } from '../ui/pane-motion';
 import { installTabRule } from '../ui/tab-rule';
@@ -247,28 +249,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const sequence = deletionUndoSequence();
     if (sequence !== null && (notebook.changeSequence() !== sequence || notebook.saveState() !== 'saved')) setDeletionUndoSequence(null);
   });
-  /** Notices share the deletion toast's lifetime and pause while hovered or focused. */
-  const [toastShown, setToastShown] = createSignal(false);
-  const [toastHeld, setToastHeld] = createSignal(false);
-  const [notice, setNotice] = createSignal<CreateNotice>();
-  const [noticeBusy, setNoticeBusy] = createSignal(false);
-  const showNotice = (value: CreateNotice) => batch(() => { setNotice(value); setToastHeld(false); setToastShown(true); });
-  /** The toast stays mounted through its exit animation. */
-  const toast = createRetained(() => toastShown() && notice());
-  const noticeAction = async (action: NonNullable<CreateNotice['actions']>[number]) => {
-    if (noticeBusy()) return;
-    const current = notice();
-    setNoticeBusy(true);
-    try { await action.run(); if (notice() === current) setToastShown(false); }
-    catch (reason) { reportError(reason); }
-    finally { setNoticeBusy(false); }
-  };
-  createEffect(() => {
-    notice();
-    if (!toastShown() || toastHeld()) return;
-    const timer = setTimeout(() => setToastShown(false), UNDO_TOAST_MS);
-    onCleanup(() => clearTimeout(timer));
-  });
+  /** Notices share the deletion toast's lifetime and pause while hovered or focused (ui/Notice.tsx). */
+  const showNotice = (value: CreateNotice) => { showToast({ text: value.message, action: value.actions, duration: UNDO_TOAST_MS, onError: reportError }); };
   const todayDate = () => notebook.todayDate();
   const counts = deskCounts(notebook, todayDate);
   let searchButton!: HTMLButtonElement;
@@ -678,7 +660,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     setDeletionUndoSequence(null);
     try {
       for (const page of value.pages) await notebook.restorePage(page.id);
-      batch(() => { setDeleted(null); setToastShown(false); });
+      batch(() => { setDeleted(null); dismissNotice(); });
       if (value.reopen) open({ kind: 'page', pageId: value.pages[0]!.id });
     } catch (reason) { reportError(reason); }
   };
@@ -1270,6 +1252,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       return populated;
     });
     const [viewMenu, setViewMenu] = createSignal<{ view: View; anchor: HTMLElement }>();
+    const viewMenuItems = (view: View): MenuItem[] => [{ label: pinnedViews().includes(view.id) ? 'Unpin view' : 'Pin view', icon: 'pin', action: () => pinView(view.id) }];
     const revisits = () => <Button icon="history" class={entry(active())?.target.kind === 'revisits' ? 'selected' : ''} aria-label={`Revisits · ${counts()?.revisits ?? 0} to revisit`} onClick={event => onOpen({ kind: 'revisits' }, opensBeside(event))}><span>Revisits</span><Show when={counts()?.revisits}>{due => <span class="desk-count" title={`${due()} to revisit`}>{due()}</span>}</Show></Button>;
     const fields = () => <Button class={`index-kind ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`} icon="field" title="Fields" aria-current={entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'page' : undefined} onClick={event => onOpen({ kind: 'fields' }, opensBeside(event))}><span>Fields</span><span class="desk-count">{index()?.fields.toLocaleString()}</span></Button>;
     const kindRow = (kind: Accessor<IndexKind>) => <>
@@ -1314,7 +1297,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <section class="page-list" aria-label="Saved views">
         <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{(phoneDirectory() ? views()?.length : looseViews().length) || ''}</span></h2>
         <Show when={phoneDirectory()} fallback={<ViewLinks views={looseViews()} pinned={false} activeId={activeViewId()} onOpen={onOpenView} onPin={pinView} />}>
-          <For each={views() ?? []}>{view => <div class="sidebar-view">
+          <For each={views() ?? []}>{view => <div class="sidebar-view" ref={row => onCleanup(longPress(row, () => openContextMenu({ source: row, label: `View actions: ${view.name}`, items: viewMenuItems(view) })))}>
             <Button class={`view-link ${view.id === activeViewId() ? 'selected' : ''}`} icon="table" title={view.name} onClick={event => onOpenView(view, opensBeside(event))}><span>{view.name}</span></Button>
             <Button class="directory-view-menu" icon="more" label={`View actions: ${view.name}`} aria-haspopup="menu" aria-expanded={viewMenu()?.view.id === view.id} onClick={event => setViewMenu({ view, anchor: event.currentTarget })} />
           </div>}</For>
@@ -1331,7 +1314,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <Button icon="settings" label="Settings" class={`sidebar-settings ${entry(active())?.target.kind === 'settings' ? 'selected' : ''}`} onClick={event => onOpen({ kind: 'settings' }, opensBeside(event))}><span>Settings</span></Button>
         <Show when={phoneDirectory()}>{fields()}</Show>
       </div>
-      <Show when={phoneDirectory() ? viewMenu() : undefined} keyed>{menu => <Menu anchor={menu.anchor} label={`View actions: ${menu.view.name}`} title={menu.view.name} items={[{ label: pinnedViews().includes(menu.view.id) ? 'Unpin view' : 'Pin view', action: () => pinView(menu.view.id) }]} onDismiss={() => setViewMenu(undefined)} />}</Show>
+      <Show when={phoneDirectory() ? viewMenu() : undefined} keyed>{menu => <Menu anchor={menu.anchor} label={`View actions: ${menu.view.name}`} title={menu.view.name} items={viewMenuItems(menu.view)} onDismiss={() => setViewMenu(undefined)} />}</Show>
     </>;
   };
   return <AgentMarks.Provider value={agentMarks}><div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${dock() ? 'has-dock' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`} style={{ '--visual-viewport-height': `${viewport().height}px`, '--visual-viewport-top': `${viewport().top}px`, '--visual-viewport-bottom-gap': `${Math.max(0, window.innerHeight - viewport().bottom)}px` }} onPointerDown={() => { focusEpoch++; }}>
@@ -1442,7 +1425,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <DeletedPages anchor={state.anchor} notebook={notebook} onDismiss={() => setPopup(null)} onRestored={id => { setPopup(null); open({ kind: 'page', pageId: id }, false, state.pane); }} />
       </Show>
       <Show when={state.kind === 'delete'}>
-        <Popup anchor={state.anchor} placement={cover() ? 'sheet' : 'anchor'} label="Delete atom" onDismiss={() => setPopup(null)} width={300} fitContent>
+        <Popup anchor={state.anchor} placement={cover() ? 'sheet' : 'anchor'} label="Delete atom" title="Delete atom" onDismiss={() => setPopup(null)} width={300} fitContent>
           <p>Delete “{notebook.lookup(pageIdOf(entry(state.pane)) ?? '')()?.text ?? rootById().get(pageIdOf(entry(state.pane)) ?? '')?.text}” and {state.source ? 'its highlights' : 'all its atoms'}?</p>
           <HolderDeletionImpact notebook={notebook} pageId={pageIdOf(entry(state.pane))} />
           <p class="muted">Undo this deletion, or use Restore deleted atom in Commands after reloading.</p>
@@ -1461,7 +1444,6 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     </>}</Show>
     <Show keyed when={creation()}>{state => <CreateSlip notebook={notebook} request={state.request} anchor={state.anchor} onDismiss={closeCreate} onOpen={(target, beside) => open(target, beside, state.pane)} onNotice={showNotice} onDraft={setCreateDirty} />}</Show>
     <ReferencePreviews notebook={notebook} navigationKey={`${active()}:${order().map(pane => sessions()[pane]?.generation ?? 0).join(':')}`} onOpen={(target, beside, pane) => open(target, beside, pane ?? active())} />
-    <Show when={toast()}>{item => <div class="undo-toast" classList={{ leaving: item().leaving }} inert={item().leaving} role="status" onPointerEnter={() => setToastHeld(true)} onPointerLeave={() => setToastHeld(false)} onFocusIn={() => setToastHeld(true)} onFocusOut={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setToastHeld(false); }}><span>{item().value.message}</span><For each={item().value.actions}>{action => <Button disabled={noticeBusy()} onClick={() => void noticeAction(action)}>{action.label}</Button>}</For><Button icon="close" label="Dismiss notification" onClick={() => setToastShown(false)} /></div>}</Show>
     <NotebookOpening />
   </div></AgentMarks.Provider>;
 }
