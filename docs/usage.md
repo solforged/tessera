@@ -88,7 +88,9 @@ The signing key comes from the first available source:
 
 ## iOS app
 
-The iOS app runs the same pages and workshop as the Android app. Library → Add opens the iOS file picker. Opening EPUBs from other apps, sharing to Tessera and the home screen shortcuts are Android only.
+The iOS app runs the same pages and workshop as the Android app. Library → Add opens the iOS file picker. Opening EPUBs from other apps and sharing to Tessera are Android only.
+
+Long-press the app icon for its quick actions: Quick capture opens New with the keyboard up, and Today, Review and Library open their tab at its top. Quick capture returns to an unsaved draft instead of starting another.
 
 iPhones stay in portrait; iPads keep their portrait and landscape layouts. The native web form toolbar (Previous, Next and Done) is hidden above the keyboard. The outline editor provides its own Indent, Outdent and Done controls without changing text input or the pairing camera.
 

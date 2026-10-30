@@ -2,19 +2,40 @@
 
 #import <UIKit/UIKit.h>
 #import <WebKit/WebKit.h>
+#import <objc/message.h>
 #import <objc/runtime.h>
 
 // The web client's native bridge (docs/usage.md, "iOS app"). Everything here is
 // installed on the WKWebView that wry creates: a document-start script that
-// announces the capabilities, a haptics handler, and an edit-menu handler that
-// puts the page's highlight actions in front of the system's text-selection menu.
+// announces the capabilities, a haptics handler, an edit-menu handler that
+// puts the page's highlight actions in front of the system's text-selection
+// menu, and a handler that hands the page the Home Screen quick action.
 static NSString *const TesseraBridgeScript =
-	@"window.tesseraNative = { haptics: true, editMenu: true };"
+	@"window.tesseraNative = { haptics: true, editMenu: true, shortcuts: true };"
 	@"window.webkit.messageHandlers.tesseraEditMenu.postMessage({ mode: 'none' });";
 static NSString *const TesseraHapticHandler = @"tesseraHaptic";
 static NSString *const TesseraEditMenuHandler = @"tesseraEditMenu";
+static NSString *const TesseraShortcutHandler = @"tesseraShortcut";
 static NSString *const TesseraEditMenuIdentifier = @"dev.tessera.edit-menu.highlight";
+// Info.plist's UIApplicationShortcutItems types; the page gets what follows.
+static NSString *const TesseraShortcutPrefix = @"dev.tessera.ios.";
 static const CGFloat TesseraDotDiameter = 18;
+
+// The quick action the page has not taken yet: capture, today, review or
+// library. A cold launch sets it before the page loads, so the page asks for
+// it; a running app also tells the page to ask.
+static NSString *TesseraPendingShortcut;
+static __weak WKWebView *TesseraShortcutWebView;
+
+static BOOL TesseraReceiveShortcut(UIApplicationShortcutItem *item) {
+	if (![item.type hasPrefix:TesseraShortcutPrefix]) {
+		return NO;
+	}
+	TesseraPendingShortcut = [item.type substringFromIndex:TesseraShortcutPrefix.length];
+	[TesseraShortcutWebView evaluateJavaScript:@"window.dispatchEvent(new Event('tessera-shortcut'))"
+		completionHandler:nil];
+	return YES;
+}
 
 static char TesseraBridgeKey;
 
@@ -90,7 +111,7 @@ static UIImage *TesseraDotImage(NSString *hex, NSString *label) {
 	return image;
 }
 
-@interface TesseraNativeBridge : NSObject <WKScriptMessageHandler>
+@interface TesseraNativeBridge : NSObject <WKScriptMessageHandler, WKScriptMessageHandlerWithReply>
 // Weak: the user content controller retains this handler, and the web view
 // retains the controller, so a strong reference back would be a cycle.
 @property(nonatomic, weak) WKWebView *webView;
@@ -118,8 +139,10 @@ static UIImage *TesseraDotImage(NSString *hex, NSString *label) {
 	// configuration reused for a second web view would hit.
 	[controller removeScriptMessageHandlerForName:TesseraHapticHandler];
 	[controller removeScriptMessageHandlerForName:TesseraEditMenuHandler];
+	[controller removeScriptMessageHandlerForName:TesseraShortcutHandler contentWorld:WKContentWorld.pageWorld];
 	[controller addScriptMessageHandler:bridge name:TesseraHapticHandler];
 	[controller addScriptMessageHandler:bridge name:TesseraEditMenuHandler];
+	[controller addScriptMessageHandlerWithReply:bridge contentWorld:WKContentWorld.pageWorld name:TesseraShortcutHandler];
 	return bridge;
 }
 
@@ -142,6 +165,54 @@ static UIImage *TesseraDotImage(NSString *hex, NSString *label) {
 	} else if ([message.name isEqualToString:TesseraEditMenuHandler]) {
 		[self updateEditMenu:message.body];
 	}
+}
+
+// The page's `take` answers with the pending quick action, or null, and clears
+// it. `{ keyboard: [x, y, width, height] }` raises the keyboard on the editor
+// in that rect: WebKit shows it for a script's focus only while the person is
+// touching the page, and a quick capture opens its editor straight from the
+// Home Screen. WebKit's text-input-context focus (Scribble's private entry
+// point) counts as that touch; without it the editor waits for a tap.
+- (void)userContentController:(WKUserContentController *)controller
+	didReceiveScriptMessage:(WKScriptMessage *)message
+	replyHandler:(void (^)(id reply, NSString *error))replyHandler {
+	if (!message.frameInfo.isMainFrame || ![message.name isEqualToString:TesseraShortcutHandler]) {
+		replyHandler(nil, nil);
+		return;
+	}
+	NSDictionary *body = [message.body isKindOfClass:[NSDictionary class]] ? message.body : nil;
+	NSArray *rect = [body[@"keyboard"] isKindOfClass:[NSArray class]] ? body[@"keyboard"] : nil;
+	if (rect) {
+		if (rect.count == 4) {
+			[self focusEditorInRect:CGRectMake([rect[0] doubleValue], [rect[1] doubleValue],
+				[rect[2] doubleValue], [rect[3] doubleValue])];
+		}
+		replyHandler(nil, nil);
+		return;
+	}
+	NSString *shortcut = TesseraPendingShortcut;
+	TesseraPendingShortcut = nil;
+	replyHandler(shortcut, nil);
+}
+
+// Focuses the first text input in `rect`, in web view points, with the caret
+// at its end. Both selectors are WKWebView's private Scribble API; a WebKit
+// without them leaves the editor focused and the keyboard down.
+- (void)focusEditorInRect:(CGRect)rect {
+	WKWebView *webView = self.webView;
+	SEL request = NSSelectorFromString(@"_requestTextInputContextsInRect:completionHandler:");
+	SEL focus = NSSelectorFromString(@"_focusTextInputContext:placeCaretAt:completionHandler:");
+	if (![webView respondsToSelector:request] || ![webView respondsToSelector:focus]) {
+		return;
+	}
+	CGPoint caret = CGPointMake(CGRectGetMaxX(rect) - 1, CGRectGetMidY(rect));
+	void (^found)(NSArray *) = ^(NSArray *contexts) {
+		id context = contexts.firstObject;
+		if (context) {
+			((void (*)(id, SEL, id, CGPoint, id))objc_msgSend)(webView, focus, context, caret, ^(id input) {});
+		}
+	};
+	((void (*)(id, SEL, CGRect, id))objc_msgSend)(webView, request, rect, found);
 }
 
 - (void)playHaptic:(id)kind {
@@ -322,6 +393,7 @@ static char TesseraScrollDelegateKey;
 	if (self) {
 		bridge.webView = self;
 		objc_setAssociatedObject(self, &TesseraBridgeKey, bridge, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+		TesseraShortcutWebView = self;
 		// The caret and selection handles take the web view's tint: gilt, the
 		// app's --accent (tokens.css), instead of the system blue.
 		self.tintColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traits) {
@@ -359,6 +431,59 @@ static char TesseraScrollDelegateKey;
 		self.scrollView.scrollsToTop = YES;
 	}
 	return self;
+}
+@end
+
+// A running app gets the quick action from its scene delegate, or from the app
+// delegate when the system runs it without scenes; a cold launch on scenes
+// gets it in the scene's connection options instead.
+static void TesseraAppPerformShortcut(id delegate, SEL selector, UIApplication *application,
+	UIApplicationShortcutItem *item, void (^completion)(BOOL)) {
+	completion(TesseraReceiveShortcut(item));
+}
+
+static void TesseraScenePerformShortcut(id delegate, SEL selector, UIWindowScene *scene,
+	UIApplicationShortcutItem *item, void (^completion)(BOOL)) {
+	completion(TesseraReceiveShortcut(item));
+}
+
+typedef void (*TesseraSceneConnectFunction)(id, SEL, UIScene *, UISceneSession *, UISceneConnectionOptions *);
+static TesseraSceneConnectFunction TesseraSceneConnectOriginal;
+
+static void TesseraSceneConnect(id delegate, SEL selector, UIScene *scene, UISceneSession *session,
+	UISceneConnectionOptions *options) {
+	if (options.shortcutItem) {
+		TesseraReceiveShortcut(options.shortcutItem);
+	}
+	TesseraSceneConnectOriginal(delegate, selector, scene, session, options);
+}
+
+@interface TesseraShortcuts : NSObject
+@end
+
+@implementation TesseraShortcuts
++ (void)load {
+	// tao declares its delegate classes (AppDelegate, TaoSceneDelegate) at run
+	// time. They exist once launching finishes, which is still before the first
+	// scene connects and before UIKit hands over a launch's quick action.
+	__block id observer = [NSNotificationCenter.defaultCenter
+		addObserverForName:UIApplicationDidFinishLaunchingNotification object:nil queue:nil
+		usingBlock:^(NSNotification *notification) {
+			[NSNotificationCenter.defaultCenter removeObserver:observer];
+			observer = nil;
+			Class app = [UIApplication.sharedApplication.delegate class];
+			class_addMethod(app, @selector(application:performActionForShortcutItem:completionHandler:),
+				(IMP)TesseraAppPerformShortcut, "v@:@@@?");
+			Class scene = NSClassFromString(@"TaoSceneDelegate");
+			class_addMethod(scene, @selector(windowScene:performActionForShortcutItem:completionHandler:),
+				(IMP)TesseraScenePerformShortcut, "v@:@@@?");
+			Method connect = class_getInstanceMethod(scene, @selector(scene:willConnectToSession:options:));
+			if (connect) {
+				TesseraSceneConnectOriginal = (TesseraSceneConnectFunction)method_getImplementation(connect);
+				class_replaceMethod(scene, @selector(scene:willConnectToSession:options:),
+					(IMP)TesseraSceneConnect, method_getTypeEncoding(connect));
+			}
+		}];
 }
 @end
 
