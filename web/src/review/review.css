@@ -173,6 +173,8 @@
   /* The large title scrolls with the page and settles into the nav bar as its inline title. */
   .review-scroll > .review-header { max-width: none; margin: 0; padding: var(--page-top-space) 0 var(--space-12); }
   .review-scroll > .review-header + * { margin-top: 0; }
+  /* An empty workshop has no large title, so its heading takes the title's place below the nav bar. */
+  .review-scroll > .review-empty { padding-top: var(--page-top-space); }
   .review-heading { min-height: 0; }
   .review-heading h1 { margin: 2px 0 0; font: var(--weight-title) 34px/40px var(--font-display); }
   .review-landing { gap: 0; }
