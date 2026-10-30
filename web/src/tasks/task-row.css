@@ -62,8 +62,8 @@
   .agenda-rows .agenda-row > .agenda-now::before { content: ''; position: static; flex: none; width: 6px; height: 6px; margin-right: -2px; border-radius: 3px; background: var(--accent); }
   .agenda-rows .agenda-row > .agenda-now > span, .agenda-rows li.agenda-now-end > span { position: static; color: var(--accent); font: var(--weight-body) 12px/16px var(--font-mono); }
   .agenda-rows .agenda-row > .agenda-now::after, .agenda-rows li.agenda-now-end::after { content: ''; flex: 1; height: 1px; background: color-mix(in srgb, var(--accent) 70%, transparent); }
-  .agenda-rows li.agenda-now-end { position: relative; display: flex; align-items: center; gap: 8px; height: 22px; margin: 4px var(--phone-gutter) 0; border: 0; color: var(--accent); }
-  .agenda-rows li.agenda-now-end::before { content: ''; flex: none; width: 6px; height: 6px; margin-right: -2px; border-radius: 3px; background: var(--accent); }
+  .agenda-rows li.agenda-now-end { position: relative; display: flex; align-items: center; gap: 8px; height: 22px; margin: 4px calc(var(--phone-gutter) - var(--row-bleed, var(--pane-inset))) 0; border: 0; color: var(--accent); }
+  .agenda-rows li.agenda-now-end::before { content: ''; position: static; flex: none; width: 6px; height: 6px; margin-right: -2px; border-radius: 3px; background: var(--accent); }
 
   /* The swipe: the face (check, text, time) follows --swipe-x; the actions wait behind it. */
   .agenda-rows .agenda-row > :is(.agenda-status, .agenda-row-text, .agenda-when) { translate: var(--swipe-x) 0; transition: translate var(--motion-ui) var(--motion-ease); }
