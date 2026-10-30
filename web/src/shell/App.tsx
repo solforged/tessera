@@ -53,6 +53,7 @@ import { installDisclosureMotion } from './disclosure';
 import { createRetained } from './retained';
 import { installOpenedFiles } from '../library/opened-files';
 import { installQuickCapture } from './quick-capture';
+import { installHomeShortcuts } from './home-shortcuts';
 import { opensBeside } from './beside';
 import { besideSlot, dividerRatio, insertPane, journalTurn, MAX_PANES, paneCapacity, revealedStart, windowStart } from './pane-row';
 import { blankCapture, createEvent } from '../create/request';
@@ -470,7 +471,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     setSessions(values => values[pane] && !values[pane].tab ? { ...values, [pane]: adoptPhoneTab(values[pane], tab, root) } : values);
   };
   let tabRequest = 0;
-  const selectPhoneTab = async (tab: PhoneTab) => {
+  /** A tab tap restores the tab's stack, or pops it when already there; `toRoot` always lands on the tab's root. */
+  const selectPhoneTab = async (tab: PhoneTab, toRoot = false) => {
     const pane = active(), request = ++tabRequest;
     pendingCaretInput.cancel(); const navigationRequest = cancelNavigation(pane); ++focusEpoch;
     await preparePhone(pane);
@@ -479,7 +481,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const session = sessions()[pane];
     if (!session) return;
     if (session.tab === tab && session.index === 0) { scrollPaneTop(); return; }
-    setSessions(values => ({ ...values, [pane]: passiveHistory(session.tab === tab ? popPhoneTab(session) : activatePhoneTab(session, tab, root)) }));
+    const switched = session.tab === tab ? popPhoneTab(session) : activatePhoneTab(session, tab, root);
+    setSessions(values => ({ ...values, [pane]: passiveHistory(toRoot ? popPhoneTab(switched) : switched) }));
     setSidebar(false);
   };
   createEffect(() => { if (cover() && navigationId()) for (const pane of order()) void preparePhone(pane).catch(reportError); });
@@ -864,6 +867,14 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   installOpenedFiles(() => navigationId() !== null, () => open({ kind: 'library', tab: 'inbox' }, false, order()[0]), reportError);
   // ⌘E, the desktop menu and global shortcut, and Android's launcher shortcuts and share sheet.
   installQuickCapture(() => navigationId() !== null, quickCreate);
+  // The iOS app icon's quick actions: capture like ⌘E, or show a tab from its top.
+  installHomeShortcuts(() => navigationId() !== null, shortcut => {
+    if (shortcut === 'capture') { quickCreate(blankCapture()); return; }
+    setPopup(null);
+    if (cover()) void selectPhoneTab(shortcut, true).catch(reportError);
+    else if (shortcut === 'today') void today().catch(reportError);
+    else open({ kind: shortcut });
+  });
   // Caret and scroll reports change navigation on most keystrokes; storage writes trail them off the input path.
   let navigationWrite: { key: string; value: unknown } | null = null;
   let navigationTimer = 0;

@@ -29,6 +29,41 @@
 		<string>arm64</string>
 		<string>metal</string>
 	</array>
+	<key>UIApplicationShortcutItems</key>
+	<array>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>dev.tessera.ios.capture</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Quick capture</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>square.and.pencil</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>dev.tessera.ios.today</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Today</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>sun.horizon</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>dev.tessera.ios.review</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Review</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>arrow.clockwise</string>
+		</dict>
+		<dict>
+			<key>UIApplicationShortcutItemType</key>
+			<string>dev.tessera.ios.library</string>
+			<key>UIApplicationShortcutItemTitle</key>
+			<string>Library</string>
+			<key>UIApplicationShortcutItemIconSymbolName</key>
+			<string>books.vertical</string>
+		</dict>
+	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

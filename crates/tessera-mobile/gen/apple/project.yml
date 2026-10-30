@@ -47,6 +47,20 @@ targets:
       properties:
         LSRequiresIPhoneOS: true
         NSCameraUsageDescription: Tessera scans the pairing code from your Mac.
+        # Home Screen quick actions; main.mm hands the chosen one to the page (docs/usage.md, "iOS app").
+        UIApplicationShortcutItems:
+          - UIApplicationShortcutItemType: dev.tessera.ios.capture
+            UIApplicationShortcutItemTitle: Quick capture
+            UIApplicationShortcutItemIconSymbolName: square.and.pencil
+          - UIApplicationShortcutItemType: dev.tessera.ios.today
+            UIApplicationShortcutItemTitle: Today
+            UIApplicationShortcutItemIconSymbolName: sun.horizon
+          - UIApplicationShortcutItemType: dev.tessera.ios.review
+            UIApplicationShortcutItemTitle: Review
+            UIApplicationShortcutItemIconSymbolName: arrow.clockwise
+          - UIApplicationShortcutItemType: dev.tessera.ios.library
+            UIApplicationShortcutItemTitle: Library
+            UIApplicationShortcutItemIconSymbolName: books.vertical
         UILaunchStoryboardName: LaunchScreen
         UIRequiredDeviceCapabilities: [arm64, metal]
         UISupportedInterfaceOrientations:
