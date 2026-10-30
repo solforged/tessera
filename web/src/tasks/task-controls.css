@@ -45,3 +45,19 @@
 .task-field-sheet :is(.task-field-value.button, .field-area-add, .menu-item, .input) { min-height: var(--touch-target); }
 .task-field-sheet .popup-inline { position: static; width: 100%; max-height: none; box-shadow: none; border: 0; }
 .task-field-sheet .task-field-footer { min-height: var(--touch-target); margin-top: var(--space-8); }
+
+/* On the phone the task glyph is the rounded check: a 22 pt square drawn inside its 44 pt target. Todo is an outline, in progress is
+   half filled, done is gilt with a tick; waiting and cancelled keep their glyph inside a quiet outline. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .task-status-button[data-status] { position: relative; width: 44px; min-height: 44px; margin-block: calc((var(--line-body) - 44px) / 2); padding: 0; }
+  .task-status-button[data-status]::before { content: ''; position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 6px; box-shadow: inset 0 0 0 1.5px currentColor; transition: background-color var(--motion-ui) var(--motion-ease); }
+  .task-status-button[data-status] > .icon { position: relative; width: 14px; height: 14px; stroke-width: 2; }
+  .task-status-button:is([data-status="todo"], [data-status="doing"]) > .icon { visibility: hidden; }
+  .task-status-button:is([data-status="waiting"], [data-status="cancelled"]) > .icon { width: 12px; height: 12px; stroke-width: 1.6; }
+  .task-status-button[data-status="todo"], .task-status-button[data-status="todo"]:hover:not(:disabled), .task-status-button[data-status="waiting"], .task-status-button[data-status="waiting"]:hover:not(:disabled) { color: var(--muted); }
+  .task-status-button[data-status="doing"], .task-status-button[data-status="doing"]:hover:not(:disabled) { color: var(--text); }
+  .task-status-button[data-status="doing"]::before { background: linear-gradient(135deg, transparent 50%, currentColor 50%); }
+  .task-status-button[data-status="done"] { color: var(--canvas); }
+  .task-status-button[data-status="done"]::before { background: var(--accent); box-shadow: none; }
+  .task-status-button[data-status="cancelled"] { color: var(--faint); }
+}

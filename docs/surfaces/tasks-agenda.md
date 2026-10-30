@@ -205,7 +205,7 @@ On the cover, a provenance tap opens the whole source page in Outline, scrolls t
 
 Planning facts follow provenance on the facts line in a fixed order: the plan (`since Fri 23`, `due Tuesday`), priority, repeat (`↻ every 3 days`), the project when provenance does not already name it, and logged work. They omit dates implied by a day group and a project the row already names as its provenance, and show a carried schedule only as `since 2026-10-06`, not also a second date. Earlier work on a future displayed day has no `since` prefix unless it is also before civil today.
 
-Below a 600 px pane width, Day, Week ledger and [Plan](journal.md#plan) rows drop the time gutter and the trailing slot. A timed row's clock leads its facts line in mono, and the calendar button sits at the right of the title line. One-line Plan and Day titles fit in a row under 72 px on touch. Calendar actions keep 44 px touch targets. Wider touch rows and their completion/source controls remain at least 44 px high. The cover's content insets are equal.
+Below a 600 px pane width, Day, Week ledger and [Plan](journal.md#plan) rows drop the time gutter and the trailing slot. A timed row's clock leads its facts line in mono, and the calendar button sits at the right of the title line. One-line Plan and Day titles fit in a row under 72 px on touch. Calendar actions keep 44 px touch targets. Wider touch rows and their completion/source controls remain at least 44 px high. The cover's content insets are equal. On a phone (a coarse pointer under 600 px of screen) the row is the [phone row](#on-a-phone) instead.
 
 The whole row takes the hover fill and long task text clamps at two lines. Planning uses the same facts as outline rows, with late facts in `--danger` and deadline warnings in `--warning`.
 
@@ -220,7 +220,7 @@ The keyboard stays in the list: when the row that holds focus, or the picker it 
 Planned rows reschedule without dragging:
 
 - On fine pointers, Today, Tomorrow and Pick a date appear in the row's reserved trailing slot only while the row is hovered or has keyboard focus. They are 28 × 24 px icon buttons (a sun, an arrow and a calendar) whose tooltips name the action and its key, and each is omitted when it would change nothing. They appear without a fade, and since the slot is reserved and provenance sits on the facts line, nothing moves or hides. Tab reaches the actions.
-- On touch or in a pane under 600 px only the calendar button shows, always, at the right of the title line.
+- In a pane under 600 px on a pointer that is not a phone only the calendar button shows, always, at the right of the title line. A phone swipes the row or long-presses it instead; see [On a phone](#on-a-phone).
 
 | Focused-row key | Action |
 |---|---|
@@ -234,6 +234,20 @@ Planned rows reschedule without dragging:
 Date-only moves keep the time, deadline and repeat, and keep the keyboard on the next row when the task leaves the list. The picker also edits time, including a same-day change; clearing its time makes the task all-day. An inline date/time updates the time field, and editing that field normalizes the date to avoid competing clocks.
 
 Untimed work leads each day, followed by timed rows in chronological order regardless of status. On today, elapsed clocks sit above a gilt now rule that starts from a gilt dot; future clocks follow below it. Past work recedes to `--muted`; work in progress keeps its status appearance. The now rule belongs only to timed work and is omitted when there are no clocks.
+
+### On a phone
+
+A phone's task row is a list row that spans the screen: a 22 pt rounded check in a 44 pt target, the title in Plex 17 / 24 clamped after three lines, then the facts line in Plex 14 / 18 in `--muted`. Its parts never split and are parted by a faint middle dot; a page name that cannot fit takes an ellipsis, so the line stays one line. A hairline runs from the text's left edge to the screen's right between neighbours. Nothing greys for being past: the gilt now rule, a dot at the gutter then the clock in mono, says where the day is.
+
+The check is an outline when todo, half filled when in progress, gilt with a tick when done, and keeps its glyph inside a quiet outline when waiting or cancelled. The right-hand column is the task's clock in mono `--muted`. An overdue task says the day it was planned for there as a word (`Yesterday`, `Tue`) in `--danger`, and its facts line leaves that day out. Hover actions, the calendar button and the time gutter are gone, and priority is plain text.
+
+A row swipes. A horizontal drag locks its axis in the first few points, so a vertical scroll never moves a row, and a drag that starts in the screen's left 24 px stays the system's back gesture. Dragging right grows Done from the left edge; past the threshold it fills with gilt, and releasing completes the task, with a light haptic as the threshold is crossed in either direction. Dragging left opens Pick date and Tomorrow (Tomorrow is left out when the task is already tomorrow); a full pull commits Tomorrow and the row slides away. A row left open rests open, and a tap on its face closes it without opening the source. Finished and historical rows do not swipe, and rows outside a plan list (Tasks results) swipe to Done only.
+
+A long press lifts the row and opens its context menu: Done, Tomorrow, Pick date…, Move to…, Status, Priority and Open. Tomorrow, Pick date… and Move to… belong to plan lists, as the swipe's buttons do; a finished task offers Reopen in place of the first four. Pick date… opens the date picker. Move to… opens a sheet headed Move to with the task's words beneath: Today, Tomorrow, This weekend (Monday to Thursday only), Next week (a Monday that is not tomorrow) and Pick a date, each day with its weekday and date, the task's current day in gilt, and `Keeps its time, 09:00` beneath when the task has a clock. A day moves the task, keeping its time, deadline and repeat; Pick a date opens the date picker. The swipe's Pick date opens this same sheet.
+
+Every move from a phone row leaves a `Moved to Friday` notice (`today`, a weekday within six days, else `Nov 9`) with Undo for four seconds. Undo restores the whole plan, as for desktop reschedules.
+
+`attachRowSwipe` in `tasks/row-swipe.ts` owns the gesture as a pure model (`lockAxis`, `swipeOffset`, `commitAt`, `releaseSwipe`) plus its pointer wiring; it sets `--swipe-x` on the row and `data-swiping`, `data-swipe-open` and `data-swipe-commit` for the CSS. `moveChoices`, `movedWhen` and `shortDay` in `tasks/reschedule.ts` name the sheet's days and the notice's words.
 
 ### Groups
 

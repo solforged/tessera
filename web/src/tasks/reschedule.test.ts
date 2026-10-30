@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'bun:test';
 import type { Block, Committed, Operation, TaskRow, TaskState } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { movableTo, rescheduleTasks } from './reschedule';
+import { movableTo, movedWhen, moveChoices, rescheduleTasks, shortDay } from './reschedule';
 
 const task: TaskState = {
   status: 'waiting', scheduled: '2026-10-11', scheduled_time: '19:00',
@@ -97,5 +97,34 @@ describe('agenda rescheduling', () => {
     expect(movableTo([original], task.scheduled!)).toEqual([]);
     expect(movableTo([original], task.scheduled!, '14:30')).toEqual([original]);
     expect(movableTo([original], task.scheduled!, null)).toEqual([original]);
+  });
+});
+
+describe('the Move to sheet', () => {
+  const days = (today: string) => moveChoices(today).map(choice => `${choice.id} ${choice.date}`);
+
+  test('offers today, tomorrow, the coming Saturday and next Monday on a weekday', () => {
+    expect(days('2026-10-29')).toEqual(['today 2026-10-29', 'tomorrow 2026-10-30', 'weekend 2026-10-31', 'next-week 2026-11-02']);
+    expect(days('2026-10-26')).toEqual(['today 2026-10-26', 'tomorrow 2026-10-27', 'weekend 2026-10-31', 'next-week 2026-11-02']);
+  });
+
+  test('never lists a day twice, so Friday folds the weekend into tomorrow and Sunday the Monday', () => {
+    expect(days('2026-10-30')).toEqual(['today 2026-10-30', 'tomorrow 2026-10-31', 'next-week 2026-11-02']);
+    expect(days('2026-10-31')).toEqual(['today 2026-10-31', 'tomorrow 2026-11-01', 'next-week 2026-11-02']);
+    expect(days('2026-11-01')).toEqual(['today 2026-11-01', 'tomorrow 2026-11-02']);
+  });
+
+  test('says where a move landed: today, a weekday inside the week, else a date', () => {
+    expect(movedWhen('2026-10-29', '2026-10-29')).toBe('today');
+    expect(movedWhen('2026-10-30', '2026-10-29')).toBe('Friday');
+    expect(movedWhen('2026-11-04', '2026-10-29')).toBe('Wednesday');
+    expect(movedWhen('2026-11-05', '2026-10-29')).toBe('Nov 5');
+    expect(movedWhen('2026-10-28', '2026-10-29')).toBe('Oct 28');
+    expect(movedWhen('2027-01-04', '2026-10-29')).toBe('Jan 4, 2027');
+  });
+
+  test('labels a sheet row with its weekday and date', () => {
+    expect(shortDay('2026-10-30', '2026-10-29')).toBe('Fri, Oct 30');
+    expect(shortDay('2027-01-04', '2026-10-29')).toBe('Mon, Jan 4, 2027');
   });
 });
