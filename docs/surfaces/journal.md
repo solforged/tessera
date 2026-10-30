@@ -57,7 +57,7 @@ Each request opens the creation slip on its kind: Atom and Task into the capture
 
 ## Journal dates
 
-Journal days present a spoken date such as Tuesday, October 13 beneath a short apparatus period trail that runs from week to year: `Week 42 · October · 2026`. On today's journal the trail leads with `Today` in gilt, which is not a control. A bordered group of Previous day, calendar and Next day buttons sits at the title's right edge; the calendar button toggles the month ledger. Agenda's Day heading speaks dates the same way (`Tuesday, October 13, 2026`). Backlink rubrics and compact dates use the shared `relativeDate` civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's.
+Journal days present a spoken date such as Tuesday, October 13 beneath a short apparatus period trail that runs from week to year: `Week 42 · October · 2026`. On today's journal the trail leads with `Today` in gilt, which is not a control. A bordered group of Previous day, calendar and Next day buttons sits at the title's right edge; the calendar button toggles the month ledger. A phone has no such group: the calendar circle in the nav bar opens the day picker and the title swipes between days, as [Today on a phone](#today-on-a-phone) describes. Agenda's Day heading speaks dates the same way (`Tuesday, October 13, 2026`). Backlink rubrics and compact dates use the shared `relativeDate` civil-date rule: `today`, `tomorrow` and `yesterday`, the weekday within six days either side, then the month and day, with the year outside today's.
 
 The latest navigation request wins in its pane. Previous and next step from a pending journal date, and a superseded lookup does not create a missing journal. Before a new journal root is committed, missing reference reads show quiet zero counts rather than unavailable sections; successful reads still show real backlinks, and related sections refresh when the root becomes committed.
 
@@ -192,7 +192,7 @@ Notes holds the root-level atoms outside the other written sections, in outline 
 
 Each tile is one bordered button that opens its destination; no tile folds content open beneath it. Desktop and unfolded Today tiles share one height, enough for the tallest loaded Reading content including the book map, and grow with their content. Their placeholders keep the same height. The three desktop tiles reserve their loaded height while requests show quiet placeholders.
 
-Each tile has its label in the apparatus in `--faint`, a figure at 24 px with a word in `--muted`, and one detail line at 12.5 px. A journal narrower than 640 px keeps the three tiles in one row: label, figure or short title, and the detail line; the Reading tile drops its cover and book map there.
+Each tile has its label in the apparatus in `--faint`, a figure at 24 px with a word in `--muted`, and one detail line at 12.5 px. A journal narrower than 640 px keeps the three tiles in one row: label, figure or short title, and the detail line; the Reading tile drops its cover and book map there. A phone shows no tiles; its [digest](#today-on-a-phone) replaces them.
 
 #### Agenda tile
 
@@ -212,6 +212,19 @@ Reading continues the most recently read EPUB still in Reading, with:
 - Segmented [BookMap](reader.md#book-map) with real highlight marks.
 
 Front matter and unresolved contents use whole-book time left instead of inventing a chapter. A coarse pointer at 900 px or wider opens the book beside the journal.
+
+### Today on a phone
+
+On a phone Today is the large-title page of the [phone shell](../design.md): the nav bar carries Index, the calendar circle and the New and ··· capsule, and the day reads as a large title that moves into the nav bar's inline title once it scrolls away. The tiles give way to a digest, Plan is a plain head and the sections the day has not written yet collapse to one line.
+
+- **Title.** The apparatus trail (`Today · Week 44 · 2026`) sits above the day at 34 px in Piazzolla. There is no boxed day stepper and no period segment on the trail unless a period ledger is open. A mostly sideways swipe of at least 56 px on the title changes the day, a swipe left to the next day and right to the previous; vertical drags still scroll, and a swipe that starts within 24 px of the screen's left edge is left to the system back gesture.
+- **Digest.** One list group of up to two rows: `9 due` with `Start the due queue` or `All caught up`, which starts the due queue, and the book in progress with its cover, the short title in italic Piazzolla and `Reading · 9 min left`. A row appears only when its tile is switched on in Settings › Today; the Agenda tile has no phone row because Plan is the agenda.
+- **Plan.** `Plan` at 24 px with the count at the right edge in prose (`4 today`, or `Nothing planned`). It does not fold and has no Open agenda action; the Agenda tab is the way to the rest. Task rows are the shared [task rows](tasks-agenda.md#rows), and the now rule stays among them.
+- **Carried over.** A neutral leaf: `2 carried over` in `--danger` alone, up to three carried titles each whole on their own line then `and N more`, and one tint Move to today button. Tapping the leaf's text opens or closes the carried rows under it; Move to today moves them all with the same Undo line.
+- **Add to.** Written sections the day has no heading for yet (Inbox, Reading) are one line, `Add to` and a capsule for each. A capsule opens that section's inline capture in place and focuses it; leaving it empty puts the capsule back. Typing writes the heading with the first entry as [written sections](#written-sections) describes. Notes sits under it, with its head at 24 px and no rule.
+- **Notes.** Notes nest by 24 px, the bullet sits in the text's gutter, and the day's last empty row reads `Write a note…`. A task block's plan reads `Today 17:30`: the day in faint prose and the clock in mono.
+
+The day picker is the calendar circle. It opens a sheet, Go to a day, holding the [month grid](../design.md) for the shown month and a Yesterday, Today, Tomorrow segmented control; choosing a day or one of the three closes the sheet and opens that journal. The grid shows each day's open task count under its numeral, in `--danger` for days already past, with the week of the shown day in a pill band and a legend of the month's overdue and open totals. Month arrows page the grid without changing the day.
 
 ## Touch outline
 

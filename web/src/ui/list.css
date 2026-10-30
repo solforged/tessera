@@ -16,6 +16,7 @@ button:is(.list-row, .property-row):disabled { opacity: .45; }
 .list-row.danger { color: var(--danger); }
 .list-row > .icon { flex: none; width: 20px; height: 20px; color: var(--muted); stroke-width: 1.3; }
 .list-row.danger > .icon { color: inherit; }
+.list-row-lead { display: grid; flex: none; place-items: center; }
 .list-row-text { flex: 1; min-width: 0; padding-block: var(--space-8); }
 .list-row-label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .list-row-thing { font: var(--weight-display-heading) 18px/24px var(--font-display); font-optical-sizing: auto; }

@@ -20,8 +20,41 @@
 .month-grid-day.selected .month-grid-deadline { border-color: var(--canvas); }
 .month-grid-planning-key { display: flex; align-items: center; justify-content: center; gap: var(--space-12); min-height: var(--line-meta); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 .month-grid-key-item { display: inline-flex; align-items: center; gap: var(--space-4); }
+/* The phone's parts of the grid; a desktop popup draws none of them. */
+.month-grid-weekday-long, .month-grid-week, .month-grid-count, .month-grid-summary { display: none; }
 
 @media (pointer: coarse) {
   .month-grid-day, .month-grid-header .button { min-height: var(--touch-target); }
   .month-grid-header .button { min-width: var(--touch-target); }
+}
+
+/* The phone's month (the day picker): quiet circles for the month arrows, caps weekdays, 56 pt days with their open count
+   under them, the week being read on a soft band, and the chosen day in the gilt ring. Overdue is the grid's only colour. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .month-grid { gap: 0; }
+  .month-grid-header { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; padding: 2px 0 4px; }
+  .month-grid-header strong { text-align: center; font: var(--weight-display-heading) 22px/28px var(--font-display); }
+  .month-grid-header .button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 22px; background: var(--ink-wash); box-shadow: none; }
+  .month-grid-header .button:is(:hover, :active):not(:disabled) { background: var(--ink-wash); border-color: transparent; box-shadow: none; }
+  .month-grid-header .button:active:not(:disabled) { background: color-mix(in srgb, var(--text) 14%, transparent); }
+  .month-grid-header .button > .icon { width: 18px; height: 18px; stroke-width: 1.5; }
+  .month-grid-days { position: relative; grid-template-rows: auto; grid-auto-rows: 56px; gap: 0; }
+  .month-grid-weekday { padding: 6px 0 2px; font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
+  .month-grid-weekday-short { display: none; }
+  .month-grid-weekday-long { display: inline; }
+  .month-grid-week { display: block; position: absolute; grid-column: 1 / -1; inset: 0 -6px; border-radius: 28px; background: var(--ink-wash); pointer-events: none; }
+  .month-grid-day, .month-grid-day:hover:not(:disabled), .month-grid-day[aria-current="date"], .month-grid-day.selected { position: relative; z-index: 1; display: grid; justify-items: center; align-content: center; height: 56px; min-height: 56px; border-radius: 0; background: transparent; box-shadow: none; color: var(--text); font-weight: var(--weight-body); }
+  .month-grid-day.month-grid-spill { display: none; }
+  .month-grid-numeral { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 19px; font: inherit; font-size: 17px; line-height: 22px; font-variant-numeric: tabular-nums; }
+  .month-grid-outside .month-grid-numeral { color: var(--faint); opacity: .7; }
+  .month-grid-day:active:not(:disabled) .month-grid-numeral { background: var(--ink-wash); }
+  .month-grid-day[aria-current="date"] .month-grid-numeral { color: var(--accent); font-weight: var(--weight-heading); }
+  .month-grid-day.selected .month-grid-numeral { background: color-mix(in srgb, var(--accent) 14%, var(--leaf)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 var(--lit-edge), 0 1px 2px var(--contact-shadow); color: var(--accent); font-weight: var(--weight-heading); }
+  .month-grid-count { display: block; position: absolute; bottom: 0; left: 0; right: 0; text-align: center; color: var(--muted); font: var(--weight-body) 10.5px/12px var(--font-mono); font-variant-numeric: tabular-nums; pointer-events: none; }
+  .month-grid-count.month-grid-overdue { color: var(--danger); }
+  .month-grid-markers { bottom: var(--space-2); }
+  .month-grid-summary { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 16px; padding: 10px 20px 4px; color: var(--faint); font: var(--weight-body) 13px/16px var(--font-body); }
+  .month-grid-figure { color: var(--muted); font: var(--weight-body) 11.5px/16px var(--font-mono); font-variant-numeric: tabular-nums; }
+  .month-grid-summary .month-grid-overdue .month-grid-figure { color: var(--danger); }
+  .calendar-quick { margin: 12px 4px 6px; }
 }

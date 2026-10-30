@@ -13,6 +13,8 @@ import { RunningClock, workDuration } from '../tasks/WorkSessions';
 import { isFinished, taskFacts } from '../tasks/task-labels';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
+import { isPhone } from '../ui/phone';
+import { ClockFigure } from '../tasks/Figures';
 import { BlockText } from './BlockText';
 import { plainText, tagLabel } from './names';
 import { titleKey } from '../document/title-key';
@@ -101,7 +103,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
       <Show when={!isFinished(value())} fallback={<For each={facts()}>{fact => <span class="outline-task-facts" title={fact.label}>{fact.text}</span>}</For>}>
         <Button class={`outline-planning outline-task-facts${facts().length ? '' : ' outline-plan-empty'}${advanced() ? ' outline-task-advanced' : ''}`} label={facts().length ? `Plan task: ${facts().map(fact => fact.label).join(', ')}` : 'Plan task'} disabled={capabilities.busy(propsTask.id)} aria-haspopup="dialog" onClick={event => capabilities.open(propsTask.id, 'task', event.currentTarget)}>
           <Show when={facts().length} fallback={<><Icon name="calendar" />Plan</>}>
-            <For each={facts()}>{fact => <span onClick={event => { event.stopPropagation(); capabilities.open(propsTask.id, fact.field, event.currentTarget); }}><Show when={fact.priority} fallback={<span classList={{ 'outline-task-late': !!fact.late, 'outline-task-warning': !!fact.warning }} title={fact.label}>{fact.text}</span>}>{priority => <span class="outline-task-priority" data-priority={priority()} title={fact.label}>{fact.text}</span>}</Show></span>}</For>
+            <For each={facts()}>{fact => <span onClick={event => { event.stopPropagation(); capabilities.open(propsTask.id, fact.field, event.currentTarget); }}><Show when={fact.priority} fallback={<span classList={{ 'outline-task-late': !!fact.late, 'outline-task-warning': !!fact.warning }} title={fact.label}><ClockFigure text={fact.text} /></span>}>{priority => <span class="outline-task-priority" data-priority={priority()} title={fact.label}>{fact.text}</span>}</Show></span>}</For>
           </Show>
         </Button>
       </Show>
@@ -177,6 +179,8 @@ export function createOutlineRows(context: Pick<OutlineContext,
     const captureTime = () => journal()?.times.get(id());
     const inboxRow = () => !!journal()?.inbox.has(id());
     const readingSource = () => journal()?.reading.get(id());
+    // A journal's last blank root row invites a note on a phone, as the Today plate draws it.
+    const journalGhost = () => journal() && isPhone() && !block()?.text && doc.outline.parentOf(id()) === props.pageId && doc.outline.children(props.pageId).at(-1) === id() ? 'Write a note…' : undefined;
     // A captured link reads as a link: one bare or titled web address.
     const linkRow = () => /^(?:https?:\/\/\S+|\[[^\]\r\n]+\]\(https?:\/\/[^\s)]+\))$/i.test(block()?.text.trim() ?? '');
     /** An Inbox link's site, shown after its title. */
@@ -347,7 +351,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
         </figure>}</Show>
         <div class="outline-source-line">
         <Show when={block()?.relation}>{relation => <span class="relation-label">{relationLabels[relation().kind]}<Show when={relation().problem}>{problem => <span class="relation-problem" role="img" aria-label={problem()} title={problem()}><Icon name="warning" /></span>}</Show></span>}</Show>
-        <div class="outline-source" data-placeholder={propsRow.placeholder}>
+        <div class="outline-source" data-placeholder={propsRow.placeholder ?? journalGhost()}>
         <div class="editor-host" classList={{ 'host-active': editing() === id() }} ref={host => attach(id(), host)} />
         <Show when={editing() !== id() && (!block()?.image || !!block()?.text)}><Switch>
           <Match when={target()}><Quote id={id()} target={target()!} doc={doc} notebook={props.notebook} status={quoteStatus().get(id())} onOpen={props.onOpen} /></Match>
