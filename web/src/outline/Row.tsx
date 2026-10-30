@@ -19,7 +19,6 @@ import { ClockFigure } from '../tasks/Figures';
 import { BlockText } from './BlockText';
 import { plainText, tagLabel } from './names';
 import { typeHue } from './pill-hue';
-import { isPhone } from '../ui/phone';
 import { calendarDate } from '../tasks/relative-date';
 import { titleKey } from '../document/title-key';
 import { TypePill } from './references';

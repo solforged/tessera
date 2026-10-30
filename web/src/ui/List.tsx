@@ -20,7 +20,7 @@ export function ListGroup(props: {
 }) {
   return <section class={`list-group${props.class ? ` ${props.class}` : ''}`}>
     <Show when={props.label || props.action}><header class="list-label"><span>{props.label}</span>{props.action}</header></Show>
-    <div class="list-leaf leaf" role="list">{props.children}</div>
+    <div class="list-leaf leaf">{props.children}</div>
     <Show when={props.footnote}><p class="list-foot">{props.footnote}</p></Show>
   </section>;
 }
@@ -45,7 +45,7 @@ export interface ListRowProps {
   /** The row pushes another screen: it ends in a chevron and is a button. */
   push?: boolean;
   /** Makes the row a button. */
-  onClick?(event: MouseEvent): void;
+  onClick?(event: MouseEvent & { currentTarget: HTMLButtonElement }): void;
   /** Destructive rows are in the danger colour. */
   danger?: boolean;
   disabled?: boolean;
@@ -71,8 +71,8 @@ export function ListRow(props: ListRowProps) {
     <Show when={local.push}><span class="list-chev"><Icon name="right" /></span></Show>
   </>;
   const classes = () => `list-row${local.danger ? ' danger' : ''}${local.class ? ` ${local.class}` : ''}`;
-  return <Show when={local.push || local.onClick} fallback={<div role="listitem" class={classes()}>{body()}</div>}>
-    <button type="button" role="listitem" {...rest} class={classes()} aria-label={local.label} disabled={local.disabled} onClick={event => local.onClick?.(event)}>{body()}</button>
+  return <Show when={local.push || local.onClick} fallback={<div class={classes()}>{body()}</div>}>
+    <button type="button" {...rest} class={classes()} aria-label={local.label} disabled={local.disabled} onClick={event => local.onClick?.(event)}>{body()}</button>
   </Show>;
 }
 
@@ -81,7 +81,7 @@ export function PropertyRow(props: {
   label: JSX.Element;
   /** The value; a row with an onClick is a button that edits it. */
   children?: JSX.Element;
-  onClick?(event: MouseEvent): void;
+  onClick?(event: MouseEvent & { currentTarget: HTMLButtonElement }): void;
   class?: string;
   /** Names the control when the row is a button. */
   'aria-label'?: string;
@@ -91,7 +91,7 @@ export function PropertyRow(props: {
     <span class="property-value">{props.children}</span>
   </>;
   const classes = () => `property-row${props.class ? ` ${props.class}` : ''}`;
-  return <Show when={props.onClick} fallback={<div role="listitem" class={classes()}>{body()}</div>}>
-    <button type="button" role="listitem" class={classes()} aria-label={props['aria-label']} onClick={event => props.onClick?.(event)}>{body()}</button>
+  return <Show when={props.onClick} fallback={<div class={classes()}>{body()}</div>}>
+    <button type="button" class={classes()} aria-label={props['aria-label']} onClick={event => props.onClick?.(event)}>{body()}</button>
   </Show>;
 }

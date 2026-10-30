@@ -5,7 +5,7 @@ import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
-import { showNotice } from '../ui/Notice';
+import { showMovedNotice } from './moved-notice';
 import { isPhone } from '../ui/phone';
 import { movableTo, rescheduleTasks } from './reschedule';
 import type { Rescheduled } from './reschedule';
@@ -39,11 +39,7 @@ export function createBulkMove(notebook: NotebookClient, onChanged: () => void):
     void rescheduleTasks(notebook, rows, date, `Move ${count} ${count === 1 ? 'task' : 'tasks'} to ${when}`)
       .then(result => {
         if (!result) restore();
-        else if (phone) showNotice({
-          text: `Moved ${result.count} ${result.count === 1 ? 'task' : 'tasks'} to ${when}`,
-          action: { label: 'Undo', run: async () => { await result.undo(); onChanged(); } },
-          onError: fail,
-        });
+        else if (phone) showMovedNotice({ moved: result, date, today: notebook.todayDate(), onUndone: onChanged });
         else setMoved({ label: `Moved ${result.count} to ${when}`, result, ids });
         onChanged();
       }, reason => { restore(); fail(reason); })
