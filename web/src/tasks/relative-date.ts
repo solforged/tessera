@@ -1,4 +1,4 @@
-import { journalWeek } from './journal-date';
+import { journalBarTitle, journalWeek } from './journal-date';
 
 /**
  * Every list that names a day says it one way, measured from civil today: today, yesterday and tomorrow; the weekday
@@ -30,6 +30,15 @@ export function relativeDate(date: string, today: string): string {
   if (days === -1) return 'yesterday';
   if (Math.abs(days) <= 6) return weekdays[noon(date).getUTCDay()]!;
   return calendarDate(date, today);
+}
+
+/** A journal day named the way a phone's lists name it: Today, Yesterday, Tomorrow, the weekday in full within six days, then `Oct 2`. */
+export function journalLabel(date: string, today: string): string {
+  const days = daysBetween(today, date);
+  if (days === 0) return 'Today';
+  if (days === -1) return 'Yesterday';
+  if (days === 1) return 'Tomorrow';
+  return Math.abs(days) <= 6 ? journalBarTitle(date).title : calendarDate(date, today);
 }
 
 /** The civil date of a timestamp in `zone`, or this device's zone while the notebook has none. */

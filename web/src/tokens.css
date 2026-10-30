@@ -288,6 +288,7 @@
     --phone-tabbar-top: calc(var(--phone-tabbar-bottom) + var(--phone-tabbar-height));
     --page-top-space: calc(var(--phone-top) + var(--space-12));
     --page-bottom-space: calc(var(--phone-tabbar-top) + var(--space-32));
+    --phone-title-font: var(--weight-title) 34px/40px var(--font-display); /* a large title on a phone: the plates' 34 pt Piazzolla */
   }
   :root[data-theme="light"] {
     --glass-fill: color-mix(in srgb, var(--raised) 60%, transparent);

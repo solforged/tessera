@@ -100,3 +100,9 @@ export function createPageIcon(notebook: NotebookClient, block: Accessor<Block>,
     return format === undefined ? 'page' : format === 'article' ? 'article' : 'book';
   };
 }
+
+/** Whether a page is a work: a source, whose name is set in italics wherever it is named. Reads the same shared Sources index as page icons. */
+export function createWorkTest(notebook: NotebookClient): (pageId: string) => boolean {
+  const formats = sourceFormats(notebook);
+  return pageId => formats()?.has(pageId) ?? false;
+}

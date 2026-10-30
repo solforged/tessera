@@ -18,6 +18,9 @@ import { Icon } from '../ui/Icon';
 import { ClockFigure } from '../tasks/Figures';
 import { BlockText } from './BlockText';
 import { plainText, tagLabel } from './names';
+import { typeHue } from './pill-hue';
+import { isPhone } from '../ui/phone';
+import { calendarDate } from '../tasks/relative-date';
 import { titleKey } from '../document/title-key';
 import { TypePill } from './references';
 import { isCapabilityTag } from './capabilities';
@@ -150,7 +153,9 @@ export function createOutlineRows(context: Pick<OutlineContext,
       } catch (reason) { setMessage(reason instanceof Error ? reason.message : String(reason)); }
     };
     const checked = () => valueProps.field.kind === 'checkbox' && text().trim() ? checkboxValue(text()) : null;
-    return <span class="outline-value-cell" data-value-kind={valueProps.field.kind}>
+    // A phone reads a date in prose, the way every list names a day; the editor still opens on the stored date.
+    const day = () => isPhone() && valueProps.field.kind === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(text().trim()) ? calendarDate(text().trim(), props.notebook.todayDate()) : undefined;
+    return <span class="outline-value-cell" data-value-kind={valueProps.field.kind} style={isPhone() ? { '--pill-hue': typeHue(text()) } : undefined}>
       <Show when={checked() !== null} fallback={<>
         <button type="button" class={!text().trim() ? 'field-empty-value' : valueProps.field.kind === 'choice' || valueProps.field.kind === 'instance' ? 'outline-value-pill text-button' : 'outline-value-text'}
           classList={{ 'outline-reading-problem': !!problem() }} title={problem()} aria-label={target() ? `Open ${label()}` : `${text().trim() ? 'Edit' : 'Add'} ${valueProps.field.name} value`}
@@ -158,7 +163,7 @@ export function createOutlineRows(context: Pick<OutlineContext,
           onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }}
           onKeyDown={event => { if (event.key === 'F2') { event.preventDefault(); event.stopPropagation(); edit(event.currentTarget); } }}
           onClick={event => { event.stopPropagation(); if (target()) void open(opensBeside(event)); else edit(event.currentTarget); }}>
-          <Show when={text().trim()} fallback={<span class="field-slot-add">Add…</span>}><BlockText text={text()} notebook={props.notebook} citationApparatus={fieldRole(valueProps.field) === 'citation'} interactive={false} /></Show>
+          <Show when={text().trim()} fallback={<span class="field-slot-add">Add…</span>}>{day() ?? <BlockText text={text()} notebook={props.notebook} citationApparatus={fieldRole(valueProps.field) === 'citation'} interactive={false} />}</Show>
         </button>
         <Show when={target()}><button type="button" class="outline-value-edit icon-button" aria-label={`Edit ${valueProps.field.name} value`} title={`Edit ${valueProps.field.name} value (F2)`} aria-haspopup="dialog"
           onMouseDown={event => { event.preventDefault(); event.stopPropagation(); }} onClick={event => { event.stopPropagation(); edit(event.currentTarget); }}><Icon name="edit" /></button></Show>

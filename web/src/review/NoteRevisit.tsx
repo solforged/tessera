@@ -5,6 +5,8 @@ import { DatePicker } from '../tasks/DatePicker';
 import { Button } from '../ui/Button';
 import { Menu } from '../ui/Menu';
 import { changeRevisit, workingNote } from './revisits';
+import { calendarDate } from '../tasks/relative-date';
+import { isPhone } from '../ui/phone';
 import './revisits.css';
 
 export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
@@ -46,8 +48,10 @@ export function NoteRevisit(props: { id: string; notebook: NotebookClient }) {
     finally { setBusy(false); }
   }
   const due = () => !note().resolved_at && !!date() && date()! <= props.notebook.todayDate();
+  // On a phone Revisit is a tint capsule with its glyph, and its date reads in prose.
+  const phone = isPhone();
   return <span class="note-revisit">
-    <Button disabled={busy()} aria-haspopup="menu" data-due={due() ? '' : undefined} onClick={event => setMenu(event.currentTarget)}>{note().resolved_at ? 'Resolved' : date() ? `Revisit ${date()}` : 'Revisit'}</Button>
+    <Button kind={phone ? 'tint' : undefined} icon={phone ? 'history' : undefined} disabled={busy()} aria-haspopup="menu" data-due={due() ? '' : undefined} onClick={event => setMenu(event.currentTarget)}>{note().resolved_at ? 'Resolved' : date() ? `Revisit ${phone ? calendarDate(date()!, props.notebook.todayDate()) : date()}` : 'Revisit'}</Button>
     <Show when={changed()}><span>Changed after resolution</span></Show>
     <Show when={history()}><Button disabled={busy()} onClick={() => { void travel(); }}>{undone() ? 'Redo revisit' : 'Undo revisit'}</Button></Show>
     <Show when={error()}><span class="error" role="alert">{error()}</span></Show>

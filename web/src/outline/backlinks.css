@@ -53,3 +53,30 @@
 @media (pointer: coarse) {
   .collection-source.button, .backlink-group-heading > .button, .related-section > summary.related-section-heading { min-height: var(--touch-target); }
 }
+
+/* On a phone backlinks are leaves grouped by source: the source's name and count at the head, then one 44 pt row per mention with
+   the mention in gilt and a chevron, and no expanders or open-beside glyphs. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .related-sections > .backlinks-section > summary.related-section-heading { min-height: 0; padding: 30px var(--space-16) var(--space-8); font: var(--weight-control) 13px/16px var(--font-body); letter-spacing: normal; }
+  .related-sections > .backlinks-section > summary > :is(.section-rule, .icon) { display: none; }
+  .related-sections > .backlinks-section > summary > .related-section-name { flex: 1; }
+  .related-sections > .backlinks-section > summary > .related-section-count { color: var(--faint); font: var(--figures); }
+  .backlinks-section .backlink-group { margin-bottom: var(--space-12); padding: 0; overflow: hidden; border-radius: var(--leaf-radius); background: var(--leaf); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 2px var(--contact-shadow), 0 0 0 .5px color-mix(in srgb, var(--line) 70%, transparent); }
+  .backlinks-section .backlink-group + .backlink-group { border-top: 0; }
+  .backlinks-section .backlink-group-heading { align-items: baseline; justify-content: space-between; margin: 0; padding: 12px var(--space-16) 2px; color: var(--faint); font: var(--weight-display-heading) 18px/24px var(--font-display); font-optical-sizing: auto; letter-spacing: normal; }
+  .backlinks-section .backlink-group-heading > .button { flex: 1; min-height: 0; color: var(--text); }
+  .backlinks-section .backlink-group-heading.backlink-work > .button { font-style: italic; font-weight: var(--weight-source-title); }
+  .backlinks-section .backlink-group-heading > span { font: var(--figures); font-variant-numeric: tabular-nums; }
+  .backlinks-section .backlink-entry { position: relative; margin: 0; }
+  .backlinks-section .backlink-entry + .backlink-entry { margin-top: 0; }
+  .backlinks-section .backlink-entry + .backlink-entry::before { content: ''; position: absolute; top: 0; left: var(--space-16); right: 0; height: .5px; background: var(--line); }
+  .backlinks-section .backlink-source-line { align-items: center; gap: var(--space-12); min-height: 44px; padding: 0 var(--space-16); font: var(--weight-body) 16px/22px var(--font-body); }
+  .backlinks-section .backlink-source-body { padding-block: 10px; white-space: normal; }
+  .backlinks-section :is(.backlink-disclosure, .backlink-beside) { display: none; }
+  .backlinks-section .backlink-source-line::after { content: ''; flex: none; width: 13px; height: 13px; background: var(--faint); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M4.5 2l5 5-5 5' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M4.5 2l5 5-5 5' fill='none' stroke='black' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+  .backlinks-section .backlink-source-body .outline-reference { color: var(--accent); text-decoration: none; }
+  .related-sections > .unlinked-mentions { margin-bottom: var(--space-12); overflow: hidden; border-radius: var(--leaf-radius); background: var(--leaf); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 2px var(--contact-shadow), 0 0 0 .5px color-mix(in srgb, var(--line) 70%, transparent); }
+  .related-sections > .unlinked-mentions > summary.related-section-heading { min-height: 44px; padding: 0 var(--space-16); color: var(--text); font: var(--weight-body) 16px/22px var(--font-body); letter-spacing: normal; }
+  .related-sections > .unlinked-mentions > summary > .related-section-name { flex: 1; color: var(--text); }
+  .related-sections > .unlinked-mentions > summary > .section-rule { display: none; }
+}

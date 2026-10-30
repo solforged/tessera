@@ -11,3 +11,13 @@
 .note-aliases-label { margin-right: var(--space-8); color: var(--faint); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 .note-aliases-separator { color: var(--faint); font-style: normal; }
 .note-line { display: flex; flex-wrap: wrap; gap: 0 var(--space-8); margin: var(--page-title-gap) 0 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+/* On a phone the kind is a quiet link in Plex with its glyph above the title, and the apparatus line reads in prose with
+   Revisit as a tint capsule beside it. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .note-eyebrow { gap: var(--space-8); margin: 0; color: var(--muted); font: var(--weight-control) 14px/18px var(--font-body); letter-spacing: normal; text-transform: none; }
+  .note-eyebrow button { min-height: 28px; gap: 6px; }
+  .note-eyebrow .icon { width: 16px; height: 16px; }
+  .note-line { align-items: center; gap: 12px; margin-top: 6px; color: var(--faint); font: var(--weight-body) 14px/18px var(--font-body); letter-spacing: normal; }
+  .note-created { white-space: nowrap; }
+  .note-line .note-revisit > .button.tint { min-height: 44px; padding: 0 18px 0 14px; border-radius: var(--radius-pill); background: var(--ink-wash); color: var(--text); font: var(--weight-control) 15px/20px var(--font-body); letter-spacing: normal; }
+}

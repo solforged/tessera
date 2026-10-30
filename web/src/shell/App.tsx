@@ -23,7 +23,7 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { ListGroup, ListRow, PropertyRow } from '../ui/List';
 import type { IconName } from '../ui/Icon';
-import { longPress, openContextMenu } from '../ui/context-menu';
+import { PhoneIndex } from './PhoneIndex';
 import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { PaneChromeContext } from '../ui/NavBar';
@@ -64,7 +64,7 @@ import { installLinkDrop } from '../create/link-drop';
 import { SyncCover, SyncLifecycle, SyncMark, currentHealth } from '../sync/SyncStatus';
 import { NotebookOpening, registerNotebookCommands } from '../settings/notebooks';
 import { NotebookSwitcher } from '../settings/NotebookSwitcher';
-import { indexKindTarget, kindLabel, noteIndex, noteKindIcon, tagOnly } from '../notes/kinds';
+import { indexKindTarget, kindLabel, noteIndex, noteKindIcon, shelves, tagOnly } from '../notes/kinds';
 import { DEMO } from '../demo/mode';
 import { AgentDock } from '../agent/AgentDock';
 import type { ContextChip } from '../agent/AgentDock';
@@ -133,8 +133,6 @@ const SELECTING = '.index-selectable, .index-queue-row, .index-source-row, .libr
 /** ⌘ on Apple keyboards, where Ctrl+E stays the editor's end of line; Ctrl elsewhere. */
 const mac = /Mac|iPhone|iPad/.test(navigator.platform);
 const SAVE_NOTICE_DELAY = 1000;
-/** The Index's finding-aid heads, in order; spreads follow under their own head. */
-const shelves: readonly (readonly [Shelf, string])[] = [['notes', 'Atoms'], ['sources', 'Sources'], ['work', 'Work'], ['tags', 'Tags'], ['loose', 'Loose']];
 
 /** Views are snapshots: fold arrays and caret/scroll objects never alias history. */
 function copyView(view: ViewState): ViewState {
@@ -1246,14 +1244,6 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const phoneDirectory = () => directory && cover();
     const onOpen = (target: OpenTarget, beside = false) => open(target, beside, owner());
     const onOpenView = (view: View, beside: boolean) => openView(view, beside, owner());
-    const emptyKinds = createMemo(() => (index()?.kinds ?? []).filter(kind => !kind.count && !kind.tagged_block_count));
-    const navigationKinds = createMemo(() => {
-      if (!phoneDirectory()) return shelfKinds();
-      const populated: Partial<Record<Shelf, IndexKind[]>> = {};
-      for (const kind of index()?.kinds ?? []) if (kind.count || kind.tagged_block_count) (populated[kind.shelf] ??= []).push(kind);
-      return populated;
-    });
-    const [viewMenu, setViewMenu] = createSignal<{ view: View; anchor: HTMLElement }>();
     const viewMenuItems = (view: View): MenuItem[] => [{ label: pinnedViews().includes(view.id) ? 'Unpin view' : 'Pin view', icon: 'pin', action: () => pinView(view.id) }];
     const revisits = () => <Button icon="history" class={entry(active())?.target.kind === 'revisits' ? 'selected' : ''} aria-label={`Revisits · ${counts()?.revisits ?? 0} to revisit`} onClick={event => onOpen({ kind: 'revisits' }, opensBeside(event))}><span>Revisits</span><Show when={counts()?.revisits}>{due => <span class="desk-count" title={`${due()} to revisit`}>{due()}</span>}</Show></Button>;
     const fields = () => <Button class={`index-kind ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`} icon="field" title="Fields" aria-current={entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'page' : undefined} onClick={event => onOpen({ kind: 'fields' }, opensBeside(event))}><span>Fields</span><span class="desk-count">{index()?.fields.toLocaleString()}</span></Button>;
@@ -1262,48 +1252,38 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kindLabel(kind())} onClick={event => onOpen(indexKindTarget(kind()), opensBeside(event))}><span>{kindLabel(kind())}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
         <Show when={kind().key === 'question' && (kind().count || kind().tagged_block_count || otherViews().some(view => viewInKind(view, kind())))}><Button icon="more" label="Questions menu" aria-haspopup="menu" onClick={event => setQuestionsMenu(event.currentTarget)} /></Show>
       </div>
-      <Show when={!phoneDirectory() && otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={onOpenView} onPin={pinView} /></div></Show>
+      <Show when={otherViews().some(view => viewInKind(view, kind()))}><div class="index-views"><ViewLinks views={otherViews().filter(view => viewInKind(view, kind()))} pinned={false} activeId={activeViewId()} onOpen={onOpenView} onPin={pinView} /></div></Show>
     </>;
-    return <>
-      <Show when={!phoneDirectory()}><nav class="primary-navigation" aria-label="Workshop">
+    return <Show when={phoneDirectory()} fallback={<>
+      <nav class="primary-navigation" aria-label="Workshop">
         <Button data-phone-tab icon="today" title="Today (⌃⇧J)" class={activeRoot()?.kind === 'journal' && activeRoot()?.text === todayDate() ? 'selected' : ''} onClick={event => { void today(owner(), opensBeside(event)); }}><span>Today</span><span class="desk-count">{shortDay(todayDate())}</span></Button>
         <Button data-phone-tab icon="agenda" class={entry(active())?.target.kind === 'agenda' ? 'selected' : ''} onClick={event => onOpen({ kind: 'agenda', date: journalDate(owner()) }, opensBeside(event))}><span>Agenda</span><Show when={(counts()?.planned ?? 0) + (counts()?.overdue ?? 0)}>{total => <span class={`desk-count ${counts()!.overdue ? 'late' : ''}`} title={`${total()} to do: ${counts()!.planned} today · ${counts()!.overdue} overdue`}>{total()}</span>}</Show></Button>
         {revisits()}
         <Button data-phone-tab icon="review" class={entry(active())?.target.kind === 'review' ? 'selected' : ''} aria-label={`Review · ${counts()?.cards ?? 0} cards`} onClick={event => onOpen({ kind: 'review' }, opensBeside(event))}><span>Review</span><Show when={counts()?.cards}>{due => <span class="desk-count" title={`${due()} cards`}>{due()}</span>}</Show></Button>
         <Button data-phone-tab icon="library" class={entry(active())?.target.kind === 'library' ? 'selected' : ''} onClick={event => onOpen({ kind: 'library' }, opensBeside(event))}><span>Library</span><Show when={counts()?.highlights}>{highlights => <span class="desk-count" title={`${highlights()} unprocessed ${highlights() === 1 ? 'highlight' : 'highlights'}`}>{highlights()}</span>}</Show></Button>
-      </nav></Show>
+      </nav>
       <div class="sidebar-scroll">
-      <Show when={pinnedRoots().length || !phoneDirectory() && pinnedViewList().length}><section class="page-list" aria-label="Pinned">
-        <h2><span class="section-number">{sectionNumber('pinned')}</span>Pinned<span class="section-rule" /><span class="section-count">{pinnedRoots().length + (phoneDirectory() ? 0 : pinnedViewList().length)}</span></h2>
+      <Show when={pinnedRoots().length || pinnedViewList().length}><section class="page-list" aria-label="Pinned">
+        <h2><span class="section-number">{sectionNumber('pinned')}</span>Pinned<span class="section-rule" /><span class="section-count">{pinnedRoots().length + pinnedViewList().length}</span></h2>
         <PageLinks roots={pinnedRoots()} notebook={notebook} activeId={pageIdOf(entry(active()))} onOpen={onOpen} />
-        <Show when={!phoneDirectory()}><ViewLinks views={pinnedViewList()} pinned activeId={activeViewId()} onOpen={onOpenView} onPin={pinView} /></Show>
+        <ViewLinks views={pinnedViewList()} pinned activeId={activeViewId()} onOpen={onOpenView} onPin={pinView} />
       </section></Show>
-      <Show when={index()?.kinds.length}><section class="page-list index-list" aria-label={phoneDirectory() ? 'Kinds' : 'Index'}>
-        <Show when={!phoneDirectory()}><h2><span class="section-number">{sectionNumber('index')}</span><button type="button" class="index-directory-link" aria-current={activeKindKey() === 'all' ? 'page' : undefined} title="Open Index" onClick={event => onOpen({ kind: 'index', key: 'all' }, opensBeside(event))}>Index</button><span class="section-rule" /><Show when={index()!.notes}>{notes => <span class="section-count" title={`${notes().toLocaleString()} ${notes() === 1 ? 'atom' : 'atoms'} filed under ${index()!.kinds.length.toLocaleString()} ${index()!.kinds.length === 1 ? 'type' : 'types'}`}>{notes().toLocaleString()}</span>}</Show></h2></Show>
+      <Show when={index()?.kinds.length}><section class="page-list index-list" aria-label="Index">
+        <h2><span class="section-number">{sectionNumber('index')}</span><button type="button" class="index-directory-link" aria-current={activeKindKey() === 'all' ? 'page' : undefined} title="Open Index" onClick={event => onOpen({ kind: 'index', key: 'all' }, opensBeside(event))}>Index</button><span class="section-rule" /><Show when={index()!.notes}>{notes => <span class="section-count" title={`${notes().toLocaleString()} ${notes() === 1 ? 'atom' : 'atoms'} filed under ${index()!.kinds.length.toLocaleString()} ${index()!.kinds.length === 1 ? 'type' : 'types'}`}>{notes().toLocaleString()}</span>}</Show></h2>
         {/* Kinds re-arrive as fresh objects after each change; keep rows mounted by position. */}
-        <For each={shelves}>{([shelf, label]) => <Show when={shelf === 'notes' || navigationKinds()[shelf]?.length}>
+        <For each={shelves}>{([shelf, label]) => <Show when={shelf === 'notes' || shelfKinds()[shelf]?.length}>
           <h3 class="index-shelf">{label}</h3>
-          <Show when={phoneDirectory() && shelf === 'notes'}>{revisits()}</Show>
-          <Index each={navigationKinds()[shelf] ?? []}>{kindRow}</Index>
-          <Show when={!phoneDirectory() && shelf === 'notes'}>{fields()}</Show>
+          <Index each={shelfKinds()[shelf] ?? []}>{kindRow}</Index>
+          <Show when={shelf === 'notes'}>{fields()}</Show>
         </Show>}</For>
         <Show when={index()?.spreads.length}>
           <h3 class="index-shelf">Spreads</h3>
           <For each={index()?.spreads}>{spread => <Button class={`index-kind ${pageIdOf(entry(active())) === spread.id ? 'selected' : ''}`} icon="panes" title={spread.title} onClick={event => onOpen({ kind: 'page', pageId: spread.id }, opensBeside(event))}><span>{spread.title}</span></Button>}</For>
         </Show>
-        <Show when={phoneDirectory() && emptyKinds().length}><details class="directory-empty-kinds">
-          <summary>{emptyKinds().length} empty {emptyKinds().length === 1 ? 'kind' : 'kinds'}<Icon name="down" /></summary>
-          <Index each={emptyKinds()}>{kindRow}</Index>
-        </details></Show>
       </section></Show>
       <section class="page-list" aria-label="Saved views">
-        <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{(phoneDirectory() ? views()?.length : looseViews().length) || ''}</span></h2>
-        <Show when={phoneDirectory()} fallback={<ViewLinks views={looseViews()} pinned={false} activeId={activeViewId()} onOpen={onOpenView} onPin={pinView} />}>
-          <For each={views() ?? []}>{view => <div class="sidebar-view" ref={row => onCleanup(longPress(row, () => openContextMenu({ source: row, label: `View actions: ${view.name}`, items: viewMenuItems(view) })))}>
-            <Button class={`view-link ${view.id === activeViewId() ? 'selected' : ''}`} icon="table" title={view.name} onClick={event => onOpenView(view, opensBeside(event))}><span>{view.name}</span></Button>
-            <Button class="directory-view-menu" icon="more" label={`View actions: ${view.name}`} aria-haspopup="menu" aria-expanded={viewMenu()?.view.id === view.id} onClick={event => setViewMenu({ view, anchor: event.currentTarget })} />
-          </div>}</For>
-        </Show>
+        <h2><span class="section-number">{sectionNumber('views')}</span>Views<span class="section-rule" /><span class="section-count">{looseViews().length || ''}</span></h2>
+        <ViewLinks views={looseViews()} pinned={false} activeId={activeViewId()} onOpen={onOpenView} onPin={pinView} />
         <Button icon="plus" onClick={event => setPopup({ kind: 'new-view', anchor: event.currentTarget, pane: owner() })}>New view…</Button>
       </section>
       <details class="page-list" open>
@@ -1314,10 +1294,12 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
       <div class="sidebar-foot">
         <NotebookSwitcher notebook={notebook} onOpen={onOpen} onError={reportError} />
         <Button icon="settings" label="Settings" class={`sidebar-settings ${entry(active())?.target.kind === 'settings' ? 'selected' : ''}`} onClick={event => onOpen({ kind: 'settings' }, opensBeside(event))}><span>Settings</span></Button>
-        <Show when={phoneDirectory()}>{fields()}</Show>
       </div>
-      <Show when={phoneDirectory() ? viewMenu() : undefined} keyed>{menu => <Menu anchor={menu.anchor} label={`View actions: ${menu.view.name}`} title={menu.view.name} items={viewMenuItems(menu.view)} onDismiss={() => setViewMenu(undefined)} />}</Show>
-    </>;
+    </>}>
+      <PhoneIndex notebook={notebook} index={index()} revisits={counts()?.revisits ?? 0} views={views() ?? []} pinned={pinnedRoots()} recent={recentRoots()}
+        onOpen={onOpen} onOpenView={view => onOpenView(view, false)} onNewView={anchor => setPopup({ kind: 'new-view', anchor, pane: owner() })} viewMenu={viewMenuItems}
+        questionMenu={() => [{ label: 'Open research desk', icon: 'panes', action: () => onOpen(deskTarget()) }]} onError={reportError} />
+    </Show>;
   };
   return <AgentMarks.Provider value={agentMarks}><div class={`app ${split() ? 'is-split' : ''} ${sidebar() ? 'sidebar-expanded' : ''} ${sidebarCollapsed() ? 'sidebar-collapsed' : ''} ${dock() ? 'has-dock' : ''} ${immersive() ? 'is-immersive' : ''} ${keyboard() ? 'keyboard-open' : ''} ${entry(active())?.target.kind === 'reader' ? 'is-reading' : ''} ${currentHealth()?.cover ? 'has-sync-cover' : ''}`} style={{ '--visual-viewport-height': `${viewport().height}px`, '--visual-viewport-top': `${viewport().top}px`, '--visual-viewport-bottom-gap': `${Math.max(0, window.innerHeight - viewport().bottom)}px` }} onPointerDown={() => { focusEpoch++; }}>
     <header class="global-rail" aria-label="Global navigation" data-tauri-drag-region="deep">
@@ -1554,7 +1536,7 @@ function DirectoryPane(props: { view: DirectoryViewState; atomCount?: number; re
   });
   return <div ref={root} class="directory-pane" tabIndex={-1} onScroll={event => { if (restored) props.onViewChange({ scroll: event.currentTarget.scrollTop }); }}>
     <header class="directory-head">
-      <p>{props.atomCount === undefined ? 'Loading…' : `${props.atomCount.toLocaleString()} ${props.atomCount === 1 ? 'atom' : 'atoms'}`}</p>
+      <p>{props.atomCount === undefined ? 'Loading…' : <><span class="fig">{props.atomCount.toLocaleString()}</span> {props.atomCount === 1 ? 'atom' : 'atoms'}</>}</p>
       <h1>Index</h1>
     </header>
     {props.children}
@@ -1922,7 +1904,6 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
         <div class="pane-bar-surface" ref={setBarEnd} />
         <div class="pane-bar-group nav-group">
           <Show when={showNew()}><Button class="pane-new nav-button" icon="plus" label={newLabel()} aria-haspopup="dialog" onClick={event => create(event.currentTarget)} /></Show>
-          <Show when={cover() && current().target.kind === 'directory'}><Button class="pane-settings nav-button" icon="settings" label="Settings" onClick={() => props.onOpen({ kind: 'settings' }, false)} /></Show>
           <Show when={pageId()}><Button ref={menuButton} class="page-menu-button nav-button" icon="more" label="Atom menu" aria-haspopup="menu" aria-expanded={!!menu()} onClick={event => setMenu(value => value ? null : event.currentTarget)} /></Show>
         </div>
       </div>
