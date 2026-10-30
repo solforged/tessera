@@ -29,3 +29,19 @@ export function weekLedgerSummary(rows: readonly TaskRow[], date: string, overdu
   const missed = new Set(overdue.map(row => row.source.block.id).filter(id => !open.has(id))).size;
   return `${open.size} open · ${due} due${missed ? ` · ${missed} overdue` : ''}`;
 }
+
+export interface WeekCounts { open: number; overdue: number }
+
+/**
+ * The week band's two figures on a phone: unfinished tasks planned this week or missed before it, and those among them
+ * whose plan day has already passed. Each source counts once, however many of its dates fall in the week.
+ */
+export function weekLedgerCounts(rows: readonly TaskRow[], date: string, today: string, overdue: readonly TaskRow[] = []): WeekCounts {
+  const visible = new Set(calendarWeekDates(date).filter((day): day is string => day !== null));
+  const plans = (row: TaskRow) => [row.task.scheduled, row.task.deadline].filter((plan): plan is string => !!plan);
+  const open = new Map(rows.filter(row => !isFinished(row.task) && plans(row).some(plan => visible.has(plan))).map(row => [row.source.block.id, row]));
+  const missed = new Set(overdue.map(row => row.source.block.id));
+  for (const row of overdue) open.set(row.source.block.id, row);
+  const late = [...open].filter(([id, row]) => missed.has(id) || plans(row).some(plan => visible.has(plan) && plan < today)).length;
+  return { open: open.size, overdue: late };
+}

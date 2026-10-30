@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { Block, TaskRow, TaskState } from '../api/types';
 import { agendaTaskTime } from './task-labels';
-import { weekLedgerDays, weekLedgerOverdue, weekLedgerSummary } from './week-ledger';
+import { weekLedgerCounts, weekLedgerDays, weekLedgerOverdue, weekLedgerSummary } from './week-ledger';
 
 const page: Block = { id: 'page', kind: 'page', parent_id: null, page_id: 'page', text: 'Notes', heading: null, archived: false, revision: 1, created_at: 0, updated_at: 0 };
 function row(id: string, task: Partial<TaskState>): TaskRow {
@@ -55,4 +55,13 @@ test('work missed before the week joins today once; work missed this week stays 
   expect(days[2]!.rows.map(row => row.source.block.id)).toEqual(['before']);
   expect(days.flatMap(day => day.rows).filter(row => row.source.block.id === 'before')).toHaveLength(1);
   expect(weekLedgerSummary([thisWeek], '2026-10-14', overdue)).toBe('1 open · 0 due · 1 overdue');
+});
+
+test('week counts: each open source once, overdue among the week plus work missed before it', () => {
+  const both = row('both', { scheduled: '2026-10-12', deadline: '2026-10-13' });
+  const rows = [both, row('past', { scheduled: '2026-10-12' }), row('today', { scheduled: '2026-10-13' }), row('later', { scheduled: '2026-10-15' }), row('done', { status: 'done', scheduled: '2026-10-12' }), row('outside', { scheduled: '2026-10-20' })];
+  expect(weekLedgerCounts(rows, '2026-10-13', '2026-10-13')).toEqual({ open: 4, overdue: 2 });
+  const missed = row('missed', { scheduled: '2026-10-01' });
+  expect(weekLedgerCounts(rows, '2026-10-13', '2026-10-13', [missed, both])).toEqual({ open: 5, overdue: 3 });
+  expect(weekLedgerCounts([], '2026-10-13', '2026-10-13')).toEqual({ open: 0, overdue: 0 });
 });

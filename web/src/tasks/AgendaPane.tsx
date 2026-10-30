@@ -1,4 +1,4 @@
-import { For, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
+import { For, Index, Show, batch, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { ulid } from 'ulid';
 import type { Agenda, FieldDefinition, ProjectRecord, TaskQuery, TaskQueryResult, TaskRow, TaskView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -11,9 +11,9 @@ import type { MenuItem } from '../ui/Menu';
 import { Picker } from '../ui/Picker';
 import { Popup } from '../ui/Popup';
 import { createSlowFlag, sameData } from '../ui/loading';
-import { AgendaWeekStrip } from './AgendaWeekStrip';
-import { spokenJournalDate } from './journal-date';
-import { daysBetween, weekRangeTitle } from './relative-date';
+import { AgendaDayStrip, AgendaWeekStrip } from './AgendaWeekStrip';
+import { journalBarTitle, journalWeek, spokenJournalDate } from './journal-date';
+import { daysBetween, weekRangeProse, weekRangeTitle } from './relative-date';
 import { agendaTaskTime, groupAgenda, groupDayAgenda, isFinished, upcomingDayLabel } from './task-labels';
 import { SectionHead, SectionSubhead } from '../ui/SectionHead';
 import { captureSection, sectionTarget } from './today-template';
@@ -23,8 +23,7 @@ import { heldRows } from './row-motion';
 import { parseTaskDate } from './date-input';
 import { CaptureField } from '../capture/CaptureField';
 import { createClock } from './clock';
-import { movableTo } from './reschedule';
-import { createBulkMove } from './BulkMove';
+import { BulkMoveMenu, createBulkMove } from './BulkMove';
 import { copyTaskQuery, createTaskQuery, refreshedTaskQuery, taskQueriesEqual } from './query';
 import { TaskConditions } from './TaskConditions';
 import { TaskQueryLine } from './TaskQueryLine';
@@ -33,6 +32,15 @@ import { WeekCalendar } from './WeekCalendar';
 import { WeekLedger } from './WeekLedger';
 import { fetchWeekTaskRange, mergeWeekTaskRows, mondayWeekStart, shiftCalendarDate } from './week-calendar';
 import { TaskSourceHistory } from './source-history';
+import { DatePicker } from './DatePicker';
+import { TaskChips } from './TaskChips';
+import { groupByDue, groupByStatus, taskGroupings } from './task-groups';
+import type { TaskGrouping } from './task-groups';
+import { withSearchText } from './task-chips';
+import { weekLedgerCounts, weekLedgerOverdue } from './week-ledger';
+import { NavTitle } from '../ui/NavBar';
+import { SearchWell } from '../ui/SearchWell';
+import { isPhone } from '../ui/phone';
 import './agenda.css';
 import '../table/table.css';
 
@@ -50,10 +58,16 @@ type AgendaPopup =
   | { kind: 'menu'; anchor: HTMLElement; label: string; items: MenuItem[] }
   | { kind: 'date'; anchor: HTMLElement }
   | { kind: 'views'; anchor: HTMLElement }
+  | { kind: 'move'; anchor: HTMLElement }
+  | { kind: 'move-date'; anchor: HTMLElement }
+  | { kind: 'grouping'; anchor: HTMLElement }
   | { kind: 'name'; anchor: HTMLElement; action: 'create' | 'rename'; id: string; saved: TaskView | null }
   | { kind: 'delete'; anchor: HTMLElement; saved: TaskView };
 
 export function AgendaPane(props: AgendaPaneProps) {
+  const phone = isPhone();
+  // Desktop strips begin at the chosen day; a phone's is always a Monday-to-Sunday week, as Week's is.
+  const stripStartFor = (mode: AgendaViewState['mode'], date: string) => phone || mode === 'week' ? mondayWeekStart(date) ?? date : date;
   const [view, setView] = createSignal<AgendaViewState>({ ...props.view, query: copyTaskQuery(props.view.query) });
   const query = createMemo(() => view().query, view().query, { equals: taskQueriesEqual });
   const date = createMemo(() => view().date);
@@ -66,7 +80,7 @@ export function AgendaPane(props: AgendaPaneProps) {
   const slowLoading = createSlowFlag(loading);
   const [error, setError] = createSignal('');
   const [refresh, setRefresh] = createSignal(0);
-  const [stripStart, setStripStart] = createSignal(props.view.mode === 'week' ? mondayWeekStart(props.view.date) ?? props.view.date : props.view.date);
+  const [stripStart, setStripStart] = createSignal(stripStartFor(props.view.mode, props.view.date));
   const stripDates = createMemo(() => Array.from({ length: 7 }, (_, index) => shiftCalendarDate(stripStart(), index)));
   const [weekRows, setWeekRows] = createSignal<TaskRow[]>([], { equals: sameData });
   const [weekOverdue, setWeekOverdue] = createSignal<TaskRow[]>([], { equals: sameData });
@@ -176,7 +190,7 @@ export function AgendaPane(props: AgendaPaneProps) {
     const previous = view();
     if (next.date !== previous.date || next.mode !== previous.mode || next.viewId !== previous.viewId || !taskQueriesEqual(next.query, previous.query)) {
       if (next.viewId !== previous.viewId) { setSaved(null); setLatestSaved(null); }
-      if (next.date !== previous.date || next.mode !== previous.mode) setStripStart(next.mode === 'week' ? mondayWeekStart(next.date) ?? next.date : next.date);
+      if (next.date !== previous.date || next.mode !== previous.mode) setStripStart(stripStartFor(next.mode, next.date));
       setView({ ...next, query: copyTaskQuery(next.query) });
       setRecentInput(String(next.query.filter.recent_days)); setLimitInput(next.query.limit === null ? '' : String(next.query.limit));
       if (scroll) scroll.scrollTop = next.scroll;
@@ -234,7 +248,10 @@ export function AgendaPane(props: AgendaPaneProps) {
     onCleanup(() => { current = false; clearTimeout(timer); });
   });
   createEffect(() => {
-    const stripFrom = stripStart(); const stripThrough = stripDates().filter((date): date is string => !!date).at(-1);
+    // A phone's strip pages through weeks: the one shown and its neighbours carry dots.
+    const paged = phone && mode() === 'agenda';
+    const stripFrom = paged ? shiftCalendarDate(stripStart(), -7) ?? stripStart() : stripStart();
+    const stripThrough = paged ? shiftCalendarDate(stripStart(), 13) : stripDates().filter((date): date is string => !!date).at(-1);
     const lookaheadThrough = mode() === 'agenda' ? shiftCalendarDate(date(), 7) ?? date() : null;
     const from = lookaheadThrough && date() < stripFrom ? date() : stripFrom;
     const through = lookaheadThrough && (!stripThrough || lookaheadThrough > stripThrough) ? lookaheadThrough : stripThrough;
@@ -363,9 +380,9 @@ export function AgendaPane(props: AgendaPaneProps) {
     } catch (reason) { setCommandError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   };
-  const viewMenu = (anchor: HTMLElement) => {
+  const viewMenuItems = (anchor: HTMLElement): MenuItem[] => {
     const value = saved();
-    setPopup({ kind: 'menu', anchor, label: 'Task view actions', items: [
+    return [
       { label: 'Save as view…', disabledReason: filterError() || undefined, action: () => setPopup({ kind: 'name', anchor, action: 'create', id: ulid(), saved: null }) },
       ...(value ? [
         { label: 'Save changes', disabledReason: filterError() || (!dirty() ? 'No changes.' : undefined), action: () => { void saveView(value.name, value.id, value, false).catch(() => {}); } },
@@ -373,10 +390,32 @@ export function AgendaPane(props: AgendaPaneProps) {
         { label: 'Discard changes', disabledReason: !latestSaved() ? 'Saved view is unavailable.' : !dirty() && !filterError() ? 'No changes.' : undefined, action: discard },
         { label: props.notebook.confirmViewDelete() ? 'Delete view…' : 'Delete view', icon: 'trash' as const, danger: true, action: () => { if (props.notebook.confirmViewDelete()) setPopup({ kind: 'delete', anchor, saved: value }); else void deleteView(value); } },
       ] : []),
-    ] });
+    ];
   };
+  const viewMenu = (anchor: HTMLElement) => setPopup({ kind: 'menu', anchor, label: 'Task view actions', items: viewMenuItems(anchor) });
   const rows = createMemo(() => mode() === 'agenda' ? agenda()?.items ?? [] : [...tasks()?.rows ?? []].sort((left, right) => Number(isFinished(left.task)) - Number(isFinished(right.task))));
   const total = createMemo(() => mode() === 'agenda' ? agenda()?.items.length ?? 0 : tasks()?.total ?? 0);
+  const today = () => props.notebook.todayDate();
+  // A phone's Tasks groups by due day or by status; Outline-sorted queries keep their sections instead.
+  const [grouping, setGrouping] = createSignal<TaskGrouping>('due');
+  const taskGroups = createMemo(() => phone && mode() === 'tasks' ? grouping() === 'due' ? groupByDue(rows() as TaskRow[], today()) : groupByStatus(rows() as TaskRow[]) : []);
+  const weekProse = createMemo(() => {
+    const first = mondayWeekStart(date());
+    return first ? weekRangeProse(first, shiftCalendarDate(first, 6) ?? '9999-12-31', today()) : spokenJournalDate(date());
+  });
+  const weekCounts = createMemo(() => weekLedgerCounts(weekRows(), date(), today(), weekLedgerOverdue(weekOverdue(), date())));
+  const weekNumber = createMemo(() => { const first = mondayWeekStart(date()); return first ? journalWeek(first) : null; });
+  const taskCount = createMemo(() => !loading() && !error() ? rows().length === total() ? `${total()}` : `${rows().length} of ${total()}` : null);
+  const barTitle = createMemo(() => mode() === 'agenda' ? journalBarTitle(date()) : mode() === 'week' ? { title: weekProse(), detail: weekNumber() ? `Week ${weekNumber()}` : undefined } : { title: 'Tasks', detail: saved()?.name });
+  // The search well edits the query's source text; typing waits a beat so each letter is not a query.
+  const [searchDraft, setSearchDraft] = createSignal(query().source?.text ?? '');
+  let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  const commitSearch = (text: string) => {
+    clearTimeout(searchTimer); searchTimer = undefined;
+    if ((query().source?.text ?? '') !== text) update({ query: withSearchText(query(), text), scroll: 0 });
+  };
+  createEffect(on(() => query().source?.text ?? '', text => { if (searchTimer === undefined && text !== searchDraft()) setSearchDraft(text); }, { defer: true }));
+  onCleanup(() => clearTimeout(searchTimer));
   /** The displayed day's journal: its rows need no page label. */
   const dayPage = createMemo(() => props.notebook.roots().find(root => root.kind === 'journal' && root.text === date())?.id);
   const previousDate = createMemo(() => shiftCalendarDate(date(), mode() === 'week' ? -7 : -1));
@@ -393,6 +432,8 @@ export function AgendaPane(props: AgendaPaneProps) {
     const first = mondayWeekStart(date());
     return !!first && today >= first && daysBetween(first, today) < 7;
   });
+  // The phone's Today button appears once you have wandered from today's day or week.
+  const wandered = createMemo(() => mode() === 'week' ? !showsToday() : mode() === 'agenda' && (date() !== today() || stripStart() !== stripStartFor('agenda', today())));
   /** Every Day group shares one clock gutter, so their titles keep one left edge. */
   const dayGutter = createMemo(() => {
     const groups = dayGroups();
@@ -409,7 +450,7 @@ export function AgendaPane(props: AgendaPaneProps) {
   const changeDay = (input: string) => {
     const parsed = parseTaskDate(input, date());
     if (parsed.ok && parsed.date) {
-      setStripStart(mode() === 'week' ? mondayWeekStart(parsed.date) ?? parsed.date : parsed.date);
+      setStripStart(stripStartFor(mode(), parsed.date));
       update({ date: parsed.date, scroll: 0 });
     }
     else if (!parsed.ok) setError(parsed.error);
@@ -418,7 +459,6 @@ export function AgendaPane(props: AgendaPaneProps) {
   const now = () => date() === props.notebook.todayDate() ? clock() : undefined;
   /** Overdue work moves as one command, keeping each task's time and deadline, with Undo until the next move. */
   const overdueMove = createBulkMove(props.notebook, () => setRefresh(value => value + 1));
-  const overdueMenuOpen = () => { const state = popup(); return state?.kind === 'menu' && state.label === 'Move overdue tasks'; };
   const taskHistory = new TaskSourceHistory(props.notebook);
   const [addedTask, setAddedTask] = createSignal<string>();
   let revealedTask: HTMLElement | undefined;
@@ -449,23 +489,56 @@ export function AgendaPane(props: AgendaPaneProps) {
   };
   return <div ref={scroll} class="agenda-pane" data-pane={props.pane} aria-label="Agenda and tasks" tabIndex={props.active ? 0 : -1} onKeyDown={historyKeydown} onFocusIn={props.onActivate} onPointerDown={props.onActivate} onScroll={() => props.onViewChange({ ...view(), query: copyTaskQuery(query()), scroll: scroll.scrollTop })}>
     <div class="agenda-content">
-      <header class="agenda-toolbar">
-        <div class="agenda-heading agenda-cover-heading"><p><Show when={mode() !== 'tasks'} fallback="Tasks"><button type="button" class="agenda-title-date" aria-label={`Choose date, ${spokenJournalDate(date())}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'date'} onClick={event => setPopup({ kind: 'date', anchor: event.currentTarget })}>{mode() === 'week' ? weekTitle() : spokenJournalDate(date())}</button></Show></p><h1>Agenda</h1></div>
+      <Show when={phone}><NavTitle title={barTitle().title} detail={barTitle().detail} /></Show>
+      <Show when={phone} fallback={<header class="agenda-toolbar">
         <div class="agenda-heading agenda-desktop-heading"><p>Agenda<Show when={showsToday()}><span class="agenda-eyebrow-today"> · Today</span></Show></p><h1><Show when={mode() !== 'tasks'} fallback="Tasks"><button type="button" class="agenda-title-date" aria-label={`Choose date, ${spokenJournalDate(date())}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'date'} onClick={event => setPopup({ kind: 'date', anchor: event.currentTarget })}>{mode() === 'week' ? weekTitle() : spokenJournalDate(date())}</button></Show></h1></div>
         <Show when={mode() !== 'tasks'}><div class="agenda-date" role="group" aria-label={mode() === 'week' ? 'Displayed week' : 'Displayed date'}>
           <Button icon="left" label={mode() === 'week' ? 'Previous week' : 'Previous day'} disabled={busy() || !previousDate()} onClick={() => { const previous = previousDate(); if (previous) changeDay(previous); }} />
           <Button class="agenda-date-today" classList={{ 'agenda-date-current': showsToday() }} disabled={busy()} onClick={() => changeDay(props.notebook.todayDate())}>Today</Button>
           <Button icon="right" label={mode() === 'week' ? 'Next week' : 'Next day'} disabled={busy() || !nextDate()} onClick={() => { const next = nextDate(); if (next) changeDay(next); }} />
         </div></Show>
-      </header>
+      </header>}>
+        {/* One title row for every mode; the day strip is the way to other days, so only wandering away asks for Today. */}
+        <header class="agenda-title-row">
+          <h1>
+            <Show when={mode() === 'tasks'} fallback={<button type="button" class="agenda-title-date" aria-label={`Choose date, ${spokenJournalDate(date())}`} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'date'} onClick={event => setPopup({ kind: 'date', anchor: event.currentTarget })}>{mode() === 'week' ? weekProse() : spokenJournalDate(date())}</button>}>
+              <Show when={taskCount()} fallback="Tasks">{count => `${count()} ${total() === 1 && rows().length === 1 ? 'task' : 'tasks'}`}</Show>
+            </Show>
+          </h1>
+          <Show when={mode() === 'tasks'}>
+            <Button kind="tint" size="sm" disabled={busy()} aria-haspopup="menu" aria-expanded={popup()?.kind === 'grouping'} onClick={event => setPopup({ kind: 'grouping', anchor: event.currentTarget })}>{taskGroupings.find(item => item.value === grouping())!.label}<Icon name="down" /></Button>
+          </Show>
+          <Show when={mode() !== 'tasks' && wandered()}><Button kind="tint" size="sm" disabled={busy()} onClick={() => changeDay(today())}>Today</Button></Show>
+        </header>
+      </Show>
       <div class="agenda-modes mode-tabs tab-strip" data-mode-panel=".agenda-mode-content" role="group" aria-label="Task display">
-        <Button aria-pressed={mode() === 'agenda'} disabled={busy()} onClick={() => { setStripStart(date()); update({ mode: 'agenda', scroll: 0 }); }}>Day</Button>
-        <Button aria-pressed={mode() === 'week'} disabled={busy()} onClick={() => { setStripStart(mondayWeekStart(date()) ?? date()); update({ mode: 'week', scroll: 0 }); }}>Week</Button>
+        <Button aria-pressed={mode() === 'agenda'} disabled={busy()} onClick={() => { setStripStart(stripStartFor('agenda', date())); update({ mode: 'agenda', scroll: 0 }); }}>Day</Button>
+        <Button aria-pressed={mode() === 'week'} disabled={busy()} onClick={() => { setStripStart(stripStartFor('week', date())); update({ mode: 'week', scroll: 0 }); }}>Week</Button>
         <Button aria-pressed={mode() === 'tasks'} disabled={busy()} onClick={() => update({ mode: 'tasks', scroll: 0 })}>Tasks</Button>
         <Show when={mode() === 'week' && !narrowWeek()}><span class="agenda-week-hours"><Button aria-pressed={showAllHours()} onClick={toggleWeekHours}>{showAllHours() ? 'Hide early and late hours' : 'Show all hours'}</Button></span></Show>
       </div>
+      <Show when={phone}>
+        {/* The band is always 68 pt, whatever the mode puts in it. */}
+        <div class="agenda-band">
+          <Show when={mode() === 'agenda'}><AgendaDayStrip start={stripStart()} date={date()} today={today()} rows={weekRows()} loading={weekLoading()} disabled={busy()} onSelect={day => update({ date: day, scroll: 0 })} onWeek={setStripStart} /></Show>
+          <Show when={mode() === 'week'}><div class="agenda-week-band">
+            <Button kind="tint" icon="left" label="Previous week" disabled={busy() || !previousDate()} onClick={() => { const previous = previousDate(); if (previous) changeDay(previous); }} />
+            <span class="agenda-week-mid" role="status">
+              <span class="agenda-week-caps">Week <span class="agenda-fig">{weekNumber()}</span></span>
+              <span class="agenda-week-line"><Show when={!weekLoading()} fallback="·"><span class="agenda-fig">{weekCounts().open}</span> open<Show when={weekCounts().overdue}> · <span class="agenda-week-late"><span class="agenda-fig">{weekCounts().overdue}</span> overdue</span></Show></Show></span>
+            </span>
+            <Button kind="tint" icon="right" label="Next week" disabled={busy() || !nextDate()} onClick={() => { const next = nextDate(); if (next) changeDay(next); }} />
+          </div></Show>
+          <Show when={mode() === 'tasks'}><div class="agenda-search-band">
+            <SearchWell label="Search tasks" placeholder="Search tasks" value={searchDraft()} disabled={busy()}
+              onInput={event => { const text = event.currentTarget.value; setSearchDraft(text); clearTimeout(searchTimer); searchTimer = setTimeout(() => commitSearch(text), 250); }}
+              onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); commitSearch(event.currentTarget.value); event.currentTarget.blur(); } }} />
+          </div></Show>
+        </div>
+        <Show when={mode() === 'tasks'}><TaskChips query={query()} today={today()} projects={projectTitles()} metadataLoading={metadataLoading()} metadataError={metadataError()} disabled={busy()} onChange={value => update({ query: value, scroll: 0 })} /></Show>
+      </Show>
       <div class="agenda-mode-content">
-      <Show when={mode() === 'agenda'}><AgendaWeekStrip dates={stripDates()} date={date()} today={props.notebook.todayDate()} rows={weekRows()} overdueToday={date() === props.notebook.todayDate() ? dayGroups().overdue.length : 0} loading={weekLoading()} disabled={busy()} onSelect={date => update({ date, scroll: 0 })} /></Show>
+      <Show when={mode() === 'agenda' && !phone}><AgendaWeekStrip dates={stripDates()} date={date()} today={props.notebook.todayDate()} rows={weekRows()} overdueToday={date() === props.notebook.todayDate() ? dayGroups().overdue.length : 0} loading={weekLoading()} disabled={busy()} onSelect={date => update({ date, scroll: 0 })} /></Show>
       <Show when={mode() === 'agenda'}>
         <div class="agenda-add">
           <CaptureField notebook={props.notebook} contextDate={date} schedule taskOnly boxed section={captureTarget()} label="New task"
@@ -475,7 +548,7 @@ export function AgendaPane(props: AgendaPaneProps) {
       </Show>
       <Show when={weekError()}><div class="agenda-error" role="alert"><span>{weekError()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry week</Button></div></Show>
       <Show when={mode() === 'tasks'}>
-        <div class="task-query-toolbar">
+        <Show when={!phone}><div class="task-query-toolbar">
           <Button class="bordered task-query-view" disabled={busy()} aria-haspopup="dialog" aria-expanded={popup()?.kind === 'views'} onClick={event => { setPickerSearch(''); setPopup({ kind: 'views', anchor: event.currentTarget }); }}>{viewId() ? saved()?.name ?? (savedLoading() ? 'Loading view…' : 'Unavailable view') : 'Task query'}<Icon name="down" /></Button>
           <TaskQueryLine query={query()} context={queryLineContext()} disabled={busy()} onChange={value => update({ query: value, scroll: 0 })} onDraftState={(draft, message) => { setQueryLineDirty(draft); setQueryLineError(message); }} />
           <TaskConditions notebook={props.notebook} query={query()} date={date()} fields={fields()} projects={projectTitles()} metadataLoading={metadataLoading()} metadataError={metadataError()} disabled={busy()} recentInput={recentInput()} limitInput={limitInput()} onRecentInput={setRecentInput} onLimitInput={setLimitInput} onChange={value => update({ query: value })} />
@@ -483,11 +556,11 @@ export function AgendaPane(props: AgendaPaneProps) {
           <Show when={dirty()}><Button disabled={busy() || !!filterError()} onClick={() => { const value = saved()!; void saveView(value.name, value.id, value, false).catch(() => {}); }}>Save changes</Button></Show>
           <Show when={saved()}><Button icon="more" label="Task view actions" disabled={busy() || savedLoading()} onClick={event => viewMenu(event.currentTarget)} /></Show>
           <Show when={!loading() && !error()}><span class="agenda-count" role="status">{rows().length === total() ? `${total()} task${total() === 1 ? '' : 's'}` : `${rows().length} of ${total()} tasks`}</span></Show>
-        </div>
+        </div></Show>
         <Show when={remoteChanged()}><p class="agenda-message" role="status">The saved view changed elsewhere. Your draft is unchanged. Discard changes to load the saved version, or save as another view.</p></Show>
         <Show when={viewsError() || savedError()}><div class="agenda-error" role="alert"><span>{viewsError() || savedError()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry views</Button></div></Show>
         <Show when={filterError() && !queryLineError()}><p class="agenda-error" role="alert">{filterError()}</p></Show>
-        <Show when={metadataLoading()}><p class="agenda-message" role="status">Loading source filters…</p></Show>
+        <Show when={metadataLoading() && !phone}><p class="agenda-message" role="status">Loading source filters…</p></Show>
         <Show when={metadataError()}><div class="agenda-error" role="alert"><span>{metadataError()}</span><Button onClick={() => setRefresh(value => value + 1)}>Retry filters</Button></div></Show>
       </Show>
       <Show when={busy() || props.notebook.commandState() !== 'saved'}><p class="agenda-message" role="status">{props.notebook.commandMessage() || (busy() ? 'Saving task view…' : props.notebook.commandState())}</p></Show>
@@ -506,14 +579,17 @@ export function AgendaPane(props: AgendaPaneProps) {
         <Show when={!loading() && !error()}>
           <Show when={!rows().length && mode() === 'tasks'}><p class="agenda-message">No tasks match these filters.</p></Show>
         </Show>
-        <Show when={mode() === 'agenda'} fallback={<TaskSourceRows rows={rows()} date={date()} pageId={dayPage()} sections={query().filter.sort === 'outline'} notebook={props.notebook} history={taskHistory} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />}>
+        <Show when={mode() === 'agenda'} fallback={<Show when={phone && query().filter.sort !== 'outline'} fallback={<TaskSourceRows rows={rows()} date={date()} pageId={dayPage()} sections={query().filter.sort === 'outline'} notebook={props.notebook} history={taskHistory} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />}>
+          {/* A phone's Tasks reads as Day does: a head per due day, oldest overdue first, or per status. */}
+          <Index each={taskGroups()}>{group => <section class="agenda-day-section" aria-label={group().name}>
+            <SectionHead name={group().name} count={group().rows.length} tone={group().overdue ? 'danger' : undefined} />
+            <TaskSourceRows rows={group().rows} date={date()} plannedDate={group().date} pageId={dayPage()} notebook={props.notebook} history={taskHistory} timetable={!group().overdue} plan={group().key !== 'done' && group().key !== 'cancelled'} disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
+          </section>}</Index>
+        </Show>}>
           <overdueMove.Notice />
           <HeldSection class="agenda-day-section" aria-label={date() > props.notebook.todayDate() ? 'Before this day' : 'Overdue'} rows={dayGroups().overdue}>
             <SectionHead name={date() > props.notebook.todayDate() ? 'Before this day' : 'Overdue'} count={dayGroups().overdue.length} tone={date() <= props.notebook.todayDate() ? 'danger' : undefined}>
-              <Button class="bordered agenda-group-move" disabled={busy() || loading()} aria-haspopup="menu" aria-expanded={overdueMenuOpen()} onClick={event => setPopup({ kind: 'menu', anchor: event.currentTarget, label: 'Move overdue tasks', items: [
-                { label: 'To today', disabledReason: !movableTo(dayGroups().overdue, props.notebook.todayDate()).length ? 'All tasks are already scheduled for today.' : undefined, action: () => overdueMove.move(dayGroups().overdue, props.notebook.todayDate()) },
-                { label: 'To tomorrow', action: () => overdueMove.move(dayGroups().overdue, shiftCalendarDate(props.notebook.todayDate(), 1)!) },
-              ] })}>Move all<Icon name="down" /></Button>
+              <Button class="bordered agenda-group-move" disabled={busy() || loading()} aria-haspopup="menu" aria-expanded={popup()?.kind === 'move'} onClick={event => setPopup({ kind: 'move', anchor: event.currentTarget })}>Move all<Icon name="down" /></Button>
             </SectionHead>
             <TaskSourceRows rows={dayGroups().overdue} enterRows={arrived()} date={date()} notebook={props.notebook} history={taskHistory} timetable gutter={dayGutter()} plan disabled={busy() || loading() || !!error()} onOpen={props.onOpen} onChanged={() => setRefresh(value => value + 1)} />
           </HeldSection>
@@ -551,6 +627,23 @@ export function AgendaPane(props: AgendaPaneProps) {
         if (state.kind === 'views') return <Picker<TaskView | null> anchor={state.anchor} label="Saved task views" query={pickerSearch()} onQuery={setPickerSearch} placeholder="Find a task view" items={[null, ...viewChoices()]} key={item => item?.id ?? 'unsaved'} busy={viewsLoading()} error={viewsError()} onDismiss={dismiss} onPick={selectView} row={item => <><Icon name={viewId() === (item?.id ?? null) ? 'check' : 'page'} /><span class="picker-text">{item?.name ?? 'New task query'}</span></>} empty="No matching task views." />;
         if (state.kind === 'name') return <TaskViewNamePopup anchor={state.anchor} name={state.saved?.name ?? ''} rename={state.action === 'rename'} busy={busy()} onDismiss={dismiss} onSave={name => saveView(name, state.id, state.saved, state.action === 'rename')} />;
         if (state.kind === 'delete') return <Popup anchor={state.anchor} label="Delete task view?" onDismiss={dismiss}><p>Delete “{state.saved.name}”? Tasks are not deleted.</p><Show when={commandError()}><p class="error" role="alert">{commandError()}</p></Show><div class="popup-actions"><Button disabled={busy()} onClick={dismiss}>Cancel</Button><Button class="bordered danger" disabled={busy()} onClick={() => { void deleteView(state.saved); }}>Delete view</Button></div></Popup>;
+        if (state.kind === 'move') {
+          const count = dayGroups().overdue.length;
+          return <BulkMoveMenu anchor={state.anchor} rows={dayGroups().overdue} today={today()} caption={`Move ${count} ${date() > today() ? 'earlier' : 'overdue'} ${count === 1 ? 'task' : 'tasks'} to`} onMove={day => overdueMove.move(dayGroups().overdue, day)} onPickDate={() => setPopup({ kind: 'move-date', anchor: state.anchor })} onDismiss={dismiss} />;
+        }
+        if (state.kind === 'move-date') return <DatePicker notebook={props.notebook} anchor={state.anchor} label="Move tasks to" value={null} contextDate={date()} onDismiss={dismiss} onSelect={value => { if (value.date) overdueMove.move(dayGroups().overdue, value.date); }} />;
+        if (state.kind === 'grouping') {
+          const viewItems = saved() || nonemptyQuery() ? viewMenuItems(state.anchor) : [];
+          return <Menu anchor={state.anchor} label="Group tasks" onDismiss={dismiss} items={[
+            ...taskGroupings.map(({ value, label }): MenuItem => ({ label, checked: grouping() === value, action: () => setGrouping(value) })),
+            { label: 'Saved views', divider: true, submenu: () => ({ title: 'Saved views', items: [
+              { label: 'All tasks', checked: !viewId(), action: () => selectView(null) },
+              ...views().map((view): MenuItem => ({ label: view.name, checked: viewId() === view.id, action: () => selectView(view) })),
+              ...(viewsError() ? [{ label: viewsError(), disabledReason: viewsError(), action: () => {} }] : []),
+            ] }) },
+            ...viewItems.map((item, index): MenuItem => index === 0 ? { ...item, divider: true } : item),
+          ]} />;
+        }
       }}</Show>
     </div>
   </div>;

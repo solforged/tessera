@@ -113,7 +113,7 @@ The task API's optional `project_via: "field"` filter restricts results to expli
 
 The Agenda destination keeps an apparatus Agenda eyebrow above its title, followed by `· Today` in gilt when the displayed day or week contains today. Day has a spoken date heading, `Sunday, October 25`, never a relative word such as today. Previous day, Today and Next day form one bordered group at the title's right edge, with Today in `--faint` while today is shown. Week uses a week number and month-and-day range (`Week 43 · Oct 19 – Oct 25`, with the year only outside today's) with Previous week / Today / Next week. Both date headings open the journal's calendar; picking a day moves there, and its Today returns to today. Tasks has a plain Tasks title with no date navigation.
 
-On the cover, a date eyebrow and Agenda page title sit above the day or week stepper. The eyebrow opens the calendar; Tasks uses a Tasks eyebrow instead. Wider layouts keep their date-led heading.
+On a phone the nav bar's Index and + buttons float above the page and the Agenda [header](#phone-header) sits under them; wider layouts keep their date-led heading.
 
 Day / Week / Tasks sit beneath on the shared ruled tab baseline. On the wide Week grid, the hour-window toggle sits at the right end of this same row; it is absent from Day, Tasks and the narrow Week ledger.
 
@@ -123,6 +123,18 @@ Day's seven-day strip has no boxes:
 - The selected day has a 2 px gilt rule on the strip's hairline and the `--hover` fill; today's numeral is gilt.
 - Tapping a day changes the list without shifting the strip.
 - The strip and Day lookahead reuse the existing scheduled/deadline task queries.
+
+### Phone header
+
+Below 600 px with a coarse pointer the header is three fixed rows under the nav bar, 158 px in all and the same on Day, Week and Tasks, so switching modes never moves the list:
+
+- **Title row, 48 px.** The title is the spoken date on Day (`Thursday, October 29`), a month-and-day span on Week (`Oct 26 to Nov 1`) and a task count on Tasks (`16 tasks`). Day and Week show a Today pill at the right once another day or week is displayed; Tasks shows the grouping pull-down (`By due`, `By status`; Saved views and Save as view live in it, and the query field is hidden). The title opens the journal calendar on Day and Week.
+- **Mode strip, 42 px.** Day / Week / Tasks on the ruled tab baseline, pinned under the nav bar with the page's ground behind it. The chosen tab stays gilt after a tap.
+- **Band, 68 px.** Day: a seven-day pager, swiped by week (three weeks are mounted and recentred after each swipe), a lit pill on the chosen day, one muted dot per open task, red once the day has passed. Week: previous and next circles around `WEEK 44` and `10 open · 2 overdue`. Tasks: the search well.
+
+The strip and band stay pinned while the list scrolls; on a screen under 740 px tall only the strip does, and the band scrolls away with the title. Tasks adds a 48 px chip row, scrolling with the list: Status (any number of statuses), Due (Scheduled or Deadline, each with Before today, Today, Tomorrow and Next 7 days), Project and Priority. A chip with a value names it, and any chip edits the same task query the query line and condition bar edit. Results are grouped by due day (Overdue, then each day, No date, Done) or by status.
+
+Day's section heads (Overdue, Today) carry their count, and Overdue has **Move all**: a pull-down offering Today, Tomorrow and Pick a date, titled with the number of tasks it moves. A move posts an Undo notice. On Week, past days are muted one-line heads with a summary (`1 open`, `1 done`, `Nothing planned`), today is the only open day, a lit leaf with a gilt hairline, and later days open on a tap.
 
 ### Add a task
 

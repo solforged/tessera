@@ -41,3 +41,8 @@ export function civilDate(value: number, zone?: string): string {
 export function weekRangeTitle(monday: string, sunday: string, today: string): string {
   return `Week ${journalWeek(monday)} · ${calendarDate(monday, sunday)} – ${calendarDate(sunday, today)}`;
 }
+
+/** A phone's week title: `Oct 26 to Nov 1`, the year added where it is not today's. */
+export function weekRangeProse(monday: string, sunday: string, today: string): string {
+  return `${calendarDate(monday, sunday)} to ${calendarDate(sunday, today)}`;
+}
