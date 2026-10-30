@@ -9,17 +9,28 @@ import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import { Menu } from '../ui/Menu';
+import type { MenuItem } from '../ui/Menu';
+import { longPress, openContextMenu } from '../ui/context-menu';
+import { isPhone } from '../ui/phone';
 import { SectionSubhead } from '../ui/SectionHead';
 import { DatePicker } from './DatePicker';
+import { MoveToSheet } from './MoveToSheet';
 import { movableTo, rescheduleTasks } from './reschedule';
+import { showMovedNotice } from './moved-notice';
 import { priorityLabel, priorityMenuItems, statusIcons, statusLabels, statusMenuItems } from './TaskControls';
 import { relativeDate } from './relative-date';
 import { agendaTaskTime, isFinished, taskFacts } from './task-labels';
 import { handOffFocus, neighbourTaskIds } from './focus-handoff';
 import { enterRow, exitRow, heldRows, holdRows, popStatusGlyph, releaseRow } from './row-motion';
+import { attachRowSwipe } from './row-swipe';
+import type { RowSwipe, SwipeCommit, SwipeLayout } from './row-swipe';
 import { shiftCalendarDate } from './week-calendar';
 import type { TaskSourceHistory } from './source-history';
 import './agenda.css';
+import './task-row.css';
+
+/** A phone's now rule names the time as a figure: `8:25`, not `08:25`. */
+const clockLabel = (now: string | undefined, phone: boolean) => phone ? now?.replace(/^0/, '') : now;
 
 /** Resolves once an opened document has loaded; rejects when it is missing or failed. */
 export function documentReady(doc: PageDocument): Promise<void> {
@@ -64,6 +75,7 @@ export function TaskSourceRows(props: {
   onOpen(target: OpenTarget, beside: boolean): void;
   onChanged(): void;
 }) {
+  const phone = isPhone();
   const byId = createMemo(() => new Map(props.rows.map(row => [row.source.block.id, row])));
   const live = createMemo(() => {
     const keys = [...byId().keys()];
@@ -107,7 +119,7 @@ export function TaskSourceRows(props: {
       return row && 'section_id' in row && row.section_id && (!previous || !('section_id' in previous) || previous.section_id !== row.section_id) ? row.section_text : null;
     };
     return <><Show when={section()}>{text => <li class="agenda-row-section"><SectionSubhead name={<BlockText text={text()} notebook={props.notebook} interactive={false} />} /></li>}</Show><TaskSourceRow row={byId().get(id) ?? initial} enter={arrives} date={props.date} pageId={props.pageId} notebook={props.notebook} disabled={props.disabled} history={props.history} timetable={props.timetable} gutter={gutter()} plannedDate={props.plannedDate} plan={props.plan} deadlineLabel={props.deadlineLabel} showNow={props.showNow} now={props.now} nowBefore={nowAt() === id} onOpen={props.onOpen} onChanged={props.onChanged} /></>;
-  }}</For><Show when={nowAt() === 'end'}><li class="agenda-now agenda-now-end" aria-hidden="true"><Show when={props.showNow}><span>{props.now}</span></Show></li></Show></ul>;
+  }}</For><Show when={nowAt() === 'end'}><li class="agenda-now agenda-now-end" aria-hidden="true"><Show when={props.showNow || phone}><span>{clockLabel(props.now, phone)}</span></Show></li></Show></ul>;
 }
 
 /** Journal provenance names the day in words rather than repeating its stored ISO title. */
@@ -152,7 +164,10 @@ function TaskSourceRow(props: {
   const [menu, setMenu] = createSignal<{ kind: 'status' | 'priority'; anchor: HTMLElement } | null>(null);
   /** A leaving row keeps its place in the list until its exit ends; `leaving` shows the done glyph at once. */
   const [leaving, setLeaving] = createSignal<'done' | null>(null);
-  const releaseExit = () => { leftRow = null; releaseRow(item); setLeaving(null); };
+  const phone = isPhone();
+  const [moving, setMoving] = createSignal(false);
+  let swipe: RowSwipe | undefined;
+  const releaseExit = () => { leftRow = null; releaseRow(item); setLeaving(null); swipe?.reset(); };
   onCleanup(() => releaseRow(item, false));
   // A row the refetch keeps, such as a recurring task, eases back instead of snapping, but only once its exit is over: while the row is held the exit plays out.
   let leftRow: TaskRow | AgendaItem | null = null;
@@ -175,11 +190,30 @@ function TaskSourceRow(props: {
   });
   /** Where the keyboard goes when this row leaves while it, or the picker it opened, holds focus. */
   const handoff = () => item.contains(document.activeElement) || picking() ? { ids: neighbourTaskIds(item), owner: item.closest<HTMLElement>('.agenda-pane') ?? item.closest<HTMLElement>('[data-task-rows]') } : null;
-  onMount(() => { if (props.enter) enterRow(item); });
+  onMount(() => {
+    if (props.enter) enterRow(item);
+    if (!phone) return;
+    swipe = attachRowSwipe(item, { layout: swipeLayout, onCommit: commitSwipe });
+    const stopPress = longPress(item, () => openActions(), { ignore: '.agenda-swipe' });
+    onCleanup(() => { swipe?.destroy(); stopPress(); });
+  });
   const historical = () => 'reasons' in props.row && props.row.reasons.includes('recently_completed');
   const unfinished = () => !historical() && !isFinished(props.row.task);
-  const time = createMemo(() => props.timetable ? agendaTaskTime(props.row, props.plannedDate ?? props.date, !props.deadlineLabel) : 'time' in props.row ? props.row.time : null);
-  const facts = createMemo(() => historical() ? [] : taskFacts(props.row.task, { date: props.plannedDate ?? props.date, today: props.notebook.todayDate(), listed: props.timetable || 'reasons' in props.row, timeShown: !!time() }));
+  const time = createMemo(() => props.timetable ? agendaTaskTime(props.row, props.plannedDate ?? props.date, !props.deadlineLabel) : 'time' in props.row ? props.row.time : phone && unfinished() ? props.row.task.scheduled_time : null);
+  // A phone says an overdue task in its time column, as the word for the day it was planned or due ("Yesterday", "Tue"), so the facts line leaves it out.
+  const lateDay = createMemo(() => {
+    if (!phone || historical() || !unfinished()) return null;
+    const { scheduled, deadline } = props.row.task, shown = props.plannedDate ?? props.date, current = props.notebook.todayDate();
+    if (scheduled && scheduled < shown && scheduled < current) return { field: 'schedule', date: scheduled } as const;
+    if (deadline && deadline < shown && deadline < current) return { field: 'deadline', date: deadline } as const;
+    return null;
+  });
+  const facts = createMemo(() => {
+    if (historical()) return [];
+    const all = taskFacts(props.row.task, { date: props.plannedDate ?? props.date, today: props.notebook.todayDate(), listed: props.timetable || 'reasons' in props.row, timeShown: !!time() });
+    const late = lateDay();
+    return late ? all.filter(fact => !(fact.late && fact.field === late.field)) : all;
+  });
   /** Opens the canonical source, runs one edit on its task block and saves it. */
   const editSource = async (row: TaskRow | AgendaItem, edit: (doc: PageDocument) => Promise<boolean | void>, leave?: 'done' | 'out') => {
     if (busy() || props.disabled) return;
@@ -270,6 +304,7 @@ function TaskSourceRow(props: {
   });
   const reschedule = (date: string | null, time?: string | null) => {
     if (!date || busy() || props.disabled || !movableTo([props.row], date, time).length) return;
+    const target: string = date;
     // The row may leave this list; keep the keyboard, or the picker it opened, on the row after it.
     const next = handoff(), leaves = date !== props.row.task.scheduled;
     setBusy(true); setError('');
@@ -277,8 +312,40 @@ function TaskSourceRow(props: {
     if (leaves) { setPicking(null); leaveRow('out'); }
     if (next) handOffFocus(item, next.ids, next.owner);
     void rescheduleTasks(props.notebook, [props.row], date, `Reschedule task to ${relativeDate(date, today())}`, time)
-      .then(() => { setPicking(null); props.onChanged(); }, reason => { if (leaves) releaseExit(); setError(reason instanceof Error ? reason.message : String(reason)); })
+      .then(result => { setPicking(null); if (phone && result) showMovedNotice({ moved: result, date: target, today: today(), onUndone: props.onChanged }); props.onChanged(); }, reason => { if (leaves) releaseExit(); setError(reason instanceof Error ? reason.message : String(reason)); })
       .finally(() => setBusy(false));
+  };
+  /** What the swipe offers right now: Done on any open task; Pick date and Tomorrow where the list plans. */
+  const swipeLayout = (): SwipeLayout | null => {
+    if (busy() || props.disabled || historical() || !unfinished()) return null;
+    return { width: item.clientWidth, done: true, trailing: !!props.plan, tomorrow: !!props.plan && props.row.task.scheduled !== tomorrow() };
+  };
+  const commitSwipe = (action: SwipeCommit) => {
+    if (action === 'done') { swipe?.reset(); void complete(item, props.date); return; }
+    if (!movableTo([props.row], tomorrow()).length) { swipe?.reset(); return; }
+    swipe?.carryOff(-1);
+    reschedule(tomorrow());
+  };
+  /** A long press: the swipe's actions and the row's own, in the context menu. */
+  const openActions = () => {
+    if (props.disabled) return;
+    swipe?.reset(true);
+    const disabledReason = busy() ? 'Task is unavailable.' : undefined;
+    const items: MenuItem[] = [];
+    if (unfinished()) {
+      items.push({ label: 'Done', icon: 'check', disabledReason, action: () => { void complete(item, props.date); } });
+      if (props.plan) {
+        if (props.row.task.scheduled !== tomorrow()) items.push({ label: 'Tomorrow', icon: 'today', disabledReason, action: () => reschedule(tomorrow()) });
+        items.push({ label: 'Pick date…', icon: 'calendar', disabledReason, action: () => setPicking(item) });
+        items.push({ label: 'Move to…', icon: 'moveto', disabledReason, action: () => setMoving(true) });
+      }
+    } else if (!historical()) items.push({ label: 'Reopen', icon: 'undo', disabledReason, action: () => { void reopen(); } });
+    if (!historical()) {
+      items.push({ label: 'Status', icon: 'select', divider: items.length > 0, submenu: () => ({ title: 'Status', items: statusMenuItems(props.row.task, status => changeStatus(status, item), disabledReason) }) });
+      if (unfinished()) items.push({ label: 'Priority', icon: 'flag', submenu: () => ({ title: 'Priority', items: priorityMenuItems(props.row.task.priority, changePriority, disabledReason) }) });
+    }
+    items.push({ label: 'Open', icon: 'page', divider: items.length > 0, action: () => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, false) });
+    openContextMenu({ source: item, label: 'Task actions', items });
   };
   /** On a focused row: j and k move, t today, m tomorrow, s a date, x complete, ⌥← and ⌥→ a day earlier or later. */
   const keydown = (event: KeyboardEvent) => {
@@ -308,9 +375,16 @@ function TaskSourceRow(props: {
   const showsProject = () => props.row.project_id !== props.pageId && props.row.project_id !== props.row.source.page.id ? props.row.project_id : null;
   const openProvenance = (event: MouseEvent) => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, ...(window.matchMedia('(max-width: 599px) and (pointer: coarse)').matches ? { revealId: props.row.source.block.id } : { blockId: props.row.source.block.id }) }, opensBeside(event));
   const gutterLabel = () => time() || (props.deadlineLabel && props.row.task.deadline === props.date ? 'Due' : '');
-  return <li ref={item} class="agenda-row" data-task-id={props.row.source.block.id} classList={{ 'agenda-row-gutter': props.gutter, 'agenda-row-past': past(), 'agenda-row-picking': !!picking(), 'agenda-row-completed': historical() || props.row.task.status === 'done', 'agenda-row-cancelled': !historical() && props.row.task.status === 'cancelled' }} aria-busy={busy()} onKeyDown={keydown}>
-    <Show when={props.nowBefore}><span class="agenda-now" aria-hidden="true"><Show when={props.showNow}><span>{props.now}</span></Show></span></Show>
-    <Show when={props.gutter}><span class="agenda-time-gutter" classList={{ 'week-ledger-due': !!props.deadlineLabel && !time() && props.row.task.deadline === props.date }}>{gutterLabel()}</span></Show>
+  // A phone's one time column: the word for an overdue task, else the clock, else a due day's `Due`.
+  const when = createMemo(() => {
+    const late = lateDay();
+    if (late) return { text: relativeDate(late.date, today()).replace(/^./, letter => letter.toUpperCase()), late: true, due: false };
+    const text = phone ? gutterLabel() : '';
+    return { text, late: false, due: text === 'Due' };
+  });
+  return <li ref={item} class="agenda-row" data-task-id={props.row.source.block.id} classList={{ 'agenda-row-gutter': props.gutter && !phone, 'agenda-row-past': past(), 'agenda-row-picking': !!picking(), 'agenda-row-completed': historical() || props.row.task.status === 'done', 'agenda-row-cancelled': !historical() && props.row.task.status === 'cancelled' }} aria-busy={busy()} onKeyDown={keydown}>
+    <Show when={props.nowBefore}><span class="agenda-now" aria-hidden="true"><Show when={props.showNow || phone}><span>{clockLabel(props.now, phone)}</span></Show></span></Show>
+    <Show when={props.gutter && !phone}><span class="agenda-time-gutter" classList={{ 'week-ledger-due': !!props.deadlineLabel && !time() && props.row.task.deadline === props.date }}>{gutterLabel()}</span></Show>
     <Show when={props.row.task.status} fallback={<span class="agenda-status" />}>{status => <Show when={!historical()} fallback={<span class="agenda-status task-status-button" data-status="done" aria-label="Done"><Icon name="check" /></span>}>
       <Button class="agenda-status task-status-button" data-status={leaving() ?? status()} label={`${unfinished() ? 'Complete' : 'Reopen'} task (${statusLabels[status()]}): ${props.row.source.block.text}`} title={`${unfinished() ? `Complete on ${props.date}` : 'Reopen task'} · right-click for status`} disabled={busy() || props.disabled} aria-expanded={menu()?.kind === 'status' ? true : undefined}
         onContextMenu={event => { event.preventDefault(); if (!busy() && !props.disabled) setMenu({ kind: 'status', anchor: event.currentTarget }); }}
@@ -322,18 +396,29 @@ function TaskSourceRow(props: {
         <span class="agenda-source-text"><BlockText text={props.row.source.block.text || 'Empty task'} notebook={props.notebook} interactive={false} /></span>
       </button>
       <span class="agenda-row-facts">
-        <Show when={time()}><span class="agenda-facts-clock">{time()}</span></Show>
+        <Show when={time() && !phone}><span class="agenda-facts-clock">{time()}</span></Show>
         <Show when={props.row.source.page.id !== props.pageId}>
           <button type="button" class="agenda-provenance" aria-label={`Open source, ${props.row.source.page.text}`} title={props.row.source.page.text} onClick={openProvenance}>{provenanceLabel(props.row, today())}</button>
         </Show>
-        <For each={facts()}>{fact => <Show when={fact.priority} fallback={<span classList={{ 'agenda-late': !!fact.late, 'agenda-warning': !!fact.warning }} title={fact.label}>{fact.field === 'repeat' ? `↻ ${fact.text}` : fact.text}</span>}>
-          <Show when={unfinished()} fallback={<span>{fact.text}</span>}><Button class="agenda-priority" data-priority={fact.priority} label={`Priority: ${priorityLabel(fact.priority!)}`} title={`Priority: ${priorityLabel(fact.priority!)} (P)`} disabled={busy() || props.disabled} aria-haspopup="menu" aria-expanded={menu()?.kind === 'priority'} onClick={event => setMenu({ kind: 'priority', anchor: event.currentTarget })}>{priorityLabel(fact.priority!)}</Button></Show>
+        <For each={facts()}>{fact => <Show when={fact.priority} fallback={<span classList={{ 'agenda-late': !!fact.late, 'agenda-warning': !!fact.warning }} title={fact.label}>{fact.field === 'repeat' ? phone ? <><Icon name="repeat" />{fact.text}</> : `↻ ${fact.text}` : fact.text}</span>}>
+          <Show when={unfinished() && !phone} fallback={<span>{fact.text}</span>}><Button class="agenda-priority" data-priority={fact.priority} label={`Priority: ${priorityLabel(fact.priority!)}`} title={`Priority: ${priorityLabel(fact.priority!)} (P)`} disabled={busy() || props.disabled} aria-haspopup="menu" aria-expanded={menu()?.kind === 'priority'} onClick={event => setMenu({ kind: 'priority', anchor: event.currentTarget })}>{priorityLabel(fact.priority!)}</Button></Show>
         </Show>}</For>
         {/* A project the row already names as its source page is not repeated among the facts. */}
         <Show when={showsProject()}>{id => <span><BlockText text={props.notebook.lookup(id())()?.text ?? ''} notebook={props.notebook} interactive={false} /></span>}</Show>
       </span>
     </div>
-    <Show when={props.plan && unfinished()}>
+    <Show when={phone && when().text}>{text => <span class="agenda-when" classList={{ 'agenda-when-late': when().late, 'week-ledger-due': when().due }}>{text()}</span>}</Show>
+    {/* Behind the row's face: Done to the right, Pick date and Tomorrow to the left. */}
+    <Show when={phone && unfinished() && !historical()}>
+      <div class="agenda-swipe">
+        <span class="agenda-swipe-done" aria-hidden="true"><Icon name="check" /><span>Done</span></span>
+        <Show when={props.plan}><div class="agenda-swipe-actions">
+          <button type="button" class="agenda-swipe-pick" onClick={() => { swipe?.reset(); setMoving(true); }}><Icon name="calendar" />Pick date</button>
+          <Show when={props.row.task.scheduled !== tomorrow()}><button type="button" class="agenda-swipe-tomorrow" onClick={() => commitSwipe('tomorrow')}><Icon name="today" />Tomorrow</button></Show>
+        </div></Show>
+      </div>
+    </Show>
+    <Show when={props.plan && unfinished() && !phone}>
       <span class="agenda-row-actions">
         <Show when={props.row.task.scheduled !== today()}><Button class="agenda-row-today" icon="today" label="Schedule for today" shortcut="T" disabled={busy() || props.disabled} onClick={() => reschedule(today())} /></Show>
         <Show when={props.row.task.scheduled !== tomorrow()}><Button class="agenda-row-tomorrow" icon="arrow" label="Schedule for tomorrow" shortcut="M" disabled={busy() || props.disabled} onClick={() => reschedule(tomorrow())} /></Show>
@@ -341,6 +426,7 @@ function TaskSourceRow(props: {
       </span>
     </Show>
     <Show when={picking()}>{anchor => <DatePicker notebook={props.notebook} anchor={anchor()} label="Reschedule" value={props.row.task.scheduled} time={props.row.task.scheduled_time} contextDate={props.notebook.todayDate()} onDismiss={() => setPicking(null)} onSelect={value => reschedule(value.date, value.time)} />}</Show>
+    <Show when={moving()}><MoveToSheet anchor={item} title={props.row.source.block.text} current={props.row.task.scheduled} time={props.row.task.scheduled_time} today={today()} onChoose={date => { setMoving(false); reschedule(date); }} onPickDate={() => { setMoving(false); setPicking(item); }} onDismiss={() => setMoving(false)} /></Show>
     <Show keyed when={menu()}>{state => <Menu anchor={state.anchor} label={state.kind === 'status' ? 'Task status' : 'Priority'} onDismiss={() => setMenu(null)} items={state.kind === 'status'
       ? statusMenuItems(props.row.task, status => changeStatus(status, state.anchor), busy() || props.disabled ? 'Task is unavailable.' : undefined)
       : priorityMenuItems(props.row.task.priority, changePriority, busy() || props.disabled ? 'Task is unavailable.' : undefined)} />}</Show>

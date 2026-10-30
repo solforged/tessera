@@ -1,0 +1,92 @@
+/* The phone's task row: one row for Today's Plan, Agenda, Week and task lists (tasks/JournalAgenda.tsx). The check at the 20 pt gutter,
+   the title in Plex over a one-line meta of nowrap parts, the time in a right-hand column, and swipe actions behind the face. Desktop,
+   narrow desktop and the tablet keep the rules in agenda.css. */
+
+/* The Move to sheet: the task's words, then the days people move work to. Only the phone mounts it. */
+.move-to-task { margin: 0; padding: 0 18px 14px; color: var(--muted); font: var(--weight-body) 15px/21px var(--font-body); text-align: center; overflow-wrap: anywhere; }
+.move-to .list-group, .move-to .list-group:not(:first-child) { margin: 0 2px; }
+.move-to-choice.list-row { min-height: 54px; }
+.move-to-choice .list-row-value { font: var(--weight-body) 15px/20px var(--font-body); }
+.move-to-current .list-row-label { font-weight: 500; }
+.move-to-current .list-row-value { color: var(--accent); }
+.move-to-keeps { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; padding: 14px 20px 6px; color: var(--faint); font: var(--weight-body) 14px/18px var(--font-body); }
+.move-to-keeps .icon { flex: none; width: 15px; height: 15px; }
+.move-to-time { color: var(--muted); font: var(--weight-body) 12.5px/16px var(--font-mono); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 599px) and (pointer: coarse) {
+  /* The row spans the screen, so its swipe reaches the edges, and pads itself with the phone gutter. A host that keeps a pane inset
+     is bled through (`--pane-inset`); a host whose rows already start at the screen's edge (Agenda) sets `--row-bleed: 0px`. */
+  .agenda-rows .agenda-row { --swipe-x: 0px; grid-template-columns: 22px minmax(0, 1fr); grid-template-rows: auto auto auto; column-gap: 14px; align-items: start; margin-inline: calc(-1 * var(--row-bleed, var(--pane-inset))); padding: 13px var(--phone-gutter); border-bottom: 0; background: transparent; touch-action: pan-y; contain-intrinsic-size: auto 66px; }
+  .agenda-rows .agenda-row:has(> .agenda-when) { grid-template-columns: 22px minmax(0, 1fr) auto; }
+  /* A hairline from the text's left edge to the screen's right, between neighbours; the now rule stands in for it. */
+  .agenda-rows .agenda-row + .agenda-row::before { content: ''; position: absolute; top: 0; left: calc(var(--phone-gutter) + 36px); right: 0; height: .5px; background: var(--line); }
+  .agenda-rows .agenda-row:has(> .agenda-now)::before { content: none; }
+  .agenda-rows .agenda-row > :is(.agenda-status, .agenda-row-text, .agenda-when) { grid-row: 2; }
+  .agenda-rows .agenda-row > .agenda-status { grid-column: 1; }
+  .agenda-rows .agenda-row > .agenda-row-text { grid-column: 2; }
+  .agenda-rows .agenda-row > .agenda-when { grid-column: 3; }
+  .agenda-rows .agenda-row > :is(.agenda-message, .agenda-error) { grid-column: 2 / -1; grid-row: 3; }
+
+  /* The check: a 22 pt rounded square inside a 44 pt target that reaches into the gap but not the title (see task-controls.css). */
+  .agenda-rows .agenda-row .agenda-status.task-status-button { align-self: start; width: 44px; min-height: 44px; margin: -10px 0 -10px -11px; padding: 0; }
+  .agenda-rows .agenda-row > span.agenda-status:not(.task-status-button) { width: 22px; min-height: 22px; }
+
+  /* The title: Plex 17 over 24, its whole line a target. */
+  .agenda-rows .agenda-row .agenda-source { margin: -11px 0 -10px; padding: 10px 0; color: var(--text); font: var(--weight-body) 17px/24px var(--font-body); }
+  .agenda-rows .agenda-row .agenda-source-text { -webkit-line-clamp: 3; }
+  .agenda-rows .agenda-row .agenda-source-text .outline-reference { color: inherit; font: inherit; text-decoration: underline; text-decoration-thickness: 1px; text-decoration-color: var(--control-border); text-underline-offset: 3px; }
+
+  /* The meta: Plex 14 over 18 in muted, parts that never split, parted by a faint dot; the page name is plain text. */
+  .agenda-rows .agenda-row .agenda-row-facts { flex-wrap: nowrap; margin-top: 2px; color: var(--muted); font: var(--weight-body) 14px/18px var(--font-body); }
+  .agenda-rows .agenda-row .agenda-row-facts > * { flex: none; min-width: 0; max-width: 100%; white-space: nowrap; }
+  .agenda-rows .agenda-row .agenda-row-facts > .agenda-provenance { flex: 0 1 auto; display: block; }
+  .agenda-rows .agenda-row .agenda-row-facts > * + *::before { padding-inline: 6px 8px; color: var(--faint); }
+  .agenda-rows .agenda-row .agenda-row-facts .icon { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; stroke-width: 1.4; }
+  .agenda-rows .agenda-row .agenda-provenance { margin-block: -8px; padding-block: 8px; overflow: hidden; color: inherit; text-decoration: none; text-overflow: ellipsis; overflow-wrap: normal; }
+  .agenda-rows .agenda-row .agenda-provenance:is(:hover, :focus-visible) { color: inherit; }
+  .agenda-rows .agenda-row .agenda-priority[data-priority="high"] { color: inherit; }
+  .agenda-rows .agenda-row .agenda-late { color: var(--danger); }
+
+  /* The time: a right-hand column in mono; an overdue task says the day it was planned for, as a word, in danger. */
+  .agenda-rows .agenda-row .agenda-when { padding-top: 3px; color: var(--muted); font: var(--weight-body) 14px/18px var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: normal; white-space: nowrap; }
+  .agenda-rows .agenda-row .agenda-when-late { color: var(--danger); font-family: var(--font-body); }
+  .agenda-rows .agenda-row .agenda-when.week-ledger-due { color: var(--calendar-deadline); font-family: var(--font-body); }
+
+  /* Nothing greys for being past: the now rule says where the day is. */
+  .agenda-rows .agenda-row-past .agenda-source-text { color: inherit; }
+  .agenda-rows .agenda-row:is(.agenda-row-completed, .agenda-row-cancelled) .agenda-source-text { color: var(--muted); }
+
+  /* The now rule: a gilt dot at the gutter, the time in gilt mono, then a gilt hairline to the right gutter. It sits on the seam above its row. */
+  .agenda-rows .agenda-row:has(> .agenda-now) { margin-top: 18px; content-visibility: visible; }
+  .agenda-rows .agenda-row > .agenda-now { position: absolute; inset: -20px var(--phone-gutter) auto; display: flex; align-items: center; gap: 8px; height: 22px; border: 0; color: var(--accent); pointer-events: none; }
+  .agenda-rows .agenda-row > .agenda-now::before { content: ''; position: static; flex: none; width: 6px; height: 6px; margin-right: -2px; border-radius: 3px; background: var(--accent); }
+  .agenda-rows .agenda-row > .agenda-now > span, .agenda-rows li.agenda-now-end > span { position: static; color: var(--accent); font: var(--weight-body) 12px/16px var(--font-mono); }
+  .agenda-rows .agenda-row > .agenda-now::after, .agenda-rows li.agenda-now-end::after { content: ''; flex: 1; height: 1px; background: color-mix(in srgb, var(--accent) 70%, transparent); }
+  .agenda-rows li.agenda-now-end { position: relative; display: flex; align-items: center; gap: 8px; height: 22px; margin: 4px var(--phone-gutter) 0; border: 0; color: var(--accent); }
+  .agenda-rows li.agenda-now-end::before { content: ''; flex: none; width: 6px; height: 6px; margin-right: -2px; border-radius: 3px; background: var(--accent); }
+
+  /* The swipe: the face (check, text, time) follows --swipe-x; the actions wait behind it. */
+  .agenda-rows .agenda-row > :is(.agenda-status, .agenda-row-text, .agenda-when) { translate: var(--swipe-x) 0; transition: translate var(--motion-ui) var(--motion-ease); }
+  .agenda-rows .agenda-row[data-swiping] > :is(.agenda-status, .agenda-row-text, .agenda-when) { transition: none; }
+  .agenda-rows .agenda-row .agenda-swipe { position: absolute; inset: 6px 0; z-index: 1; visibility: hidden; pointer-events: none; transition: visibility 0s var(--motion-ui); }
+  .agenda-rows .agenda-row:is([data-swiping], [data-swipe-open]) > .agenda-swipe { visibility: visible; transition-delay: 0s; }
+  .agenda-rows .agenda-row[data-swipe-open] .agenda-swipe-actions { pointer-events: auto; }
+  /* Done grows from the left edge as the finger pulls; past the threshold it fills with gilt. */
+  .agenda-swipe-done { position: absolute; inset: 0 auto 0 8px; width: max(0px, calc(var(--swipe-x) - 14px)); overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 16px; background: color-mix(in srgb, var(--accent) 14%, var(--leaf)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 var(--lit-edge); color: var(--accent); font: 600 13px/16px var(--font-body); white-space: nowrap; transition: background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease); }
+  .agenda-row[data-swipe-commit="done"] .agenda-swipe-done { background: var(--accent); color: var(--canvas); }
+  .agenda-swipe-done .icon { flex: none; width: 22px; height: 22px; stroke-width: 1.5; }
+  /* Pick date and Tomorrow keep their width as the row slides; Tomorrow, the first to appear, grows to fill the row on a full pull. */
+  .agenda-swipe-actions { position: absolute; inset: 0 0 0 auto; width: max(0px, calc(-1 * var(--swipe-x))); overflow: hidden; display: flex; justify-content: flex-end; gap: 6px; padding-right: 8px; box-sizing: border-box; }
+  .agenda-swipe-actions > button { flex: none; width: 82px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0; border: 0; border-radius: 16px; background: var(--ink-wash); color: var(--text); font: 500 13px/16px var(--font-body); }
+  .agenda-swipe-actions > button:active { background: color-mix(in srgb, var(--text) 14%, transparent); }
+  .agenda-swipe-actions > button .icon { width: 22px; height: 22px; stroke-width: 1.3; }
+  .agenda-swipe-actions > .agenda-swipe-tomorrow { flex: 1 0 82px; background: color-mix(in srgb, var(--accent) 14%, var(--leaf)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 var(--lit-edge); color: var(--accent); font-weight: 600; }
+  .agenda-row[data-swipe-commit="tomorrow"] .agenda-swipe-tomorrow { background: var(--accent); color: var(--canvas); }
+  .agenda-swipe-actions > .agenda-swipe-tomorrow:active { background: color-mix(in srgb, var(--accent) 24%, var(--leaf)); }
+}
+
+/* A reference inside a task's own sentence keeps a link cue in the sentence's weight: a 1 px hairline underline, not gilt. This is the
+   same cue the agenda row's title takes above. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .outline-row[data-task-status] > .outline-body .outline-reference:not(.outline-reference-ambiguous) { color: inherit; text-decoration-color: var(--control-border); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+}

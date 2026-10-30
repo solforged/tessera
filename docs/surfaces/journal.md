@@ -147,7 +147,7 @@ Every section uses the shared [section head](../design.md#color), written and ge
 
 ### Plan
 
-Plan lists today's tasks in [Day rows](tasks-agenda.md#rows), with their time gutter, completion, [rescheduling keys and now rule](tasks-agenda.md#rescheduling). It includes tasks written in today's journal, whose provenance names their section (`Inbox · today`), so nothing is counted twice or left out.
+Plan lists today's tasks in [Day rows](tasks-agenda.md#rows), with their time gutter, completion, [rescheduling keys and now rule](tasks-agenda.md#rescheduling). It includes tasks written in today's journal, whose provenance names their section (`Inbox · today`), so nothing is counted twice or left out. On a phone the rows are [phone rows](tasks-agenda.md#on-a-phone): the time sits in a right-hand column, a swipe completes or reschedules, and a long press opens the task's actions and Move to.
 
 Carried work, which Agenda's Day lists as Overdue, collapses to one band above the rows. It has the pill recipe in `--danger` at 2 px radius, and reads `2 carried over` in `--danger`, the carried titles in `--muted` truncated to one line, then Move to today and Review…. Move to today moves them all, with the [same Undo line](tasks-agenda.md#groups). Review… expands the carried rows in place, between the band and today's rows.
 
