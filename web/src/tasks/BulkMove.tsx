@@ -3,13 +3,21 @@ import type { JSX } from 'solid-js';
 import type { AgendaItem, TaskRow } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
+import { Menu } from '../ui/Menu';
+import type { MenuItem } from '../ui/Menu';
+import { showNotice } from '../ui/Notice';
+import { isPhone } from '../ui/phone';
 import { movableTo, rescheduleTasks } from './reschedule';
 import type { Rescheduled } from './reschedule';
 import { relativeDate } from './relative-date';
 import { exitRow, holdRows, releaseRow } from './row-motion';
 import { handOffFocus } from './focus-handoff';
+import { shiftCalendarDate } from './week-calendar';
 
-/** Moves a group of tasks to one day and keeps a quiet `Moved 6 to today · Undo` line until the next move. */
+/**
+ * Moves a group of tasks to one day and keeps an Undo until the next move: the glass notice above the tab bar on a phone,
+ * a quiet `Moved 6 to today · Undo` line elsewhere.
+ */
 export function createBulkMove(notebook: NotebookClient, onChanged: () => void): { move(rows: readonly (TaskRow | AgendaItem)[], date: string): void; Notice: () => JSX.Element } {
   const [moved, setMoved] = createSignal<{ label: string; result: Rescheduled; ids: string[] } | null>(null);
   const [error, setError] = createSignal('');
@@ -27,10 +35,16 @@ export function createBulkMove(notebook: NotebookClient, onChanged: () => void):
     const exits = leaving.map(element => exitRow(element));
     if (exits.some(Boolean)) holdRows(ids, Promise.all(exits.map(exit => exit?.finished)));
     const restore = () => leaving.forEach(element => releaseRow(element));
+    const phone = isPhone();
     void rescheduleTasks(notebook, rows, date, `Move ${count} ${count === 1 ? 'task' : 'tasks'} to ${when}`)
       .then(result => {
-        if (result) setMoved({ label: `Moved ${result.count} to ${when}`, result, ids });
-        else restore();
+        if (!result) restore();
+        else if (phone) showNotice({
+          text: `Moved ${result.count} ${result.count === 1 ? 'task' : 'tasks'} to ${when}`,
+          action: { label: 'Undo', run: async () => { await result.undo(); onChanged(); } },
+          onError: fail,
+        });
+        else setMoved({ label: `Moved ${result.count} to ${when}`, result, ids });
         onChanged();
       }, reason => { restore(); fail(reason); })
       .finally(() => {
@@ -54,4 +68,34 @@ export function createBulkMove(notebook: NotebookClient, onChanged: () => void):
     <Show when={error()}><p class="agenda-error" role="alert">{error()}</p></Show>
   </>;
   return { move, Notice };
+}
+
+/**
+ * Where a group's Move all goes. On a phone a glass pull-down hangs from the button and names what it moves; Today and
+ * Tomorrow are one tap, and Pick a date hands over to the date sheet.
+ */
+export function BulkMoveMenu(props: {
+  anchor: HTMLElement;
+  rows: readonly (TaskRow | AgendaItem)[];
+  today: string;
+  /** What the pull-down says it moves, before the choices: `Move 2 overdue tasks to`. */
+  caption: string;
+  onMove(date: string): void;
+  onPickDate(): void;
+  onDismiss(): void;
+}) {
+  const phone = isPhone();
+  const tomorrow = shiftCalendarDate(props.today, 1)!;
+  const todayReason = !movableTo(props.rows, props.today).length ? 'All tasks are already scheduled for today.' : undefined;
+  const items: MenuItem[] = phone
+    ? [
+      { label: 'Today', icon: 'today', disabledReason: todayReason, action: () => props.onMove(props.today) },
+      { label: 'Tomorrow', icon: 'right', action: () => props.onMove(tomorrow) },
+      { label: 'Pick a date…', icon: 'calendar', divider: true, action: props.onPickDate },
+    ]
+    : [
+      { label: 'To today', disabledReason: todayReason, action: () => props.onMove(props.today) },
+      { label: 'To tomorrow', action: () => props.onMove(tomorrow) },
+    ];
+  return <Menu anchor={props.anchor} label="Move overdue tasks" caption={props.caption} items={items} onDismiss={props.onDismiss} />;
 }

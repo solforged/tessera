@@ -7,7 +7,6 @@
 .agenda-toolbar, .agenda-date { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-8); }
 .agenda-toolbar { align-items: flex-end; justify-content: flex-start; width: 100%; max-width: var(--measure); margin-inline: auto; gap: var(--space-8) var(--space-24); }
 .agenda-heading { min-width: 0; }
-.agenda-cover-heading { display: none; }
 .agenda-heading > p { margin: 0 0 var(--page-eyebrow-gap); color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .agenda-heading > h1 { margin: 0; font: var(--page-title-font); }
 .agenda-title-date { min-width: var(--target-size); min-height: var(--target-size); border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
@@ -288,17 +287,76 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
   .agenda-date { flex-wrap: nowrap; margin-left: auto; }
   .agenda-date > .button { padding-inline: var(--space-4); }
 }
-/* The cover keeps the page title above date navigation; New lives in the shell's top bar. */
+/* The phone's Agenda has one header for Day, Week and Tasks: the nav bar, a title row (48), the mode strip (42) and a band
+   (68) that holds the day strip, the week stepper or the search well. Only the band's contents change with the mode, never
+   any of its heights. The strip and band stay under the nav bar behind a scroll-edge blur; the title row scrolls away into
+   the bar's inline title. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .agenda-toolbar { flex-direction: column; align-items: flex-start; gap: var(--space-8); }
-  .agenda-desktop-heading { display: none; }
-  .agenda-cover-heading, .agenda-cover-heading > p { display: block; }
-  .agenda-cover-heading .agenda-title-date { color: var(--faint); font: inherit; letter-spacing: inherit; }
-  .agenda-date { margin-left: 0; }
-  .agenda-add { display: none; }
-  .agenda-week-strip { grid-template-columns: repeat(7, minmax(var(--target-size), 1fr)); }
-  .agenda-week-day.button { padding-inline: var(--space-4); }
-  .agenda-lookahead { display: none; }
+  /* The nav bar's clearance sits on the content, not on the scroll container: a sticky offset is then measured from the scrollport's own edge in every engine. */
+  .agenda-pane { padding-inline: 0; padding-top: 0; --row-bleed: 0px; }
+  /* What scrolls into view stops clear of the pinned strip and band as well as the nav bar. */
+  .pane-content div.agenda-pane { scroll-padding-top: calc(var(--phone-top) + 42px + 68px); }
+  .agenda-content { max-width: none; gap: 0; padding-top: var(--phone-top); }
+  .agenda-add, .agenda-lookahead { display: none; }
+  .agenda-title-row { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 48px; padding: 0 var(--phone-gutter); }
+  .agenda-title-row > h1 { flex: 0 1 auto; min-width: 0; margin: 0; font: var(--weight-title) 26px/32px var(--font-display); white-space: nowrap; }
+  .agenda-title-row .agenda-title-date { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; letter-spacing: inherit; }
+  .agenda-title-row > .button { flex: none; }
+  .agenda-modes.mode-tabs.tab-strip { position: sticky; top: var(--phone-top); z-index: 3; flex: none; width: auto; max-width: none; height: 42px; margin: 0 var(--phone-gutter); box-shadow: none; }
+  .agenda-modes.mode-tabs > .button { min-height: 0; height: 100%; }
+  /* A tap leaves :hover stuck on the tab on iOS, so the chosen tab keeps its gilt and the others stay quiet. */
+  .agenda-modes.mode-tabs > .button:hover:not(:disabled) { background: transparent; color: var(--muted); }
+  .agenda-modes.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]):hover:not(:disabled) { color: var(--accent); }
+  /* The strip's ground carries its hairline, since a shadow on the strip itself would sit under the ground. */
+  .agenda-modes::before { content: ''; position: absolute; z-index: -1; inset: 0 calc(-1 * var(--phone-gutter)); pointer-events: none; background: linear-gradient(var(--line), var(--line)) center bottom / calc(100% - 2 * var(--phone-gutter)) 1px no-repeat, color-mix(in srgb, var(--canvas) 94%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+  .agenda-band { position: sticky; top: calc(var(--phone-top) + 42px); z-index: 3; flex: none; height: 68px; }
+  .agenda-band::before { content: ''; position: absolute; z-index: -1; inset: 0 0 -28px; pointer-events: none; background: linear-gradient(color-mix(in srgb, var(--canvas) 94%, transparent) calc(100% - 28px), color-mix(in srgb, var(--canvas) 0%, transparent)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(#000 calc(100% - 28px), transparent); mask-image: linear-gradient(#000 calc(100% - 28px), transparent); }
+  /* Day: seven days of one week, swiped like pages. The chosen day is a lit pill; open work is one muted dot each, red once its day has passed. */
+  .agenda-strip-pager { display: flex; height: 76px; margin-block: -4px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  .agenda-strip-pager::-webkit-scrollbar { display: none; }
+  .agenda-strip-week { display: flex; flex: 0 0 100%; box-sizing: border-box; padding: 8px 14px 4px; scroll-snap-align: start; scroll-snap-stop: always; }
+  .agenda-strip-week > .agenda-week-day.button { flex: 1; min-width: 0; height: 62px; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 0; border-radius: 26px; box-shadow: none; background: transparent; color: var(--muted); }
+  .agenda-strip-week > .agenda-week-day.button:not([aria-current="date"]):is(:hover, :active):not(:disabled) { background: transparent; box-shadow: none; }
+  .agenda-strip-week .agenda-day-weekday { font: var(--weight-body) 12px/16px var(--font-body); letter-spacing: normal; color: var(--muted); }
+  .agenda-strip-week .agenda-day-numeral { font: 500 17px/24px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+  .agenda-strip-week .agenda-week-past :is(.agenda-day-weekday, .agenda-day-numeral) { color: var(--faint); }
+  .agenda-strip-week .agenda-week-today .agenda-day-numeral { color: var(--accent); }
+  .agenda-strip-week > .agenda-week-day.button[aria-current="date"] { background: var(--raised); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 4px var(--contact-shadow), 0 0 0 1px color-mix(in srgb, var(--text) 13%, transparent); }
+  .agenda-strip-week > .agenda-week-day.button[aria-current="date"] .agenda-day-weekday { color: var(--text); }
+  .agenda-strip-week .agenda-day-dots { flex-wrap: nowrap; justify-content: center; height: 6px; min-height: 0; margin-top: 2px; }
+  .agenda-strip-week .agenda-day-more { margin: 0 0 0 2px; font: 400 10px/6px var(--font-mono); }
+  /* Week: two plain circles around the week's figures. */
+  .agenda-week-band { display: flex; align-items: center; justify-content: space-between; height: 100%; padding: 0 12px; }
+  .agenda-week-mid { min-width: 0; text-align: center; }
+  .agenda-week-caps { display: block; font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--faint); line-height: 16px; }
+  .agenda-week-line { display: block; font: var(--weight-body) 15px/22px var(--font-body); color: var(--muted); white-space: nowrap; }
+  .agenda-week-line .agenda-week-late { color: var(--danger); }
+  .agenda-fig { font-family: var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+  /* Tasks: the search well fills the band; the filters sit under it and scroll away with the list. */
+  .agenda-search-band { height: 100%; padding: 12px var(--phone-gutter) 0; }
+  .agenda-chips { display: flex; align-items: center; gap: 8px; height: 48px; padding: 4px var(--phone-gutter) 6px; overflow-x: auto; scrollbar-width: none; }
+  .agenda-chips::-webkit-scrollbar { display: none; }
+  .agenda-chips > .agenda-chip.button { flex: none; padding: 0 11px 0 13px; gap: 4px; }
+  .agenda-chips > .agenda-chip.button > .icon { width: 14px; height: 14px; margin-right: -2px; }
+  .agenda-chips > .agenda-chip-on.button, .agenda-chips > .agenda-chip[aria-expanded="true"].button { background: color-mix(in srgb, var(--text) 14%, transparent); }
+  /* Groups: a head in Piazzolla with its count beside it, and at most one action at the right. */
+  .agenda-results { gap: 0; }
+  .agenda-day-section { gap: 0; }
+  .agenda-pane .section-head { min-height: 60px; gap: 10px; padding: 14px var(--phone-gutter) 2px; }
+  .agenda-pane .section-head > .section-rule { display: none; }
+  .agenda-pane .section-head-name { font: var(--weight-display-heading) 20px/26px var(--font-display); }
+  .agenda-pane .section-head-count { font: 400 13px/16px var(--font-mono); letter-spacing: 0; }
+  .agenda-pane .section-head-action { margin-left: auto; }
+  .agenda-pane .section-head-toggle.button { flex-direction: row-reverse; margin-left: 0; gap: 6px; }
+  .agenda-group-move.button .icon { width: 16px; height: 16px; margin-right: -4px; }
+  .agenda-group-move.button[aria-expanded="true"] { background: color-mix(in srgb, var(--text) 14%, transparent); }
+  .agenda-pane :is(.agenda-message, .agenda-error) { padding-inline: var(--phone-gutter); }
+}
+/* A short phone gives the list its room back: only the strip stays pinned, and the band scrolls away with the title. */
+@media (max-width: 599px) and (pointer: coarse) and (max-height: 740px) {
+  .agenda-band { position: relative; top: auto; }
+  .pane-content div.agenda-pane { scroll-padding-top: calc(var(--phone-top) + 42px); }
+  .agenda-band::before { display: none; }
 }
 @media (pointer: coarse) {
   .agenda-title-date { min-height: var(--touch-target); }

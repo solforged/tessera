@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { calendarDate, civilDate, daysBetween, relativeDate, weekRangeTitle } from './relative-date';
+import { calendarDate, civilDate, daysBetween, relativeDate, weekRangeProse, weekRangeTitle } from './relative-date';
 
 describe('relativeDate', () => {
   const today = '2026-10-26';
@@ -64,5 +64,13 @@ describe('weekRangeTitle', () => {
     expect(weekRangeTitle('2025-10-27', '2025-11-02', '2026-10-26')).toBe('Week 44 · Oct 27 – Nov 2, 2025');
     expect(weekRangeTitle('2026-12-28', '2027-01-03', '2026-10-26')).toBe('Week 53 · Dec 28, 2026 – Jan 3, 2027');
     expect(weekRangeTitle('2025-12-29', '2026-01-04', '2026-10-26')).toBe('Week 1 · Dec 29, 2025 – Jan 4');
+  });
+});
+
+describe('weekRangeProse', () => {
+  test('reads the week as a span of month and day, naming the year once where it is not today’s', () => {
+    expect(weekRangeProse('2026-10-26', '2026-11-01', '2026-10-29')).toBe('Oct 26 to Nov 1');
+    expect(weekRangeProse('2025-10-27', '2025-11-02', '2026-10-29')).toBe('Oct 27 to Nov 2, 2025');
+    expect(weekRangeProse('2026-12-28', '2027-01-03', '2026-12-30')).toBe('Dec 28, 2026 to Jan 3, 2027');
   });
 });
