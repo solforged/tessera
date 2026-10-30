@@ -8,6 +8,8 @@ import { BookMap } from '../ui/BookMap';
 import { bookChapters, chapterAt } from '../ui/book-map';
 import { Button } from '../ui/Button';
 import { SourceCover } from './SourceCover';
+import { Figures } from '../reader/Figures';
+import { Icon } from '../ui/Icon';
 import { formatProgress, sourceByline } from './query';
 import { displayTitle } from '../outline/names';
 
@@ -49,13 +51,15 @@ export function ReadingCard(props: { row: LibraryRow; notebook: NotebookClient; 
         <span class="library-reading-title" title={displayTitle(props.row.page.text, id => props.notebook.lookup(id))}>{displayTitle(props.row.page.text, id => props.notebook.lookup(id))}</span>
         <span class="library-reading-author" title={sourceByline(props.row)}>{sourceByline(props.row)}</span>
         <span class="library-reading-chapter">{current()?.chapter.title ? sectionLabel(current()!.chapter.title) : !source() && props.row.section && !isFrontMatter(props.row.section) ? sectionLabel(props.row.section) : progress() ? 'Reading position' : 'Not started'}</span>
+        <span class="library-reading-continue" aria-hidden="true"><Icon name="book" />{progress() ? 'Continue' : 'Start'}</span>
       </span>
     </span>
     {/* The map and its figures span the card under the cover, so the time left reads on one line. */}
     <Show when={length() > 0} fallback={<span class="book-map library-reading-map-pending" aria-hidden="true" />}><BookMap chapters={chapters()} length={length()} at={at()} highlights={highlights()} /></Show>
+    <span class="library-reading-bar" aria-hidden="true"><i style={{ width: `${Math.min(100, progress() * 100)}%` }} /></span>
     <span class="library-reading-position">
-      <span><Show when={current()?.chapter.title ? current() : null} fallback={<Show when={length() > 0}>{timeLeft(length() - at())} left in book</Show>}>{value => <span>{timeLeft(value().chapter.end - at())} in chapter</span>}</Show></span>
-      <span>{formatProgress(progress())}</span>
+      <span><Show when={current()?.chapter.title ? current() : null} fallback={<Show when={length() > 0}><Figures text={`${timeLeft(length() - at())} left in book`} /></Show>}>{value => <span><span class="library-reading-time-phone"><Figures text={`${timeLeft(value().chapter.end - at())} left in chapter`} /></span><span class="library-reading-time-desktop">{timeLeft(value().chapter.end - at())} in chapter</span></span>}</Show></span>
+      <span><Figures text={formatProgress(progress())} /></span>
     </span>
     <Show when={error()}><span class="library-error" role="alert">{error()}</span></Show>
   </Button>;

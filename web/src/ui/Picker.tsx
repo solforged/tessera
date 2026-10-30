@@ -11,6 +11,8 @@ export interface PickerProps<T> {
   /** False leaves the query field unfocused, so a touch screen opens the list without the keyboard. */
   autofocus?: boolean;
   label: string;
+  /** The phone sheet's name in its head, centred between the grabber and the close circle (see Popup). */
+  title?: string;
   width?: number;
   class?: string;
   style?: JSX.CSSProperties;
@@ -202,7 +204,7 @@ export function Picker<T>(props: PickerProps<T>) {
       panel.removeEventListener('click', click);
     });
   });
-  return <Popup anchor={props.anchor} placement={props.placement} fitContent={props.fitContent} autofocus={props.autofocus} ready={props.ready ?? (initiallySettled ? undefined : settled())} returnFocus={props.returnFocus} onDismiss={props.onDismiss} label={props.label} width={props.width ?? 560} class={`picker ${props.class ?? ''}`} style={props.style}>
+  return <Popup anchor={props.anchor} placement={props.placement} fitContent={props.fitContent} autofocus={props.autofocus} ready={props.ready ?? (initiallySettled ? undefined : settled())} returnFocus={props.returnFocus} onDismiss={props.onDismiss} label={props.label} title={props.title} width={props.width ?? 560} class={`picker ${props.class ?? ''}`} style={props.style}>
     <div class="picker-query">
       {props.prefix}
       <input ref={element => { input = element; props.inputRef?.(element); }} class="picker-input" role="combobox" aria-expanded="true" aria-haspopup="listbox" aria-controls={listId} aria-autocomplete="list" aria-activedescendant={shown().items.length ? `${id}-${selected()}` : undefined} aria-label={props.label} placeholder={props.placeholder} value={props.query} onInput={event => props.onQuery(event.currentTarget.value)} />

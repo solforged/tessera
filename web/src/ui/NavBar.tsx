@@ -7,8 +7,10 @@ import type { ButtonProps } from './Button';
 /**
  * What a phone's nav bar says once a page's large title has scrolled under it: prose, never ISO (`Thursday`, with
  * `October 29` beneath). `glass` sets the title in its own glass capsule, for screens whose text runs under the bar.
+ * `detail` may carry figures set in mono; `onClick` makes the capsule a button that opens the thing the title measures
+ * (the reader's progress card), handed the capsule as its anchor.
  */
-export interface BarTitle { title: string; detail?: string; glass?: boolean }
+export interface BarTitle { title: string; detail?: JSX.Element; glass?: boolean; onClick?(anchor: HTMLElement): void }
 
 /** A pane's nav bar, as its surfaces see it. Pane (shell/App.tsx) provides one to everything it renders. */
 export interface PaneChrome {
@@ -36,7 +38,7 @@ export function NavEnd(props: { children: JSX.Element }) {
 export function NavTitle(props: BarTitle) {
   const chrome = useContext(PaneChromeContext);
   createEffect(() => {
-    chrome?.title({ title: props.title, detail: props.detail, glass: props.glass });
+    chrome?.title({ title: props.title, detail: props.detail, glass: props.glass, onClick: props.onClick });
     onCleanup(() => chrome?.title(undefined));
   });
   return null;

@@ -616,6 +616,17 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .pane-bar-title > small { color: var(--faint); font: var(--weight-body) 12px/15px var(--font-body); }
   .pane-scrolled .pane-bar-title { opacity: 1; translate: 0 0; }
   .pane-bar-title.pane-bar-title-glass { flex: 0 1 auto; min-width: 0; margin-inline: auto; padding: var(--space-4) var(--space-16); border-radius: 22px; }
+  /* A title that opens something is a button, and takes touches where the plain title lets them through. */
+  .pane-bar-title.pane-bar-title-action { pointer-events: auto; border: 0; }
+  .pane-bar-title.pane-bar-title-action:active { background: color-mix(in srgb, var(--text) 10%, var(--glass-fill)); }
+  /* In a book the title never waits for a scroll: a glass capsule centred on the screen whatever circles stand beside it, the book's name
+     in Piazzolla italic over the time left in it. The whole bar leaves and returns with the reading tools (reader/reader.css). */
+  .app.is-reading .pane-bar-title { opacity: 1; translate: 0 0; }
+  .app.is-reading .pane-bar-title.pane-bar-title-glass { position: absolute; left: 50%; max-width: calc(100% - 232px); margin: 0; padding: var(--space-4) 14px 0; translate: -50% 0; }
+  .app.is-reading .pane-bar-title > span { font: italic var(--weight-source-title) 17px/20px var(--font-display); }
+  .app.is-reading .pane-bar-title > small { margin-top: 1px; color: var(--muted); font: var(--weight-body) 12.5px/15px var(--font-body); }
+  .pane-header { transition: opacity var(--motion-ui) var(--motion-ease), translate var(--motion-ui) var(--motion-ease), visibility 0s; }
+  .pane:has(.reader-chrome-hidden) > .pane-header { opacity: 0; translate: 0 calc(-1 * var(--motion-distance)); visibility: hidden; transition: opacity var(--motion-ui) var(--motion-ease), translate var(--motion-ui) var(--motion-ease), visibility 0s var(--motion-ui); }
   /* Save state speaks only when something needs attention; then it takes the title's place. */
   .pane-header .pane-save-state { order: 2; flex: 1; min-width: 0; justify-content: center; overflow: hidden; font: var(--weight-control) var(--text-meta)/var(--line-meta) var(--font-body); text-align: center; white-space: normal; }
   .pane-save-state:has(.save-dot) { display: none; }
@@ -637,8 +648,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   .bottom-find.selected { color: var(--accent); }
   .bottom-nav-badge { position: absolute; top: 5px; left: calc(50% + 7px); min-width: 16px; height: 16px; padding: 0 var(--space-4); border-radius: 8px; background: var(--danger); color: var(--canvas); font: var(--weight-heading) 10px/16px var(--font-body); font-variant-numeric: tabular-nums; text-align: center; }
   .app.keyboard-open .bottom-nav, .app.is-immersive .bottom-nav, .app.is-reading .bottom-nav { display: none; }
-  /* A book reads edge to edge, under its own masthead rather than the pane header. */
-  .app.is-reading .pane.active > .pane-header { display: none; }
+  /* A book reads edge to edge, under the nav bar and the reading tools; the reader fades them together (reader/reader.css). */
   .app.is-reading .workspace { margin: 0; border: 0; border-radius: 0; background: var(--canvas); transition: none; }
   .directory-pane .directory-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-12); margin-bottom: var(--space-16); }
   .directory-pane .directory-head > h1 { order: -1; }

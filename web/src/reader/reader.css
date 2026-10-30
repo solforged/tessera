@@ -48,26 +48,16 @@
 .progress-card-chapter-row[aria-current].button { color: var(--text); box-shadow: inset var(--space-2) 0 var(--accent); padding-left: var(--space-8); }
 .progress-card-minutes { flex-shrink: 0; }
 .reader-progress-card .progress-card-note { margin-top: var(--space-12); }
-/* The cover screen replaces the pane header with its own navigation bar. */
-.reader-masthead { display: none; }
-@media (max-width: 599px) and (pointer: coarse) {
-  .reader-masthead { position: relative; display: flex; align-items: center; gap: var(--space-4); width: calc(100% - 2 * var(--space-12)); margin: 0 auto; padding-block: var(--space-4); }
-  .reader-masthead > .button { flex: none; width: var(--touch-target); height: var(--touch-target); padding: 0; justify-content: center; border: 0; border-radius: var(--radius-pill); }
-  .reader-masthead > .button:first-child { margin-right: auto; }
-  .reader-masthead h2 { position: absolute; left: 50%; translate: -50% 0; max-width: calc(100% - 4 * var(--touch-target) - 4 * var(--space-4)); margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--weight-heading) var(--text-control)/var(--line-control) var(--font-body); text-align: center; }
-}
-/* On touch (the cover screen, or full screen on a touch screen) the masthead, toolbar and book map lie over the page rather than above it, so once they go the text has the whole screen; the page runs from the top band's top to the foot line. */
+/* On touch (the cover screen, or full screen on a touch screen) the toolbar and book map lie over the page rather than above it, so once they go the text has the whole screen; the page runs from the top band's top to the foot line. */
 .reader-chrome-over { display: grid; grid-template: auto auto minmax(0, 1fr) auto / minmax(0, 1fr); }
 .reader-chrome-over > * { grid-column: 1; }
-.reader-chrome-over > .reader-masthead { grid-row: 1; }
-.is-split:not(.is-immersive) .reader-chrome-over > .reader-masthead { margin-top: var(--target-size); }
 .reader-chrome-over > .reader-header { grid-row: 2; position: relative; }
 .reader-chrome-over > :is(.reader-status, .reader-error) { grid-row: 3; align-self: start; position: relative; z-index: 1; }
 .reader-chrome-over > .reader-body { grid-row: 1 / 4; }
 .reader-chrome-over > .reader-foot { grid-row: 4; position: relative; }
 .reader-chrome-over .reader-foot > .reader-map { position: absolute; inset-inline: 0; bottom: calc(100% - var(--space-4)); padding-top: var(--space-8); }
 /* Each band is painted the full width of the screen, so no text shows beside it, and the page fades into it instead of being cut through its letters. */
-.reader-chrome-over > :is(.reader-masthead, .reader-header), .reader-chrome-over .reader-foot > .reader-map { z-index: 2; border-image: conic-gradient(var(--canvas) 0 0) fill 0 / 0 / 0 100vw; }
+.reader-chrome-over > .reader-header, .reader-chrome-over .reader-foot > .reader-map { z-index: 2; border-image: conic-gradient(var(--canvas) 0 0) fill 0 / 0 / 0 100vw; }
 .reader-chrome-over > .reader-header::after, .reader-chrome-over .reader-foot > .reader-map::before { content: ''; position: absolute; inset-inline: 0; height: var(--space-24); pointer-events: none; }
 .reader-chrome-over > .reader-header::after { top: 100%; background: linear-gradient(var(--canvas), transparent); }
 .reader-chrome-over .reader-foot > .reader-map::before { bottom: 100%; background: linear-gradient(transparent, var(--canvas)); }
@@ -117,28 +107,50 @@
 .reader-page-edge-previous { left: max(0px, calc(50% - var(--reader-frame-width) / 2 - var(--space-8) - var(--row-height))); }
 .reader-page-edge-next { right: max(0px, calc(50% - var(--reader-frame-width) / 2 - var(--space-8) - var(--row-height))); }
 @media (pointer: coarse) { .reader-page-edge.button { display: none; } }
-/* Full screen and the cover screen: the masthead, toolbar and book map fade out of the way, drifting a step toward their edges; the line under the map stays. With a mouse they keep their room, so the text never moves; on touch they uncover the page beneath. */
-.reader-pane > :is(.reader-masthead, .reader-header), .reader-foot > .reader-map { transition: opacity var(--motion-ui) var(--motion-ease), translate var(--motion-ui) var(--motion-ease); }
-.reader-chrome-hidden > :is(.reader-masthead, .reader-header), .reader-chrome-hidden .reader-foot > .reader-map { opacity: 0; pointer-events: none; }
-.reader-chrome-hidden > :is(.reader-masthead, .reader-header) { translate: 0 calc(-1 * var(--motion-distance)); }
+/* Full screen and the cover screen: the toolbar and book map fade out of the way, drifting a step toward their edges; the line under the map stays. With a mouse they keep their room, so the text never moves; on touch they uncover the page beneath. */
+.reader-pane > .reader-header, .reader-foot > .reader-map { transition: opacity var(--motion-ui) var(--motion-ease), translate var(--motion-ui) var(--motion-ease); }
+.reader-chrome-hidden > .reader-header, .reader-chrome-hidden .reader-foot > .reader-map { opacity: 0; pointer-events: none; }
+.reader-chrome-hidden > .reader-header { translate: 0 calc(-1 * var(--motion-distance)); }
 .reader-chrome-hidden .reader-foot > .reader-map { translate: 0 var(--motion-distance); }
-/* The cover's bottom capsule overlays the page. Its folio lifts clear of the controls without reflowing the text,
-   then returns to the screen's foot when the chrome leaves. The app already clears the home indicator. */
+/* The cover screen: the nav bar is the pane header (styles.css) and the reading tools are one glass capsule over the page's foot,
+   with the book's progress as a gilt hairline inside it. The foot (book map and folio) is not drawn: its figures live in the nav
+   title (time left in the book, opening the progress card) and in the capsule (the chapter, its time, highlights, find). The page
+   runs under both bars: text passes beneath them, a jump lands just below the nav bar and the page ends above the capsule. */
 @media (max-width: 599px) and (pointer: coarse) {
-  .reader-chrome-over { position: relative; --reader-tools-clearance: calc(var(--touch-target) + 2 * var(--space-4) + var(--space-16)); }
-  .reader-chrome-over > .reader-header { position: absolute; inset-inline-start: 50%; bottom: var(--space-8); translate: -50% 0; width: calc(100% - 2 * var(--space-16)); max-width: none; margin: 0; padding: var(--space-4); border: 0; border-radius: var(--radius-pill); font-size: var(--text-control); }
+  .reader-chrome-over {
+    position: relative;
+    --reader-tools-height: 68px;
+    --reader-tools-bottom: max(calc(var(--bottom-inset) - 13px), var(--space-12));
+    --reader-tools-clearance: calc(var(--reader-tools-height) + var(--reader-tools-bottom) + var(--space-8));
+  }
+  .reader-chrome-over > .reader-foot { display: none; }
+  .reader-chrome-over > :is(.reader-status, .reader-error) { margin-top: var(--phone-top); }
+  .reader-chrome-over > .reader-header { position: absolute; z-index: 3; inset: auto var(--space-16) var(--reader-tools-bottom); width: auto; max-width: none; height: var(--reader-tools-height); margin: 0; padding: 0 var(--space-8) var(--space-8); gap: 0; border: 0; border-image: none; border-radius: 34px; font-size: var(--text-control); background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%); backdrop-filter: blur(var(--glass-blur)) saturate(170%); box-shadow: var(--glass-ring); }
   .reader-chrome-over > .reader-header::after { display: none; }
-  .reader-header > .button { min-width: var(--touch-target); min-height: var(--touch-target); border: 0; border-radius: var(--radius-pill); }
-  .reader-header .reader-contents { flex: 1 1 0; min-width: 0; justify-content: flex-start; }
-  .reader-masthead > .button, .reader-chrome-over > .reader-header { background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(160%); backdrop-filter: blur(var(--glass-blur)) saturate(160%); box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--glass-edge); }
-  .reader-chrome-over > .reader-header { border-image: none; }
-  .reader-chrome-hidden > .reader-header { translate: -50% var(--motion-distance); }
-  .reader-chrome-over > .reader-foot { transition: translate var(--motion-ui) var(--motion-ease); }
-  .reader-chrome-over:not(.reader-chrome-hidden) > .reader-foot { z-index: 2; translate: 0 calc(-1 * var(--reader-tools-clearance)); border-image: conic-gradient(var(--canvas) 0 0) fill 0 / 0 / 0 100vw; }
-  .reader-chrome-over:not(.reader-chrome-hidden) .reader-scroll { mask-image: linear-gradient(to bottom, transparent, var(--text) var(--space-24), var(--text) calc(100% - var(--reader-tools-clearance) - var(--space-48)), transparent calc(100% - var(--reader-tools-clearance))); }
+  .reader-chrome-hidden > .reader-header { translate: 0 var(--motion-distance); }
+  .reader-header > .button { min-width: var(--touch-target); min-height: var(--touch-target); padding: 0 var(--space-8); border: 0; border-radius: 22px; }
+  .reader-header .button > .icon { width: 22px; height: 22px; stroke-width: 1.3; }
+  .reader-header .reader-contents { flex: 1 1 0; min-width: 0; height: 56px; padding-left: 14px; justify-content: flex-start; gap: 10px; text-align: left; }
+  .reader-header .reader-contents > .icon { flex: none; color: var(--muted); }
+  .reader-where { display: block; min-width: 0; }
+  .reader-where > * { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reader-where-name { color: var(--text); font: italic var(--weight-source-title) 16px/20px var(--font-display); }
+  .reader-where-name .reader-section-title { font-size: 1em; font-weight: inherit; }
+  .reader-where small { color: var(--muted); font: var(--weight-body) 12.5px/16px var(--font-body); }
+  .reader-header .reader-highlights { gap: 5px; padding: 0 10px; }
+  .reader-count { color: var(--muted); font: var(--weight-body) 13px/1 var(--font-mono); }
+  /* Back to where reading was before a jump: a gilt circle in front of the chapter. */
+  .reader-header > .reader-return { margin-right: var(--space-4); background: var(--accent-tint); color: var(--accent); }
+  .reader-track { position: absolute; inset: auto 30px 9px; height: 3px; overflow: hidden; border-radius: 2px; background: color-mix(in srgb, var(--text) 12%, transparent); pointer-events: none; }
+  .reader-track > i { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
+  /* The page: the first lines rest under the nav bar's blur and the last above the capsule. */
+  .reader-scroll { scroll-padding-top: calc(var(--phone-top) + var(--space-8)); padding: 0 var(--space-24) calc(var(--reader-tools-clearance) + var(--space-24)); }
+  .reader-scroll.reader-paged { padding: calc(var(--phone-top) + var(--space-8)) var(--space-24) var(--reader-tools-clearance); }
+  .reader-chrome-over:not(.reader-chrome-hidden) .reader-scroll:not(.reader-paged) { mask-image: linear-gradient(to bottom, #000 calc(100% - var(--reader-tools-clearance) - var(--space-24)), transparent calc(100% - var(--reader-tools-clearance) + var(--space-8))); }
+  .reader-title-block { padding-top: calc(var(--phone-top) + var(--reader-size)); }
 }
 @media (max-width: 599px) and (pointer: coarse) and (prefers-reduced-transparency: reduce) {
-  .reader-masthead > .button, .reader-chrome-over > .reader-header { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .reader-chrome-over > .reader-header { background: var(--raised); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 .reader-passage { margin: 0; color: var(--text); font-family: var(--reader-font); font-size: var(--reader-size); line-height: var(--reader-line); font-weight: var(--weight-body); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* An opaque selection keeps inline highlight tints from changing its paint. */
@@ -297,7 +309,7 @@
 /* A fingertip reaches every reading control: on touch screens the toolbar, the settings and the note sheet's buttons are full
    touch targets, and the note marks in the text and the progress at the foot reach as far without growing. */
 @media (pointer: coarse) {
-  :is(.reader-header, .reader-masthead, .reader-setting, .reader-compose-heading) .button { min-width: var(--touch-target); min-height: var(--touch-target); }
+  :is(.reader-header, .reader-setting, .reader-compose-heading) .button { min-width: var(--touch-target); min-height: var(--touch-target); }
   .reader-picker .picker-row, .progress-card-chapter-row.button { min-height: var(--touch-target); }
   .menu-sheet .highlight-menu-colors .button { flex: none; min-width: var(--touch-target); min-height: var(--touch-target); }
   /* The targets carry their own room, so the toolbar closes its gaps and the running head keeps its width. */
@@ -307,3 +319,71 @@
 }
 .reader-picker .picker-query { position: sticky; top: 0; z-index: 1; background: var(--raised); }
 .reader-picker .reader-find-status { position: sticky; top: calc(var(--line-body) + var(--space-16) + 1px); z-index: 1; margin: 0; background: var(--raised); }
+/* Figures are mono wherever a phrase carries them (3 h 50 min left in book); the words around them stay Plex. */
+.fig { font-family: var(--font-mono); font-size: .96em; letter-spacing: 0; }
+/* A chapter's progress ring: the gilt share read, in a faint track. */
+.reader-ring { width: 24px; height: 24px; flex: none; border-radius: 50%; background: conic-gradient(var(--accent) calc(var(--p) * 1%), color-mix(in srgb, var(--text) 14%, transparent) 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); }
+/* The phone's sheets: Appearance, Contents, Highlights and Find, and the ··· pull-down. */
+@media (max-width: 599px) and (pointer: coarse) {
+  /* A sheet's own padding is 12 pt, so a 20 pt gutter is 8 pt inside it. */
+  :is(.reader-appearance, .reader-picker) { --sheet-gutter: calc(var(--phone-gutter) - var(--space-12)); }
+  /* Appearance floats over a live page. Every choice is a segmented control; the size is a pair of capsules around its value. */
+  .reader-appearance .reader-settings-body { display: flex; flex-direction: column; gap: 18px; padding: var(--space-4) var(--sheet-gutter) var(--space-24); }
+  .reader-option-label { display: block; margin-bottom: var(--space-8); color: var(--faint); font: var(--apparatus); }
+  .reader-face-sans { font-family: var(--font-body); }
+  .reader-face-serif { font-family: var(--font-display); font-size: 17px; font-weight: var(--weight-title); }
+  .reader-step { display: flex; align-items: center; height: 44px; border-radius: 22px; background: var(--well); box-shadow: var(--well-shade); }
+  .reader-step > .button { flex: 1; display: flex; align-items: baseline; justify-content: center; height: 44px; padding: 9px 0 0; border: 0; border-radius: 22px; background: transparent; color: var(--text); font: 500 18px/1 var(--font-display); }
+  .reader-step > .reader-step-more { padding-top: 7px; font-size: 26px; }
+  .reader-step > .button:disabled { opacity: .4; }
+  .reader-step > .button em { margin-left: 1px; color: var(--muted); font: 400 15px/1 var(--font-body); font-style: normal; }
+  .reader-step-value { flex: 0 0 84px; display: grid; place-items: center; height: 44px; color: var(--muted); font: 400 15px/20px var(--font-mono); box-shadow: inset .5px 0 0 var(--line), inset -.5px 0 0 var(--line); }
+  .reader-appearance .reader-settings-body .reader-option .seg { margin: 0; }
+  .reader-appearance .reader-setting { display: block; }
+  /* The nav bar's circle that opened Appearance or ··· stays pressed while its sheet or menu is open. */
+  .nav-group > .button.reader-aa { width: 44px; padding: 0; font: 500 17px/1 var(--font-body); letter-spacing: -.01em; }
+  .nav-group > .button[aria-expanded="true"] { background: var(--ink-wash); }
+
+  /* Contents and Highlights: a search well pinned under the title, rows that carry no cursor, and the chapter marks a finger needs. */
+  .reader-picker .picker-query { margin: var(--space-4) var(--sheet-gutter) var(--space-12); height: 44px; padding: 0 14px; border: 0; border-radius: 22px; background: var(--well); box-shadow: var(--well-shade); color: var(--faint); }
+  .reader-picker .picker-query > .icon { width: 20px; height: 20px; flex: none; }
+  .reader-picker .picker-query:focus-within { box-shadow: var(--well-shade), inset 0 -2px 0 var(--accent); color: var(--text); }
+  .reader-picker .picker-input { font: 400 17px/22px var(--font-body); }
+  .reader-picker .picker-input::placeholder { color: var(--faint); }
+  .reader-picker .picker-list { padding: 0 0 var(--space-8); }
+  .reader-picker .picker-row { position: relative; min-height: 48px; padding: 0 var(--sheet-gutter); border-radius: 0; }
+  .reader-picker .picker-row.selected { background: transparent; box-shadow: none; }
+  .reader-picker .picker-row:active { background: var(--ink-wash); }
+  .reader-toc-check { display: none; }
+  .reader-toc-entry { align-self: stretch; position: relative; gap: 12px; padding-left: calc(var(--level) * 22px); font: var(--weight-display-heading) 17px/22px var(--font-display); }
+  .reader-picker .picker-row + .picker-row .reader-toc-entry::before { content: ''; position: absolute; top: 0; left: calc(var(--level) * 22px); right: 0; height: .5px; background: var(--line); }
+  .reader-toc-name { flex: 1; min-width: 0; }
+  .reader-toc-name > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reader-toc-name > small { display: block; margin-top: 1px; color: var(--muted); font: var(--weight-body) 13px/16px var(--font-body); }
+  .reader-toc-now { min-height: 58px; color: var(--accent); font-weight: var(--weight-source-title); }
+  .reader-toc-read { display: flex; flex: none; color: var(--faint); }
+  .reader-toc-read .icon { width: 18px; height: 18px; stroke-width: 1.6; }
+  .reader-toc-progress { display: flex; flex: none; align-items: center; gap: 8px; color: var(--accent); font: 400 12.5px/16px var(--font-mono); }
+  .reader-picker .picker-group > .picker-section { padding: 16px var(--sheet-gutter) var(--space-4); border-top: 0; margin-top: 0; color: var(--muted); font: italic var(--weight-source-title) 15px/20px var(--font-display); letter-spacing: 0; }
+  .reader-picker .picker-group:first-child > .picker-section { padding-top: var(--space-8); }
+  .reader-picker .picker-group .picker-row { align-items: flex-start; padding-block: 10px 11px; }
+  .reader-picker .picker-group .picker-row + .picker-row::before { content: ''; position: absolute; top: 0; left: calc(var(--sheet-gutter) + 24px); right: var(--sheet-gutter); height: .5px; background: var(--line); }
+  .reader-highlight-entry { display: flex; align-items: flex-start; gap: 14px; padding: 0; }
+  .reader-highlight-entry > .highlight-color-dot { width: 10px; height: 10px; margin-top: 9px; }
+  .reader-highlight-entry > .highlight-color-dot.highlight-color-none { box-shadow: inset 0 0 0 1.5px var(--faint); }
+  .reader-highlight-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; flex: 1 1 0; white-space: normal; overflow: hidden; text-overflow: clip; font: var(--weight-body) 17px/24px var(--font-display); }
+  .reader-picker .reader-find-status { top: auto; position: static; padding-inline: var(--sheet-gutter); background: transparent; }
+
+  /* ···: Open source page, Merge overlapping highlights, then Undo, which dims when there is nothing to undo, without a reason line. */
+  :is(.popup, .popup-exit).reader-more { min-width: 312px; }
+  .reader-more .menu-disabled-reason { display: none; }
+
+  /* Where the iOS app's own selection menu is missing, a capsule of the five colours and Annotate stands over the selection; its chevron turns to Highlight and Copy. */
+  .reader-selection-capsule { box-sizing: border-box; width: max-content; padding: 2px; border: 0; border-radius: 24px; background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%); backdrop-filter: blur(var(--glass-blur)) saturate(170%); box-shadow: var(--glass-ring); }
+  .reader-selection-capsule .reader-selection-actions { flex-wrap: nowrap; gap: 0; }
+  .reader-selection-capsule .button { min-width: var(--touch-target); min-height: var(--touch-target); padding: 0 var(--space-12); border: 0; border-radius: 22px; font: var(--weight-control) 15px/20px var(--font-body); }
+  .reader-selection-capsule .button.reader-selection-dot { padding: 0; }
+  .reader-selection-capsule .highlight-color-dot { width: 18px; height: 18px; }
+  .reader-selection-capsule .reader-selection-page { color: var(--muted); }
+  .reader-selection-capsule .button:active:not(:disabled) { background: var(--ink-wash); }
+}
