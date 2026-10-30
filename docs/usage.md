@@ -133,6 +133,8 @@ The same native entry point sends `tessera:status-bar-tap` to the page when iOS 
 
 The entry point also bridges the page to the phone's hardware. At document start it defines `window.tesseraNative = { haptics: true, editMenu: true }`, which no other host sets. `window.webkit.messageHandlers.tesseraHaptic.postMessage(kind)` plays `light`, `medium`, `selection`, `success` or `warning` feedback and ignores other kinds. `tesseraEditMenu.postMessage({ mode: 'highlight', actions: [{ id, label, color? }] })` puts those actions at the front of the system's text-selection menu: an action with a hex `color` is a filled dot, one without is its label, and Copy, Look Up, Translate and Share follow behind the menu's arrow. Tapping one dispatches `tessera:edit-menu` on `window` with `detail: { id }`. `{ mode: 'none' }` leaves the system menu alone, and so does every new document until the page posts again. Only the main frame is heard. The page posts the state while the selection exists, since the menu is built each time it opens.
 
+The web view's tint is the theme's gilt (`--accent`, `#d8aa55` by night and `#93650f` by day, following the system appearance), so the caret and selection handles are gilt rather than system blue.
+
 `tauri ios init` replaces these hand edits as well as the app icons, which are cut from `crates/tessera-desktop/icons/icon.svg` without the rounded tile because iOS masks the corners itself. Preserve those changes when regenerating the project.
 
 ## Browser app
