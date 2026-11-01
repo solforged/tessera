@@ -113,22 +113,45 @@ export function Picker<T>(props: PickerProps<T>) {
       setCursor(at > 0 ? props.key(items[at]!) : undefined); setRevealRevision(value => value + 1);
     }
   });
+  let revealAt = 0, revealCenter = false, userMoved = false, margined: HTMLElement | undefined;
+  // Scroll only the list. scrollIntoView also scrolls every ancestor, and a popup that is still taking its height
+  // turns that into a stale offset: the first row sits at the top and its group heading stays hidden above it.
+  const reveal = () => {
+    const row = list?.isConnected ? list.querySelector<HTMLElement>('.picker-row.selected') : null;
+    if (!row || !list.clientHeight) return;
+    const previous = row.previousElementSibling;
+    const lead = previous instanceof HTMLElement && previous.classList.contains('picker-section') ? previous : row;
+    if (margined && margined !== row) margined.style.scrollMarginTop = '';
+    margined = row;
+    const origin = list.getBoundingClientRect().top - list.scrollTop;
+    const leadTop = lead.getBoundingClientRect().top - origin, rowTop = row.getBoundingClientRect().top - origin;
+    // A browser scroll of the active row (focus, the combobox's active descendant) honours this margin, so a group's
+    // first row keeps its heading. The first row's margin is its own offset, which lands at the top of the list.
+    row.style.scrollMarginTop = revealAt === 0 && !revealCenter ? `${Math.max(0, rowTop)}px` : `${Math.max(0, rowTop - leadTop)}px`;
+    if (revealAt === 0 && !revealCenter) { if (!userMoved) list.scrollTop = 0; return; }
+    if (revealCenter) {
+      list.scrollTop = Math.max(0, rowTop + row.offsetHeight / 2 - list.clientHeight / 2);
+      const box = list.getBoundingClientRect(), leadBox = lead.getBoundingClientRect();
+      if (lead !== row && leadBox.top < box.top && lead.offsetHeight + row.offsetHeight <= list.clientHeight) list.scrollTop += leadBox.top - box.top;
+      return;
+    }
+    const box = list.getBoundingClientRect(), leadBox = lead.getBoundingClientRect(), rowBox = row.getBoundingClientRect();
+    if (leadBox.top < box.top) list.scrollTop += leadBox.top - box.top;
+    else if (rowBox.bottom > box.bottom) list.scrollTop += rowBox.bottom - box.bottom;
+    const again = lead.getBoundingClientRect(), next = list.getBoundingClientRect();
+    if (again.top < next.top) list.scrollTop += again.top - next.top;
+  };
+  // Placement, focus and scroll anchoring can scroll the first row to the top after the reveal. Until the person
+  // moves the list themselves, put it back so the first group's heading stays in view.
+  const pinTop = () => { if (userMoved || revealAt !== 0 || revealCenter || !list || list.scrollTop === 0) return; list.scrollTop = 0; };
+  const noteUserScroll = () => { userMoved = true; };
   createEffect(() => {
-    const at = selected(); revealRevision();
-    const center = firstScroll && props.initial !== undefined;
+    revealAt = selected(); revealRevision();
+    revealCenter = firstScroll && props.initial !== undefined;
     firstScroll = false;
-    const reveal = () => {
-      const row = list?.isConnected ? list.querySelector<HTMLElement>('.picker-row.selected') : null;
-      if (!row) return;
-      if (center) { row.scrollIntoView({ block: 'center' }); return; }
-      // The first row comes back with whatever stands above it, and a group's first row with its heading.
-      if (at === 0) list.scrollTop = 0;
-      const heading = row.previousElementSibling;
-      if (heading?.classList.contains('picker-section')) heading.scrollIntoView({ block: 'nearest' });
-      row.scrollIntoView({ block: 'nearest' });
-    };
-    if (center) requestAnimationFrame(reveal);
-    else queueMicrotask(reveal);
+    userMoved = false;
+    queueMicrotask(reveal);
+    requestAnimationFrame(reveal);
   });
   const current = () => shown().items[selected()];
   createEffect(() => props.onSelect?.(current()));
@@ -194,17 +217,32 @@ export function Picker<T>(props: PickerProps<T>) {
   };
   onMount(() => {
     const panel = list.parentElement;
-    if (!panel) return;
-    panel.addEventListener('keydown', keydown);
-    panel.addEventListener('mousedown', mousedown);
-    panel.addEventListener('click', click);
+    list.addEventListener('wheel', noteUserScroll, { passive: true });
+    list.addEventListener('pointerdown', noteUserScroll);
+    list.addEventListener('scroll', pinTop);
+    // The list's height arrives with popup placement, after the first reveal. A scroll made against a short list sticks
+    // once the popup grows, hiding the group heading above the first row.
+    const observer = new ResizeObserver(() => reveal());
+    observer.observe(list);
+    if (panel) {
+      panel.addEventListener('keydown', keydown);
+      panel.addEventListener('mousedown', mousedown);
+      panel.addEventListener('click', click);
+    }
     onCleanup(() => {
-      panel.removeEventListener('keydown', keydown);
-      panel.removeEventListener('mousedown', mousedown);
-      panel.removeEventListener('click', click);
+      observer.disconnect();
+      list.removeEventListener('wheel', noteUserScroll);
+      list.removeEventListener('pointerdown', noteUserScroll);
+      list.removeEventListener('scroll', pinTop);
+      panel?.removeEventListener('keydown', keydown);
+      panel?.removeEventListener('mousedown', mousedown);
+      panel?.removeEventListener('click', click);
     });
   });
-  return <Popup anchor={props.anchor} placement={props.placement} fitContent={props.fitContent} autofocus={props.autofocus} ready={props.ready ?? (initiallySettled ? undefined : settled())} returnFocus={props.returnFocus} onDismiss={props.onDismiss} label={props.label} title={props.title} width={props.width ?? 560} class={`picker ${props.class ?? ''}`} style={props.style}>
+  // A picker placed from its natural height is a column: the room the popup is given bounds the list, which scrolls under the
+  // query. The command palette places itself and sizes to its content, so it is not one. A result list never slides over its trigger.
+  const column = props.placement !== 'top';
+  return <Popup anchor={props.anchor} placement={props.placement} fitContent={props.fitContent ?? column} cover={false} scrollingList={column} autofocus={props.autofocus} ready={props.ready ?? (initiallySettled ? undefined : settled())} returnFocus={props.returnFocus} onDismiss={props.onDismiss} label={props.label} title={props.title} width={props.width ?? 560} class={`picker ${column ? 'picker-column ' : ''}${props.class ?? ''}`} style={props.style}>
     <div class="picker-query">
       {props.prefix}
       <input ref={element => { input = element; props.inputRef?.(element); }} class="picker-input" role="combobox" aria-expanded="true" aria-haspopup="listbox" aria-controls={listId} aria-autocomplete="list" aria-activedescendant={shown().items.length ? `${id}-${selected()}` : undefined} aria-label={props.label} placeholder={props.placeholder} value={props.query} onInput={event => props.onQuery(event.currentTarget.value)} />

@@ -26,8 +26,14 @@ export interface PopupProps {
   fitContent?: boolean;
   /** Keep asynchronous content hidden until its caller has finished loading. */
   ready?: boolean;
-  /** Constrain an anchored popup to its originating pane as well as the viewport. */
+  /** Constrain an anchored popup to its originating pane as well as the viewport. Without it the pane the anchor sits in
+   * bounds it, so the end it aligns to, the room it takes and its width are the pane's, never a neighbouring pane's. */
   bounds?: () => DOMRect | null;
+  /** Whether a popup that fits neither side of its trigger may slide over the trigger to keep its whole height. Forms do (the
+   * default); menus, listboxes and result lists (Picker) never do: they take the larger side and scroll. */
+  cover?: boolean;
+  /** A growing result list: stay below when a usable list fits there, and scroll, instead of flipping to the larger side. */
+  scrollingList?: boolean;
   /** Retain the first measured box while its read-only contents finish resolving. */
   fixedSize?: boolean;
   /** Defaults to the first input or enabled button, once the content has appeared. A modal popup with nothing to focus holds
@@ -300,6 +306,8 @@ export function Popup(props: PopupProps) {
   const layer: Layer = { modal: props.modal ?? (props.placement === 'sheet' || ((props.role ?? 'dialog') === 'dialog' && (props.placement === 'top' || props.anchor === document.body))) };
   // A sheet on a phone floats inset from the screen's edges (styles in overlays.css); elsewhere it docks to the bottom edge.
   const sheetInset = props.placement === 'sheet' && isPhone() ? PHONE_SHEET_INSET : 0;
+  // One opened over another reads as the higher leaf (styles.css, `data-stacked`).
+  const stacked = stack.some(other => other.panel?.isConnected);
   const [position, setPosition] = createSignal<Position>({ left: 8, top: 8, height: 0, visible: false });
   // Placed and shown (focusable) from the first measure; revealed once the content has stopped changing, so a popup
   // whose rows land a frame later enters at its final size instead of growing mid-fade.
@@ -319,6 +327,9 @@ export function Popup(props: PopupProps) {
   const pressedElsewhere = !!handoff && press.at >= handoff.at - 50 && press.target instanceof Node && press.target.isConnected && !handoff.panel.contains(press.target);
   const inherited = handoff && props.role !== 'tooltip' && performance.now() - handoff.at < HANDOFF_MS && stale && !pressedElsewhere ? handoff.record : null;
   const anchorElement = props.anchor instanceof HTMLElement && props.anchor !== document.body ? props.anchor : null;
+  // The pane the trigger sits in bounds an anchored popup, unless the caller names other bounds (an editor's completions name theirs).
+  const inPane = props.placement === undefined || props.placement === 'anchor' || props.placement === 'below';
+  const boundsRect = () => props.bounds?.() ?? (inPane ? anchorElement?.closest('.pane')?.getBoundingClientRect() : null) ?? null;
   const mount = modalDialog();
   // The trigger takes focus back on every close however the popup was opened (a click focuses no button in WebKit, and a
   // pane's keyboard owner is no better than the control the user acted on). The element focused before opening stays
@@ -398,7 +409,7 @@ export function Popup(props: PopupProps) {
   const place = () => {
     if (disposed || props.ready === false) return;
     dirty = false;
-    const viewport = popupBounds(visualViewportBounds(), props.placement === undefined || props.placement === 'anchor' || props.placement === 'below' ? props.bounds?.() : null);
+    const viewport = popupBounds(visualViewportBounds(), inPane ? boundsRect() : null);
     if (props.placement === 'sheet') {
       // The phone head spans the sheet's full width whatever padding the surface gave it, so it learns that padding here.
       if (sheetInset) { const padding = getComputedStyle(panel); panel.style.setProperty('--sheet-pad-l', padding.paddingLeft); panel.style.setProperty('--sheet-pad-r', padding.paddingRight); }
@@ -426,7 +437,7 @@ export function Popup(props: PopupProps) {
     if (!props.fixedSize) size = undefined;
     const height = props.fixedSize && size?.width === width ? size.height : contentHeight();
     if (props.fixedSize && size?.width !== width) size = { width, height };
-    const placed = anchoredPopupPosition(rect, viewport, width, height, props.role === 'menu' ? Infinity : 560, locked, props.placement === 'below', props.role !== 'menu' && props.role !== 'listbox');
+    const placed = anchoredPopupPosition(rect, viewport, width, height, props.role === 'menu' ? Infinity : 560, locked, props.placement === 'below', props.cover ?? (props.role !== 'menu' && props.role !== 'listbox'), props.scrollingList);
     // The trigger's centre across the panel, where a phone pull-down grows from.
     commit({ ...placed, originX: (rect.left + rect.right) / 2 - placed.left });
   };
@@ -436,7 +447,7 @@ export function Popup(props: PopupProps) {
     const rect = anchorRect();
     // A detached or hidden trigger reports an empty box at the origin, which says nothing about where it went.
     if (!rect || (rect.width === 0 && rect.height === 0 && rect.left === 0 && rect.top === 0) || (anchorElement && !anchorElement.isConnected)) return false;
-    let area = popupBounds(visualViewportBounds(), props.bounds?.());
+    let area = popupBounds(visualViewportBounds(), boundsRect());
     if (anchorElement) {
       clips ??= clippingAncestors(anchorElement);
       for (const clip of clips) area = popupBounds(area, clip.getBoundingClientRect());
@@ -667,11 +678,11 @@ export function Popup(props: PopupProps) {
     queueMicrotask(() => { retiredThisTick = false; });
     if (panel && revealed()) retirePanel(panel, scrim, mount, performance.now() - lastInside < 500);
   });
-  const width = () => props.placement === 'sheet' ? sheetInset ? `calc(100vw - ${2 * sheetInset}px)` : '100vw' : props.width ? `${Math.max(0, Math.min(props.width, popupBounds(visualViewportBounds(), props.bounds?.()).width - 16))}px` : undefined;
+  const width = () => props.placement === 'sheet' ? sheetInset ? `calc(100vw - ${2 * sheetInset}px)` : '100vw' : props.width ? `${Math.max(0, Math.min(props.width, popupBounds(visualViewportBounds(), boundsRect()).width - 16))}px` : undefined;
   const sheet = () => props.placement === 'sheet';
   return <Portal mount={mount ?? undefined}>
     <Show when={sheet() && props.scrim !== false}><div ref={element => { scrim = element; }} class={`popup-scrim${revealed() ? ' popup-scrim-enter' : ''}`} style={{ visibility: revealed() ? 'visible' : 'hidden', opacity: revealed() ? undefined : 0 }} aria-hidden="true" /></Show>
-    <div ref={panel} id={id} tabindex="-1" class={`popup${sheet() ? ' popup-sheet' : ''}${revealed() ? ` popup-enter${swap ? ' popup-swap' : ''}` : ''}${growing() ? ' popup-growing' : ''}${dragDistance() ? ' popup-sheet-dragging' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} aria-modal={layer.modal ? 'true' : undefined} data-side={position().side} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: width(), height: props.fixedSize && position().visible ? `${position().height}px` : undefined, 'max-height': `${position().height}px`, overflow: position().clipped ? 'auto' : undefined, visibility: position().visible ? 'visible' : 'hidden', opacity: revealed() ? undefined : 0, translate: dragDistance() ? `0 ${dragDistance()}px` : undefined, '--popup-origin-x': position().originX === undefined ? undefined : `${position().originX}px` }}>
+    <div ref={panel} id={id} tabindex="-1" class={`popup${sheet() ? ' popup-sheet' : ''}${revealed() ? ` popup-enter${swap ? ' popup-swap' : ''}` : ''}${growing() ? ' popup-growing' : ''}${dragDistance() ? ' popup-sheet-dragging' : ''} ${props.class ?? ''}`} role={props.role ?? 'dialog'} aria-label={props.label} aria-modal={layer.modal ? 'true' : undefined} data-side={position().side} data-stacked={stacked ? '' : undefined} style={{ ...props.style, left: `${position().left}px`, top: `${position().top}px`, width: width(), height: props.fixedSize && position().visible ? `${position().height}px` : undefined, 'max-height': `${position().height}px`, overflow: position().clipped ? 'auto' : undefined, visibility: position().visible ? 'visible' : 'hidden', opacity: revealed() ? undefined : 0, translate: dragDistance() ? `0 ${dragDistance()}px` : undefined, '--popup-origin-x': position().originX === undefined ? undefined : `${position().originX}px` }}>
       {/* The grab strip lies under the whole head, so the title drags the sheet too. On a phone the close is a glass circle with a
           cross; the word stays for screen readers and for sheets on tablets and narrow windows. */}
       <Show when={sheet()}><div class="popup-sheet-tools">

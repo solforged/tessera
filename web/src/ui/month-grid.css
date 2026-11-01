@@ -10,7 +10,7 @@
 .month-grid-outside { color: var(--faint); }
 .month-grid-day[aria-current="date"] { color: var(--accent); font-weight: var(--weight-heading); box-shadow: inset 0 0 0 1px var(--control-border); }
 .month-grid-day.selected { background: var(--accent); color: var(--canvas); font-weight: var(--weight-heading); box-shadow: none; }
-.month-grid-day:disabled { cursor: default; opacity: 0.6; }
+.month-grid-day:disabled { cursor: default; opacity: var(--disabled-opacity); }
 .month-grid-markers { position: absolute; left: 0; right: 0; bottom: var(--space-2); height: var(--space-4); display: flex; align-items: center; justify-content: center; gap: var(--space-2); pointer-events: none; }
 .month-grid-scheduled, .month-grid-deadline, .month-grid-mark { display: inline-block; flex: none; width: var(--space-4); height: var(--space-4); }
 .month-grid-scheduled { border-radius: var(--radius-pill); background: var(--calendar-scheduled); }

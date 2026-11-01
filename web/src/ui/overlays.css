@@ -8,7 +8,7 @@
 .menu-palette-button { display: grid; flex: 1; place-items: center; min-height: var(--row-height); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--text); transition: background-color var(--motion-fast) var(--motion-ease); }
 .menu-palette-button:hover { background: var(--selection); }
 .menu-palette-button:focus-visible { outline: none; background: var(--selection); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--accent); }
-.menu-palette-button[aria-disabled="true"] { cursor: default; color: var(--muted); opacity: .55; }
+.menu-palette-button[aria-disabled="true"] { cursor: default; color: var(--muted); opacity: var(--disabled-opacity); }
 /* The close cross and the sheet's title belong to the phone's sheet head; elsewhere the sheet keeps its word. */
 .popup-sheet-title, .popup-sheet-close .icon { display: none; }
 
@@ -37,12 +37,12 @@
   .menu-pull .menu-item > kbd, .menu-pull .menu-item > span.icon { display: none; }
   .menu-pull .menu-item > .icon { width: 20px; height: 20px; }
   .menu-pull .menu-item > .icon:not(.menu-check):not(.menu-drill) { order: 3; color: currentColor; }
-  .menu-pull .menu-item > .menu-check { order: 4; }
+  .menu-pull .menu-item > .menu-check { order: 2; }
   .menu-pull .menu-item > .menu-drill { order: 5; width: 16px; height: 16px; }
   /* A row that opens more is told by its chevron alone. */
   .menu-pull .menu-item-drill > .icon:not(.menu-drill) { display: none; }
   .menu-pull .menu-item.danger { color: var(--danger); }
-  .menu-pull .menu-item[aria-disabled="true"] { opacity: .4; color: inherit; }
+  .menu-pull .menu-item[aria-disabled="true"] { opacity: var(--disabled-opacity); color: inherit; }
   .menu-pull .menu-disabled-reason { font: 400 13px/16px var(--font-body); color: var(--faint); }
   /* A finger lights a row only while it presses; the selection fill and the gilt edge are for the keyboard. */
   .menu-pull .menu-item:hover { background: transparent; }

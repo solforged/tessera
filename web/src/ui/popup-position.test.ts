@@ -162,6 +162,37 @@ describe('anchored popup placement', () => {
     expect(position.height).toBe(180);
     expect(position.clipped).toBe(true);
   });
+
+  test('a result list that fits neither side takes the larger one and never covers its trigger', () => {
+    const trigger = { left: 286, right: 336, top: 452, bottom: 478 };
+    const list = anchoredPopupPosition(trigger, viewport, 360, 777, 560, undefined, false, false);
+    expect(list.side).toBe('above');
+    expect(list.top).toBe(8);
+    expect(list.height).toBe(440);
+    expect(list.top + list.height).toBeLessThan(trigger.top);
+    expect(list.clipped).toBe(true);
+  });
+
+  test('a growing result list stays below when a few rows fit, and flips only when they do not', () => {
+    const browse = { left: 286, right: 336, top: 456, bottom: 484 };
+    const below = anchoredPopupPosition(browse, viewport, 360, 777, 560, undefined, false, false, true);
+    expect(below.side).toBe('below');
+    expect(below.top).toBe(488);
+    expect(below.height).toBeGreaterThanOrEqual(240);
+    expect(below.clipped).toBe(true);
+    const low = { left: 1100, right: 1160, top: 700, bottom: 728 };
+    const above = anchoredPopupPosition(low, viewport, 360, 777, 560, undefined, false, false, true);
+    expect(above.side).toBe('above');
+    expect(above.top + above.height).toBeLessThan(low.top);
+  });
+
+  test('neighbouring triggers in one pane align alike: the pane decides the half, not the window', () => {
+    const wide = popupBounds(viewport, { ...pane, right: 1427, width: 1218 });
+    expect(anchoredPopupPosition({ left: 693, right: 739, top: 100, bottom: 128 }, wide, 560, 300).left).toBe(693);
+    expect(anchoredPopupPosition({ left: 747, right: 775, top: 100, bottom: 128 }, wide, 560, 300).left).toBe(747);
+    // Against the window alone the second would hang 480 px to the left.
+    expect(anchoredPopupPosition({ left: 747, right: 775, top: 100, bottom: 128 }, viewport, 560, 300).left).toBe(215);
+  });
 });
 
 describe('anchor visibility', () => {
