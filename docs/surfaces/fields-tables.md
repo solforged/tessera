@@ -109,7 +109,7 @@ Under the list, a gap line appears only when at least one missing field has Hide
 
 The type's Fields tab opens its field template as a third in-pane view, with the same List, Table, Fields and Cards strip. All four tabs, the table title and the pane title read the kind as the sidebar does: its glyph and plural, or the spelling you wrote for a tag that only marks blocks (`#essay` titles `essay`, not `essays`), and List, Fields and Cards share one left edge. Fields counts the template's fields and Cards its card templates, not values or cards on members, and an empty template shows no count. Its bounded register lists the template in the [field rows](#field-rows) the type page uses. Usage counts are workshop-wide distinct owners, including empty entries.
 
-Add field and Fill missing fields keep the type page's editing behavior. The eyebrow shows only the tag's register name, such as People, linking to its index. The field count appears in the Fields tab, not again beside the title. Where there is no type-page menu, Icon and name… is a quiet control at the end of the editing toolbar. The global Fields register remains separate.
+Add field and Fill missing fields keep the type page's editing behavior. List, Table, Fields and Cards share the eyebrow, which shows only the tag's register name, such as People, linking to its index. On a phone the crumb steps aside. The field count appears in the Fields tab, not again beside the title. Where there is no type-page menu, Icon and name… is a quiet control at the end of the editing toolbar. The global Fields register remains separate.
 
 While Fields is open, the Table tab shows the register's member count, including active task, question, source and project atoms without written type memberships.
 
@@ -141,13 +141,13 @@ The heading, mode strip, toolbar, query chips and footer stay centered on the pa
 
 The type and Register sit in quiet apparatus above a Piazzolla view name. Its menu lists all members of the source or type and its saved views, then Save as view…, Rename and Delete separately. A checkmark means the current query and recipe equal that row's saved query, not merely that the view is open. When they differ, the open row shows faint apparatus Modified; Save changes updates a saved view in one undoable edit, and Revert changes restores its saved query and recipe. The footer offers Undo after saving; ⌘Z and ⌘⇧Z also undo and redo the update. The one-line purpose under the name edits in place.
 
-A kind's Table mode, reached from its List tab, keeps List's head so switching modes moves nothing: no type crumb or Register label, the same glyph, title, tally and create action in the same places, and the tally, footer and empty state in List's nouns (`9 atoms`, `16 tasks`, `No people yet.`). Its purpose waits in the view menu as Add purpose… until it has text. The pane title, its glyph and the sidebar's selected row name the kind, as in List.
+A kind's Table mode, reached from its List tab, keeps List's head so switching modes moves nothing: the same type crumb above the title, no Register label, the same glyph, title, tally and create action in the same places, and the tally, footer and empty state in List's nouns (`9 atoms`, `16 tasks`, `No people yet.`). Its purpose waits in the view menu as Add purpose… until it has text. The pane title, its glyph and the sidebar's selected row name the kind, as in List.
 
 A saved view with a detached or deleted field names the remembered field and offers Remove from view. Results pause instead of showing an empty result or a raw identifier. Removing the field clears its filters, sorts, columns, grouping and phone card references, and saves the repaired view. Undoing the field change restores the original recipe.
 
 A type with a required field that some rows lack adds `· 3 need author` after the member count, counted within the table's own query. It adds that field's `is empty` filter to the filters already set. An empty required cell reads faint apparatus `needed`.
 
-A type shares `List N`, `Table N`, `Fields N` and `Cards N` tabs with its [finding aid](notes.md#finding-aid) and template registers. List and Table count the query retained when switching modes, not the unfiltered type total; List counts notes only. Fields switches the same pane to that type's ordered template; its type crumb opens the ordinary type page.
+A type shares `List N`, `Table N`, `Fields N` and `Cards N` tabs with its [finding aid](notes.md#finding-aid) and template registers. List and Table count the query retained when switching modes, not the unfiltered type total; List counts notes only, while a kind's Table lists its tagged blocks after its notes, so both routes to a type's Table show the same rows. Fields switches the same pane to that type's ordered template. List, Table, Fields and Cards share the type crumb, which opens the ordinary type page. On a phone the crumb steps aside.
 
 ### Delete view
 
@@ -157,7 +157,7 @@ After deleting a table view, its confirmation closes and the table keeps the que
 
 ### Embedded views
 
-A saved view's menu offers Embed on atom…. Its page picker inserts an ordinary reference block and opens it on that page. `/Embed view` and Commands offer the same saved views while writing.
+A saved view's menu offers Embed on atom…. Its page picker inserts an ordinary reference block and opens it on that page. `/Embed view` and Commands offer the same saved views while writing. An embedded table fades columns past its right edge and counts them with `+N ›`, as a table does, and leaves empty cells blank; the `Add…` prompt shows only on the focused cell.
 
 An embed follows the saved query, columns, sorts, groups and layout, with twelve visible rows and Show all N to open the full view. Editing an ordinary field uses its canonical value block and one undo; derived attributes remain read-only. Committed workshop changes update the result. Phone cards use the saved card fields.
 
@@ -216,7 +216,7 @@ Source values keep the first authored label and hostname, with a named derived R
 
 Note and tagged non-page members share the same grid and field cells, ordered notes first and then blocks while retaining query order within each kind. Only a mixed register inserts a full-width apparatus Tagged atoms row with its mono count and a hairline above; a block-only register needs no divider. Block titles use the same three-line clamp and More/Less expansion as note titles, followed by a faint apparatus `in <page title>` line (the journal date for journal pages). A run of blocks from one page names it on the first row only. A group heading or the Tagged atoms row starts a new run. Titles reuse the outline's quiet card display: direction arrows are faint and cloze answers have a dotted underline.
 
-Columns past the right edge fade under the rows. `+N ›` at the header's end counts them and scrolls to them.
+Columns past the right edge fade under the rows. `+N ›` at the header's end counts them and scrolls to them; the badge sits on a solid ground, so no header label shows through it. A checkbox cell draws the same box as the field bed, an empty one included, and an unreadable value shows in the warning color with its reason on hover. The grid is as wide as its columns (a 340 px title and each column's own width), not stretched to the pane.
 
 ### Editing
 
@@ -275,7 +275,7 @@ An empty result names the source and the conditions that excluded its rows. Clea
 
 ### Cards and options sheet
 
-On coarse pointers below 600 px of available pane width, cards replace the grid without lateral scrolling. The head is List's: the count above a large Piazzolla title with no glyph (`9 people`, the figure in mono, ending ` · modified` when a saved recipe has changed), then the List, Table, Fields and Cards strip without counts on List and Table, then the find well. An empty purpose stays hidden and a set purpose reads under the title. The head scrolls away with the cards under the nav bar, whose end holds the New action (New type…, using the type's name). The repeated register eyebrow and in-page New action are hidden.
+On coarse pointers below 600 px of available pane width, cards replace the grid without lateral scrolling. The head is List's: the count above a large Piazzolla title with no glyph (`9 people`, the figure in mono, ending ` · modified` when a saved recipe has changed), then the List, Table, Fields and Cards strip without counts on List and Table, then the find well. An empty purpose stays hidden and a set purpose reads under the title. The head scrolls away with the cards under the nav bar, whose end holds the New action (New type…, using the type's name). The repeated register eyebrow and in-page New action are hidden. The type crumb steps aside.
 
 The well holds the glyph and Find in the type's plural, with a filter control inside its end. The control opens the Table options sheet: Views and From, then Filters, Sort and Group (and Layout where offered), then Columns and Card fields. Each opens in place in the sheet, over its rows. Views holds the view actions, including Save as view and Add purpose…. Save changes and Revert changes appear at the sheet's foot when a saved view differs. A narrow pane in a wider touch window retains the fixed Find and Query bar above bottom navigation. Its count includes active text, link conditions, filters, sorts, grouping and a non-default source.
 

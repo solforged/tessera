@@ -119,7 +119,7 @@ Devices can create the same thing offline:
 
 | Collision | Resolution |
 |---|---|
-| Page title matches another live page, or journal day already exists | Use the existing root. New children follow its children; later references to the new ID are rewritten through `id_aliases`. |
+| Page title matches another live page, or journal day already exists | Use the existing root. New children follow its children; later references to the new ID are rewritten through `id_aliases`. A day's blank first row resolves to the existing day's first blank row, when it has one, so a second device's empty day adds no empty line. |
 | Field name already exists | Use the existing field and retain its kind. |
 | New type resolves to one with fields | Drop the change's field list for that type, so a first import on a second device cannot undo the Book type's setup. |
 | Duplicate citation key | Add a suffix. |
@@ -211,7 +211,7 @@ The `vim` setting describes a keyboard, not a workshop. It becomes local to the 
 
 Editor routes stay on loopback and keep rejecting other hosts and origins. They still carry the hub routes for replicas on the same Mac, such as `tessera sync clone http://127.0.0.1:4318`, with no key.
 
-Other devices reach the hub through a second listener on loopback, at the editor's port plus one (4319 for the installed app; `tessera serve --sync-port`). It serves only the hub routes and pairing, and every request except pairing carries `Authorization: Bearer <key>`. A request that names a device must name one that key cloned. Settings › Devices publishes this listener with `tailscale serve --bg --https=4319` and withdraws it with `tailscale serve --https=4319 off`; Tailscale supplies the certificate for the Mac's `ts.net` name. The hub touches no other Serve port.
+Other devices reach the hub through a second listener on loopback, at the editor's port plus one (4319 for the installed app; `tessera serve --sync-port`). It serves only the hub routes and pairing, and every request except pairing carries `Authorization: Bearer <key>`. A request that names a device must name one that key cloned. Settings › Devices publishes this listener with `tailscale serve --bg --https=4319` and withdraws it with `tailscale serve --https=4319 off`; Tailscale supplies the certificate for the Mac's `ts.net` name. The hub touches no other Serve port. That one HTTPS port is shared by every service on the Mac, so a service publishes only over a port that is free, left behind by a service that has stopped (nothing listens on its target), or already its own, and withdraws only a mapping that points at its own listener. Otherwise Sharing answers `sharing_taken` with a sentence, and Settings › Devices shows it.
 
 Pairing starts on the Mac with a QR code for `tessera://pair?hub=<url>&code=<code>` and the same eight-character code to type. Codes live only in the running service, work once, expire after five minutes and are canceled by five wrong tries.
 
