@@ -47,12 +47,15 @@ export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: Note
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); }
     finally { setBusy(false); }
   }
+  /** The server names the one field it rejects; a bad Published date is shown at the field, not at the foot. */
+  const publishedInvalid = () => /^Use YYYY/.test(error());
   async function submit() {
     if (busy()) return;
     setBusy(true); setError('');
     try { await props.onSave({ ...value(), creators: creators().filter(creator => creator.name.trim()).map(creator => ({ ...creator, name: creator.name.trim() })) }); }
     catch (error) { setError(error instanceof Error ? error.message : String(error)); }
     finally { setBusy(false); }
+    if (publishedInvalid()) queueMicrotask(() => form.querySelector<HTMLInputElement>('[aria-label="Published"]')?.focus());
   }
   return <form ref={form} class="library-details" onCompositionStart={() => { composing = true; }} onCompositionEnd={() => { composing = false; }} onKeyDown={event => {
     if (event.key === 'Enter' && (composing || event.isComposing || event.keyCode === 229)) event.preventDefault();
@@ -85,10 +88,13 @@ export function DetailsForm(props: { metadata: ExtractedMetadata; notebook: Note
         queueMicrotask(() => { const inputs = form.querySelectorAll<HTMLInputElement>('.library-creator input[aria-label="Creator name"]'); inputs[inputs.length - 1]?.focus(); });
       }}>Add creator</Button>
     </div></div>
-    <For each={detailFields}>{([key, label, placeholder]) => <label class="library-details-row"><span>{label}</span><input class="input" aria-label={label} placeholder={placeholder || undefined} value={value()[key] ?? ''} disabled={busy()} onInput={event => patch(key, event.currentTarget.value)} /></label>}</For>
+    <For each={detailFields}>{([key, label, placeholder]) => <>
+      <label class="library-details-row"><span>{label}</span><input class="input" aria-label={label} placeholder={placeholder || undefined} value={value()[key] ?? ''} disabled={busy()} aria-invalid={key === 'published' && publishedInvalid() ? true : undefined} aria-describedby={key === 'published' && publishedInvalid() ? 'library-details-published-error' : undefined} onInput={event => patch(key, event.currentTarget.value)} /></label>
+      <Show when={key === 'published' && publishedInvalid()}><p id="library-details-published-error" class="library-error library-details-error" role="alert">{error()}</p></Show>
+    </>}</For>
     <label class="library-details-row"><span>Identifier</span><input class="input" aria-label="Identifier" placeholder="ISBN, DOI or arXiv ID" value={value().identifiers[0] ?? ''} disabled={busy()} onInput={event => setValue(previous => ({ ...previous, identifiers: [event.currentTarget.value, ...previous.identifiers.slice(1)].filter(value => value.trim()) }))} /></label>
     {props.collections}
-    <Show when={error()}><p class="library-error" role="alert">{error()}</p></Show>
+    <Show when={error() && !publishedInvalid()}><p class="library-error" role="alert">{error()}</p></Show>
     <div class="popup-actions"><Button disabled={busy()} onClick={props.onCancel}>Cancel</Button><Button type="submit" class="bordered" disabled={busy() || !value().title?.trim()}>{props.submitLabel}</Button></div>
   </form>;
 }

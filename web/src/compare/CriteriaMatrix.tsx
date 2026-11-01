@@ -140,8 +140,12 @@ export function CriteriaMatrix(props: {
       }} /></div>
     </Show>;
   }
+  /** How a perspective is cited in a scope or footnote: its siglum, or its holder's name when it has none. */
+  function cite(row: PositionRow) {
+    return props.siglum(row) || props.holder(row);
+  }
   function HolderHeader(headerProps: { id: string }) {
-    return <><span class="compare-siglum">{props.siglum(rowById().get(headerProps.id)!)}</span>
+    return <><Show when={props.siglum(rowById().get(headerProps.id)!)} fallback={<Show when={props.rows.some(row => props.siglum(row))}><span class="compare-siglum" aria-hidden="true" /></Show>}>{mark => <span class="compare-siglum">{mark()}</span>}</Show>
       <Button class="compare-holder-name" title={`Open this perspective · ${besideHint}`} onClick={event => props.onOpen({ kind: 'page', pageId: rowById().get(headerProps.id)!.block.page.id, blockId: headerProps.id }, opensBeside(event))}>{props.holder(rowById().get(headerProps.id)!)}</Button>
       <div class="compare-work"><BlockText text={props.work(rowById().get(headerProps.id)!)} notebook={props.notebook} onOpen={props.onOpen} /></div></>;
   }
@@ -183,7 +187,7 @@ export function CriteriaMatrix(props: {
             const question = () => questionById().get(id)!;
             return <tr class="criteria-question"><td colSpan={props.rows.length + 1}><div>
               <span class="criteria-question-mark">?</span><Button class="criteria-question-text" onClick={() => props.onFocusQuestion?.(id)}><BlockText text={question().block.block.text} notebook={props.notebook} interactive={false} /></Button>
-              <span class="criteria-scope">{fieldName(field)} · {question().holders.length ? `${question().holders.map(id => { const row = props.allRows.find(row => row.holder_id === id); return row ? props.siglum(row) : props.notebook.lookup(id)()?.text ?? id; }).join(' ↔ ')} only` : `all ${props.allRows.length}`}</span>
+              <span class="criteria-scope">{fieldName(field)} · {question().holders.length ? `${question().holders.map(id => { const row = props.allRows.find(row => row.holder_id === id); return row ? cite(row) : props.notebook.lookup(id)()?.text ?? id; }).join(' ↔ ')} only` : `all ${props.allRows.length}`}</span>
               <Button onClick={event => props.onOpen({ kind: 'page', pageId: question().block.page.id, blockId: id }, opensBeside(event))}>Open original</Button>
             </div></td></tr>;
           }}</For>
@@ -194,6 +198,6 @@ export function CriteriaMatrix(props: {
         <tbody><For each={rowIds()}>{id => <tr class="criteria-values" data-position-id={id}><th scope="row"><HolderHeader id={id} /></th><For each={props.criteria}>{field => <MatrixCell id={id} field={field} />}</For></tr>}</For></tbody>
       </Show>
     </table></div></Show>
-    <footer class="criteria-footnotes"><div><For each={repeats()}>{repeat => <p>≡ {repeat.number}　Identical authored value: "<BlockText text={repeat.text} notebook={props.notebook} interactive={false} />" · {repeat.positions.map(id => props.siglum(props.rows.find(row => row.block.block.id === id)!)).join(', ')}</p>}</For></div><span class="criteria-hint">Enter to edit · Tab to next cell · {besideHint}</span></footer>
+    <footer class="criteria-footnotes"><div><For each={repeats()}>{repeat => <p>≡ {repeat.number}　Identical authored value: "<BlockText text={repeat.text} notebook={props.notebook} interactive={false} />" · {repeat.positions.map(id => cite(props.rows.find(row => row.block.block.id === id)!)).join(', ')}</p>}</For></div><span class="criteria-hint">Enter to edit · Tab to next cell · {besideHint}</span></footer>
   </>;
 }

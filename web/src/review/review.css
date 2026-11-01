@@ -15,6 +15,11 @@
 .review-session-progress > .review-progress-label { align-self: flex-end; }
 .review-grade-strip { display: flex; gap: var(--space-4); min-width: 0; width: 100%; }
 .review-grade-segment { flex: 1; min-width: 0; height: var(--space-4); border-radius: var(--radius-control); background: var(--line); }
+/* A long queue is one continuous bar: runs of equal state share the strip with no gaps, and the current card keeps a visible tick. */
+.review-grade-strip-continuous { gap: 0; border-radius: var(--radius-control); overflow: hidden; }
+.review-grade-strip-continuous .review-grade-segment { border-radius: 0; }
+.review-grade-strip-continuous .review-grade-current { flex-grow: 0; flex-basis: var(--space-4); min-width: var(--space-4); }
+.review-session-when { font: var(--figures); font-variant-numeric: tabular-nums; }
 .review-grade-good, .review-grade-easy { background: var(--status-done); }
 .review-grade-again { background: var(--danger); }
 .review-grade-hard { background: var(--warning); }
@@ -34,7 +39,7 @@
 .review-stale { color: var(--warning); font-size: var(--text-control); line-height: var(--line-control); animation: fade-in var(--motion-ui) var(--motion-ease) both; }
 /* A control held shut while a write is in flight keeps its look: no flicker for a grade, a quiet dim once the wait outlasts the 300 ms loading delay (ui/loading.ts). */
 .review-pane .button[aria-disabled="true"] { cursor: default; animation: review-dim var(--motion-ui) var(--motion-ease) 300ms both; }
-@keyframes review-dim { to { opacity: .45; } }
+@keyframes review-dim { to { opacity: var(--disabled-opacity); } }
 .review-stale p { margin: 0 0 var(--space-8); }
 .review-stale-versions { display: flex; flex-wrap: wrap; gap: var(--space-16); margin-block: var(--space-12); color: var(--text); }
 .review-stale-versions section { flex: 1 1 calc(var(--measure) / 3); min-width: 0; }
@@ -75,7 +80,7 @@
 .review-today-load .review-held { font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); letter-spacing: normal; }
 /* Starting review is a gilt hairline action like every other; Space is the primary path. */
 .review-start.button { min-height: calc(var(--space-32) + var(--space-8)); padding-inline: var(--space-16); }
-.review-start kbd { color: inherit; opacity: .7; }
+.review-start kbd { color: inherit; }
 /* The landing's stats are one mono ledger line between rules. */
 .review-stats { display: flex; flex-wrap: wrap; gap: var(--space-8) var(--space-24); margin: 0; padding-block: var(--space-12); border-block: var(--rule-width) solid var(--line); }
 .review-stats > div { display: flex; align-items: baseline; gap: var(--space-8); }

@@ -2,6 +2,7 @@ import { Show } from 'solid-js';
 import type { LibraryRow } from '../api/types';
 import { isPhone } from '../ui/phone';
 import { ResourceImage } from './ResourceImage';
+import { displayTitle } from '../outline/names';
 import { sourceByline } from './query';
 
 /** One of the six type hues, picked from the title so a book keeps its colour wherever it appears. */
@@ -17,7 +18,7 @@ function hueOf(title: string) {
  */
 export function SourceCover(props: { row: LibraryRow; siglum: string; title?: string }) {
   const surname = () => sourceByline(props.row).split(' · ')[0]!.trim().split(/\s+/).pop() ?? '';
-  const title = () => props.title ?? props.row.page.text;
+  const title = () => props.title ?? displayTitle(props.row.page.text);
   return <span class="library-cover" classList={{ 'library-cover-generated': !props.row.cover && isPhone() }} data-source-cover={props.row.page.id} style={!props.row.cover && isPhone() ? { '--hue': hueOf(title()) } : undefined}>
     <Show when={props.row.cover} fallback={<Show when={isPhone()} fallback={<span class="library-spine" aria-hidden="true">
       <span class="library-spine-siglum">{props.siglum}</span>

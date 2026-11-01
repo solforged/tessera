@@ -97,8 +97,15 @@
 .metadata-register-title { display: flex; align-items: baseline; gap: var(--space-8); font: var(--weight-title) var(--text-control)/var(--line-control) var(--font-display); overflow-wrap: anywhere; }
 .metadata-register-title > span { flex: none; color: var(--faint); font: var(--apparatus); }
 .metadata-register .metadata-field { grid-template-columns: minmax(0, calc(var(--work-cover-width) + var(--space-12))) minmax(0, 1fr); }
+/* The title editor is the source's name: siglum beside it, no repeated "Title" label, no display-size italic. */
+.metadata-register-own-title { display: flex; align-items: flex-start; gap: var(--space-8); }
+.metadata-register-own-title > .metadata-register-title { flex: none; padding-block: var(--space-4); }
+.metadata-register-own-title > .metadata-field { flex: 1; min-width: 0; display: block; }
+.metadata-register-own-title .metadata-field > .metadata-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; padding: 0; }
+.metadata-register-own-title .metadata-field-title .metadata-value { font: var(--weight-title) var(--text-control)/var(--line-control) var(--font-display); }
 .metadata-register-pages { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); color: var(--faint); font: var(--figures); }
 .metadata-field-body > .metadata-register .metadata-register-title { margin-top: var(--space-4); }
+.metadata-field-body > .metadata-register .metadata-register-own-title > .metadata-register-title { margin-top: 0; }
 .metadata-lookup { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin: var(--space-4) 0 0 calc(var(--metadata-label-width) + var(--space-8)); }
 .metadata-cover { display: flex; gap: var(--space-12); margin: var(--space-8) 0 var(--space-16); align-items: flex-start; }
 .metadata-cover img { flex: none; width: var(--work-cover-width); max-height: calc(var(--work-cover-width) * 1.6); object-fit: contain; object-position: top; }

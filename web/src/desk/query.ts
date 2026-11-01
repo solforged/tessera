@@ -2,7 +2,7 @@ import type { FieldDefinition, Filter, PageView, Query, QueryRow } from '../api/
 import type { OpenTarget, TableViewState } from '../shell/contract';
 import type { NotebookClient } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
-import { plainText } from '../outline/names';
+import { plainText, targetLabel } from '../outline/names';
 import { copyQuery, filterLabel, typeQuery } from '../table/query';
 
 export type DeskSelection = NonNullable<TableViewState['desk']>;
@@ -46,6 +46,11 @@ export function rowTarget(row: QueryRow): OpenTarget {
   const block = row.block.block;
   return { kind: 'page', pageId: block.page_id, ...(block.kind === 'block' ? { blockId: block.id } : {}) };
 }
+/** A linked question as a reader names it: its title without the trailing type tag. */
+export function linkedQuestionName(id: string, notebook: NotebookClient): string {
+  const target = notebook.lookup(id)();
+  return target ? targetLabel(target.text, value => notebook.lookup(value)) || 'Empty atom' : 'the selected question';
+}
 /** Restored filters render before query rows arrive; resolve their live references with the notebook receiver intact. */
 export function deskConditionLabel(condition: Filter, fields: FieldDefinition[], notebook: NotebookClient, positions: readonly QueryRow[]): string {
   if (condition.field === '@cited_in' && condition.op === 'is') {
@@ -55,6 +60,7 @@ export function deskConditionLabel(condition: Filter, fields: FieldDefinition[],
       return `Cited in is ${holder || plainText(position.block.block.text, id => notebook.lookup(id))}`;
     }
   }
+  if (condition.field === '@question' && condition.op === 'is' && condition.value) return `Question is ${linkedQuestionName(condition.value, notebook)}`;
   return plainText(filterLabel(condition, fields, notebook), id => notebook.lookup(id));
 }
 /** Authored locators and passage locations, restricted to this position's live subtree. */

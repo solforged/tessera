@@ -230,7 +230,7 @@
 .reader-find-status { margin: 0; padding: var(--space-8) var(--space-12); color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .reader-search-entry { display: flex; flex-direction: column; min-width: 0; width: 100%; gap: var(--space-4); }
 .reader-search-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.reader-search-entry .reader-highlight-section { max-width: 100%; margin-left: 0; font: var(--apparatus); text-align: left; }
+.reader-search-entry .reader-highlight-section { flex: none; max-width: 100%; margin-left: 0; font: var(--apparatus); text-align: left; }
 .reader-note { padding: var(--space-12); max-width: var(--measure); font-size: var(--text-control); line-height: var(--line-control); }
 .reader-note p { margin: 0; white-space: pre-wrap; }
 .reader-status, .reader-error { margin: var(--space-8) var(--space-24); font-size: var(--text-control); }
@@ -240,7 +240,9 @@
 .reader-loading .reader-scroll, .reader-loading .reader-folio { visibility: hidden; }
 /* Once it is, they fade in where they stand, unless the pane navigation held the previous view until they were. */
 .pane-content:not([data-entered]) .reader-pane:not(.reader-loading) :is(.reader-scroll, .reader-folio) { animation: fade-in var(--motion-ui) var(--motion-ease) both; }
-.reader-selection-toolbar { box-sizing: border-box; position: fixed; z-index: 100; background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: var(--popup-shadow); padding: var(--space-4); font-size: var(--text-control); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
+/* Drawn from the popup's material (grain, lit edge, rubric mark); only its entrance differs, rising like a toast. */
+.reader-selection-toolbar { box-sizing: border-box; position: fixed; z-index: 100; background: var(--paper-grain), var(--raised); border: 1px solid var(--line); border-radius: var(--radius-popup); box-shadow: inset 0 1px 0 var(--lit-edge), var(--popup-shadow); padding: var(--space-4); font-size: var(--text-control); animation: rise-in var(--motion-ui) var(--motion-ease) both; }
+.reader-selection-toolbar::before { content: ''; position: absolute; top: 0; left: var(--space-12); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
 /* When the selection ends the toolbar fades out where it stands, still showing the selection it had, and cannot be hit. */
 .reader-selection-leaving { pointer-events: none; animation: fade-out var(--motion-fast) var(--motion-ease) both; }
 .reader-selection-actions { display: flex; flex-wrap: wrap; gap: var(--space-4); }
@@ -335,7 +337,7 @@
   .reader-step { display: flex; align-items: center; height: 44px; border-radius: 22px; background: var(--well); box-shadow: var(--well-shade); }
   .reader-step > .button { flex: 1; display: flex; align-items: baseline; justify-content: center; height: 44px; padding: 9px 0 0; border: 0; border-radius: 22px; background: transparent; color: var(--text); font: 500 18px/1 var(--font-display); }
   .reader-step > .reader-step-more { padding-top: 7px; font-size: 26px; }
-  .reader-step > .button:disabled { opacity: .4; }
+  .reader-step > .button:disabled { opacity: var(--disabled-opacity); }
   .reader-step > .button em { margin-left: 1px; color: var(--muted); font: 400 15px/1 var(--font-body); font-style: normal; }
   .reader-step-value { flex: 0 0 84px; display: grid; place-items: center; height: 44px; color: var(--muted); font: 400 15px/20px var(--font-mono); box-shadow: inset .5px 0 0 var(--line), inset -.5px 0 0 var(--line); }
   .reader-appearance .reader-settings-body .reader-option .seg { margin: 0; }
@@ -380,6 +382,7 @@
 
   /* Where the iOS app's own selection menu is missing, a capsule of the five colours and Annotate stands over the selection; its chevron turns to Highlight and Copy. */
   .reader-selection-capsule { box-sizing: border-box; width: max-content; padding: 2px; border: 0; border-radius: 24px; background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%); backdrop-filter: blur(var(--glass-blur)) saturate(170%); box-shadow: var(--glass-ring); }
+  .reader-selection-capsule::before { content: none; }
   .reader-selection-capsule .reader-selection-actions { flex-wrap: nowrap; gap: 0; }
   .reader-selection-capsule .button { min-width: var(--touch-target); min-height: var(--touch-target); padding: 0 var(--space-12); border: 0; border-radius: 22px; font: var(--weight-control) 15px/20px var(--font-body); }
   .reader-selection-capsule .button.reader-selection-dot { padding: 0; }

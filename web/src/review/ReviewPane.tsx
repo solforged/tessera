@@ -206,9 +206,15 @@ function CardReviewPane(props: ReviewPaneProps) {
       ?? (sessionTagDeck()?.id === id ? sessionTagDeck()?.name : undefined);
   }
 
+  function sessionName(value: ReviewSession) {
+    return value.deck_id ? nameForDeck(value.deck_id) ?? 'Deleted deck' : 'All cards';
+  }
+  /** The shared civil-date wording and a 24-hour time: `today · 07:55`. */
+  function sessionWhen(value: ReviewSession) {
+    return nextCardTime(value.started_at, props.notebook.todayDate(), props.notebook.settings()?.time_zone);
+  }
   function sessionLabel(value: ReviewSession) {
-    const name = value.deck_id ? nameForDeck(value.deck_id) ?? 'Deleted deck' : 'All cards';
-    return `${name} · ${new Date(value.started_at).toLocaleString()}`;
+    return `${sessionName(value)} · ${sessionWhen(value)}`;
   }
 
   function publish() {
@@ -734,7 +740,7 @@ function CardReviewPane(props: ReviewPaneProps) {
               <div class="review-caught-up">{query().selection === 'new' ? 'Nothing new yet' : 'All caught up'}</div>
               <Show when={nextDue()}>{due => <p>Next card {nextCardTime(due(), props.notebook.todayDate(), props.notebook.settings()?.time_zone)}</p>}</Show>
             </>}>
-              <div class="review-stat-value">{total()}<small>{query().selection === 'due' ? 'due now' : 'cards in this queue'}</small></div>
+              <div class="review-stat-value">{total()}<small>{query().selection === 'due' ? 'due now' : total() === 1 ? 'card in this queue' : 'cards in this queue'}</small></div>
               <p>{[
                 query().selection === 'due' ? '' : `${counts().due ?? 0} due now`,
                 phone() ? laterToday(value()) ? `${laterToday(value())} more later today` : 'Nothing more later today' : `${laterToday(value())} later today`,
@@ -764,7 +770,7 @@ function CardReviewPane(props: ReviewPaneProps) {
             {/* The ledger as a phone reads it: a deck's name, its size and new cards in one line, and what is due as the figure at the right. */}
             <ListGroup class="review-deck-list">
               <For each={ledger()}>{deck => <ListRow push name="thing" class={`${deck.id === deckId() ? 'selected' : ''}${deck.due ? '' : ' idle'}`} count={deck.due}
-                detail={<><span><span class="review-fig">{deck.all}</span> cards</span><span class="review-dot">·</span><span><span class="review-fig">{deck.new}</span> new</span></>}
+                detail={<><span><span class="review-fig">{deck.all}</span> {deck.all === 1 ? 'card' : 'cards'}</span><span class="review-dot">·</span><span><span class="review-fig">{deck.new}</span> new</span></>}
                 onClick={event => { if (locked() || loading()) return; requestMove({ deckId: deck.id, sessionId: null }, event.currentTarget as HTMLElement); }}>{deck.name}</ListRow>}</For>
             </ListGroup>
           </Show>
@@ -850,7 +856,7 @@ function CardReviewPane(props: ReviewPaneProps) {
       { label: 'New deck', icon: 'plus', disabledReason: locked() ? 'Wait for the review to finish saving.' : undefined, action: () => setEditor({ anchor, deck: null }) },
     ]} />}</Show>
     <Show keyed when={composer()}>{anchor => <CardComposer anchor={anchor} where={`${shortDay(props.notebook.todayDate())} · end of journal`} bounds={paneBounds} onSave={createCard} onDismiss={() => setComposer(null)} />}</Show>
-    <Show keyed when={picker()}>{anchor => <Picker<ReviewSession> anchor={anchor} label="Open reviews" query={search()} onQuery={setSearch} placeholder="Find a review" items={sessionChoices()} key={value => value.id} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); requestMove({ deckId: value.deck_id, sessionId: value.id }, anchor); }} row={value => <><Icon name={value.id === sessionId() ? 'check' : 'page'} /><span class="picker-text">{sessionLabel(value)}</span></>} empty="No open reviews." />}</Show>
+    <Show keyed when={picker()}>{anchor => <Picker<ReviewSession> anchor={anchor} label="Open reviews" query={search()} onQuery={setSearch} placeholder="Find a review" items={sessionChoices()} key={value => value.id} onDismiss={() => setPicker(null)} onPick={value => { setPicker(null); requestMove({ deckId: value.deck_id, sessionId: value.id }, anchor); }} row={value => <><Icon name={value.id === sessionId() ? 'check' : 'page'} /><span class="picker-text">{sessionName(value)} · <span class="review-session-when">{sessionWhen(value)}</span></span></>} empty="No open reviews." />}</Show>
     <Show keyed when={selectedDeck() && actions()}>{anchor => <Menu anchor={anchor} label="Deck actions" onDismiss={() => setActions(null)} items={[
       { label: 'Edit deck', disabledReason: openSession() ? 'End the open review first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setEditor({ anchor, deck }); } },
       { label: 'Delete deck', danger: true, disabledReason: openSession() ? 'End the open review first.' : undefined, action: () => { const deck = selectedDeck(); if (deck) setDeletion({ anchor, deck }); } },
@@ -907,9 +913,23 @@ function figures(text: string) {
   return text.split(/(\d+)/).map((part, index) => index % 2 ? <span class="review-fig">{part}</span> : part);
 }
 
+/** Past this many cards a segment per card would be narrower than a pixel; the strip then draws runs of equal state as one continuous bar. */
+const segmentedStripLimit = 48;
+
 function GradeStrip(props: { grades: ReviewEvent[]; remaining?: number }) {
   const segments = createMemo<(Grade | 'current' | 'waiting')[]>(() => [...props.grades.map(event => event.grade!), ...Array.from({ length: props.remaining ?? 0 }, (_, index) => index === 0 ? 'current' as const : 'waiting' as const)]);
-  return <div class="review-grade-strip" role="img" aria-label={`${props.grades.length} reviewed${props.remaining ? `, ${props.remaining} remaining` : ''}`}><For each={segments()}>{grade => <i class={`review-grade-segment review-grade-${grade}`} title={grade === 'current' ? 'Current card' : grade === 'waiting' ? 'Waiting' : gradeLabels[grade]} />}</For></div>;
+  const continuous = createMemo(() => segments().length > segmentedStripLimit);
+  const runs = createMemo(() => segments().reduce<{ grade: Grade | 'current' | 'waiting'; count: number }[]>((all, grade) => {
+    const last = all[all.length - 1];
+    if (last && last.grade === grade) last.count += 1; else all.push({ grade, count: 1 });
+    return all;
+  }, []));
+  const title = (grade: Grade | 'current' | 'waiting') => grade === 'current' ? 'Current card' : grade === 'waiting' ? 'Waiting' : gradeLabels[grade];
+  return <div class="review-grade-strip" classList={{ 'review-grade-strip-continuous': continuous() }} role="img" aria-label={`${props.grades.length} reviewed${props.remaining ? `, ${props.remaining} remaining` : ''}`}>
+    <Show when={continuous()} fallback={<For each={segments()}>{grade => <i class={`review-grade-segment review-grade-${grade}`} title={title(grade)} />}</For>}>
+      <For each={runs()}>{run => <i class={`review-grade-segment review-grade-${run.grade}`} style={run.grade === 'current' ? undefined : { 'flex-grow': run.count }} title={title(run.grade)} />}</For>
+    </Show>
+  </div>;
 }
 
 function ReviewForecast(props: { stats: ReviewStats; today: string }) {

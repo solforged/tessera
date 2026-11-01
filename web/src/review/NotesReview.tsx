@@ -113,7 +113,7 @@ export function NotesReview(props: RevisitsPaneProps) {
   }));
   return <div ref={pane} class="notes-review" onKeyDown={event => { if (event.key === 'Tab') heldFocus = null; }} onScroll={() => { if (restoredScroll) props.onViewChange({ ...props.view, scroll: pane.scrollTop }); }}>
     <header class="notes-review-heading">
-      <h1>Revisits<span>{queue.rows().length} due</span></h1>
+      <h1>Revisits<span class="revisit-tally">{queue.rows().length} due</span></h1>
       <Show when={history()}><Button aria-disabled={dis(busy())} onClick={unless(() => { void travel(); })}>{undone() ? 'Redo revisit' : 'Undo revisit'}</Button></Show>
     </header>
     <Show when={queue.error() || error()}><p class="pane-error" role="alert">{queue.error() || error()}</p></Show>
@@ -122,7 +122,7 @@ export function NotesReview(props: RevisitsPaneProps) {
       <Button onClick={event => props.onOpen({ kind: 'index', key: 'question' }, opensBeside(event))}>Open Questions</Button>
     </div>}>
       <nav ref={watchQueue} class="revisit-queue" aria-label="Due revisits"><For each={groups()}>{([date, rows]) => <section class="revisit-date-group" aria-label={date}>
-        <h2 class="revisit-section-head"><span>{date}</span><span class="section-rule" /><span class="revisit-group-count">{rows.length}</span></h2>
+        <h2 class="revisit-section-head"><span class="revisit-group-date">{date}</span><span class="section-rule" /><span class="revisit-group-count">{rows.length}</span></h2>
         <For each={rows}>{row => <Button aria-pressed={current()?.block.block.id === row.block.block.id} aria-disabled={dis(busy())} onClick={unless(event => { heldFocus = { button: event.currentTarget, until: performance.now() + 1500 }; props.onViewChange({ ...props.view, revisitId: row.block.block.id }); })}>
           <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} /><span class="revisit-meta">{revisitKind(row)}</span>
         </Button>}</For>

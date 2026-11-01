@@ -58,7 +58,7 @@ export function ReadingCard(props: { row: LibraryRow; notebook: NotebookClient; 
     <Show when={length() > 0} fallback={<span class="book-map library-reading-map-pending" aria-hidden="true" />}><BookMap chapters={chapters()} length={length()} at={at()} highlights={highlights()} /></Show>
     <span class="library-reading-bar" aria-hidden="true"><i style={{ width: `${Math.min(100, progress() * 100)}%` }} /></span>
     <span class="library-reading-position">
-      <span><Show when={current()?.chapter.title ? current() : null} fallback={<Show when={length() > 0}><Figures text={`${timeLeft(length() - at())} left in book`} /></Show>}>{value => <span><span class="library-reading-time-phone"><Figures text={`${timeLeft(value().chapter.end - at())} left in chapter`} /></span><span class="library-reading-time-desktop">{timeLeft(value().chapter.end - at())} in chapter</span></span>}</Show></span>
+      <span><Show when={current()?.chapter.title ? current() : null} fallback={<Show when={length() > 0}><Figures text={`${timeLeft(length() - at())} left in book`} /></Show>}>{value => <Figures text={`${timeLeft(value().chapter.end - at())} left in chapter`} />}</Show></span>
       <span><Figures text={formatProgress(progress())} /></span>
     </span>
     <Show when={error()}><span class="library-error" role="alert">{error()}</span></Show>

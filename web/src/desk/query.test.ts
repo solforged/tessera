@@ -46,6 +46,12 @@ test('restored cited-in labels resolve reference titles before and after positio
   expect(deskConditionLabel(condition, fields, notebook, [])).toBe('Cited in is Scribner');
 });
 
+test('a linked question reads as its title without the trailing type tag', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  const notebook = { lookup: (value: string) => () => value === id ? { id, kind: 'page', text: 'Are abilities real? #Question' } as Block : undefined } as unknown as NotebookClient;
+  expect(deskConditionLabel({ field: '@question', op: 'is', value: id }, attributeDefinitions('positions'), notebook, [])).toBe('Question is Are abilities real?');
+});
+
 test('locators include only the selected position subtree and exclude archived branches', () => {
   const block = (id: string, parent_id: string | null, text: string, archived = false) => ({ id, parent_id, text, archived }) as Block;
   const source = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
