@@ -372,8 +372,12 @@ fn embedded_router_inner(
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .merge(library::routes())
         .merge(images::routes());
+    // A first pairing swaps the notebook in place; a window bound to the old one reloads on the 409.
     #[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
-    let router = router.merge(agent::routes()).merge(backup_routes());
+    let router = router
+        .merge(agent::routes())
+        .merge(backup_routes())
+        .layer(middleware::from_fn_with_state(state.clone(), same_notebook));
     let router = router.with_state(state);
     Ok((router, handles))
 }
@@ -1956,6 +1960,28 @@ mod tests {
         http::{Request, StatusCode},
     };
     use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn the_embedded_router_refuses_a_window_bound_to_another_notebook() {
+        let dir = tempfile::tempdir().unwrap();
+        let notebook = Notebook::open(dir.path()).unwrap();
+        let id = notebook.info().unwrap().id;
+        let (app, _handles) = embedded_router(notebook).unwrap();
+        let get = |notebook: Option<&str>| {
+            let mut request = Request::get("/api/roots");
+            if let Some(notebook) = notebook {
+                request = request.header("X-Tessera-Notebook", notebook);
+            }
+            app.clone().oneshot(request.body(Body::empty()).unwrap())
+        };
+        assert_eq!(get(None).await.unwrap().status(), StatusCode::OK);
+        assert_eq!(get(Some(&id)).await.unwrap().status(), StatusCode::OK);
+        let stale = get(Some("01ARZ3NDEKTSV4RRFFQ69G5FAV")).await.unwrap();
+        assert_eq!(stale.status(), StatusCode::CONFLICT);
+        let bytes = to_bytes(stale.into_body(), usize::MAX).await.unwrap();
+        let error: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(error["error"]["code"], "notebook_changed");
+    }
 
     #[tokio::test]
     async fn embedded_page_reference_reads_include_children_counts_and_mentions() {

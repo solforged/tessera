@@ -17,6 +17,11 @@ pub struct HubError {
     pub message: String,
 }
 
+/// A hub address Tessera will not sync with, worded for the person who typed it.
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub struct InvalidHubUrl(&'static str);
+
 /// Bundled roots deliberately bypass Android's uninitialized platform verifier.
 fn client(key: Option<&str>) -> anyhow::Result<reqwest::Client> {
     let roots = rustls::RootCertStore::from_iter(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
@@ -136,24 +141,32 @@ pub struct HttpHub {
 }
 impl HttpHub {
     pub fn new(url: &str, key: Option<&str>) -> anyhow::Result<Self> {
-        let url = reqwest::Url::parse(url)?;
+        let url = reqwest::Url::parse(url).map_err(|_| {
+            InvalidHubUrl("That is not a valid address. Copy it from the Mac's pairing dialog.")
+        })?;
         let loopback = url.host_str().is_some_and(|host| {
             host.trim_matches(['[', ']'])
                 .parse::<std::net::IpAddr>()
                 .is_ok_and(|ip| ip.is_loopback())
         });
-        anyhow::ensure!(
-            url.scheme() == "https"
-                || url.scheme() == "http" && (loopback || url.host_str() == Some("localhost")),
-            "sync requires HTTPS except on loopback"
-        );
-        anyhow::ensure!(
-            url.username().is_empty()
-                && url.password().is_none()
-                && url.query().is_none()
-                && url.fragment().is_none(),
-            "invalid hub URL"
-        );
+        if url.scheme() != "https"
+            && !(url.scheme() == "http" && (loopback || url.host_str() == Some("localhost")))
+        {
+            return Err(InvalidHubUrl(
+                "Sync needs an https address. Plain http works only for an address on this device.",
+            )
+            .into());
+        }
+        if !url.username().is_empty()
+            || url.password().is_some()
+            || url.query().is_some()
+            || url.fragment().is_some()
+        {
+            return Err(InvalidHubUrl(
+                "The address can't include a username, password, query or fragment.",
+            )
+            .into());
+        }
         Ok(Self {
             runtime: tokio::runtime::Builder::new_current_thread()
                 .enable_all()
@@ -439,5 +452,33 @@ mod tests {
         .await
         .unwrap();
         server.abort();
+    }
+
+    #[test]
+    fn refused_addresses_read_as_plain_sentences() {
+        for (url, said) in [
+            ("http://10.0.2.2:4802", "Sync needs an https address"),
+            ("http://hyperion.ts.net", "Sync needs an https address"),
+            ("ftp://127.0.0.1", "Sync needs an https address"),
+            ("https://", "not a valid address"),
+            ("https://user:secret@hyperion.ts.net", "can't include"),
+            ("https://hyperion.ts.net/?x=1", "can't include"),
+        ] {
+            let error = HttpHub::new(url, None)
+                .err()
+                .unwrap_or_else(|| panic!("{url} was accepted"));
+            let invalid = error
+                .downcast_ref::<InvalidHubUrl>()
+                .unwrap_or_else(|| panic!("{url}: {error}"));
+            assert!(invalid.to_string().contains(said), "{url}: {invalid}");
+        }
+        for url in [
+            "http://127.0.0.1:4802",
+            "http://localhost:4802",
+            "http://[::1]:4802",
+            "https://hyperion.ts.net:4319",
+        ] {
+            assert!(HttpHub::new(url, None).is_ok(), "{url}");
+        }
     }
 }
