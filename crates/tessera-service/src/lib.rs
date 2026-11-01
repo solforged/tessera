@@ -1295,6 +1295,7 @@ async fn page_by_title(
         notebook
             .page_by_title(&title)?
             .ok_or(tessera_core::Error::NotFound {
+                what: "atom",
                 id: title,
                 op_index: None,
             })
@@ -1312,6 +1313,7 @@ async fn journal(
         notebook
             .journal(&date)?
             .ok_or(tessera_core::Error::NotFound {
+                what: "atom",
                 id: date,
                 op_index: None,
             })

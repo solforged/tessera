@@ -86,7 +86,13 @@ pub(crate) fn validation(message: impl Into<String>) -> Error {
 }
 
 pub(crate) fn not_found(id: &str) -> Error {
+    not_found_as("atom", id)
+}
+
+/// A missing record that is not a block: a change, passage, card, deck…
+pub(crate) fn not_found_as(what: &'static str, id: &str) -> Error {
     Error::NotFound {
+        what,
         id: id.to_owned(),
         op_index: None,
     }
@@ -363,6 +369,12 @@ fn bare_tag_character(ch: char) -> bool {
     ch.is_alphanumeric()
         || unicode_normalization::char::is_combining_mark(ch)
         || matches!(ch, '-' | '_' | '/')
+}
+
+/// Whether `#` followed by `title` reads back as a tag with exactly that
+/// title. Other titles need the bracketed `#[[title]]` form.
+pub fn bare_tag(title: &str) -> bool {
+    !title.is_empty() && title.chars().all(bare_tag_character)
 }
 
 /// Borrowed spans shared by normalization, membership derivation and rendering.
@@ -774,6 +786,26 @@ mod reference_tests {
             serde_json::from_str(include_str!("../tests/fixtures/title-keys.json")).unwrap();
         for (title, key) in cases {
             assert_eq!(super::title_key(&title), key, "{title:?}");
+        }
+    }
+
+    #[test]
+    fn bare_tags_are_exactly_the_titles_a_hash_reads_back_whole() {
+        for title in [
+            "Spring",
+            "a/b-c_d",
+            "e\u{301}t\u{e9}",
+            "日本語",
+            "",
+            "Spring cleaning",
+            "x.y",
+            "C++",
+            "#x",
+            "tag]",
+        ] {
+            let tagged = format!("#{title}");
+            let read_back = tag_names(&tagged).collect::<Vec<_>>();
+            assert_eq!(super::bare_tag(title), read_back == [title], "{title:?}");
         }
     }
 

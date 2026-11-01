@@ -438,7 +438,8 @@ fn replay(tx: &Transaction, column: &str, value: &str, hash: &str) -> Result<Opt
 
 fn indexed(error: Error, index: usize) -> Error {
     match error {
-        Error::NotFound { id, .. } => Error::NotFound {
+        Error::NotFound { what, id, .. } => Error::NotFound {
+            what,
             id,
             op_index: Some(index),
         },
@@ -1103,6 +1104,12 @@ impl Engine<'_, '_> {
                 "{name} is a built-in tag; its name cannot change."
             )));
         }
+        // Field lookups find the register by this key.
+        if old_key.as_deref() == Some("fields") && old_key != title_key {
+            return Err(validation(
+                "Fields is the register of field definitions; its name cannot change.",
+            ));
+        }
         if title_key.is_some() {
             let tagged: bool = self
                 .tx
@@ -1171,9 +1178,14 @@ impl Engine<'_, '_> {
             return Err(validation("Built-in task fields cannot be deleted."));
         }
         if current.block.kind == BlockKind::Page {
-            if let Some(name) =
-                crate::notes::built_in_tag_name(&crate::storage::title_key(&current.block.text))
-            {
+            let key = crate::storage::title_key(&current.block.text);
+            // Every field definition, built-in task fields included, lives below it.
+            if key == "fields" {
+                return Err(validation(
+                    "Fields is the register of field definitions and cannot be deleted; delete single fields instead.",
+                ));
+            }
+            if let Some(name) = crate::notes::built_in_tag_name(&key) {
                 return Err(validation(format!(
                     "{name} is a built-in tag and cannot be deleted."
                 )));
@@ -1201,6 +1213,8 @@ impl Engine<'_, '_> {
         }
         if let Some(parent) = &current.block.parent_id {
             self.live(parent)?;
+        } else {
+            self.root_untaken(current, event)?;
         }
         self.restructured_pages
             .insert(current.block.page_id.clone());
@@ -1224,6 +1238,54 @@ impl Engine<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    /// A deleted page or journal comes back only while no live root has
+    /// taken its title or date. Name the change that did, so the caller
+    /// knows what to undo first.
+    fn root_untaken(&self, current: &Stored, event: &str) -> Result<()> {
+        let Some((other, title)) = self
+            .tx
+            .prepare_cached(
+                "SELECT o.id, o.text FROM blocks r JOIN blocks o
+                     ON o.kind = r.kind AND o.id <> r.id AND o.deletion_id IS NULL
+                     AND CASE r.kind WHEN 'journal' THEN o.text = r.text
+                         ELSE o.title_key = r.title_key END
+                 WHERE r.id = ?1",
+            )?
+            .query_row([&current.block.id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .optional()?
+        else {
+            return Ok(());
+        };
+        let created: Option<i64> = self
+            .tx
+            .prepare_cached("SELECT MIN(change_seq) FROM change_revisions WHERE block_id = ?1")?
+            .query_row([&other], |row| row.get(0))?;
+        let deleted: Option<i64> = self
+            .tx
+            .prepare_cached("SELECT change_seq FROM deletion_events WHERE id = ?1")?
+            .query_row([event], |row| row.get(0))
+            .optional()?;
+        let later = created.filter(|created| deleted.is_none_or(|deleted| *created > deleted));
+        Err(validation(
+            match (current.block.kind == BlockKind::Journal, later) {
+                (true, Some(seq)) => format!(
+                    "journal {title} was created again by change {seq}; undo change {seq} or delete that journal first"
+                ),
+                (true, None) => {
+                    format!("journal {title} exists again; delete that journal first")
+                }
+                (false, Some(seq)) => format!(
+                    "change {seq} created another atom titled \"{title}\"; undo change {seq}, or rename or delete that atom first"
+                ),
+                (false, None) => format!(
+                    "another atom is now titled \"{title}\"; rename or delete that atom first"
+                ),
+            },
+        ))
     }
 
     fn restore_ordinal(&self, row: &Stored) -> Result<i64> {

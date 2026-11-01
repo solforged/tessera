@@ -1,3 +1,4 @@
+use std::fmt;
 use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
@@ -17,7 +18,8 @@ pub enum Error {
     /// An operation was based on a revision that is no longer current. The
     /// whole batch wrote nothing. `found` is `None` when the block is gone.
     #[error(
-        "operation {op_index} is stale for atom {id}: expected revision {expected}, found {found:?}"
+        "operation {op_index} is stale for atom {id}: expected revision {expected}, {}",
+        Found(.found)
     )]
     Conflict {
         op_index: usize,
@@ -25,10 +27,16 @@ pub enum Error {
         expected: i64,
         found: Option<i64>,
     },
-    #[error("atom {id} not found (operation {op_index:?})")]
-    NotFound { id: String, op_index: Option<usize> },
+    /// `what` names the kind of record: "atom" for blocks, or "change",
+    /// "passage", "card", "deck" and so on.
+    #[error("{what} {id} not found{}", Operation(.op_index))]
+    NotFound {
+        what: &'static str,
+        id: String,
+        op_index: Option<usize>,
+    },
     /// The request breaks a domain rule. The whole batch wrote nothing.
-    #[error("{message} (operation {op_index:?})")]
+    #[error("{message}{}", Operation(.op_index))]
     Validation {
         message: String,
         op_index: Option<usize>,
@@ -40,3 +48,27 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// The revision a stale operation found instead of the one it expected.
+struct Found<'a>(&'a Option<i64>);
+
+impl fmt::Display for Found<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Some(revision) => write!(f, "found revision {revision}"),
+            None => f.write_str("but it no longer exists"),
+        }
+    }
+}
+
+/// The batch position a refusal came from, when it came from one.
+struct Operation<'a>(&'a Option<usize>);
+
+impl fmt::Display for Operation<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Some(index) => write!(f, " (operation {index})"),
+            None => Ok(()),
+        }
+    }
+}

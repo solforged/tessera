@@ -3,7 +3,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 use crate::card_store::card_at;
 use crate::query::validate_source_query;
 use crate::review_store::{review_event_at, review_pacing};
-use crate::storage::{block_at, block_columns, not_found, validate_id, validation};
+use crate::storage::{block_at, block_columns, not_found_as, validate_id, validation};
 use crate::{
     BlockInPage, CardQuery, CardQueryResult, CardRow, CardSelection, Deck, Notebook, Query, Result,
     TagDeck,
@@ -219,6 +219,6 @@ impl Notebook {
             )?
             .query_row([id], stored_deck)
             .optional()?
-            .ok_or_else(|| not_found(id))
+            .ok_or_else(|| not_found_as("deck", id))
     }
 }

@@ -4,7 +4,7 @@ use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::card_text::{CardKind, card_subject, parse_card_text};
 use crate::scheduler;
-use crate::storage::{not_found, validate_id, validation};
+use crate::storage::{not_found, not_found_as, validate_id, validation};
 use crate::{CardAnswerBlock, CardUnit, Notebook, Result, Revision};
 
 fn text_at<'row>(row: &'row rusqlite::Row<'_>, offset: usize) -> rusqlite::Result<&'row str> {
@@ -99,7 +99,7 @@ pub(crate) fn card(conn: &Connection, id: &str) -> Result<CardUnit> {
         )?
         .query_row([id], |row| card_at(row, 0))
         .optional()?
-        .ok_or_else(|| not_found(id))?;
+        .ok_or_else(|| not_found_as("card", id))?;
     crate::card_templates::provenance(conn, std::slice::from_mut(&mut card))?;
     Ok(card)
 }

@@ -105,6 +105,7 @@ fn editor_batches_list_and_undo_text_position_and_deleted_subtrees() {
     assert_eq!(notebook.block(&id(6)).unwrap().parent_id, Some(id(5)));
     let history = notebook.history(2, None).unwrap();
     assert_eq!(history[0].seq, undone.committed.seq);
+    assert_eq!(undone.seq, history[0].seq);
     assert_eq!(history[0].undoes, Some(committed.seq));
     assert_eq!(history[0].summary, format!("Undid: {}", entry.summary));
     assert_eq!(history[0].actor, Actor::Person);
@@ -112,6 +113,10 @@ fn editor_batches_list_and_undo_text_position_and_deleted_subtrees() {
     assert_eq!(history[1].undone_by, Some(undone.committed.seq));
     assert!(!history[1].undoable);
     refused(&mut notebook, committed.seq, "already undone");
+    assert!(matches!(
+        notebook.undo_change(999, &Actor::Person),
+        Err(Error::NotFound { what: "change", id, .. }) if id == "999"
+    ));
     notebook
         .undo_change(undone.committed.seq, &Actor::Person)
         .unwrap();
@@ -217,6 +222,103 @@ fn creation_batches_remove_nested_blocks_without_deleting_their_existing_page() 
     assert!(notebook.block(&id(10)).is_err());
     assert!(notebook.block(&id(11)).is_err());
     assert!(notebook.block(&id(1)).is_ok());
+}
+
+#[test]
+fn undoing_an_addition_refuses_while_a_nested_block_it_added_holds_a_later_edit() {
+    // A new block under an existing page is removed directly; one under a
+    // new page goes with the page. Either delete takes the whole subtree.
+    for new_page in [false, true] {
+        let (_dir, mut notebook) = fixture();
+        let mut operations = Vec::new();
+        let parent = if new_page {
+            operations.push(Operation::CreatePage {
+                id: id(20),
+                title: "Fresh".into(),
+            });
+            20
+        } else {
+            1
+        };
+        operations.extend([
+            insert(10, parent, None, "New parent"),
+            insert(11, 10, None, "New child"),
+        ]);
+        let added = notebook.apply(&batch(operations)).unwrap();
+        let edited = notebook
+            .apply(&batch(vec![Operation::EditText {
+                id: id(11),
+                base_revision: 1,
+                text: "Someone else's edit".into(),
+            }]))
+            .unwrap();
+        refused(
+            &mut notebook,
+            added.seq,
+            &format!("atom {} changed after change {}", id(11), added.seq),
+        );
+        assert_eq!(notebook.block(&id(11)).unwrap().text, "Someone else's edit");
+        notebook.undo_change(edited.seq, &Actor::Person).unwrap();
+        notebook.undo_change(added.seq, &Actor::Person).unwrap();
+        assert!(notebook.block(&id(10)).is_err());
+        assert!(notebook.block(&id(11)).is_err());
+    }
+}
+
+#[test]
+fn undoing_a_deletion_names_what_took_its_date_or_title_since() {
+    let (_dir, mut notebook) = fixture();
+    let journal = |value| Operation::CreateJournal {
+        id: id(value),
+        date: "2026-10-30".into(),
+    };
+    notebook.apply(&batch(vec![journal(30)])).unwrap();
+    let deleted = notebook
+        .apply(&batch(vec![Operation::Delete {
+            id: id(30),
+            base_revision: 1,
+        }]))
+        .unwrap();
+    let again = notebook.apply(&batch(vec![journal(31)])).unwrap();
+    refused(
+        &mut notebook,
+        deleted.seq,
+        &format!(
+            "journal 2026-10-30 was created again by change {}; undo change {}",
+            again.seq, again.seq
+        ),
+    );
+    notebook.undo_change(again.seq, &Actor::Person).unwrap();
+    notebook.undo_change(deleted.seq, &Actor::Person).unwrap();
+    assert!(notebook.block(&id(30)).is_ok());
+
+    notebook
+        .apply(&batch(vec![Operation::CreatePage {
+            id: id(40),
+            title: "Notes".into(),
+        }]))
+        .unwrap();
+    let deleted = notebook
+        .apply(&batch(vec![Operation::Delete {
+            id: id(1),
+            base_revision: 1,
+        }]))
+        .unwrap();
+    let renamed = notebook
+        .apply(&batch(vec![Operation::EditText {
+            id: id(40),
+            base_revision: 1,
+            text: "work".into(),
+        }]))
+        .unwrap();
+    refused(
+        &mut notebook,
+        deleted.seq,
+        "another atom is now titled \"work\"; rename or delete that atom first",
+    );
+    notebook.undo_change(renamed.seq, &Actor::Person).unwrap();
+    notebook.undo_change(deleted.seq, &Actor::Person).unwrap();
+    assert_eq!(notebook.block(&id(1)).unwrap().text, "Work");
 }
 
 #[test]

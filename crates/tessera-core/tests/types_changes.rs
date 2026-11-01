@@ -823,6 +823,8 @@ fn deterministic_lifecycle_sequences_match_an_independent_membership_rebuild() {
         ],
     );
     let names = ["Alpha", "Beta", "Gamma"];
+    // The Fields register can be neither deleted nor renamed.
+    let fields = nb.fields().unwrap().page_id;
     let mut deleted: Vec<DeletedType> = Vec::new();
     let mut random = 0x4a5b_713c_8dd1_9e03u64;
     for step in 0..128u128 {
@@ -834,7 +836,7 @@ fn deterministic_lifecycle_sequences_match_an_independent_membership_rebuild() {
             .roots()
             .unwrap()
             .into_iter()
-            .filter(|root| root.id != id(1))
+            .filter(|root| root.id != id(1) && root.id != fields)
             .collect();
         let vacant: Vec<_> = names
             .iter()

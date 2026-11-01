@@ -1102,6 +1102,102 @@ fn local_changes_made_after_a_push_replay_on_the_hub_state() {
     );
 }
 
+#[test]
+fn replica_history_follows_its_own_change_when_sync_renumbers_it() {
+    let mut p = pair();
+    let page = p.page.clone();
+    let desk = apply(
+        &mut p.hub,
+        vec![insert(20, &page, Some(id(3)), "From the desk")],
+    );
+    let phone = apply(
+        &mut p.replica,
+        vec![insert(21, &page, Some(id(3)), "From the phone")],
+    );
+    assert_eq!(desk.seq, phone.seq);
+    let mine = p.replica.history(1, None).unwrap().remove(0).change_id;
+
+    p.sync();
+    let history = p.replica.history(10, None).unwrap();
+    let phone_entry = history
+        .iter()
+        .find(|entry| entry.change_id == mine)
+        .unwrap();
+    assert_ne!(phone_entry.seq, phone.seq);
+    assert!(phone_entry.undoable);
+    let desk_entry = history.iter().find(|entry| entry.seq == desk.seq).unwrap();
+    assert_ne!(desk_entry.change_id, mine);
+    assert!(!desk_entry.undoable);
+    let undone = p
+        .replica
+        .undo_change(phone_entry.seq, &Actor::Person)
+        .unwrap();
+    assert!(p.replica.block(&id(21)).is_err());
+    assert_eq!(text(&p.replica, &id(20)), "From the desk");
+    assert_eq!(p.replica.history(1, None).unwrap()[0].seq, undone.seq);
+}
+
+#[test]
+fn replayed_and_unreplayable_local_changes_keep_history_off_hub_changes() {
+    let mut p = pair();
+    let page = p.page.clone();
+    let doomed = edit(&p.replica, &id(3), "Edited after the desk deleted it");
+    apply(&mut p.replica, vec![doomed]);
+    let first_added = apply(
+        &mut p.replica,
+        vec![insert(31, &page, Some(id(2)), "Not pushed yet")],
+    );
+    p.replica
+        .undo_change(first_added.seq, &Actor::Person)
+        .unwrap();
+    let local: Vec<_> = p
+        .replica
+        .history(3, None)
+        .unwrap()
+        .into_iter()
+        .map(|entry| entry.change_id)
+        .collect();
+    let base = p.hub.block(&id(3)).unwrap().revision;
+    let deletion = apply(
+        &mut p.hub,
+        vec![Operation::Delete {
+            id: id(3),
+            base_revision: base,
+        }],
+    );
+    // A second hub change moves the replayed changes to new numbers.
+    let desk = edit(&p.hub, &id(2), "Desk wording");
+    apply(&mut p.hub, vec![desk]);
+
+    let device = p.replica.device_id().unwrap();
+    let confirmed = p.replica.sync_status().unwrap().unwrap().confirmed_seq;
+    let pull = p.hub.sync_pull(&device, confirmed, confirmed, 100).unwrap();
+    let report = p.replica.sync_integrate(&pull.changes).unwrap();
+    assert_eq!(report.unapplied.len(), 1);
+    assert_eq!(report.replayed, 2);
+    let history = p.replica.history(10, None).unwrap();
+    let entry = |change: &Option<String>| {
+        history
+            .iter()
+            .find(|entry| &entry.change_id == change)
+            .unwrap()
+    };
+    // The hub's deletion took the unreplayable edit's number.
+    let hub_entry = history
+        .iter()
+        .find(|entry| entry.seq == deletion.seq)
+        .unwrap();
+    assert!(!local.contains(&hub_entry.change_id));
+    assert!(!hub_entry.undoable);
+    let (undo, added) = (entry(&local[0]), entry(&local[1]));
+    assert_ne!(added.seq, first_added.seq);
+    assert_eq!(added.undone_by, Some(undo.seq));
+    assert_eq!(undo.undoes, Some(added.seq));
+    assert!(undo.undoable);
+    p.replica.undo_change(undo.seq, &Actor::Person).unwrap();
+    assert_eq!(text(&p.replica, &id(31)), "Not pushed yet");
+}
+
 fn document() -> ExtractedDocument {
     let passage = |text: &str, locator: &str| ExtractedPassage {
         kind: PassageKind::Paragraph,

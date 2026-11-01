@@ -247,6 +247,10 @@ async fn stale_batch_returns_details_and_writes_nothing() {
     assert_eq!(status, StatusCode::CONFLICT);
     assert_eq!(error["error"]["code"], "conflict");
     assert_eq!(
+        error["error"]["message"],
+        format!("operation 1 is stale for atom {BLOCK}: expected revision 1, found revision 2")
+    );
+    assert_eq!(
         error["error"]["details"],
         serde_json::json!({
             "op_index": 1, "id": BLOCK, "expected": 1, "found": 2,
@@ -299,6 +303,26 @@ async fn absent_journal_returns_404() {
         serde_json::from_slice::<serde_json::Value>(&body).unwrap()["error"]["code"],
         "not_found"
     );
+}
+
+#[tokio::test]
+async fn undoing_a_missing_change_names_the_change() {
+    let dir = tempfile::tempdir().unwrap();
+    let response = app(dir.path(), None, None)
+        .oneshot(
+            Request::post("/api/history/999/undo")
+                .header("host", "127.0.0.1:4318")
+                .header("content-type", "application/json")
+                .body(Body::from(r#"{"actor":{"kind":"person"}}"#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let error = serde_json::from_slice::<serde_json::Value>(&body).unwrap();
+    assert_eq!(error["error"]["code"], "not_found");
+    assert_eq!(error["error"]["message"], "change 999 not found");
 }
 
 #[tokio::test]
