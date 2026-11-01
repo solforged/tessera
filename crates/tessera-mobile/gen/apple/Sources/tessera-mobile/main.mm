@@ -399,7 +399,7 @@ static char TesseraScrollDelegateKey;
 		self.tintColor = [UIColor colorWithDynamicProvider:^UIColor *(UITraitCollection *traits) {
 			return traits.userInterfaceStyle == UIUserInterfaceStyleDark
 				? [UIColor colorWithRed:0xd8 / 255.0 green:0xaa / 255.0 blue:0x55 / 255.0 alpha:1]
-				: [UIColor colorWithRed:0x93 / 255.0 green:0x65 / 255.0 blue:0x0f / 255.0 alpha:1];
+				: [UIColor colorWithRed:0x80 / 255.0 green:0x56 / 255.0 blue:0x0a / 255.0 alpha:1];
 		}];
 
 		Class contentView = NSClassFromString(@"WKContentView");

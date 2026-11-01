@@ -24,7 +24,7 @@
   /* Text. */
   --text: #e6e1d6;
   --muted: #a4a9b4;
-  --faint: #78808f;
+  --faint: #838a98;
 
   /* Gilt for focus and primary actions; rubric red for warnings and marks. */
   --accent: #d8aa55;
@@ -33,6 +33,7 @@
   --warning: #e09a5d;
   --focus-ring: 2px solid var(--accent);
   --focus-offset: 2px;
+  --disabled-opacity: .6; /* a control that cannot act: lighter than its neighbours, its label still legible */
 
   /* Type hues colour pills only, as a 12% tint behind the hue, never bullets.
      They never reuse a status hue. */
@@ -210,12 +211,12 @@
 
   --text: #1f1b15;
   --muted: #5b554b;
-  --faint: #7c7568;
+  --faint: #666055;
 
-  --accent: #93650f;
-  --accent-tint: #93650f1a;
+  --accent: #80560a;
+  --accent-tint: #80560a1a;
   --danger: #ad3a2b;
-  --warning: #a95e17;
+  --warning: #94510f;
 
   --type-1: #3f5fae; --type-2: #9a4886; --type-3: #2d7590;
   --type-4: #5f7233; --type-5: #6650b0; --type-6: #5e6674;
