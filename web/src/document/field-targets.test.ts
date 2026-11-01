@@ -116,10 +116,12 @@ test('work becomes a relation to Sources, and its review makes created pages sou
     const fields = await api.fields();
     const book = ulid(); const plain = ulid(); const work = ulid(); const owner = ulid();
     const [linked, linkedValue, written, writtenValue] = [ulid(), ulid(), ulid(), ulid()];
+    // An older workshop's text work field: one added as work now starts as the relation, so a rename stands in.
     await notebook.commit([
       { op: 'create_page', id: book, title: 'The Structure of Scientific Revolutions' }, sourceOperation(book, 1),
       { op: 'create_page', id: plain, title: 'Kuhn' }, { op: 'create_page', id: owner, title: 'Paradigms' },
-      { op: 'insert', id: work, parent_id: fields.page_id, after: null, text: 'work', heading: null },
+      { op: 'insert', id: work, parent_id: fields.page_id, after: null, text: 'Work draft', heading: null },
+      { op: 'edit_text', id: work, base_revision: 1, text: 'work' },
       { op: 'insert', id: linked, parent_id: owner, after: null, text: `[[${work}]]`, heading: null },
       { op: 'insert', id: linkedValue, parent_id: linked, after: null, text: `[[${book}||p. 12]]`, heading: null },
       { op: 'insert', id: written, parent_id: owner, after: linked, text: `[[${work}]]`, heading: null },

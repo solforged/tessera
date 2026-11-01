@@ -4,7 +4,7 @@ import type { NotebookClient, PageDocument, RelationPickIntent } from '../docume
 import { resolveRelationPick } from '../fields/instances';
 import { filingOperations } from '../notes/finding-aid';
 import type { EntityKind } from '../outline/holders';
-import { documentReady, ensureField, ensureWorkField } from '../outline/source-fields';
+import { documentReady, ensureField } from '../outline/source-fields';
 import { fieldEntryId } from '../table/query';
 import type { CreateKind } from './request';
 
@@ -108,7 +108,7 @@ export async function createPageDraft(notebook: NotebookClient, request: { kind:
       if (holder.create) operations.push({ op: 'create_page', id: holderId, title: holder.text }, { op: 'add_type', id: holderId, base_revision: 1, title: holder.create });
       else if (holder.file) operations.push({ op: 'add_type', id: holderId, base_revision: (await notebook.api.block(holderId)).revision, title: holder.file });
       const gist = await ensureField(notebook, 'gist', 'text', 'standfirst');
-      await ensureWorkField(notebook);
+      await ensureField(notebook, 'work', 'instance');
       const perspective = ulid(), entry = ulid();
       operations.push(
         { op: 'insert', id: perspective, parent_id: pageId, after: blocks.filter(block => block.parent_id === pageId).at(-1)?.id ?? caretId ?? null, text: `[[${holderId}]]`, heading: null },

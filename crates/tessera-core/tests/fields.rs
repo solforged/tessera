@@ -402,7 +402,9 @@ fn field_kind_contract_matches_database_check() {
     let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
     for (index, kind) in FieldKind::ALL.into_iter().enumerate() {
         let value = 1000 + index as u128;
-        apply(&mut nb, vec![child(value, &fields, kind.as_str())]);
+        // Not url or identifier alone: those built-in names would get their fields row from the core.
+        let name = format!("{} field", kind.as_str());
+        apply(&mut nb, vec![child(value, &fields, &name)]);
         conn.execute(
             "INSERT INTO fields(block_id, kind) VALUES (?1, ?2)",
             rusqlite::params![id(value), kind.as_str()],
@@ -562,10 +564,24 @@ fn field_roles_migrate_only_existing_summaries_and_preserve_kind() {
 fn opening_gives_a_default_role_gloss_the_standfirst_once_and_keeps_a_chosen_role() {
     let (dir, mut nb) = fixture();
     let fields = nb.fields().unwrap().page_id;
-    // As agent shorthand once made them: the built-in names with the default role.
+    // As agent shorthand once made them: the built-in names with the default role. A field added under
+    // the name now gets the standfirst at once, so renaming one to it stands in for that older state.
     apply(
         &mut nb,
-        vec![child(50, &fields, "gloss"), child(51, &fields, "gist")],
+        vec![
+            child(50, &fields, "gloss draft"),
+            child(51, &fields, "gist draft"),
+            Operation::EditText {
+                id: id(50),
+                base_revision: 1,
+                text: "gloss".into(),
+            },
+            Operation::EditText {
+                id: id(51),
+                base_revision: 1,
+                text: "gist".into(),
+            },
+        ],
     );
     let base_revision = nb.block(&id(51)).unwrap().revision;
     apply(
@@ -1982,7 +1998,7 @@ fn columns_count_owners_not_values_and_use_names_for_frequency_ties() {
     apply(
         &mut nb,
         vec![
-            child(12, &fields, "Author"),
+            child(12, &fields, "Artist"),
             child(13, &fields, "Genre"),
             insert(210, 100, &format!("[[{}]]", id(12))),
             insert(310, 210, "Ada"),

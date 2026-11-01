@@ -183,16 +183,22 @@ fn plain_creator_names_are_values_not_problems() {
             title: "Attention Is All You Need".into(),
         },
     ];
-    // Author, translator, coined by and a relation of the workshop's own; editor stays text.
+    // Author, translator, coined by and a relation of the workshop's own; editor stays text, as an older
+    // workshop's can, which renaming a field to editor makes here.
     for (n, name) in [
         (100, "author"),
         (101, "translator"),
         (102, "coined by"),
         (103, "mentor"),
-        (104, "editor"),
+        (104, "editor draft"),
     ] {
         operations.push(insert(n, &fields, name));
     }
+    operations.push(Operation::EditText {
+        id: id(104),
+        base_revision: 1,
+        text: "editor".into(),
+    });
     nb.apply(&batch(operations)).unwrap();
     let mut operations: Vec<_> = (100..104)
         .map(|n| Operation::SetFieldKind {

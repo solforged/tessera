@@ -1,7 +1,6 @@
 import { createEffect, createResource, createRoot } from 'solid-js';
 import { api } from '../api/client';
 import type { BlockKind, FieldDefinition, FieldKind } from '../api/types';
-import { SOURCE_TARGET } from '../fields/targets';
 import { guessFieldKind } from '../fields/value-reading';
 import type { FieldRole } from '../fields/roles';
 import type { Caret, NotebookClient, PageDocument } from '../document/contract';
@@ -33,7 +32,11 @@ export function isFreshField(notebook: NotebookClient, id: string): boolean { re
 /** The first value has been read: the field keeps whatever kind it now has. */
 export function settleField(notebook: NotebookClient, id: string): void { freshFields.get(notebook)?.delete(id); }
 
-/** The named definition, created with the requested kind on first use; concurrent calls share one creation. */
+/**
+ * The named definition, created on first use; concurrent calls share one creation. The service decides what it
+ * creates: a built-in name gets the core's own definition whatever `kind` and `role` ask for, so this returns the
+ * definition as created, not as requested.
+ */
 export function ensureField(notebook: NotebookClient, name: string, kind: FieldKind = 'text', role: FieldRole = 'attribute', fresh = false): Promise<FieldDefinition> {
   const pending = fieldCreations.get(notebook) ?? new Map<string, Promise<FieldDefinition>>();
   fieldCreations.set(notebook, pending);
@@ -55,24 +58,17 @@ export function ensureField(notebook: NotebookClient, name: string, kind: FieldK
       const written = fieldsDoc.edit({ kind: 'addField', name, value: kind, role });
       if (!written.ok) throw new Error(written.reason);
       await fieldsDoc.flush();
-      if (fresh) { const ids = freshFields.get(notebook) ?? new Set(); freshFields.set(notebook, ids); ids.add(written.created[0]!); }
-      return { id: written.created[0]!, name, kind, role, revision: fieldsDoc.block(written.created[0]!)!.revision, options: [], targets: [] };
+      const id = written.created[0]!;
+      const created = (await notebook.api.fields()).fields.find(field => field.id === id);
+      if (!created) throw new Error(`The field ${name} was not created.`);
+      // A built-in field's kind is the core's, never a guess from its first value.
+      if (fresh && !created.built_in) { const ids = freshFields.get(notebook) ?? new Set(); freshFields.set(notebook, ids); ids.add(id); }
+      return created;
     } finally { fieldsDoc.release(); }
   })();
   pending.set(key, creation);
   void creation.then(() => pending.delete(key), () => pending.delete(key));
   return creation;
-}
-
-/**
- * The built-in work field: a relation to sources. A notebook that has never used it gets it in that shape at once,
- * rather than waiting for the next open's ensuring; an existing field keeps its kind, which only a reviewed change alters.
- */
-export async function ensureWorkField(notebook: NotebookClient): Promise<FieldDefinition> {
-  const field = await ensureField(notebook, 'work', 'instance');
-  if (field.kind !== 'instance' || field.targets.length) return field;
-  await notebook.commit([{ op: 'set_field_targets', id: field.id, base_revision: field.revision, targets: [SOURCE_TARGET] }], 'Link work to sources');
-  return { ...field, targets: [SOURCE_TARGET], revision: field.revision + 1 };
 }
 
 /** Appends a choice option under the field's definition and returns the option's id. */

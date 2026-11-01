@@ -1322,6 +1322,15 @@ impl Capture {
         Ok(Some((step, revision)))
     }
 
+    /// Blocks apply made under ones the change inserted, such as a built-in choice's starting
+    /// options, belong to the change: undo takes them away with their parent.
+    pub(crate) fn derived(&mut self, ids: Vec<String>) {
+        for id in ids {
+            self.inserted_ids.insert(id.clone());
+            self.inserted.push(id);
+        }
+    }
+
     pub(crate) fn record(
         mut self,
         tx: &Transaction,
