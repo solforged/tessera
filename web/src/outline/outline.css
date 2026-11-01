@@ -148,13 +148,15 @@
 .row-gloss .outline-field-label { display: none; }
 .row-gloss .outline-body { margin-left: var(--target-size); padding-bottom: var(--space-8); color: var(--muted); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-body); }
 .row-gloss .empty-block { font: inherit; }
-/* A source's siglum hangs in the margin beside rows that cite it, as in a critical edition. */
-.row-sigla { position: absolute; right: 100%; top: calc((var(--row-height) - var(--line-apparatus)) / 2); display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-4); margin-right: var(--space-4); }
+/* A source's siglum hangs in the margin beside rows that cite it, as in a critical edition. The stack takes no width but
+   keeps its height in the row, so a row citing several sources grows to hold its marks and pushes later rows, and their
+   marks, down instead of running into them. */
+.row-sigla { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: var(--space-4); width: 0; margin: calc((var(--row-height) - var(--line-apparatus)) / 2 - var(--space-2)) calc(var(--row-indent) + var(--space-4)) 0 calc(-1 * (var(--row-indent) + var(--space-4))); }
 .row-siglum { min-width: var(--siglum-width); padding: 0 var(--space-4); border: 1px solid var(--control-border); border-radius: var(--radius-control); background: var(--canvas); color: var(--muted); font: var(--figures); letter-spacing: var(--tracking-apparatus); text-align: right; white-space: nowrap; }
 .outline-row-linked .row-siglum, .outline-row.row-selected .row-siglum { border-color: var(--accent); background: var(--accent); color: var(--canvas); }
 @container outline-pane (max-width: 856px) {
   .outline-pane[data-projection="outline"] .outline-row:has(> .row-sigla) { flex-wrap: wrap; }
-  .outline-pane[data-projection="outline"] .row-sigla { position: static; flex: 0 0 100%; flex-direction: row; flex-wrap: wrap; align-items: baseline; margin: 0 0 var(--space-4); }
+  .outline-pane[data-projection="outline"] .row-sigla { flex: 0 0 100%; flex-direction: row; flex-wrap: wrap; align-items: baseline; width: auto; margin: 0 0 var(--space-4); }
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row { flex-wrap: wrap; }
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row > :is(.row-menu, .row-fold, .row-bullet) { order: 1; }
   [data-page-style="prose"] .outline-pane[data-projection="outline"] .outline-row > .row-menu { margin-left: auto; }

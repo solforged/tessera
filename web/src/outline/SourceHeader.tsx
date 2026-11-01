@@ -13,8 +13,8 @@ import { Menu } from '../ui/Menu';
 import type { MenuItem } from '../ui/Menu';
 import { downloadBlob } from '../ui/download';
 import { ResourceImage } from '../library/ResourceImage';
-import { formatProgress } from '../library/query';
-import { shortSourceTitle } from './source';
+import { formatProgress, sourceKindLabel } from '../library/query';
+import { shortSourceTitle, valueLabel } from './source';
 import { saveDetails, sourceEntries, sourceFieldValue, sourceMetadata } from '../library/details';
 import type { SourceCreator } from '../library/details';
 import { publicationReading } from '../library/publication';
@@ -55,7 +55,12 @@ export function SourceHeader(props: {
   const chapters = createMemo(() => bookChapters(source()?.toc ?? [], length()));
   const current = createMemo(() => chapterAt(chapters(), at()));
   const marks = createMemo(() => (props.highlights?.rows ?? []).flatMap(row => row.citation.snapshot_id === snapshot()?.id && row.citation.position !== undefined ? [{ at: row.citation.position, color: row.color }] : []));
-  const imprint = createMemo(() => [source()?.source.siglum, { epub: 'EPUB', article: 'Article', record: 'Record' }[props.doc.root()!.source!.format], metadata().publisher, publicationReading(metadata().published, source()?.snapshots)?.slice(0, 4)].filter(Boolean).join(' · '));
+  // The Form field is the note's own, outside the catalog fields: its first value names what the source is.
+  const form = createMemo(() => {
+    const value = (authored().get('form') ?? []).flatMap(id => props.doc.outline.children(id)).map(id => props.doc.block(id)).find(block => block && !block.archived && block.text.trim());
+    return value ? valueLabel(value.text, id => props.notebook.lookup(id)) : null;
+  });
+  const imprint = createMemo(() => [source()?.source.siglum, sourceKindLabel(form(), props.doc.root()!.source!.format), metadata().publisher, publicationReading(metadata().published, source()?.snapshots)?.slice(0, 4)].filter(Boolean).join(' · '));
   const collectionActions = createCollectionActions();
   const [collectionPicker, setCollectionPicker] = createSignal<HTMLElement>();
   const [result, setResult] = createSignal('');

@@ -145,7 +145,7 @@ A missing view keeps the remembered name with Relink… and Remove embed. Undoin
 
 ## Sources
 
-Sources is a bibliography, not a second reading shelf. It shows siglum, source title and author byline; stable person references open that page, while unlinked or bracketed names read as plain names without wiki syntax. One apparatus line, its figures in mono, combines format, publisher, publication year when stored, citation key and nonzero highlight/page-backlink counts. Entries use 12 px vertical padding. Open source atoms is the default; actions sit inline with the apparatus, revealed on hover or focus and always visible on touch. Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
+Sources is a bibliography, not a second reading shelf. It shows siglum, source title and author byline; stable person references open that page, while unlinked or bracketed names read as plain names without wiki syntax. One apparatus line, its figures in mono, combines the source's Form (such as Paper, else its format), publisher, publication year when stored, citation key and nonzero highlight/page-backlink counts. Entries use 12 px vertical padding. Open source atoms is the default; actions sit inline with the apparatus, revealed on hover or focus and always visible on touch. Read appears only for sources with a current snapshot and hands off to the [reader](reader.md), and Open Library sits in the ruled strip. Reading progress and invented metadata are absent.
 
 Collection pages show member sources in a Sources section. Their Table opens the Library collection view.
 

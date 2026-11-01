@@ -1,7 +1,7 @@
 import type { Block, NameMatch } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import type { Token } from '../document/text-tokens';
-import { isStableReference, isViewReference, quoteTarget, textTokens } from '../document/text-tokens';
+import { inlineTokens, isStableReference, isViewReference, quoteTarget, textTokens } from '../document/text-tokens';
 import type { MenuItem } from '../ui/Menu';
 import { documentReady } from './source-fields';
 import { cardMarks, cardOperators } from '../review/card-text';
@@ -146,14 +146,17 @@ export function plainText(text: string, lookup: NotebookClient['lookup'], seen: 
   if (quoted) return `“${referenceLabel({ kind: 'reference', id: quoted, value: '', start: 0, end: 0 }, lookup(quoted)(), lookup, seen, deletedHolder && deletedHolder.id === quoted ? deletedHolderLabel(deletedHolder) : undefined)}”`;
   return textTokens(text).map(token => plainToken(token, lookup, seen, deletedHolder)).join('');
 }
-/** Plain text as a reader sees it: card operators as their arrows and clozes as their answers. Never use it for text that is written back. */
-export function readableText(text: string, lookup: NotebookClient['lookup']): string {
-  let shown = '', offset = 0;
+/** Plain text as a reader sees it: card operators as their arrows, clozes as their answers, and inline code, bold and italic without their markers, as block text renders them. Never use it for text that is written back. */
+export function readableText(text: string, lookup: NotebookClient['lookup'], deletedHolder?: { id: string; text: string } | null): string {
+  if (quoteTarget(text)) return plainText(text, lookup, undefined, deletedHolder);
+  const seen = new Set<string>();
+  const shown = (start: number, end: number) => inlineTokens(text.slice(start, end)).map(token => token.kind === 'text' ? token.value : plainToken(token, lookup, seen, deletedHolder)).join('');
+  let result = '', offset = 0;
   for (const mark of cardMarks(text)) {
-    shown += text.slice(offset, mark.start) + (mark.kind === 'cloze' ? text.slice(mark.answerStart, mark.answerEnd) : cardOperators[mark.op].text);
+    result += shown(offset, mark.start) + (mark.kind === 'cloze' ? shown(mark.answerStart, mark.answerEnd) : cardOperators[mark.op].text);
     offset = mark.end;
   }
-  return plainText(shown + text.slice(offset), lookup);
+  return result + shown(offset, text.length);
 }
 /** Only the selected occurrence changes; a concurrently edited token is never overwritten. */
 export function resolvedReferenceText(text: string, token: Token, target: string): string | null {

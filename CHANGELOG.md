@@ -85,6 +85,13 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 ### Fixed
 
+- Linked people in the Sources bibliography byline to their pages again; the service now sends each creator's page id.
+- Kept margin sigla beside their row when one row cites several sources: the row grows to hold its stack, so later rows' marks no longer overlap it.
+- Kept the Library list byline visible beside long titles: title and byline now share the row's free width instead of the byline shrinking to nothing.
+- Named a source by its Form (Paper, else EPUB, Article or Record) in Find, with progress and highlight counts only once there are any, instead of `Book · 0% · 0 highlights`.
+- Dropped inline code, bold and italic markers from finding-aid previews, which showed raw backticks.
+- Drew `‖` and other glyphs missing from Berkeley Mono and Menlo in Monaco, so `KL(p ‖ q)` no longer falls back to a serif single bar.
+- Named a source by its Form, such as Paper, in the bibliography apparatus and the source header instead of `RECORD`.
 - Fixed the phone's empty Review, whose No cards yet heading and line sat under the nav bar with only Create a card showing below it.
 - Made popups and dialogs behave as one set. Closing one by Escape, a pick, Cancel, Tab or a click outside returns focus to the control that opened it (to the field or editor you were typing in when it opened from there), and Escape closes only the top layer. Sheets and creation slips are modal: they trap Tab, mark the page behind them inert and swallow the press that dismisses them, so it cannot click through, and the next tap after a scrim dismissal works at once. Menus, pickers and previews stay light and close when Tab leaves them.
 - Kept what you typed into popups. A form holding typed input (Save view, Rename, Save desk, collection and tag names, deck editor, card composer, date picker, creation slip, Add to library) survives a click outside, and its opener neither takes focus nor reopens it. Escape and Cancel still close it, and Escape keeps the text for the next opening: one Make card draft per highlight, one slip draft per kind and destination. A form whose trigger is re-rendered keeps its place and its input. Popups follow their anchor through layout shifts, close when it scrolls out of its pane or header, stay inside a narrow pane and no longer cover the caret they were opened from. Clicking an opener again closes its popup, and openers carry `aria-expanded` and `aria-controls`.

@@ -416,7 +416,8 @@ export interface SpreadReference { block_id: string; note_id: string }
 export interface Spread { note_ids: string[]; columns: SpreadColumn[]; fields: SpreadField[]; references: SpreadReference[] }
 export interface CrossReference { alias: string; targets: SeeTarget[] }
 export interface SummaryField { name: string; value: string }
-export interface SourceSummary { siglum: string; citation_key: string | null; format: SourceFormat; authors: string[]; publisher: string | null; published: string | null; highlights: number }
+/** `form` is the work's Form reading, such as `paper`; a linked author carries its page id. */
+export interface SourceSummary { siglum: string; citation_key: string | null; format: SourceFormat; form: string | null; authors: LibraryPerson[]; publisher: string | null; published: string | null; highlights: number }
 export interface NoteSummary { preview: string | null; field: SummaryField | null; block_count: number; text_blocks: number; prose_excerpt: string[]; backlinks: number; referenced_from: SeeTarget[]; source: SourceSummary | null }
 export interface KindIndex { notes: NoteEntry[]; see: CrossReference[]; summaries: Record<string, NoteSummary> }
 export interface SettingRevision { key: string; revision: number }
@@ -706,7 +707,7 @@ export interface LibraryView { id: string; name: string; query: LibraryQuery; re
 export interface LibraryPerson { id: string | null; name: string; role: ExtractedCreator['role'] }
 export interface LibraryRow {
   page: Block; source: SourceRecord; creators: string[]; people: LibraryPerson[]; published: string | null;
-  publisher: string | null; language: string | null; site: string | null; cover: string | null;
+  publisher: string | null; language: string | null; site: string | null; form: string | null; cover: string | null;
   /** The current snapshot's format; a record with a saved web page reads `article` here before its source loads. */
   snapshot_format: SourceFormat | null;
   progress: number; section: string | null; highlights: number; unprocessed: number;

@@ -28,7 +28,7 @@ Tabs, Browse values, sorting and search answer at once in the toolbar, while the
 Rows read as a ledger at least 28 px high:
 
 - A leading slot holds a book or article glyph in `--faint`. A compact row cannot show a cover legibly, so covers appear in the Shelf, Reading now and the phone ledger's taller rows.
-- Every tab uses the same row: the mono siglum, gilt on hover, then title and a muted ragged byline (creators, else site). Creators join with ` · `. Bylines wrap to two lines and keep the full text in a tooltip.
+- Every tab uses the same row: the mono siglum, gilt on hover, then title and a muted ragged byline (creators, else site). Creators join with ` · `. Title and byline share the width the trailing columns leave, three parts to two, each taking no more than its own length, so a long title never hides the byline. Bylines wrap to two lines and keep the full text in a tooltip.
 - Trailing fixed-width columns show state in views spanning states, year, progress and the unprocessed highlight count, with figures in mono so they line up across tabs. Inside a year group the year column steps aside, because the heading already says it. Inbox rows offer Start reading on hover or focus, always visible without hover; it changes the source's state to Reading.
 
 Progress pairs a short gilt bar with its percentage. A Reading source at zero reads `Not started`; Inbox and Abandoned sources leave the column blank rather than repeat it on every row. A finished source shows `Finished 2026-10-19` using its ISO state-change date, never a percentage or a second Finished label. State-specific tabs omit the redundant state column.
@@ -289,7 +289,7 @@ Empty results and their controls stay on the page measure rather than reserving 
 
 ### Header and reading progress
 
-A source page puts the current snapshot's cover beside its title, with creators joined by ` · ` followed by one apparatus imprint line: siglum, format, publisher and year, the siglum and year in mono, omitting absent values. The cover opens the reader.
+A source page puts the current snapshot's cover beside its title, with creators joined by ` · ` followed by one apparatus imprint line: siglum, Form (such as Paper, else the format), publisher and year, the siglum and year in mono, omitting absent values. The cover opens the reader.
 
 In panes below 600 px, coverless articles omit the empty spine tile and give the title and imprint the whole width. Books and articles with real covers keep the cover rail; Read remains available in the reading controls.
 
@@ -368,7 +368,7 @@ Sigla are assigned per page in order of first appearance. The first source keeps
 
 The Library list, shelf and source sheet show each source's own siglum without that disambiguation, because the title beside it already tells the books apart; four Rowling books all read `ROW`.
 
-Margin, header, apparatus and Compare marks stay on one line, with boxes sized for five mono letters and room to grow for longer ordinals. Wide outlines retain the critical-edition margin. When the outline's content column is at most 856 px wide, the marks form a compact wrapping line immediately before their cited row instead of reserving a left rail for every paragraph. Prose and standfirst sentences keep the title's edge in both split panes and phones.
+Margin, header, apparatus and Compare marks stay on one line, with boxes sized for five mono letters and room to grow for longer ordinals. Wide outlines retain the critical-edition margin. A row citing several sources stacks their marks beside it and grows to hold them, so later rows and their marks move down instead of overlapping. When the outline's content column is at most 856 px wide, the marks form a compact wrapping line immediately before their cited row instead of reserving a left rail for every paragraph. Prose and standfirst sentences keep the title's edge in both split panes and phones.
 
 ## Citation chips
 

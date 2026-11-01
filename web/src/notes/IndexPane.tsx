@@ -6,7 +6,7 @@ import { missingFilter } from '../fields/required';
 import { RequiredGaps } from '../fields/RequiredGaps';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import type { IndexViewState, OpenTarget } from '../shell/contract';
-import { displayTitle, plainText, readableText, referenceValue } from '../outline/names';
+import { displayTitle, plainText, readableText } from '../outline/names';
 import { titleKey } from '../document/title-key';
 import { builtInTagReason, PageMergePicker } from '../outline/PageMerge';
 import { documentReady } from '../outline/source-fields';
@@ -29,6 +29,7 @@ import { CreateSlip } from '../create/CreateSlip';
 import { kindNoun } from '../create/kinds';
 import './notes.css';
 import { QuestionLedger } from './QuestionLedger';
+import { sourceKindLabel } from '../library/query';
 
 interface IndexPaneProps {
   kindKey: string;
@@ -424,11 +425,8 @@ function KindIndexPane(props: IndexPaneProps) {
             <Show when={shown()?.notes.length} fallback={<div class="index-empty"><p class="index-empty-title">No sources found.</p><p class="index-empty-hint">Books and articles you add in the Library are listed here with their sigla and citation keys.</p></div>}><For each={shown()?.notes}>{note => <article class="index-source-row index-selectable" classList={{ selected: picked().includes(note.id) }}>
               <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${entryTitle(note)}`} checked={picked().includes(note.id)} onClick={event => toggleSelection(note.id, event.shiftKey)} /></label>
               <span class="index-source-siglum">{summary(note)?.source?.siglum}</span><div class="index-source-main"><button type="button" class="index-source-title" onClick={event => selectOrOpen(note, event)}>{entryTitle(note)}</button>
-                <Show when={summary(note)?.source}>{source => <><Show when={source().authors.length}><p class="index-source-byline"><For each={source().authors}>{(text, at) => {
-                  const author = referenceValue(text);
-                  return <>{at() ? ' · ' : ''}<Show when={author.id} fallback={author.name}>{id => <Button onClick={event => props.onOpen({ kind: 'page', pageId: id() }, listOpensBeside(event, !!props.neighbour))}>{plainText(text, lookup)}</Button>}</Show></>;
-                }}</For></p></Show>
-                  <div class="index-source-footer"><p class="index-apparatus">{[source().format.toUpperCase(), source().publisher, source().published?.match(/^\d{4}/)?.[0], source().citation_key, source().highlights ? tally(source().highlights, 'highlight') : '', summary(note)!.backlinks ? tally(summary(note)!.backlinks, 'atom backlink') : ''].filter(Boolean).join(' · ')}</p>
+                <Show when={summary(note)?.source}>{source => <><Show when={source().authors.length}><p class="index-source-byline"><For each={source().authors}>{(author, at) => <>{at() ? ' · ' : ''}<Show when={author.id} fallback={author.name}>{id => <Button onClick={event => props.onOpen({ kind: 'page', pageId: id() }, listOpensBeside(event, !!props.neighbour))}>{author.name}</Button>}</Show></>}</For></p></Show>
+                  <div class="index-source-footer"><p class="index-apparatus">{[sourceKindLabel(source().form, source().format), source().publisher, source().published?.match(/^\d{4}/)?.[0], source().citation_key, source().highlights ? tally(source().highlights, 'highlight') : '', summary(note)!.backlinks ? tally(summary(note)!.backlinks, 'atom backlink') : ''].filter(Boolean).join(' · ')}</p>
                     <div class="index-source-actions"><Button onClick={event => openNote(note, event)}>Open source atoms</Button><Show when={readableSources.latest?.has(note.id)}><Button onClick={event => props.onOpen({ kind: 'reader', sourceId: note.id }, listOpensBeside(event, !!props.neighbour))}>Read <Icon name="right" /></Button></Show></div>
                   </div></>}</Show>
               </div></article>}</For></Show>

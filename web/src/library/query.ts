@@ -1,4 +1,4 @@
-import type { Citation, HighlightRow, IngestJob, LibraryQuery, LibraryRow, Operation, ReadingState } from '../api/types';
+import type { Citation, HighlightRow, IngestJob, LibraryQuery, LibraryRow, Operation, ReadingState, SourceFormat } from '../api/types';
 import type { LibraryGroup, LibraryViewState } from '../shell/contract';
 import { formatSourceValue } from '../outline/source';
 import type { HighlightSection } from './highlights';
@@ -71,6 +71,23 @@ export function sourceAuthor(row: Pick<LibraryRow, 'people' | 'site'>): string {
 /** Whole percent, rounded down so a source never reads 100% before its last passage; a started source never reads as 0%. */
 export function formatProgress(progress: number): string {
   return progress > 0 && progress < 0.01 ? '<1%' : `${Math.floor(progress * 100)}%`;
+}
+
+const formatLabels: Record<SourceFormat, string> = { epub: 'EPUB', article: 'Article', record: 'Record' };
+
+/** What a source is, as its apparatus names it: its Form, such as Paper, else its format. */
+export function sourceKindLabel(form: string | null | undefined, format: SourceFormat): string {
+  const named = form?.trim();
+  return named ? named[0]!.toUpperCase() + named.slice(1) : formatLabels[format];
+}
+
+/** A source's facts in Find: what it is, then reading progress and highlights only once there are any. */
+export function sourceFacts(row: Pick<LibraryRow, 'form' | 'source' | 'snapshot_format' | 'progress' | 'highlights'>): string[] {
+  return [
+    sourceKindLabel(row.form, row.snapshot_format ?? row.source.format),
+    row.progress > 0 ? formatProgress(row.progress) : '',
+    row.highlights ? `${row.highlights} highlight${row.highlights === 1 ? '' : 's'}` : '',
+  ].filter(Boolean);
 }
 
 /**
