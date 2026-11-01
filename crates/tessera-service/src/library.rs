@@ -427,13 +427,15 @@ fn export_response(format: ExportFormat, output: String) -> Response {
         .into_response()
 }
 
-type Extractor = fn(&[u8], Option<&str>, &str) -> Result<ExtractedDocument, String>;
+/// Extracts `bytes` named `name`; `url` is where they were fetched from, absent for an uploaded file.
+type Extractor = fn(&[u8], Option<&str>, &str, Option<&str>) -> Result<ExtractedDocument, String>;
 pub(crate) fn extract(
     bytes: &[u8],
     media: Option<&str>,
-    url: &str,
+    name: &str,
+    url: Option<&str>,
 ) -> Result<ExtractedDocument, String> {
-    let format = tessera_ingest::detect(bytes, media, Some(url))
+    let format = tessera_ingest::detect(bytes, media, Some(name))
         .ok_or_else(|| "This file is not a supported EPUB or web article.".to_owned())?;
     let result = match format {
         SourceFormat::Epub => tessera_ingest::epub(bytes),
@@ -519,7 +521,7 @@ impl Library {
             return Err("The browser demo can only add uploaded EPUB files.".to_owned());
         }
         let bytes = n.read_object(&job.input).map_err(|e| e.to_string())?;
-        let doc = (self.extractor)(&bytes, None, &job.name)?;
+        let doc = (self.extractor)(&bytes, None, &job.name, None)?;
         commit(n, job, &doc, &job.input, Vec::new(), &self.changes).map_err(|e| e.to_string())
     }
     pub(crate) fn start(
@@ -740,14 +742,15 @@ impl Worker {
             }
         };
         let extractor = self.extractor;
-        let url = job.name.clone();
+        let name = job.name.clone();
+        let url = (job.input_kind == IngestInput::Url).then(|| job.input.clone());
         let notebook = self.notebook.clone();
         let (doc, sha) = tokio::task::spawn_blocking(move || {
             let sha = notebook
                 .lock()
                 .put_object(&bytes)
                 .map_err(|e| e.to_string())?;
-            let doc = extractor(&bytes, Some(&media), &url)?;
+            let doc = extractor(&bytes, Some(&media), &name, url.as_deref())?;
             Ok::<_, String>((doc, sha))
         })
         .await
@@ -828,7 +831,12 @@ mod tests {
         }
     }
 
-    fn constructed(_: &[u8], _: Option<&str>, _: &str) -> Result<ExtractedDocument, String> {
+    fn constructed(
+        _: &[u8],
+        _: Option<&str>,
+        _: &str,
+        _: Option<&str>,
+    ) -> Result<ExtractedDocument, String> {
         Ok(ExtractedDocument {
             format: SourceFormat::Epub,
             media_type: "application/epub+zip".into(),
@@ -860,7 +868,12 @@ mod tests {
             ],
         })
     }
-    fn failed(_: &[u8], _: Option<&str>, _: &str) -> Result<ExtractedDocument, String> {
+    fn failed(
+        _: &[u8],
+        _: Option<&str>,
+        _: &str,
+        _: Option<&str>,
+    ) -> Result<ExtractedDocument, String> {
         Err("The file could not be extracted.".into())
     }
     fn state(notebook: Notebook, extractor: Extractor) -> AppState {
@@ -918,7 +931,7 @@ mod tests {
     async fn passage_search_http_pages_default_to_zero_and_reach_the_end() {
         let dir = tempfile::tempdir().unwrap();
         let mut notebook = Notebook::open(dir.path()).unwrap();
-        let mut doc = constructed(&[], None, "").unwrap();
+        let mut doc = constructed(&[], None, "", None).unwrap();
         doc.resources.clear();
         doc.passages = (0..82)
             .map(|ordinal| ExtractedPassage {
@@ -1150,7 +1163,7 @@ mod tests {
     async fn library_views_and_query_exports_use_saved_queries() {
         let dir = tempfile::tempdir().unwrap();
         let mut notebook = Notebook::open(dir.path()).unwrap();
-        let document = constructed(&[], None, "").unwrap();
+        let document = constructed(&[], None, "", None).unwrap();
         let hash = notebook.put_object(b"library view book").unwrap();
         let snapshot = notebook.stage_snapshot(&document, &hash, &[]).unwrap();
         let plan = notebook.plan_ingest(&snapshot.id, None, None).unwrap();
@@ -1225,7 +1238,7 @@ mod tests {
     async fn historical_snapshot_passages_return_their_own_contents() {
         let dir = tempfile::tempdir().unwrap();
         let mut notebook = Notebook::open(dir.path()).unwrap();
-        let mut document = constructed(&[], None, "").unwrap();
+        let mut document = constructed(&[], None, "", None).unwrap();
         document.toc = vec![TocEntry {
             title: "Old opening".into(),
             locator: "body#one".into(),

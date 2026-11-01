@@ -4,7 +4,11 @@ use url::Url;
 #[derive(Clone)]
 pub(crate) enum Base {
     Book(String),
-    Article { url: Url, canonical: Url },
+    /// A local file has no address; its relative references stay plain text.
+    Article {
+        url: Option<Url>,
+        canonical: Option<Url>,
+    },
 }
 
 pub(crate) enum Target {
@@ -36,11 +40,17 @@ impl Base {
                 Some(Target::Internal(target))
             }
             Self::Article { url, canonical } => {
-                let resolved = url.join(href).ok()?;
+                let resolved = match url {
+                    Some(url) => url.join(href).ok()?,
+                    None => match href.strip_prefix('#') {
+                        Some(id) => return Some(Target::Internal(format!("#{}", decode(id)))),
+                        None => Url::parse(href).ok()?,
+                    },
+                };
                 let mut page = resolved.clone();
                 page.set_fragment(None);
-                let is_current = [url, canonical].iter().any(|base| {
-                    let mut base = (*base).clone();
+                let is_current = [url, canonical].into_iter().flatten().any(|base| {
+                    let mut base = base.clone();
                     base.set_fragment(None);
                     base == page
                 });
@@ -63,7 +73,11 @@ impl Base {
                 Target::Internal(path) => Some(path.split('#').next()?.to_owned()),
                 Target::External(_) => None,
             },
-            Self::Article { url, .. } => url.join(href).ok().map(Into::into),
+            Self::Article { url, .. } => url
+                .as_ref()
+                .map_or_else(|| Url::parse(href), |url| url.join(href))
+                .ok()
+                .map(Into::into),
         }
     }
 }

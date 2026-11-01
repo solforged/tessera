@@ -30,7 +30,7 @@ fn invariants(document: &ExtractedDocument) {
 fn blog_metadata_passages_and_utf16_links() {
     let document = article(
         include_str!("fixtures/blog.html"),
-        "https://marginalia.example/posts/draft",
+        Some("https://marginalia.example/posts/draft"),
     )
     .unwrap();
     let metadata = &document.metadata;
@@ -159,7 +159,7 @@ fn blog_metadata_passages_and_utf16_links() {
 fn news_selects_prose_and_json_ld_metadata() {
     let document = article(
         include_str!("fixtures/news.html"),
-        "https://news.example/draft",
+        Some("https://news.example/draft"),
     )
     .unwrap();
     assert_eq!(
@@ -193,7 +193,7 @@ fn news_selects_prose_and_json_ld_metadata() {
 fn note_sections_outside_article_keep_global_numbering() {
     let html = r##"<article><p>Text <a role="doc-noteref" href="#n">note</a>.</p></article>
         <aside role="doc-endnotes"><p id="n">Note.</p><p>Another note.</p></aside>"##;
-    let document = article(html, "https://example.org/post").unwrap();
+    let document = article(html, Some("https://example.org/post")).unwrap();
     assert_eq!(document.passages.len(), 3);
     assert_eq!(document.passages[0].locator, "#p1");
     assert_eq!(document.passages[1].locator, "#n");
@@ -212,8 +212,8 @@ fn note_sections_outside_article_keep_global_numbering() {
 fn duplicate_ids_and_synthetic_locator_collisions_are_stable() {
     let html =
         r##"<article><p>One</p><p id="p1">Two</p><p id="p1">Three</p><p>Four</p></article>"##;
-    let first = article(html, "https://example.org/").unwrap();
-    assert_eq!(first, article(html, "https://example.org/").unwrap());
+    let first = article(html, Some("https://example.org/")).unwrap();
+    assert_eq!(first, article(html, Some("https://example.org/")).unwrap());
     assert_eq!(
         first
             .passages
@@ -241,7 +241,7 @@ fn article_date_precision_and_invalid_dates() {
             "<meta property='article:published_time' content='{input}'><article><p>Text</p></article>"
         );
         assert_eq!(
-            article(&html, "https://example.org/")
+            article(&html, Some("https://example.org/"))
                 .unwrap()
                 .metadata
                 .published
@@ -254,7 +254,7 @@ fn article_date_precision_and_invalid_dates() {
 
 #[test]
 fn address_dates_only_fill_a_missing_publication_date() {
-    let published = |html: &str, url: &str| article(html, url).unwrap().metadata.published;
+    let published = |html: &str, url: &str| article(html, Some(url)).unwrap().metadata.published;
     let body = "<article><p>Text</p></article>";
     assert_eq!(
         published(
@@ -279,11 +279,14 @@ fn address_dates_only_fill_a_missing_publication_date() {
 #[test]
 fn article_errors_and_fallbacks() {
     assert!(matches!(
-        article("<article><img src='x'></article>", "https://example.org/"),
+        article(
+            "<article><img src='x'></article>",
+            Some("https://example.org/")
+        ),
         Err(Error::Empty("article"))
     ));
     assert!(matches!(
-        article("<p>text</p>", "not a URL"),
+        article("<p>text</p>", Some("not a URL")),
         Err(Error::Malformed {
             format: "article",
             ..
@@ -291,7 +294,7 @@ fn article_errors_and_fallbacks() {
     ));
     let document = article(
         "<title>Keep - Another Site</title><div><p>Readable text.</p></div>",
-        "https://example.org/",
+        Some("https://example.org/"),
     )
     .unwrap();
     assert_eq!(
@@ -307,11 +310,65 @@ fn article_errors_and_fallbacks() {
 }
 
 #[test]
-fn metadata_byline_can_precede_the_article_container() {
-    let document = article(
-        "<header><span class='byline'>By Jane Writer</span></header><article><p>Text.</p></article>",
-        "https://example.org/",
+fn local_files_keep_relative_references_as_text() {
+    let html = r##"<!doctype html><html><head><title>Tide Notes</title></head><body><article>
+      <p>See <a href="notes.html">the field notes</a>, <a href="#method">the method</a>
+        and <a href="https://tides.example/table">the table</a>.</p>
+      <img src="fig.png" alt="Tide chart"><img src="https://tides.example/gauge.png" alt="Gauge">
+      <h2 id="method">Method</h2><p>Hourly readings.</p></article></body></html>"##;
+    let document = article(html, None).unwrap();
+    invariants(&document);
+    assert_eq!(document.metadata.title.as_deref(), Some("Tide Notes"));
+    assert_eq!(document.metadata.url, None);
+    assert_eq!(document.metadata.site, None);
+    let passages = &document.passages;
+    assert_eq!(
+        passages[0].text,
+        "See the field notes, the method and the table."
+    );
+    let marks: Vec<_> = passages[0].marks.iter().map(|mark| &mark.kind).collect();
+    assert_eq!(
+        marks,
+        [
+            &MarkKind::Internal {
+                locator: "#method".into()
+            },
+            &MarkKind::Link {
+                href: "https://tides.example/table".into()
+            },
+        ]
+    );
+    let images: Vec<_> = passages
+        .iter()
+        .filter(|passage| passage.kind == PassageKind::Image)
+        .map(|passage| (passage.text.as_str(), passage.resource.as_deref()))
+        .collect();
+    assert_eq!(
+        images,
+        [
+            ("Tide chart", None),
+            ("Gauge", Some("https://tides.example/gauge.png")),
+        ]
+    );
+    // A canonical address names the page but is not where its relative files live.
+    let saved = article(
+        &html.replace(
+            "<title>",
+            r#"<link rel="canonical" href="https://tides.example/notes"><title>"#,
+        ),
+        None,
     )
+    .unwrap();
+    assert_eq!(
+        saved.metadata.url.as_deref(),
+        Some("https://tides.example/notes")
+    );
+    assert_eq!(saved.passages, document.passages);
+}
+
+#[test]
+fn metadata_byline_can_precede_the_article_container() {
+    let document = article("<header><span class='byline'>By Jane Writer</span></header><article><p>Text.</p></article>", Some("https://example.org/"))
     .unwrap();
     assert_eq!(document.metadata.creators[0].name, "Jane Writer");
     assert_eq!(document.passages[0].text, "Text.");
@@ -336,7 +393,7 @@ fn schema_json_ld_creator_signals_override_unstructured_duplicates() {
       <span class="byline">Research Institute</span>
       <article><p>Readable text.</p></article>
     </body></html>"#;
-    let document = article(html, "https://example.org/creator-kinds").unwrap();
+    let document = article(html, Some("https://example.org/creator-kinds")).unwrap();
     let creators = &document.metadata.creators;
     assert_eq!(creators.len(), 4);
     assert_eq!(creators[0].name, "Research Institute");
@@ -381,7 +438,7 @@ fn schema_json_ld_creator_references_keep_the_graph_entity_kind() {
       {"@id": "#org", "@type": "http://schema.org/Organization", "name": "Editorial Board"},
       {"@id": "#person", "@type": "Person", "givenName": "Grace", "familyName": "Reader"}
     ]}</script><article><p>Text.</p></article>"##;
-    let document = article(html, "https://example.org/graph").unwrap();
+    let document = article(html, Some("https://example.org/graph")).unwrap();
     assert_eq!(document.metadata.creators.len(), 2);
     assert_eq!(document.metadata.creators[0].name, "Editorial Board");
     assert_eq!(
@@ -404,7 +461,7 @@ fn schema_microdata_creator_signals_keep_organisation_and_person_kinds() {
         <span itemprop="givenName">Ada</span><span itemprop="familyName">Reader</span>
       </div>
       <article><p>Text.</p></article>"#;
-    let document = article(html, "https://example.org/microdata").unwrap();
+    let document = article(html, Some("https://example.org/microdata")).unwrap();
     assert_eq!(document.metadata.creators.len(), 3);
     assert_eq!(document.metadata.creators[0].name, "University Press");
     assert_eq!(
@@ -425,7 +482,7 @@ fn unstructured_article_creators_keep_person_default_without_name_guessing() {
       }</script>
       <span class="byline">University Press</span>
       <article><p>Text.</p></article>"#;
-    let document = article(html, "https://example.org/plain-creators").unwrap();
+    let document = article(html, Some("https://example.org/plain-creators")).unwrap();
     assert_eq!(document.metadata.creators.len(), 1);
     assert_eq!(
         document.metadata.creators[0].name,
@@ -436,11 +493,11 @@ fn unstructured_article_creators_keep_person_default_without_name_guessing() {
       }</script>
       <span class="byline">University Press</span>
       <article><p>Text.</p></article>"#;
-    let document = article(html, "https://example.org/plain-creators").unwrap();
+    let document = article(html, Some("https://example.org/plain-creators")).unwrap();
     assert_eq!(document.metadata.creators.len(), 2);
     let document = article(
         "<span class='byline'>University Press</span><article><p>Text.</p></article>",
-        "https://example.org/plain-creators",
+        Some("https://example.org/plain-creators"),
     )
     .unwrap();
     assert_eq!(document.metadata.creators[0].name, "University Press");
@@ -451,9 +508,9 @@ fn unstructured_article_creators_keep_person_default_without_name_guessing() {
 fn repeated_line_breaks_form_paragraphs_without_splitting_single_breaks_or_code() {
     let document = article(
         r#"<article><div id="opening"><em>First 😀 line.<br>Still first.<br>
-          <br>Second paragraph.</em><br><br><br>Third paragraph.</div>
-          <pre>one<br><br>two</pre></article>"#,
-        "https://example.org/line-breaks",
+      <br>Second paragraph.</em><br><br><br>Third paragraph.</div>
+      <pre>one<br><br>two</pre></article>"#,
+        Some("https://example.org/line-breaks"),
     )
     .unwrap();
     assert_eq!(
@@ -484,9 +541,9 @@ fn repeated_line_breaks_form_paragraphs_without_splitting_single_breaks_or_code(
 fn layout_tables_do_not_flatten_line_break_authored_articles() {
     let document = article(
         r#"<html><body><table><tr><td><table><tr><td><font>
-          First paragraph.<br><br>Second paragraph.<br><br>Third paragraph.
-          </font></td></tr></table></td></tr></table></body></html>"#,
-        "https://example.org/layout-table",
+      First paragraph.<br><br>Second paragraph.<br><br>Third paragraph.
+      </font></td></tr></table></td></tr></table></body></html>"#,
+        Some("https://example.org/layout-table"),
     )
     .unwrap();
     assert_eq!(
@@ -504,7 +561,7 @@ fn layout_tables_do_not_flatten_line_break_authored_articles() {
 fn page_metadata_names_a_page_without_readable_text() {
     let html = "<html><head><title>Project Gutenberg | Gutenberg</title><meta property=\"og:site_name\" content=\"Gutenberg\"></head><body><nav>Menu</nav></body></html>";
     assert!(matches!(
-        article(html, "https://www.gutenberg.org/ebooks/2680"),
+        article(html, Some("https://www.gutenberg.org/ebooks/2680")),
         Err(Error::Empty(_))
     ));
     let metadata = page_metadata(html, "https://www.gutenberg.org/ebooks/2680").unwrap();
@@ -650,7 +707,7 @@ fn news_citation_tags_outrank_the_page_title_and_site_author() {
 fn json_ld_headline_and_author_outrank_tags_that_name_the_site() {
     let document = article(
         include_str!("fixtures/json-ld.html"),
-        "https://smallcraft.example/notes/knots",
+        Some("https://smallcraft.example/notes/knots"),
     )
     .unwrap();
     assert_eq!(
