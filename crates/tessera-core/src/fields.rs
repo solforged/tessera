@@ -968,6 +968,20 @@ pub(crate) fn constrained_reading(
     text: &str,
     target: Option<&Block>,
 ) -> Result<Reading> {
+    // A creator or contributor may be a plain name rather than a linked person or group; only a
+    // reference keeps the relation's reading. A kind preview still reads the name for mapping.
+    if kind == FieldKind::Instance
+        && definition.kind == FieldKind::Instance
+        && crate::built_in::creator_tier(definition, 0).is_some()
+        && reference(text).is_none()
+        && !text.trim().is_empty()
+    {
+        return Ok(Reading::Value {
+            ok: true,
+            value: ReadingValue::Text(text.trim().to_owned()),
+            target: None,
+        });
+    }
     let mut reading = reading(kind, &definition.id, text, target);
     if kind != FieldKind::Instance {
         return Ok(reading);

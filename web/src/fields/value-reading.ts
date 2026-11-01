@@ -19,7 +19,8 @@ export function fieldValueProblem(field: FieldDefinition | undefined, text: stri
       return parsed && parsed.ok ? undefined : 'not a date';
     }
     case 'choice': return field.options.some(option => value === `[[${option.id}]]`) ? undefined : 'not an option';
-    case 'instance': return /^\[\[[^\]]+\]\]$/.test(value) ? undefined : 'not a reference';
+    // A creator or contributor may be a plain name rather than a linked person or group.
+    case 'instance': return /^\[\[[^\]]+\]\]$/.test(value) || field.counts_as === 'creator' || field.counts_as === 'contributor' ? undefined : 'not a reference';
     case 'url': return /^https?:\/\/[^/?#\s]+[^\s]*$/.test(value) ? undefined : 'not a URL';
   }
 }

@@ -141,6 +141,10 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Showed a source's tagless title in the catalog card's Title, and kept the title's tags when it is edited there, so the source stays filed.
 - Read card source lines, the Cards list and zoom breadcrumbs as a reader sees them: the page's tagless title, card operators as arrows and inline code without backticks.
 - Stopped repeating a note's kind as a pill after its title when the eyebrow above it already names that kind.
+- Gave a Gloss or Gist field created by agent shorthand (`Gloss::`) the standfirst role, as the editor's Gloss does, so the gloss reads as an unlabelled sentence under the title and previews the note in its finding aid. Opening a workshop once repairs a Gist or Gloss still on the default attribute role, leaving a role a person chose.
+- Showed every alias in a note's ALSO line when its aliases sit in more than one top-level `aliases` entry, not only the first entry's.
+- Stopped marking plain-name creators, such as `Noam Shazeer` or `et al.`, as `not a reference` in relation fields that count as creator or contributor; they read as names in tables, field pages and the outline, while originators and other relations still ask for a link.
+- Gave a source made by `#source` or a source action its suggested citation key when it is made, read from the title and fields it is made with, so BibTeX and CSL JSON export no longer refuse sources filed through MCP. Opening a workshop once gives each keyless source its key.
 
 ## 0.5.1, 2026-10-23
 

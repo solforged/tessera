@@ -166,3 +166,100 @@ fn creators_read_what_fields_count_as_with_author_first_and_editors_as_fallback(
     nb.apply(&counts_as(&nb, 103, None)).unwrap();
     assert!(creators(&nb, "@creator", 3).is_empty());
 }
+
+#[test]
+fn plain_creator_names_are_values_not_problems() {
+    use tessera_core::Reading;
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    let mut operations = vec![
+        Operation::CreatePage {
+            id: id(1),
+            title: "Ashish Vaswani".into(),
+        },
+        Operation::CreatePage {
+            id: id(10),
+            title: "Attention Is All You Need".into(),
+        },
+    ];
+    // Author, translator, coined by and a relation of the workshop's own; editor stays text.
+    for (n, name) in [
+        (100, "author"),
+        (101, "translator"),
+        (102, "coined by"),
+        (103, "mentor"),
+        (104, "editor"),
+    ] {
+        operations.push(insert(n, &fields, name));
+    }
+    nb.apply(&batch(operations)).unwrap();
+    let mut operations: Vec<_> = (100..104)
+        .map(|n| Operation::SetFieldKind {
+            id: id(n),
+            base_revision: 1,
+            kind: FieldKind::Instance,
+        })
+        .collect();
+    for (entry, field, values) in [
+        (
+            200,
+            100,
+            vec![
+                format!("[[{}]]", id(1)),
+                "Noam Shazeer".into(),
+                "et al.".into(),
+            ],
+        ),
+        (201, 101, vec!["Jane Doe".into()]),
+        (202, 102, vec!["Someone".into()]),
+        (203, 103, vec!["Someone".into()]),
+        (204, 104, vec!["Sam Editor".into()]),
+    ] {
+        operations.push(insert(entry, &id(10), &format!("[[{}]]", id(field))));
+        for (index, value) in values.iter().enumerate().rev() {
+            operations.push(insert(entry * 10 + index as u128, &id(entry), value));
+        }
+    }
+    operations.push(Operation::SetSource {
+        id: id(10),
+        base_revision: 1,
+        source: Some(SourceState {
+            format: SourceFormat::Record,
+            state: ReadingState::Inbox,
+            origin: None,
+            match_key: None,
+            citation_key: Some("vaswani2017attention".into()),
+        }),
+    });
+    nb.apply(&batch(operations)).unwrap();
+    let problems = |field: u128, kind: Option<FieldKind>| {
+        let detail = nb.field_detail(&id(field), kind, None).unwrap();
+        (detail.values_total, detail.problems_total)
+    };
+    assert_eq!(problems(100, None), (3, 0), "author");
+    assert_eq!(problems(101, None), (1, 0), "translator");
+    assert_eq!(problems(102, None), (1, 1), "originators still link");
+    assert_eq!(problems(103, None), (1, 1), "other relations still link");
+    // Previewing a text creator as a relation still offers its names for mapping.
+    assert_eq!(problems(104, Some(FieldKind::Instance)), (1, 1));
+
+    // The Sources table reads the same way: names are plain text, references open their page.
+    let query: Value = json!({"source":"sources","filters":[]});
+    let rows = nb
+        .query(&serde_json::from_value(query).unwrap())
+        .unwrap()
+        .rows;
+    let authors: Vec<_> = rows[0].values[&id(100)]
+        .iter()
+        .map(|value| match &value.reading {
+            Reading::Value { ok, target, .. } => (*ok, target.clone()),
+            Reading::Problem { problem, .. } => panic!("{}: {problem}", value.text),
+        })
+        .collect();
+    assert_eq!(
+        authors,
+        [(true, Some(id(1))), (true, None), (true, None)],
+        "Vaswani links; Shazeer and et al. are names"
+    );
+}

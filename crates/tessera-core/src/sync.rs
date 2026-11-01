@@ -1127,6 +1127,7 @@ impl Notebook {
         )?;
         tx.commit()?;
         self.backfill_library_creators()?;
+        self.backfill_citation_keys()?;
         self.ensure_built_in_fields()
     }
 

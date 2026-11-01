@@ -604,3 +604,40 @@ fn ingest_resolves_aliases_preserves_ambiguity_and_turns_creator_names_around() 
             .is_none()
     );
 }
+
+#[test]
+fn every_top_level_aliases_entry_counts_for_lookup_completion_and_search() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    apply(&mut nb, vec![page(1, "Kullback-Leibler divergence")]);
+    alias(&mut nb, 1, "KL divergence");
+    let field = field_id(&nb, "aliases");
+    let first = nb.page(&id(1)).unwrap().rows[0].block.id.clone();
+    // `aliases::` written once per line makes a second entry rather than a second value.
+    apply(
+        &mut nb,
+        vec![
+            insert(10, &id(1), Some(first), &format!("[[{field}]]")),
+            insert(11, &id(10), None, "Relative entropy"),
+        ],
+    );
+    assert_eq!(
+        nb.page_aliases(&id(1)).unwrap(),
+        ["KL divergence", "Relative entropy"]
+    );
+    let matched = nb.resolve_name("relative entropy").unwrap();
+    assert_eq!(
+        matched
+            .iter()
+            .map(|matched| (matched.page.id.as_str(), matched.alias.as_deref()))
+            .collect::<Vec<_>>(),
+        [(id(1).as_str(), Some("Relative entropy"))]
+    );
+    let completed = nb.complete("Relative ent", 8).unwrap();
+    assert!(
+        completed
+            .iter()
+            .any(|hit| hit.block.id == id(1) && hit.alias.as_deref() == Some("Relative entropy")),
+        "{completed:?}"
+    );
+}

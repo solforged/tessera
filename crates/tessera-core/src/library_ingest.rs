@@ -140,10 +140,60 @@ fn citation_key(notebook: &Notebook, metadata: &ExtractedMetadata, title: &str) 
                 .iter()
                 .find(|c| c.role == CreatorRole::Editor)
         });
+    suggested_citation_key(
+        &notebook.conn,
+        creator.map(|c| c.name.as_str()),
+        metadata.site.as_deref(),
+        metadata.published.as_deref(),
+        title,
+        &HashSet::new(),
+    )
+}
+
+/// The key a source without one gets from its own fields when it is created: its first creator, else its
+/// site; its publication year; its title, without tags. `reserved` holds lowercase keys a pending change
+/// gives other sources.
+pub(crate) fn source_citation_key(
+    conn: &rusqlite::Connection,
+    id: &str,
+    title: &str,
+    reserved: &HashSet<String>,
+) -> Result<String> {
+    let readings = crate::library_export::field_readings(conn, &[id.to_owned()])?
+        .remove(id)
+        .unwrap_or_default();
+    let first = |name: &str| {
+        readings
+            .get(name)
+            .and_then(|values| values.first())
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+    };
+    suggested_citation_key(
+        conn,
+        crate::library_export::creators(&readings)
+            .first()
+            .map(|name| name.trim())
+            .filter(|name| !name.is_empty()),
+        first("site"),
+        first("published"),
+        &crate::storage::identity_name(title),
+        reserved,
+    )
+}
+
+fn suggested_citation_key(
+    conn: &rusqlite::Connection,
+    creator: Option<&str>,
+    site: Option<&str>,
+    published: Option<&str>,
+    title: &str,
+    reserved: &HashSet<String>,
+) -> Result<String> {
     let family = creator
-        .map(|c| family_name(&c.name))
+        .map(family_name)
         // A site name such as `www.karpathy.github.io` keys as `karpathy`.
-        .or(metadata.site.as_deref().map(|site| {
+        .or(site.map(|site| {
             let site = site.strip_prefix("www.").unwrap_or(site);
             if site.contains(' ') {
                 site
@@ -156,11 +206,7 @@ fn citation_key(notebook: &Notebook, metadata: &ExtractedMetadata, title: &str) 
     if family.is_empty() || !family.as_bytes()[0].is_ascii_alphabetic() {
         family.insert_str(0, "anon");
     }
-    let year = metadata
-        .published
-        .as_deref()
-        .and_then(|s| s.get(..4))
-        .unwrap_or("nd");
+    let year = published.and_then(|s| s.get(..4)).unwrap_or("nd");
     let word = title
         .split_whitespace()
         .map(fold)
@@ -170,14 +216,16 @@ fn citation_key(notebook: &Notebook, metadata: &ExtractedMetadata, title: &str) 
     base.truncate(base.len().min(56));
     let mut key = base.clone();
     let mut n = 0;
-    while notebook.conn.query_row(
-        "SELECT EXISTS(
-             SELECT 1 FROM sources
-             WHERE active = 1 AND citation_key = ?1 COLLATE NOCASE
-         )",
-        [&key],
-        |r| r.get::<_, bool>(0),
-    )? {
+    while reserved.contains(&key)
+        || conn.query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM sources
+                 WHERE active = 1 AND citation_key = ?1 COLLATE NOCASE
+             )",
+            [&key],
+            |r| r.get::<_, bool>(0),
+        )?
+    {
         key = format!("{base}{}", suffix(n));
         n += 1;
     }
@@ -299,6 +347,17 @@ impl<'a> Planner<'a> {
             _ => (vec![], vec![]),
         };
         self.operations.extend(seeds);
+        let mut revision = if targets.is_empty() { 2 } else { 3 };
+        let role = crate::built_in::field_named(label)
+            .map_or(crate::FieldRole::Attribute, |field| field.role);
+        if role != crate::FieldRole::Attribute {
+            self.operations.push(Operation::SetFieldRole {
+                id: id.clone(),
+                base_revision: revision,
+                role,
+            });
+            revision += 1;
+        }
         self.fields.insert(
             key,
             crate::FieldDefinition {
@@ -306,10 +365,10 @@ impl<'a> Planner<'a> {
                 name: label.into(),
                 kind,
                 hide: crate::FieldHide::Never,
-                role: crate::FieldRole::Attribute,
+                role,
                 counts_as: crate::built_in::field_named(label).and_then(|field| field.counts_as),
                 archived: false,
-                revision: if targets.is_empty() { 2 } else { 3 },
+                revision,
                 options,
                 targets,
                 built_in: crate::built_in::field_named(label).is_some(),
@@ -610,6 +669,75 @@ impl Notebook {
         self.apply(&crate::Batch {
             actor: crate::Actor::Client {
                 name: "Library creator filing".into(),
+            },
+            reason: None,
+            idempotency_key: None,
+            operations,
+        })?;
+        Ok(())
+    }
+
+    /// Sources made by `#source` or a source action once had no citation key until one was typed. Give each
+    /// active keyless source its suggested key as one ordinary change; once that has run, a key cleared later
+    /// stays clear.
+    pub(crate) fn backfill_citation_keys(&mut self) -> Result<()> {
+        let done: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM settings WHERE key = 'citation_keys' AND value = 'true')",
+            [],
+            |row| row.get(0),
+        )?;
+        // A stripped sync clone has history but no local editor cursor yet; it runs this after adoption.
+        let awaiting_adoption: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM changes) AND NOT EXISTS(SELECT 1 FROM editor_events)",
+            [],
+            |row| row.get(0),
+        )?;
+        if done || awaiting_adoption {
+            return Ok(());
+        }
+        let keyless = self
+            .conn
+            .prepare(
+                "SELECT s.block_id, b.revision, b.text FROM sources s JOIN blocks b ON b.id = s.block_id
+                 WHERE s.active = 1 AND s.citation_key IS NULL AND b.deletion_id IS NULL
+                 ORDER BY s.added_at, s.block_id",
+            )?
+            .query_map([], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        if keyless.is_empty() {
+            return Ok(());
+        }
+        let mut reserved = HashSet::new();
+        let mut operations = Vec::with_capacity(keyless.len() + 1);
+        for (id, base_revision, title) in keyless {
+            let Some(record) = source(&self.conn, &id)? else {
+                continue;
+            };
+            let key = source_citation_key(&self.conn, &id, &title, &reserved)?;
+            reserved.insert(key.clone());
+            operations.push(Operation::SetSource {
+                id,
+                base_revision,
+                source: Some(SourceState {
+                    citation_key: Some(key),
+                    ..record.source_state()
+                }),
+            });
+        }
+        operations.push(Operation::SetSetting {
+            key: "citation_keys".into(),
+            value: "true".into(),
+            base_revision: None,
+        });
+        self.apply(&crate::Batch {
+            actor: crate::Actor::Client {
+                name: "Citation keys".into(),
             },
             reason: None,
             idempotency_key: None,
