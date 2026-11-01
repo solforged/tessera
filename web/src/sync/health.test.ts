@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { PairedDevice, ReplicaState, SyncConflicts, SyncDevices, SyncState } from '../api/types';
-import { SUSTAINED_OUTAGE_MS, syncHealth } from './health';
+import { SUSTAINED_OUTAGE_MS, attemptResult, rejectionReason, syncHealth } from './health';
 
 const now = 1_800_000_000_000;
 const version = { version: '0.3.0', build: null, schema: 35 };
@@ -97,7 +97,7 @@ test('synced and sending are ok without a cover mark', () => {
 test('forgotten and retired replicas need action', () => {
   for (const code of ['unpaired', 'wrong_device']) {
     expect(syncHealth(replica({ last_error: error(code) }), null, now)).toMatchObject({
-      kind: 'forgotten', tone: 'act', hint: 'the Mac no longer knows this device.',
+      kind: 'forgotten', tone: 'act', hint: 'The Mac no longer knows this device.',
     });
   }
   for (const changes of [{ retired: true }, { last_error: error('retired') }]) {
@@ -105,6 +105,17 @@ test('forgotten and retired replicas need action', () => {
       kind: 'retired', tone: 'act', hint: 'Away more than 30 days.',
     });
   }
+});
+
+test('the attempt ledger and a rejection speak in plain words, never the engine message or an atom id', () => {
+  expect(attemptResult({ ok: true, code: null })).toBe('Accepted');
+  expect(attemptResult({ ok: false, code: 'unpaired' })).toBe('The Mac no longer knows this device');
+  expect(attemptResult({ ok: false, code: 'retired' })).toBe('The Mac stopped keeping changes');
+  expect(attemptResult({ ok: false, code: 'something_new' })).toBe('Failed');
+  const gone = 'operation 0 is stale for atom 01M6BXD6TMAEA724YB4WZ8A9PV: expected revision 1, but it no longer exists';
+  expect(rejectionReason(gone)).toBe('The line was deleted before this change arrived.');
+  expect(rejectionReason('operation 2 is stale for atom 01M6BXD6TMAEA724YB4WZ8A9PV: expected revision 1, found revision 3')).not.toMatch(/01M6|revision/);
+  expect(rejectionReason('something unexpected 01M6BXD6TMAEA724YB4WZ8A9PV')).toBe('The Mac could not apply this change.');
 });
 
 test('wait and act keep the title as their cover mark', () => {

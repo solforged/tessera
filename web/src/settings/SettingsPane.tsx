@@ -40,8 +40,8 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     catch (reason) { setError(reason instanceof Error ? reason.message : String(reason)); return undefined; }
   });
   // The phone gets a grouped list; its About also says how big the workshop is. The browser build cannot measure a folder.
-  const phone = isPhone();
-  const [workshopSize] = createResource(() => phone && !DEMO, async () => {
+  const phone = () => isPhone();
+  const [workshopSize] = createResource(() => phone() && !DEMO, async () => {
     try { return (await api.notebookSize()).size; }
     catch { return undefined; }
   });
@@ -167,7 +167,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
     region.scrollTo({ top, behavior: smooth ? 'smooth' : 'auto' });
   };
   const when = (value: number) => isoMinute(value, zone());
-  const heading = (index: number, key: string, label: string, aside?: JSX.Element) => phone
+  const heading = (index: number, key: string, label: string, aside?: JSX.Element) => phone()
     ? <span class="settings-group-label" id={`${sectionId(key)}-heading`}>{label}</span>
     : <h2 class="field-section-head" id={`${sectionId(key)}-heading`}><span class="field-rubric">{String(index).padStart(2, '0')}</span><span>{label}</span><span class="section-rule" />{aside}</h2>;
   const zoneText = () => zones().find(value => value.id === zone())?.label ?? '';
@@ -192,7 +192,11 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
   });
   createEffect(() => {
     const section = props.section;
-    if (section) requestAnimationFrame(() => reveal(section));
+    // The sidebar switcher's Open or create… lands here ready to type a name.
+    if (section) requestAnimationFrame(() => {
+      reveal(section);
+      if (section === 'notebooks') region.querySelector<HTMLInputElement>('.notebooks-path-input')?.focus({ preventScroll: true });
+    });
   });
   onMount(() => {
     region.scrollTop = props.view.scroll;
@@ -223,7 +227,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
       <div class="settings-main">
         <header class="settings-header" data-scrolled={scrolled() ? '' : undefined}>
           <div class="settings-heading"><h1>Settings</h1></div>
-          <Show when={!phone}>
+          <Show when={!phone()}>
             <span class="settings-status" role="status">{props.notebook.settingsMessage()}</span>
             <Button icon="undo" label="Undo setting" shortcut="⌘Z" disabled={!props.notebook.canUndoSetting()} onClick={() => { void settingHistory(false); }} />
             <Button icon="redo" label="Redo setting" shortcut="⌘⇧Z" disabled={!props.notebook.canRedoSetting()} onClick={() => { void settingHistory(true); }} />
@@ -237,7 +241,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         </header>
         <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
         {/* Settings save at once, so on a phone only a failed save speaks, as a notice under the title. */}
-        <Show when={phone && props.notebook.settingsError()}>{reason => <p class="error" role="alert">Couldn’t save · {reason()}</p>}</Show>
+        <Show when={phone() && props.notebook.settingsError()}>{reason => <p class="error" role="alert">Couldn’t save · {reason()}</p>}</Show>
         <section id={sectionId('preferences')} aria-labelledby={`${sectionId('preferences')}-heading`}>
           <Group heading={heading(1, 'preferences', 'Preferences')}>
             <div class="settings-row">
@@ -255,13 +259,13 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
             <div class="settings-row">
               <div class="settings-label"><span class="settings-name">Journal day<span class="settings-scope">Workshop</span></span><p>Decides which day Today opens and when scheduled times fall.</p></div>
               <Button class="bordered settings-select" aria-label="Time zone" aria-haspopup="listbox" aria-expanded={zoneAnchor() !== null} disabled={props.notebook.settingsBusy()} title={zone()} onClick={event => { setZoneTime(Date.now()); setZoneAnchor(event.currentTarget); }}>
-                <span class="settings-select-text"><Show when={zone() === deviceZone}><span>Device</span></Show><Show when={phone} fallback={<span class="settings-mono">{zoneText()}</span>}>
+                <span class="settings-select-text"><Show when={zone() === deviceZone}><span>Device</span></Show><Show when={phone()} fallback={<span class="settings-mono">{zoneText()}</span>}>
                   <span class="settings-zone-rest">{zoneText().split(' · ')[0]} · <span class="settings-mono">{zoneText().split(' · ')[1]}</span></span>
                 </Show></span><Icon name="down" />
               </Button>
             </div>
           </Group>
-          <Show when={zoneAnchor()}>{anchor => <Picker<{ id: string; label: string }> anchor={anchor()} placement="below" class="settings-zone-picker" width={360} label="Choose time zone" autofocus={!phone} onDismiss={() => { setZoneAnchor(null); setZoneQuery(''); }}
+          <Show when={zoneAnchor()}>{anchor => <Picker<{ id: string; label: string }> anchor={anchor()} placement="below" class="settings-zone-picker" width={360} label="Choose time zone" autofocus={!phone()} onDismiss={() => { setZoneAnchor(null); setZoneQuery(''); }}
             query={zoneQuery()} onQuery={setZoneQuery} placeholder="Search time zones"
             items={zoneRows()} key={value => value.id} isCurrent={value => value.id === zone()} empty="No matching time zone."
             onPick={value => { setZoneAnchor(null); setZoneQuery(''); void change('time_zone', value.id); }}
@@ -349,7 +353,7 @@ export function SettingsPane(props: { pane: PaneId; view: SettingsViewState; sec
         {!DEMO && <AgentSettings id={sectionId('agent')} heading={heading(number('agent'), 'agent', 'Models')} />}
         <section id={sectionId('about')} aria-labelledby={`${sectionId('about')}-heading`}>
           <Group heading={heading(number('about'), 'about', 'About')}>
-            <Show when={phone && info()} fallback={<>
+            <Show when={phone() && info()} fallback={<>
               <Show when={info()}>{value => <dl>
                 <dt>Workshop</dt><dd class="settings-path">{pathText(value().path)}</dd>
                 <dt>Created</dt><dd>{isoDate(value().created_at, zone())}</dd>

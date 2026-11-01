@@ -3,13 +3,21 @@
 .settings-pane { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--pane-inset) var(--page-bottom-space); outline: none; container: settings-pane / inline-size; }
 .settings-layout { max-width: var(--measure); margin-inline: auto; }
 .settings-main { min-width: 0; }
-.settings-index { position: relative; grid-column: 1 / -1; display: flex; gap: var(--space-4); overflow-x: auto; padding-block: var(--page-title-gap) var(--space-4); }
+/* A strip that scrolls (a split pane too narrow for every chip) fades at the end that has more, so no chip is cut mid-letter
+   with nothing to say so. Where the strip fits, or scroll-driven animation is missing, both fades stay 0. */
+@property --index-fade-start { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --index-fade-end { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@keyframes index-fade { 0% { --index-fade-start: 0px; --index-fade-end: var(--space-24); } 1% { --index-fade-start: var(--space-24); } 99% { --index-fade-end: var(--space-24); } 100% { --index-fade-start: var(--space-24); --index-fade-end: 0px; } }
+.settings-index { position: relative; grid-column: 1 / -1; display: flex; gap: var(--space-4); overflow-x: auto; padding-block: var(--page-title-gap) var(--space-4); -webkit-mask-image: linear-gradient(90deg, transparent, #000 var(--index-fade-start), #000 calc(100% - var(--index-fade-end)), transparent); mask-image: linear-gradient(90deg, transparent, #000 var(--index-fade-start), #000 calc(100% - var(--index-fade-end)), transparent); }
+@supports (animation-timeline: scroll()) {
+  .settings-index { animation: index-fade linear both; animation-timeline: scroll(self inline); }
+}
 .settings-index-item { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--target-size); padding: 0 var(--space-12); border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: none; color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); text-align: left; white-space: nowrap; cursor: pointer; transition: color var(--motion-fast) var(--motion-ease), border-color var(--motion-ui) var(--motion-ease); }
 .settings-index-item:hover { color: var(--text); }
 .settings-index-item[aria-current] { border-color: var(--accent); color: var(--accent); background: var(--accent-tint); }
 /* The sticky header carries its index in the spare margin without moving the measure. */
 @container settings-pane (min-width: 72rem) {
-  .settings-index { position: absolute; top: var(--page-top-space); right: calc(100% + var(--space-24)); width: min(var(--apparatus-width), calc((100cqw - var(--measure)) / 2 - var(--space-24))); flex-direction: column; gap: var(--space-2); padding: 0; overflow: visible; }
+  .settings-index { position: absolute; top: var(--page-top-space); right: calc(100% + var(--space-24)); width: min(var(--apparatus-width), calc((100cqw - var(--measure)) / 2 - var(--space-24))); flex-direction: column; gap: var(--space-2); padding: 0; overflow: visible; -webkit-mask-image: none; mask-image: none; animation: none; }
   .settings-index .settings-index-item { flex: initial; padding: 0 var(--space-8) 0 var(--space-12); border: 0; border-radius: 0; background: none; color: var(--muted); box-shadow: inset calc(2 * var(--rule-width)) 0 transparent; white-space: normal; }
   .settings-index .settings-index-item:hover, .settings-index .settings-index-item[aria-current] { color: var(--text); }
   .settings-index .settings-index-item[aria-current] { box-shadow: inset calc(2 * var(--rule-width)) 0 var(--accent); }
@@ -26,7 +34,7 @@
 
 /* Shared field section classes keep numbered heads in the apparatus voice. */
 .settings-pane section + section { margin-top: var(--section-gap); }
-.settings-pane .field-rubric { color: var(--danger); }
+.settings-pane .field-rubric { color: var(--danger); font: var(--figures); font-variant-numeric: tabular-nums; }
 
 /* A preference is one row: its name, scope and a sentence on the left, the control flush right. Rows divide with hairlines. */
 .settings-row, .settings-change { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: var(--space-24); padding-block: var(--space-12); font-size: var(--text-control); line-height: var(--line-control); }
@@ -60,7 +68,42 @@
 .settings-switch:checked { border-color: var(--accent); background: var(--accent); }
 .settings-switch:checked::after { translate: calc(var(--switch-width) - var(--switch-height)) 0; background: var(--canvas); }
 .settings-switch:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
-.settings-switch:disabled { opacity: .5; cursor: default; }
+.settings-switch:disabled { opacity: var(--disabled-opacity); cursor: default; }
+/* A coarse pointer: the box is a fingertip (44 px) and the track stays its visual size, centred in that box. Negative margin
+   gives the extra box back, so the row does not move. Fine pointers keep the hairline track above. */
+@media (pointer: coarse) {
+  .settings-switch {
+    --switch-visual-width: var(--switch-width);
+    --switch-visual-height: var(--switch-height);
+    width: max(var(--switch-visual-width), var(--touch-target));
+    height: max(var(--switch-visual-height), var(--touch-target));
+    margin-inline: calc((var(--switch-visual-width) - max(var(--switch-visual-width), var(--touch-target))) / 2);
+    margin-block: calc((var(--switch-visual-height) - max(var(--switch-visual-height), var(--touch-target))) / 2);
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+  }
+  .settings-switch:is(:hover, :checked) { border-color: transparent; background: transparent; box-shadow: none; }
+  .settings-switch::before {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    width: var(--switch-visual-width);
+    height: var(--switch-visual-height);
+    translate: -50% -50%;
+    box-sizing: border-box;
+    border: var(--rule-width) solid var(--control-border);
+    border-radius: var(--radius-pill);
+    background: transparent;
+    transition: background-color var(--motion-ui) var(--motion-ease), border-color var(--motion-ui) var(--motion-ease);
+  }
+  .settings-switch:hover:not(:disabled)::before { border-color: var(--muted); }
+  .settings-switch:checked::before { border-color: var(--accent); background: var(--accent); }
+  .settings-switch::after {
+    top: calc(50% - var(--switch-visual-height) / 2 + var(--switch-inset));
+    left: calc(50% - var(--switch-visual-width) / 2 + var(--switch-inset));
+  }
+}
 
 /* Today: the template's sections as a reorderable list; a name renames in place, in Piazzolla like the section head. */
 .today-sections { margin: var(--space-12) 0 0; padding: 0; list-style: none; border-top: var(--rule-width) solid var(--line); }
@@ -69,7 +112,7 @@
 .today-section-handle:hover { color: var(--text); }
 .today-section-handle:focus-visible { outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-offset)); }
 .today-section-text { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--space-12); min-width: 0; }
-.today-section-name { flex: 0 1 auto; min-width: 8ch; field-sizing: content; max-width: 100%; padding: 0 var(--space-4); margin-left: calc(-1 * var(--space-4)); border: var(--rule-width) solid transparent; border-radius: var(--radius-control); background: none; color: var(--text); font: var(--weight-body) var(--text-body)/var(--line-control) var(--font-display); }
+.today-section-name { flex: 0 1 auto; min-width: 8ch; field-sizing: content; max-width: 100%; height: calc(var(--line-control) + 2 * var(--rule-width)); padding: 0 var(--space-4); margin-left: calc(-1 * var(--space-4)); border: var(--rule-width) solid transparent; border-radius: var(--radius-control); background: none; color: var(--text); font: var(--weight-body) var(--text-body)/var(--line-control) var(--font-display); }
 .today-section-name:hover:not(:disabled) { border-color: var(--line); }
 .today-section-name:focus { border-color: var(--control-border); outline: none; }
 .today-section-role { color: var(--faint); font-size: var(--text-meta); line-height: var(--line-meta); }
@@ -145,7 +188,8 @@
    Nothing else of the desktop stays: no section index, no Undo, Redo or History, no save readout. */
 @media (max-width: 599px) and (pointer: coarse) {
   .settings-pane { padding-inline: 0; }
-  .settings-header, .settings-header[data-scrolled] { position: static; display: block; padding: var(--page-top-space) var(--phone-gutter) 34px; background: none; box-shadow: none; }
+  /* The title sits where Library's and Index's do: below the line their eyebrow takes. */
+  .settings-header, .settings-header[data-scrolled] { position: static; display: block; padding: calc(var(--page-top-space) + var(--line-apparatus) + var(--page-eyebrow-gap)) var(--phone-gutter) 34px; background: none; box-shadow: none; }
   .settings-header h1 { font: var(--weight-title) 34px/40px var(--font-display); }
   .settings-main > :is(.error, .settings-empty) { margin-inline: var(--phone-gutter); }
   .settings-main > section + section { margin-top: 26px; }
@@ -180,13 +224,43 @@
   .settings-zone-rest { overflow: hidden; color: var(--muted); font-weight: var(--weight-body); text-overflow: ellipsis; white-space: nowrap; }
   .settings-zone-rest > .settings-mono { color: inherit; font-size: 13px; }
 
-  /* The switch: a well with an ink knob; on, the track is ink and the knob is a leaf. A locked one is dimmed, with its reason on the row. */
-  .settings-pane .settings-switch { width: 51px; height: 31px; border: 0; border-radius: 16px; background: var(--well); box-shadow: var(--well-shade); }
-  .settings-pane .settings-switch::before { inset: -7px -4px; }
-  .settings-pane .settings-switch::after { top: 2px; left: 2px; width: 27px; height: 27px; aspect-ratio: auto; background: color-mix(in srgb, var(--text) 60%, var(--canvas)); box-shadow: 0 1px 3px var(--contact-shadow); }
-  .settings-pane .settings-switch:checked { border: 0; background: color-mix(in srgb, var(--text) 82%, var(--canvas)); box-shadow: inset 0 1px 2px #00000040; }
+  /* The switch: a well with an ink knob; on, the track is ink and the knob is a leaf. The box is a 44 px target; the track stays 51 × 31. */
+  .settings-pane .settings-switch {
+    --switch-visual-width: 51px;
+    --switch-visual-height: 31px;
+    width: 51px;
+    height: var(--touch-target);
+    margin-block: calc((31px - var(--touch-target)) / 2);
+    border: 0;
+    border-radius: 16px;
+    background: transparent;
+    box-shadow: none;
+  }
+  .settings-pane .settings-switch::before {
+    inset: auto;
+    top: 50%;
+    left: 50%;
+    width: 51px;
+    height: 31px;
+    translate: -50% -50%;
+    border: 0;
+    border-radius: 16px;
+    background: var(--well);
+    box-shadow: var(--well-shade);
+  }
+  .settings-pane .settings-switch::after {
+    top: calc(50% - 31px / 2 + 2px);
+    left: calc(50% - 51px / 2 + 2px);
+    width: 27px;
+    height: 27px;
+    aspect-ratio: auto;
+    background: color-mix(in srgb, var(--text) 60%, var(--canvas));
+    box-shadow: 0 1px 3px var(--contact-shadow);
+  }
+  .settings-pane .settings-switch:checked { border: 0; background: transparent; box-shadow: none; }
+  .settings-pane .settings-switch:checked::before { border: 0; background: color-mix(in srgb, var(--text) 82%, var(--canvas)); box-shadow: inset 0 1px 2px #00000040; }
   .settings-pane .settings-switch:checked::after { translate: 20px 0; background: var(--leaf); box-shadow: 0 1px 3px #00000055, inset 0 1px 0 var(--lit-edge); }
-  .settings-pane .settings-switch:disabled { opacity: .4; }
+  .settings-pane .settings-switch:disabled { opacity: var(--disabled-opacity); }
 
   /* Today's sections: name, role and reason at the left, the switch, then the 44 pt handle at the trailing edge. */
   .settings-group .today-sections { margin: 0; border-top: 0; }
@@ -196,7 +270,7 @@
   .today-section-handle { grid-column: 3; grid-row: 1; justify-self: end; width: 44px; height: 44px; margin: -6px -8px -6px 0; border-radius: 22px; touch-action: none; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
   .today-section-handle:active { background: var(--ink-wash); }
   .today-section-bars { display: block; width: 18px; height: 2px; border-radius: 1px; background: var(--faint); box-shadow: 0 -6px 0 var(--faint), 0 6px 0 var(--faint); }
-  .today-section .today-section-name, .today-section .today-section-name:focus { display: block; width: 100%; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; field-sizing: fixed; font: var(--weight-display-heading) 17px/22px var(--font-display); font-optical-sizing: auto; text-overflow: ellipsis; }
+  .today-section .today-section-name, .today-section .today-section-name:focus { display: block; width: 100%; height: auto; min-width: 0; margin: 0; padding: 0; border: 0; border-radius: 0; field-sizing: fixed; font: var(--weight-display-heading) 17px/22px var(--font-display); font-optical-sizing: auto; text-overflow: ellipsis; }
   .today-section .today-section-role { display: block; margin-top: 2px; color: var(--muted); font: var(--weight-body) 13px/18px var(--font-body); }
   .today-section-part { white-space: nowrap; }
   .today-section-lock { display: block; color: var(--faint); }

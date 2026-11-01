@@ -1,13 +1,13 @@
 import { For, Match, Show, Switch, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import type { SyncState } from '../api/types';
+import type { PairedDevice, SyncState } from '../api/types';
 import { api } from '../api/client';
 import { DEMO, MOBILE } from '../demo/mode';
 import type { NotebookClient } from '../document/contract';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
-import { RELEASES, downloadPage, syncHealth, type SyncHealth } from './health';
+import { RELEASES, capital, downloadPage, syncHealth, type SyncHealth } from './health';
 import { SETUP_SEEN_KEY, SyncSetup } from './SyncSetup';
 import { ago, hubDevices, plural, replica, sync, syncConflicts } from './state';
 import './sync.css';
@@ -54,6 +54,8 @@ export function SyncCover(props: { onOpen(anchor: HTMLElement): void; open: bool
 /** Kept outside the hidden rail so first-run setup and cover sheets still mount on a phone. */
 export function SyncLifecycle(props: { notebook: NotebookClient; anchor: HTMLElement | null; onClose(): void; onDevices(deviceId: string | null): void }) {
   const [setup, setSetup] = createSignal(false);
+  // Pair again is mounted here, not inside the summary, so it replaces the summary instead of stacking on it.
+  const [again, setAgain] = createSignal<{ url: string; opener: HTMLElement | null } | null>(null);
   onMount(() => {
     if (DEMO) return;
     void sync.refresh().then(state => {
@@ -62,22 +64,27 @@ export function SyncLifecycle(props: { notebook: NotebookClient; anchor: HTMLEle
   });
   createEffect(on(() => props.notebook.changeSequence(), () => { if (!DEMO) void sync.refresh(); }, { defer: true }));
   return <>
-    <Show when={props.anchor && currentHealth()}>{health => <SyncSummary health={health()} anchor={props.anchor!} onClose={props.onClose} onDevices={() => { const id = health().deviceId; props.onClose(); props.onDevices(id); }} />}</Show>
+    <Show when={props.anchor && currentHealth()}>{health => <SyncSummary health={health()} anchor={props.anchor!} onClose={props.onClose} onDevices={() => { const id = health().deviceId; props.onClose(); props.onDevices(id); }}
+      onPairAgain={() => { const opener = props.anchor; const url = replica()?.hub_url; props.onClose(); if (url) setAgain({ url, opener }); }} />}</Show>
     <Show when={setup()}><SyncSetup onDone={() => setSetup(false)} /></Show>
+    {/* Keyed: Popup reads returnFocus while it closes, after `again` is null, when an unkeyed accessor would throw and strand the popup. */}
+    <Show when={again()} keyed>{target => <SyncSetup again={{ url: target.url }} returnFocus={() => target.opener} onDone={() => setAgain(null)} />}</Show>
   </>;
 }
 
-export function SyncExplanation(props: { health: SyncHealth }) {
+/** `where` says which surface prints it: the summary points at Settings, a Settings row points at the review list under it. */
+export function SyncExplanation(props: { health: SyncHealth; where?: 'summary' | 'settings' }) {
   const value = () => props.health;
   const device = () => value().role === 'replica' ? `this ${value().deviceName}` : value().deviceName;
   return <Switch>
     <Match when={value().kind === 'version'}>
-      <p><Show when={value().deviceVersion && value().hubVersion} fallback={<>The devices run different versions of Tessera.</>}>
-        {value().deviceName} runs <span class="sync-mono">schema {value().deviceVersion?.schema}</span> and {value().hubName} <span class="sync-mono">schema {value().hubVersion?.schema}</span>.{' '}
-        <Show when={value().behind}>{side => <>{side() === 'hub' ? value().hubName : value().deviceName} is behind.</>}</Show>
-      </Show></p>
-      <p>Update {value().behind === 'hub' ? value().hubName : value().behind === 'replica' ? value().deviceName : 'both devices'}, then reopen Tessera.</p>
-      <Show when={value().pending > 0}><p class="sync-waiting">{plural(value().pending, 'change')} {value().pending === 1 ? 'stays' : 'stay'} on {device()} and {value().pending === 1 ? 'sends' : 'send'} after the update.</p></Show>
+      <Show when={value().behind && value().deviceVersion && value().hubVersion} fallback={<p>The devices run different versions of Tessera.</p>}>
+        <p>{capital(value().behind === 'hub' ? value().hubName : value().deviceName)} is on <span class="sync-mono">schema {(value().behind === 'hub' ? value().hubVersion : value().deviceVersion)?.schema}</span>; {value().behind === 'hub' ? value().deviceName : value().hubName} is on <span class="sync-mono">schema {(value().behind === 'hub' ? value().deviceVersion : value().hubVersion)?.schema}</span>.</p>
+      </Show>
+      <p>
+        <Show when={value().behind} fallback={<>Update both devices, then reopen Tessera.</>}>{side => <>Update {value().deviceVersion && value().hubVersion ? 'it' : side() === 'hub' ? value().hubName : value().deviceName}, then reopen Tessera.</>}</Show>
+      </p>
+      <Show when={value().pending > 0}><p class="sync-waiting">{plural(value().pending, 'change')} {value().pending === 1 ? 'stays' : 'stay'} on this device and {value().pending === 1 ? 'sends' : 'send'} after the update.</p></Show>
     </Match>
     <Match when={value().kind === 'unreachable'}>
       <Show when={value().pending > 0}><p>{plural(value().pending, 'change')} waiting.<Show when={replica()?.synced_at}>{at => <> Last successful sync {ago(at(), sync.now())}.</>}</Show></p></Show>
@@ -86,23 +93,24 @@ export function SyncExplanation(props: { health: SyncHealth }) {
       <p class="sync-waiting">Your changes stay here. Tessera keeps trying.</p>
     </Match>
     <Match when={value().kind === 'review'}>
-      <div class="sync-review-counts">
+      <Show when={props.where !== 'settings'}><div class="sync-review-counts">
         <Show when={value().kept}><p><span class="sync-rubric sync-mono">{value().kept}</span> {value().kept === 1 ? 'version kept beside its atom' : 'versions kept beside their atoms'}</p></Show>
         <Show when={value().rejected}><p><span class="sync-rubric sync-mono">{value().rejected}</span> {value().rejected === 1 ? 'rejected change' : 'rejected changes'} the Mac could not apply</p></Show>
-      </div>
-      <p><Show when={value().kept}>The kept versions are still beside their atoms. </Show><Show when={value().rejected}>Rejected changes are available in Settings.</Show></p><p class="sync-waiting">Review when convenient. Nothing has been discarded.</p>
+      </div></Show>
+      <p><Show when={value().kept}>The kept versions are still beside their atoms. </Show><Show when={value().rejected}>{props.where === 'settings' ? 'Rejected changes are listed under Needs review below.' : 'Rejected changes are available in Settings.'}</Show></p><p class="sync-waiting">Review when convenient. Nothing has been discarded.</p>
     </Match>
-    <Match when={value().kind === 'forgotten'}><p>{value().hubName} no longer accepts this device's key. Pair it again to sync.</p><p class="sync-waiting">Changes waiting here stay on this device.</p></Match>
-    <Match when={value().kind === 'retired'}><p>{value().role === 'hub' ? `${value().deviceName} needs to download the workshop again.` : `${value().hubName} stopped keeping changes for this device after 30 days away.`}</p><p class="sync-waiting">Pins and downloaded books stay.</p></Match>
+    <Match when={value().kind === 'forgotten'}><p>{capital(value().hubName)} no longer accepts this device’s key. Pair it again to sync.</p><p class="sync-waiting">Changes waiting here stay on this device.</p></Match>
+    <Match when={value().kind === 'retired'}><p>{value().role === 'hub' ? `${value().deviceName} needs to download the workshop again.` : `${capital(value().hubName)} stopped keeping changes for this device after 30 days away.`}</p><p class="sync-waiting">Pins and downloaded books stay.</p></Match>
     <Match when={value().kind === 'sending'}><p>{value().pending ? `${plural(value().pending, 'change')} waiting. Tessera is sending them.` : 'Tessera is getting the latest changes.'}</p></Match>
     <Match when={value().kind === 'synced'}><p>{value().role === 'hub' ? 'Your paired devices have no reported sync problems.' : 'No changes waiting.'}<Show when={value().role === 'replica' && replica()?.synced_at}>{at => <> Synced {ago(at() as number, sync.now())}.</>}</Show></p></Match>
   </Switch>;
 }
 
 /** The same fixing action in the short summary and the expanded device row. */
-export function SyncFix(props: { health: SyncHealth; onError(message: string): void }) {
+export function SyncFix(props: { health: SyncHealth; onError(message: string): void; /** Hands Pair again to a caller that outlives this block, such as the summary sheet. */ onPairAgain?(): void }) {
   const [running, setRunning] = createSignal(false);
   const [pairing, setPairing] = createSignal(false);
+  let again: HTMLButtonElement | undefined;
   const value = () => props.health;
   const download = () => downloadPage(value().role === 'replica' ? replica()?.hub_url : hubDevices.state()?.sharing.url);
   // The download page offers the Android app; an iPhone updates from a build of its own.
@@ -124,27 +132,38 @@ export function SyncFix(props: { health: SyncHealth; onError(message: string): v
     <Show when={value().role === 'replica' && ['unreachable', 'sending', 'synced'].includes(value().kind)}>
       <Button class="bordered" disabled={running() || replica()?.syncing} onClick={() => { void act(api.runSync); }}>{running() ? 'Trying…' : value().kind === 'unreachable' ? 'Try again' : 'Sync now'}</Button>
     </Show>
-    <Show when={value().role === 'replica' && value().kind === 'forgotten'}><Button class="bordered" onClick={() => setPairing(true)}>Pair again</Button></Show>
+    <Show when={value().role === 'replica' && value().kind === 'forgotten'}><Button ref={again} class="bordered" onClick={() => { if (props.onPairAgain) props.onPairAgain(); else setPairing(true); }}>Pair again</Button></Show>
     <Show when={value().role === 'replica' && value().kind === 'retired'}><Button class="bordered" disabled={running()} onClick={() => { void act(api.reclone); }}>{running() ? 'Downloading…' : 'Download the workshop again'}</Button></Show>
-    <Show when={pairing()}><SyncSetup again={{ url: replica()!.hub_url }} onDone={() => setPairing(false)} /></Show>
+    <Show when={pairing()}><SyncSetup again={{ url: replica()!.hub_url }} returnFocus={() => again ?? null} onDone={() => setPairing(false)} /></Show>
   </>;
 }
 
-function SyncSummary(props: { health: SyncHealth; anchor: HTMLElement; onClose(): void; onDevices(): void }) {
+/** A paired device the person has to act on comes before the ones that are well. */
+const needsPerson = (device: PairedDevice) => device.state === 'retired' || !!device.refused;
+const SUMMARY_DEVICES = 3;
+
+function SyncSummary(props: { health: SyncHealth; anchor: HTMLElement; onClose(): void; onDevices(): void; onPairAgain(): void }) {
   const [error, setError] = createSignal('');
   const touch = window.matchMedia('(pointer: coarse)').matches;
+  const devices = () => { const all = hubDevices.state()?.devices ?? []; return [...all.filter(needsPerson), ...all.filter(device => !needsPerson(device))]; };
+  const status = (device: PairedDevice) => device.refused ? `Refused ${ago(device.refused.since, sync.now())}` : device.state === 'retired' ? 'Retired'
+    : device.last_seen_at ? `Synced ${ago(device.last_seen_at, sync.now())}` : 'Not synced yet';
   return <>
     <Show when={touch}><Portal><div class="sync-summary-shade" aria-hidden="true" /></Portal></Show>
     <Popup anchor={props.anchor} placement={touch ? 'sheet' : 'anchor'} width={380} label="Sync summary" class={`sync-summary ${touch ? 'sync-summary-touch' : 'sync-summary-pointer'}`} onDismiss={props.onClose}>
     <div class="sync-summary-inner" data-tone={props.health.tone}>
-      <header class="sync-sheet-head"><div><p class="sync-register">{props.health.role === 'hub' ? `${props.health.hubName} · devices` : `${props.health.deviceName} → ${props.health.hubName}`}</p><h2>{props.health.title}</h2></div><Button icon="close" label="Close sync summary" onClick={props.onClose} /></header>
-      <div class="sync-explanation"><SyncExplanation health={props.health} /></div>
-      <Show when={props.health.role === 'hub'}><For each={hubDevices.state()?.devices.slice(0, 3)}>{device => <div class="sync-summary-device" data-tone={device.refused ? 'rubric' : 'muted'}>
-        <span class="sync-mono">{device.name}{device.refused ? ` · refused since ${new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(device.refused.since)}` : ''}</span>
-        <span class="sync-mono">{device.refused ? plural(device.refused.attempts, 'attempt') : device.last_seen_at ? `Synced ${ago(device.last_seen_at, sync.now())}` : 'Not synced yet'}</span>
-      </div>}</For></Show>
+      {/* A sheet carries its own Close; the anchored summary needs this one. */}
+      <header class="sync-sheet-head"><div><p class="sync-register">{props.health.role === 'hub' ? `${props.health.hubName} · devices` : `${props.health.deviceName} → ${props.health.hubName}`}</p><h2>{props.health.title}</h2></div><Show when={!touch}><Button icon="close" label="Close sync summary" onClick={props.onClose} /></Show></header>
+      <div class="sync-explanation"><SyncExplanation health={props.health} where="summary" /></div>
+      <Show when={props.health.role === 'hub'}>
+        <For each={devices().slice(0, SUMMARY_DEVICES)}>{device => <div class="sync-summary-device" data-tone={needsPerson(device) ? 'rubric' : 'muted'}>
+          <span class="sync-mono" title={device.name}>{device.name}</span>
+          <span class="sync-mono">{status(device)}</span>
+        </div>}</For>
+        <Show when={devices().length > SUMMARY_DEVICES}><p class="sync-summary-more sync-mono">+{devices().length - SUMMARY_DEVICES} more in Settings › Devices</p></Show>
+      </Show>
       <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
-      <Show when={props.health.kind !== 'review'}><div class="sync-summary-action"><SyncFix health={props.health} onError={setError} /></div></Show>
+      <Show when={props.health.kind !== 'review'}><div class="sync-summary-action"><SyncFix health={props.health} onError={setError} onPairAgain={props.onPairAgain} /></div></Show>
       <button type="button" class="sync-details" onClick={props.onDevices}><span>Settings › Devices<small>{props.health.kind === 'review' ? 'Kept versions and rejected changes' : props.health.kind === 'unreachable' ? 'Connection and recent attempts' : 'Versions, attempts and devices'}</small></span><Icon name="right" /></button>
     </div>
     </Popup>

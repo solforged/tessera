@@ -1,4 +1,4 @@
-import { Show, createSignal } from 'solid-js';
+import { Match, Show, Switch, createSignal } from 'solid-js';
 import { api, ApiError } from '../api/client';
 import { MOBILE } from '../demo/mode';
 import { Button } from '../ui/Button';
@@ -26,8 +26,7 @@ const failure = (reason: unknown) => {
  * with the same Mac once more; only the first choice is offered, with the Mac's address filled in. On a phone it is a sheet
  * of two leaves, Type code goes to a form with a way back, and joining is a sheet that cannot be dismissed.
  */
-export function SyncSetup(props: { again?: { url: string }; onDone(): void }) {
-  const phone = isPhone();
+export function SyncSetup(props: { again?: { url: string }; /** Where focus lands when the sheet closes; the opener, when a press did not focus it. */ returnFocus?: () => HTMLElement | null; onDone(): void }) {
   const [step, setStep] = createSignal<'choose' | 'type' | 'joining'>('choose');
   const [address, setAddress] = createSignal(props.again?.url.replace(/^https:\/\//, '') ?? '');
   const [code, setCode] = createSignal('');
@@ -54,23 +53,22 @@ export function SyncSetup(props: { again?: { url: string }; onDone(): void }) {
     } catch (reason) { setError(failure(reason)); }
   };
   const back = () => { setStep('choose'); setError(''); };
-  const touch = window.matchMedia('(pointer: coarse)').matches;
   const device = MOBILE ? 'phone' : 'device';
   const form = <form class="sync-form" onSubmit={event => { event.preventDefault(); void join({ url: normalizeHubUrl(address()), code: code() }); }}
     ref={element => queueMicrotask(() => (address() ? codeInput : element.querySelector('input'))?.focus())}>
     <label><span>Mac address</span><input class="input sync-address" type="text" inputMode="url" autocapitalize="off" autocomplete="off" spellcheck={false} placeholder="mac-name.tailnet.ts.net:4319" value={address()} onInput={event => setAddress(event.currentTarget.value)} /></label>
     <label><span>Code</span><input ref={codeInput} class="input sync-code" type="text" autocapitalize="characters" autocomplete="one-time-code" spellcheck={false} placeholder="4F7K-92QD" value={code()} onInput={event => setCode(event.currentTarget.value)} /></label>
-    <Show when={phone}><p class="sync-hint">The code expires a few minutes after the Mac makes it.</p></Show>
+    <Show when={isPhone()}><p class="sync-hint">The code expires a few minutes after the Mac makes it.</p></Show>
     <div class="sync-actions">
-      <Button kind="stamp" class="sync-primary" size={phone ? 'lg' : undefined} type="submit" disabled={!address().trim() || code().replace(/[\s-]/g, '').length < 8}>Pair</Button>
-      <Show when={!phone}><Button onClick={back}>Back</Button></Show>
+      <Button kind="stamp" class="sync-primary" size={isPhone() ? 'lg' : undefined} type="submit" disabled={!address().trim() || code().replace(/[\s-]/g, '').length < 8}>Pair</Button>
+      <Show when={!isPhone()}><Button onClick={back}>Back</Button></Show>
     </div>
   </form>;
-  return <Popup anchor={document.body} placement={touch ? 'sheet' : 'top'} width={560} label={props.again ? 'Pair again' : 'Set up this device'} class={`sync-setup${step() === 'joining' ? ' is-joining' : ''}${phone && step() === 'type' ? ' is-typing' : ''}`}
-    title={phone && step() === 'type' ? 'Pair with your Mac' : undefined} onDismiss={step() === 'joining' ? () => undefined : finish}>
-    <Show when={phone && step() === 'type'}><Button class="sync-back" icon="left" label="Back" onClick={back} /></Show>
+  const sheet = () => <Popup anchor={document.body} placement={isPhone() ? 'sheet' : 'top'} width={560} label={props.again ? 'Pair again' : 'Set up this device'} class={`sync-setup${step() === 'joining' ? ' is-joining' : ''}${isPhone() && step() === 'type' ? ' is-typing' : ''}`}
+    returnFocus={props.returnFocus} title={isPhone() && step() === 'type' ? 'Pair with your Mac' : undefined} onDismiss={step() === 'joining' ? () => undefined : finish}>
+    <Show when={isPhone() && step() === 'type'}><Button class="sync-back" icon="left" label="Back" onClick={back} /></Show>
     <Show when={step() === 'joining'} fallback={<>
-      <Show when={!(phone && step() === 'type')}><header class="sync-setup-head">
+      <Show when={!(isPhone() && step() === 'type')}><header class="sync-setup-head">
         <p class="sync-register">Workshop · {MOBILE ? 'this phone' : 'this device'}</p>
         <h2>{props.again ? 'Pair with the Mac again' : 'Where is your workshop?'}</h2>
         <p>{props.again
@@ -78,9 +76,9 @@ export function SyncSetup(props: { again?: { url: string }; onDone(): void }) {
           : `Choose how this ${device} will use Tessera.`}</p>
       </header></Show>
       <Show when={error()}><p class="error" role="alert">{error()}</p></Show>
-      <Show when={phone && step() === 'type'} fallback={<>
+      <Show when={isPhone() && step() === 'type'} fallback={<>
         <section class="sync-choice">
-          <h3><Show when={!phone}><span class="section-number">01</span></Show>{props.again ? 'Pair with a new code' : 'Use my Mac’s workshop'}</h3>
+          <h3><Show when={!isPhone()}><span class="section-number">01</span></Show>{props.again ? 'Pair with a new code' : 'Use my Mac’s workshop'}</h3>
           <p>{props.again
             ? 'Make a code on the Mac in Settings › Devices › Pair a phone.'
             : `A copy of your Mac’s workshop. This ${device} sends its changes to the Mac and gets the Mac’s changes. Anything already here is added to the Mac’s workshop first.`}</p>
@@ -94,7 +92,7 @@ export function SyncSetup(props: { again?: { url: string }; onDone(): void }) {
         </section>
         <Show when={!props.again}>
           <section class="sync-choice">
-            <h3><Show when={!phone}><span class="section-number">02</span></Show>Start a workshop on this {device}</h3>
+            <h3><Show when={!isPhone()}><span class="section-number">02</span></Show>Start a workshop on this {device}</h3>
             <p>A separate workshop. It does not sync with your Mac.</p>
             <div class="sync-actions"><Button kind="tint" onClick={finish}>Start a workshop</Button></div>
           </section>
@@ -120,4 +118,6 @@ export function SyncSetup(props: { again?: { url: string }; onDone(): void }) {
       <p class="sync-hint sync-setup-foot">Keep Tessera open. Anything already on this {device} is added to the Mac’s workshop first.</p>
     </Show>
   </Popup>;
+  // Crossing the breakpoint mounts the sheet afresh in the other placement; the typed address, code and step live above it.
+  return <Switch><Match when={isPhone()}>{sheet()}</Match><Match when={!isPhone()}>{sheet()}</Match></Switch>;
 }
