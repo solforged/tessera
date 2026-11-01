@@ -203,7 +203,7 @@ Built-in tag pages use their canonical names, such as `Task` and `Person`, when 
 
 Undoing a first-use collection creation keeps the system tag page. It removes the created collection and restores the field register and templates.
 
-A field definition is a block under the live page titled `Fields`, the system page every workshop has. That page cannot be deleted, and renaming it changes only its case. A definition is shaped as follows:
+A field definition is a block under the live page titled `Fields`, the system page every workshop has. That page cannot be deleted, and renaming it changes only its case. A workshop that renamed it before that rule gets the name back on open; an untouched empty `Fields` page an earlier open made beside it is removed. A definition is shaped as follows:
 
 - Its name is the block's text.
 - Its kind is text, number, date, span, checkbox, choice, relation, URL or identifier; the default is text. Relation is stored as `instance`.

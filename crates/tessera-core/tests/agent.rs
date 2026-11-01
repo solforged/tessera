@@ -1737,7 +1737,7 @@ fn a_shorthand_never_moves_an_existing_entry_to_another_field() {
     let before = outline(&nb, &id(1));
     refused(
         nb.agent_edit(&edit(&id(2), "Mood:: Porto")),
-        "this atom is the Where entry and cannot become a Mood entry",
+        "this atom is the Where entry and cannot change to Mood",
     );
     assert_eq!(outline(&nb, &id(1)), before);
     assert!(

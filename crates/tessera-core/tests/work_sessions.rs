@@ -272,7 +272,7 @@ fn stale_session_revision_or_owner_rolls_back_the_entire_batch() {
         ]))
         .unwrap_err();
     assert!(
-        matches!(error, Error::Conflict { op_index: 1, id: target, expected: 1, found: Some(2) } if target == id(100))
+        matches!(error, Error::Conflict { op_index: 1, what: "work session", id: target, expected: 1, found: Some(2) } if target == id(100))
     );
     assert_eq!(nb.block(&id(13)).unwrap(), unchanged_block);
     assert_eq!(nb.active_work_session().unwrap(), Some(current.clone()));
@@ -288,7 +288,7 @@ fn stale_session_revision_or_owner_rolls_back_the_entire_batch() {
         }]))
         .unwrap_err();
     assert!(
-        matches!(error, Error::Conflict { op_index: 0, id: target, expected: 2, found: None } if target == id(100))
+        matches!(error, Error::Conflict { op_index: 0, what: "work session", id: target, expected: 2, found: None } if target == id(100))
     );
 
     let error = nb
@@ -301,7 +301,7 @@ fn stale_session_revision_or_owner_rolls_back_the_entire_batch() {
         }]))
         .unwrap_err();
     assert!(
-        matches!(error, Error::Conflict { op_index: 0, id: target, expected: 1, found: None } if target == id(999))
+        matches!(error, Error::Conflict { op_index: 0, what: "work session", id: target, expected: 1, found: None } if target == id(999))
     );
 
     let error = nb
@@ -314,7 +314,7 @@ fn stale_session_revision_or_owner_rolls_back_the_entire_batch() {
         }]))
         .unwrap_err();
     assert!(
-        matches!(error, Error::Conflict { op_index: 0, id: target, expected, found: Some(actual) }
+        matches!(error, Error::Conflict { op_index: 0, what: "atom", id: target, expected, found: Some(actual) }
         if target == id(11) && expected == old_block_revision && actual == old_block_revision + 1)
     );
     assert_eq!(session(&nb, 11, 100), current);

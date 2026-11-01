@@ -15,18 +15,56 @@ use crate::{
 };
 
 pub(crate) fn ensure_page(conn: &Connection) -> Result<()> {
-    let exists: bool = conn.query_row(
-        "SELECT EXISTS(SELECT 1 FROM blocks WHERE kind = 'page' AND title_key = 'fields' AND deletion_id IS NULL)",
-        [], |row| row.get(0),
-    )?;
-    if exists {
+    let named: Option<String> = conn
+        .query_row(
+            "SELECT id FROM blocks WHERE kind = 'page' AND title_key = 'fields' AND deletion_id IS NULL",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+    // Before renaming Fields was refused, a workshop could rename its register, and opening then made an
+    // empty Fields page beside it. The page that holds the field definitions takes the name back, and an
+    // untouched empty Fields page made that way gives it up, so the definitions keep their register.
+    let register: Option<String> = conn
+        .query_row(
+            "SELECT p.id FROM fields f
+             JOIN blocks d ON d.id = f.block_id AND d.deletion_id IS NULL
+             JOIN blocks p ON p.id = d.parent_id AND p.kind = 'page' AND p.deletion_id IS NULL
+             GROUP BY p.id ORDER BY COUNT(*) DESC, p.id LIMIT 1",
+            [],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let now = crate::notebook::now_ms();
+    if let Some(register) = register.filter(|register| named.as_ref() != Some(register)) {
+        let named_is_bare = match &named {
+            None => true,
+            Some(named) => {
+                conn.execute(
+                    "DELETE FROM blocks WHERE id = ?1 AND revision = 1
+                     AND NOT EXISTS(SELECT 1 FROM blocks c WHERE c.page_id = ?1 AND c.id <> ?1)
+                     AND NOT EXISTS(SELECT 1 FROM links l WHERE l.target_id = ?1)",
+                    [named],
+                )? > 0
+            }
+        };
+        if named_is_bare {
+            conn.execute(
+                "UPDATE blocks SET text = 'Fields', title_key = 'fields', revision = revision + 1, updated_at = ?2
+                 WHERE id = ?1",
+                params![register, now],
+            )?;
+        }
+        return Ok(());
+    }
+    if named.is_some() {
         return Ok(());
     }
     let id = crate::notebook::new_ulid().to_string();
     conn.execute(
         "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
          VALUES (?1, 'page', ?1, 1024, 'Fields', 'fields', 1, ?2, ?2)",
-        params![id, crate::notebook::now_ms()],
+        params![id, now],
     )?;
     Ok(())
 }

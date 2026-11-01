@@ -214,10 +214,17 @@ fn deck_revision(conn: &Connection, id: &str) -> Result<Option<i64>> {
         .optional()?)
 }
 
-fn check_revision(id: &str, expected: i64, found: Option<i64>, index: usize) -> Result<()> {
+fn check_revision(
+    what: &'static str,
+    id: &str,
+    expected: i64,
+    found: Option<i64>,
+    index: usize,
+) -> Result<()> {
     if found != Some(expected) {
         return Err(Error::Conflict {
             op_index: index,
+            what,
             id: id.to_owned(),
             expected,
             found,
@@ -265,6 +272,7 @@ fn checked_card(conn: &Connection, id: &str, expected: i64, index: usize) -> Res
         Err(Error::NotFound { .. }) => {
             return Err(Error::Conflict {
                 op_index: index,
+                what: "card",
                 id: id.to_owned(),
                 expected,
                 found: None,
@@ -272,7 +280,7 @@ fn checked_card(conn: &Connection, id: &str, expected: i64, index: usize) -> Res
         }
         Err(error) => return Err(error),
     };
-    check_revision(id, expected, Some(card.revision), index)?;
+    check_revision("card", id, expected, Some(card.revision), index)?;
     Ok(card)
 }
 
@@ -544,6 +552,7 @@ pub(crate) fn apply(
         } => {
             let current = session(conn, id)?;
             check_revision(
+                "review session",
                 id,
                 *base_revision,
                 current.as_ref().map(|s| s.revision),
@@ -670,6 +679,7 @@ pub(crate) fn apply(
                     .ok_or_else(|| validation("undo requires the review session revision"))?;
                 let current = session(conn, session_id)?;
                 check_revision(
+                    "review session",
                     session_id,
                     expected,
                     current.as_ref().map(|s| s.revision),
@@ -806,6 +816,7 @@ pub(crate) fn apply(
             if found != *base_revision {
                 return Err(Error::Conflict {
                     op_index: index,
+                    what: "deck",
                     id: id.clone(),
                     expected: base_revision.unwrap_or(0),
                     found,
@@ -837,7 +848,7 @@ pub(crate) fn apply(
         }
         Operation::DeleteDeck { id, base_revision } => {
             let found = deck_revision(conn, id)?;
-            check_revision(id, *base_revision, found, index)?;
+            check_revision("deck", id, *base_revision, found, index)?;
             let revision = next_revision(*base_revision)?;
             conn.execute("DELETE FROM decks WHERE id = ?1", [id])?;
             changes.decks.push(Revision {

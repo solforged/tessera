@@ -82,6 +82,7 @@ impl Notebook {
                 ref id,
                 expected,
                 found: Some(found),
+                ..
             } = error
                 && attempts > 0
                 && rebase(&mut rewrite.batch, op_index, id, expected, found)

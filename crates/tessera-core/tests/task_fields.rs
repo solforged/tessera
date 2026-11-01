@@ -470,6 +470,34 @@ fn task_field_names_formats_and_global_deletion_are_protected() {
     ] {
         let id = field(&nb, name);
         let revision = nb.block(&id).unwrap().revision;
+        // Under another definition or on another page a definition stops being one.
+        let elsewhere = [
+            field(
+                &nb,
+                if name == "status" {
+                    "deadline"
+                } else {
+                    "status"
+                },
+            ),
+            ulid::Ulid::from(1u128).to_string(),
+        ];
+        for parent_id in elsewhere {
+            assert!(
+                nb.apply(&Batch {
+                    actor: Actor::Person,
+                    reason: None,
+                    idempotency_key: None,
+                    operations: vec![Operation::Move {
+                        id: id.clone(),
+                        base_revision: revision,
+                        parent_id,
+                        after: None,
+                    }]
+                })
+                .is_err()
+            );
+        }
         for operation in [
             Operation::EditText {
                 id: id.clone(),
@@ -522,4 +550,39 @@ fn empty_workshop_defers_task_seed_and_recreated_fields_have_fresh_ids() {
     let nb = Notebook::open(directory.path()).unwrap();
     assert_ne!(field(&nb, "status"), old_status);
     assert!(nb.capabilities(&id(2)).unwrap().task.is_some());
+}
+
+#[test]
+fn a_register_renamed_before_the_rule_takes_back_its_name_on_open() {
+    // Workshops from before Fields could not be renamed may have renamed it, and an earlier open may
+    // then have made an empty Fields page beside it.
+    for empty_beside in [false, true] {
+        let (directory, nb) = fixture();
+        let register = nb.fields().unwrap().page_id;
+        let status = field(&nb, "status");
+        drop(nb);
+        let db = rusqlite::Connection::open(directory.path().join(DATABASE_FILE)).unwrap();
+        db.execute(
+            "UPDATE blocks SET text = 'Field register', title_key = 'field register' WHERE id = ?1",
+            [&register],
+        )
+        .unwrap();
+        if empty_beside {
+            db.execute(
+                "INSERT INTO blocks(id, kind, page_id, ordinal, text, title_key, revision, created_at, updated_at)
+                 VALUES (?1, 'page', ?1, 1024, 'Fields', 'fields', 1, 0, 0)",
+                [id(9001)],
+            )
+            .unwrap();
+        }
+        drop(db);
+        let nb = Notebook::open(directory.path()).unwrap();
+        assert_eq!(nb.fields().unwrap().page_id, register);
+        assert_eq!(field(&nb, "status"), status);
+        assert!(nb.capabilities(&id(2)).unwrap().task.is_some());
+        assert!(nb.page_by_title("Field register").unwrap().is_none());
+        if empty_beside {
+            assert!(nb.block(&id(9001)).is_err());
+        }
+    }
 }

@@ -1143,6 +1143,7 @@ impl Engine<'_, '_> {
         if found != Some(expected) {
             return Err(Error::Conflict {
                 op_index: index,
+                what: "atom",
                 id: id.to_owned(),
                 expected,
                 found,
@@ -1289,9 +1290,8 @@ impl Engine<'_, '_> {
     fn delete(&mut self, id: &str) -> Result<()> {
         let current = self.live(id)?;
         crate::work_store::guard_hide_subtree(self.tx, id)?;
-        if crate::fields::is_definition(self.tx, id)?
-            && crate::built_in::task_field(&current.block.text).is_some()
-        {
+        // Definitions are children of the register, which cannot be deleted, so only the block itself can be one.
+        if self.built_in_task_definition(id)? {
             return Err(validation("Built-in task fields cannot be deleted."));
         }
         if current.block.kind == BlockKind::Page {
@@ -1534,6 +1534,14 @@ impl Engine<'_, '_> {
             return Ok(());
         }
         crate::work_store::guard_move(self.tx, &current.block.id, parent_id)?;
+        // Under anything but the register a definition stops being one, which would lose the field.
+        if self.built_in_task_definition(&current.block.id)?
+            && crate::fields::page_id(self.tx)?.as_deref() != Some(parent_id)
+        {
+            return Err(validation(
+                "Built-in task fields stay on the Fields page; reorder them there.",
+            ));
+        }
         let ordinal = self.ordinal(parent_id, after, Some(&current.block.id))?;
         self.restructured_pages
             .insert(current.block.page_id.clone());
@@ -1555,6 +1563,18 @@ impl Engine<'_, '_> {
             }
         }
         Ok(())
+    }
+
+    fn built_in_task_definition(&self, id: &str) -> Result<bool> {
+        if !crate::fields::is_definition(self.tx, id)? {
+            return Ok(false);
+        }
+        let text: String =
+            self.tx
+                .query_row("SELECT text FROM blocks WHERE id = ?1", [id], |row| {
+                    row.get(0)
+                })?;
+        Ok(crate::built_in::task_field(&text).is_some())
     }
 
     fn merge(&mut self, source: &Stored, destination: &Stored) -> Result<()> {
@@ -2376,6 +2396,7 @@ impl Engine<'_, '_> {
                 if found != *base_revision {
                     return Err(Error::Conflict {
                         op_index: index,
+                        what: "view",
                         id: id.clone(),
                         expected: base_revision.unwrap_or(0),
                         found,
@@ -2400,6 +2421,7 @@ impl Engine<'_, '_> {
                 if found != *base_revision {
                     return Err(Error::Conflict {
                         op_index: index,
+                        what: "view",
                         id: id.clone(),
                         expected: *base_revision,
                         found: Some(found),
@@ -2423,6 +2445,7 @@ impl Engine<'_, '_> {
                 if found != *base_revision {
                     return Err(Error::Conflict {
                         op_index: index,
+                        what: "setting",
                         id: key.clone(),
                         expected: base_revision.unwrap_or(0),
                         found,

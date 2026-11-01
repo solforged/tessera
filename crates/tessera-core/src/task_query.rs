@@ -344,6 +344,7 @@ pub(crate) fn apply_view(
     if found != expected {
         return Err(Error::Conflict {
             op_index: index,
+            what: "task view",
             id: id.clone(),
             expected: expected.unwrap_or(0),
             found,

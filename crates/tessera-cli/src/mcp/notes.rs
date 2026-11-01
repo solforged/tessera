@@ -384,9 +384,11 @@ async fn card_report(api: &Api, cards: &[CardUnit]) -> anyhow::Result<String> {
 
 /// ` …` for a committed write whose cards could not be read back.
 fn unread(error: &anyhow::Error) -> String {
+    let error = format!("{error:#}");
     format!(
-        " The change is saved, but its cards could not be read: {error:#}. Do not repeat the \
-         call; tessera_read_page shows the cards."
+        " The change is saved; only reading its cards back failed: {}. Do not repeat the call; \
+         tessera_read_page shows the cards.",
+        error.trim_end_matches('.')
     )
 }
 
