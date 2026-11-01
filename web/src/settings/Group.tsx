@@ -9,8 +9,7 @@ import { isPhone } from '../ui/phone';
  * A group that only the phone splits off (Captures, the tiles) passes `label` and `footnote` instead.
  */
 export function Group(props: { heading?: JSX.Element; note?: JSX.Element; label?: JSX.Element; footnote?: JSX.Element; children: JSX.Element }) {
-  const phone = isPhone();
-  return <Show when={phone} fallback={<>{props.heading}<Show when={props.note}><p class="settings-empty">{props.note}</p></Show>{props.children}</>}>
+  return <Show when={isPhone()} fallback={<>{props.heading}<Show when={props.note}><p class="settings-empty">{props.note}</p></Show>{props.children}</>}>
     <ListGroup label={props.label ?? props.heading} footnote={props.footnote ?? props.note} class="settings-group">{props.children}</ListGroup>
   </Show>;
 }

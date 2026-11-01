@@ -141,6 +141,19 @@ export class ApiError extends Error {
   get uncertain(): boolean {
     return this.status === 0 || this.status >= 500;
   }
+
+  /** The sentence the person reads, without the class name `String(error)` would put in front of it. */
+  override toString(): string {
+    return this.message;
+  }
+}
+
+/** What a failed response with no error envelope says, in a sentence rather than a status code. */
+function statusMessage(status: number): string {
+  if (status === 401 || status === 403) return 'The workshop service did not accept this request.';
+  if (status === 404) return 'The workshop service does not have that.';
+  if (status >= 500) return 'The workshop service ran into a problem.';
+  return 'The workshop service could not complete that request.';
 }
 
 interface ErrorEnvelope {
@@ -190,7 +203,7 @@ async function send<T>(url: string, init: RequestInit & { signal?: AbortSignal }
     const envelope = (parsed as ErrorEnvelope | null)?.error;
     if (envelope?.code === 'notebook_changed') notebookChanged();
     throw new ApiError(
-      envelope?.message ?? `Request failed with status ${response.status}.`,
+      envelope?.message ?? statusMessage(response.status),
       response.status,
       envelope?.code ?? 'http',
       envelope?.details ?? null,

@@ -105,7 +105,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
     setProtocolAnchor(null); setDraft(null);
     queueMicrotask(() => section.querySelector<HTMLElement>(id ? `[data-edit="${CSS.escape(id)}"]` : '.agent-add-model')?.focus({ preventScroll: true }));
   };
-  const phone = isPhone();
+  const phone = () => isPhone();
 
   const Form = (form: { value: Draft }) => {
     // A form that opens takes the caret in its first field and comes into view, its Save row included.
@@ -165,7 +165,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
         </Show></div>
       </div>
     </Show>}</For>
-    <Show when={draft() && !draft()!.id} fallback={<Show when={!draft()}><Show when={phone} fallback={<Button class="bordered agent-add-model" icon="plus" onClick={() => edit()}>Add model</Button>}>
+    <Show when={draft() && !draft()!.id} fallback={<Show when={!draft()}><Show when={phone()} fallback={<Button class="bordered agent-add-model" icon="plus" onClick={() => edit()}>Add model</Button>}>
       <ListRow icon="plus" class="agent-add-model" onClick={() => edit()}>Add model</ListRow>
     </Show></Show>}>
       <Form value={draft()!} />

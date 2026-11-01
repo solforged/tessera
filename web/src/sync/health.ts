@@ -50,7 +50,7 @@ export function syncHealth(state: SyncState | null, devices: SyncDevices | null,
     base.kind = code === 'unpaired' || code === 'wrong_device' ? 'forgotten' : 'retired';
     base.title = base.kind === 'forgotten' ? 'Pair again' : 'Download again';
     base.rail = replica ? base.title : `${base.deviceName} retired`;
-    base.hint = base.kind === 'forgotten' ? `${base.hubName} no longer knows this device.`
+    base.hint = base.kind === 'forgotten' ? `${capital(base.hubName)} no longer knows this device.`
       : replica ? 'Away more than 30 days.' : `${base.deviceName} must download the workshop again.`;
   } else if (mismatch(replica?.last_error) || refused) {
     base.kind = 'version'; base.title = 'Version mismatch'; base.behind = behind(base.hubVersion, base.deviceVersion);
@@ -88,3 +88,26 @@ export function downloadPage(hubUrl: string | null | undefined): { url: string; 
 }
 export const versionLine = (version: SyncVersion | null) => version
   ? [version.version ?? 'Version unknown', version.build, `schema ${version.schema}`].filter(Boolean).join(' · ') : 'Version not reported';
+
+/** A host name leads a sentence with a capital, as `the Mac` does when no name is known. */
+export const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/** What the Recent attempts ledger says for an attempt: a short phrase, never the service's own sentence. */
+export function attemptResult(attempt: { ok: boolean; code: string | null }): string {
+  if (attempt.ok) return 'Accepted';
+  switch (attempt.code) {
+    case 'schema_mismatch': return 'Version refused';
+    case 'hub_unreachable': return 'Could not reach the Mac';
+    case 'unpaired': case 'wrong_device': return 'The Mac no longer knows this device';
+    case 'retired': return 'The Mac stopped keeping changes';
+    default: return 'Failed';
+  }
+}
+
+/** The hub's reason for rejecting a change, in words: its engine message names operations, revisions and atom ids. */
+export function rejectionReason(error: string): string {
+  if (/is stale for .*but it no longer exists/.test(error)) return 'The line was deleted before this change arrived.';
+  if (/is stale for .*found revision/.test(error)) return 'The line was edited somewhere else first, so this change no longer fit.';
+  if (/ not found/.test(error)) return 'What this change edited is no longer in the workshop.';
+  return 'The Mac could not apply this change.';
+}
