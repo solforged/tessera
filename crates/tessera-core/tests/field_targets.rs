@@ -428,6 +428,122 @@ fn opening_lowercases_built_in_fields_files_their_targets_and_refuses_renames() 
 }
 
 #[test]
+fn a_client_adding_a_built_in_field_gets_the_core_definition() {
+    use tessera_core::{CountsAs, FieldRole, TextRewrite};
+    let dir = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    nb.apply(&batch(vec![page(2, "Person"), page(3, "Group")]))
+        .unwrap();
+    // As the editor's `name::` shorthand and the Fields register send them: the typed name, the kind
+    // guessed from a first value and the default role.
+    let committed = nb
+        .apply(&batch(vec![
+            child(10, &fields, "Gloss"),
+            child(11, &fields, "Author"),
+            child(12, &fields, "Published"),
+            Operation::SetFieldKind {
+                id: id(12),
+                base_revision: 1,
+                kind: FieldKind::Number,
+            },
+            child(13, &fields, "Form"),
+            child(14, &fields, "Mood"),
+            Operation::SetFieldKind {
+                id: id(14),
+                base_revision: 1,
+                kind: FieldKind::Number,
+            },
+            child(15, &fields, "Gist"),
+            Operation::SetFieldRole {
+                id: id(15),
+                base_revision: 1,
+                role: FieldRole::Prose,
+            },
+        ]))
+        .unwrap();
+    let definition = |n: u128| {
+        nb.field_detail(&id(n), None, None)
+            .unwrap()
+            .field
+            .definition
+    };
+
+    let gloss = definition(10);
+    assert_eq!(
+        (gloss.name.as_str(), gloss.kind, gloss.role, gloss.built_in),
+        ("gloss", FieldKind::Text, FieldRole::Standfirst, true)
+    );
+    let author = definition(11);
+    assert_eq!(
+        (author.name.as_str(), author.kind, author.counts_as),
+        ("author", FieldKind::Instance, Some(CountsAs::Creator))
+    );
+    assert_eq!(author.targets, [id(2), id(3)]);
+    let published = definition(12);
+    assert_eq!(
+        (published.name.as_str(), published.kind),
+        ("published", FieldKind::Date)
+    );
+    let form = definition(13);
+    assert_eq!((form.name.as_str(), form.kind), ("form", FieldKind::Choice));
+    assert_eq!(
+        form.options
+            .iter()
+            .map(|option| option.text.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "book", "chapter", "article", "paper", "report", "post", "thread", "video", "web page"
+        ]
+    );
+    // A name of the workshop's own keeps the kind its client chose.
+    let mood = definition(14);
+    assert_eq!(
+        (mood.name.as_str(), mood.kind, mood.built_in),
+        ("Mood", FieldKind::Number, false)
+    );
+    // A role the same change chose stays; the name and kind are still the core's.
+    let gist = definition(15);
+    assert_eq!(
+        (gist.name.as_str(), gist.kind, gist.role),
+        ("gist", FieldKind::Text, FieldRole::Prose)
+    );
+
+    // The client learns the lowercase name from the receipt, and the revisions it counted on still hold.
+    assert!(committed.text_rewrites.contains(&TextRewrite {
+        id: id(10),
+        before: "Gloss".into(),
+        after: "gloss".into(),
+        revision: 1,
+    }));
+    assert_eq!(nb.block(&id(10)).unwrap().revision, 1);
+    assert_eq!(nb.block(&id(12)).unwrap().revision, 2);
+    for option in &form.options {
+        assert!(
+            committed
+                .revisions
+                .iter()
+                .any(|revision| revision.id == option.id)
+        );
+    }
+
+    // Undoing a change that only named the field takes away the options the core gave it.
+    let other = tempfile::tempdir().unwrap();
+    let mut nb = Notebook::open(other.path()).unwrap();
+    let fields = nb.fields().unwrap().page_id;
+    let added = nb.apply(&batch(vec![child(30, &fields, "form")])).unwrap();
+    let options = nb.fields().unwrap().fields[0].definition.options.clone();
+    assert_eq!(options.len(), 9);
+    nb.undo_change(added.seq, &Actor::Person).unwrap();
+    for removed in std::iter::once(id(30)).chain(options.into_iter().map(|option| option.id)) {
+        assert!(
+            matches!(nb.block(&removed), Err(Error::NotFound { .. })),
+            "{removed}"
+        );
+    }
+}
+
+#[test]
 fn required_fields_count_members_without_a_value_and_stay_in_the_template() {
     let dir = tempfile::tempdir().unwrap();
     let mut nb = Notebook::open(dir.path()).unwrap();
@@ -539,7 +655,9 @@ fn sources_are_a_links_to_choice_beside_types_and_built_in_work_links_to_them() 
         .definition;
     assert!(definition.targets.is_empty());
 
-    // Opening files Sources on built-in relations that have no Links to, but never changes a kind.
+    // Opening files Sources on built-in relations that have no Links to, but never changes a kind: a text
+    // work field, as older workshops have, stays text. Renaming a field to work makes one here, since only a
+    // definition added under a built-in name takes the built-in shape.
     let fields = nb.fields().unwrap().page_id;
     nb.apply(&batch(vec![
         child(30, &fields, "coined in"),
@@ -548,7 +666,12 @@ fn sources_are_a_links_to_choice_beside_types_and_built_in_work_links_to_them() 
             base_revision: 1,
             kind: FieldKind::Instance,
         },
-        child(31, &fields, "work"),
+        child(31, &fields, "Work draft"),
+        Operation::EditText {
+            id: id(31),
+            base_revision: 1,
+            text: "work".into(),
+        },
     ]))
     .unwrap();
     drop(nb);

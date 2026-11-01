@@ -49,7 +49,7 @@ import { SourceDetails } from './SourceDetails';
 import { GLOSS_FIELD, glossEntry } from './gloss';
 import { positionFields, positionSource as sharedPositionSource } from './perspectives';
 import { Apparatus } from './Apparatus';
-import { createFieldEntryConversion, createSourceFieldResets, ensureField, ensureWorkField, isFreshField, settleField } from './source-fields';
+import { createFieldEntryConversion, createSourceFieldResets, ensureField, isFreshField, settleField } from './source-fields';
 import { addTemplateField, setFreshFieldKind } from '../fields/commands';
 import { templateOffer } from '../fields/template-offer';
 import { createOutlineHints } from './hints';
@@ -78,6 +78,7 @@ import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { readTagRegistry, TypePill } from './references';
 import { eyebrowNamesTag, noteKindIcon } from '../notes/kinds';
+import { aliasesInHeader } from '../notes/aliases';
 import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { createCitationSources, createCitedSources, hasCitationDetail } from './source-reads';
@@ -265,7 +266,9 @@ function Pane(props: OutlinePaneProps) {
   });
   const definitionsById = createMemo(() => new Map(definitions().map(field => [field.id, field])));
   const definitionsByName = createMemo(() => new Map(definitions().map(field => [field.name.toLowerCase(), field])));
-  const register = createMemo(() => readingRegister(doc, id => definitionsById().get(id), positionQuestions.error ? [] : positionQuestions()?.questions ?? []), undefined, { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
+  // Clicking the ALSO line reveals the Aliases entries it presents, in Outline and Read alike.
+  const [aliasesVisible, setAliasesVisible] = createSignal(false);
+  const register = createMemo(() => readingRegister(doc, id => definitionsById().get(id), positionQuestions.error ? [] : positionQuestions()?.questions ?? [], aliasesVisible()), undefined, { equals: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
   const templates = createTemplateCache(() => fields.error ? undefined : fields(), props.notebook.lastChange);
   const glossId = createMemo(() => doc.root()?.kind === 'page' ? glossEntry(doc, id => fieldRole(definitionsById().get(id)) === 'standfirst') : null);
   const depthFilter = createMemo<DepthFilter | undefined>(() => !reading() && doc.root()?.kind === 'page' && depth() !== 'full'
@@ -424,7 +427,6 @@ function Pane(props: OutlinePaneProps) {
     let index = 0;
     return [...groups].flatMap(([root, group]) => ordinary.has(root) ? group : groups.get(remaining[index++]!)!);
   });
-  const [aliasesVisible, setAliasesVisible] = createSignal(false);
   const hideCandidates = mapArray(createMemo(() => {
     const visible = sourceVisibleIds(), known = definitionsById();
     return untrack(() => visible.filter(id => known.has(fieldEntryId(doc.block(id)?.text ?? '') ?? '')));
@@ -436,9 +438,7 @@ function Pane(props: OutlinePaneProps) {
     if (hide !== 'never' && definition && owner && templates.requiredFor(typeKeys(owner.text, owner.manual_types)).has(definition.id)) hide = 'never';
     doc.archivedVersion();
     const values = doc.outline.children(id).filter(value => !doc.isArchived(value));
-    if (!zoom() && !aliasesVisible() && doc.root()?.kind === 'page' && !doc.root()?.source && doc.root()?.text.toLowerCase() !== 'fields'
-      && doc.outline.parentOf(id) === props.pageId && foldName(definition?.name ?? '') === 'aliases'
-      && values.some(value => doc.block(value)?.text.trim())) hide = 'always';
+    if (!zoom() && !aliasesVisible() && aliasesInHeader(doc, id, definition?.name)) hide = 'always';
     const descendants: string[] = [];
     const start = doc.outline.indexOf(id);
     for (let index = start + 1, end = doc.outline.subtreeEnd(start); index < end; index++) descendants.push(doc.outline.idAt(index));
@@ -1441,7 +1441,7 @@ function Pane(props: OutlinePaneProps) {
   const { openRelation, fileAll, positionReason, placeReason, usePlace, RelationPopups } = createRelationActions(context, async holderId => {
     // The recipe offers only defined fields, so Tab from the Gist reaches Work only once work exists.
     const field = definitionsByName().get('gist') ?? await ensureField(props.notebook, 'gist', 'text', 'standfirst');
-    const work = definitionsByName().get('work') ?? await ensureWorkField(props.notebook);
+    const work = definitionsByName().get('work') ?? await ensureField(props.notebook, 'work', 'instance');
     setCreatedFields(previous => [...previous, ...[field, work].filter(created => !previous.some(existing => existing.id === created.id))]);
     const last = register().slips.at(-1)?.id;
     const parentId = last ? doc.outline.parentOf(last) : props.pageId;

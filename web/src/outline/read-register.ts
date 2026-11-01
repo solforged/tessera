@@ -6,6 +6,7 @@ import { positionFields, positionRelations, readingPassages } from './perspectiv
 import { earlierKey, verdictAssessments } from './assessments';
 import { isCatalogueField } from '../library/details';
 import { fieldBedRows, fieldRole } from '../fields/roles';
+import { aliasesInHeader } from '../notes/aliases';
 export interface ReadingField { name: string; entryId: string }
 export interface ReadingQuestion { id: string; holders: string[] }
 /** One reading's value for a criterion; `entryId` is null when the reading leaves it unstated. */
@@ -25,8 +26,11 @@ export interface ReadingSlip {
 }
 export interface ReadingRegister { opening: string[]; remaining: string[]; sectionId: string | null; slips: ReadingSlip[]; disagreements: ReadingDisagreement[] }
 
-/** Project identities only; authored text and capabilities remain in the shared document. */
-export function readingRegister(doc: PageDocument, definition: (id: string) => FieldDefinition | undefined, questions: readonly PositionQuestion[]): ReadingRegister {
+/**
+ * Project identities only; authored text and capabilities remain in the shared document. A note's ALSO line presents
+ * its aliases, so their entries stay out of the projection unless `revealAliases` asks for them, as Outline does.
+ */
+export function readingRegister(doc: PageDocument, definition: (id: string) => FieldDefinition | undefined, questions: readonly PositionQuestion[], revealAliases = false): ReadingRegister {
   const fieldName = (id: string) => definition(id)?.name;
   doc.outline.version(); doc.archivedVersion();
   const slips: ReadingSlip[] = [];
@@ -79,6 +83,10 @@ export function readingRegister(doc: PageDocument, definition: (id: string) => F
     if (omitted.has(id) || doc.isArchived(id)) continue;
     const name = fieldName(fieldEntryId(block?.text ?? '') ?? '');
     if (doc.root()?.source && doc.outline.parentOf(id) === doc.pageId && isCatalogueField(name ?? matchFieldEntry(block?.text ?? '')?.name ?? '')) {
+      omitSubtree(id);
+      continue;
+    }
+    if (!revealAliases && aliasesInHeader(doc, id, name)) {
       omitSubtree(id);
       continue;
     }

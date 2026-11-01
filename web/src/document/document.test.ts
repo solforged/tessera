@@ -21,6 +21,7 @@ import { linkMentionEdit } from './link-mention';
 import { positionRelations, readingPassages } from '../outline/perspectives';
 import { addArrival, embedTarget } from '../outline/streams';
 import { isReadingSubject, readingDisagreementRows, readingRegister } from '../outline/read-register';
+import { ensureField } from '../outline/source-fields';
 import { changeRevisit } from '../review/revisits';
 import { TaskSourceHistory } from '../tasks/source-history';
 import { plainText } from '../outline/names';
@@ -1082,6 +1083,27 @@ describe('real notebook operations and recovery', () => {
     for (const block of [...added.created, ...nested.created]) expect(rows).toContain(block);
     expect(isReadingSubject(doc)).toBe(false);
     fieldsDoc.release(); doc.release();
+  });
+
+  test('Read leaves every populated aliases entry of a note to its ALSO line until they are revealed', async () => {
+    const instance = await client();
+    const aliases = (await ensureField(instance, 'aliases')).id;
+    const { id, doc, first } = await page(instance, 'Kullback-Leibler divergence compares two distributions');
+    // Two entries, as notes filed one alias per line hold them, and a blank one Add alias left to fill.
+    const added = success(doc.edit({ kind: 'addFieldEntries', parentId: id, after: null, entries: [{ fieldId: aliases, value: 'KL divergence' }, { fieldId: aliases, value: 'Relative entropy' }] }));
+    const blank = success(doc.edit({ kind: 'addFieldEntries', parentId: id, after: first, entries: [{ fieldId: aliases, value: '' }] }));
+    await instance.flush();
+    const fields = (await api.fields()).fields;
+    const rows = (reveal?: boolean) => {
+      const projected = readingRegister(doc, fieldId => fields.find(field => field.id === fieldId), [], reveal);
+      return [...projected.opening, ...projected.remaining];
+    };
+    expect(rows()).toContain(first);
+    for (const block of added.created) expect(rows()).not.toContain(block);
+    // As in Outline, a blank entry has nothing for the ALSO line to show, so it stays to be filled.
+    expect(rows()).toContain(blank.created[0]!);
+    for (const block of added.created) expect(rows(true)).toContain(block);
+    doc.release();
   });
 
   test('reading controls follow authored subjects instead of holders or ordinary links', async () => {

@@ -144,6 +144,7 @@ impl Notebook {
             settings: Vec::new(),
             capability_sources: HashSet::new(),
             activated_sources: BTreeSet::new(),
+            new_definitions: BTreeMap::new(),
             card_sources: HashSet::new(),
             template_types: HashSet::new(),
             cards: BTreeMap::new(),
@@ -238,6 +239,10 @@ impl Notebook {
                 }
             }
             engine.inverse_bumps.clear();
+        }
+        let seeded = engine.settle_built_in_definitions()?;
+        if let Some(history) = history.as_mut() {
+            history.derived(seeded);
         }
         engine.derive_tags()?;
         engine.cleanup_provisional_pages()?;
@@ -590,6 +595,9 @@ struct Engine<'a, 'conn> {
     capability_sources: HashSet<String>,
     /// Sources this change made or reactivated, which get a citation key at its end if they have none.
     activated_sources: BTreeSet<String>,
+    /// Blocks this change put on a page's top level with a built-in field's name, and whether it also
+    /// chose their role. Those that are field definitions at its end take the core's definition.
+    new_definitions: BTreeMap<String, bool>,
     card_sources: HashSet<String>,
     template_types: HashSet<String>,
     cards: BTreeMap<String, Revision>,
@@ -915,6 +923,82 @@ impl Engine<'_, '_> {
             )?;
         }
         Ok(())
+    }
+
+    /// A field definition this change made with a built-in name takes the core's definition, whichever
+    /// client made it and whatever kind it asked for: the lowercase name, kind and starting role, Links to
+    /// types where those type pages exist, and a choice's starting options when it has none. A role the
+    /// change itself set stays, as opening keeps a chosen one. Agent shorthand and templates already write
+    /// the same. Returns the option atoms made here, whose IDs derive from the definition and their text.
+    fn settle_built_in_definitions(&mut self) -> Result<Vec<String>> {
+        let mut seeded = Vec::new();
+        for (id, role_chosen) in std::mem::take(&mut self.new_definitions) {
+            let Some(current) = stored(self.tx, &id)?.filter(|row| row.deletion_id.is_none())
+            else {
+                continue;
+            };
+            let Some(field) = crate::built_in::field_named(&current.block.text) else {
+                continue;
+            };
+            if !crate::fields::is_definition(self.tx, &id)? {
+                continue;
+            }
+            if current.block.text != field.name {
+                self.tx.execute(
+                    "UPDATE blocks SET text = ?1 WHERE id = ?2",
+                    params![field.name, id],
+                )?;
+                self.record_text_rewrite(
+                    &id,
+                    current.block.text.clone(),
+                    field.name.to_owned(),
+                    current.block.revision,
+                );
+            }
+            self.tx.execute(
+                "INSERT INTO fields(block_id, kind) VALUES (?1, ?2)
+                 ON CONFLICT(block_id) DO UPDATE SET kind = excluded.kind",
+                params![id, field.kind.as_str()],
+            )?;
+            if !role_chosen {
+                self.tx.execute(
+                    "UPDATE fields SET role = ?2 WHERE block_id = ?1",
+                    params![id, field.role.as_str()],
+                )?;
+            }
+            if field.kind == crate::FieldKind::Instance
+                && crate::fields::targets(self.tx, &id)?.is_empty()
+            {
+                let targets = crate::built_in::targets(self.tx, field)?;
+                crate::fields::file_targets(self.tx, &id, &targets)?;
+            }
+            let has_children: bool = self
+                .tx
+                .prepare_cached(
+                    "SELECT EXISTS(SELECT 1 FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL)",
+                )?
+                .query_row([&id], |row| row.get(0))?;
+            if field.kind != crate::FieldKind::Choice || has_children {
+                continue;
+            }
+            let mut after: Option<String> = None;
+            for &text in field.options {
+                let option = derived_id(&["field-option", &id, text]);
+                let ordinal = self.ordinal(&id, after.as_deref(), None)?;
+                self.create(NewBlock {
+                    id: &option,
+                    kind: BlockKind::Block,
+                    parent: Some(&id),
+                    page: &current.block.page_id,
+                    ordinal,
+                    text,
+                    heading: None,
+                })?;
+                seeded.push(option.clone());
+                after = Some(option);
+            }
+        }
+        Ok(seeded)
     }
 
     fn cleanup_provisional_pages(&mut self) -> Result<()> {
@@ -1878,7 +1962,13 @@ impl Engine<'_, '_> {
                     ordinal,
                     text,
                     heading: *heading,
-                })
+                })?;
+                if parent.block.kind == BlockKind::Page
+                    && crate::built_in::field_named(text).is_some()
+                {
+                    self.new_definitions.insert(id.clone(), false);
+                }
+                Ok(())
             }
             Operation::EditText {
                 id,
@@ -2094,6 +2184,9 @@ impl Engine<'_, '_> {
                 let current = self.checked(id, *base_revision, index, false)?;
                 self.tx.execute("INSERT INTO fields(block_id, kind, role) VALUES (?1, 'text', ?2) ON CONFLICT(block_id) DO UPDATE SET role = excluded.role",
                     params![id, role.as_str()])?;
+                if let Some(chosen) = self.new_definitions.get_mut(id) {
+                    *chosen = true;
+                }
                 self.bump(&current, true)
             }
             Operation::SetFieldCountsAs {

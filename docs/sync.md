@@ -186,6 +186,7 @@ Every device must reach the same state from the same changes, so applying a chan
 | Deletion event | change ID, operation index, deleted block |
 | Type page created by a tag | change ID, tag-free title key |
 | Card unit | source block, card key (its unique identity) |
+| Starting option of a built-in choice field | its definition, option text |
 | Reset event recorded with a grade | the grade's event ID |
 | Conflict copy of a block's text | change ID, block |
 | Record of a rejected change | change ID |

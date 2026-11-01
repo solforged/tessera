@@ -460,23 +460,24 @@ fn starting_templates_use_existing_fields_and_preserve_authored_templates() {
             insert(10, &id(1), None, "Outline block"),
         ],
     );
+    // The field added as Aliases took its built-in lowercase name.
     for (value, expected) in [
         (
             1,
             vec![
-                ("Aliases", FieldKind::Text),
+                ("aliases", FieldKind::Text),
                 ("lived", FieldKind::Span),
                 ("affiliated with", FieldKind::Instance),
             ],
         ),
         (
             2,
-            vec![("Aliases", FieldKind::Text), ("active", FieldKind::Span)],
+            vec![("aliases", FieldKind::Text), ("active", FieldKind::Span)],
         ),
         (
             3,
             vec![
-                ("Aliases", FieldKind::Text),
+                ("aliases", FieldKind::Text),
                 ("coined by", FieldKind::Instance),
                 ("coined in", FieldKind::Instance),
             ],

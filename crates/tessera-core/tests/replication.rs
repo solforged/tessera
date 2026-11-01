@@ -289,6 +289,32 @@ fn two_copies_reach_the_same_state_from_the_same_changes() {
             },
         ],
     );
+    // An older client adds fields by name alone. Built-in names take the core's definition, and every
+    // device derives the same starting options for Form.
+    let fields = devices[0].fields().unwrap().page_id;
+    let added = apply_both(
+        &mut devices,
+        7,
+        16_000,
+        vec![
+            Operation::Insert {
+                id: id(70),
+                parent_id: fields.clone(),
+                after: None,
+                text: "Form".into(),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(71),
+                parent_id: fields,
+                after: Some(id(70)),
+                text: "Author".into(),
+                heading: None,
+            },
+        ],
+    );
+    assert_eq!(added.text_rewrites.len(), 2);
+    assert_eq!(added.revisions.len(), 2 + 9);
 
     drop(devices);
     assert_eq!(

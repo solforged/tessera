@@ -537,7 +537,8 @@ impl Notebook {
         let Some(fields_page) = crate::fields::page_id(&self.conn)? else {
             return Ok(());
         };
-        // A new field is a block inserted on the Fields page and given a kind.
+        // A new field is a block inserted on the Fields page and given a kind, by the change or, for a
+        // built-in name, by the core.
         let kinded: BTreeSet<&str> = operations
             .iter()
             .filter(|operation| field(operation, "op") == Some("set_field_kind"))
@@ -550,7 +551,9 @@ impl Notebook {
                     && field(operation, "parent_id") == Some(fields_page.as_str())
             })
             .filter_map(|operation| Some((field(operation, "id")?, field(operation, "text")?)))
-            .filter(|(id, _)| kinded.contains(id))
+            .filter(|(id, name)| {
+                kinded.contains(id) || crate::built_in::field_named(name).is_some()
+            })
             .map(|(id, name)| (id.to_owned(), name.to_lowercase()))
             .collect();
         if new.is_empty() {

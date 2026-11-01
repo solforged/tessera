@@ -1,7 +1,7 @@
 import type { Block, ExtractedCreator, ExtractedMetadata, FieldDefinition, FieldKind, ReadingState } from '../api/types';
 import type { DocumentChange, NotebookClient, PageDocument, SourceDetailsEdit } from '../document/contract';
 import { sourceState } from '../document/types';
-import { addFieldOption, documentReady } from '../outline/source-fields';
+import { addFieldOption, documentReady, ensureField } from '../outline/source-fields';
 import { sourceFieldName, valueLabel } from '../outline/source';
 import { createInstance } from '../fields/instances';
 import { displayTitle, foldName, referenceValue, resolveName } from '../outline/names';
@@ -157,22 +157,20 @@ async function prepareField(notebook: NotebookClient, context: FieldPreparation,
   let definition = context.definitions.find(field => field.name.toLowerCase() === label.toLowerCase());
   if (!definition && !values.length) return undefined;
   if (!definition) {
-    const doc = notebook.open(context.pageId);
-    try {
-      await documentReady(doc);
-      const result = doc.edit({ kind: 'addField', name: label, value: kind });
-      if (!result.ok) throw new Error(result.reason);
-      await doc.flush();
-      definition = { id: result.created[0]!, name: label, kind, revision: doc.block(result.created[0]!)!.revision, options: [], targets: [] };
-      if (kind === 'instance') {
+    // The service may give a built-in name its own kind, Links to types and options; work with what it made.
+    definition = await ensureField(notebook, label, kind);
+    if (definition.kind === 'instance' && !definition.targets.length) {
+      const doc = notebook.open(context.pageId);
+      try {
+        await documentReady(doc);
         const targets = await Promise.all(['Person', 'Group'].map(async title => (await notebook.pageByTitle(title, true))!));
         const targeted = doc.edit({ kind: 'fieldTargets', definition, targets });
         if (!targeted.ok) throw new Error(targeted.reason);
         await doc.flush();
         definition = { ...definition, targets, revision: definition.revision + 1 };
-      }
-      context.definitions.push(definition);
-    } finally { doc.release(); }
+      } finally { doc.release(); }
+    }
+    context.definitions.push(definition);
   }
   if (kind === 'instance' || definition.kind === 'instance') {
     // A creator page made a moment ago may still be on its way; the kind checks below read the service.
