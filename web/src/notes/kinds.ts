@@ -2,6 +2,8 @@ import { autoPlural } from '../fields/presentation';
 import { createEffect, createSignal, onCleanup, type Accessor } from 'solid-js';
 import type { IndexKind, NoteIndex, NoteKind, Shelf } from '../api/types';
 import type { NotebookClient } from '../document/contract';
+import type { Token } from '../document/text-tokens';
+import { foldName } from '../outline/names';
 import { paths, type IconName } from '../ui/glyphs';
 import type { OpenTarget } from '../shell/contract';
 import { typeQuery } from '../table/query';
@@ -17,6 +19,11 @@ export function noteKindIcon(kind: string | Pick<NoteKind, 'key' | 'icon'>): Ico
     }
   }
   return kind.icon && Object.hasOwn(paths, kind.icon) ? kind.icon as IconName : 'tag';
+}
+
+/** Whether a note's eyebrow already names the kind a title tag files it under: a canonical tag by its page, a legacy tag by name. */
+export function eyebrowNamesTag(kinds: readonly Pick<NoteKind, 'name' | 'type_id'>[] | undefined, tag: Pick<Token, 'id' | 'value'>): boolean {
+  return !!kinds?.some(kind => tag.id ? kind.type_id === tag.id : foldName(kind.name) === foldName(tag.value));
 }
 
 /** A kind whose only members are tagged non-page blocks; an empty built-in kind is not one. */

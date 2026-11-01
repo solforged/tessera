@@ -6,6 +6,7 @@ import type { OpenTarget } from '../shell/contract';
 import { opensBeside } from '../shell/beside';
 import { textTokens } from '../document/text-tokens';
 import { documentReady } from '../outline/source-fields';
+import { displayTitle } from '../outline/names';
 import { valueLabel } from '../outline/source';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -42,7 +43,7 @@ function SourceRegister(props: { docs: readonly PageDocument[]; label: string; s
   return <details class="metadata-register">
     <summary aria-label={props.label}>{props.summary ?? props.label}<span>{props.docs.length} sources</span><Icon name="right" /></summary>
     <div role="group" aria-label={props.label}>
-      <For each={props.docs.slice(page() * 10, (page() + 1) * 10)}>{doc => <div class="metadata-register-source"><div class="metadata-register-title"><span>{doc.root()?.source?.siglum}</span>{doc.root()?.text}</div>{props.children(doc)}</div>}</For>
+      <For each={props.docs.slice(page() * 10, (page() + 1) * 10)}>{doc => <div class="metadata-register-source"><div class="metadata-register-title"><span>{doc.root()?.source?.siglum}</span>{displayTitle(doc.root()?.text ?? '')}</div>{props.children(doc)}</div>}</For>
       <Show when={props.docs.length > 10}><div class="metadata-register-pages"><Button icon="left" label="Previous sources" disabled={page() === 0} onClick={() => setPage(value => value - 1)} /><span>{page() * 10 + 1}–{Math.min((page() + 1) * 10, props.docs.length)} of {props.docs.length} sources</span><Button icon="right" label="Next sources" disabled={(page() + 1) * 10 >= props.docs.length} onClick={() => setPage(value => value + 1)} /></div></Show>
     </div>
   </details>;
@@ -257,7 +258,7 @@ export function MetadataInspector(props: {
       voice={field === 'title' ? 'title' : field === 'description' ? 'description' : apparatus[field] ? 'mono' : undefined}
       kind={field === 'language' || field === 'originalLanguage' ? 'language' : field === 'state' ? 'state' : field === 'identifiers' || field === 'tags' ? 'lines' : 'text'}
       placeholder={extra.placeholder ?? (dates[field] ? 'Add date' : undefined)}
-      scope={selected.length > 1 ? `Enter or blur sets this on all ${selected.length} sources.` : batch() ? `Changes only “${selected[0]?.root()?.text}”.` : undefined}
+      scope={selected.length > 1 ? `Enter or blur sets this on all ${selected.length} sources.` : batch() ? `Changes only “${current(selected[0]!, 'title')}”.` : undefined}
       hint={extra.hint} onSave={value => save(selected, field, value)} onError={message => updateError(key, message)} /></Show>;
   }
   function perSource(fieldName: SourceField) {
@@ -279,7 +280,7 @@ export function MetadataInspector(props: {
   function cover(selected: readonly PageDocument[]) {
     const currentCover = createMemo(() => current(selected[0]!, 'cover') as string);
     const extracted = createMemo(() => extractedValue(selected[0]!, 'cover'));
-    return <div class="metadata-cover"><Show when={currentCover()}>{href => <ResourceImage snapshotId={selected[0]?.root()?.source?.current_snapshot_id ?? ''} href={href()} loading="lazy" alt={`Cover of ${selected[0]?.root()?.text}`} />}</Show><div><Button class="metadata-text-action" disabled={!ready()} onClick={() => { coverDocs = selected; coverInput.click(); }}>Replace cover…</Button><Show when={extracted() !== undefined && !metadataEqual(currentCover(), extracted()!)}><Button class="metadata-text-action" disabled={!ready()} onClick={() => { void save(selected, 'cover', extracted()!).catch(reason => setActionError(String(reason))); }}>Reset to extracted cover</Button></Show><Show when={selected.length > 1}><p class="metadata-hint">Replaces the cover on all {selected.length} sources.</p></Show></div></div>;
+    return <div class="metadata-cover"><Show when={currentCover()}>{href => <ResourceImage snapshotId={selected[0]?.root()?.source?.current_snapshot_id ?? ''} href={href()} loading="lazy" alt={`Cover of ${current(selected[0]!, 'title')}`} />}</Show><div><Button class="metadata-text-action" disabled={!ready()} onClick={() => { coverDocs = selected; coverInput.click(); }}>Replace cover…</Button><Show when={extracted() !== undefined && !metadataEqual(currentCover(), extracted()!)}><Button class="metadata-text-action" disabled={!ready()} onClick={() => { void save(selected, 'cover', extracted()!).catch(reason => setActionError(String(reason))); }}>Reset to extracted cover</Button></Show><Show when={selected.length > 1}><p class="metadata-hint">Replaces the cover on all {selected.length} sources.</p></Show></div></div>;
   }
   function siglum(selected: readonly PageDocument[]) {
     const doc = selected[0]!;

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import type { IndexKind } from '../api/types';
-import { kindLabel, noteKindIcon } from './kinds';
+import { eyebrowNamesTag, kindLabel, noteKindIcon } from './kinds';
 
 const kind = (over: Partial<IndexKind> = {}): IndexKind => ({
   key: 'type:1', name: 'arabic', plural: 'arabics', icon: null, type_id: '1',
@@ -23,4 +23,14 @@ test('shell capabilities have their glyphs without overriding registry icons', (
   expect(noteKindIcon('unknown')).toBe('tag');
   expect(noteKindIcon({ key: 'project', icon: 'book' })).toBe('book');
   expect(noteKindIcon({ key: 'question', icon: 'unknown' })).toBe('tag');
+});
+
+test('a title tag for a kind the eyebrow names is not repeated, by page for a canonical tag and by name for a legacy one', () => {
+  const eyebrow = [{ name: 'Concept', type_id: 'concept-page' }, { name: 'Italian word', type_id: 'italian-page' }];
+  expect(eyebrowNamesTag(eyebrow, { id: 'concept-page', value: 'whatever alias' })).toBe(true);
+  expect(eyebrowNamesTag(eyebrow, { value: 'concept' })).toBe(true);
+  expect(eyebrowNamesTag(eyebrow, { value: 'Italian-word' })).toBe(true);
+  expect(eyebrowNamesTag(eyebrow, { id: 'missing-page', value: 'Concept' })).toBe(false);
+  expect(eyebrowNamesTag(eyebrow, { value: 'stoic' })).toBe(false);
+  expect(eyebrowNamesTag(undefined, { id: 'concept-page', value: 'concept' })).toBe(false);
 });

@@ -87,6 +87,27 @@ test('saving a title-form creator uses an eligible alias, not a source title or 
   expect(written?.fields[0]?.values).toEqual([`[[${person.id}]]`]);
 });
 
+test('the catalog Title reads the tagless title, and a new title keeps the stored title’s tags', async () => {
+  const tag = '7RHRXHK5KQ6M2RHSH4ER0QBC3C';
+  let text = `Attention Is All You Need #[[${tag}|source]]`;
+  const doc = { pageId: 'paper', status: () => 'ready', flush: async () => {}, root: () => ({ text }), outline: { children: () => [] } } as unknown as PageDocument;
+  const written: (string | undefined)[] = [];
+  const notebook = { changeSequence: () => 0, flush: async () => {}, lookup: () => () => page('Source'),
+    api: { fields: async () => ({ page_id: 'fields', fields: [] }) },
+    editSourceDetails: async (edits: { edit: SourceDetailsEdit }[]) => { written.push(edits[0]!.edit.title); return { undo: async () => {}, redo: async () => {} }; },
+  } as unknown as NotebookClient;
+  expect(sourceFieldValue(doc, notebook, [], 'title')).toBe('Attention Is All You Need');
+  expect(sourceMetadata(doc, notebook, []).title).toBe('Attention Is All You Need');
+  await saveSourceField([doc], notebook, 'title', 'Attention is all you need');
+  await saveSourceField([doc], notebook, 'title', 'Attention Is All You Need');
+  text = `Lab #[[${tag}|project]] notes`;
+  await saveSourceField([doc], notebook, 'title', 'Lab notes');
+  text = `#[[${tag}|source]]`;
+  expect(sourceFieldValue(doc, notebook, [], 'title')).toBe('#Source');
+  await saveSourceField([doc], notebook, 'title', 'Named');
+  expect(written).toEqual([`Attention is all you need #[[${tag}|source]]`, `Attention Is All You Need #[[${tag}|source]]`, `Lab #[[${tag}|project]] notes`, `Named #[[${tag}|source]]`]);
+});
+
 test('role changes resolve a title-form creator while preserving the same bare plain name', async () => {
   const person = { ...page('Arnold Toynbee'), id: '01ARZ3NDEKTSV4RRFFQ69G5FAV' };
   const fields: FieldDefinition[] = [

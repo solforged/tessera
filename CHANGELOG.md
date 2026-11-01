@@ -136,6 +136,11 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Showed a choice field's values in `tessera_read_page` as `[[Option]]` instead of the option's bare ID. Values indented under a choice entry, a note added under one and a value edited with `tessera_edit_block` now link the option they name, as `Name:: value` does, so a page written back from `tessera_read_page` keeps its options and creates no page named after one.
 - Let `tessera_list_pages` list past its first 1000 pages: it takes `offset`, and a list that stops short names the offset of the rest.
 - Refused tool arguments a tool's schema does not declare, naming the ones it takes, instead of ignoring them, and refused the agenda's `date`, `days` and `unplanned` in `tessera_tasks` view list.
+- Showed backlink group heads by the referring page's tagless title, instead of stored text such as `Deep learning revolution #[[ID|concept]]`.
+- Showed the finding aids' see cross-references by the target's tagless title, as `Adam, see Adam (optimizer)`.
+- Showed a source's tagless title in the catalog card's Title, and kept the title's tags when it is edited there, so the source stays filed.
+- Read card source lines, the Cards list and zoom breadcrumbs as a reader sees them: the page's tagless title, card operators as arrows and inline code without backticks.
+- Stopped repeating a note's kind as a pill after its title when the eyebrow above it already names that kind.
 
 ## 0.5.1, 2026-10-23
 
