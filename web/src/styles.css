@@ -4,9 +4,15 @@
 body { margin: 0; }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; }
-button:disabled { cursor: default; opacity: .45; }
+button:disabled { cursor: default; opacity: var(--disabled-opacity); }
 a { color: var(--accent); }
 :focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+/* A row that fills its scroller has no room outside its edge, so its ring is drawn just inside it and no side is clipped. */
+:where(tr, [role="row"], [role="option"], [role="treeitem"]):focus-visible { outline-offset: calc(-1 * var(--focus-offset)); }
+/* A container takes focus so that keys have somewhere to start (a pane, a scroller, a sheet, a summary page): it is no control.
+   A ring on it clips against its own scroller to a stray rule and doubles the active pane's registration corners, so it draws
+   none. Real controls, roving cells and widgets keep theirs; a component that wants a ring of its own says so. */
+:where([tabindex="-1"], [role="region"], .pane-content > *, .reader-scroll):where(:not(button, input, textarea, select, summary, a[href], td, th, tr, li, label, [role="button"], [role="link"], [role="option"], [role="row"], [role="gridcell"], [role="cell"], [role="treeitem"], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="switch"], [role="checkbox"], [role="radio"], [role="slider"], [role="separator"], [role="combobox"], [role="textbox"], [contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"])):focus-visible { outline: none; }
 ::selection { background: var(--text-selection); }
 .icon { width: var(--icon-size); height: var(--icon-size); flex: none; vertical-align: middle; }
 :is(.button, .conflict-actions button) { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-4); min-height: var(--target-size); border: 1px solid transparent; border-radius: var(--radius-control); padding: var(--space-4) var(--space-8); background: transparent; font-size: var(--text-control); line-height: var(--line-control); font-weight: var(--weight-control); text-align: left; transition: background-color var(--motion-fast) var(--motion-ease), color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease); }
@@ -23,12 +29,15 @@ a { color: var(--accent); }
 :is(.button.bordered, .button.tint, .conflict-actions button):hover:not(:disabled) { border-color: var(--control-border); }
 .button.danger { color: var(--danger); }
 .button.icon-only { width: var(--row-height); padding: var(--space-4); }
+/* Icon and padding and the hairline come to 26; the row is 28, so an icon button is square with its neighbours. Coarse
+   pointers keep their own target (the phone's 44 px circles included): row-height there is the row, not this control. */
+@media (pointer: fine) { .button.icon-only { height: var(--row-height); } }
 .button > .icon { transition: scale var(--motion-fast) var(--motion-ease), rotate var(--motion-fast) var(--motion-ease); }
 /* A menu trigger's trailing chevron turns while its menu is open. */
 .button[aria-haspopup][aria-expanded="true"] > .icon:last-child:not(:first-child) { rotate: 180deg; }
 .button:hover:not(:disabled) > .icon, .button:focus-visible > .icon { scale: var(--icon-hover-scale); }
 .button:active:not(:disabled) > .icon { scale: var(--icon-press-scale); }
-/* Modes and tabs: mono labels with a faint count; the current one is gilt with a 2 px rule beneath the whole tab,
+/* Modes and tabs: Plex labels with a faint mono count; the current one is gilt with a 2 px rule beneath the whole tab,
    label and count alike, never a box. */
 .mode-tabs { position: relative; display: flex; align-items: center; gap: var(--space-4); }
 .mode-tabs > .button { position: relative; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
@@ -36,9 +45,13 @@ a { color: var(--accent); }
 .mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]) { background: transparent; color: var(--accent); }
 /* A one-pixel pen scales to the tab's width, so the glide never animates layout. */
 .mode-tabs > .tab-rule { position: absolute; left: 0; bottom: 0; width: 1px; height: calc(2 * var(--rule-width)); background: var(--accent); opacity: var(--tab-rule-visible, 0); pointer-events: none; transform-origin: left; transform: translateX(var(--tab-rule-x, 0px)) scaleX(var(--tab-rule-w, 0)); transition: transform var(--tab-rule-duration, 0ms) var(--motion-ease); }
-/* Keyboard focus on a tab is a faint rule, never a ring; on the current tab the label brightens over its gilt rule. */
+/* Keyboard focus on a tab is a faint rule; the current tab already carries its gilt rule, so there focus is an inset gilt ring
+   with the label brightened, which a rule it already has could not show. */
 .mode-tabs > .button:focus-visible { outline: none; color: var(--text); box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--faint); }
-.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]):focus-visible { color: var(--text); box-shadow: none; }
+.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]):focus-visible { outline: var(--focus-ring); outline-offset: calc(-1 * var(--focus-offset)); color: var(--text); box-shadow: none; }
+/* A tab's count is a figure: faint, in the mono voice, whichever surface's class names it (`-count`, or the shared `faint`). Surfaces may recolour it. */
+:where(.mode-tabs > .button > :is([class$="-count"], [class*="-count "], .faint)) { color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+:where(.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]) > :is([class$="-count"], [class*="-count "])) { color: inherit; }
 /* A strip that switches views (Library states, Review queues, Agenda modes) stands on a hairline baseline, and every
    tab's rule lands on that same line. */
 .mode-tabs.tab-strip { align-items: stretch; box-shadow: inset 0 calc(-1 * var(--rule-width)) var(--line); }
@@ -47,6 +60,12 @@ a { color: var(--accent); }
 :is(.popup, .popup-exit)::before { content: ''; position: absolute; top: 0; left: var(--space-12); width: var(--rubric-width); height: var(--rubric-height); background: var(--danger); pointer-events: none; }
 /* The panel itself takes focus when nothing inside can; the ring belongs on controls, not on the box. */
 .popup:is(:focus, :focus-visible) { outline: none; }
+/* A popup opened over another (a date picker over its slip) is the higher leaf: the dialog's deeper shadow lifts it off the one beneath.
+   It sets no z-index: it mounts after its parent, so at the layer's own level (50 here, 95 on a phone in ui/overlays.css) it paints
+   above it on every layout. A phone's popups keep their own material. */
+@media not all and (max-width: 599px) and (pointer: coarse) {
+  .popup[data-stacked] { box-shadow: inset 0 1px 0 var(--lit-edge), var(--dialog-shadow); }
+}
 /* A popup placed above its trigger rises out of it: the shift's sign follows the side it opened on, in and out. */
 .popup[data-side="above"], .popup-exit[data-side="above"] { --popup-shift: 1; }
 .popup-enter { animation: popup-in var(--motion-ui) var(--motion-ease) both; }
@@ -134,7 +153,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; width: var(--icon-size); height: var(--icon-size); background: var(--faint); cursor: pointer; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' stroke='black' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
 .input[type="search"]::-webkit-search-cancel-button:hover { background: var(--text); }
 .input::placeholder { color: var(--faint); }
-.empty-state { margin: var(--space-12) var(--space-8); color: var(--muted); font-size: var(--text-control); }
+.empty-state { margin: var(--space-12) 0; color: var(--muted); font-size: var(--text-control); }
 /* The phone's shared vocabulary (docs/design.md, Phone). Glass is the material of floating controls: the nav bar's
    circles, the tab bar, a title over text. A leaf is a tile or a group of rows, lit along its top. A search well is a
    capsule with its glyph inside and a gilt baseline on focus. */
@@ -217,6 +236,7 @@ kbd { color: var(--muted); font: var(--weight-body) var(--text-apparatus)/var(--
 .page-list { margin-top: var(--space-16); }
 .page-list h2, .page-list > summary { display: flex; align-items: center; gap: var(--space-8); min-height: var(--target-size); margin: 0 0 var(--space-2); padding: 0 var(--space-8) 0 var(--space-12); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .section-number { color: var(--danger); font: var(--figures); }
+.page-list .section-count { font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .section-rule { flex: 1; border-top: var(--rule-width) solid var(--line); }
 /* The heading row is target height; the link fills it so touch can hit it. */
 .index-directory-link { align-self: stretch; margin-inline: calc(-1 * var(--space-4)); padding: 0 var(--space-4); border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
@@ -436,10 +456,17 @@ details[open]::details-content { opacity: 1; block-size: auto; }
 .popup-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 :is(.popup, .popup-exit) p { margin: 4px 0 12px; }
 :is(.popup, .popup-exit) label { display: block; margin-bottom: 8px; font-size: var(--text-control); }
-.popup-title { margin: 0 0 var(--space-12); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); }
+/* A form's title is the menu head's size, one step of the written scale (--text-h3). */
+.popup-title { margin: 0 0 var(--space-12); font: var(--weight-display-heading) var(--text-h3)/var(--line-h3) var(--font-display); }
+/* A confirm (a sentence and its buttons) reads at control size. */
+.popup:has(> .popup-actions) > p { font-size: var(--text-control); line-height: var(--line-control); }
 .calendar-today { display: flex; margin: 8px auto 0; }
 /* Picker: input on top, 28 px rows below. Palettes centre near the top of the viewport. */
 .picker { padding: 0; }
+/* The picker is an input on top and rows below. Where the popup is placed from its natural height (Picker without placement="top"),
+   the room it was given bounds the list (a scroller, so it shrinks to fit), which scrolls under a query, status line and Skip that never leave. */
+.picker-column { display: flex; flex-direction: column; }
+.picker-column > :not(.picker-list) { flex: none; }
 .picker.popup-sheet { display: flex; flex-direction: column; padding-bottom: var(--bottom-inset); }
 .picker.popup-sheet > :not(.picker-list) { flex-shrink: 0; }
 .picker.popup-sheet > .popup-sheet-tools { padding-inline: var(--space-12); margin-bottom: 0; }
@@ -449,7 +476,7 @@ details[open]::details-content { opacity: 1; block-size: auto; }
 .picker-input { flex: 1; min-width: 0; border: 0; padding: 0; background: transparent; color: var(--text); font: inherit; font-size: var(--text-body); line-height: var(--line-body); }
 .palette:not(.palette-search) .picker-input { min-height: var(--row-height); }
 .picker-input:focus-visible { outline: none; }
-.picker-list { overflow: auto; padding: var(--space-4); }
+.picker-list { overflow: auto; overflow-anchor: none; padding: var(--space-4); }
 /* A list that is loading keeps its rows, dimmed, and shows the wait as a gilt line sliding along its top edge, so no row moves. */
 .picker-group { transition: opacity var(--motion-ui) var(--motion-ease); }
 .picker-list[data-stale] > :is(.picker-row, .picker-group) { opacity: .6; }
@@ -465,7 +492,9 @@ details[open]::details-content { opacity: 1; block-size: auto; }
 .picker-row kbd { margin-left: auto; }
 .picker-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .picker-text small { color: var(--muted); }
-.picker-meta { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.picker-meta { flex: none; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+/* Dates, ids, paths and counts in picker metadata keep the figures' mono; names of things stay in Plex. */
+.picker-meta.fig, .picker-meta .fig { font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .picker-hint { flex: none; color: var(--faint); }
 .picker-section { padding: var(--space-8) var(--space-12) var(--space-4); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .picker-section:not(:first-child), .picker-group + .picker-group > .picker-section { border-top: var(--rule-width) solid var(--line); margin-top: var(--space-4); }
@@ -559,6 +588,9 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
 @media (pointer: coarse) {
   .pane-header .button, .mode-tabs > .button, .depth-stop { min-height: var(--touch-target); }
   .pane-header .button:has(> .icon:only-child), .depth-stop { min-width: var(--touch-target); }
+  /* The releases link is apparatus type on one line (about 16 px). The box grows to a fingertip; the negative margin
+     gives that growth back, so the line and its neighbours stay where they were. */
+  a.sync-release-link { display: inline-flex; align-items: center; box-sizing: border-box; min-height: var(--touch-target); min-width: var(--touch-target); margin-block: calc((var(--line-apparatus) - var(--touch-target)) / 2); }
 }
 /* On the cover, the document fills the screen and navigation stays within thumb reach. */
 @media not all and (max-width: 599px) and (pointer: coarse) {
@@ -581,7 +613,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
      only the bar's controls take taps. Root tabs have the Index capsule at the left, pushed pages a back circle; the pane's
      own controls are circles at the right, and a surface adds more through NavEnd (ui/NavBar.tsx). */
   .pane-header { position: absolute; z-index: 4; top: 0; left: 0; right: 0; height: var(--phone-top); min-height: 0; flex-wrap: nowrap; align-items: center; gap: var(--space-8); padding: var(--phone-bar-top) var(--space-16) 0; border: 0; box-shadow: none; pointer-events: none; }
-  .pane-header::before { content: ''; position: absolute; z-index: -1; inset: 0 0 auto; height: calc(var(--phone-top) + 38px); pointer-events: none; background: linear-gradient(color-mix(in srgb, var(--canvas) 94%, transparent) calc(var(--phone-top) - var(--space-8)), color-mix(in srgb, var(--canvas) 0%, transparent)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(#000 calc(100% - 46px), transparent); mask-image: linear-gradient(#000 calc(100% - 46px), transparent); }
+  .pane-header::before { content: ''; position: absolute; z-index: -1; inset: 0 0 auto; height: var(--page-top-space); pointer-events: none; background: linear-gradient(color-mix(in srgb, var(--canvas) 94%, transparent) calc(var(--phone-top) - var(--space-8)), color-mix(in srgb, var(--canvas) 0%, transparent)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(#000 calc(100% - var(--space-12) - var(--space-8)), transparent); mask-image: linear-gradient(#000 calc(100% - var(--space-12) - var(--space-8)), transparent); }
   .pane-header :is(.button, .nav-group) { pointer-events: auto; }
   .pane-bar-start, .pane-bar-end, .pane-bar-surface { display: flex; align-items: center; gap: var(--space-8); }
   .pane-bar-start { order: 1; flex: none; }
@@ -675,6 +707,7 @@ mark { background: var(--selection); color: var(--accent); font-weight: var(--we
   kbd { display: none; }
   :root { caret-color: var(--accent); }
   :root:not([data-keyboard]) :focus-visible { outline: none; }
+  :root:not([data-keyboard]) .mode-tabs > .button:focus-visible { outline: none; }
   .editor-host .cm-editor :is(.cm-cursor, .cm-dropCursor) { border-left-color: var(--accent); }
   /* No band paints on the row being edited; the caret says where you are. */
   .outline-pane .outline-row.row-editing, .outline-pane .outline-row.row-editing > .row-depth { background: transparent; border-left-color: transparent; }
