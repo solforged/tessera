@@ -5,10 +5,11 @@ use anyhow::Context;
 use serde_json::Value;
 use tessera_core::library::{
     HighlightQuery, HighlightResult, LibraryQuery, LibraryResult, PassageHit, PassageKind,
-    PassagePage, SourceView,
+    PassagePage, ReadingState, SourceView,
 };
 use tessera_core::{AgentCitation, AgentEdit, Block};
 
+use super::cards::{found, is_id};
 use super::render::{location, name, one_line, snippet};
 use super::{Api, Session, boolean, choice, integer, limit, segment, string, strings};
 
@@ -81,11 +82,13 @@ async fn sources(api: &Api, arguments: &Value) -> anyhow::Result<String> {
             text.push_str(&format!(", {published}"));
         }
         text.push_str(&format!(
-            ": {} {}, {:.0}% read",
+            ": {} {}",
             name(row.source.format),
-            name(row.source.state),
-            row.progress * 100.0
+            name(row.source.state)
         ));
+        if row.source.state != ReadingState::Finished {
+            text.push_str(&format!(", {:.0}% read", row.progress * 100.0));
+        }
         if row.highlights > 0 {
             text.push_str(&format!(
                 ", {} highlights ({} unprocessed)",
@@ -153,14 +156,11 @@ async fn read(api: &Api, arguments: &Value) -> anyhow::Result<String> {
             &[("from", &from.to_string()), ("limit", &count)],
         )
         .await?;
-    let mut text = format!(
-        "{:?} passages {}–{} of {}:\n",
-        view.page.text,
-        from,
-        from + page.passages.len() as i64 - 1,
-        page.total
-    );
-    for passage in &page.passages {
+    let mut text = heading(&view.page.text, from, page.passages.len(), page.total);
+    if page.passages.is_empty() {
+        return Ok(text);
+    }
+    for (passage, cited) in page.passages.iter().zip(citing(&page)) {
         let prefix = match passage.kind {
             PassageKind::Heading => format!("{} ", "#".repeat(passage.level.unwrap_or(1) as usize)),
             PassageKind::Quote => "> ".into(),
@@ -173,12 +173,6 @@ async fn read(api: &Api, arguments: &Value) -> anyhow::Result<String> {
             passage.id,
             one_line(&passage.text)
         ));
-        let cited: Vec<_> = page
-            .citations
-            .iter()
-            .filter(|citation| citation.start.passage_id == passage.id)
-            .map(|citation| citation.block_id.as_str())
-            .collect();
         if !cited.is_empty() {
             text.push_str(&format!(" (cited by atom {})", cited.join(", ")));
         }
@@ -191,6 +185,59 @@ async fn read(api: &Api, arguments: &Value) -> anyhow::Result<String> {
         ));
     }
     Ok(text)
+}
+
+/// The first line of a read: which passages follow, or, from at or past the
+/// end, that none do and how many there are.
+fn heading(title: &str, from: i64, shown: usize, total: i64) -> String {
+    match (shown, total) {
+        (_, 0) => format!("{title:?} has no passages."),
+        (0, total) => format!(
+            "{title:?} has {total} passages, from 0 to {}; none start at {from}.",
+            total - 1
+        ),
+        (shown, total) => format!(
+            "{title:?} passages {from}–{} of {total}:\n",
+            from + shown as i64 - 1
+        ),
+    }
+}
+
+/// For each passage on a page, the blocks whose citations cover it. A
+/// citation runs from its start passage through its end passage, so a range
+/// marks its inner and last passages too. The page carries only citations
+/// that reach into it, so one whose end is not on the page runs past it. An
+/// end at the very start of a later passage leaves that passage out, as the
+/// service does.
+fn citing(page: &PassagePage) -> Vec<Vec<&str>> {
+    let ranges: Vec<(i64, i64, &str)> = page
+        .citations
+        .iter()
+        .map(|citation| {
+            let last = page
+                .passages
+                .iter()
+                .find(|passage| passage.id == citation.end.passage_id)
+                .map_or(i64::MAX, |end| {
+                    if citation.end.offset == 0 && end.ordinal > citation.ordinal {
+                        end.ordinal - 1
+                    } else {
+                        end.ordinal
+                    }
+                });
+            (citation.ordinal, last, citation.block_id.as_str())
+        })
+        .collect();
+    page.passages
+        .iter()
+        .map(|passage| {
+            ranges
+                .iter()
+                .filter(|(first, last, _)| (*first..=*last).contains(&passage.ordinal))
+                .map(|(_, _, block)| *block)
+                .collect()
+        })
+        .collect()
 }
 
 /// Full-text search over passages, in one source or the whole library.
@@ -271,18 +318,84 @@ async fn highlights(api: &Api, arguments: &Value) -> anyhow::Result<String> {
     Ok(text)
 }
 
-/// The source named by `source`: a page title, or a source page ID.
+/// The source named by `source`: a source page's ID, or its title. Text that
+/// merely looks like an ID is a title when no source has it as its ID.
 async fn source(api: &Api, arguments: &Value) -> anyhow::Result<SourceView> {
     let wanted = string(arguments, "source")?.context("source is required")?;
-    let id = if wanted.len() == 26 && wanted.bytes().all(|b| b.is_ascii_alphanumeric()) {
-        wanted.to_owned()
-    } else {
-        api.get::<Block>(&format!("/api/pages/by-title/{}", segment(wanted)))
-            .await
-            .with_context(|| format!("No atom is titled {wanted:?}"))?
-            .id
-    };
-    api.get(&format!("/api/sources/{}", segment(&id)))
-        .await
-        .with_context(|| format!("{wanted:?} is not a library source"))
+    if is_id(wanted)
+        && let Some(view) = found(api, &format!("/api/sources/{}", segment(wanted))).await?
+    {
+        return Ok(view);
+    }
+    let page: Block = found(api, &format!("/api/pages/by-title/{}", segment(wanted)))
+        .await?
+        .with_context(|| format!("No source has the title or ID {wanted:?}."))?;
+    found(api, &format!("/api/sources/{}", segment(&page.id)))
+        .await?
+        .with_context(|| format!("{wanted:?} is not a library source."))
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+    use tessera_core::library::PassagePage;
+
+    /// Passages 139 to 141 of a long source, with these citations.
+    fn page(citations: Value) -> PassagePage {
+        let passages: Vec<_> = (139..=141)
+            .map(|ordinal| {
+                json!({
+                    "id": format!("P{ordinal}"), "ordinal": ordinal, "kind": "paragraph",
+                    "level": null, "text": "Some passage text.", "locator": format!("#p{ordinal}"),
+                    "anchor": null, "resource": null, "marks": [], "start": 0,
+                })
+            })
+            .collect();
+        serde_json::from_value(json!({
+            "passages": passages, "citations": citations, "total": 1234, "toc": [],
+        }))
+        .unwrap()
+    }
+
+    fn citation(block: &str, start: (&str, i64), end: (&str, u32)) -> Value {
+        json!({
+            "id": format!("C{block}"), "block_id": block, "source_id": "S", "snapshot_id": "N",
+            "start": { "passage_id": start.0, "offset": 0 },
+            "end": { "passage_id": end.0, "offset": end.1 },
+            "quote": "", "locator": "", "ordinal": start.1, "triage": null, "color": null,
+        })
+    }
+
+    #[test]
+    fn a_citation_marks_every_passage_from_its_start_through_its_end() {
+        let page = page(json!([
+            citation("RANGE", ("P139", 139), ("P141", 4)),
+            citation("EARLIER", ("P100", 100), ("P140", 4)),
+            citation("LATER", ("P141", 141), ("P150", 2)),
+            citation("EDGE", ("P139", 139), ("P140", 0)),
+        ]));
+        assert_eq!(
+            super::citing(&page),
+            [
+                vec!["RANGE", "EARLIER", "EDGE"],
+                vec!["RANGE", "EARLIER"],
+                vec!["RANGE", "LATER"],
+            ]
+        );
+    }
+
+    #[test]
+    fn reading_from_the_end_says_how_many_passages_there_are() {
+        assert_eq!(
+            super::heading("Meditations", 1230, 4, 1234),
+            "\"Meditations\" passages 1230–1233 of 1234:\n"
+        );
+        for from in [1234, 5000] {
+            let text = super::heading("Meditations", from, 0, 1234);
+            assert!(
+                text.contains("1234 passages, from 0 to 1233") && !text.contains('–'),
+                "{text}"
+            );
+        }
+    }
 }
