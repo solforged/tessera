@@ -1,6 +1,8 @@
 //! The tools `tools/list` advertises, with their input schemas.
 
-use serde_json::{Value, json};
+use std::sync::LazyLock;
+
+use serde_json::{Map, Value, json};
 
 const SYNTAX: &str = "Markdown outline: `- ` or `1. ` items nest by indentation, and \
 indented lines under an item continue it; every other line is its own block; `#` headings \
@@ -38,7 +40,21 @@ fn writes(destructive: bool) -> Value {
     json!({ "readOnlyHint": false, "destructiveHint": destructive, "idempotentHint": false })
 }
 
-pub(super) fn tools() -> Value {
+/// The tools, built once.
+static TOOLS: LazyLock<Value> = LazyLock::new(list);
+
+pub(super) fn tools() -> &'static Value {
+    &TOOLS
+}
+
+/// The arguments the named tool's input schema declares, or `None` when no
+/// tool has that name.
+pub(super) fn arguments(name: &str) -> Option<&'static Map<String, Value>> {
+    let tool = TOOLS.as_array()?.iter().find(|tool| tool["name"] == name)?;
+    tool["inputSchema"]["properties"].as_object()
+}
+
+fn list() -> Value {
     json!([
         {
             "name": "tessera_search",
@@ -57,11 +73,12 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_list_pages",
             "title": "List pages",
-            "description": "Named pages by title, optionally followed by journal days, newest first.",
+            "description": "Named pages by title, optionally followed by journal days, newest first. A list that stops short names the offset that lists the rest.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "limit": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 },
+                    "offset": { "type": "integer", "minimum": 0, "default": 0 },
                     "journals": { "type": "boolean", "default": false, "description": "Include journal days." }
                 }
             },
@@ -70,7 +87,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_read_page",
             "title": "Read a page",
-            "description": "A page or journal day as an indented Markdown outline that tessera_add_note reads back. Each block ends with an HTML comment holding its ID and revision, then its tags, task planning, project, question, assessment, position, relation, source, revisit date, resolution, citations and cards (each with the card ID and revision tessera_hold_card takes); the title's comment covers the page itself. Links to pages show as [[Title]], tags as #Tag or #[[Multi word tag]] and field entries as `Name::`. A text line that would read as structure starts with `\\`, and `-->` shows as `--\\>`.",
+            "description": "A page or journal day as an indented Markdown outline that tessera_add_note reads back. Each block ends with an HTML comment holding its ID and revision, then its tags, task planning, project, question, assessment, position, relation, source, revisit date, resolution, citations and cards (each with the card ID and revision tessera_hold_card takes); the title's comment covers the page itself. Links to pages show as [[Title]], tags as #Tag or #[[Multi word tag]], field entries as `Name::` and choice values under them as [[Option]]. A text line that would read as structure starts with `\\`, and `-->` shows as `--\\>`.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -233,7 +250,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_tasks",
             "title": "Find tasks",
-            "description": "The agenda (view agenda): everything scheduled, due, warned, overdue or completed on a day, then for each following day what is scheduled or due on it; it refuses the List: arguments. Or a task list (view list) filtered by status, dates, priority, project or a saved task view.",
+            "description": "The agenda (view agenda): everything scheduled, due, warned, overdue or completed on a day, then for each following day what is scheduled or due on it. Or a task list (view list) filtered by status, dates, priority, project or a saved task view. Each view refuses the other's arguments.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

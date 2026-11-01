@@ -256,8 +256,12 @@ impl Session<'_> {
         )
     }
 
-    /// The named tool's result, or `None` when no tool has that name.
+    /// The named tool's result, or `None` when no tool has that name. An
+    /// argument its schema does not declare is refused before it runs.
     async fn tool(&self, name: &str, arguments: &Value) -> Option<anyhow::Result<String>> {
+        if let Err(error) = undeclared(name, tools::arguments(name)?, arguments) {
+            return Some(Err(error));
+        }
         Some(match name {
             "tessera_search" => self.search(arguments).await,
             "tessera_list_pages" => self.list_pages(arguments).await,
@@ -589,6 +593,47 @@ fn limit(arguments: &Value, key: &str, default: usize, max: usize) -> anyhow::Re
     }
 }
 
+/// An optional `offset` argument, how many rows to skip: 0 or more.
+fn offset(arguments: &Value) -> anyhow::Result<Option<usize>> {
+    integer(arguments, "offset")?
+        .map(|offset| {
+            usize::try_from(offset)
+                .ok()
+                .context("offset must be 0 or more")
+        })
+        .transpose()
+}
+
+/// Refuses the arguments `tool` does not declare, which it would otherwise
+/// ignore, naming those it takes.
+fn undeclared(tool: &str, declared: &Map<String, Value>, arguments: &Value) -> anyhow::Result<()> {
+    let unknown: Vec<&str> = arguments
+        .as_object()
+        .into_iter()
+        .flat_map(Map::keys)
+        .map(String::as_str)
+        .filter(|key| !declared.contains_key(*key))
+        .collect();
+    if unknown.is_empty() {
+        return Ok(());
+    }
+    let takes: Vec<&str> = declared.keys().map(String::as_str).collect();
+    anyhow::bail!(
+        "{tool} does not take {}; it takes {}.",
+        listed(&unknown),
+        listed(&takes)
+    )
+}
+
+/// Names joined as prose: "a", "a and b", "a, b and c".
+fn listed(names: &[&str]) -> String {
+    match names {
+        [] => String::new(),
+        [only] => (*only).to_owned(),
+        [first @ .., last] => format!("{} and {last}", first.join(", ")),
+    }
+}
+
 /// An optional array of strings; a single string counts as one item.
 fn strings(arguments: &Value, key: &str) -> anyhow::Result<Vec<String>> {
     match arguments.get(key) {
@@ -815,6 +860,82 @@ mod tests {
         });
         let response = send(&mut session, &line.to_string()).await.unwrap();
         assert_eq!(response["result"]["isError"], true);
+    }
+
+    /// A tool call's text and whether it reported an error.
+    async fn call(session: &mut Session<'_>, name: &str, arguments: Value) -> (String, bool) {
+        let line = json!({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": { "name": name, "arguments": arguments },
+        });
+        let response = send(session, &line.to_string()).await.unwrap();
+        let result = &response["result"];
+        assert!(result.is_object(), "{name}: {response}");
+        (
+            result["content"][0]["text"].as_str().unwrap().to_owned(),
+            result["isError"].as_bool().unwrap(),
+        )
+    }
+
+    #[tokio::test]
+    async fn undeclared_arguments_are_refused_before_the_tool_runs() {
+        let mut session = session();
+        for (name, arguments, refusal) in [
+            (
+                "tessera_list_pages",
+                json!({ "limit": 2, "bogus": 1 }),
+                "tessera_list_pages does not take bogus; it takes journals, limit and offset.",
+            ),
+            (
+                "tessera_read_page",
+                json!({ "title": "Choice repro paper", "bogus": 1 }),
+                "tessera_read_page does not take bogus; it takes date, id, subtree and title.",
+            ),
+            (
+                "tessera_search",
+                json!({ "query": "paper", "limit": 1, "offset": 5 }),
+                "tessera_search does not take offset; it takes limit and query.",
+            ),
+            (
+                "tessera_recent_changes",
+                json!({ "limit": 1, "offset": 5, "after": null }),
+                "tessera_recent_changes does not take after and offset; it takes before and limit.",
+            ),
+            (
+                "tessera_query",
+                json!({ "source": "sources", "limit": 1, "bogus": 1 }),
+                "tessera_query does not take bogus; it takes direction, filters, limit, offset, \
+                 sort, source, text, type and view.",
+            ),
+            (
+                "tessera_tasks",
+                json!({ "view": "list", "days": 7, "unplanned": false }),
+                "The task list does not take these agenda arguments: days, unplanned. Pass view \
+                 agenda to use them, or leave them out.",
+            ),
+        ] {
+            assert_eq!(
+                call(&mut session, name, arguments).await,
+                (refusal.to_owned(), true)
+            );
+        }
+        // Declared arguments reach the tool, which fails here for want of a service.
+        let (text, error) = call(&mut session, "tessera_list_pages", json!({ "offset": 0 })).await;
+        assert!(error && !text.contains("does not take"), "{text}");
+    }
+
+    #[tokio::test]
+    async fn every_listed_tool_runs_and_declares_its_arguments() {
+        let mut session = session();
+        let tools = tools::tools().as_array().unwrap();
+        for tool in tools {
+            let name = tool["name"].as_str().unwrap();
+            assert!(tools::arguments(name).is_some(), "{name}");
+            // No service answers, so each tool reports its own failure.
+            let (text, error) = call(&mut session, name, json!({})).await;
+            assert!(error && !text.contains("does not take"), "{name}: {text}");
+        }
+        assert_eq!(tools::arguments("tessera_nothing"), None);
     }
 
     #[test]

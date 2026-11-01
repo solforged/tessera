@@ -851,7 +851,7 @@ mod tests {
     fn what_read_page_shows_reads_back_as_the_same_blocks() {
         use std::collections::HashMap;
         use tessera_core::{Actor, Batch, Notebook, Operation};
-        use tessera_service::agent_render::{Clock, PageContext, render};
+        use tessera_service::agent_render::{Clock, Fields, PageContext, render};
 
         // Text, heading and depth, in outline order.
         let rows: [(&str, Option<u8>, usize); 14] = [
@@ -920,7 +920,7 @@ mod tests {
             operations,
         })
         .unwrap();
-        let fields = HashMap::new();
+        let fields = Fields::default();
         let clock = Clock::new(&nb.settings_view(0).unwrap()).unwrap();
         let context = PageContext {
             fields: &fields,
@@ -947,6 +947,63 @@ mod tests {
             })
             .collect();
         assert_eq!(shape(&parse(&markdown.join("\n"))), expected, "{rendered}");
+    }
+
+    #[test]
+    fn a_choice_value_read_page_shows_by_name_reads_back_as_its_option() {
+        use tessera_core::{Actor, AgentEdit, AgentRequest, NoteTarget, Notebook};
+        use tessera_service::agent_render::{Clock, Fields, PageContext, render};
+
+        fn add(nb: &mut Notebook, title: &str, markdown: &str) -> String {
+            nb.agent_edit(&AgentRequest {
+                actor: Actor::Agent {
+                    name: "test".into(),
+                },
+                reason: None,
+                edit: AgentEdit::AddNote {
+                    target: NoteTarget::Page {
+                        title: title.into(),
+                    },
+                    blocks: parse(markdown),
+                },
+            })
+            .unwrap()
+            .page
+            .unwrap()
+            .id
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let mut nb = Notebook::open(dir.path()).unwrap();
+        let original = add(&mut nb, "Attention", "- gloss:: A paper.\n- form:: paper");
+        let fields = Fields::from(nb.fields().unwrap());
+        let clock = Clock::new(&nb.settings_view(0).unwrap()).unwrap();
+        let context = PageContext {
+            fields: &fields,
+            cards: &[],
+            clock: &clock,
+        };
+        let rendered = render(&nb.page(&original).unwrap(), &context, None).unwrap();
+        let markdown: Vec<_> = rendered
+            .lines()
+            .skip(1)
+            .map(|line| &line[..line.rfind(" <!-- ").unwrap()])
+            .collect();
+        assert_eq!(
+            markdown,
+            ["- gloss::", "  - A paper.", "- form::", "  - [[paper]]"],
+            "{rendered}"
+        );
+        let copy = add(&mut nb, "Copy", &markdown.join("\n"));
+        let texts = |page: &str| -> Vec<String> {
+            nb.page(page)
+                .unwrap()
+                .rows
+                .into_iter()
+                .map(|row| row.block.text)
+                .collect()
+        };
+        assert_eq!(texts(&copy), texts(&original));
+        assert!(nb.page_by_title("paper").unwrap().is_none());
     }
 
     #[test]

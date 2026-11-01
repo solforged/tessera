@@ -336,10 +336,12 @@ async fn task_relation_and_revisit_rows_are_lines_that_name_linked_pages() {
         json!({ "view": "list", "status": ["done"] }),
     );
     assert!(done.contains("[x] Measure the pantry wall"), "{done}");
-    // The agenda refuses the list's filters instead of ignoring them.
+    // Each view refuses the other's arguments instead of ignoring them.
     for arguments in [
         json!({ "status": ["done"] }),
         json!({ "days": 7, "limit": 1 }),
+        json!({ "view": "list", "date": "today" }),
+        json!({ "view": "list", "days": 7, "unplanned": true }),
     ] {
         let (text, error) = mcp.call("tessera_tasks", arguments.clone());
         assert!(error, "{arguments}: {text}");
