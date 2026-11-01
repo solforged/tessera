@@ -2,10 +2,13 @@ import type { TaskRow } from '../api/types';
 import { agendaTaskTime, isFinished } from './task-labels';
 import { calendarWeekDates } from './week-calendar';
 
-/** One source row per day, even when its schedule and deadline coincide. Missed work joins today, as in the desktop grid. */
+/**
+ * One source row per day, even when its schedule and deadline coincide. Missed work joins today, as in the desktop grid.
+ * Canceled work is not planned work: Day leaves it off the agenda, so the ledger does too.
+ */
 export function weekLedgerDays(rows: readonly TaskRow[], date: string, today = '', overdue: readonly TaskRow[] = []) {
   return calendarWeekDates(date).filter((day): day is string => day !== null).map(day => {
-    const byId = new Map([...(day === today ? overdue : []), ...rows.filter(row => row.task.scheduled === day || row.task.deadline === day)].map(row => [row.source.block.id, row]));
+    const byId = new Map([...(day === today ? overdue : []), ...rows.filter(row => row.task.status !== 'cancelled' && (row.task.scheduled === day || row.task.deadline === day))].map(row => [row.source.block.id, row]));
     const planned = [...byId.values()];
     planned.sort((left, right) => (agendaTaskTime(left, day, false) ?? '').localeCompare(agendaTaskTime(right, day, false) ?? '')
       || left.source.block.text.localeCompare(right.source.block.text));

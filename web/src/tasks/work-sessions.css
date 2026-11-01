@@ -20,10 +20,12 @@
 .work-session-duration { color: var(--text); text-align: right; }
 .work-session-error { margin: 0; overflow-wrap: anywhere; }
 /* A running session shows on its row as a ticking clock in the Doing hue. */
-.outline-capability-metadata .running-clock.button { gap: var(--space-4); align-items: center; color: var(--status-doing); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+.outline-capability-metadata .running-clock.button, .agenda-row-facts .running-clock.button { gap: var(--space-4); align-items: center; color: var(--status-doing); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
+/* On an agenda row the clock reads as one more fact of the line, not a bordered button. */
+.agenda-row-facts .running-clock.button { display: inline-flex; min-height: 0; padding: 0; border: 0; background: transparent; }
 .running-clock-dot { width: calc(3 * var(--space-2)); height: calc(3 * var(--space-2)); border-radius: 50%; background: currentColor; animation: running-clock-pulse 2s var(--motion-ease) infinite; }
 @keyframes running-clock-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .running-clock-dot { animation: none; } }
 /* The chip arrives when work starts; the motion tokens are zero under reduced motion. */
-.outline-capability-metadata .running-clock.button { animation: running-clock-in var(--motion-ui) var(--motion-ease) both; }
+.outline-capability-metadata .running-clock.button, .agenda-row-facts .running-clock.button { animation: running-clock-in var(--motion-ui) var(--motion-ease) both; }
 @keyframes running-clock-in { from { opacity: 0; translate: 0 var(--motion-distance); } }

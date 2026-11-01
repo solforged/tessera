@@ -57,6 +57,12 @@ test('work missed before the week joins today once; work missed this week stays 
   expect(weekLedgerSummary([thisWeek], '2026-10-14', overdue)).toBe('1 open · 0 due · 1 overdue');
 });
 
+test('canceled work is not listed, as Day leaves it off the agenda', () => {
+  const days = weekLedgerDays([row('open', {}), row('dropped', { status: 'cancelled' })], '2026-10-13');
+  expect(days[1]!.rows.map(row => row.source.block.id)).toEqual(['open']);
+  expect(days[1]).toMatchObject({ open: 1, done: 0 });
+});
+
 test('week counts: each open source once, overdue among the week plus work missed before it', () => {
   const both = row('both', { scheduled: '2026-10-12', deadline: '2026-10-13' });
   const rows = [both, row('past', { scheduled: '2026-10-12' }), row('today', { scheduled: '2026-10-13' }), row('later', { scheduled: '2026-10-15' }), row('done', { status: 'done', scheduled: '2026-10-12' }), row('outside', { scheduled: '2026-10-20' })];

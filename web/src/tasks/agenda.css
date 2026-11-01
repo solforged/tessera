@@ -78,7 +78,7 @@
 /* Adding sits under the week strip on Day, in the same place however many tasks are overdue. */
 .agenda-add { margin-block: var(--space-4) var(--space-12); }
 /* The one task row: clock gutter, status glyph, a title over its facts line, then a reserved slot for rescheduling. */
-.agenda-row { position: relative; display: grid; grid-template-columns: var(--target-size) minmax(0, 1fr) var(--agenda-actions-width); column-gap: var(--space-8); align-items: start; min-width: 0; padding-block: var(--space-8); border-bottom: var(--rule-width) solid var(--line); content-visibility: auto; contain-intrinsic-size: auto calc(var(--space-48) + var(--space-4)); transition: background-color var(--motion-fast) var(--motion-ease); }
+.agenda-row { position: relative; display: grid; grid-template-columns: var(--target-size) minmax(0, 1fr) var(--agenda-actions-width); column-gap: var(--space-8); align-items: start; min-width: 0; padding-block: var(--space-8); border-bottom: var(--rule-width) solid var(--line); content-visibility: auto; contain-intrinsic-size: auto calc(var(--agenda-title-line) + var(--line-control)); transition: background-color var(--motion-fast) var(--motion-ease); }
 .agenda-row.agenda-row-gutter { grid-template-columns: var(--agenda-gutter-width) var(--target-size) minmax(0, 1fr) var(--agenda-actions-width); }
 .agenda-row:hover { background: var(--hover); }
 .agenda-time-gutter { display: flex; align-items: center; min-height: var(--agenda-title-line); color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
@@ -90,6 +90,7 @@
 .agenda-row :focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
 /* Long task text clamps at two lines; opening the source shows all of it. */
 .agenda-source-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agenda-source-text.agenda-source-empty { color: var(--muted); font-style: italic; }
 /* Provenance and planning read as one sentence in the writing voice, parted by quiet middle dots. */
 .agenda-row-facts { display: flex; flex-wrap: wrap; align-items: baseline; min-width: 0; color: var(--muted); font: var(--weight-body) var(--text-meta)/var(--line-control) var(--font-body); }
 .agenda-row-facts:empty { display: none; }
@@ -100,8 +101,8 @@
 .agenda-provenance { min-width: 0; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
 .agenda-provenance { text-decoration: underline; text-decoration-color: var(--line); text-decoration-thickness: var(--rule-width); text-underline-offset: var(--space-2); }
 .agenda-provenance:is(:hover, :focus-visible) { color: var(--accent); text-decoration-color: var(--accent); }
-.agenda-priority.button { display: inline; min-height: 0; padding: 0; border: 0; color: inherit; font: inherit; }
-.agenda-priority.button:hover:not(:disabled) { background: transparent; color: var(--text); }
+.agenda-priority.button, .agenda-logged.button { display: inline; min-height: 0; padding: 0; border: 0; color: inherit; font: inherit; }
+.agenda-priority.button:hover:not(:disabled), .agenda-logged.button:hover:not(:disabled) { background: transparent; color: var(--text); }
 .agenda-priority[data-priority="high"] { color: var(--danger); }
 .agenda-late { color: var(--danger); }
 .agenda-warning { color: var(--warning); }
@@ -147,6 +148,8 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
 .outline-heading:has(.journal-header) > .outline-title-row { display: none; }
 .journal-trail { display: flex; align-items: center; height: var(--line-apparatus); gap: var(--space-4); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .journal-trail-today { color: var(--accent); }
+/* A figure in the trail (`Week 44`) is a count: mono, like every other number the notebook reports. */
+.journal-fig { font-family: var(--font-mono); font-size: var(--text-apparatus); font-variant-numeric: tabular-nums; letter-spacing: 0; }
 /* Segments rest quietly; hover or focus brightens one to gilt over a hairline, and the open one carries the 2 px rule. */
 .journal-trail-segment.button { position: relative; min-height: 0; padding: 0 0 var(--space-2); margin-bottom: calc(-1 * var(--space-2) - 2px); color: var(--faint); font: inherit; border-radius: 0; border-bottom: 2px solid transparent; }
 /* The trail keeps an eyebrow's line, so the date heading sits where every page title does; the hit area stays a pointer target. */
@@ -197,8 +200,13 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
 .journal-week-number.button:hover:not(:disabled) { color: var(--accent); }
 .journal-month-overview.button:hover:not(:disabled) { border-color: var(--control-border); }
 @media (pointer: coarse) {
-  .journal-trail-segment.button { min-height: 40px; justify-content: flex-start; }
-  .journal-trail-segment.button::before { content: ''; position: absolute; inset-block: 0; left: 50%; width: max(100%, 40px); transform: translateX(-50%); }
+  /* A fingertip's box: 44 px tall, and 8 px of padding each side cancelled by margin, so the text and its gaps stay where they were.
+     The open segment's rule and the hover hairline span the text, not the padding. */
+  .journal-trail-segment.button { min-height: var(--touch-target); padding-inline: var(--space-8); margin-inline: calc(-1 * var(--space-8)); justify-content: flex-start; }
+  .journal-trail-segment.button::before { content: ''; position: absolute; inset-block: 0; left: 50%; width: max(100%, var(--touch-target)); transform: translateX(-50%); }
+  .journal-trail-segment.button:is(:hover, :focus-visible):not([aria-expanded="true"])::after { inset-inline: var(--space-8); }
+  .journal-trail-segment.button[aria-expanded="true"] { border-bottom-color: transparent; }
+  .journal-trail-segment.button[aria-expanded="true"]::after { content: ''; position: absolute; bottom: -2px; inset-inline: var(--space-8); border-bottom: 2px solid var(--accent); }
   .journal-ledger-day.button, .journal-week-number.button { min-height: 40px; }
   .journal-week-ledger .journal-ledger-day { min-height: 64px; }
 }
@@ -303,14 +311,15 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
   .agenda-title-row .agenda-title-date { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: inherit; letter-spacing: inherit; }
   .agenda-title-row > .button { flex: none; }
   .agenda-modes.mode-tabs.tab-strip { position: sticky; top: var(--phone-top); z-index: 3; flex: none; width: auto; max-width: none; height: 42px; margin: 0 var(--phone-gutter); box-shadow: none; }
-  .agenda-modes.mode-tabs > .button { min-height: 0; height: 100%; }
+  .agenda-modes.mode-tabs > .button { min-width: var(--touch-target); min-height: 0; height: 100%; }
   /* A tap leaves :hover stuck on the tab on iOS, so the chosen tab keeps its gilt and the others stay quiet. */
   .agenda-modes.mode-tabs > .button:hover:not(:disabled) { background: transparent; color: var(--muted); }
   .agenda-modes.mode-tabs > .button:is([aria-pressed="true"], [aria-selected="true"]):hover:not(:disabled) { color: var(--accent); }
   /* The strip's ground carries its hairline, since a shadow on the strip itself would sit under the ground. */
   .agenda-modes::before { content: ''; position: absolute; z-index: -1; inset: 0 calc(-1 * var(--phone-gutter)); pointer-events: none; background: linear-gradient(var(--line), var(--line)) center bottom / calc(100% - 2 * var(--phone-gutter)) 1px no-repeat, color-mix(in srgb, var(--canvas) 94%, transparent); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-  .agenda-band { position: sticky; top: calc(var(--phone-top) + 42px); z-index: 3; flex: none; height: 68px; }
-  .agenda-band::before { content: ''; position: absolute; z-index: -1; inset: 0 0 -28px; pointer-events: none; background: linear-gradient(color-mix(in srgb, var(--canvas) 94%, transparent) calc(100% - 28px), color-mix(in srgb, var(--canvas) 0%, transparent)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(#000 calc(100% - 28px), transparent); mask-image: linear-gradient(#000 calc(100% - 28px), transparent); }
+  /* The fade below the band veils only what has scrolled under it: at rest the first row starts past it. */
+  .agenda-band { --agenda-band-fade: 28px; position: sticky; top: calc(var(--phone-top) + 42px); z-index: 3; flex: none; height: 68px; margin-bottom: var(--agenda-band-fade); }
+  .agenda-band::before { content: ''; position: absolute; z-index: -1; inset: 0 0 calc(-1 * var(--agenda-band-fade)); pointer-events: none; background: linear-gradient(color-mix(in srgb, var(--canvas) 94%, transparent) calc(100% - var(--agenda-band-fade)), color-mix(in srgb, var(--canvas) 0%, transparent)); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); -webkit-mask-image: linear-gradient(#000 calc(100% - var(--agenda-band-fade)), transparent); mask-image: linear-gradient(#000 calc(100% - var(--agenda-band-fade)), transparent); }
   /* Day: seven days of one week, swiped like pages. The chosen day is a lit pill; open work is one muted dot each, red once its day has passed. */
   .agenda-strip-pager { display: flex; height: 76px; margin-block: -4px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none; }
   .agenda-strip-pager::-webkit-scrollbar { display: none; }
@@ -354,7 +363,7 @@ li.agenda-now-end { position: relative; inset: auto; margin-top: calc(-1 * var(-
 }
 /* A short phone gives the list its room back: only the strip stays pinned, and the band scrolls away with the title. */
 @media (max-width: 599px) and (pointer: coarse) and (max-height: 740px) {
-  .agenda-band { position: relative; top: auto; }
+  .agenda-band { position: relative; top: auto; margin-bottom: 0; }
   .pane-content div.agenda-pane { scroll-padding-top: calc(var(--phone-top) + 42px); }
   .agenda-band::before { display: none; }
 }

@@ -16,7 +16,7 @@
 @media (max-width: 599px) and (pointer: coarse) {
   /* The row spans the screen, so its swipe reaches the edges, and pads itself with the phone gutter. A host that keeps a pane inset
      is bled through (`--pane-inset`); a host whose rows already start at the screen's edge (Agenda) sets `--row-bleed: 0px`. */
-  .agenda-rows .agenda-row { --swipe-x: 0px; grid-template-columns: 22px minmax(0, 1fr); grid-template-rows: auto auto auto; column-gap: 14px; align-items: start; margin-inline: calc(-1 * var(--row-bleed, var(--pane-inset))); padding: 13px var(--phone-gutter); border-bottom: 0; background: transparent; touch-action: pan-y; contain-intrinsic-size: auto 66px; }
+  .agenda-rows .agenda-row { --swipe-x: 0px; grid-template-columns: 22px minmax(0, 1fr); grid-template-rows: auto auto auto; column-gap: 14px; align-items: start; margin-inline: calc(-1 * var(--row-bleed, var(--pane-inset))); padding: 13px var(--phone-gutter); border-bottom: 0; background: transparent; touch-action: pan-y; contain-intrinsic-size: auto 43px; }
   .agenda-rows .agenda-row:has(> .agenda-when) { grid-template-columns: 22px minmax(0, 1fr) auto; }
   /* A hairline from the text's left edge to the screen's right, between neighbours; the now rule stands in for it. */
   .agenda-rows .agenda-row + .agenda-row::before { content: ''; position: absolute; top: 0; left: calc(var(--phone-gutter) + 36px); right: 0; height: .5px; background: var(--line); }
@@ -42,7 +42,8 @@
   .agenda-rows .agenda-row .agenda-row-facts > .agenda-provenance { flex: 0 1 auto; display: block; }
   .agenda-rows .agenda-row .agenda-row-facts > * + *::before { padding-inline: 6px 8px; color: var(--faint); }
   .agenda-rows .agenda-row .agenda-row-facts .icon { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; stroke-width: 1.4; }
-  .agenda-rows .agenda-row .agenda-provenance { margin-block: -8px; padding-block: 8px; overflow: hidden; color: inherit; text-decoration: none; text-overflow: ellipsis; overflow-wrap: normal; }
+  /* The 18 px facts line carries a 44 px target: 13 px of padding each side, cancelled by margin so the row does not move (the row's own 13 px padding holds the lower half). */
+  .agenda-rows .agenda-row .agenda-provenance { margin-block: -13px; padding-block: 13px; overflow: hidden; color: inherit; text-decoration: none; text-overflow: ellipsis; overflow-wrap: normal; }
   .agenda-rows .agenda-row .agenda-provenance:is(:hover, :focus-visible) { color: inherit; }
   .agenda-rows .agenda-row .agenda-priority[data-priority="high"] { color: inherit; }
   .agenda-rows .agenda-row .agenda-late { color: var(--danger); }

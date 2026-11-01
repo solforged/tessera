@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { calendarDate, civilDate, daysBetween, relativeDate, weekRangeProse, weekRangeTitle } from './relative-date';
+import { calendarDate, civilDate, daysBetween, proseDate, provenanceDay, relativeDate, weekRangeProse, weekRangeTitle } from './relative-date';
 
 describe('relativeDate', () => {
   const today = '2026-10-26';
@@ -43,6 +43,43 @@ describe('calendarDate', () => {
     expect(calendarDate('2026-10-24', '2026-10-26')).toBe('Oct 24');
     expect(calendarDate('2025-12-31', '2026-01-01')).toBe('Dec 31, 2025');
     expect(calendarDate('0099-02-03', '2026-10-26')).toBe('Feb 3, 99');
+  });
+});
+
+describe('proseDate', () => {
+  const today = '2026-10-26';
+
+  test('names a whole day the way every list does', () => {
+    expect(proseDate('2026-10-26', today)).toBe('today');
+    expect(proseDate('2026-11-01', '2026-11-01')).toBe('today');
+    expect(proseDate('2026-10-25', today)).toBe('yesterday');
+    expect(proseDate('2026-10-27', today)).toBe('tomorrow');
+    expect(proseDate('2026-10-24', today)).toBe('Sat');
+    expect(proseDate('2026-10-19', today)).toBe('Oct 19');
+    expect(proseDate('2014-12-22', today)).toBe('Dec 22, 2014');
+  });
+
+  test('leaves a month, a year and anything that is not a day', () => {
+    expect(proseDate('2003-02', today)).toBe('Feb 2003');
+    expect(proseDate('2012', today)).toBe('2012');
+    expect(proseDate('2003-13', today)).toBeUndefined();
+    expect(proseDate('2026-02-30', today)).toBeUndefined();
+    expect(proseDate('c. 1500', today)).toBeUndefined();
+    expect(proseDate('2026-11-01T10:50', today)).toBeUndefined();
+  });
+});
+
+describe('provenanceDay', () => {
+  const today = '2026-10-26';
+
+  test('uses words for today and its neighbours, the weekday and number within the week, then the month and day', () => {
+    expect(provenanceDay('2026-10-26', today)).toBe('today');
+    expect(provenanceDay('2026-10-25', today)).toBe('yesterday');
+    expect(provenanceDay('2026-10-27', today)).toBe('tomorrow');
+    expect(provenanceDay('2026-10-22', today)).toBe('Thu 22');
+    expect(provenanceDay('2026-11-01', today)).toBe('Sun 1');
+    expect(provenanceDay('2026-10-16', today)).toBe('Oct 16');
+    expect(provenanceDay('2025-10-16', today)).toBe('Oct 16, 2025');
   });
 });
 

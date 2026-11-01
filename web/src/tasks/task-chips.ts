@@ -17,7 +17,7 @@ export const duePresets: { value: DuePreset; label: string }[] = [
   { value: 'week', label: 'Next 7 days' },
 ];
 export const taskStatuses: { value: TaskStatus; label: string }[] = [
-  { value: 'todo', label: 'Todo' }, { value: 'doing', label: 'Doing' }, { value: 'waiting', label: 'Waiting' }, { value: 'done', label: 'Done' }, { value: 'cancelled', label: 'Cancelled' },
+  { value: 'todo', label: 'Todo' }, { value: 'doing', label: 'Doing' }, { value: 'waiting', label: 'Waiting' }, { value: 'done', label: 'Done' }, { value: 'cancelled', label: 'Canceled' },
 ];
 export const taskPriorities: { value: TaskPriority; label: string }[] = [{ value: 'high', label: 'High' }, { value: 'medium', label: 'Medium' }, { value: 'low', label: 'Low' }];
 

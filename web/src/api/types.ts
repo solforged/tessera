@@ -609,7 +609,7 @@ export interface TaskQuery {
   limit: number | null;
 }
 
-export interface TaskRow { source: BlockInPage; task: TaskState; project_id: string | null; section_id: string | null; section_text: string | null }
+export interface TaskRow { source: BlockInPage; task: TaskState; project_id: string | null; section_id: string | null; section_text: string | null; logged_work_ms?: number }
 export interface TaskQueryResult { rows: TaskRow[]; total: number }
 export type AgendaReason = 'scheduled' | 'deadline' | 'warning' | 'overdue' | 'unplanned' | 'in_progress' | 'recently_completed';
 
@@ -619,6 +619,7 @@ export interface AgendaItem {
   reasons: AgendaReason[];
   time: string | null;
   project_id: string | null;
+  logged_work_ms?: number;
 }
 
 export interface Agenda { date: string; items: AgendaItem[] }

@@ -16,7 +16,7 @@ export interface ProjectControlsProps {
 }
 
 const statuses: readonly ProjectState['status'][] = ['active', 'done', 'cancelled'];
-const statusLabels: Record<ProjectState['status'], string> = { active: 'Active', done: 'Done', cancelled: 'Cancelled' };
+const statusLabels: Record<ProjectState['status'], string> = { active: 'Active', done: 'Done', cancelled: 'Canceled' };
 const emptyProject = (): ProjectState => ({ outcome: '', deadline: null, status: 'active' });
 
 /** Each choice saves as it is made; the outcome saves on Enter or when focus leaves it. */

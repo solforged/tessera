@@ -4,7 +4,8 @@
 .week-ledger-day > h2 { margin: 0; }
 .week-ledger-heading { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: baseline; align-content: center; column-gap: var(--space-8); width: 100%; min-height: var(--touch-target); }
 .week-ledger-rule { height: var(--rule-width); background: var(--line); align-self: center; }
-.week-ledger-heading .agenda-day-count { white-space: nowrap; }
+/* The head is an h2; the count is apparatus beside the weekday, faint, not the heading's own size and weight. */
+.week-ledger-heading .agenda-day-count { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .week-ledger-compact { margin-top: var(--space-4); }
 .week-ledger-compact .week-ledger-heading { min-height: var(--space-32); }
 .week-ledger-compact .agenda-day-numeral { color: var(--muted); font-size: var(--text-h2); line-height: var(--line-h2); }

@@ -406,9 +406,9 @@ export function createOutlineCommands(context: Pick<OutlineContext,
       ])] : []),
       ...(fieldEntry(id) ? [{ label: 'Field…', action: () => fieldMenu(id, anchor) }] : []),
       ...(entry.task ? [group('Task…', 'Task', () => [
-        ...(entry.task?.status ? [item('toggle-task', isFinished(entry.task) ? 'Reopen' : 'Complete'),
-          group('Status…', 'Task status', () => statusMenuItems(entry.task, status => capabilities.invoke(capabilities.status(id, status))))] : []),
-        { label: 'Plan', action: () => capabilities.open(id, 'task', anchor) },
+        ...(entry.task?.status ? [item('toggle-task', isFinished(entry.task) ? 'Reopen task' : 'Complete task'),
+          group('Set task status…', 'Task status', () => statusMenuItems(entry.task, status => capabilities.invoke(capabilities.status(id, status))))] : []),
+        { label: 'Plan task', action: () => capabilities.open(id, 'task', anchor) },
         { label: 'Work sessions', action: () => capabilities.open(id, 'work', anchor) },
         { ...item('remove-task'), divider: true, danger: true },
       ])] : []),
@@ -538,10 +538,12 @@ export function createOutlineCommands(context: Pick<OutlineContext,
   async function promoteToProject(id: string) {
     const title = plainText(doc.block(id)?.text ?? '', target => props.notebook.lookup(target)).trim();
     if (!title) { setMessage('Write the project’s name in the atom, then make it a project.'); return; }
+    // The block's sentence ends with a stop that a page title does not carry, and the notice supplies its own.
+    const name = title.replace(/[.…,;:]+$/u, '').trimEnd() || title;
     rowFocus(id);
     await capabilities.run(id, async () => {
-      const { change } = await props.notebook.promoteToProject(id, title);
-      context.showNotice(`Made project ${title}.`, change.undo);
+      const { change } = await props.notebook.promoteToProject(id, name);
+      context.showNotice(`Made project ${name}${/[.!?…]$/u.test(name) ? '' : '.'}`, change.undo);
     }).catch(() => {});
   }
   function addCard(id: string, kind: InsertCardKind = 'forward') {
