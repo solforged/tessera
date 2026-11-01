@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import type { Block, NameMatch } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
-import { chooseName, completeNames, displayTitle, foldedHighlights, foldName, plainText, referenceLabel, referenceValue, resolveName, resolvedReferenceText } from './names';
+import { chooseName, completeNames, displayTitle, foldedHighlights, foldName, plainText, readableText, referenceLabel, referenceValue, resolveName, resolvedReferenceText } from './names';
 import { typedTitles, withLinkedTitles } from './link-titles';
 
 const page = (id: string, text: string): Block => ({ id, text, kind: 'page', parent_id: null, page_id: id, heading: null, archived: false, kept_copy: null, revision: 1, created_at: 0, updated_at: 0 });
@@ -72,6 +72,20 @@ test('deleted attribution labels stay readable without inventing a live referenc
   expect(plainText(`[[${id}]]`, lookup, undefined, deleted)).toBe('Renamed holder 二 · Deleted holder');
   expect(plainText(`[[${id}]] · Preserved gist`, lookup, undefined, deleted)).toBe('Renamed holder 二 · Deleted holder · Preserved gist');
   expect(plainText('[[01ARZ3NDEKTSV4RRFFQ69G5FAW]]', lookup, undefined, deleted)).toBe('Unresolved 01ARZ3NDEKTSV4RRFFQ69G5FAW');
+});
+
+test('readable text drops inline markup as block text renders it, keeping references, card arrows and cloze answers', () => {
+  const id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+  const lookup = () => () => page(id, 'Entropy');
+  expect(readableText('For N tokens, `PPL = exp(−(1/N) Σ_t log p_θ(x_t))`.', lookup)).toBe('For N tokens, PPL = exp(−(1/N) Σ_t log p_θ(x_t)).');
+  expect(readableText('A **bold** and *quiet* ``a `tick` inside`` near [[01ARZ3NDEKTSV4RRFFQ69G5FAV]]', lookup)).toBe('A bold and quiet a `tick` inside near Entropy');
+  // A code span shows its references literally, as BlockText does.
+  expect(readableText(`Write \`[[${id}]]\` to link`, lookup)).toBe(`Write [[${id}]] to link`);
+  // Unmatched markers stay, as they stay in block text.
+  expect(readableText('2 * 3 and a lone ` tick', lookup)).toBe('2 * 3 and a lone ` tick');
+  expect(readableText('Formula >> `W_2 φ(x)`', lookup)).toBe('Formula → W_2 φ(x)');
+  expect(readableText('Scale by {{c1::`√d_k`}}', lookup)).toBe('Scale by √d_k');
+  expect(readableText(`[[${id}]] · gist`, () => () => null, { id, text: 'Old holder' })).toBe('Old holder · Deleted holder · gist');
 });
 
 describe('page names', () => {

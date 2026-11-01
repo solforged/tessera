@@ -1101,6 +1101,7 @@ impl Notebook {
                 language,
                 published: published.cloned(),
                 site: fields.get("site").and_then(|v| v.first()).cloned(),
+                form: fields.get("form").and_then(|v| v.first()).cloned(),
                 cover,
                 snapshot_format: snapshot.map(|(format, _)| format.clone()),
                 progress,

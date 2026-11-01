@@ -3446,7 +3446,21 @@ fn source_index_summary_is_bibliographic_and_counts_citations_across_pages() {
     let summary = &index.summaries[&source];
     let bibliography = summary.source.as_ref().unwrap();
     assert_eq!(bibliography.siglum, "GAR");
-    assert_eq!(bibliography.authors, ["Ana García", "John Smith"]);
+    assert_eq!(
+        bibliography
+            .authors
+            .iter()
+            .map(|author| author.name.as_str())
+            .collect::<Vec<_>>(),
+        ["Ana García", "John Smith"]
+    );
+    assert!(
+        bibliography
+            .authors
+            .iter()
+            .all(|author| author.id.is_some())
+    );
+    assert_eq!(bibliography.form, None);
     assert_eq!(bibliography.publisher.as_deref(), Some("Original Press"));
     assert_eq!(bibliography.published.as_deref(), Some("2020-04"));
     assert_eq!(bibliography.format, SourceFormat::Epub);

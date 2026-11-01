@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { Citation, HighlightRow, IngestJob, LibraryFilters, LibraryRow } from '../api/types';
-import { groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightLocation, highlightMeta, importJobName, jobLabel, keepRows, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceAuthor, sourceByline, sourceStateOperation, visibleJobs } from './query';
+import { groupSources, highlightChapterHeading, highlightChapters, highlightEmptyMessage, highlightLocation, highlightMeta, importJobName, jobLabel, keepRows, libraryQuery, nextUnprocessedHighlight, recentJobs, retryTime, selectSources, sourceAuthor, sourceByline, sourceFacts, sourceKindLabel, sourceStateOperation, visibleJobs } from './query';
 
 const filters: LibraryFilters = { people: [], decades: [], years: [], publishers: [], languages: [] };
 
@@ -18,6 +18,23 @@ describe('library queries', () => {
       expect(libraryQuery({ tab: 'inbox', text: '', sort, filters }).direction).toBe(sort === 'title' || sort === 'author' ? 'asc' : 'desc');
     }
   });
+});
+
+test('a source is named by its Form, else its format', () => {
+  expect(sourceKindLabel('paper', 'record')).toBe('Paper');
+  expect(sourceKindLabel(' web page ', 'article')).toBe('Web page');
+  expect(sourceKindLabel(null, 'record')).toBe('Record');
+  expect(sourceKindLabel('', 'epub')).toBe('EPUB');
+  expect(sourceKindLabel(undefined, 'article')).toBe('Article');
+});
+
+test('Find names what a source is and shows progress and highlights only once there are any', () => {
+  const row = (form: string | null, progress: number, highlights: number, snapshot_format: LibraryRow['snapshot_format'] = null) =>
+    ({ form, progress, highlights, snapshot_format, source: { format: snapshot_format ?? 'record' } }) as unknown as LibraryRow;
+  expect(sourceFacts(row('paper', 0, 0))).toEqual(['Paper']);
+  expect(sourceFacts(row(null, 0, 0))).toEqual(['Record']);
+  expect(sourceFacts(row(null, 0.426, 1, 'epub'))).toEqual(['EPUB', '42%', '1 highlight']);
+  expect(sourceFacts(row('book', 0.004, 12, 'epub'))).toEqual(['Book', '<1%', '12 highlights']);
 });
 
 test('a refresh keeps unchanged rows as the same objects and replaces changed ones', () => {

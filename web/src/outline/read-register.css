@@ -37,7 +37,7 @@
 .related-block.reading-reveal { outline-offset: calc(-1 * var(--rule-width)); }
 .reading-holder .outline-row { padding: 0; min-height: var(--line-control); align-items: baseline; }
 .reading-holder .outline-source { font: var(--weight-control) var(--text-control)/var(--line-control) var(--font-mono); letter-spacing: var(--tracking-apparatus); color: var(--text); }
-.reading-register .reading-holder .outline-row > .row-sigla { position: static; flex-direction: row; margin: 0 var(--space-8) 0 0; }
+.reading-register .reading-holder .outline-row > .row-sigla { flex-direction: row; width: auto; margin: 0 var(--space-8) 0 0; }
 .reading-register .reading-holder .row-siglum { min-width: 0; padding: 0; border: 0; background: none; color: var(--faint); font: var(--weight-control) var(--text-control)/var(--line-control) var(--font-mono); }
 .reading-holder .static-text { min-height: var(--line-control); }
 .reading-gist .outline-row { padding-block: 0; }

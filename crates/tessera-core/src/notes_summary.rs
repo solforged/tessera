@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-use crate::library::SourceFormat;
+use crate::library::{CreatorRole, LibraryPerson, SourceFormat};
 use crate::library_store::{json, source_at, source_columns, source_siglum};
 use crate::reads::hidden_blocks;
 use crate::{NoteEntry, Notebook, Result, SeeTarget};
@@ -18,7 +18,10 @@ pub struct SourceSummary {
     pub siglum: String,
     pub citation_key: Option<String>,
     pub format: SourceFormat,
-    pub authors: Vec<String>,
+    /// The work's Form reading, such as `paper`, which names it better than its format.
+    pub form: Option<String>,
+    /// The byline's creators in order; a linked creator carries its page id so the byline can open it.
+    pub authors: Vec<LibraryPerson>,
     pub publisher: Option<String>,
     pub published: Option<String>,
     pub highlights: usize,
@@ -59,7 +62,9 @@ impl Notebook {
         let definitions = crate::fields::definitions(&self.conn)?;
         let definition_ids: HashSet<_> =
             definitions.iter().map(|field| field.id.as_str()).collect();
-        let mut readings = crate::library_export::field_readings(&self.conn, &ids)?;
+        let mut people = HashMap::new();
+        let mut readings =
+            crate::library_export::field_readings_with_people(&self.conn, &ids, &mut people)?;
         let template = type_id
             .map(|id| crate::query::template(&self.conn, id))
             .transpose()?
@@ -197,6 +202,21 @@ impl Notebook {
             let fields = readings.remove(&source.block_id).unwrap_or_default();
             source_siglum(&mut source, &row.get::<_, String>(10)?, &fields);
             let first = |name: &str| fields.get(name).and_then(|values| values.first()).cloned();
+            // Readings and people come from the same values, so a creator's name finds its own entry.
+            let mut people = people.remove(&source.block_id).unwrap_or_default();
+            let authors = crate::library_export::creators(&fields)
+                .iter()
+                .map(
+                    |name| match people.iter().position(|person| &person.name == name) {
+                        Some(at) => people.remove(at),
+                        None => LibraryPerson {
+                            id: None,
+                            name: name.clone(),
+                            role: CreatorRole::Author,
+                        },
+                    },
+                )
+                .collect();
             let summary = summaries
                 .get_mut(&source.block_id)
                 .expect("selected source");
@@ -204,7 +224,8 @@ impl Notebook {
                 siglum: source.siglum,
                 citation_key: source.citation_key,
                 format: source.format,
-                authors: crate::library_export::creators(&fields).to_vec(),
+                form: first("form"),
+                authors,
                 publisher: first("publisher"),
                 published: first("published"),
                 highlights: highlight_counts

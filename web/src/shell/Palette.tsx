@@ -1,6 +1,6 @@
 import { createEffect, createMemo, createResource, createSignal, For, onCleanup, Show } from 'solid-js';
 import { Portal } from 'solid-js/web';
-import { highlightMatches } from '../library/query';
+import { highlightMatches, sourceFacts } from '../library/query';
 import { api } from '../api/client';
 import type { Block, BlockInPage, Citation, FieldDefinition, HighlightRow, LibraryRow, NoteKind, PageView, PassageHit, PassagePage, SourceView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -367,7 +367,7 @@ function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient
   const icon = createPageIcon(props.notebook, () => props.hit.block);
   return <>
     <Icon name={isPage() && props.noteKind ? noteKindIcon(props.noteKind) : icon()} />
-    <span class="picker-text find-result"><span classList={{ 'find-snippet': !isPage(), 'find-work': isPage() && !!props.book }}><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{displayTitle(props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text, id => props.notebook.lookup(id))}</small></Show><Show when={isPage() && props.book}>{book => <Show when={phone} fallback={<small>Book · {Math.round(book().progress * 100)}% · {book().highlights} highlights</small>}><small class="find-meta"><span>Book</span><span class="fig">{Math.round(book().progress * 100)}%</span><span class="fig">{book().highlights} highlights</span></small></Show>}</Show><Show when={phone && isPage() && !props.book && props.noteKind}>{kind => <small class="find-meta"><span>{kind().name}</span></small>}</Show></span>
+    <span class="picker-text find-result"><span classList={{ 'find-snippet': !isPage(), 'find-work': isPage() && !!props.book }}><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{displayTitle(props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text, id => props.notebook.lookup(id))}</small></Show><Show when={isPage() && props.book}>{book => <Show when={phone} fallback={<small>{sourceFacts(book()).join(' · ')}</small>}><small class="find-meta"><For each={sourceFacts(book())}>{(fact, at) => <span classList={{ fig: at() > 0 }}>{fact}</span>}</For></small></Show>}</Show><Show when={phone && isPage() && !props.book && props.noteKind}>{kind => <small class="find-meta"><span>{kind().name}</span></small>}</Show></span>
     <Show when={isPage() && props.hit.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>
     <Show when={props.selected}><kbd class="picker-hint">{besideKey}↵ beside</kbd></Show>
   </>;

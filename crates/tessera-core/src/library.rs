@@ -465,6 +465,8 @@ pub struct LibraryRow {
     pub language: Option<String>,
     pub published: Option<String>,
     pub site: Option<String>,
+    /// The work's Form reading, such as `paper`.
+    pub form: Option<String>,
     pub cover: Option<String>,
     /// The current snapshot's format, such as `article` for a record with a saved web page, so lists can show the
     /// right cover or spine before loading the source.

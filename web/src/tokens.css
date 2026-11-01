@@ -65,7 +65,8 @@
   --font-body: "IBM Plex Sans Variable", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-display: "Piazzolla Variable", Georgia, serif;
   --font-reading-serif: var(--font-display);
-  --font-mono: "Berkeley Mono Variable", "Berkeley Mono", "SFMono-Regular", Menlo, Consolas, monospace;
+  /* Monaco draws glyphs Berkeley Mono and Menlo lack, such as ‖, before the system's serif fallback would. */
+  --font-mono: "Berkeley Mono Variable", "Berkeley Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
   --text-apparatus: 11.5px; --line-apparatus: 16px;
   /* The apparatus labels in small Plex; only figures (counts, dates, times, sigla) are mono. */
   --apparatus: var(--weight-body) var(--text-meta)/var(--line-apparatus) var(--font-body);
