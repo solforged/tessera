@@ -1020,6 +1020,69 @@ fn the_same_day_and_the_same_title_made_offline_become_one() {
 }
 
 #[test]
+fn a_blank_first_row_on_a_day_made_on_two_devices_is_one_row() {
+    let mut p = pair();
+    apply(
+        &mut p.hub,
+        vec![
+            Operation::CreateJournal {
+                id: id(10),
+                date: "2026-10-10".into(),
+            },
+            insert(11, &id(10), None, ""),
+        ],
+    );
+    apply(
+        &mut p.replica,
+        vec![
+            Operation::CreateJournal {
+                id: id(20),
+                date: "2026-10-10".into(),
+            },
+            insert(21, &id(20), None, ""),
+        ],
+    );
+    // The phone typed into its own first row before it ever synced.
+    let typed = edit(&p.replica, &id(21), "Phone note");
+    apply(&mut p.replica, vec![typed]);
+
+    p.sync();
+    p.assert_converged();
+    assert!(p.replica.block(&id(21)).is_err());
+    assert_eq!(children(&p.hub, &id(10)), ["Phone note"]);
+    assert_eq!(children(&p.replica, &id(10)), ["Phone note"]);
+}
+
+#[test]
+fn a_blank_first_row_stays_when_the_other_days_rows_are_all_written() {
+    let mut p = pair();
+    apply(
+        &mut p.hub,
+        vec![
+            Operation::CreateJournal {
+                id: id(10),
+                date: "2026-10-10".into(),
+            },
+            insert(11, &id(10), None, "Desktop morning"),
+        ],
+    );
+    apply(
+        &mut p.replica,
+        vec![
+            Operation::CreateJournal {
+                id: id(20),
+                date: "2026-10-10".into(),
+            },
+            insert(21, &id(20), None, ""),
+        ],
+    );
+
+    p.sync();
+    p.assert_converged();
+    assert_eq!(children(&p.hub, &id(10)), ["Desktop morning", ""]);
+}
+
+#[test]
 fn a_change_that_cannot_apply_is_kept_as_rejected() {
     let mut p = pair();
     let base = p.hub.block(&id(3)).unwrap().revision;

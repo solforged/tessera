@@ -545,6 +545,9 @@ pub struct TaskRow {
     pub project_id: Option<String>,
     pub section_id: Option<String>,
     pub section_text: Option<String>,
+    /// Total of this task's stopped, unreversed work sessions, in milliseconds.
+    #[serde(default)]
+    pub logged_work_ms: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -572,6 +575,9 @@ pub struct AgendaItem {
     pub reasons: Vec<AgendaReason>,
     pub time: Option<String>,
     pub project_id: Option<String>,
+    /// Total of this task's stopped, unreversed work sessions, in milliseconds.
+    #[serde(default)]
+    pub logged_work_ms: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

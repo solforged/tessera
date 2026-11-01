@@ -138,7 +138,9 @@ pub(crate) fn visible_tasks(
         ", ",
         block_columns!("p"),
         ", t.state,
-         t.project_id, t.section_id, section.text
+         t.project_id, t.section_id, section.text,
+         (SELECT COALESCE(SUM(w.ended_at - w.started_at), 0) FROM work_sessions w
+          WHERE w.block_id = t.block_id AND w.ended_at IS NOT NULL AND w.reversed = 0)
          FROM sections t JOIN blocks b ON b.id = t.block_id JOIN blocks p ON p.id = b.page_id
          LEFT JOIN blocks section ON section.id = t.section_id"
     ))?;
@@ -153,6 +155,7 @@ pub(crate) fn visible_tasks(
                 project_id: row.get(21)?,
                 section_id: row.get(22)?,
                 section_text: row.get(23)?,
+                logged_work_ms: row.get(24)?,
             })
         })?
         .collect::<rusqlite::Result<Vec<_>>>()?)
@@ -492,6 +495,7 @@ impl Notebook {
                     reasons,
                     time,
                     project_id: row.project_id.clone(),
+                    logged_work_ms: row.logged_work_ms,
                 });
             }
             if row.task.status.is_some() && !unfinished(row.task.status) {
@@ -506,6 +510,7 @@ impl Notebook {
                     reasons,
                     time,
                     project_id: row.project_id,
+                    logged_work_ms: row.logged_work_ms,
                 });
             }
         }

@@ -174,15 +174,30 @@ impl Step {
     }
 }
 
-/// A change's stored summary, or one counted from what it committed.
+/// A change's stored summary, or one built from what it committed: the verb and count the editor
+/// records (`Edited an atom`, `Added 3 atoms`), or its reason, or what its operations touched.
 const SUMMARY: &str = "COALESCE(h.summary,
     CASE MAX(COALESCE(json_array_length(c.committed, '$.revisions'), 0),
              COALESCE(json_array_length(c.committed, '$.removed'), 0))
-    WHEN 0 THEN COALESCE(c.reason, 'Changed the workshop')
-    WHEN 1 THEN '1 atom changed'
-    ELSE MAX(COALESCE(json_array_length(c.committed, '$.revisions'), 0),
-             COALESCE(json_array_length(c.committed, '$.removed'), 0))
-         || ' atoms changed' END)";
+    WHEN 0 THEN COALESCE(c.reason, CASE
+        WHEN json_array_length(c.operations) > 0 AND NOT EXISTS (
+            SELECT 1 FROM json_each(c.operations) WHERE json_extract(value, '$.op') <> 'set_setting')
+        THEN 'Changed settings' ELSE 'Changed the workshop' END)
+    ELSE CASE
+        WHEN NOT EXISTS (
+            SELECT 1 FROM json_each(c.operations) WHERE json_extract(value, '$.op') <> 'delete')
+        THEN 'Deleted'
+        WHEN NOT EXISTS (
+            SELECT 1 FROM json_each(c.operations) WHERE json_extract(value, '$.op') <> 'move')
+        THEN 'Moved'
+        WHEN NOT EXISTS (
+            SELECT 1 FROM json_each(c.operations)
+            WHERE json_extract(value, '$.op') NOT IN ('create_page', 'create_journal', 'insert'))
+        THEN 'Added'
+        ELSE 'Edited' END
+        || CASE json_array_length(c.operations) WHEN 1 THEN ' an atom'
+            ELSE ' ' || json_array_length(c.operations) || ' atoms' END
+    END)";
 
 impl Notebook {
     /// All committed changes, newest first, before an optional exclusive sequence.

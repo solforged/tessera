@@ -429,6 +429,40 @@ impl Notebook {
         })
     }
 
+    /// The visible non-page members of a kind's type, by ID with their text: the tagged blocks a
+    /// type table lists after its notes, with the visibility of the sidebar's tagged-block count.
+    /// Capability kinds list their atoms by capability, and Unfiled has no type.
+    pub(crate) fn kind_tagged_blocks(&self, key: &str) -> Result<HashMap<String, String>> {
+        let type_id: Option<String> = match key.strip_prefix("type:") {
+            Some(id) => Some(id.to_owned()),
+            None if TYPE_KINDS.iter().any(|(kind, ..)| *kind == key) => self
+                .conn
+                .prepare_cached(
+                    "SELECT id FROM blocks WHERE kind = 'page' AND deletion_id IS NULL AND title_key = ?1",
+                )?
+                .query_row([key], |row| row.get(0))
+                .optional()?,
+            None => None,
+        };
+        let Some(type_id) = type_id else {
+            return Ok(HashMap::new());
+        };
+        Ok(self
+            .conn
+            .prepare_cached(concat!(
+                hidden_blocks!(),
+                "SELECT DISTINCT b.id, b.text
+                 FROM memberships m JOIN blocks b ON b.id = m.block_id
+                 JOIN blocks p ON p.id = b.page_id JOIN blocks t ON t.id = m.type_id
+                 WHERE m.type_id = ?1 AND b.kind <> 'page' AND t.kind = 'page'
+                   AND b.deletion_id IS NULL AND p.deletion_id IS NULL AND t.deletion_id IS NULL
+                   AND b.rowid NOT IN (SELECT rowid FROM hidden)
+                   AND t.rowid NOT IN (SELECT rowid FROM hidden)",
+            ))?
+            .query_map([type_id], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<rusqlite::Result<_>>()?)
+    }
+
     /// The kinds one titled page is filed under, in index order. Empty for an unfiled note.
     pub fn note_kinds(&self, page_id: &str) -> Result<Vec<NoteKind>> {
         validate_id(page_id)?;

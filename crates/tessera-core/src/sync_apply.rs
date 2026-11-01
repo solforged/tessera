@@ -219,6 +219,7 @@ impl Notebook {
         // the existing root; the change's children follow its children.
         let mut kept = Vec::with_capacity(operations.len());
         let mut merged_pages = BTreeSet::new();
+        let mut merged_days = Vec::new();
         for operation in operations {
             let existing = match field(&operation, "op") {
                 Some("create_page") => self
@@ -249,6 +250,9 @@ impl Notebook {
                     if typed {
                         merged_pages.insert(id.to_owned());
                     }
+                    if field(&operation, "op") == Some("create_journal") {
+                        merged_days.push((id.to_owned(), target.clone()));
+                    }
                     aliases.push((id.to_owned(), target));
                 }
                 _ => kept.push(operation),
@@ -261,6 +265,7 @@ impl Notebook {
                 || !field(operation, "type_id").is_some_and(|id| merged_pages.contains(id))
         });
         let mut operations = kept;
+        self.merge_starter_rows(&mut operations, &merged_days, &mut aliases)?;
         for (alias, target) in &aliases {
             let last_child: Option<String> = self
                 .conn
@@ -423,6 +428,46 @@ impl Notebook {
             aliases,
             conflicts,
         })
+    }
+
+    /// A journal day another device started offline arrives with the blank first row the editor
+    /// opens a new day with. When this notebook's copy of the day already has a blank row, the
+    /// two are one row: the arriving row resolves to it, and its later edits follow. Without
+    /// this each phone paired, and each day made on two devices, would add another blank line.
+    fn merge_starter_rows(
+        &self,
+        operations: &mut Vec<Value>,
+        days: &[(String, String)],
+        aliases: &mut Vec<(String, String)>,
+    ) -> Result<()> {
+        for (day, target) in days {
+            let Some(position) = operations.iter().position(|operation| {
+                field(operation, "op") == Some("insert")
+                    && field(operation, "parent_id") == Some(day.as_str())
+                    && operation["after"].is_null()
+                    && field(operation, "text") == Some("")
+                    && operation["heading"].is_null()
+            }) else {
+                continue;
+            };
+            let Some(blank) = self
+                .conn
+                .query_row(
+                    "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL AND text = ''
+                     ORDER BY ordinal, id LIMIT 1",
+                    [target],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?
+            else {
+                continue;
+            };
+            let starter = operations.remove(position);
+            if let Some(id) = field(&starter, "id") {
+                aliases.push((id.to_owned(), blank));
+            }
+        }
+        Ok(())
     }
 
     /// A book this notebook already has as a source, imported again on
