@@ -128,13 +128,10 @@ pub(crate) fn served(
     path: &str,
 ) -> anyhow::Result<serde_json::Value> {
     tokio::runtime::Runtime::new()?.block_on(async {
-        let Ok((client, base)) = crate::service(notebook).await else {
+        let Ok(service) = crate::service(notebook).await else {
             return Err(unowned);
         };
-        let response = client
-            .request(method, format!("{base}{path}"))
-            .send()
-            .await?;
+        let response = service.request(method, path).send().await?;
         Ok(crate::checked(response).await?.json().await?)
     })
 }
@@ -165,6 +162,8 @@ fn clone(
             Some(&pairing.device.name),
         )?;
     }
+    // The clone is the hub's state as of now, so it counts as the first sync.
+    replica.sync_mark_synced()?;
     Ok(replica.sync_status()?)
 }
 

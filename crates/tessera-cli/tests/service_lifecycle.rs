@@ -3,7 +3,7 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::path::Path;
-use std::process::{Child, ChildStderr, Command, ExitStatus, Stdio};
+use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 use tessera_core::{Actor, Batch, Committed, DATABASE_FILE, Operation};
@@ -573,6 +573,226 @@ async fn switching_reopens_the_same_process_and_port_and_refuses_old_windows() {
     assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
     assert_eq!(serving(&service.host, &first).await["id"], before["id"]);
     service.stop();
+}
+
+/// A `tessera mcp` client on stdin and stdout. Its environment names a proxy
+/// that refuses every connection, so any loopback request sent through a proxy
+/// fails.
+struct Mcp {
+    _process: ChildGuard,
+    stdin: ChildStdin,
+    stdout: BufReader<ChildStdout>,
+}
+
+impl Mcp {
+    fn start(notebook: &Path) -> Self {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_tessera"));
+        command
+            .arg("--workshop")
+            .arg(notebook)
+            .arg("mcp")
+            .env_remove("TESSERA_WORKSHOP")
+            .env_remove("NO_PROXY")
+            .env_remove("no_proxy")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        for key in ["HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"] {
+            command.env(key, "http://127.0.0.1:1");
+        }
+        let mut process = ChildGuard(command.spawn().unwrap());
+        let stdin = process.0.stdin.take().unwrap();
+        let stdout = BufReader::new(process.0.stdout.take().unwrap());
+        let mut mcp = Self {
+            _process: process,
+            stdin,
+            stdout,
+        };
+        mcp.send(
+            serde_json::json!({
+                "jsonrpc": "2.0", "id": 0, "method": "initialize",
+                "params": { "protocolVersion": "2025-06-18", "clientInfo": { "name": "lifecycle" } },
+            })
+            .to_string()
+            .as_bytes(),
+        );
+        assert!(mcp.receive()["result"]["protocolVersion"].is_string());
+        mcp
+    }
+
+    fn send(&mut self, line: &[u8]) {
+        self.stdin.write_all(line).unwrap();
+        self.stdin.write_all(b"\n").unwrap();
+        self.stdin.flush().unwrap();
+    }
+
+    fn receive(&mut self) -> serde_json::Value {
+        let mut line = String::new();
+        assert_ne!(
+            self.stdout.read_line(&mut line).unwrap(),
+            0,
+            "the MCP server exited"
+        );
+        serde_json::from_str(&line).unwrap()
+    }
+
+    /// A tool's text and whether it reported an error.
+    fn call(&mut self, tool: &str, arguments: serde_json::Value) -> (String, bool) {
+        let request = serde_json::json!({
+            "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+            "params": { "name": tool, "arguments": arguments },
+        });
+        self.send(request.to_string().as_bytes());
+        let response = self.receive();
+        let result = &response["result"];
+        (
+            result["content"][0]["text"].as_str().unwrap().to_owned(),
+            result["isError"].as_bool().unwrap(),
+        )
+    }
+}
+
+async fn page_exists(host: &str, title: &str) -> bool {
+    let response = reqwest::get(format!("http://{host}/api/pages/by-title/{title}"))
+        .await
+        .unwrap();
+    match response.status() {
+        reqwest::StatusCode::OK => true,
+        reqwest::StatusCode::NOT_FOUND => false,
+        status => panic!("{status}"),
+    }
+}
+
+#[tokio::test]
+async fn mcp_stays_with_its_workshop_when_the_service_switches_away() {
+    let root = tempfile::tempdir().unwrap();
+    let first = root.path().join("first");
+    let second = root.path().join("second");
+    let mut service = Service::spawn(isolated(root.path(), Some(&first)));
+    serving(&service.host, &first).await;
+    let mut mcp = Mcp::start(&first);
+    let (text, error) = mcp.call(
+        "tessera_add_note",
+        serde_json::json!({ "page": "Before", "markdown": "- written in first #Marine" }),
+    );
+    assert!(!error, "{text}");
+    let (text, error) = mcp.call("tessera_search", serde_json::json!({ "query": "written" }));
+    assert!(!error, "{text}");
+    assert!(
+        text.contains("#Marine") && !text.contains("#[["),
+        "tags read by title: {text}"
+    );
+    // An undecodable line is refused without ending the session.
+    mcp.send(b"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"ping\",\"x\":\"\xff\"}");
+    assert_eq!(mcp.receive()["error"]["code"], -32700);
+
+    let response = open_notebook(&service.host, &second, true).await;
+    assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    serving(&service.host, &second).await;
+    let (text, error) = mcp.call(
+        "tessera_add_note",
+        serde_json::json!({ "page": "After", "markdown": "- must not reach second" }),
+    );
+    assert!(error, "{text}");
+    for path in [&first, &second] {
+        let path = std::fs::canonicalize(path).unwrap();
+        assert!(text.contains(path.to_str().unwrap()), "{text}");
+    }
+    assert!(!page_exists(&service.host, "After").await);
+
+    // Once the service is back on the first workshop, the session works again.
+    let response = open_notebook(&service.host, &first, false).await;
+    assert_eq!(response.status(), reqwest::StatusCode::ACCEPTED);
+    serving(&service.host, &first).await;
+    let (text, error) = mcp.call(
+        "tessera_read_page",
+        serde_json::json!({ "title": "Before" }),
+    );
+    assert!(!error && text.contains("written in first"), "{text}");
+    service.stop();
+}
+
+#[tokio::test]
+async fn mcp_refuses_another_notebook_at_its_workshop_path() {
+    let root = tempfile::tempdir().unwrap();
+    let workshop = root.path().join("workshop");
+    let mut service = Service::spawn(isolated(root.path(), Some(&workshop)));
+    let before = serving(&service.host, &workshop).await;
+    let mut mcp = Mcp::start(&workshop);
+    let (text, error) = mcp.call("tessera_list_pages", serde_json::json!({}));
+    assert!(!error, "{text}");
+    service.stop();
+    std::fs::remove_dir_all(&workshop).unwrap();
+    let mut replaced = Service::spawn(isolated(root.path(), Some(&workshop)));
+    let after = serving(&replaced.host, &workshop).await;
+    assert_ne!(after["id"], before["id"]);
+    // The change numbers and IDs this session handed out name the old notebook.
+    let (text, error) = mcp.call(
+        "tessera_add_note",
+        serde_json::json!({ "page": "Replaced", "markdown": "- must not land" }),
+    );
+    assert!(error, "{text}");
+    assert!(!page_exists(&replaced.host, "Replaced").await);
+    replaced.stop();
+}
+
+#[tokio::test]
+async fn mcp_refuses_a_copied_workshop_whose_lock_names_the_original_service() {
+    let root = tempfile::tempdir().unwrap();
+    let original = root.path().join("original");
+    let copy = root.path().join("copy");
+    let mut service = Service::spawn(isolated(root.path(), Some(&original)));
+    serving(&service.host, &original).await;
+    let copied = Command::new("cp")
+        .arg("-R")
+        .arg(&original)
+        .arg(&copy)
+        .status()
+        .unwrap();
+    assert!(copied.success());
+    let mut mcp = Mcp::start(&copy);
+    let (text, error) = mcp.call(
+        "tessera_add_note",
+        serde_json::json!({ "page": "Copied", "markdown": "- must not reach original" }),
+    );
+    assert!(error, "{text}");
+    for path in [&original, &copy] {
+        let path = std::fs::canonicalize(path).unwrap();
+        assert!(text.contains(path.to_str().unwrap()), "{text}");
+    }
+    assert!(!page_exists(&service.host, "Copied").await);
+    service.stop();
+}
+
+#[tokio::test]
+async fn a_cli_clone_counts_as_the_replicas_first_sync() {
+    let root = tempfile::tempdir().unwrap();
+    let hub = root.path().join("hub");
+    let replica = root.path().join("replica");
+    let mut service = Service::spawn(isolated(root.path(), Some(&hub)));
+    serving(&service.host, &hub).await;
+    let output = Command::new(env!("CARGO_BIN_EXE_tessera"))
+        .arg("--workshop")
+        .arg(&replica)
+        .args(["sync", "clone"])
+        .arg(format!("http://{}", service.host))
+        .env("XDG_DATA_HOME", root.path().join(".local/share"))
+        .env("XDG_STATE_HOME", root.path().join(".local/state"))
+        .env("XDG_CACHE_HOME", root.path().join(".cache"))
+        .env_remove("TESSERA_WORKSHOP")
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    service.stop();
+    let conn = rusqlite::Connection::open(replica.join(DATABASE_FILE)).unwrap();
+    let synced: Option<i64> = conn
+        .query_row("SELECT synced_at FROM sync_hub", [], |row| row.get(0))
+        .unwrap();
+    assert!(synced.is_some());
 }
 
 #[tokio::test]
