@@ -283,7 +283,7 @@ tessera --workshop /path/to/replica sync reclone
 
 | Command | Behavior |
 |---|---|
-| `sync clone` | Copies the hub's workshop, without original book files, into an empty directory and registers a new device. On another machine, pass `--code` from the hub's Settings › Devices. |
+| `sync clone` | Copies the hub's workshop, without original book files, into an empty directory and registers a new device. The clone counts as the replica's first sync. On another machine, pass `--code` from the hub's Settings › Devices. |
 | `sync` | Pushes the replica's changes, files and reading positions and pulls the hub's. |
 | `sync conflicts` | Lists conflict copies and changes the hub could not apply. If both sides changed a block's text, the hub keeps its text and adds the replica's wording immediately after it. |
 | `sync pin` | Keeps a book's original file and images ahead of time. Every cover is kept; otherwise, images arrive when the book is opened. |
@@ -311,57 +311,87 @@ Other clients use this JSON configuration:
 
 For a non-default workshop, add `--workshop /path` before `mcp`.
 
+The server stays with the workshop it starts with:
+
+- Each tool call finds the service through the workshop's `service.lock`, checks that the service has that workshop's folder open and sends the workshop's ID in `X-Tessera-Notebook`.
+- After a switch in Settings › Workshops, or when the lock names a port that serves another workshop, calls are refused with both folders named, and nothing is written. Switch the service back, or restart the MCP server to work in the other workshop.
+- Requests to the running service, from `tessera mcp` and from other commands, bypass `HTTP_PROXY` and other proxy settings.
+
+Messages are newline-delimited JSON-RPC 2.0. A batch is accepted only under protocol version 2025-03-26, the one version that defines batches. A malformed message gets a JSON-RPC error, and the session keeps serving.
+
 ### Read tools
 
-Nine tools read:
+Eleven tools read:
 
 | Tool | Returns |
 |---|---|
-| `tessera_search` | Blocks matching text, with their pages. |
-| `tessera_list_pages` | Page titles, optionally with journal days. |
-| `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline. Each block's comment gives its ID and revision, tags, task planning, project, question, position, relation, citations and cards; field entries show as `Name::`, and image blocks as `![caption](/api/images/<sha>)`. |
-| `tessera_tasks` | The agenda for a day or a run of days, or tasks filtered by status, dates, priority, project or a saved task view. |
-| `tessera_cards` | A block's or page's cards, the due, new or full queue (optionally a deck's or a type's), review statistics, or decks. |
-| `tessera_query` | Types, fields and saved views, or notes, questions, positions, sources, tasks and highlights selected by `source`. Filters and sorts accept field names or `@` attributes; rows include editable field value IDs. Date values may be relative, such as `-30d`, and `or_empty` includes absent values. |
-| `tessera_library` | Sources, a source's contents, its passages in order from an ordinal with passage IDs, passage search, or highlights. |
+| `tessera_search` | Blocks matching text, with their pages, up to 200. |
+| `tessera_list_pages` | Page titles, optionally with journal days, up to 1000. |
+| `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline that `tessera_add_note` reads back. Each block's comment gives its ID and revision, tags, task planning, project, question, assessment, position, relation, source, revisit date, resolution, citations, and cards with their IDs and revisions. The title's comment does the same for the page. Field entries show as `Name::`, multi-word tags as `#[[Title]]` and image blocks as `![caption](/api/images/<sha>)`. A text line that would read back as structure starts with `\`, and `-->` shows as `--\>`. |
+| `tessera_tasks` | The agenda for a day or a run of days, or tasks filtered by status, dates, priority, project or a saved task view. The agenda refuses the list's filters. When `status` names `done` or `cancelled`, `include` defaults to `all`. |
+| `tessera_cards` | A block's or page's cards, the due, new or full queue (optionally a saved deck's, a tag deck's or a type's), review statistics, or decks. A page is a title, a page or journal day ID, `YYYY-MM-DD` or `today`. A deck's queue uses the deck's own selection unless `selection` is given. Arguments the chosen mode does not use are refused. |
+| `tessera_query` | Types, fields and saved views, or notes, questions, positions, sources, tasks and highlights selected by `source`, `type` or `view`; every other argument needs one of those three. Filters and sorts accept field names or `@` attributes; rows include editable field value IDs. Date values are `today`, a signed day count such as `-30d`, or a date, month or year, and `or_empty` includes absent values. |
+| `tessera_library` | Sources, a source's contents, its passages in order from an ordinal with passage IDs, passage search, or highlights. A range citation marks every passage it covers. |
 | `tessera_sync` | Whether the workshop is a replica, when it last synced, how many of its changes have not reached the hub, and the last sync error; `now` syncs first. |
-| `tessera_relations` | Authored argument edges filtered by `kind`, `source`, `target`, `source_holder` or `target_holder`, with an optional `limit`. At least one filter is required; rows name both endpoints and holders, and any problem. |
+| `tessera_relations` | Authored argument edges filtered by `kind`, `source`, `target`, `source_holder` or `target_holder`, with an optional `limit`. At least one filter is required. Each row is one line naming both endpoints, their holders and any problem. |
+| `tessera_revisits` | Questions and notes due for a revisit by `due`, earliest first, each with its due date, last revisit and proposed next date, up to `limit`. |
+| `tessera_recent_changes` | The workshop's history, newest first, with change numbers, actors and whether undo is available, up to 500 entries. `before` lists older ones. |
 
 ### Write tools
 
-Nine tools write:
+Eleven tools write:
 
 | Tool | Change |
 |---|---|
-| `tessera_add_note` | Appends a Markdown outline to a page, journal day or block, creating a missing page or day; without a target it appends to today's journal. List items nest by indentation; headings contain what follows. `- [ ]`, `- [x]`, `- [doing]`, `- [waiting]` and `- [cancelled]` items become tasks. The result lists each card made, what it shows and asks for, and any card syntax that made none. |
-| `tessera_edit_block` | Replaces a block's text or heading level; editing a page's root renames the page. |
+| `tessera_add_note` | Appends a Markdown [outline](#outlines) to a page, journal day or block, creating a missing page or day; without a target it appends to today's journal. A page title that is a date is refused in favor of the journal day. Tags in a page title, such as `Ada Lovelace #person`, file the page, an existing one too. The result lists each card made, what it shows and asks for, and any card syntax that made none. |
+| `tessera_edit_block` | Replaces a block's text or heading level; editing a page's root renames the page, and a page or journal title takes no heading. Text written over an existing field entry as `Name:: value` replaces its first value; naming a different field is refused. |
 | `tessera_move_block` | Moves a block and its children after a sibling, or first or last under a parent. |
 | `tessera_delete_block` | Deletes a block and its children, or a page. |
-| `tessera_set_task` | Makes a block a task or changes its status, scheduled date and time, deadline and time, warning days, repeat or priority; done records a completion. |
+| `tessera_set_task` | Makes a block a task or changes its status, scheduled date and time, deadline and time, warning days, repeat or priority; done records a completion. A call gives a status or at least one field, and `status: none` removes the task and takes no other field. Without a status, a block with no task becomes a todo task, or an appointment when only its scheduled date and time are given. Clearing a repeating task's last date clears its repeat. |
 | `tessera_set_relation` | Marks a block as `supports`, `disputes`, `qualifies` or `answers`, changes its kind, or removes the capability with `relation: null`. Its first link supplies the target; its ancestors supply the source. The block's text stays unchanged. |
-| `tessera_hold_card` | Holds a card out of review, or releases it. |
-| `tessera_save_deck` | Creates, changes or deletes a saved deck: the cards whose blocks match a type, text or field filters. A tag on a card's own block is already a deck; this tool is for a queue a tag cannot express. |
-| `tessera_cite` | Links existing blocks to library passages: a whole passage, a range, or the first occurrence of a quote. |
+| `tessera_revisit` | Records a revisit (`revisited`, `keep_recurrent`), moves its date (`later`), resolves a note or reopens it. `next_on` gives the next date, or null for none; `resolve` and `reopen` take no `next_on`. |
+| `tessera_hold_card` | Holds a card out of review, or releases it. Its revision is the `r` number in the card's label. |
+| `tessera_save_deck` | Creates, changes or deletes a saved deck: the cards whose blocks match a type, text or field filters. A tag on a card's own block is already a deck; this tool is for a queue a tag cannot express. Deck names are unique, ignoring case. An `@` filter needs a type, and `@kind`, `@resolved` and `@revisit` are refused, since such a deck would hold no cards. |
+| `tessera_cite` | Links existing blocks to library passages: a whole passage, a range, or the first occurrence of a quote. An empty quote, or a citation the block already has, is refused. |
+| `tessera_undo` | Reverses one history entry by its change number. |
+
+A relation, revisit, task, deck or text edit that changes nothing is refused rather than recorded. Without a `revision`, `tessera_set_task` and `tessera_save_deck` send the revision they read, so a change made in between is refused instead of overwritten.
+
+### Outlines
+
+`tessera_add_note` reads a Markdown outline the way `tessera_read_page` writes one:
+
+- List items (`-`, `*`, `+`, `1.`) nest by indentation; a tab counts as four columns. A line indented under an item continues it, and every other line is a block of its own.
+- `#` to `######` headings, and lines underlined with `===` or `---`, contain what follows until a heading of the same or a higher level. Headings nest by the level written; levels past 3 are stored as 3.
+- An item starting `[ ]`, `[x]`, `[doing]`, `[waiting]` or `[cancelled]` is a task, and a bare marker is an empty task. An item starting `## ` is a heading, and one opening a fence is a code block. A fenced code block is one block.
+- A `Name::` line takes the items and lines indented under it as its values.
+- A leading `\` keeps the structure marker after it as text, and `--\>` reads as `-->`. `tessera_edit_block` undoes the same escapes.
+- An outline nests at most 50 levels, and one note adds at most 5000 blocks.
 
 ### Text syntax and revisions
 
 Written text follows the editor's syntax:
 
-- `[[Title]]` links the page with that title, creating it when missing.
+- `[[Title]]` links the page with that title, creating it when missing. Otherwise a name matching one page's title or alias, ignoring case, accents and punctuation, links that page as `[[id|Name]]` with the wording kept; a name several pages share is refused, naming each page and its ID.
+- A new page's title, from a target or a link, has at most 1000 characters, contains no `[[` or `]]`, and is not a date, which names a journal day.
 - `[[id|label]]` keeps an authored label. `[[id|label|locator]]` adds a locator, for example `[[Muqaddimah|have a natural life span like individuals|3.12]]`; title resolution keeps both parts. `[[id||3.12]]` uses the target's current title. The first pipe ends the target and the last pipe starts the locator when there are two or more pipes; intervening pipes belong to the label. Markdown and text exports retain the locator.
 - Card operators (`>>`, `<<`, `<>`, `>>>`, `>>1.`) and clozes (`{{c1::answer}}`) make cards. `A << B` shows B and asks for A. A tag on that same block, such as `#arabic` after the card, files it into a deck of that name. Review lists the deck without a saved deck. A tag on the page does not file the cards beneath it.
 - Beneath a `Mitochondria` block, a child `Function ;; makes ATP` makes a descriptor card asking `Mitochondria › Function`.
-- `Name:: value` is always its own block: a field entry on the page at the top level, or on the item it is indented under. It creates the field when missing.
-- A write given a block's, card's or deck's revision is refused if it changed since it was read.
+- `Name:: value` is always its own block: a field entry on the page at the top level, or on the item it is indented under. It creates the field when missing. A built-in name such as author, lived, published, url or form gets the built-in field's kind.
+- A value the field cannot read as its kind (date, span, URL, number, identifier, checkbox or choice) is refused. A choice value names an option, as `Stage:: Budding` or `Stage:: [[Budding]]`, and links that option; it never creates a page.
+- A note cannot go on the Fields page; `Name:: value` creates fields.
+- A write given a block's, card's or deck's revision is refused if it changed since it was read: `expected revision 1, found revision 2`, or `…, but it no longer exists`.
 
 ### Changes and undo
 
-Each write is one change attributed to the agent by its MCP client name. Open windows show it at once.
+Each write is one change attributed to the agent by its MCP client name, kept to one line of at most 64 characters; a blank name becomes `mcp`. Open windows show the change at once.
 
-- `tessera_recent_changes` lists the workshop's history, from people, windows and agents alike; `tessera_undo` reverses one entry.
+- `tessera_recent_changes` lists the workshop's history, from people, windows and agents alike, naming each actor as `agent NAME`, `client NAME` or `a person`. When a list is full, it ends with the `before` value that lists older changes. `tessera_undo` reverses one entry and names the undo's own change number.
 - The History pane (from the Settings header or `Open history`) lists the same entries with the actor, time, summary and page, and an Undo button where the change has a stored inverse. Editor batches whose operations all have inverses (text, headings, moves, creates, deletes, tasks, relations, revisits, card holds, decks and citations) are reversible; batches with a split, merge, review grade, ingestion, settings or definition change are listed without Undo. Changes applied from another device are listed with their origin and cannot be undone here.
-- Undo refuses to overwrite anyone's later edit, so undo changes newest first. Undoing an undo brings the change back.
+- Undo refuses to overwrite anyone's later edit, including an edit to a block nested in what the change added, so undo changes newest first. Undoing an undo brings the change back.
+- Undoing a page's or journal day's deletion is refused while another page has its title or another journal has its date; the refusal names the later change to undo, or the page to rename or delete.
 - A page or field created by the change stays while other blocks use it.
+- A write's result lists at most 50 block revisions; `tessera_read_page` shows the rest. When reading back a committed write's cards fails, the result still reports the change and says not to repeat it.
 
 ### Clients without MCP
 
@@ -369,18 +399,49 @@ Agents without MCP use the same endpoints:
 
 | Endpoint | Action |
 |---|---|
-| `POST /api/agent-changes` | Write a change, using a body like the example below. |
-| `GET /api/history?limit=&before=` | List history entries, newest first; `before` pages by sequence. |
-| `POST /api/history/{seq}/undo` | Undo an entry, with `{"actor": …}`. |
+| `POST /api/agent-changes` | Write a change, using a body like the examples below. |
+| `GET /api/history?limit=&before=` | List history entries, newest first, up to 500; `before` pages by sequence. |
+| `POST /api/history/{seq}/undo` | Undo an entry, with `{"actor": …}`. The response's `seq` is the undo's own history entry, which another undo reverses; `committed.seq` is the editor's cursor. |
 | `GET /api/agent/providers` | List configured providers without their keys. |
 | `PUT /api/agent/providers` | Save providers and the default provider. |
 | `POST /api/agent/providers/{id}/test` | Test a provider with a short request. |
-| `POST /api/agent/turns` | Start an agent turn with a prompt, conversation and context. |
+| `POST /api/agent/turns` | Start an agent turn. The body names a configured `provider` by ID and gives the `prompt`, the conversation so far as `messages` (`{role, text}`, with role `user` or `assistant`) and the `context` pages (`{page_id, block_id?}`); all four are required. |
 | `GET /api/agent/turns/{turn}/events?after=N` | Wait for events after event N, up to 25 seconds. |
 | `POST /api/agent/turns/{turn}/cancel` | Stop an agent turn. |
+
+A change body has an `actor`, an optional `reason`, a `kind` and that kind's fields. An `add_note` appends `blocks` to a `target`:
 
 ```json
 {"actor": {"kind": "agent", "name": "my-agent"}, "kind": "add_note", "target": {"kind": "page", "title": "Inbox"}, "blocks": [{"text": "A thought", "children": []}]}
 ```
 
-Other change kinds are `edit_block`, `move_block`, `delete_block`, `set_task`, `set_relation`, `set_card_held`, `cite`, `save_deck` and `delete_deck`. [`crates/tessera-core/src/agent.rs`](../crates/tessera-core/src/agent.rs) defines their fields.
+| Target | Appends to |
+|---|---|
+| `{"kind": "page", "title": "Inbox"}` | The page with that title, ignoring case and tags. A missing page is created; a title that is a date is refused in favor of a journal target. |
+| `{"kind": "journal", "date": "2026-10-31"}` | That journal day, or today without `date`. A missing day is created. |
+| `{"kind": "block", "id": "<block ID>"}` | The end of an existing block's children. |
+
+Each block is `{text, heading?, task?, children}`:
+
+- `text` is one block's text in the syntax above. It is not Markdown: `## Plan`, `- item` and `**bold**` are stored as written. Give a heading with `heading` and nesting with `children`.
+- `heading` is a level from 1 to 3.
+- `task` makes the block a task, such as `{"status": "todo"}` or `{"status": "todo", "scheduled": "2026-11-03"}`.
+- `children` lists the nested blocks, empty or left out for none.
+
+A journal note with a heading, a task beneath it and a field entry:
+
+```json
+{"actor": {"kind": "agent", "name": "my-agent"}, "kind": "add_note", "target": {"kind": "journal", "date": "2026-10-31"}, "blocks": [{"text": "Kitchen", "heading": 2, "children": [{"text": "Call the plumber", "task": {"status": "todo"}}, {"text": "Budget:: 4000"}]}]}
+```
+
+Children appended to an existing block:
+
+```json
+{"actor": {"kind": "agent", "name": "my-agent"}, "kind": "add_note", "target": {"kind": "block", "id": "01JBX5Q2Z8M4V7R9T3W6Y1K0AB"}, "blocks": [{"text": "A follow-up thought"}]}
+```
+
+Unknown fields in the request, its target, its blocks or its citations are refused with 422 `invalid_json` naming the field, and nothing is written. A plan the rules refuse gets 422 `validation`, a stale revision 409 `conflict`, and a missing record 404 `not_found` naming its kind, such as `change 999 not found`.
+
+To retry safely after a lost response, send an `Idempotency-Key` header of 1 to 255 ASCII characters without control characters. The same key with the same request returns the first receipt with `committed.replayed: true` and writes nothing; the same key with a different request is refused. A header that is not plain ASCII gets 400 `invalid_header`.
+
+The receipt gives the change number `seq` for undo, a summary, the page, each new or changed block's revision, and the pages, fields and decks the change created or saved. Other change kinds are `edit_block`, `move_block`, `delete_block`, `set_task`, `set_relation`, `revisit`, `set_card_held`, `cite`, `save_deck` and `delete_deck`. [`crates/tessera-core/src/agent.rs`](../crates/tessera-core/src/agent.rs) defines their fields.

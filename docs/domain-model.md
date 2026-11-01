@@ -161,7 +161,9 @@ A reference to a source-capable page with a nonempty label or locator is a citat
 
 Full-text search includes the current labels of canonical references. This index is derived from authored text and live targets, and refreshes when either changes; an explicit alias keeps its authored wording.
 
-Canonical tags are memberships, not links, and never create reference backlinks. Their authored aliases remain searchable. Pills, text exports and agent outlines print `#Title` from the live tag page, falling back to the alias or ID when that page is gone. Plain-text clipboard exports bracket multi-word titles as `#[[Title]]`; Tessera's private clipboard retains the canonical authored tokens. An unresolved pill is faint and keeps its authored token. A root title's tag tokens are not part of its display title: every surface and export shows the authored text with those tokens removed and the whitespace around them collapsed, while the stored title, its uniqueness key and title lookups keep the authored text. A title that is nothing but tags displays them as `#Title`. The agent outline lists a root title's tags in its header comment.
+Canonical tags are memberships, not links, and never create reference backlinks. Their authored aliases remain searchable. Pills and text exports print `#Title` from the live tag page, falling back to the alias or ID when that page is gone. Plain-text clipboard exports bracket multi-word titles as `#[[Title]]`; Tessera's private clipboard retains the canonical authored tokens. An unresolved pill is faint and keeps its authored token. A root title's tag tokens are not part of its display title: every surface and export shows the authored text with those tokens removed and the whitespace around them collapsed, while the stored title, its uniqueness key and title lookups keep the authored text. A title that is nothing but tags displays them as `#Title`.
+
+Agent outlines print a tag as `#Title`, or as `#[[Title]]` when the title is not a bare tag or the next character would extend it, so the tag reads back whole. Links show their target's title without its tags. The agent outline lists a root title's tags in its header comment.
 
 A page's backlinks cover references to its root and to every block on it, grouped by referring page. Sources on the same page are left out of that list but count towards each block's reference count. Unlinked mentions are blocks elsewhere that contain the page's title or an alias as a whole word, outside references, tags, URLs and code, and do not already link to the page.
 
@@ -201,7 +203,7 @@ Built-in tag pages use their canonical names, such as `Task` and `Person`, when 
 
 Undoing a first-use collection creation keeps the system tag page. It removes the created collection and restores the field register and templates.
 
-A field definition is a block under the live page titled `Fields`, the system page every workshop has:
+A field definition is a block under the live page titled `Fields`, the system page every workshop has. That page cannot be deleted, and renaming it changes only its case. A definition is shaped as follows:
 
 - Its name is the block's text.
 - Its kind is text, number, date, span, checkbox, choice, relation, URL or identifier; the default is text. Relation is stored as `instance`.
@@ -217,7 +219,7 @@ A definition also has a presentation role: `standfirst`, `attribute` (the defaul
 
 The reading register projects field entry identities and reads each value from the shared document. Editing a blank standfirst does not replace its perspective slip or editor. Add perspective enters filling mode at the new Gist value; its recipe order continues with Work and the subject's criteria.
 
-Values are plain blocks read through the field's kind. A value that does not fit shows a problem but is never rejected or rewritten.
+Values are plain blocks read through the field's kind. A value that does not fit shows a problem but is never rejected or rewritten, except in agent writes, which refuse it.
 
 | Kind | Value rule |
 |---|---|
@@ -487,7 +489,7 @@ Unlike citation keys, sigla need not be unique. Library shows each source's own 
 
 ### Highlights and positions
 
-A highlight is an authored block on the source's page that cites a passage. Like any block, it takes children, types, fields and card syntax. It is unprocessed when it has no non-blank children, no card and no incoming reference.
+A highlight is an authored block that cites a passage, usually on the source's page. A citing block on another page is a highlight too; the source page lists it under Filed elsewhere. Like any block, it takes children, types, fields and card syntax. It is unprocessed when it has no non-blank children, no card and no incoming reference.
 
 Marking a highlight processed or unprocessed overrides that rule until cleared; this is the only stored triage state. Because passages never change, a passage citation is a frozen quotation by construction.
 
@@ -586,9 +588,9 @@ Types you define are also kinds, listed after the built-ins:
 - A note can have more than one kind and is filed under each. A note with none is unfiled.
 - Tasks are a built-in tag kind, available on pages and outline atoms. Cards are faces derived from atom text. Agenda and Review remain their places.
 
-A source's form is a built-in Form choice field: book, chapter, article, paper, report, post, thread, video or web page, with more options added as for any choice field. Lookup and ingestion fill it, and export writes it as the CSL type and BibTeX entry type.
+A source's form is a built-in Form choice field, created on first use with the options book, chapter, article, paper, report, post, thread, video and web page; more options are added as for any choice field. Lookup and ingestion do not fill it yet, and export still derives the CSL type and BibTeX entry type from the format and identifiers.
 
-Built-in kinds start with templates, filled in only when wanted. Their fields are built in: the core owns their lowercase names, kinds and Links to types.
+Built-in kinds start with templates, filled in only when wanted. Their fields are built in: the core owns their lowercase names, kinds and Links to types. Agent shorthand that creates one of these fields, such as `published:: 1843`, gives it that built-in definition.
 
 | Kind | Template fields |
 |---|---|
@@ -634,6 +636,8 @@ Hand-typed `[[Name]]` left as text resolves by identity name or alias. Name matc
 | None | Creates a page as before. |
 | One | Links as `[[id\|Name]]`, preserving the wording. |
 | Two or more | Stays unlinked and marked. Choosing one links it; nothing is created. |
+
+Agent notes resolve `[[Name]]` the same way as they are written. An exact title links as `[[id]]`, and one other match links as `[[id|Name]]`. Two or more refuse the change, naming each page and its ID, rather than leaving the name unlinked.
 
 Imported source creators match people by title or alias after turning around catalog forms such as `Cicero, Marcus Tullius`:
 
@@ -863,7 +867,7 @@ A workshop has settings: its time zone and editing preferences. Setting one is a
 
 ## Changes and attribution
 
-Every committed operation writes a change row: actor (person, agent name or client), operation, affected IDs and resulting revisions, and an optional reason. Agents may submit plans that are previewed, then applied atomically under an idempotency key. Undo works by applying an inverse operation, so history remains linear and inspectable across clients.
+Every committed operation writes a change row: actor (person, agent name or client), operation, affected IDs and resulting revisions, and an optional reason. An agent's request is applied atomically; one sent under an idempotency key is applied once, and sending it again returns its first receipt. Undo works by applying an inverse operation, so history remains linear and inspectable across clients.
 
 ## Derived data
 

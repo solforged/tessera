@@ -401,7 +401,7 @@ Original bytes go to the SHA-256 object store and extracted passages to SQLite. 
 
 ```mermaid
 flowchart TD
-    E["EPUB file"] --> B["Original bytes"]
+    E["EPUB or HTML file"] --> B["Original bytes"]
     U["URL"] -->|fetch| B
     B --> O["SHA-256 object store<br/>original bytes"]
     B --> X["Extract EPUB or web article"]
@@ -416,6 +416,8 @@ flowchart TD
     N --> C["Cite the snapshot and<br/>start/end passage IDs with offsets"]
     C -.->|points to exact evidence| D
 ```
+
+A fetched page resolves its relative links and image addresses against its URL. A local HTML file, uploaded in the Library or passed to `tessera add`, has no address, so it is read as an article without one: its relative links stay plain text and its relative images keep only their alt text. Any article takes its canonical URL only from an absolute `canonical` link or `og:url` tag.
 
 `SetSource`, `AttachSnapshot`, `Cite` and `Uncite` check the owning block revision and use the outline batch engine for [sources and citations](domain-model.md#sources-passages-and-positions). Source state and active citations travel in capability sidecars on page loads, receipts and change events.
 
