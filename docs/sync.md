@@ -170,6 +170,8 @@ The later clock wins a reading position or surfacing action; the device breaks t
 
 Open pages follow a local arrival journal (`editor_events`), not `changes.seq`, because a rebase renumbers and replaces unconfirmed changes. Each commit, pulled change and replayed change adds an entry with a new cursor; sync entries carry the `sync` actor and mark every page they touch as restructured, so the page reloads even when a block's revision did not grow. Editor routes acknowledge commits with this cursor. Core sync receipts and agent undo still use log sequences. The migration starts the journal above the highest existing sequence, and pairing and recloning carry it forward, so saved cursors stay valid.
 
+A replica's undo records follow its changes through a rebase: each replayed change keeps its undo under its new sequence number, so history and undo keep naming it. A local change that cannot be replayed, or that the hub rejected, loses its undo, since nothing of it remains to reverse.
+
 ## Identity and determinism
 
 Every device must reach the same state from the same changes, so applying a change depends only on the batch, its stamp and the current state.
@@ -200,7 +202,7 @@ Every device must reach the same state from the same changes, so applying a chan
 | Indexed | full-text search indexes | triggers, as rows arrive |
 | Content | snapshots, passages, snapshot resources, browser objects | fetching by content hash |
 | Unlogged | reading positions, highlight surfacings | last-writer-wins rows |
-| Local | the device ID, ingestion jobs, agent undo records | never; they stay on the device |
+| Local | the device ID, ingestion jobs, undo records and agent idempotency keys | never; they stay on the device |
 
 The `vim` setting describes a keyboard, not a workshop. It becomes local to the device before replicas exist; `time_zone` stays workshop-wide.
 

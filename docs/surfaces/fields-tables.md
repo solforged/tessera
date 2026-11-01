@@ -54,7 +54,7 @@ Numbered sections follow with rubric numerals and hairlines, starting at 01 and 
 | Used by | Up to twelve owners with their values: three columns in wide panes, two below 840 px of pane width and one below 480 px. View owner (one owner) or View all N owners opens the field-only table. |
 | Problem values | The written text in rubric beside its owner and the problem. Choice rows offer Make option: create or reuse the matching option and link every matching value in one undoable change. The help reads “Make it an option, or open its owner to edit it.” |
 
-Atoms in the pane header opens the definition in the Fields page, where names and options remain ordinary blocks. Edit definitions opens the Fields page.
+Atoms in the pane header opens the definition in the Fields page, where names and options remain ordinary blocks. Edit definitions opens the Fields page. The engine refuses to delete the Fields page or to rename it beyond a change of case, so its definitions, including the built-in task fields, stay in one register.
 
 Deleting an in-use choice option from Atoms opens an impact confirmation with the affected value and owner counts. Continuing keeps its labels as written problem values, with their child notes, rather than unresolved option IDs. One Undo restores the options and the exact original values.
 

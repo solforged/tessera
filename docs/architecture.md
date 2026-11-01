@@ -91,18 +91,20 @@ Agents write through `POST /api/agent-changes`:
 
 - Add a note to a page, journal day or block named by title, date or ID.
 - Edit, move, delete or set the task of a block by ID.
+- Set or remove a block's relation kind; revisit, resolve or reopen a note or question.
 - Hold or release a card; create, change or delete a deck.
 - Cite library passages from existing blocks.
 
-Under the writer lock, the core plans ordinary operations from current state and commits one attributed batch. It creates missing target pages or days, links hand-written `[[Title]]` references and converts `Name:: value` shorthand by the editor's rules, creating missing field definitions.
+Under the writer lock, the core plans ordinary operations from current state and commits one attributed batch. It creates missing target pages or days, links hand-written `[[Title]]` references and converts `Name:: value` shorthand by the editor's rules, creating missing field definitions; a built-in name gets its built-in definition. A plan that would change nothing is refused. A request sent with an `Idempotency-Key` header stores its key, a hash of the request and its receipt with its history entry, so sending it again returns that receipt instead of writing twice.
 
 Every committed batch appears in `/api/history` with its actor, origin, reason, summary and undo eligibility. Local batches whose operations all have safe inverses store them in `change_history` in the same transaction, built from targeted reads of each operation's block, card or deck just before it applies; agent plans also track the pages and field definitions they created. Batches with an operation that has no inverse (split, merge, review grades, ingestion, settings, views, definition edits) and remotely applied changes are listed without one. Undo commits another attributed batch and links both entries:
 
-- An intervening edit by anyone fails its revision check and refuses the undo.
+- An intervening edit by anyone fails its revision check and refuses the undo. Undoing an addition also checks every block nested in what it added, since deleting the addition takes them too.
 - Blocks, cards and decks touched only by later change-and-undo pairs count as unchanged, so changes undo newest first; undoing an undo reactivates the earlier edit.
 - Created pages and field definitions are deleted only while nothing outside the change lives on them or links to them.
+- Restoring a deleted page or journal day is refused while a live one holds its title or date; the refusal names the later change to undo, or the page to rename or delete.
 
-`tessera mcp` wraps these endpoints and service reads as Model Context Protocol tools over stdio. Reads cover pages, search, tasks and agenda, cards and decks, typed queries, library and sync state. The service remains the only writer.
+`tessera mcp` wraps these endpoints and service reads as Model Context Protocol tools over stdio. Reads cover pages, search, tasks and agenda, cards and decks, typed queries, relations, revisits, history, library and sync state. Each tool call resolves the service once, checks that it serves the workshop the server started with, and sends that workshop's ID in `X-Tessera-Notebook`. The service remains the only writer.
 
 Ingestion runs in one service worker. Network fetches and parsing happen off the write connection; the worker stages content-addressed snapshots, then commits the source attachment and metadata as an attributed batch. Extractors live in `tessera-ingest`, which has no database access, so each format is tested on files alone. Persistent jobs resume after restart and retry transient network/server failures after 30 seconds, two minutes and ten minutes before failing the fourth attempt. The worker never holds the workshop mutex across network I/O.
 

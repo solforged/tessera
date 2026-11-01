@@ -2,10 +2,14 @@
 
 use serde_json::{Value, json};
 
-const SYNTAX: &str = "Markdown outline: `- ` or `1. ` items nest by indentation; `#`, `##` \
-and `###` headings become heading blocks that contain the content below them; other lines \
-become blocks; indented lines under an item continue that item; `- [ ] `, `- [x] `, \
-`- [doing] `, `- [waiting] ` and `- [cancelled] ` items become tasks. In block text, \
+const SYNTAX: &str = "Markdown outline: `- ` or `1. ` items nest by indentation, and \
+indented lines under an item continue it; every other line is its own block; \
+`#` to `######` headings, or lines underlined with `===` or `---`, become heading blocks that \
+contain what follows, nesting by level, with levels past 3 stored as 3; a fenced code block \
+is one block. `- [ ] `, `- [x] `, `- [doing] `, `- [waiting] ` and `- [cancelled] ` items \
+become tasks; `- ## Title` is a heading item, and an item opening a ``` fence is a code item. \
+A line starting `\\` keeps the structure marker after it as text, and `--\\>` is `-->`, as \
+tessera_read_page writes them. At most 50 levels. In block text, \
 `[[Page title]]` links a page by title, or by alias when one page has it (a name several \
 pages share is refused), and creates it if missing, `[[Page title|label]]` \
 links with a label, `[[2026-10-07]]` links an existing journal day, `[[BLOCK_ID]]` \
@@ -23,9 +27,10 @@ never mix operators with clozes. Write results list each card with what it shows
 for. Field entries: a line `Name:: value` is its own block and sets that field on its \
 parent block, the page itself at the top level or the item it is indented under (the \
 field is created when missing, a built-in one such as author, lived, published, url or \
-form with its built-in kind); a choice, date, span, URL, number, identifier or checkbox \
-value the field cannot read is refused; `Name::` with indented children gives several \
-values. Values of instance fields (see tessera_query) are links such as \
+form with its built-in kind); `Name::` takes the items or lines indented under it as \
+several values. A value the field cannot read as its kind (date, span, URL, number, \
+identifier, checkbox or choice) is refused; a choice value is an option's name or \
+`[[Option]]`. Values of instance fields (see tessera_query) are links such as \
 `author:: [[George Eliot]]`.";
 
 const REVISION: &str = "The block's revision from tessera_read_page (`r3` is 3). When given, \
@@ -49,7 +54,7 @@ pub(super) fn tools() -> Value {
                 "type": "object",
                 "properties": {
                     "query": { "type": "string", "description": "Words to find." },
-                    "limit": { "type": "integer", "minimum": 1, "default": 20 }
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 200, "default": 20 }
                 },
                 "required": ["query"]
             },
@@ -62,7 +67,7 @@ pub(super) fn tools() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "limit": { "type": "integer", "minimum": 1, "default": 100 },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 100 },
                     "journals": { "type": "boolean", "default": false, "description": "Include journal days." }
                 }
             },
@@ -71,7 +76,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_read_page",
             "title": "Read a page",
-            "description": "A page or journal day as an indented Markdown outline. Each block ends with an HTML comment holding its ID and revision, then its tags, task planning, project, question, citations and cards (with card IDs for tessera_hold_card). Links to pages show as [[Title]] and field entries as `Name::`, the forms tessera_add_note writes.",
+            "description": "A page or journal day as an indented Markdown outline that tessera_add_note reads back. Each block ends with an HTML comment holding its ID and revision, then its tags, task planning, project, question, assessment, position, relation, source, revisit date, resolution, citations and cards (each with the card ID and revision tessera_hold_card takes); the title's comment covers the page itself. Links to pages show as [[Title]], tags as #Tag or #[[Multi word tag]] and field entries as `Name::`. A text line that would read as structure starts with `\\`, and `-->` shows as `--\\>`.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -86,12 +91,12 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_add_note",
             "title": "Add a note",
-            "description": format!("Append an outline to the end of a page (created if missing), a journal day (created if missing) or an existing block. Without page, journal or parent_id it goes to today's journal. Writes are attributed to this agent. The result lists the cards the note made and any card syntax that made none. {SYNTAX}"),
+            "description": format!("Append an outline to the end of a page (created if missing), a journal day (created if missing) or an existing block. Without page, journal or parent_id it goes to today's journal. Writes are attributed to this agent. A note adds at most 5000 blocks. The result lists the cards the note made and any card syntax that made none. {SYNTAX}"),
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "markdown": { "type": "string", "description": "The note as a Markdown outline." },
-                    "page": { "type": "string", "description": "Page title. Tags in it, such as #person, file the page, an existing one too." },
+                    "page": { "type": "string", "description": "Page title, ignoring case; a date is refused, so give a day as journal. Tags in it, such as #person, file the page, an existing one too." },
                     "journal": { "type": "string", "description": "Journal day as YYYY-MM-DD, or today." },
                     "parent_id": { "type": "string", "description": "Block ID to append children to." },
                     "reason": { "type": "string", "description": "Why this note was written, kept in the change history." }
@@ -103,13 +108,13 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_edit_block",
             "title": "Edit a block",
-            "description": "Replace a block's text, its heading level, or both. Editing a page's root block renames the page. Text follows tessera_add_note's block syntax: [[Title]] links pages, card operators make cards, and `Name:: value` turns the block into a field entry with the value as its first child.",
+            "description": "Replace a block's text, its heading level, or both. Editing a page's root block renames the page. Text follows tessera_add_note's block syntax: [[Title]] links pages, card operators make cards, and `Name:: value` turns the block into a field entry with the value as its first child, or replaces an existing entry's first value; naming another field there is refused.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "id": { "type": "string", "description": "Block ID." },
-                    "text": { "type": "string", "description": "The block's new text, one block only." },
-                    "heading": { "type": "integer", "minimum": 0, "maximum": 3, "description": "Heading level 1 to 3, or 0 for none." },
+                    "text": { "type": "string", "description": "The block's new text, one block only; tessera_read_page's escapes are undone." },
+                    "heading": { "type": "integer", "minimum": 0, "maximum": 3, "description": "Heading level 1 to 3, or 0 for none; a page or journal title takes none." },
                     "revision": { "type": "integer", "description": REVISION },
                     "reason": { "type": "string" }
                 },
@@ -153,17 +158,17 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_set_task",
             "title": "Set a task",
-            "description": "Make a block a task or change its task state. Only the given fields change; an empty string clears a field. Setting status done records a completion, which advances a repeating task instead. Repeating an undated task schedules it today.",
+            "description": "Make a block a task or change its task state; give a status or at least one field. Only the given fields change, and an empty string clears a field other than status. Without a status, a block with no task becomes a todo task, or an appointment when only scheduled and scheduled_time are given. Setting status done records a completion, which advances a repeating task instead. Repeating an undated task schedules it today, and clearing its last date stops the repeat. Without revision, a change made since this call read the block is refused.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "id": { "type": "string", "description": "Block ID." },
-                    "status": { "type": "string", "enum": ["todo", "doing", "waiting", "done", "cancelled", "none"], "description": "none makes it an ordinary block again." },
+                    "status": { "type": "string", "enum": ["todo", "doing", "waiting", "done", "cancelled", "none"], "description": "none removes the task, making it an ordinary block again; give it alone." },
                     "scheduled": { "type": "string", "description": "YYYY-MM-DD, or empty to clear." },
                     "scheduled_time": { "type": "string", "description": "HH:MM on the scheduled day, or empty to clear." },
                     "deadline": { "type": "string", "description": "YYYY-MM-DD, or empty to clear." },
                     "deadline_time": { "type": "string", "description": "HH:MM on the deadline, or empty to clear." },
-                    "warning_days": { "type": "integer", "minimum": 0, "description": "Show the task on the agenda this many days before its deadline; 0 clears." },
+                    "warning_days": { "type": "integer", "minimum": 0, "maximum": 365, "description": "Show the task on the agenda this many days before its deadline; 0 clears." },
                     "repeat": { "type": "string", "description": "Repeat interval such as 1d, 2w, 1m or 1y, or none to stop repeating." },
                     "repeat_mode": { "type": "string", "enum": ["fixed", "catch_up", "after_completion"], "description": "fixed moves one interval from the planned date; catch_up moves by whole intervals until after completion (the default); after_completion counts from the completion day." },
                     "priority": { "type": "string", "enum": ["high", "medium", "low", "none"] },
@@ -178,9 +183,10 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_revisits",
             "title": "Read revisits",
-            "description": "Read due questions and notes, earliest first, with proposed next dates.",
+            "description": "Questions and notes due for a revisit, earliest first, one line each with its due date, last revisit and proposed next_on.",
             "inputSchema": { "type": "object", "properties": {
-                "due": { "type": "string", "description": "today or YYYY-MM-DD; defaults to today." }
+                "due": { "type": "string", "description": "today or YYYY-MM-DD; defaults to today." },
+                "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 }
             }},
             "annotations": read_only()
         },
@@ -191,10 +197,10 @@ pub(super) fn tools() -> Value {
             "inputSchema": { "type": "object", "properties": {
                 "id": { "type": "string" },
                 "action": { "type": "string", "enum": ["revisited", "later", "resolve", "reopen", "keep_recurrent"] },
-                "next_on": { "type": ["string", "null"], "description": "Next revisit date, YYYY-MM-DD, or null to clear it." },
+                "next_on": { "type": ["string", "null"], "description": "Next revisit date, YYYY-MM-DD, or null for none. Required for revisited, later and keep_recurrent; left out for resolve and reopen." },
                 "revision": { "type": "integer", "description": REVISION },
                 "reason": { "type": "string" }
-            }, "required": ["id", "action", "next_on"] },
+            }, "required": ["id", "action"] },
             "annotations": writes(false)
         },
         {
@@ -216,7 +222,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_relations",
             "title": "Find relations",
-            "description": "Read authored relations with their source, target, holders and problems. Give at least one filter besides limit. Holder filters also match an endpoint that is the holder itself.",
+            "description": "Read authored relations, one line each with source, target, holders and problems, under a count. Give at least one filter besides limit. Holder filters also match an endpoint that is the holder itself.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -233,7 +239,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_tasks",
             "title": "Find tasks",
-            "description": "The agenda (view agenda): everything scheduled, due, warned, overdue or completed on a day, then for each following day what is scheduled or due on it. Or a task list (view list) filtered by status, dates, priority, project or a saved task view.",
+            "description": "The agenda (view agenda): everything scheduled, due, warned, overdue or completed on a day, then for each following day what is scheduled or due on it; it refuses the List: arguments. Or a task list (view list) filtered by status, dates, priority, project or a saved task view.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -242,7 +248,7 @@ pub(super) fn tools() -> Value {
                     "days": { "type": "integer", "minimum": 1, "maximum": 31, "default": 1, "description": "Agenda: how many days." },
                     "unplanned": { "type": "boolean", "default": false, "description": "Agenda: also list open tasks with no date." },
                     "status": { "type": "array", "items": { "type": "string", "enum": ["todo", "doing", "waiting", "done", "cancelled"] }, "description": "List: only these statuses." },
-                    "include": { "type": "string", "enum": ["unfinished", "unfinished_or_recent", "all"], "default": "unfinished", "description": "List: unfinished_or_recent adds tasks finished in the last week." },
+                    "include": { "type": "string", "enum": ["unfinished", "unfinished_or_recent", "all"], "description": "List: unfinished_or_recent adds tasks finished in the last week. Defaults to unfinished, or to all when status names done or cancelled." },
                     "scheduled_from": { "type": "string", "description": "List: scheduled on or after YYYY-MM-DD." },
                     "scheduled_through": { "type": "string", "description": "List: scheduled on or before YYYY-MM-DD." },
                     "deadline_from": { "type": "string", "description": "List: deadline on or after YYYY-MM-DD." },
@@ -250,7 +256,7 @@ pub(super) fn tools() -> Value {
                     "priority": { "type": "string", "enum": ["high", "medium", "low"], "description": "List: only this priority." },
                     "project": { "type": "string", "description": "List: only tasks under this project block ID." },
                     "saved": { "type": "string", "description": "List: run the saved task view with this name instead of the filters." },
-                    "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 }
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50, "description": "List: the most tasks to show." }
                 }
             },
             "annotations": read_only()
@@ -258,17 +264,17 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_cards",
             "title": "Find flashcards",
-            "description": "Cards with their IDs, kinds, fronts, answers and next due dates. Give block_id or page for the cards written there (held ones included); otherwise view queue lists due, new or all cards, optionally from a saved deck or a type's members. view stats gives due counts, retention and a week's forecast; view decks lists saved decks and tag decks. A tag on a card's own block is a tag deck named with that tag; study it with type, and do not create a saved deck for it.",
+            "description": "Cards with their IDs, revisions, kinds, fronts, answers and next due dates. Give block_id or page alone for the cards written there (held ones included); otherwise view queue lists due, new or all cards, optionally from one deck or one type's members; view stats gives due and held counts, retention and a week's forecast, optionally for one deck; view decks lists saved decks and tag decks. Arguments the chosen mode does not use are refused. A tag on a card's own block is a tag deck named with that tag; study it with deck or type, and do not create a saved deck for it.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "block_id": { "type": "string", "description": "Cards made by this block." },
-                    "page": { "type": "string", "description": "Cards made by blocks on the page with this title." },
+                    "page": { "type": "string", "description": "Cards made by blocks on this page: a title, a page or journal day ID, YYYY-MM-DD, or today." },
                     "view": { "type": "string", "enum": ["queue", "stats", "decks"], "default": "queue" },
-                    "selection": { "type": "string", "enum": ["due", "new", "all"], "default": "due", "description": "Queue: which cards." },
-                    "deck": { "type": "string", "description": "Queue or stats: a deck's name or ID." },
-                    "type": { "type": "string", "description": "Queue: only cards from members of this type, by name." },
-                    "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 20 }
+                    "selection": { "type": "string", "enum": ["due", "new", "all"], "description": "Queue: which cards; defaults to the deck's own selection, otherwise due." },
+                    "deck": { "type": "string", "description": "Queue or stats: a saved deck's or tag deck's name or ID." },
+                    "type": { "type": "string", "description": "Queue: only cards from members of this type, by name; not with deck." },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 20, "description": "Queue: the most cards to show." }
                 }
             },
             "annotations": read_only()
@@ -282,7 +288,7 @@ pub(super) fn tools() -> Value {
                 "properties": {
                     "card_id": { "type": "string", "description": "Card ID from tessera_cards or tessera_read_page." },
                     "held": { "type": "boolean", "default": true, "description": "false releases the card." },
-                    "revision": { "type": "integer", "description": "The card's revision; when given, the change is refused if the card changed since." },
+                    "revision": { "type": "integer", "description": "The card's revision, rN in its card label; when given, the change is refused if the card changed since." },
                     "reason": { "type": "string" }
                 },
                 "required": ["card_id"]
@@ -296,26 +302,27 @@ pub(super) fn tools() -> Value {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "deck": { "type": "string", "description": "An existing deck's name or ID, to change or delete it." },
-                    "name": { "type": "string", "description": "The deck's name; required for a new deck." },
+                    "deck": { "type": "string", "description": "An existing saved deck's name or ID, to change or delete it; give the ID when several decks share the name." },
+                    "name": { "type": "string", "description": "The deck's name, unique ignoring case; required for a new deck." },
                     "type": { "type": "string", "description": "Only cards on blocks of this type, by name." },
                     "text": { "type": "string", "description": "Only cards on blocks whose text contains these words." },
                     "filters": {
                         "type": "array",
-                        "description": "Field conditions on the card blocks, as in tessera_query.",
+                        "description": "Field conditions on the card blocks, as in tessera_query. @ attributes need type, and @kind, @resolved and @revisit are refused.",
                         "items": {
                             "type": "object",
                             "properties": {
                                 "field": { "type": "string", "description": "Field name." },
                                 "op": { "type": "string", "enum": ["is", "is_not", "contains", "gt", "gte", "lt", "lte", "set", "empty"], "default": "is" },
-                                "value": { "type": "string", "description": "Compared without case; not used by set and empty." }
+                                "value": { "type": "string", "description": "Compared without case; not used by set and empty." },
+                                "or_empty": { "type": "boolean", "default": false, "description": "Also match blocks without a value." }
                             },
                             "required": ["field"]
                         }
                     },
                     "selection": { "type": "string", "enum": ["due", "new", "all"], "description": "Which of its cards the deck reviews; due (which includes new cards after due ones) for a new deck." },
                     "delete": { "type": "boolean", "default": false },
-                    "revision": { "type": "integer", "description": "The deck's revision from tessera_cards view decks; when given, the change is refused if the deck changed since." },
+                    "revision": { "type": "integer", "description": "Only with deck: the deck's revision from tessera_cards view decks. The change is refused if the deck changed since; without revision, if it changed since this call read it." },
                     "reason": { "type": "string" }
                 }
             },
@@ -324,14 +331,14 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_query",
             "title": "Query notes and entities",
-            "description": "Without source, type or view: list types, fields and saved views. Query sources: notes (default), questions, positions, sources, tasks, highlights. Filters and sorts accept field names or attributes. All sources: @title, @page, @created, @updated. Notes: @kind, @resolved, @revisit. Questions: @state, @parent, @program, @readings, @current, @last_assessed, @revisit, @inline. Positions: @holder, @subject, @relation, @target_holder, @cites. Sources: @creator, @cited_by, @highlights. Tasks: @status, @due, @scheduled, @project. Highlights: @source, @color. Instance equality uses block IDs. Dates accept today, -30d or +7d; or_empty also includes missing values. Rows include entity identity, attributes and editable field value block IDs.",
+            "description": "Without source, type or view: list types, fields and saved views; every other argument needs one of the three. Sources: notes, questions, positions, sources, tasks, highlights. type alone selects that type's members, tagged blocks included; source notes without type selects titled notes. Filters and sorts accept field names or attributes. All sources: @title, @page, @created, @updated. Notes: @kind, @resolved, @revisit. Questions: @state, @parent, @program, @readings, @current, @last_assessed, @revisit, @inline. Positions: @holder, @subject, @question, @relation, @target_holder, @cites. Sources: @creator, @contributor, @cited_by, @cited_in, @highlights. Tasks: @status, @scheduled, @deadline (or @due), @priority, @repeat, @project. Highlights: @source, @color. Instance equality uses block IDs. Dates accept today, -30d or +7d, YYYY-MM-DD, YYYY-MM or YYYY; or_empty also includes missing values. Rows include entity identity, attributes and editable field value block IDs.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "source": { "type": "string", "enum": ["notes", "questions", "positions", "sources", "tasks", "highlights"] },
                     "type": { "type": "string", "description": "A type's name, such as Book." },
                     "view": { "type": "string", "description": "A saved view's name, instead of type." },
-                    "text": { "type": "string", "description": "Only blocks whose text contains this." },
+                    "text": { "type": "string", "description": "Words to match: in the titles and glosses of titled notes, otherwise in block text." },
                     "filters": {
                         "type": "array",
                         "items": {
@@ -339,14 +346,14 @@ pub(super) fn tools() -> Value {
                             "properties": {
                                 "field": { "type": "string", "description": "Field name." },
                                 "op": { "type": "string", "enum": ["is", "is_not", "contains", "gt", "gte", "lt", "lte", "set", "empty"], "default": "is" },
-                                "value": { "type": "string", "description": "Text, an instance ID or a date; date filters also accept today, -30d or +7d." },
+                                "value": { "type": "string", "description": "Text, an instance ID or a date; date filters also accept today, -30d or +7d, YYYY-MM or YYYY." },
                                 "or_empty": { "type": "boolean", "default": false }
                             },
                             "required": ["field"]
                         }
                     },
                     "sort": { "type": "string", "description": "A field name, or title, created or updated." },
-                    "direction": { "type": "string", "enum": ["asc", "desc"], "default": "asc" },
+                    "direction": { "type": "string", "enum": ["asc", "desc"], "default": "asc", "description": "Needs sort." },
                     "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 },
                     "offset": { "type": "integer", "minimum": 0, "default": 0 }
                 }
@@ -361,13 +368,13 @@ pub(super) fn tools() -> Value {
                 "type": "object",
                 "properties": {
                     "view": { "type": "string", "enum": ["sources", "contents", "read", "search", "highlights"], "default": "sources" },
-                    "source": { "type": "string", "description": "A source's page title or ID; required for contents and read." },
+                    "source": { "type": "string", "description": "A source's page title or ID; required for contents and read, optional for search and highlights." },
                     "text": { "type": "string", "description": "Sources: title, author or other text to match." },
                     "state": { "type": "array", "items": { "type": "string", "enum": ["inbox", "reading", "finished", "abandoned"] }, "description": "Sources: only these reading states." },
                     "from": { "type": "integer", "minimum": 0, "description": "Read: first passage ordinal." },
                     "query": { "type": "string", "description": "Search: words to find." },
                     "unprocessed": { "type": "boolean", "default": false, "description": "Highlights: only those not yet processed." },
-                    "limit": { "type": "integer", "minimum": 1, "maximum": 500 }
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 500, "description": "Sources and highlights: up to 500, default 50. Read: up to 200, default 30. Search: up to 200, default 20. Not used by contents." }
                 }
             },
             "annotations": read_only()
@@ -375,7 +382,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_cite",
             "title": "Cite passages",
-            "description": "Link existing blocks to library passages, as one change. Without quote a citation covers the whole passage, or through end_passage_id; with quote it covers the first exact occurrence of that text in the passage. Typical use: add a note with tessera_add_note, then cite its blocks by the IDs in the result.",
+            "description": "Link existing blocks to library passages, as one change. Without quote a citation covers the whole passage, or through end_passage_id; with quote it covers the first exact occurrence of that text in the passage. A citation the block already has is refused. Typical use: add a note with tessera_add_note, then cite its blocks by the IDs in the result.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -388,7 +395,7 @@ pub(super) fn tools() -> Value {
                                 "block_id": { "type": "string", "description": "The block that cites." },
                                 "passage_id": { "type": "string", "description": "Passage ID from tessera_library." },
                                 "end_passage_id": { "type": "string", "description": "Last passage of a range in the same source." },
-                                "quote": { "type": "string", "description": "Exact text inside the passage to cite instead of all of it." },
+                                "quote": { "type": "string", "description": "Exact, non-empty text inside the passage to cite instead of all of it." },
                                 "revision": { "type": "integer", "description": REVISION }
                             },
                             "required": ["block_id", "passage_id"]
@@ -403,11 +410,12 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_recent_changes",
             "title": "Recent history",
-            "description": "Workshop history from people, clients and agents, newest first, with change numbers for tessera_undo and whether undo is available.",
+            "description": "Workshop history from people, clients and agents, newest first, with change numbers for tessera_undo and whether undo is available. A full list names the before value that lists older changes.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "limit": { "type": "integer", "minimum": 1, "default": 20 }
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 20 },
+                    "before": { "type": "integer", "description": "Only changes numbered below this." }
                 }
             },
             "annotations": read_only()
@@ -427,7 +435,7 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_undo",
             "title": "Undo a change",
-            "description": "Reverse one undoable history entry. Refused when a block or card it touched was changed since by someone else; undo later changes first. Pages and fields it created are kept while other blocks use them. The undo is another history entry and can itself be undone when reversible.",
+            "description": "Reverse one undoable history entry. Refused when a block or card it touched, or a block nested in what it added, was changed since; undo later changes first. Pages and fields it created are kept while other blocks use them. The undo is another history entry, numbered in the result, and can itself be undone when reversible.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
