@@ -6,6 +6,7 @@ use crate::storage::derive_memberships;
 
 const UNICODE_TITLE_KEYS: &str = include_str!("../migrations/047_unicode_title_keys.sql");
 const DISPLAY_TITLE_KEYS: &str = include_str!("../migrations/053_display_title_keys.sql");
+const AGENT_IDEMPOTENCY: &str = include_str!("../migrations/055_agent_idempotency.sql");
 
 /// Ordered schema migrations. Version N is the Nth entry; never edit or
 /// reorder a released entry, only append.
@@ -64,6 +65,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../migrations/052_recipe_details.sql"),
     DISPLAY_TITLE_KEYS,
     include_str!("../migrations/054_change_history.sql"),
+    AGENT_IDEMPOTENCY,
 ];
 
 pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
@@ -95,9 +97,19 @@ pub(crate) fn migrate(conn: &mut Connection) -> Result<()> {
     // Historical migrations retain their original spelling rule. Apply 053
     // after the 051 text rewrite, so tag-only titles are keyed in stored form.
     for sql in &MIGRATIONS[found as usize..] {
-        if *sql != DISPLAY_TITLE_KEYS {
+        if *sql != DISPLAY_TITLE_KEYS && *sql != AGENT_IDEMPOTENCY {
             tx.execute_batch(sql)?;
         }
+    }
+    // A replay over a current schema already has these columns.
+    if found < 55
+        && !tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM pragma_table_info('change_history') WHERE name = 'idempotency_key')",
+            [],
+            |row| row.get::<_, bool>(0),
+        )?
+    {
+        tx.execute_batch(AGENT_IDEMPOTENCY)?;
     }
     if found < 53 {
         tx.execute_batch(

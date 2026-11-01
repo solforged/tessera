@@ -498,10 +498,24 @@ fn agent_kind_changes_and_removal_undo_without_overwriting_later_edits() {
     let removed = nb.agent_edit(&request(None)).unwrap();
     nb.undo_change(removed.seq, &Actor::Person).unwrap();
     assert_eq!(info(&nb, 13).kind, RelationKind::Disputes);
-    let unchanged = nb
-        .agent_edit(&request(Some(RelationKind::Disputes)))
-        .unwrap();
-    assert!(unchanged.committed.revisions.is_empty());
+    let refused = |nb: &mut Notebook, relation, reason: &str| {
+        let before = nb.history(500, None).unwrap().len();
+        match nb.agent_edit(&request(relation)) {
+            Err(Error::Validation { message, .. }) => {
+                assert!(message.contains(reason), "{message}")
+            }
+            other => panic!("expected a no-op refusal, got {other:?}"),
+        }
+        assert_eq!(nb.history(500, None).unwrap().len(), before);
+    };
+    refused(
+        &mut nb,
+        Some(RelationKind::Disputes),
+        "nothing to change: the atom already has the disputes relation",
+    );
+    set(&mut nb, 13, None);
+    refused(&mut nb, None, "nothing to change: the atom has no relation");
+    set(&mut nb, 13, Some(RelationKind::Disputes));
     let changed = nb
         .agent_edit(&request(Some(RelationKind::Answers)))
         .unwrap();

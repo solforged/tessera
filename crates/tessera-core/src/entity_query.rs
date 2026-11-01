@@ -769,23 +769,29 @@ pub(crate) fn groups(query: &Query, rows: &[QueryRow]) -> Vec<QueryGroup> {
     groups
 }
 
+/// A date filter's value as a civil date: `today` and signed day counts such
+/// as `-30d` resolve in the workshop's time zone; a date, bare year or year
+/// and month stays as written. An empty value belongs to a filter that needs
+/// none, such as `set`.
 pub(crate) fn relative_date(conn: &Connection, value: &str) -> Result<String> {
     let days = if value == "today" {
-        Some(0)
-    } else if (value.starts_with('+') || value.starts_with('-')) && value.ends_with('d') {
-        Some(
-            value[..value.len() - 1]
-                .parse::<i64>()
-                .map_err(|_| validation("Use today or a signed number of days, such as -30d."))?,
-        )
+        0
+    } else if let Some(count) = value
+        .strip_suffix('d')
+        .filter(|count| count.starts_with(['+', '-']))
+    {
+        count
+            .parse::<i64>()
+            .map_err(|_| validation("Use today or a signed number of days, such as -30d."))?
+    } else if value.is_empty() || crate::fields::partial_date(value) {
+        return Ok(value.into());
     } else {
-        None
+        return Err(validation(format!(
+            "“{value}” is not a date. Use today, a signed number of days such as -30d, or a date such as 2026-10-31."
+        )));
     };
-    match days {
-        Some(days) => crate::calendar::add_days(
-            &crate::settings::today_in_connection(conn, crate::now_ms())?,
-            days,
-        ),
-        None => Ok(value.into()),
-    }
+    crate::calendar::add_days(
+        &crate::settings::today_in_connection(conn, crate::now_ms())?,
+        days,
+    )
 }

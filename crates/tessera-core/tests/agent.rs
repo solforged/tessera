@@ -1104,7 +1104,10 @@ fn deleted_decks_are_recreated_with_their_identity_and_query_on_undo() {
     let created = run(&mut nb, &save_deck(None, None, "Reading", query));
     let before = &created.decks[0];
     let deleted = run(&mut nb, &delete_deck(&before.id, Some(before.revision)));
-    assert_eq!(deleted.summary, "Deleted deck Reading");
+    assert_eq!(
+        deleted.summary,
+        format!("Deleted deck Reading ({})", before.id)
+    );
     assert!(deleted.page.is_none());
     assert!(deleted.decks.is_empty());
     assert!(matches!(nb.deck(&before.id), Err(Error::NotFound { .. })));
@@ -1385,7 +1388,7 @@ fn citations_can_span_passages_and_several_blocks_in_one_undoable_change() {
             citations: vec![range, same_block, citation(&id(11), &passages[1].id)],
         }),
     );
-    assert_eq!(receipt.summary, "Cited 3 passages on Dune");
+    assert_eq!(receipt.summary, "Cited 2 passages on Dune and Other");
     assert_eq!(receipt.page.unwrap().id, id(1));
     assert_eq!(
         receipt.blocks,
@@ -1595,4 +1598,532 @@ fn new_agent_kinds_deserialize_with_optional_revision_and_citation_range_fields(
             .created_fields
             .is_empty()
     );
+}
+
+#[test]
+fn unknown_request_fields_are_refused_instead_of_ignored() {
+    let base = serde_json::json!({
+        "actor": { "kind": "agent", "name": "claude" },
+        "kind": "add_note",
+        "target": { "kind": "page", "title": "Dune" },
+        "blocks": [{ "text": "Kitchen" }]
+    });
+    assert!(serde_json::from_value::<AgentRequest>(base.clone()).is_ok());
+    for (pointer, field) in [
+        ("/blocks/0", "type"),
+        ("/target", "titel"),
+        ("", "idempotency_key"),
+    ] {
+        let mut body = base.clone();
+        body.pointer_mut(pointer)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert(field.into(), serde_json::json!("x"));
+        let error = serde_json::from_value::<AgentRequest>(body)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains(&format!("unknown field `{field}`")),
+            "{error}"
+        );
+    }
+    for (body, field) in [
+        (
+            serde_json::json!({
+                "actor": { "kind": "agent", "name": "claude" }, "kind": "cite",
+                "citations": [{ "block_id": id(2), "passage_id": id(3), "text": "x" }]
+            }),
+            "text",
+        ),
+        (
+            serde_json::json!({
+                "actor": { "kind": "agent", "name": "claude" }, "kind": "edit_block",
+                "id": id(2), "revison": 3, "text": "x"
+            }),
+            "revison",
+        ),
+    ] {
+        let error = serde_json::from_value::<AgentRequest>(body)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            error.contains(&format!("unknown field `{field}`")),
+            "{error}"
+        );
+    }
+}
+
+#[test]
+fn editing_a_field_entry_replaces_its_first_value_and_undo_restores_it() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let lisbon = run(&mut nb, &edit(&id(2), "Where:: Lisbon"));
+    let field = lisbon.created_fields[0].id.clone();
+    let entry = format!("[[{field}]]");
+    assert_eq!(
+        outline(&nb, &id(1)),
+        [&entry, "  Lisbon", "  nested", "second"]
+    );
+    let value = nb.page(&id(1)).unwrap().rows[1].block.id.clone();
+
+    let porto = run(&mut nb, &edit(&id(2), "Where:: Porto"));
+    assert_eq!(
+        outline(&nb, &id(1)),
+        [&entry, "  Porto", "  nested", "second"]
+    );
+    assert!(porto.created_fields.is_empty());
+    assert_eq!(porto.blocks.len(), 1);
+    assert_eq!(porto.blocks[0].id, value);
+    assert_eq!(porto.summary, "Edited “Where:: Porto” on Dune");
+    refused(
+        nb.agent_edit(&edit(&id(2), "where:: Porto")),
+        "nothing to change",
+    );
+    refused(nb.agent_edit(&edit(&id(2), "Where::")), "nothing to change");
+
+    let headed = run(
+        &mut nb,
+        &request(AgentEdit::EditBlock {
+            id: id(2),
+            revision: None,
+            text: Some("Where:: Faro".into()),
+            heading: Some(1),
+        }),
+    );
+    assert_eq!(
+        outline(&nb, &id(1)),
+        [&entry, "  Faro", "  nested", "second"]
+    );
+    assert_eq!(nb.block(&id(2)).unwrap().heading, Some(1));
+    let entry_revision = nb.block(&id(2)).unwrap().revision;
+    assert!(matches!(
+        nb.agent_edit(&request(AgentEdit::EditBlock {
+            id: id(2),
+            revision: Some(entry_revision - 1),
+            text: Some("Where:: Braga".into()),
+            heading: None,
+        })),
+        Err(Error::Conflict { .. })
+    ));
+
+    undo(&mut nb, headed.seq).unwrap();
+    assert_eq!(nb.block(&id(2)).unwrap().heading, None);
+    undo(&mut nb, porto.seq).unwrap();
+    assert_eq!(
+        outline(&nb, &id(1)),
+        [&entry, "  Lisbon", "  nested", "second"]
+    );
+
+    // An entry without values gets the value as its first child.
+    let empty = run(&mut nb, &note(page("Dune"), vec![block("Empty::", vec![])]));
+    let filled = run(&mut nb, &edit(&empty.blocks[0].id, "Empty:: filled"));
+    assert_eq!(outline(&nb, &id(1)).last().unwrap(), "  filled");
+    undo(&mut nb, filled.seq).unwrap();
+    assert_eq!(
+        outline(&nb, &id(1)).last().unwrap(),
+        &format!("[[{}]]", empty.created_fields[0].id)
+    );
+}
+
+#[test]
+fn a_shorthand_never_moves_an_existing_entry_to_another_field() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    run(&mut nb, &edit(&id(2), "Where:: Lisbon"));
+    let before = outline(&nb, &id(1));
+    refused(
+        nb.agent_edit(&edit(&id(2), "Mood:: Porto")),
+        "this atom is the Where entry and cannot become a Mood entry",
+    );
+    assert_eq!(outline(&nb, &id(1)), before);
+    assert!(
+        !nb.fields()
+            .unwrap()
+            .fields
+            .iter()
+            .any(|field| field.definition.name == "Mood")
+    );
+    // Plain text still turns an entry back into an ordinary atom.
+    run(&mut nb, &edit(&id(2), "Lisbon trip"));
+    assert_eq!(nb.block(&id(2)).unwrap().text, "Lisbon trip");
+}
+
+#[test]
+fn choice_values_link_their_option_and_never_create_pages() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let fields = nb.fields().unwrap().page_id;
+    let insert = |value: u128, parent: String, after: Option<u128>, text: &str| Operation::Insert {
+        id: id(value),
+        parent_id: parent,
+        after: after.map(id),
+        text: text.into(),
+        heading: None,
+    };
+    seed(
+        &mut nb,
+        vec![
+            insert(20, fields, None, "Stage"),
+            insert(21, id(20), None, "Seedling"),
+            insert(22, id(20), Some(21), "Budding"),
+        ],
+    );
+    let revision = nb.block(&id(20)).unwrap().revision;
+    seed(
+        &mut nb,
+        vec![Operation::SetFieldKind {
+            id: id(20),
+            base_revision: revision,
+            kind: tessera_core::FieldKind::Choice,
+        }],
+    );
+    let receipt = run(
+        &mut nb,
+        &note(
+            page("Dune"),
+            vec![
+                block("Stage:: budding", vec![]),
+                block("stage:: [[Seedling]]", vec![]),
+            ],
+        ),
+    );
+    assert!(receipt.created_pages.is_empty());
+    assert!(nb.page_by_title("Seedling").unwrap().is_none());
+    let stage = format!("[[{}]]", id(20));
+    assert_eq!(
+        outline(&nb, &id(1))[3..],
+        [
+            stage.clone(),
+            format!("  [[{}]]", id(22)),
+            stage,
+            format!("  [[{}]]", id(21)),
+        ]
+    );
+    refused(
+        nb.agent_edit(&note(
+            page("Dune"),
+            vec![block("Stage:: [[Wilting]]", vec![])],
+        )),
+        "“[[Wilting]]” is not an option of Stage; use one of Seedling and Budding",
+    );
+    assert!(nb.page_by_title("Wilting").unwrap().is_none());
+    run(&mut nb, &edit(&receipt.blocks[0].id, "Stage:: Seedling"));
+    assert_eq!(outline(&nb, &id(1))[4], format!("  [[{}]]", id(21)));
+}
+
+#[test]
+fn page_titles_must_be_linkable_short_and_not_dates() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let long = "x".repeat(1001);
+    for (title, reason) in [
+        ("[[Kitchen renovation]]", "cannot contain [[ or ]]"),
+        (
+            "2026-10-31",
+            "cannot be a date: 2026-10-31 names a journal day",
+        ),
+        ("2026-13-45", "cannot be a date"),
+        (long.as_str(), "at most 1000 characters"),
+    ] {
+        refused(
+            nb.agent_edit(&note(page(title), vec![block("x", vec![])])),
+            reason,
+        );
+        refused(nb.agent_edit(&edit(&id(1), title)), reason);
+    }
+    refused(
+        nb.agent_edit(&note(
+            page("Dune"),
+            vec![block(&format!("see [[{long}]]"), vec![])],
+        )),
+        "at most 1000 characters",
+    );
+    assert!(agent_history(&nb).is_empty());
+    let longest = "x".repeat(1000);
+    let receipt = run(&mut nb, &note(page(&longest), vec![block("x", vec![])]));
+    assert_eq!(receipt.page.unwrap().text, longest);
+}
+
+#[test]
+fn a_note_adds_at_most_5000_atoms() {
+    let (_dir, mut nb) = fixture();
+    let children = |count: usize| {
+        (0..count)
+            .map(|index| block(&index.to_string(), vec![]))
+            .collect::<Vec<_>>()
+    };
+    refused(
+        nb.agent_edit(&note(page("Big"), vec![block("top", children(5000))])),
+        "at most 5000 atoms",
+    );
+    assert!(nb.page_by_title("Big").unwrap().is_none());
+    let receipt = run(
+        &mut nb,
+        &note(page("Big"), vec![block("top", children(4999))]),
+    );
+    assert_eq!(receipt.blocks.len(), 5000);
+}
+
+#[test]
+fn notes_never_target_the_fields_page() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let field = run(&mut nb, &edit(&id(2), "Where:: Lisbon")).created_fields[0]
+        .id
+        .clone();
+    let fields = nb.fields().unwrap();
+    for target in [
+        page(" FIELDS "),
+        NoteTarget::Block { id: field },
+        NoteTarget::Block {
+            id: fields.page_id.clone(),
+        },
+    ] {
+        refused(
+            nb.agent_edit(&note(target, vec![block("Remember to tidy", vec![])])),
+            "write `Name:: value` in its note",
+        );
+    }
+    assert_eq!(nb.fields().unwrap(), fields);
+}
+
+#[test]
+fn page_and_journal_roots_refuse_headings() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let day = run(
+        &mut nb,
+        &note(
+            NoteTarget::Journal {
+                date: Some("2026-10-31".into()),
+            },
+            vec![block("x", vec![])],
+        ),
+    )
+    .page
+    .unwrap();
+    let heading = |target: &str, level| {
+        request(AgentEdit::EditBlock {
+            id: target.into(),
+            revision: None,
+            text: None,
+            heading: Some(level),
+        })
+    };
+    for root in [id(1), day.id.clone()] {
+        refused(nb.agent_edit(&heading(&root, 1)), "cannot be a heading");
+        refused(nb.agent_edit(&heading(&root, 0)), "nothing to change");
+        assert_eq!(nb.block(&root).unwrap().heading, None);
+    }
+}
+
+#[test]
+fn edit_summaries_show_titles_and_keep_identifiers_whole() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let paul = run(&mut nb, &note(page("Paul"), vec![block("bio", vec![])]))
+        .page
+        .unwrap()
+        .id;
+    let titled = run(&mut nb, &edit(&id(2), &format!("about [[{paul}]]")));
+    assert_eq!(titled.summary, "Edited “about Paul” on Dune");
+    assert_eq!(agent_history(&nb)[0].summary, titled.summary);
+    let missing = id(999);
+    let padding = "x".repeat(40);
+    let cut = run(
+        &mut nb,
+        &edit(&id(4), &format!("{padding} [[{missing}]] tail")),
+    );
+    assert_eq!(
+        cut.summary,
+        format!("Edited “{padding} [[{missing}]]…” on Dune")
+    );
+}
+
+#[test]
+fn task_edits_that_keep_the_status_are_not_reported_as_a_new_status() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let set = |task: TaskState| {
+        request(AgentEdit::SetTask {
+            id: id(4),
+            revision: None,
+            task: Some(task),
+        })
+    };
+    run(&mut nb, &set(task(TaskStatus::Todo)));
+    let prioritized = TaskState {
+        priority: Some(TaskPriority::High),
+        ..task(TaskStatus::Todo)
+    };
+    let updated = run(&mut nb, &set(prioritized.clone()));
+    assert_eq!(updated.summary, "Updated the task “second” on Dune");
+    let started = run(
+        &mut nb,
+        &set(TaskState {
+            status: Some(TaskStatus::Doing),
+            ..prioritized
+        }),
+    );
+    assert_eq!(started.summary, "Set to doing “second” on Dune");
+}
+
+#[test]
+fn deck_names_are_unique_ignoring_case_and_unchanged_saves_are_refused() {
+    let (_dir, mut nb) = fixture();
+    let reading = run(
+        &mut nb,
+        &save_deck(None, None, "Reading", CardQuery::default()),
+    )
+    .decks
+    .remove(0);
+    refused(
+        nb.agent_edit(&save_deck(None, None, " reading ", CardQuery::default())),
+        &format!("a deck named Reading already exists ({})", reading.id),
+    );
+    let other = run(
+        &mut nb,
+        &save_deck(None, None, "Other", CardQuery::default()),
+    )
+    .decks
+    .remove(0);
+    refused(
+        nb.agent_edit(&save_deck(
+            Some(&other.id),
+            None,
+            "READING",
+            CardQuery::default(),
+        )),
+        "already exists",
+    );
+    refused(
+        nb.agent_edit(&save_deck(
+            Some(&reading.id),
+            Some(reading.revision),
+            "Reading",
+            CardQuery::default(),
+        )),
+        "nothing to change: deck Reading already has that name and query",
+    );
+    let renamed = run(
+        &mut nb,
+        &save_deck(Some(&reading.id), None, "READING", CardQuery::default()),
+    );
+    assert_eq!(renamed.decks[0].name, "READING");
+    refused(
+        nb.agent_edit(&save_deck(None, Some(7), "New deck", CardQuery::default())),
+        "revision applies only to an existing deck",
+    );
+    // Decks named alike before this rule can still be saved under their own name.
+    seed(
+        &mut nb,
+        ["Twin", "twin"]
+            .into_iter()
+            .zip([70, 71])
+            .map(|(name, value)| Operation::SaveDeck {
+                id: id(value),
+                base_revision: None,
+                name: name.into(),
+                query: CardQuery::default(),
+            })
+            .collect(),
+    );
+    let query = CardQuery {
+        limit: Some(5),
+        ..Default::default()
+    };
+    let saved = run(
+        &mut nb,
+        &save_deck(Some(&id(70)), None, "Twin", query.clone()),
+    );
+    assert_eq!(saved.decks[0].query, query);
+    assert_eq!(agent_history(&nb).len(), 4);
+}
+
+#[test]
+fn cite_receipts_count_distinct_passages_and_refuse_empty_or_repeated_citations() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    let (_, passages) = evidence(&mut nb, true);
+    let cite = |citations| request(AgentEdit::Cite { citations });
+    let mut empty = citation(&id(2), &passages[0].id);
+    empty.quote = Some(String::new());
+    refused(nb.agent_edit(&cite(vec![empty])), "quote is empty");
+    let shared = run(
+        &mut nb,
+        &cite(vec![
+            citation(&id(2), &passages[0].id),
+            citation(&id(4), &passages[0].id),
+        ]),
+    );
+    assert_eq!(shared.summary, "Cited 1 passage on Dune");
+    let mut range = citation(&id(3), &passages[0].id);
+    range.end_passage_id = Some(passages[1].id.clone());
+    let ranged = run(&mut nb, &cite(vec![range.clone()]));
+    assert_eq!(ranged.summary, "Cited 2 passages on Dune");
+    refused(
+        nb.agent_edit(&cite(vec![range.clone()])),
+        &format!(
+            "nothing to change: atom {} already has this citation",
+            id(3)
+        ),
+    );
+    refused(
+        nb.agent_edit(&cite(vec![
+            citation(&id(4), &passages[1].id),
+            citation(&id(4), &passages[1].id),
+        ])),
+        "already has this citation",
+    );
+    assert_eq!(nb.capabilities(&id(4)).unwrap().citations.len(), 1);
+    undo(&mut nb, ranged.seq).unwrap();
+    run(&mut nb, &cite(vec![range]));
+}
+
+#[test]
+fn a_keyed_request_sent_again_returns_its_first_receipt_without_writing() {
+    let (dir, mut nb) = fixture();
+    dune(&mut nb);
+    let ask = note(page("Dune"), vec![block("same thought", vec![])]);
+    let first = nb.agent_edit_keyed(&ask, Some("retry-1")).unwrap();
+    assert!(!first.committed.replayed);
+    let again = nb.agent_edit_keyed(&ask, Some("retry-1")).unwrap();
+    assert!(again.committed.replayed);
+    assert_eq!(
+        (again.seq, &again.summary, &again.blocks, &again.page),
+        (first.seq, &first.summary, &first.blocks, &first.page)
+    );
+    assert_eq!(
+        outline(&nb, &id(1)),
+        ["first", "  nested", "second", "same thought"]
+    );
+    assert_eq!(agent_history(&nb).len(), 1);
+    refused(
+        nb.agent_edit_keyed(
+            &note(page("Dune"), vec![block("other thought", vec![])]),
+            Some("retry-1"),
+        ),
+        "already used for a different request",
+    );
+    for key in [String::new(), "k".repeat(256), "a\nb".into()] {
+        refused(nb.agent_edit_keyed(&ask, Some(&key)), "idempotency key");
+    }
+    // A refused request leaves its key free.
+    let bad = note(page("Dune"), vec![]);
+    refused(nb.agent_edit_keyed(&bad, Some("retry-2")), "must contain");
+    let second = nb.agent_edit_keyed(&ask, Some("retry-2")).unwrap();
+    assert!(!second.committed.replayed);
+    assert_ne!(second.seq, first.seq);
+
+    // The key outlives the process and a replayed migration.
+    drop(nb);
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.pragma_update(None, "user_version", 54).unwrap();
+    drop(conn);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    let reopened = nb.agent_edit_keyed(&ask, Some("retry-1")).unwrap();
+    assert!(reopened.committed.replayed);
+    assert_eq!(reopened.seq, first.seq);
+    assert_eq!(agent_history(&nb).len(), 2);
 }
