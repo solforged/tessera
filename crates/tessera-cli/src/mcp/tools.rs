@@ -3,18 +3,14 @@
 use serde_json::{Value, json};
 
 const SYNTAX: &str = "Markdown outline: `- ` or `1. ` items nest by indentation, and \
-indented lines under an item continue it; every other line is its own block; \
-`#` to `######` headings, or lines underlined with `===` or `---`, become heading blocks that \
-contain what follows, nesting by level, with levels past 3 stored as 3; a fenced code block \
-is one block. `- [ ] `, `- [x] `, `- [doing] `, `- [waiting] ` and `- [cancelled] ` items \
-become tasks; `- ## Title` is a heading item, and an item opening a ``` fence is a code item. \
-A line starting `\\` keeps the structure marker after it as text, and `--\\>` is `-->`, as \
-tessera_read_page writes them. At most 50 levels. In block text, \
-`[[Page title]]` links a page by title, or by alias when one page has it (a name several \
-pages share is refused), and creates it if missing, `[[Page title|label]]` \
-links with a label, `[[2026-10-07]]` links an existing journal day, `[[BLOCK_ID]]` \
-references a live block, and `#Tag` or `#[[Multi word tag]]` gives the block a type. \
-Quote rows use `((BLOCK_ID))` alone with an attached frozen subtree snapshot; writing \
+indented lines under an item continue it; every other line is its own block; `#` headings \
+become heading blocks that contain what follows; a fenced code block is one block. \
+`- [ ] `, `- [x] `, `- [doing] `, `- [waiting] ` and `- [cancelled] ` items become tasks. \
+tessera_read_page output reads back as the same blocks. In block text, \
+`[[Page title]]` links a page by title or alias and creates it if missing, \
+`[[Page title|label]]` links with a label, `[[2026-10-07]]` links an existing journal day, \
+`[[BLOCK_ID]]` references a live block, and `#Tag` or `#[[Multi word tag]]` gives the block \
+a type. Quote rows use `((BLOCK_ID))` alone with an attached frozen subtree snapshot; writing \
 the marker alone does not capture a snapshot. Reads show the saved text, not live text. \
 Flashcards: `A >> B` shows A and asks for B; `A << B` shows B and asks for A, so \
 `東京 << Tōkyō` shows Tōkyō and asks for 東京; `A <> B` makes both cards; a trailing \
@@ -25,12 +21,10 @@ children one at a time in order; a child block `Function ;; makes ATP` under \
 `{{c1::answer::hint}}`, and repeated numbers make one card. Use one operator per block and \
 never mix operators with clozes. Write results list each card with what it shows and asks \
 for. Field entries: a line `Name:: value` is its own block and sets that field on its \
-parent block, the page itself at the top level or the item it is indented under (the \
-field is created when missing, a built-in one such as author, lived, published, url or \
-form with its built-in kind); `Name::` takes the items or lines indented under it as \
-several values. A value the field cannot read as its kind (date, span, URL, number, \
-identifier, checkbox or choice) is refused; a choice value is an option's name or \
-`[[Option]]`. Values of instance fields (see tessera_query) are links such as \
+parent block, the page itself at the top level or the item it is indented under; \
+`Name::` takes the items indented under it as several values. A missing field is created, \
+a built-in one (author, lived, published, url, form…) with its kind, and each value must \
+read as the field's kind. Values of instance fields (see tessera_query) are links such as \
 `author:: [[George Eliot]]`.";
 
 const REVISION: &str = "The block's revision from tessera_read_page (`r3` is 3). When given, \
@@ -91,12 +85,12 @@ pub(super) fn tools() -> Value {
         {
             "name": "tessera_add_note",
             "title": "Add a note",
-            "description": format!("Append an outline to the end of a page (created if missing), a journal day (created if missing) or an existing block. Without page, journal or parent_id it goes to today's journal. Writes are attributed to this agent. A note adds at most 5000 blocks. The result lists the cards the note made and any card syntax that made none. {SYNTAX}"),
+            "description": format!("Append an outline to the end of a page (created if missing), a journal day (created if missing) or an existing block. Without page, journal or parent_id it goes to today's journal. Writes are attributed to this agent. The result lists the cards the note made and any card syntax that made none. {SYNTAX}"),
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "markdown": { "type": "string", "description": "The note as a Markdown outline." },
-                    "page": { "type": "string", "description": "Page title, ignoring case; a date is refused, so give a day as journal. Tags in it, such as #person, file the page, an existing one too." },
+                    "page": { "type": "string", "description": "Page title, ignoring case; give a day as journal. Tags in it, such as #person, file the page." },
                     "journal": { "type": "string", "description": "Journal day as YYYY-MM-DD, or today." },
                     "parent_id": { "type": "string", "description": "Block ID to append children to." },
                     "reason": { "type": "string", "description": "Why this note was written, kept in the change history." }
