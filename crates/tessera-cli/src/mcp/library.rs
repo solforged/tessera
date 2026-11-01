@@ -11,7 +11,7 @@ use tessera_core::{AgentCitation, AgentEdit, Block};
 
 use super::cards::{found, is_id};
 use super::render::{location, name, one_line, snippet};
-use super::{Api, Session, boolean, choice, integer, limit, segment, string, strings};
+use super::{Api, Session, Titles, boolean, choice, integer, limit, segment, string, strings};
 
 impl Session<'_> {
     pub(super) async fn library(&self, arguments: &Value) -> anyhow::Result<String> {
@@ -72,9 +72,14 @@ async fn sources(api: &Api, arguments: &Value) -> anyhow::Result<String> {
     if result.rows.is_empty() {
         return Ok("No sources match.".into());
     }
+    let titles = Titles::load(api, result.rows.iter().map(|row| row.page.text.as_str())).await?;
     let mut text = format!("{} of {} sources:\n", result.rows.len(), result.total);
     for row in &result.rows {
-        text.push_str(&format!("- {:?} (source {})", row.page.text, row.page.id));
+        text.push_str(&format!(
+            "- {:?} (source {})",
+            titles.show(&row.page.text),
+            row.page.id
+        ));
         if !row.creators.is_empty() {
             text.push_str(&format!(" by {}", row.creators.join(", ")));
         }
@@ -103,9 +108,10 @@ async fn sources(api: &Api, arguments: &Value) -> anyhow::Result<String> {
 /// A source's table of contents with passage ordinals to read from.
 async fn contents(api: &Api, arguments: &Value) -> anyhow::Result<String> {
     let view = source(api, arguments).await?;
+    let titles = Titles::load(api, [view.page.text.as_str()]).await?;
     let mut text = format!(
         "{:?} (source {}): {} {}",
-        view.page.text,
+        titles.show(&view.page.text),
         view.page.id,
         name(view.source.format),
         name(view.source.state)
@@ -137,11 +143,14 @@ async fn contents(api: &Api, arguments: &Value) -> anyhow::Result<String> {
 /// Passages in reading order from an ordinal, with their IDs for citing.
 async fn read(api: &Api, arguments: &Value) -> anyhow::Result<String> {
     let view = source(api, arguments).await?;
+    let title = Titles::load(api, [view.page.text.as_str()])
+        .await?
+        .show(&view.page.text);
     let snapshot = view
         .source
         .current_snapshot_id
         .as_deref()
-        .with_context(|| format!("{:?} has no reading content to read.", view.page.text))?;
+        .with_context(|| format!("{title:?} has no reading content to read."))?;
     let from = match integer(arguments, "from")? {
         Some(from) => from,
         None => view
@@ -156,7 +165,7 @@ async fn read(api: &Api, arguments: &Value) -> anyhow::Result<String> {
             &[("from", &from.to_string()), ("limit", &count)],
         )
         .await?;
-    let mut text = heading(&view.page.text, from, page.passages.len(), page.total);
+    let mut text = heading(&title, from, page.passages.len(), page.total);
     if page.passages.is_empty() {
         return Ok(text);
     }
@@ -256,12 +265,13 @@ async fn search(api: &Api, arguments: &Value) -> anyhow::Result<String> {
     if hits.is_empty() {
         return Ok(format!("No passages match {query:?}."));
     }
+    let titles = Titles::load(api, hits.iter().map(|hit| hit.title.as_str())).await?;
     Ok(hits
         .iter()
         .map(|hit| {
             format!(
                 "- {:?} [{}] (passage {}, source {}): {}\n",
-                hit.title,
+                titles.show(&hit.title),
                 hit.passage.ordinal,
                 hit.passage.id,
                 hit.source_id,
@@ -296,16 +306,24 @@ async fn highlights(api: &Api, arguments: &Value) -> anyhow::Result<String> {
     if result.rows.is_empty() {
         return Ok("No highlights match.".into());
     }
+    let titles = Titles::load(
+        api,
+        result
+            .rows
+            .iter()
+            .flat_map(|row| [row.source_title.as_str(), row.block.page.text.as_str()]),
+    )
+    .await?;
     let mut text = format!("{} of {} highlights:\n", result.rows.len(), result.total);
     for row in &result.rows {
         text.push_str(&format!(
             "- “{}” from {:?} at {} (passage {}): block {} {}",
             snippet(&row.citation.quote),
-            row.source_title,
+            titles.show(&row.source_title),
             row.citation.locator,
             row.citation.start.passage_id,
             row.block.block.id,
-            location(&row.block.page)
+            location(&titles.block(&row.block.page))
         ));
         if !row.processed {
             text.push_str(", unprocessed");

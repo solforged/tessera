@@ -73,7 +73,7 @@ impl Session<'_> {
                 ]
             })
             .flatten()
-            .map(|block| block.block.text.as_str())
+            .flat_map(|block| [block.block.text.as_str(), block.page.text.as_str()])
             .chain(holders.iter().map(String::as_str));
         let titles = Titles::load(&api, texts).await?;
         let mut text = format!("{} of {} relations:\n", shown.len(), rows.len());
@@ -120,13 +120,18 @@ fn endpoint(endpoint: &RelationEndpoint, titles: &Titles) -> String {
 fn block(block: &BlockInPage, titles: &Titles) -> String {
     let page = &block.page;
     if block.block.id == page.id {
-        return format!("{} {:?} (id {})", kind_label(page.kind), page.text, page.id);
+        return format!(
+            "{} {:?} (id {})",
+            kind_label(page.kind),
+            titles.show(&page.text),
+            page.id
+        );
     }
     format!(
         "“{}” (block {}) {}",
         one_line(&titles.show(&block.block.text)),
         block.block.id,
-        location(page)
+        location(&titles.block(page))
     )
 }
 

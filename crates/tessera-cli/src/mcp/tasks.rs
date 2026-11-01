@@ -136,10 +136,12 @@ impl Session<'_> {
         }
         let titles = Titles::load(
             &api,
-            listed
-                .iter()
-                .flat_map(|(_, items)| items)
-                .map(|item| item.source.block.text.as_str()),
+            listed.iter().flat_map(|(_, items)| items).flat_map(|item| {
+                [
+                    item.source.block.text.as_str(),
+                    item.source.page.text.as_str(),
+                ]
+            }),
         )
         .await?;
         let mut text = String::new();
@@ -159,7 +161,7 @@ impl Session<'_> {
                     item.task.status,
                     &titles.show(&item.source.block.text),
                     &item.source.block.id,
-                    &location(&item.source.page),
+                    &location(&titles.block(&item.source.page)),
                     &details,
                 ));
             }
@@ -239,7 +241,12 @@ impl Session<'_> {
         }
         let titles = Titles::load(
             &api,
-            result.rows.iter().map(|row| row.source.block.text.as_str()),
+            result.rows.iter().flat_map(|row| {
+                [
+                    row.source.block.text.as_str(),
+                    row.source.page.text.as_str(),
+                ]
+            }),
         )
         .await?;
         let mut text = format!("{} of {} tasks:\n", result.rows.len(), result.total);
@@ -248,7 +255,7 @@ impl Session<'_> {
                 task.status,
                 &titles.show(&source.block.text),
                 &source.block.id,
-                &location(&source.page),
+                &location(&titles.block(&source.page)),
                 &task_details(task),
             ));
         }

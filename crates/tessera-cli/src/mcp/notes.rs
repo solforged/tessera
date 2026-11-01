@@ -14,7 +14,7 @@ use super::render::{
     Clock, PageContext, age, card_answer, card_front, card_label, kind_label, location, one_line,
     quoted, render, snippet,
 };
-use super::{Api, Session, Titles, boolean, describe, integer, limit, required, segment, string};
+use super::{Api, Session, Titles, boolean, integer, limit, required, segment, string};
 
 /// The most hits tessera_search returns.
 const SEARCH_LIMIT: usize = 200;
@@ -36,7 +36,7 @@ impl Session<'_> {
         if hits.is_empty() {
             return Ok(format!("No atoms match {query:?}."));
         }
-        let titles = titles(
+        let titles = Titles::lenient(
             &api,
             hits.iter()
                 .flat_map(|hit| [hit.block.text.as_str(), hit.page.text.as_str()]),
@@ -48,7 +48,7 @@ impl Session<'_> {
                 "- {} (block {}) {}\n",
                 titles.show(&hit.block.text).replace('\n', " "),
                 hit.block.id,
-                location(&titled(&titles, &hit.page))
+                location(&titles.block(&hit.page))
             ));
         }
         Ok(text)
@@ -67,7 +67,7 @@ impl Session<'_> {
         if roots.is_empty() {
             return Ok("The workshop has no titled atoms yet.".into());
         }
-        let titles = titles(&api, roots.iter().map(|root| root.text.as_str())).await;
+        let titles = Titles::lenient(&api, roots.iter().map(|root| root.text.as_str())).await;
         let mut text = String::new();
         for root in roots {
             text.push_str(&format!(
@@ -140,7 +140,7 @@ impl Session<'_> {
         // The change is committed. What follows only reports on it, so a
         // failed read is a note in the result rather than an error that
         // would invite a retry.
-        let mut text = describe(&receipt);
+        let mut text = self.describe(&receipt).await;
         if let Some(page) = &receipt.page {
             let added: HashSet<&str> = receipt.blocks.iter().map(|b| b.id.as_str()).collect();
             let report = async {
@@ -186,7 +186,7 @@ impl Session<'_> {
                 },
             )
             .await?;
-        let mut report = describe(&receipt);
+        let mut report = self.describe(&receipt).await;
         if edited {
             let cards = async {
                 let api = self.api().await?;
@@ -249,7 +249,7 @@ impl Session<'_> {
                 None => "No history yet.".into(),
             });
         }
-        let titles = titles(
+        let titles = Titles::lenient(
             &api,
             history.entries.iter().map(|change| change.summary.as_str()),
         )
@@ -304,16 +304,12 @@ impl Session<'_> {
             receipt.undone, receipt.seq
         );
         if !receipt.kept_pages.is_empty() {
-            let titles = titles(
+            let titles = Titles::lenient(
                 &api,
                 receipt.kept_pages.iter().map(|page| page.text.as_str()),
             )
             .await;
-            let kept: Vec<Block> = receipt
-                .kept_pages
-                .iter()
-                .map(|page| titled(&titles, page))
-                .collect();
+            let kept = titles.blocks(&receipt.kept_pages);
             text.push_str(&format!(" Kept atoms still in use: {}.", quoted(&kept)));
         }
         Ok(text)
@@ -351,7 +347,7 @@ async fn card_report(api: &Api, cards: &[CardUnit]) -> anyhow::Result<String> {
         .iter()
         .map(|card| (card_front(card), card_answer(card)))
         .collect();
-    let titles = titles(
+    let titles = Titles::lenient(
         api,
         sides
             .iter()
@@ -380,22 +376,6 @@ fn unread(error: &anyhow::Error) -> String {
         " The change is saved, but its cards could not be read: {error:#}. Do not repeat the \
          call; tessera_read_page shows the cards."
     )
-}
-
-/// Titles for the references and tags in `texts`. When they cannot be
-/// read, the texts keep their IDs, since the call itself succeeded.
-async fn titles<'a>(api: &Api, texts: impl IntoIterator<Item = &'a str>) -> Titles {
-    Titles::load(api, texts)
-        .await
-        .unwrap_or_else(|_| Titles(HashMap::new()))
-}
-
-/// A page with its title shown by name.
-fn titled(titles: &Titles, page: &Block) -> Block {
-    Block {
-        text: titles.show(&page.text),
-        ..page.clone()
-    }
 }
 
 /// ` Problems …` for card syntax that made no card and field lines that

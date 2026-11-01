@@ -119,7 +119,7 @@ fn row_line(
         "- {} (block {}) {}",
         titles.show(&one_line(&row.block.block.text)),
         row.block.block.id,
-        location(&row.block.page)
+        location(&titles.block(&row.block.page))
     );
     // Task fields also come keyed by their field IDs, repeating `@status` and
     // the other task attributes.
@@ -169,7 +169,7 @@ fn row_line(
     text
 }
 
-/// The block and field texts a row prints, which may link pages by ID.
+/// The block, page and field texts a row prints, which may link pages by ID.
 fn row_texts(row: &QueryRow) -> impl Iterator<Item = &str> {
     let values = row.values.values().flatten().flat_map(|value| {
         let reading = match &value.reading {
@@ -181,7 +181,8 @@ fn row_texts(row: &QueryRow) -> impl Iterator<Item = &str> {
         };
         std::iter::once(value.text.as_str()).chain(reading)
     });
-    std::iter::once(row.block.block.text.as_str())
+    [row.block.block.text.as_str(), row.block.page.text.as_str()]
+        .into_iter()
         .chain(
             row.attributes
                 .values()
@@ -223,10 +224,25 @@ async fn overview(api: &Api, fields: &FieldsView) -> anyhow::Result<String> {
     if types.is_empty() {
         text.push_str("- None yet; #tag in atom text makes one.\n");
     }
+    let options = fields
+        .fields
+        .iter()
+        .flat_map(|field| &field.definition.options)
+        .map(|option| option.text.as_str());
+    let titles = Titles::load(
+        api,
+        types
+            .iter()
+            .map(|info| info.page.text.as_str())
+            .chain(options),
+    )
+    .await?;
     for info in &types {
         text.push_str(&format!(
             "- {} (tag {}): {} members",
-            info.page.text, info.page.id, info.members
+            titles.show(&info.page.text),
+            info.page.id,
+            info.members
         ));
         if !info.fields.is_empty() {
             let shown: Vec<_> = info
@@ -258,7 +274,7 @@ async fn overview(api: &Api, fields: &FieldsView) -> anyhow::Result<String> {
                 .definition
                 .options
                 .iter()
-                .map(|option| option.text.as_str())
+                .map(|option| titles.show(&option.text))
                 .collect();
             text.push_str(&format!("; options {}", options.join(", ")));
         }

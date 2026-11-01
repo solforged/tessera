@@ -14,9 +14,7 @@ use tessera_core::{
 use super::notes::{clock, page_cards};
 use super::query::{filters, unused};
 use super::render::{Clock, card_answer, card_front, card_label, location, name};
-use super::{
-    Api, Session, Titles, boolean, choice, describe, integer, limit, required, segment, string,
-};
+use super::{Api, Session, Titles, boolean, choice, integer, limit, required, segment, string};
 
 /// The arguments only the queue, stats and decks views read.
 const VIEW_ARGUMENTS: [&str; 5] = ["view", "selection", "deck", "type", "limit"];
@@ -41,11 +39,12 @@ impl Session<'_> {
                 unused(arguments, &VIEW_ARGUMENTS, "with page")?;
                 let page = page_root(&api, wanted, &clock).await?;
                 let cards = page_cards(&api, &page.id).await?;
+                let titles = Titles::load(&api, [page.text.as_str()]).await?;
                 return unit_list(
                     &api,
                     &cards,
                     &clock,
-                    &format!("{:?} has no cards.", page.text),
+                    &format!("{:?} has no cards.", titles.show(&page.text)),
                 )
                 .await;
             }
@@ -172,7 +171,7 @@ impl Session<'_> {
             selection,
         )?;
         let receipt = self.send(arguments, edit).await?;
-        let mut text = describe(&receipt);
+        let mut text = self.describe(&receipt).await;
         let names = Names::load(&api).await?;
         for deck in &receipt.decks {
             let all: CardQueryResult = api
@@ -280,12 +279,17 @@ async fn queue(api: &Api, arguments: &Value, clock: &Clock) -> anyhow::Result<St
         name(selection)
     );
     let faces = faces(api, result.rows.iter().map(|row| &row.card)).await?;
+    let pages = Titles::load(
+        api,
+        result.rows.iter().map(|row| row.source.page.text.as_str()),
+    )
+    .await?;
     for (row, (front, answer)) in result.rows.iter().zip(faces) {
         text.push_str(&format!(
             "- {}: {front} → {answer} (block {}) {}",
             card_label(&row.card, clock),
             row.source.block.id,
-            location(&row.source.page)
+            location(&pages.block(&row.source.page))
         ));
         if let Some(review) = &row.last_review {
             text.push_str(&format!(
@@ -557,10 +561,11 @@ impl Names {
     async fn load(api: &Api) -> anyhow::Result<Self> {
         let types: Vec<TypeInfo> = api.get("/api/types").await?;
         let fields: FieldsView = api.get("/api/fields").await?;
+        let titles = Titles::lenient(api, types.iter().map(|info| info.page.text.as_str())).await;
         Ok(Self {
             types: types
                 .into_iter()
-                .map(|info| (info.page.id, info.page.text))
+                .map(|info| (info.page.id, titles.show(&info.page.text)))
                 .collect(),
             fields: fields
                 .fields

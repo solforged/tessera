@@ -24,7 +24,7 @@ use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
-use tessera_core::{Actor, AgentEdit, AgentReceipt, AgentRequest};
+use tessera_core::{Actor, AgentEdit, AgentReceipt, AgentRequest, Block};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
 
 use crate::{Service, service};
@@ -245,7 +245,7 @@ impl Session<'_> {
             return failure(id, -32602, &format!("Unknown tool: {name}"));
         };
         let (text, error) = match result {
-            Ok(text) => (self.tags(text).await, false),
+            Ok(text) => (text, false),
             Err(error) => (format!("{error:#}"), true),
         };
         // The next call resolves the service afresh.
@@ -291,25 +291,20 @@ impl Session<'_> {
         }
     }
 
-    /// A tool's output with its canonical tags shown by live title. A failed
-    /// lookup leaves the raw tokens, because the call itself succeeded.
-    async fn tags(&self, text: String) -> String {
-        let ids: HashSet<&str> = tessera_core::tag_tokens(&text)
-            .filter_map(|token| token.id)
-            .collect();
-        if ids.is_empty() {
-            return text;
-        }
+    /// The receipt of a committed change, its texts shown by title. A failed
+    /// lookup leaves their IDs, because the change itself succeeded.
+    async fn describe(&self, receipt: &AgentReceipt) -> String {
+        let texts = [&receipt.summary]
+            .into_iter()
+            .chain(receipt.page.iter().map(|page| &page.text))
+            .chain(receipt.created_pages.iter().map(|page| &page.text))
+            .chain(receipt.created_fields.iter().map(|field| &field.text))
+            .map(String::as_str);
         let titles = match self.api().await {
-            Ok(api) => api.0.titles(ids).await,
-            Err(error) => Err(error),
+            Ok(api) => Titles::lenient(&api, texts).await,
+            Err(_) => Titles(HashMap::new()),
         };
-        match titles {
-            Ok(titles) => {
-                render::agent_tags(&text, |id| titles.get(id).map(String::as_str)).into_owned()
-            }
-            Err(_) => text,
-        }
+        describe(receipt, &titles)
     }
 
     /// The service's API for the current tool call. The first use resolves it
@@ -345,7 +340,8 @@ impl Session<'_> {
 
     /// Commit one agent edit and describe its receipt.
     async fn submit(&self, arguments: &Value, edit: AgentEdit) -> anyhow::Result<String> {
-        Ok(describe(&self.send(arguments, edit).await?))
+        let receipt = self.send(arguments, edit).await?;
+        Ok(self.describe(&receipt).await)
     }
 }
 
@@ -383,14 +379,19 @@ fn agent_name(name: &str) -> String {
     }
 }
 
-/// The change number, page, created pages and fields, and block revisions.
-fn describe(receipt: &AgentReceipt) -> String {
-    let mut text = format!("{}. This is change {}", receipt.summary, receipt.seq);
+/// The change number, page, created pages and fields, and block revisions,
+/// with their texts shown by title.
+fn describe(receipt: &AgentReceipt, titles: &Titles) -> String {
+    let mut text = format!(
+        "{}. This is change {}",
+        titles.show(&receipt.summary),
+        receipt.seq
+    );
     if let Some(page) = &receipt.page {
         text.push_str(&format!(
             " on {} {:?} (id {})",
             kind_label(page.kind),
-            page.text,
+            titles.show(&page.text),
             page.id
         ));
     }
@@ -398,13 +399,13 @@ fn describe(receipt: &AgentReceipt) -> String {
     if !receipt.created_pages.is_empty() {
         text.push_str(&format!(
             " Created atoms: {}.",
-            quoted(&receipt.created_pages)
+            quoted(&titles.blocks(&receipt.created_pages))
         ));
     }
     if !receipt.created_fields.is_empty() {
         text.push_str(&format!(
             " Created fields: {}.",
-            quoted(&receipt.created_fields)
+            quoted(&titles.blocks(&receipt.created_fields))
         ));
     }
     if !receipt.blocks.is_empty() {
@@ -438,6 +439,14 @@ impl Titles {
         Ok(Self(api.0.titles(ids).await?))
     }
 
+    /// [`Titles::load`], except that when the titles cannot be read the texts
+    /// keep their IDs, for output that must not fail on them.
+    async fn lenient<'a>(api: &Api, texts: impl IntoIterator<Item = &'a str>) -> Self {
+        Self::load(api, texts)
+            .await
+            .unwrap_or_else(|_| Self(HashMap::new()))
+    }
+
     /// `text` with its references and tags shown by title.
     fn show(&self, text: &str) -> String {
         let titles: HashMap<&str, &str> = Self::targets(text)
@@ -445,6 +454,19 @@ impl Titles {
             .map(|(id, title)| (id.as_str(), title.as_str()))
             .collect();
         render::titled(text, &titles)
+    }
+
+    /// A block, typically a page, with its text shown by title.
+    fn block(&self, block: &Block) -> Block {
+        Block {
+            text: self.show(&block.text),
+            ..block.clone()
+        }
+    }
+
+    /// [`Titles::block`] for each block.
+    fn blocks(&self, blocks: &[Block]) -> Vec<Block> {
+        blocks.iter().map(|block| self.block(block)).collect()
     }
 
     /// The IDs a text's `[[ID]]` references and canonical tags name.
@@ -672,10 +694,42 @@ mod tests {
         assert_eq!(pong["result"], json!({}));
     }
 
+    /// A receipt whose summary, page and created page carry a tag.
+    fn tagged_receipt() -> AgentReceipt {
+        let tag = "01J0000000000000000000000B";
+        let page = json!({
+            "id": "01J0000000000000000000000A", "kind": "page", "parent_id": null,
+            "page_id": "01J0000000000000000000000A", "text": format!("Babbage #[[{tag}|person]]"),
+            "heading": null, "archived": false, "revision": 1, "created_at": 0, "updated_at": 0,
+        });
+        serde_json::from_value(json!({
+            "seq": 9, "summary": format!("Added 1 atom to “Babbage #[[{tag}|person]]”"),
+            "page": page, "blocks": [], "created_pages": [page],
+            "committed": { "seq": 9, "revisions": [], "deletions": [], "replayed": false },
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn receipts_show_their_texts_by_title() {
+        let titles = Titles(HashMap::from([(
+            "01J0000000000000000000000B".to_owned(),
+            "Person".to_owned(),
+        )]));
+        assert_eq!(
+            describe(&tagged_receipt(), &titles),
+            "Added 1 atom to “Babbage #Person”. This is change 9 on atom \"Babbage #Person\" \
+             (id 01J0000000000000000000000A). Created atoms: \"Babbage #Person\"."
+        );
+    }
+
     #[tokio::test]
     async fn a_failed_tag_lookup_keeps_the_successful_output() {
-        let text = "Edited “z #[[01J0000000000000000000000B|Marine]]”".to_owned();
-        assert_eq!(session().tags(text.clone()).await, text);
+        let receipt = tagged_receipt();
+        assert_eq!(
+            session().describe(&receipt).await,
+            describe(&receipt, &Titles(HashMap::new()))
+        );
     }
 
     #[tokio::test]
@@ -829,10 +883,11 @@ mod tests {
             }))
             .unwrap()
         };
-        let all = describe(&receipt(RECEIPT_BLOCKS));
+        let none = Titles(HashMap::new());
+        let all = describe(&receipt(RECEIPT_BLOCKS), &none);
         assert_eq!(all.matches(" r1").count(), RECEIPT_BLOCKS);
         assert!(!all.contains("more"), "{all}");
-        let large = describe(&receipt(3000));
+        let large = describe(&receipt(3000), &none);
         assert_eq!(large.matches(" r1").count(), RECEIPT_BLOCKS);
         assert!(large.contains(&format!("and {} more", 3000 - RECEIPT_BLOCKS)));
         assert!(large.len() < 3000, "{} bytes", large.len());
