@@ -21,7 +21,7 @@ export function createProjectSummary(props: { doc: PageDocument; notebook: Noteb
     ]);
     return { next: next.rows[0], total: next.total + done.total, done: done.total, linked: plan.rows.filter(row => row.source.page.id !== props.doc.pageId) };
   });
-  const labels = { active: 'Active', done: 'Done', cancelled: 'Cancelled' };
+  const labels = { active: 'Active', done: 'Done', cancelled: 'Canceled' };
   function Summary() {
     return <Show when={props.doc.root()?.project}>{project => <section class="project-summary" aria-label="Project summary">
       <div class="project-summary-facts">

@@ -58,7 +58,7 @@ export function WeekLedger(props: {
       const foldable = () => phone ? date !== today() && day().rows.length > 0 : date < today();
       const heading = phone
         ? <><span class="week-ledger-name"><span class="week-ledger-weekday">{weekday}</span><span class="week-ledger-numeral">{civil.getUTCDate()}</span></span><DaySummary open={day().open} done={day().done} past={date < today()} loading={props.loading} /></>
-        : <><span class="agenda-day-weekday">{weekday}</span><span class="agenda-day-numeral">{civil.getUTCDate()}</span><span class="week-ledger-rule" /><span class="agenda-day-count">{props.loading ? '·' : date < today() ? `${day().done} done${day().open ? ` · ${day().open} open` : ''}` : day().rows.length ? day().open : 'Nothing planned'}</span></>;
+        : <><span class="agenda-day-weekday">{weekday}</span><span class="agenda-day-numeral">{civil.getUTCDate()}</span><span class="week-ledger-rule" /><span class="agenda-day-count">{props.loading ? '·' : !day().rows.length ? 'Nothing planned' : date < today() ? `${day().done} done${day().open ? ` · ${day().open} open` : ''}` : day().open}</span></>;
       return <section class="week-ledger-day" classList={{ 'week-ledger-today': date === today(), 'week-ledger-past': date < today(), 'week-ledger-compact': !day().rows.length || foldable() && !expanded()[date] }} aria-label={spokenJournalDate(date)}>
         <h2><Show when={foldable()} fallback={<span class="week-ledger-heading">{heading}</span>}>
           <button type="button" class="week-ledger-heading week-ledger-toggle" aria-expanded={!!expanded()[date]} onClick={() => setExpanded(value => ({ ...value, [date]: !value[date] }))}>{heading}<Icon name={expanded()[date] ? 'down' : 'right'} /></button>

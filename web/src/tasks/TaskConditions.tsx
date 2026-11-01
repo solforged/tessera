@@ -48,7 +48,7 @@ const conditionChoices: ConditionChoice[] = [
   { kind: 'text', section: 'Source', label: 'Text' },
 ];
 const selectionLabels: Record<TaskSelection, string> = { unfinished: 'Unfinished', unfinished_or_recent: 'Unfinished or recently completed', all: 'All' };
-const statusLabels: Record<TaskStatus, string> = { todo: 'Todo', doing: 'Doing', waiting: 'Waiting', done: 'Done', cancelled: 'Cancelled' };
+const statusLabels: Record<TaskStatus, string> = { todo: 'Todo', doing: 'Doing', waiting: 'Waiting', done: 'Done', cancelled: 'Canceled' };
 const statuses: TaskStatus[] = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
 const priorityLabels = { high: 'High', medium: 'Medium', low: 'Low' };
 

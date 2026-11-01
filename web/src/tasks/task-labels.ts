@@ -32,19 +32,19 @@ export interface FactContext {
 }
 
 const clock = (time: string | null) => time ? ` ${time}` : '';
-/** Tooltips spell the day out in full, since the row's own words are relative. */
-const spelled = (date: string, time: string | null) => `${journalDayLabel(date)}${time ? ` at ${time}` : ''}`;
+/** The full date spelled out, with its 24-hour time: `Tuesday, October 6, 2026 at 19:00`. Tooltips and accessible labels use it, since the row's own words are relative. */
+export const spelledDate = (date: string, time: string | null) => `${journalDayLabel(date)}${time ? ` at ${time}` : ''}`;
 export const isFinished = (task: TaskState) => task.status === 'done' || task.status === 'cancelled';
 
 /** Planning facts in reading order. Finished tasks report only when they were done; status itself is the glyph's job. */
 export function taskFacts(task: TaskState, context: FactContext): TaskFact[] {
   if (task.status === 'cancelled') return [];
-  if (task.status === 'done') return task.completed_on ? [{ field: 'status', text: `done ${relativeDate(task.completed_on, context.today)}`, label: `Done ${spelled(task.completed_on, null)}` }] : [];
+  if (task.status === 'done') return task.completed_on ? [{ field: 'status', text: `done ${relativeDate(task.completed_on, context.today)}`, label: `Done ${spelledDate(task.completed_on, null)}` }] : [];
   const facts: TaskFact[] = [];
   if (task.scheduled && !(context.listed && task.scheduled === context.date)) {
     const late = task.scheduled < context.date && task.scheduled < context.today;
     const time = context.timeShown ? '' : clock(task.scheduled_time);
-    facts.push({ field: 'schedule', text: `${late ? 'since ' : ''}${relativeDate(task.scheduled, context.today)}${time}`, label: `Scheduled ${spelled(task.scheduled, task.scheduled_time)}`, late });
+    facts.push({ field: 'schedule', text: `${late ? 'since ' : ''}${relativeDate(task.scheduled, context.today)}${time}`, label: `Scheduled ${spelledDate(task.scheduled, task.scheduled_time)}`, late });
   }
   if (task.deadline) {
     const late = task.deadline < context.date && task.deadline < context.today;
@@ -52,7 +52,7 @@ export function taskFacts(task: TaskState, context: FactContext): TaskFact[] {
     const warning = !late && task.warning_days !== null && remaining >= 0 && remaining <= task.warning_days;
     const listedDay = context.listed && task.deadline === context.date;
     const time = listedDay && context.timeShown ? '' : clock(task.deadline_time);
-    facts.push({ field: 'deadline', text: listedDay ? `due${time}` : `due ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${spelled(task.deadline, task.deadline_time)}`, late, warning });
+    facts.push({ field: 'deadline', text: listedDay ? `due${time}` : `due ${relativeDate(task.deadline, context.today)}${time}`, label: `Deadline ${spelledDate(task.deadline, task.deadline_time)}`, late, warning });
   }
   if (task.priority) facts.push({ field: 'priority', text: priorityNames[task.priority], label: `${priorityNames[task.priority]} priority`, priority: task.priority });
   if (task.repeater) {

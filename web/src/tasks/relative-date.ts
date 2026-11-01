@@ -22,6 +22,19 @@ export function calendarDate(date: string, today: string): string {
   return date.slice(0, 4) === today.slice(0, 4) ? day : `${day}, ${Number(date.slice(0, 4))}`;
 }
 
+/** A date field's value in prose: a whole day follows `relativeDate` (`today`, `Thu`, `Dec 22, 2014`); a month is `Feb 2003`; a year is bare. Anything else is not a date. */
+export function proseDate(value: string, today: string): string | undefined {
+  const parts = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/.exec(value.trim());
+  if (!parts) return undefined;
+  const [, year, month, day] = parts;
+  if (month === undefined) return year;
+  const index = Number(month) - 1;
+  if (index < 0 || index > 11) return undefined;
+  if (day === undefined) return `${months[index]} ${year}`;
+  const date = `${year}-${month}-${day}`;
+  return Number.isNaN(noon(date).getTime()) || noon(date).getUTCMonth() !== index ? undefined : relativeDate(date, today);
+}
+
 /** Lowercase, since it usually follows a word in a row: `since yesterday`, `due Sat`, `done Oct 2`. */
 export function relativeDate(date: string, today: string): string {
   const days = daysBetween(today, date);
@@ -30,6 +43,13 @@ export function relativeDate(date: string, today: string): string {
   if (days === -1) return 'yesterday';
   if (Math.abs(days) <= 6) return weekdays[noon(date).getUTCDay()]!;
   return calendarDate(date, today);
+}
+
+/** A journal day outside any section: today and its neighbours in words, `Thu 22` within six days, then the month and day. */
+export function provenanceDay(date: string, today: string): string {
+  const days = daysBetween(today, date);
+  if (Math.abs(days) <= 1) return relativeDate(date, today);
+  return Math.abs(days) <= 6 ? `${weekdays[noon(date).getUTCDay()]} ${Number(date.slice(8, 10))}` : calendarDate(date, today);
 }
 
 /** A journal day named the way a phone's lists name it: Today, Yesterday, Tomorrow, the weekday in full within six days, then `Oct 2`. */

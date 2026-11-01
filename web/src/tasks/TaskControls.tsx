@@ -11,7 +11,7 @@ import { popStatusGlyph } from './row-motion';
 import './task-controls.css';
 
 export const statuses: TaskStatus[] = ['todo', 'doing', 'waiting', 'done', 'cancelled'];
-export const statusLabels: Record<TaskStatus, string> = { todo: 'Todo', doing: 'Doing', waiting: 'Waiting', done: 'Done', cancelled: 'Cancelled' };
+export const statusLabels: Record<TaskStatus, string> = { todo: 'Todo', doing: 'Doing', waiting: 'Waiting', done: 'Done', cancelled: 'Canceled' };
 export const statusIcons: Record<TaskStatus, IconName> = { todo: 'select', doing: 'play', waiting: 'waiting', done: 'check', cancelled: 'close' };
 /** Every status with its glyph, the current one checked, then Remove task. */
 export function statusMenuItems(task: TaskState | null | undefined, choose: (status: TaskStatus | null) => void, disabledReason?: string): MenuItem[] {

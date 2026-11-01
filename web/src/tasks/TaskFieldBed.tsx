@@ -7,6 +7,7 @@ import { checkboxValue } from '../fields/kinds';
 import { PlainValueInput, ValueEditor, writeFieldValue } from '../fields/value-editor';
 import { hasValueEditor } from '../fields/value-options';
 import { BlockText } from '../outline/BlockText';
+import { plainText } from '../outline/names';
 import { createTaskProjects } from '../projects/task-project';
 import { fieldEntryId } from '../table/query';
 import { Button } from '../ui/Button';
@@ -116,7 +117,7 @@ export function TaskFieldBed(props: {
     <Show when={!props.sheet || !rich()} fallback={<><Button onClick={() => { setPicker(undefined); closeEditor(); }}><Icon name="left" />Back to fields</Button><InlinePopups><Editor /><Picker /></InlinePopups></>}>
       <For each={fields()}>{field => {
         const name = taskFieldName(field);
-        const text = () => name === 'project' ? project() ? props.notebook.lookup(project()!)()?.text ?? 'Project' : '' : name ? taskFieldText(task(), name) : '';
+        const text = () => name === 'project' ? project() ? plainText(props.notebook.lookup(project()!)()?.text ?? 'Project', id => props.notebook.lookup(id)) : '' : name ? taskFieldText(task(), name) : '';
         return <div class="task-field-row" data-field-id={field.id}>
           <span class="task-field-label">{label(field)}</span>
           <div class="task-field-values">

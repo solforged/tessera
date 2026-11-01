@@ -3,6 +3,7 @@ import type { Agenda, Citation, LibraryRow, SourceView } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { SourceCover } from '../library/SourceCover';
 import { BlockText } from '../outline/BlockText';
+import { plainText } from '../outline/names';
 import { shortSourceTitle } from '../outline/source';
 import { sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
@@ -157,7 +158,7 @@ export function JournalHeader(props: { date: string; journalPeriod?: Extract<Ope
           {reading() ? shortSourceTitle(reading()!.row.page.text) : 'Reading'}
         </ListRow></Show>
       </ListGroup></Show>
-      <Show when={deskError() || readingError()}><p class="agenda-error" role="alert">{[deskError(), readingError()].filter(Boolean).join(' · ')}</p></Show>
+      <Show when={deskError() || readingError()}><p class="agenda-error" role="alert">{[...new Set([deskError(), readingError()].filter(Boolean))].join(' · ')}</p></Show>
       <Show when={plan()?.on && dayGroups()}>{groups => <JournalPlan name={plan()!.name} date={props.date} groups={groups()} now={clock()} notebook={props.notebook} carried={carried} onOpen={props.onOpen} />}</Show>
     </Show>
   </section>;
@@ -192,7 +193,7 @@ function JournalPlan(props: { name: string; date: string; groups: ReturnType<typ
       <Show when={props.groups.overdue.length}>
         <Show when={phone()} fallback={<div class="journal-carried">
           <span class="journal-carried-count">{props.groups.overdue.length} carried over</span>
-          <span class="journal-carried-titles">{props.groups.overdue.map(row => row.source.block.text || 'Empty task').join(' · ')}</span>
+          <span class="journal-carried-titles">{props.groups.overdue.map(row => plainText(row.source.block.text, id => props.notebook.lookup(id)) || 'Empty task').join(' · ')}</span>
           <Show when={movable()}><Button class="journal-carried-action" onClick={() => props.carried.move(props.groups.overdue, props.date)}>Move to today</Button></Show>
           <Button class="journal-carried-action" aria-expanded={review()} onClick={() => setReview(value => !value)}>{review() ? 'Hide' : 'Review…'}</Button>
         </div>}>
