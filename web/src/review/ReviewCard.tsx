@@ -2,6 +2,7 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, crea
 import type { CardRow, Grade } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockBreadcrumb } from '../outline/BlockText';
+import { displayTitle } from '../outline/names';
 import { besideHint, opensBeside } from '../shell/beside';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -218,7 +219,7 @@ export function ReviewCard(props: ReviewCardProps) {
     <div ref={leaf} class="review-card-leaf">
     <div class="review-card-meta">
       <Button class="review-card-source" title={`${props.context ? 'Open in the book' : 'Open source'} · ${besideHint}`} aria-disabled={lockedAttr()} onClick={event => props.onSource(opensBeside(event))}>
-        <Show when={props.context} fallback={<BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} omitParent={props.item.card.kind === 'descriptor'} />}>{context => <span>{context().source.source.siglum} · {context().source.page.text}<Show when={context().chapter}> · {context().chapter}</Show> · ¶{context().citation.ordinal + 1}</span>}</Show>
+        <Show when={props.context} fallback={<BlockBreadcrumb block={props.item.source.block} notebook={props.notebook} omitParent={props.item.card.kind === 'descriptor'} />}>{context => <span>{context().source.source.siglum} · {displayTitle(context().source.page.text, id => props.notebook.lookup(id))}<Show when={context().chapter}> · {context().chapter}</Show> · ¶{context().citation.ordinal + 1}</span>}</Show>
       </Button>
       <span class="review-card-kind">{kindLabel()}</span>
       <Show when={!phone()}><Button icon="more" label="Card actions" aria-haspopup="menu" aria-disabled={lockedAttr()} onClick={event => setActions(event.currentTarget)} /></Show>

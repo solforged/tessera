@@ -3,6 +3,7 @@ import type { ApiClient } from '../api/client';
 import type { CardRow, Citation, Passage, SourceView } from '../api/types';
 import { followOn } from '../reader/sentences';
 import { contentsTitle } from '../reader/openings';
+import { displayTitle } from '../outline/names';
 
 export interface ReviewSource {
   citation: Citation;
@@ -50,7 +51,7 @@ export function ReviewSourcePassage(props: { context: ReviewSource; revealed: bo
     return at < first || at > last ? null : { start: at === first ? citation.start.offset : 0, end: at === last ? citation.end.offset : passage.text.length };
   };
   return <aside class="review-source-passage" aria-label="Source passage">
-    <header><span>{props.context.source.page.text}</span><Show when={props.context.chapter}><span>{props.context.chapter}</span></Show></header>
+    <header><span>{displayTitle(props.context.source.page.text)}</span><Show when={props.context.chapter}><span>{props.context.chapter}</span></Show></header>
     <Show when={props.revealed} fallback={<p class="review-source-wait">Reveal the card to read its passage in context.</p>}>
       <For each={props.context.passages}>{passage => {
         const selected = range(passage);

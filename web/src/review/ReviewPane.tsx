@@ -4,7 +4,7 @@ import { ApiError } from '../api/client';
 import type { CardKind, CardPreviews, CardQuery, CardQueryResult, CardRow, CardSelection, Deck, Grade, ReviewEvent, ReviewSession, ReviewStats, TagDeck } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { BlockText } from '../outline/BlockText';
-import { plainText } from '../outline/names';
+import { displayTitle } from '../outline/names';
 import { opensBeside } from '../shell/beside';
 import type { CommandRegistry, OpenTarget, PaneId, ReviewViewState } from '../shell/contract';
 import { shortDay } from '../shell/desk-counts';
@@ -886,7 +886,7 @@ function ReviewQueueRow(props: { row: CardRow; notebook: NotebookClient; onOpen:
   // A phone calls only a card from an earlier day late; one due earlier today is simply today's.
   const late = createMemo(() => props.row.card.schedule.last_reviewed_at !== null && civilDate(props.row.card.schedule.due_at, props.notebook.settings()?.time_zone) < props.notebook.todayDate());
   return <Button class="review-queue-row" onClick={event => props.onOpen({ kind: 'page', pageId: props.row.source.page.id, blockId: props.row.source.block.id }, opensBeside(event))}>
-    <span class="review-queue-text"><span class="review-queue-front"><Show when={props.row.card.kind === 'occlusion'} fallback={<CardFront plain={!!props.row.card.template} kind={props.row.card.kind} front={front()} back={props.row.card.back} notebook={props.notebook} />}>{front()}</Show></span><span class="review-queue-meta"><span class="review-queue-kind">{kind()}</span><span class="review-queue-source">{plainText(props.row.source.page.text, id => props.notebook.lookup(id))}</span></span></span>
+    <span class="review-queue-text"><span class="review-queue-front"><Show when={props.row.card.kind === 'occlusion'} fallback={<CardFront plain={!!props.row.card.template} kind={props.row.card.kind} front={front()} back={props.row.card.back} notebook={props.notebook} />}>{front()}</Show></span><span class="review-queue-meta"><span class="review-queue-kind">{kind()}</span><span class="review-queue-source">{displayTitle(props.row.source.page.text, id => props.notebook.lookup(id))}</span></span></span>
     <span class="review-queue-due" classList={{ overdue: due() !== null && props.row.card.schedule.due_at < Date.now(), late: late() }}>{due() ?? 'new'}</span>
   </Button>;
 }

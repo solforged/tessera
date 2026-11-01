@@ -4,8 +4,9 @@ import { sourceState } from '../document/types';
 import { addFieldOption, documentReady } from '../outline/source-fields';
 import { sourceFieldName, valueLabel } from '../outline/source';
 import { createInstance } from '../fields/instances';
-import { foldName, referenceValue, resolveName } from '../outline/names';
+import { displayTitle, foldName, referenceValue, resolveName } from '../outline/names';
 import { titleKey } from '../document/title-key';
+import { textTokens } from '../document/text-tokens';
 
 export type SourceField = 'title' | 'subtitle' | 'creators' | 'firstPublished' | 'originalLanguage' | 'published' | 'publisher' | 'edition' | 'series' | 'number' | 'pages' | 'volume' | 'issue' | 'pageRange' | 'language' | 'identifiers' | 'url' | 'site' | 'description' | 'cover' | 'siglum' | 'citationKey' | 'state' | 'started' | 'finished' | 'tags';
 export interface SourceCreator extends ExtractedCreator { id: string | null }
@@ -62,7 +63,7 @@ export function sourceEntries(doc: PageDocument, definitions: readonly FieldDefi
 }
 
 export function sourceFieldValue(doc: PageDocument, notebook: NotebookClient, definitions: readonly FieldDefinition[], field: SourceField): SourceFieldValue {
-  if (field === 'title') return doc.root()?.text ?? '';
+  if (field === 'title') return displayTitle(doc.root()?.text ?? '', id => notebook.lookup(id));
   if (field === 'citationKey') return doc.root()?.source?.citation_key ?? '';
   if (field === 'state') return doc.root()?.source?.state ?? '';
   if (field === 'tags') return [...(doc.root()?.manual_types ?? [])];
@@ -208,9 +209,16 @@ async function prepareField(notebook: NotebookClient, context: FieldPreparation,
   return { id: definition.id, values };
 }
 
+/** The catalog edits a source's display title. Tags written in its stored title still file it, so they follow a new name; an unchanged name keeps the authored text. */
+function storedTitle(doc: PageDocument, notebook: NotebookClient, name: string): string {
+  const text = doc.root()?.text ?? '';
+  if (name === displayTitle(text, id => notebook.lookup(id))) return text;
+  return [name, ...textTokens(text).filter(token => token.kind === 'tag').map(token => text.slice(token.start, token.end))].join(' ');
+}
+
 async function prepareSourceField(doc: PageDocument, notebook: NotebookClient, context: FieldPreparation, field: SourceField, value: SourceFieldValue): Promise<SourceDetailsEdit> {
   const edit: SourceDetailsEdit = { kind: 'sourceDetails', fields: [] };
-  if (field === 'title') edit.title = value as string;
+  if (field === 'title') edit.title = storedTitle(doc, notebook, value as string);
   else if (field === 'tags') edit.tags = value as string[];
   else if (field === 'state' || field === 'citationKey') {
     const source = sourceState(doc.root()?.source);
@@ -271,8 +279,9 @@ async function prepareMetadata(doc: PageDocument, notebook: NotebookClient, cont
     const prepared = await prepareField(notebook, context, label, 'instance', names, creators);
     if (prepared) edit.fields.push({ ...prepared, entries: entries.get(role) ?? [] });
   }
-  if (!onlyMissing && !coverOnly) edit.title = validateSourceValue('title', metadata.title ?? '') as string;
-  return { edit, count: edit.fields.length + Number(edit.title !== undefined && edit.title !== previous.title) };
+  const title = onlyMissing || coverOnly ? undefined : validateSourceValue('title', metadata.title ?? '') as string;
+  if (title !== undefined) edit.title = storedTitle(doc, notebook, title);
+  return { edit, count: edit.fields.length + Number(title !== undefined && title !== previous.title) };
 }
 
 /** Preserve the manual editor's page-local history while sharing the inspector's write path. */

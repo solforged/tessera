@@ -10,7 +10,8 @@ import { TypePill } from './references';
 import { isCapabilityTag } from './capabilities';
 import { createCitationSources } from './source-reads';
 import { Menu } from '../ui/Menu';
-import { deletedHolderLabel, foldedHighlights, foldName, nameMenuItems, plainText, referenceLabel, resolveName, tagLabel } from './names';
+import { deletedHolderLabel, foldedHighlights, foldName, nameMenuItems, referenceLabel, resolveName, tagLabel } from './names';
+import { blockTrail } from './block-trail';
 import type { NameMatch } from '../api/types';
 import { cardMarks, cardOperators } from '../review/card-text';
 import type { CardMark } from '../review/card-text';
@@ -177,26 +178,9 @@ function TokenText(props: Props) {
     <Show when={error()}><span class="error" role="alert">{error()}</span></Show></>;
 }
 
-/** The source location of a block. A descriptor card already names its parent, so it can omit it. */
+/** The source location of a block, as `blockTrail` names it. */
 export function BlockBreadcrumb(props: { block: Block; notebook: NotebookClient; omitParent?: boolean }) {
-  const path = createMemo(() => {
-    if (props.block.kind !== 'block') return plainText(props.block.text, id => props.notebook.lookup(id)) || (props.block.kind === 'journal' ? 'Journal' : 'Untitled atom');
-    const ancestors: string[] = [];
-    const seen = new Set<string>();
-    let parent = props.block.parent_id;
-    while (parent && parent !== props.block.page_id && !seen.has(parent)) {
-      seen.add(parent);
-      const block = props.notebook.lookup(parent)();
-      if (!block) break;
-      ancestors.unshift(plainText(block.text, id => props.notebook.lookup(id)) || 'Empty atom');
-      parent = block.parent_id;
-    }
-    const page = props.notebook.lookup(props.block.page_id)();
-    const segments = [page ? plainText(page.text, id => props.notebook.lookup(id)) || 'Untitled atom' : 'Loading atom…', ...ancestors];
-    // Keep the page title when it is the parent: the source button needs a label.
-    if (props.omitParent && segments.length > 1) segments.pop();
-    return segments.join(' › ');
-  });
+  const path = createMemo(() => blockTrail(props.block, id => props.notebook.lookup(id), props.omitParent));
   return <>{path()}</>;
 }
 

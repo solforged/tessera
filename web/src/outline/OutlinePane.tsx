@@ -36,7 +36,7 @@ import { NoticeView, type NoticeAction } from '../ui/Notice';
 import { Popup } from '../ui/Popup';
 import { createVisualViewport } from '../ui/visual-viewport';
 import { BlockText } from './BlockText';
-import { displayTitle, plainText, tagLabel } from './names';
+import { displayTitle, plainText, readableText, tagLabel } from './names';
 import { titleKey } from '../document/title-key';
 import { isStableReference, isViewReference, textTokens } from '../document/text-tokens';
 import type { Token } from '../document/text-tokens';
@@ -77,7 +77,7 @@ import { createMoveToPage } from './MoveToPage';
 import type { MenuState, OutlineContext, RowRange } from './context';
 import { PageMergeConfirmation, pageMergeDisabledReason } from './PageMerge';
 import { readTagRegistry, TypePill } from './references';
-import { noteKindIcon } from '../notes/kinds';
+import { eyebrowNamesTag, noteKindIcon } from '../notes/kinds';
 import { foldName, nameMenuItems, resolveName } from './names';
 import { titleTargets, typedTitles, withLinkedTitles } from './link-titles';
 import { createCitationSources, createCitedSources, hasCitationDetail } from './source-reads';
@@ -578,6 +578,9 @@ function Pane(props: OutlinePaneProps) {
   const [noteKinds] = createResource(() => !creatingRoot() && isNote() ? [props.pageId, props.notebook.changeSequence(), live()] as const : false,
     ([id]) => api.noteKinds(id));
   createEffect(() => { if (isNote()) props.onNoteKinds?.(noteKinds.error ? undefined : noteKinds.latest); });
+  // A behavior tag leads the title as its glyph. Any other title tag follows it as a pill, unless the eyebrow already names that kind.
+  const titleGlyphs = createMemo(() => titleTags().filter(token => isCapabilityTag(tagLabel(token, id => props.notebook.lookup(id)))));
+  const titlePills = createMemo(() => titleTags().filter(token => !titleGlyphs().includes(token) && !(isNote() && !noteKinds.error && eyebrowNamesTag(noteKinds.latest, token))));
   // Mount the designed structure for measurement, but reveal it and its portaled dock together.
   // Keep settled resources visible during background refreshes, and paint nothing before the first load:
   // the title's "Loading…" placeholder otherwise flashes for a frame on every page open.
@@ -1806,7 +1809,7 @@ function Pane(props: OutlinePaneProps) {
     <Show when={apparatus()}><Apparatus notebook={props.notebook} holders={holders()} linked={linkedPages()} relations={holderRelations()} sources={siglumSources().map(id => ({ id, siglum: sigla().get(id)! }))} onOpen={props.onOpen} /></Show>
     <Show when={sourceDetailsOpen() && doc.root()?.source}><SourceDetails notebook={props.notebook} pageId={props.pageId} onOpen={props.onOpen} opener={sourceDetailsOpener} onClose={() => setSourceDetailsOpen(false)} /></Show>
     <div ref={heading} class="outline-heading" style={{ visibility: doc.root()?.source && !sourceApparatusReady() ? 'hidden' : undefined }}>
-      <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{rootTitle()}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{plainText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference), undefined, doc.block(id)?.position?.deleted_holder) || 'Empty atom'}</button></>}</For></nav></Show>
+      <Show when={zoom()}><nav class="outline-breadcrumbs" aria-label="Zoom breadcrumbs"><button type="button" onClick={() => zoomTo(null)}>{rootTitle()}</button><For each={breadcrumbs()}>{id => <><Icon name="right" /><button type="button" onClick={() => zoomTo(id)}>{readableText(doc.block(id)?.text ?? '', reference => props.notebook.lookup(reference), doc.block(id)?.position?.deleted_holder) || 'Empty atom'}</button></>}</For></nav></Show>
       <Show when={isNote()}><NoteEyebrow kinds={noteKinds.error ? undefined : noteKinds.latest} onOpen={props.onOpen} /></Show>
       <Show when={positionZoom()}>{id => <div class="position-dossier">
         <h1><Show when={doc.block(id())?.position?.holder_id ?? doc.block(id())?.position?.deleted_holder?.id} fallback="Unattributed">{holder => <BlockText text={`[[${holder()}]]`} deletedHolder={doc.block(id())?.position?.deleted_holder} notebook={props.notebook} onOpen={props.onOpen} />}</Show>
@@ -1820,14 +1823,14 @@ function Pane(props: OutlinePaneProps) {
       </div>}</Show>
       <Show when={!positionZoom() && (!zoom() || !doc.root()?.source || renaming())}>
       <div class="outline-title-row">
-      <Show when={renaming()} fallback={<h1 classList={{ 'outline-title-tagged': titleTags().length > 0 }}>
-        <For each={titleTags().filter(token => isCapabilityTag(tagLabel(token, id => props.notebook.lookup(id))))}>{token => <Show when={titleTagKind(token)}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>}</For>
+      <Show when={renaming()} fallback={<h1 classList={{ 'outline-title-tagged': titleGlyphs().length + titlePills().length > 0 }}>
+        <For each={titleGlyphs()}>{token => <Show when={titleTagKind(token)}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>}</For>
         <button class="outline-title" type="button" disabled={doc.root()?.kind !== 'page'} onClick={rename}>{rootTitle() || 'Loading…'}</button>
-        <For each={titleTags().filter(token => !isCapabilityTag(tagLabel(token, id => props.notebook.lookup(id))))}>{token => <TypePill id={token.id} title={token.alias || token.value} notebook={props.notebook} onOpen={props.onOpen} onRestoreFocus={restoreFocus} />}</For>
+        <For each={titlePills()}>{token => <TypePill id={token.id} title={token.alias || token.value} notebook={props.notebook} onOpen={props.onOpen} onRestoreFocus={restoreFocus} />}</For>
       </h1>}>
         <input ref={titleInput} class="title-input" aria-label="Atom title" value={title()} onInput={event => setTitle(event.currentTarget.value)} onKeyDown={event => { if (event.isComposing) return; if (event.key === 'Enter') { event.preventDefault(); commitTitle(); } if (event.key === 'Escape') { event.preventDefault(); closeTitle(); } }} />
         <Show when={titleCollision()} fallback={<Button class="bordered" onClick={commitTitle}>Save title</Button>}>{page =>
-          <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} title={pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{page().text}”</Button>
+          <Button class="bordered" disabled={!!pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} title={pageMergeDisabledReason(doc.root(), doc.capabilities(props.pageId))} onClick={event => { setMessage(''); setMergeTarget({ page: page(), from: { id: props.pageId, text: doc.root()!.text }, anchor: event.currentTarget }); }}>Merge into “{displayTitle(page().text, id => props.notebook.lookup(id))}”</Button>
         }</Show><Button onClick={closeTitle}>Cancel</Button>
       </Show>
       <Show when={!isPhone() && doc.root()?.kind === 'page' && !doc.root()?.source && !fields.error && fields() && fields()?.page_id !== props.pageId}><div class="outline-header-actions"><Button class={emptyRootBlock() ? 'outline-table-quiet' : undefined} icon="table" label="Table" shortcut="⌘⇧T" onClick={event => openTable(opensBeside(event))}>Table<Show when={isCollection() ? related()?.collection?.total : !doc.root()?.project && !type.error && type()?.members}>{count => <span class="table-member-count">{count()}</span>}</Show></Button></div></Show>

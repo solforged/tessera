@@ -7,7 +7,7 @@ import { createNotebookClient, type Notebook } from '../document';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { titleKey } from '../document/title-key';
 import { OutlinePane } from '../outline/OutlinePane';
-import { displayTitle, plainText } from '../outline/names';
+import { displayTitle, readableText } from '../outline/names';
 import { isReadingSubject, localPositionCount } from '../outline/read-register';
 import { ReferencePreviews } from '../outline/ReferencePreview';
 import { createPageIcon } from '../outline/source';
@@ -1714,6 +1714,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     return result;
   });
   const breadcrumbTitle = createMemo(() => root()?.kind === 'page' ? displayTitle(root()!.text, id => props.notebook.lookup(id)) : root()?.text ?? 'Loading…');
+  const readerTitle = createMemo(() => { const reader = readerTarget(); const source = reader && props.notebook.lookup(reader.sourceId)(); return source ? displayTitle(source.text, id => props.notebook.lookup(id)) : 'Reader'; });
   // A phone's nav bar names the pane in prose once the large title has scrolled under it; a surface can say it itself (ui/NavBar.tsx).
   const [barEnd, setBarEnd] = createSignal<HTMLElement>();
   const [titleOverride, setTitleOverride] = createSignal<BarTitle>();
@@ -1723,12 +1724,11 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     if (override) return override;
     if (pageId()) {
       const zoomed = breadcrumbs().at(-1);
-      if (zoomed) return { title: plainText(zoomed.text, id => props.notebook.lookup(id), undefined, zoomed.position?.deleted_holder) || 'Empty atom' };
+      if (zoomed) return { title: readableText(zoomed.text, id => props.notebook.lookup(id), zoomed.position?.deleted_holder) || 'Empty atom' };
       const page = root();
       return page?.kind === 'journal' && /^\d{4}-\d{2}-\d{2}$/.test(page.text) ? journalBarTitle(page.text) : { title: breadcrumbTitle() };
     }
-    const reader = readerTarget();
-    if (reader) return { title: props.notebook.lookup(reader.sourceId)()?.text ?? 'Reader' };
+    if (readerTarget()) return { title: readerTitle() };
     const target = current().target;
     return { title: target.kind === 'field' ? props.fieldName(target.fieldId) : props.title ?? paneLabel(target) };
   };
@@ -1881,7 +1881,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
       <Show when={cover()}><Show when={barTitle().onClick} fallback={<div class="pane-bar-title" classList={{ 'pane-bar-title-glass': !!barTitle().glass }} aria-hidden="true"><span>{barTitle().title}</span><Show when={barTitle().detail}><small>{barTitle().detail}</small></Show></div>}>{open => <button type="button" class="pane-bar-title pane-bar-title-action" classList={{ 'pane-bar-title-glass': !!barTitle().glass }} aria-haspopup="dialog" onClick={event => open()(event.currentTarget)}><span>{barTitle().title}</span><Show when={barTitle().detail}><small>{barTitle().detail}</small></Show></button>}</Show></Show>
       <Show when={pageId()}>
         <nav class="pane-breadcrumbs" aria-label="Atom breadcrumbs" style={{ visibility: root() ? undefined : 'hidden' }}><Show when={root()?.source && !breadcrumbs().length}><Button class="breadcrumb-library" title="Library" onClick={event => props.onOpen({ kind: 'library' }, opensBeside(event))}>Library</Button><span class="breadcrumb-separator">/</span></Show><Button title={breadcrumbTitle()} onClick={() => props.onRestoreView({ ...outlineView(), zoom: null })}>{breadcrumbTitle()}</Button><For each={breadcrumbs()}>{block => {
-          const title = createMemo(() => plainText(block.text, id => props.notebook.lookup(id), undefined, block.position?.deleted_holder) || 'Empty atom');
+          const title = createMemo(() => readableText(block.text, id => props.notebook.lookup(id), block.position?.deleted_holder) || 'Empty atom');
           return <><span class="breadcrumb-separator">/</span><Button title={title()} onClick={() => props.onRestoreView({ ...outlineView(), zoom: block.id })}>{title()}</Button></>;
         }}</For></nav>
         <Show when={root()?.kind === 'journal'}><nav class="journal-navigation" aria-label="Journal navigation">
@@ -1899,7 +1899,7 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
         <Show when={props.vim && props.active}><span class="vim-mode" data-mode={props.vimMode ?? 'outline'} title={props.vimMode === 'insert' ? 'Vim: typing into the atom' : props.vimMode === 'visual' ? 'Vim: selecting text' : props.vimMode === 'normal' ? 'Vim: commands inside the atom' : 'Vim: moving between atoms'}>{vimLabels[props.vimMode ?? 'outline']}</span></Show>
       </Show>
       <Show when={!pageId() && current().target.kind !== 'field'}><Show when={current().target.kind === 'reader' ? current().target as Extract<OpenTarget, { kind: 'reader' }> : undefined} fallback={<span class="pane-breadcrumbs" title={props.title ?? paneLabel(current().target)}>{props.title ?? paneLabel(current().target)}</span>}>{target =>
-        <nav class="pane-breadcrumbs" aria-label="Source breadcrumbs"><Button class="breadcrumb-library" title="Library" onClick={event => props.onOpen({ kind: 'library' }, opensBeside(event))}>Library</Button><span class="breadcrumb-separator">/</span><Button title={props.notebook.lookup(target().sourceId)()?.text ?? 'Reader'} onClick={event => props.onOpen({ kind: 'page', pageId: target().sourceId }, opensBeside(event))}>{props.notebook.lookup(target().sourceId)()?.text ?? 'Reader'}</Button></nav>
+        <nav class="pane-breadcrumbs" aria-label="Source breadcrumbs"><Button class="breadcrumb-library" title="Library" onClick={event => props.onOpen({ kind: 'library' }, opensBeside(event))}>Library</Button><span class="breadcrumb-separator">/</span><Button title={readerTitle()} onClick={event => props.onOpen({ kind: 'page', pageId: target().sourceId }, opensBeside(event))}>{readerTitle()}</Button></nav>
       }</Show><Show when={readerTarget() && root()?.kind === 'page'}><ProjectionTabs /></Show></Show>
       <Show when={current().target.kind === 'library'}>
         <span class="pane-save-state" data-state={librarySave().state} title={librarySave().message}>

@@ -12,7 +12,7 @@ import { journalLabel, relativeDate } from '../tasks/relative-date';
 import { isPhone } from '../ui/phone';
 import { createWorkTest } from './source';
 import { BlockBreadcrumb, BlockText } from './BlockText';
-import { plainText } from './names';
+import { displayTitle, plainText } from './names';
 import { BacklinkSource, BlockReferenceCount } from './Backlinks';
 import type { OutlineContext } from './context';
 import { Button } from '../ui/Button';
@@ -222,7 +222,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
           const sources = createMemo(() => new Map(group().sources.map(row => [row.source.id, row])));
           const ids = createMemo(() => [...sources().keys()]);
           return <section class="backlink-group">
-            <h3 class="backlink-group-heading" classList={{ 'backlink-work': work(pageId) }}><Button role="link" onClick={event => props.onOpen({ kind: 'page', pageId }, opensBeside(event))}>{page().kind === 'journal' ? isPhone() ? journalLabel(page().text, props.notebook.todayDate()) : relativeDate(page().text, props.notebook.todayDate()) : page().text}</Button><span>{ids().length}</span></h3>
+            <h3 class="backlink-group-heading" classList={{ 'backlink-work': work(pageId) }}><Button role="link" onClick={event => props.onOpen({ kind: 'page', pageId }, opensBeside(event))}>{page().kind === 'journal' ? isPhone() ? journalLabel(page().text, props.notebook.todayDate()) : relativeDate(page().text, props.notebook.todayDate()) : displayTitle(page().text, id => props.notebook.lookup(id))}</Button><span>{ids().length}</span></h3>
             <For each={ids()}>{id => <div class="backlink-entry">
               <BacklinkSource block={sources().get(id)!.source} page={group().page} notebook={props.notebook} onOpen={props.onOpen} />
               <For each={hiddenTargets(sources().get(id)!.source.text, sources().get(id)!.targets)}>{target => <Button class="backlink-target" onClick={() => zoomTo(target)}>→ {plainText(doc.block(target)?.text ?? props.notebook.lookup(target)()?.text ?? '', reference => props.notebook.lookup(reference)) || 'Empty atom'}</Button>}</For>
@@ -303,7 +303,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
       <Show when={!relatedError()} fallback={<p role="alert">Couldn't load related atoms.</p>}>
       <For each={propsRelated.rows}>{result => {
         const live = props.notebook.lookup(result.block.id);
-        return <div class="related-block" data-reading-id={propsRelated.relations ? result.block.id : undefined} data-open-page={result.page.id} data-open-block={result.block.id} data-open-label={result.page.text}><div class="related-open" role="link" tabIndex={0} title={`Open · ${besideHint}`} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, opensBeside(event)); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, opensBeside(event))}>
+        return <div class="related-block" data-reading-id={propsRelated.relations ? result.block.id : undefined} data-open-page={result.page.id} data-open-block={result.block.id} data-open-label={displayTitle(result.page.text, id => props.notebook.lookup(id))}><div class="related-open" role="link" tabIndex={0} title={`Open · ${besideHint}`} onKeyDown={event => { if (event.key === 'Enter') props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, opensBeside(event)); }} onClick={event => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, opensBeside(event))}>
           <span class="related-breadcrumb"><BlockBreadcrumb block={result.block} notebook={props.notebook} /></span>
           <BlockText text={live()?.text ?? result.block.text} notebook={props.notebook} interactive={false} />
         </div><Button class="backlink-beside" icon="panes" label="Open beside" title={`Open beside · ${besideHint}`} onClick={() => props.onOpen({ kind: 'page', pageId: result.page.id, blockId: result.block.id }, true)} /><Show when={propsRelated.relations}><IncomingRelations target={result.block.id} version={relatedVersion()} notebook={props.notebook} onOpen={props.onOpen} /></Show></div>;

@@ -151,13 +151,13 @@ Collection pages show member sources in a Sources section. Their Table opens the
 
 ## Note header
 
-A note at its top level shows its kinds above the title in rubric tracked capitals, separated by a faint slash (`PERSON / ECONOMIST`). Each opens that kind's finding aid.
+A note at its top level shows its kinds above the title in rubric tracked capitals, each by its plural as in the sidebar, separated by a faint slash (`PEOPLE / ECONOMISTS`). Each opens that kind's finding aid.
 
 Type breadcrumbs use the plural. Truncated breadcrumbs keep their full label in a tooltip. Project and question pane headers carry flag and question glyphs.
 
 The note waits for its kinds and alias fields before appearing. Its title, aliases and opening rows appear together; background refreshes keep the current note visible. Offline, cached notes remain visible and editable without that metadata. Reconnecting refreshes the note's apparatus and the sidebar Index. New notes remain visible and editable while creation is pending; their service-only apparatus and Find and reference previews wait for the root's acknowledgment, showing empty or loading states rather than missing-block errors.
 
-The title wraps within its available header width, including unbroken names and URLs, without overlapping the header actions. Tag tokens in the title do not display: a behavior tag is its glyph before the title and any other tag a pill after it, and the pane breadcrumb, sidebar, Index, Library and Find read the same tagless title.
+The title wraps within its available header width, including unbroken names and URLs, without overlapping the header actions. Tag tokens in the title do not display: a behavior tag is its glyph before the title, a tag for a kind the eyebrow already names stays there alone, and any other tag is a pill after it. The pane breadcrumb, sidebar, Index and its see cross-references, backlink group heads, card source lines, the catalog card's Title, Library and Find read the same tagless title; a Title edited there keeps the title's tags.
 
 The Opening navigator appears only after the title leaves the viewport, with 24 px hysteresis. A fresh page's empty root reads `Start writing…`. Read keeps each child's inset at its outline depth.
 
