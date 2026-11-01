@@ -114,10 +114,13 @@ export function ComparePane(props: ComparePaneProps) {
   const holderName = (row: PositionRow) => row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? 'Loading holder…' : row.deleted_holder ? deletedHolderLabel(row.deleted_holder) : 'Unattributed';
   const holder = (perspective: Perspective) => holderName(perspective.row);
   const open = (pageId: string, blockId: string | null, beside: boolean) => props.onOpen({ kind: 'page', pageId, ...(blockId ? { blockId } : {}) }, beside);
+  /** A siglum comes from the perspective's source; one without a source has none, and the matrix names its holder instead. */
   const matrixSiglum = (row: PositionRow) => {
     const item = perspectives().find(item => item.row.block.block.id === row.block.block.id);
-    return item?.source && sigla().get(item.source) || (row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? '' : row.deleted_holder?.text ?? '').replace(/[^\p{L}]/gu, '').slice(0, 3).toUpperCase();
+    return item?.source && sigla().get(item.source) || '';
   };
+  /** When only some perspectives have a siglum, the others keep its line empty so every holder name starts at one height. */
+  const anySiglum = createMemo(() => selected().some(item => item.source && sigla().get(item.source)));
   let scroll!: HTMLDivElement;
   let pane!: HTMLDivElement;
   onMount(() => {
@@ -181,7 +184,7 @@ export function ComparePane(props: ComparePaneProps) {
             const id = perspective.row.block.block.id;
             return <article class="compare-reading" aria-label={holder(perspective)}>
               <header>
-                <Show when={perspective.source && sigla().get(perspective.source)}>{mark => <span class="compare-siglum" title={props.notebook.lookup(perspective.source!)()?.text}>{mark()}</span>}</Show>
+                <Show when={perspective.source && sigla().get(perspective.source)} fallback={<Show when={anySiglum()}><span class="compare-siglum" aria-hidden="true" /></Show>}>{mark => <span class="compare-siglum" title={props.notebook.lookup(perspective.source!)()?.text}>{mark()}</span>}</Show>
                 <h3><Button class="compare-holder-name" title={`Open this perspective · ${besideHint}`} onClick={event => open(page, id, opensBeside(event))}>{holder(perspective)}</Button>
                   <Show when={perspective.shape?.value}>{shape => <span class="compare-shape" title={shape()} role="img" aria-label={shape()}><ShapeGlyph value={shape()} /></span>}</Show>
                 </h3>

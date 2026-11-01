@@ -5,7 +5,7 @@
 .compare-subject.button { padding: 0; font: inherit; color: var(--text); text-align: left; white-space: normal; }
 .compare-eyebrow, .compare-count, .compare-siglum, .compare-work { color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .compare-count, .compare-siglum { font: var(--figures); }
-.compare-choices { flex-wrap: wrap; gap: var(--space-4) var(--space-16); width: min(100%, calc(var(--measure) + 2 * var(--pane-inset))); margin-inline: auto; padding: 0 var(--pane-inset); }
+.compare-choices { flex-wrap: wrap; gap: var(--space-4) var(--space-16); width: min(calc(100% - 2 * var(--pane-inset)), var(--measure)); margin-inline: auto; padding: 0; }
 .compare-choices .button { gap: var(--space-8); padding: var(--space-4) 0; }
 .compare-choices .button:disabled { opacity: 1; }
 .compare-choice-mark { color: var(--accent); }
@@ -15,6 +15,8 @@
 .compare-reading { min-width: 0; padding: var(--page-head-gap) var(--pane-inset) var(--section-gap); overflow-wrap: anywhere; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .compare-reading + .compare-reading { border-left: 1px solid var(--line); }
 .compare-reading header { margin-bottom: var(--space-16); }
+.compare-reading header > .compare-siglum { display: block; min-height: var(--line-apparatus); }
+.criteria-matrix th > .compare-siglum { display: block; min-height: var(--line-apparatus); }
 .compare-reading h3 { display: flex; align-items: center; gap: var(--space-8); margin: var(--space-4) 0; }
 .compare-holder-name.button { min-height: var(--target-size); padding: 0; color: var(--text); font: var(--weight-display-heading) var(--text-h2)/var(--line-h2) var(--font-display); text-align: left; }
 .compare-holder-name.button:hover { color: var(--accent); }
@@ -31,7 +33,7 @@
 .compare-questions .button { display: block; padding: var(--space-4) 0; color: var(--text); text-align: left; white-space: normal; font: var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .compare-questions .button:hover { color: var(--accent); }
 
-.compare-tabs { width: min(100%, calc(var(--measure) + 2 * var(--pane-inset))); margin: 0 auto var(--space-16); padding-inline: var(--pane-inset); gap: var(--space-24); }
+.compare-tabs { width: min(calc(100% - 2 * var(--pane-inset)), var(--measure)); margin: 0 auto var(--space-16); padding-inline: 0; gap: var(--space-24); }
 .compare-tabs .button { padding: 0 0 var(--space-8); }
 .compare-matrix { container-type: inline-size; padding: 0 var(--pane-inset) var(--space-16); --criterion-width: calc(var(--space-48) * 2 + var(--space-12)); }
 .criteria-tools { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-16); margin-bottom: var(--space-8); }

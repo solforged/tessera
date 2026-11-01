@@ -52,6 +52,7 @@ export function MetadataField(props: {
     return [{ code: '', name: 'No language' }, ...result];
   });
   let trigger: HTMLButtonElement | undefined;
+  let editor: HTMLInputElement | HTMLTextAreaElement | undefined;
   let disposed = false;
   onCleanup(() => { disposed = true; props.onError?.(''); });
   const fail = (message: string) => { setError(message); props.onError?.(message); };
@@ -77,7 +78,10 @@ export function MetadataField(props: {
       setEditing(false); setAnchor(undefined);
       if (returnFocus) restoreFocus();
     } catch (reason) {
-      if (!disposed) fail(reason instanceof Error ? reason.message : String(reason));
+      if (disposed) return;
+      fail(reason instanceof Error ? reason.message : String(reason));
+      // A rejected value stays in its editor, focused, so Escape still cancels it.
+      if (returnFocus) queueMicrotask(() => { if (editor?.isConnected) editor.focus({ preventScroll: true }); });
     } finally { if (!disposed) setBusy(false); }
   };
   const commit = (returnFocus = false) => {
@@ -91,10 +95,13 @@ export function MetadataField(props: {
     if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel(); }
     else if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); commit(true); }
   };
-  const focus = (input: HTMLInputElement | HTMLTextAreaElement) => queueMicrotask(() => {
-    if (!input.isConnected) return;
-    input.focus(); input.setSelectionRange(input.value.length, input.value.length); input.scrollIntoView({ block: 'nearest' });
-  });
+  const focus = (input: HTMLInputElement | HTMLTextAreaElement) => {
+    editor = input;
+    queueMicrotask(() => {
+      if (!input.isConnected) return;
+      input.focus(); input.setSelectionRange(input.value.length, input.value.length); input.scrollIntoView({ block: 'nearest' });
+    });
+  };
   createEffect(() => {
     props.values; expanded();
     if (props.voice !== 'description' || editing() || !trigger) return;
@@ -109,6 +116,8 @@ export function MetadataField(props: {
   });
   const summary = createMemo(() => `${aggregate().distinct.length} ${aggregate().distinct.length === 1 ? 'value' : 'values'}${aggregate().empty ? ` · ${aggregate().empty} empty` : ''}`);
   const resetAvailable = createMemo(() => props.extracted !== undefined && (editing() ? draft() !== metadataText(props.extracted) : props.values.some(item => !metadataEqual(item, props.extracted!))));
+  /** Only plain capitalised words drop to lower case in "Add …" and "Set …"; ISBN, DOI, URL and arXiv keep their case. */
+  const label = () => props.label.replace(/\b[A-Z][a-z]+\b/g, word => word.toLowerCase());
   return <div class={`metadata-field metadata-field-${props.voice ?? 'text'}`}>
     <span id={`${id}-label`} class="metadata-label">{props.label}</span>
     <div class="metadata-field-body">
@@ -120,11 +129,11 @@ export function MetadataField(props: {
         <Button ref={trigger} class={`metadata-value${!value() ? ' metadata-empty' : ''}${props.kind === 'language' || props.kind === 'state' ? ' bordered metadata-choice' : ''}${expanded() ? ' metadata-expanded' : ''}`} disabled={props.disabled || busy()} aria-labelledby={`${id}-label`} onClick={event => {
           if (props.kind === 'language' || props.kind === 'state') { setQuery(''); setAnchor(event.currentTarget); }
           else start();
-        }}>{aggregate().mixed ? `Set ${props.label.toLocaleLowerCase()}…` : display(value()) || props.placeholder || `Add ${props.label.toLocaleLowerCase()}`}{(props.kind === 'language' || props.kind === 'state') && <Icon name="down" />}</Button>
+        }}>{aggregate().mixed ? `Set ${label()}…` : display(value()) || props.placeholder || `Add ${label()}`}{(props.kind === 'language' || props.kind === 'state') && <Icon name="down" />}</Button>
         <Show when={props.voice === 'description' && value() && (overflows() || expanded())}><Button class="metadata-text-action" aria-expanded={expanded()} onClick={() => setExpanded(value => !value)}>{expanded() ? 'Less' : 'More'}</Button></Show>
       </>}>
-        <Show when={props.kind === 'lines' || props.voice === 'description'} fallback={<input ref={focus} class="input metadata-input" aria-labelledby={`${id}-label`} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} value={draft()} disabled={busy()} placeholder={props.placeholder} onInput={event => setDraft(event.currentTarget.value)} onBlur={() => commit()} onKeyDown={keydown} />}>
-          <textarea ref={focus} class="input metadata-input" aria-labelledby={`${id}-label`} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} value={draft()} disabled={busy()} rows={props.voice === 'description' ? 5 : 3} placeholder={props.placeholder} onInput={event => setDraft(event.currentTarget.value)} onBlur={() => commit()} onKeyDown={keydown} />
+        <Show when={props.kind === 'lines' || props.voice === 'description'} fallback={<input ref={focus} class="input metadata-input" aria-labelledby={`${id}-label`} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} value={draft()} readOnly={busy()} placeholder={props.placeholder} onInput={event => setDraft(event.currentTarget.value)} onBlur={() => commit()} onKeyDown={keydown} />}>
+          <textarea ref={focus} class="input metadata-input" aria-labelledby={`${id}-label`} aria-invalid={!!error()} aria-describedby={error() ? `${id}-error` : undefined} value={draft()} readOnly={busy()} rows={props.voice === 'description' ? 5 : 3} placeholder={props.placeholder} onInput={event => setDraft(event.currentTarget.value)} onBlur={() => commit()} onKeyDown={keydown} />
         </Show>
         <Show when={props.scope}><p class="metadata-hint">{props.scope}</p></Show>
         <Show when={props.kind === 'lines'}><p class="metadata-hint">One value per line. Shift+Enter adds a line.</p></Show>

@@ -36,14 +36,14 @@ interface InspectorSelection { notebook: NotebookClient; docs: PageDocument[]; r
 interface InspectorContent { selection: InspectorSelection; fields: readonly FieldDefinition[]; evidence: Map<string, Evidence> }
 interface HistoryEntry { change: SourceFieldChange; label: string; count: number }
 
-/** Keep long per-source registers bounded without mounting fifty independent editors. */
-function SourceRegister(props: { docs: readonly PageDocument[]; label: string; summary?: string; children(doc: PageDocument): JSX.Element }) {
+/** Keep long per-source registers bounded without mounting fifty independent editors. `ownTitle` is for the title field itself: the editor is the source's name, so the heading keeps only the siglum. */
+function SourceRegister(props: { docs: readonly PageDocument[]; label: string; summary?: string; ownTitle?: boolean; children(doc: PageDocument): JSX.Element }) {
   const [page, setPage] = createSignal(0);
   createEffect(on(() => props.docs.map(doc => doc.pageId).join(','), () => setPage(0)));
   return <details class="metadata-register">
     <summary aria-label={props.label}>{props.summary ?? props.label}<span>{props.docs.length} sources</span><Icon name="right" /></summary>
     <div role="group" aria-label={props.label}>
-      <For each={props.docs.slice(page() * 10, (page() + 1) * 10)}>{doc => <div class="metadata-register-source"><div class="metadata-register-title"><span>{doc.root()?.source?.siglum}</span>{displayTitle(doc.root()?.text ?? '')}</div>{props.children(doc)}</div>}</For>
+      <For each={props.docs.slice(page() * 10, (page() + 1) * 10)}>{doc => <div class="metadata-register-source" classList={{ 'metadata-register-own-title': props.ownTitle }}><div class="metadata-register-title"><span>{doc.root()?.source?.siglum}</span>{!props.ownTitle && displayTitle(doc.root()?.text ?? '')}</div>{props.children(doc)}</div>}</For>
       <Show when={props.docs.length > 10}><div class="metadata-register-pages"><Button icon="left" label="Previous sources" disabled={page() === 0} onClick={() => setPage(value => value - 1)} /><span>{page() * 10 + 1}–{Math.min((page() + 1) * 10, props.docs.length)} of {props.docs.length} sources</span><Button icon="right" label="Next sources" disabled={(page() + 1) * 10 >= props.docs.length} onClick={() => setPage(value => value + 1)} /></div></Show>
     </div>
   </details>;
@@ -264,7 +264,7 @@ export function MetadataInspector(props: {
   function perSource(fieldName: SourceField) {
     const values = createMemo(() => metadataValues(docs().map(doc => current(doc, fieldName))));
     // A field that differs across the selection keeps its label column; its body is the per-source register.
-    return <Show when={!hiddenFields().includes(fieldName)}><Show when={batch() && (values().mixed || dates[fieldName] || fieldName === 'number')} fallback={field(fieldName)}><div class="metadata-field"><span class="metadata-label">{labels[fieldName]}</span><div class="metadata-field-body"><SourceRegister docs={docs()} label={`${labels[fieldName]} per source`} summary={[values().distinct.length ? `${values().distinct.length} ${values().distinct.length === 1 ? 'value' : 'values'}` : '', values().empty ? `${values().empty} empty` : '', 'per source'].filter(Boolean).join(' · ')}>{doc => field(fieldName, [doc])}</SourceRegister></div></div></Show></Show>;
+    return <Show when={!hiddenFields().includes(fieldName)}><Show when={batch() && (values().mixed || dates[fieldName] || fieldName === 'number')} fallback={field(fieldName)}><div class="metadata-field"><span class="metadata-label">{labels[fieldName]}</span><div class="metadata-field-body"><SourceRegister docs={docs()} label={`${labels[fieldName]} per source`} ownTitle={fieldName === 'title'} summary={[values().distinct.length ? `${values().distinct.length} ${values().distinct.length === 1 ? 'value' : 'values'}` : '', values().empty ? `${values().empty} empty` : '', 'per source'].filter(Boolean).join(' · ')}>{doc => field(fieldName, [doc])}</SourceRegister></div></div></Show></Show>;
   }
   function creators(selected: readonly PageDocument[]) {
     const key = `${selected.map(doc => doc.pageId).join(',')}:creators`;
@@ -320,7 +320,7 @@ export function MetadataInspector(props: {
           {perSource('published')}{field('publisher')}{field('edition')}{field('series')}{perSource('number')}{field('volume')}{field('issue')}{field('pageRange')}{field('pages')}{field('language')}
         </InspectorGroup>
         <InspectorGroup number={3} title="Identifiers" summary="ISBN, DOI, arXiv, URL" phone={props.phone}>
-          {field('identifiers')}{field('url')}{field('site')}
+          {field('identifiers', docs(), { placeholder: 'Add ISBN, DOI or arXiv ID' })}{field('url')}{field('site')}
           <div class="metadata-lookup"><Button class="bordered" disabled={!ready() || !!pending() || !docs().some(doc => metadataText(current(doc, 'identifiers')))} onClick={() => { void fill(); }}>Fill missing details</Button><span class="metadata-hint">Only empty fields</span></div>
         </InspectorGroup>
         <InspectorGroup number={4} title="About" summary="Description · Cover" phone={props.phone}>

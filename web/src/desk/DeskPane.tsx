@@ -9,11 +9,11 @@ import { FilterPopup } from '../table/FilterPopup';
 import { MissingFields } from '../table/MissingFields';
 import { missingQueryFields } from '../table/query';
 import { BlockText } from '../outline/BlockText';
-import { plainText } from '../outline/names';
+import { plainText, targetLabel } from '../outline/names';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
-import { columnNames, columnQuery, deskConditionLabel, initialSelection, linkedQuery, positionLocators, rowTarget, updateColumn } from './query';
+import { columnNames, columnQuery, deskConditionLabel, initialSelection, linkedQuery, linkedQuestionName, positionLocators, rowTarget, updateColumn } from './query';
 import type { DeskColumn } from './query';
 import './desk.css';
 
@@ -122,7 +122,7 @@ export function DeskPane(props: TablePaneProps) {
   const conditionLabel = (column: DeskColumn, condition: Filter) => deskConditionLabel(condition, pickerFields(column), props.notebook, result(1).rows);
   const label = (column: DeskColumn) => {
     const value = columnQueries[column]!();
-    const words = value.filters.map(condition => conditionLabel(column, condition));
+    const words = value.filters.map(condition => column === 1 && condition.field === '@question' && condition.op === 'is' && condition.value ? `Perspectives on ${linkedQuestionName(condition.value, props.notebook)}` : conditionLabel(column, condition));
     if (value.text) words.unshift(`Text contains ${value.text}`);
     if (value.type) words.unshift(`Tag is ${props.notebook.lookup(value.type)()?.text ?? 'Unavailable tag'}`);
     return words.length ? words.join('; ') : column === 1 ? 'Perspectives on the selected question' : column === 2 ? 'Sources cited by the selected perspective' : 'All questions';
@@ -177,7 +177,10 @@ export function DeskPane(props: TablePaneProps) {
     } else if (event.key === 'Enter' && selectedRow(column)) { event.preventDefault(); openRow(selectedRow(column)!, listOpensBeside(event, !!props.neighbour)); }
   };
   onMount(() => { if (props.active) region.focus({ preventScroll: true }); report(); });
-  const clear = (column: DeskColumn) => changeColumn(column, { ...columnQueries[column]!(), text: null, filters: columnQueries[column]!().filters.filter(filter => column === 1 ? filter.field === '@question' : column === 2 ? filter.field === '@cited_in' : false) });
+  const linkedField = (column: DeskColumn) => column === 1 ? '@question' : column === 2 ? '@cited_in' : undefined;
+  /** Whether the column carries anything beyond its linked condition, which Clear filters leaves in place. */
+  const filtered = (column: DeskColumn) => !!columnQueries[column]!().text || columnQueries[column]!().filters.some(filter => filter.field !== linkedField(column));
+  const clear = (column: DeskColumn) => changeColumn(column, { ...columnQueries[column]!(), text: null, filters: columnQueries[column]!().filters.filter(filter => filter.field === linkedField(column)) });
   const addFilter = (column: DeskColumn, condition: Filter, index?: number) => {
     const value = columnQueries[column]!();
     changeColumn(column, { ...value, filters: index === undefined ? [...value.filters, condition] : value.filters.map((filter, position) => position === index ? condition : filter) });
@@ -197,15 +200,15 @@ export function DeskPane(props: TablePaneProps) {
       <p class="desk-query">{label(column)}<Show when={columnQueries[column]!().group}><span>; grouped by {pickerFields(column).find(field => field.id === columnQueries[column]!().group!.key)?.name ?? 'field'}</span></Show></p>
       <Show when={editing() === column}><div class="desk-query-edit">
         <input class="input" type="search" aria-label={`Search ${columnNames[column].toLowerCase()}`} placeholder="Search rows" value={columnQueries[column]!().text ?? ''} onInput={event => changeColumn(column, { ...columnQueries[column]!(), text: event.currentTarget.value || null })} />
-        <For each={columnQueries[column]!().filters}>{(condition, index) => <span class="table-chip"><Button onClick={event => setFilter({ column, index: index(), anchor: event.currentTarget })}>{conditionLabel(column, condition)}</Button><Button label="Remove condition" onClick={() => changeColumn(column, { ...columnQueries[column]!(), filters: columnQueries[column]!().filters.filter((_, position) => position !== index()) })}>×</Button></span>}</For>
+        <For each={columnQueries[column]!().filters}>{(condition, index) => <span class="table-chip"><Button title={conditionLabel(column, condition)} onClick={event => setFilter({ column, index: index(), anchor: event.currentTarget })}><span class="desk-chip-text">{conditionLabel(column, condition)}</span></Button><Button label="Remove condition" onClick={() => changeColumn(column, { ...columnQueries[column]!(), filters: columnQueries[column]!().filters.filter((_, position) => position !== index()) })}>×</Button></span>}</For>
         <Button onClick={event => setFilter({ column, anchor: event.currentTarget })}>+ Filter</Button><Button onClick={() => clear(column)}>Clear filters</Button>
       </div></Show>
       <div class="desk-rows" role="listbox" aria-label={columnNames[column]} tabIndex={0}>
         <Show when={enabled(column)} fallback={<p class="desk-empty">{column === 1 ? 'Select a question to see its perspectives.' : 'Select a perspective to see its sources.'}<Button onClick={() => focusColumn(column === 1 ? 0 : selection().question ? 1 : 0)}>{column === 1 || !selection().question ? 'Choose a question' : 'Choose a perspective'}</Button></p>}>
           <Show when={results[column]![0].error}><p class="error" role="alert">{String(results[column]![0].error)}<Button onClick={() => results[column]![1].refetch()}>Try again</Button></p></Show>
-          <Show when={!loading(column) && !result(column).rows.length && !results[column]![0].error}><p class="desk-empty">No {columnNames[column].toLowerCase()} match this query.<Button onClick={() => { setEditing(column); clear(column); }}>Clear filters</Button><Show when={column > 0}><Button onClick={() => focusColumn(column === 1 ? 0 : 1)}>Choose another {column === 1 ? 'question' : 'perspective'}</Button></Show></p></Show>
+          <Show when={!loading(column) && !result(column).rows.length && !results[column]![0].error}><p class="desk-empty">No {columnNames[column].toLowerCase()} match this query.<Show when={filtered(column)}><Button onClick={() => { setEditing(column); clear(column); }}>Clear filters</Button></Show><Show when={column > 0}><Button onClick={() => focusColumn(column === 1 ? 0 : 1)}>Choose another {column === 1 ? 'question' : 'perspective'}</Button></Show></p></Show>
           <For each={orderedRows(column)}>{(row, index) => <>
-            <Show when={columnQueries[column]!().group && (index() === 0 || attribute(orderedRows(column)[index() - 1]!, columnQueries[column]!().group!.key) !== attribute(row, columnQueries[column]!().group!.key)) && plainText(attribute(row, columnQueries[column]!().group!.key), id => props.notebook.lookup(id)) !== plainText(title(row, column), id => props.notebook.lookup(id))}><h3 class="desk-group"><BlockText text={attribute(row, columnQueries[column]!().group!.key) || 'None'} notebook={props.notebook} interactive={false} /></h3></Show>
+            <Show when={columnQueries[column]!().group && (index() === 0 || attribute(orderedRows(column)[index() - 1]!, columnQueries[column]!().group!.key) !== attribute(row, columnQueries[column]!().group!.key)) && targetLabel(attribute(row, columnQueries[column]!().group!.key), id => props.notebook.lookup(id)) !== targetLabel(title(row, column), id => props.notebook.lookup(id))}><h3 class="desk-group"><BlockText text={attribute(row, columnQueries[column]!().group!.key) || 'None'} notebook={props.notebook} interactive={false} /></h3></Show>
             <div class="desk-row" role="option" tabIndex={selection()[selectionKey[column]] === row.block.block.id ? 0 : -1} aria-selected={selection()[selectionKey[column]] === row.block.block.id} data-desk-row={row.block.block.id} onClick={event => { if (opensBeside(event)) { openRow(row, true); return; } select(column, row, getComputedStyle(region.querySelector('.desk-breadcrumb')!).display !== 'none'); }} onDblClick={event => openRow(row, listOpensBeside(event, !!props.neighbour))}>
               <div class="desk-row-title"><BlockText text={title(row, column)} notebook={props.notebook} interactive={false} /></div>
               <Show when={column === 0}><p class="desk-meta">{attribute(row, '@state')} · {attribute(row, '@readings')} {attribute(row, '@readings') === '1' ? 'perspective' : 'perspectives'}</p><p class="desk-meta">Last assessed {attribute(row, '@last_assessed') || 'never'} · Revisit {attribute(row, '@revisit') || 'not set'}</p></Show>

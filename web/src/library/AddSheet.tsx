@@ -1,9 +1,10 @@
-import { Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
+import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js';
 import { ApiError } from '../api/client';
 import type { ExtractedCreator, ExtractedMetadata, IngestJob, LookupPreview } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { titleKey } from '../document/title-key';
 import { formatSourceValue } from '../outline/source';
+import { displayTitle } from '../outline/names';
 import { Button } from '../ui/Button';
 import { Popup, type PopupPlacement } from '../ui/Popup';
 import { DetailsForm } from './DetailsForm';
@@ -34,6 +35,12 @@ type BarcodeDetectorConstructor = new (options: { formats: string[] }) => {
 };
 
 const catalogKey = (value: string) => titleKey(value.normalize('NFD').replace(/\p{M}/gu, '').trim());
+/** The imprint line of a lookup: year and identifiers are figures (mono), the publisher stays in the apparatus voice. */
+const previewApparatus = (metadata: ExtractedMetadata) => [
+  { text: metadata.published?.slice(0, 4), figures: true },
+  { text: metadata.publisher, figures: false },
+  ...metadata.identifiers.map(id => ({ text: formatSourceValue('Identifier', id), figures: true })),
+].filter((part): part is { text: string; figures: boolean } => !!part.text);
 const isIdentifier = (value: string) => /^(?:https?:\/\/\S+|(?:urn:)?isbn:?\s*[\dX -]+|[\d -]{13,17}|\d[\d -]{8,15}[\dX]|(?:doi:)?10\.\d{4,9}\/\S+|(?:arxiv:)?\d{4}\.\d{4,5}(?:v\d+)?|(?:arxiv:)?[a-z-]+(?:\.[A-Z]{2})?\/\d{7}(?:v\d+)?)$/i.test(value);
 
 /** The ingestion form can also live inside the creation slip without owning a popup. */
@@ -172,7 +179,7 @@ export function AddSourceBody(props: AddSourceBodyProps) {
     props.onAdded(plan.source_id); finish();
   }
   const Duplicate = () => <Show when={duplicate()}>{source => <div class="library-add-duplicate" role="status">
-    <span>“{source().page.text}” is already in the library.</span>
+    <span>“{displayTitle(source().page.text)}” is already in the library.</span>
     <Button disabled={busy()} onClick={() => { props.onDraft?.(null); props.onAdded(source().page.id); props.onDismiss(); }}>Open</Button>
   </div>}</Show>;
   return <div class="library-add" onKeyDown={keydown} onDragOver={event => { if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; } }} onDrop={event => { if (event.dataTransfer?.files.length) { event.preventDefault(); event.stopPropagation(); void files(Array.from(event.dataTransfer.files)); } }}>
@@ -203,7 +210,7 @@ export function AddSourceBody(props: AddSourceBodyProps) {
               <h3>{value().metadata.title}</h3>
               <Show when={value().metadata.subtitle}><p class="library-preview-subtitle">{value().metadata.subtitle}</p></Show>
               <Show when={value().metadata.creators.length}><p>{value().metadata.creators.map(creator => creator.name + roleMarks[creator.role]).join(', ')}</p></Show>
-              <p class="library-preview-apparatus">{[value().metadata.published?.slice(0, 4), value().metadata.publisher, ...value().metadata.identifiers.map(id => formatSourceValue('Identifier', id))].filter(Boolean).join(' · ')}</p>
+              <p class="library-preview-apparatus"><For each={previewApparatus(value().metadata)}>{(part, at) => <>{at() ? ' · ' : ''}<span classList={{ 'library-figures': part.figures }}>{part.text}</span></>}</For></p>
               <p class="library-preview-provider">From {value().provider}</p>
             </div>
           </section>

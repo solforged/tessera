@@ -10,12 +10,14 @@
 .desk-column + .desk-column { border-left: var(--rule-width) solid var(--line); }
 .desk-column-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); }
 .desk-column-heading h2 { margin: 0; font: var(--weight-title) var(--text-h2)/var(--line-h2) var(--font-display); }
-.desk-column-heading h2 span { font: var(--apparatus); color: var(--faint); margin-left: var(--space-8); }
+.desk-column-heading h2 span { font: var(--figures); font-variant-numeric: tabular-nums; color: var(--faint); margin-left: var(--space-8); }
 .desk-query { margin: var(--space-8) 0 var(--space-12); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); overflow-wrap: anywhere; }
 .desk-query-edit { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-4); margin-bottom: var(--space-12); }
 .desk-query-edit input { width: 100%; min-width: 0; }
 .desk-query-edit .table-chip { max-width: 100%; }
-.desk-query-edit .table-chip .button:first-child { white-space: normal; height: auto; text-align: left; }
+/* A long condition truncates inside the pill so the × stays within it. */
+.desk-query-edit .table-chip .button:first-child { flex: 0 1 auto; min-width: 0; height: auto; text-align: left; }
+.desk-chip-text { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .desk-rows { flex: 1; min-height: 0; overflow: auto; outline: none; padding-bottom: var(--space-24); }
 .desk-group { margin: var(--space-16) 0 var(--space-8); font: var(--apparatus); color: var(--faint); overflow-wrap: anywhere; border-bottom: var(--rule-width) solid var(--line); padding-bottom: var(--space-4); }
 .desk-group:first-child { margin-top: 0; }
@@ -32,8 +34,8 @@
 .desk-empty { color: var(--muted); margin: var(--space-16) 0; font-size: var(--text-control); }
 .desk-empty .button { display: flex; margin-top: var(--space-8); }
 .desk-breadcrumb { display: none; }
-.index-question-heading { display: flex; min-width: 0; }
-.index-question-heading > .index-kind { flex: 1; min-width: 0; }
+.index-kind-row { display: flex; min-width: 0; }
+.index-kind-row > .index-kind { flex: 1; min-width: 0; }
 @media (pointer: coarse) { .desk-row-actions { visibility: visible; } }
 @container pane (max-width: 839px) {
   .desk-heading h1 { overflow-wrap: anywhere; }

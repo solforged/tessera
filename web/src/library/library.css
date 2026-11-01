@@ -18,8 +18,15 @@
 /* The search line and the selection bar that replaces it share one height, so selecting never moves the list. */
 .library-controls, .library-filter { gap: var(--space-8); }
 .library-controls { min-height: var(--space-32); }
-.library-search { flex: 0 1 var(--search-width); width: 0; min-width: 0; height: var(--row-height); min-height: var(--row-height); }
-.library-sort.button { margin-right: auto; font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.library-search { flex: 0 1 var(--search-width); width: 0; min-width: 0; }
+.library-sort.button { margin-right: auto; white-space: nowrap; }
+/* On a fine pointer every toolbar control is the 28 px row, and buttons with text use the control voice (13 px/500).
+   Coarse pointers keep the fingertip target. The search field's own min-height would otherwise stay 32. */
+@media (pointer: fine) {
+  .library-toolbar :is(.button, .mode-tabs > .button) { height: var(--row-height); min-height: var(--row-height); font-size: var(--text-control); font-weight: var(--weight-control); line-height: var(--line-control); letter-spacing: normal; font-family: var(--font-body); }
+  .library-toolbar .button.icon-only { width: var(--row-height); padding: 0; }
+  .input.library-search { height: var(--row-height); min-height: var(--row-height); font-size: var(--text-control); line-height: var(--line-control); }
+}
 .library-clear-selection { margin-left: auto; }
 .library-filter { flex-wrap: wrap; }
 /* A phone gives the search its own line; sort, layout, Browse, export and add follow beneath it, the grouping and Export named only in their menus. */
@@ -35,7 +42,7 @@
 .library-controls:has(.library-selection-count) > .button { flex: none; white-space: nowrap; }
 @container library-controls (max-width: 880px) { .library-action-label { display: none; } }
 /* A busy highlight action keeps focus, so it dims instead of being disabled. */
-.library-highlight-primary .button[aria-disabled="true"] { opacity: .5; cursor: default; }
+.library-highlight-primary .button[aria-disabled="true"] { opacity: var(--disabled-opacity); cursor: default; }
 /* A stable gutter matches the toolbar's, whether or not the list overflows. */
 .library-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--pane-inset) var(--page-bottom-space); scrollbar-gutter: stable; }
 .library-count, .library-progress, .library-highlight-count { display: inline-flex; align-items: center; gap: var(--space-4); flex-shrink: 0; font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); color: var(--muted); }
@@ -44,6 +51,8 @@
 .library-progress > .library-reading-rule { flex: 1; }
 .library-progress > span:last-child { flex: none; min-width: 4ch; text-align: right; }
 .library-highlight-count { width: 5ch; min-width: 5ch; justify-content: flex-end; }
+/* A column nothing in the list fills reserves no width, so Inbox titles keep the room (the ledger columns appear once a row has progress or highlights). */
+.library-rows:not(:has(.library-progress:not(:empty))) .library-progress, .library-rows:not(:has(.library-highlight-count:not(:empty))) .library-highlight-count { display: none; }
 /* Rows read as a ledger: shelfmark, title and byline, then state (in views spanning states), year, progress and highlights in fixed mono columns. */
 .library-state { width: 9ch; min-width: 9ch; color: var(--faint); }
 .library-year { width: 4ch; min-width: 4ch; justify-content: flex-end; color: var(--faint); }
@@ -60,7 +69,8 @@
 .library-tabs .library-count { color: var(--faint); }
 .library-tabs [aria-pressed="true"] .library-count { color: inherit; }
 .library-rows { border-top: 1px solid var(--line); }
-.library-row { display: flex; align-items: center; min-height: var(--row-height); gap: var(--space-4); border-bottom: 1px solid var(--line); transition: background-color var(--motion-fast) var(--motion-ease); content-visibility: auto; contain-intrinsic-size: auto var(--row-height); }
+.library-row { display: flex; align-items: center; min-height: var(--row-height); gap: var(--space-4); border-bottom: 1px solid var(--line); transition: background-color var(--motion-fast) var(--motion-ease); }
+.library-rows-long .library-row { content-visibility: auto; contain-intrinsic-size: auto calc(var(--row-height) + var(--line-control)); }
 /* Rows contain their paint, so rings sit inside the row. */
 .library-row :focus-visible { outline-offset: -2px; }
 .library-row-open.button { display: flex; flex: 1; min-width: 0; height: auto; min-height: var(--row-height); justify-content: flex-start; gap: var(--space-8); text-align: left; font-weight: var(--weight-body); }
@@ -112,6 +122,9 @@
   .library-job-actions { margin-left: auto; }
 }
 .library-job > .library-message, .library-job-actions { flex: none; }
+/* State, attempt and retry time read as separate apparatus items. */
+.library-job > .library-message ~ .library-message::before { content: '·'; margin-right: var(--space-4); color: var(--faint); }
+.library-job-time { font: var(--figures); }
 .library-job-actions { display: flex; }
 .library-job-error { flex-basis: 100%; padding-left: calc(var(--row-height) + var(--space-4) + var(--space-8)); padding-bottom: var(--space-8); }
 /* The processing desk shares the pane width between a reading-order queue and the full cited passage. With no highlights there is no desk, so Highlights keeps the other tabs' measure. */
@@ -227,10 +240,14 @@
 .library-preview-text p { margin: var(--space-2) 0 0; font-size: var(--text-control); line-height: var(--line-control); }
 .library-preview-text .library-preview-subtitle { margin: 0; color: var(--muted); font: italic var(--weight-body) var(--text-quote)/var(--line-quote) var(--font-display); }
 .library-preview-text .library-preview-apparatus { margin-top: var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
+.library-preview-apparatus .library-figures { font: var(--figures); }
 .library-preview-text .library-preview-provider { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .library-preview + .popup-actions { margin-top: var(--space-12); }
 .library-add .library-details-row { display: grid; grid-template-columns: calc(var(--space-48) * 2) minmax(0, 1fr); align-items: start; gap: var(--space-12); margin: 0; }
 .library-details-row > span { padding-top: var(--space-4); color: var(--muted); font-size: var(--text-control); line-height: var(--line-control); }
+/* A rejected Published value is named at its field, in the value column, and the field takes the danger border. */
+.library-add .library-details-error { margin-left: calc(var(--space-48) * 2 + var(--space-12)); }
+.library-add .input[aria-invalid="true"] { border-color: var(--danger); }
 .library-creators { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-4); min-width: 0; }
 .library-creator { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-8); width: 100%; }
 .library-creator .mode-tabs { gap: 0; }
@@ -329,6 +346,8 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
 .library-group + .library-group { margin-top: var(--space-16); }
 .library-group-heading { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--space-8); min-height: var(--target-size); margin: 0; border-bottom: 1px solid var(--line); background: var(--canvas); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .library-group-label, .library-group-label.button { min-width: 0; padding-inline: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font: var(--weight-source-title) var(--text-body)/var(--line-source-title) var(--font-display); letter-spacing: 0; }
+/* A person's name is a button yet sits like the plain heading beside it: same box, left edge and ellipsis. */
+.library-group-label.button { display: block; height: auto; min-height: 0; padding-block: 0; border-width: 0; text-align: left; }
 .library-group-label.button:hover:not(:disabled) { background: transparent; color: var(--accent); }
 /* Browse: the commonest people, decades, publishers and languages. Wide panes keep them in a rail left of the measure; narrower ones open the same lists from the Browse button. */
 .library-pane { container: library-pane / inline-size; }
@@ -362,10 +381,10 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
   .library-reading-card .library-cover { width: calc(var(--space-48) + var(--space-12)); }
 }
 /* The phone's Reading now card, Up next rows and generated covers: a stamp, a plain 4 pt bar and the time left in figures. */
-.library-reading-continue, .library-reading-bar, .library-reading-time-phone { display: none; }
+.library-reading-continue, .library-reading-bar { display: none; }
 .library-cover-generated { container-type: inline-size; display: flex; flex-direction: column; align-items: center; justify-content: space-between; text-align: center; border-radius: 4px; background: color-mix(in srgb, var(--hue) 26%, var(--raised)); box-shadow: inset 0 1px 0 var(--lit-edge), 0 1px 3px var(--contact-shadow), 0 0 0 .5px color-mix(in srgb, var(--hue) 50%, var(--line)); }
 .library-cover-generated::before { content: ""; position: absolute; inset: 6.7cqw; border-radius: 2px; box-shadow: inset 0 0 0 .75px color-mix(in srgb, var(--hue) 55%, transparent); pointer-events: none; }
-.library-cover-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 5; max-width: 100%; margin: 28cqw 7cqw 0; color: var(--text); font: italic var(--weight-source-title) 21.7cqw/25cqw var(--font-display); overflow-wrap: break-word; }
+.library-cover-title { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 5; max-width: calc(100% - 24cqw); margin: 28cqw 0 0; color: var(--text); font: italic var(--weight-source-title) 21.7cqw/25cqw var(--font-display); overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }
 .library-cover-author { max-width: 100%; margin: 0 7cqw 18cqw; overflow: hidden; color: color-mix(in srgb, var(--text) 62%, transparent); font: 500 10.8cqw/13.3cqw var(--font-body); letter-spacing: .14em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 @media (max-width: 599px) and (pointer: coarse) {
   .library-reading-more.button, .library-book-more.button { display: none; }
@@ -381,8 +400,6 @@ img[data-resource-image="loaded"] { animation: fade-in var(--motion-ui) var(--mo
   .library-reading-bar { display: block; flex: none; height: 4px; margin-top: var(--space-16); border-radius: 2px; background: color-mix(in srgb, var(--text) 12%, transparent); overflow: hidden; }
   .library-reading-bar > i { display: block; height: 100%; border-radius: 2px; background: var(--accent); }
   .library-reading-position { margin-top: 9px; color: var(--muted); font: 400 13px/16px var(--font-body); letter-spacing: 0; }
-  .library-reading-time-phone { display: inline; }
-  .library-reading-time-desktop { display: none; }
   .library-up-next-book.button { position: relative; align-items: center; gap: var(--space-16); min-height: 112px; padding: var(--space-8) 0; border-bottom: 0; }
   .library-up-next-book.button::after { content: ""; position: absolute; right: 0; bottom: 0; left: 76px; height: var(--rule-width); background: var(--line); }
   .library-up-next-book:last-child::after { display: none; }

@@ -5,10 +5,13 @@
 .revisit-empty > .button:hover { color: var(--accent); }
 .notes-review-heading { display: flex; align-items: flex-end; gap: var(--space-8); padding: var(--page-top-space) 0 var(--page-head-gap); }
 .notes-review-heading h1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 var(--space-12); margin: 0; font: var(--page-title-font); }
-.notes-review-heading h1 > span, .revisit-meta, .note-revisit > span { color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.revisit-meta, .note-revisit > span { color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .revisit-meta { display: block; }
+/* The tally is a count read whole, `3 due`, in the figures' voice like People's `0 atoms`. */
+.notes-review-heading h1 > .revisit-tally { color: var(--muted); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .revisit-queue { display: flex; flex-direction: column; flex: none; gap: var(--section-gap); }
 .revisit-section-head { display: flex; align-items: center; gap: var(--space-8); margin: 0 0 var(--space-8); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
+.revisit-group-date, .revisit-group-count { font: var(--figures); font-variant-numeric: tabular-nums; }
 .revisit-group-count { color: var(--faint); }
 .revisit-date-group > .button { display: flex; flex-direction: column; align-items: flex-start; width: 100%; white-space: normal; text-align: left; }
 .revisit-date-group > [aria-pressed="true"] { color: var(--accent); }

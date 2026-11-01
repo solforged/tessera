@@ -80,6 +80,12 @@ const coverScreen = window.matchMedia('(max-width: 599px) and (pointer: coarse)'
 const CHROME_IDLE = 2500;
 const prose: Partial<Record<Passage['kind'], true>> = { paragraph: true, quote: true, list_item: true };
 
+/** A resize callback that writes layout state runs a frame later: WebKit reports a resize caused inside its own observer cycle as an uncaught "ResizeObserver loop completed with undelivered notifications" error. */
+function deferred(run: () => void) {
+  let frame = 0;
+  return Object.assign(() => { cancelAnimationFrame(frame); frame = requestAnimationFrame(run); }, { cancel: () => cancelAnimationFrame(frame) });
+}
+
 export function ReaderPane(props: ReaderPaneProps) {
   const api = props.notebook.api;
   const [source, setSource] = createSignal<SourceView>();
@@ -210,9 +216,10 @@ export function ReaderPane(props: ReaderPaneProps) {
     if (!element) return;
     const measure = () => setTopInset(parseFloat(getComputedStyle(element).scrollPaddingTop) || 0);
     measure();
-    const observer = new ResizeObserver(measure);
+    const later = deferred(measure);
+    const observer = new ResizeObserver(later);
     observer.observe(element);
-    onCleanup(() => observer.disconnect());
+    onCleanup(() => { observer.disconnect(); later.cancel(); });
   });
   const citations = createMemo(() => {
     version();
@@ -1458,10 +1465,13 @@ export function ReaderPane(props: ReaderPaneProps) {
       resizeFrame = requestAnimationFrame(() => { void relayoutPages(); });
     });
     resizer.observe(scroll);
-    // Reader settings change the measure without resizing the pane.
-    const marginFitter = new ResizeObserver(fitMargin);
+    // Reader settings change the measure without resizing the pane. Fitting the margin changes the width the probe
+    // reports, so it runs a frame later (see `deferred`).
+    fitMargin();
+    const marginLater = deferred(fitMargin);
+    const marginFitter = new ResizeObserver(marginLater);
     marginFitter.observe(scroll); marginFitter.observe(probe);
-    onCleanup(() => marginFitter.disconnect());
+    onCleanup(() => { marginFitter.disconnect(); marginLater.cancel(); });
     onCleanup(() => { resizer.disconnect(); cancelAnimationFrame(resizeFrame); cancelAnimationFrame(countFrame); clearTimeout(chromeTimer); });
     const coverChanged = () => setCoverReading(coverScreen.matches);
     coverScreen.addEventListener('change', coverChanged);
@@ -1550,9 +1560,10 @@ export function ReaderPane(props: ReaderPaneProps) {
     let element!: HTMLDivElement;
     onMount(() => {
       const measure = () => setTitleHeight(element.getBoundingClientRect().height);
-      const observer = new ResizeObserver(measure);
+      const later = deferred(measure);
+      const observer = new ResizeObserver(later);
       measure(); observer.observe(element);
-      onCleanup(() => { observer.disconnect(); setTitleHeight(0); });
+      onCleanup(() => { observer.disconnect(); later.cancel(); setTitleHeight(0); });
     });
     return <div ref={element} class="reader-title-block"><TitlePage /></div>;
   }
