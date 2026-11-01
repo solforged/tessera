@@ -3,7 +3,9 @@ mod install;
 mod mcp;
 mod sync;
 
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::Context;
 use clap::{Parser, Subcommand};
@@ -240,32 +242,141 @@ fn reopen(
     }
 }
 
-async fn service(notebook: &std::path::Path) -> anyhow::Result<(reqwest::Client, String)> {
-    let message = format!(
-        "No service is running for {}. Start it with tessera --workshop {} serve.",
-        notebook.display(),
-        notebook.display()
-    );
-    let bytes = tokio::fs::read(notebook.join("service.lock"))
-        .await
-        .context(message.clone())?;
-    let lock: serde_json::Value = serde_json::from_slice(&bytes).context(message.clone())?;
-    let port = lock["port"]
-        .as_u64()
-        .filter(|p| *p > 0 && *p <= u16::MAX as u64)
-        .context(message.clone())?;
+/// Requests name the workshop they are meant for in this header, so a service
+/// that has since switched to another workshop refuses them with 409.
+const NOTEBOOK_HEADER: &str = "x-tessera-notebook";
+
+/// The running service that owns one workshop, reached over loopback.
+#[derive(Clone)]
+struct Service {
+    client: reqwest::Client,
+    base: Arc<str>,
+    /// The workshop's notebook ID, as `/api/notebook` gave it.
+    id: Arc<str>,
+    /// `id` as the header every request carries.
+    header: reqwest::header::HeaderValue,
+}
+
+impl Service {
+    /// A request for `path`, naming the workshop it is meant for.
+    fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+        self.client
+            .request(method, format!("{}{path}", self.base))
+            .header(NOTEBOOK_HEADER, self.header.clone())
+    }
+
+    /// Live page and journal titles by ID, fetched a few at a time. A block
+    /// that no longer exists is left out, so its reference keeps the ID.
+    async fn titles<'a>(
+        &self,
+        ids: impl IntoIterator<Item = &'a str>,
+    ) -> anyhow::Result<HashMap<String, String>> {
+        const AT_ONCE: usize = 8;
+        let mut ids = ids.into_iter();
+        let mut fetches = tokio::task::JoinSet::new();
+        let mut titles = HashMap::new();
+        loop {
+            while fetches.len() < AT_ONCE
+                && let Some(id) = ids.next()
+            {
+                let service = self.clone();
+                let path = format!(
+                    "/api/blocks/{}",
+                    percent_encoding::utf8_percent_encode(id, percent_encoding::NON_ALPHANUMERIC)
+                );
+                fetches.spawn(async move {
+                    let response = service.request(reqwest::Method::GET, &path).send().await?;
+                    if response.status() == reqwest::StatusCode::NOT_FOUND {
+                        return anyhow::Ok(None);
+                    }
+                    Ok(Some(
+                        checked(response)
+                            .await?
+                            .json::<tessera_core::Block>()
+                            .await?,
+                    ))
+                });
+            }
+            let Some(fetched) = fetches.join_next().await else {
+                break;
+            };
+            if let Some(block) = fetched??
+                && block.kind != tessera_core::BlockKind::Block
+            {
+                titles.insert(block.id, block.text);
+            }
+        }
+        Ok(titles)
+    }
+}
+
+/// The service that owns `notebook`, once the port its lock names is shown to
+/// serve this very workshop: a stopped service leaves its lock behind, a copied
+/// workshop carries the original's lock, and a switch moves the port to another
+/// workshop.
+async fn service(notebook: &Path) -> anyhow::Result<Service> {
+    let dir = notebook.display();
+    let start = format!("Start it with tessera --workshop {dir} serve.");
+    let lock = match tokio::fs::read(notebook.join("service.lock")).await {
+        Ok(lock) => lock,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            anyhow::bail!("No service is running for {dir}. {start}")
+        }
+        Err(error) => anyhow::bail!(
+            "Cannot read the service lock in {dir} ({}). {start}",
+            error.kind()
+        ),
+    };
+    let port = serde_json::from_slice::<serde_json::Value>(&lock)
+        .ok()
+        .and_then(|lock| lock["port"].as_u64())
+        .and_then(|port| u16::try_from(port).ok())
+        .filter(|port| *port > 0)
+        .with_context(|| {
+            format!("No service is running for {dir}, or it has not opened its port yet. {start}")
+        })?;
     let client = reqwest::Client::builder()
+        .no_proxy()
         .timeout(std::time::Duration::from_secs(60))
         .build()?;
-    let base = format!("http://127.0.0.1:{port}");
-    client
+    let base: Arc<str> = format!("http://127.0.0.1:{port}").into();
+    let silent = || anyhow::anyhow!("No service answers on port {port} for {dir}. {start}");
+    let response = client
         .get(format!("{base}/api/notebook"))
         .send()
         .await
-        .context(message.clone())?
-        .error_for_status()
-        .context(message)?;
-    Ok((client, base))
+        .map_err(|_| silent())?;
+    let status = response.status();
+    if !status.is_success() {
+        let error: serde_json::Value = response.json().await.unwrap_or_default();
+        let message = error["error"]["message"]
+            .as_str()
+            .map_or_else(|| status.to_string(), str::to_owned);
+        anyhow::bail!("The service on port {port} cannot serve {dir} now: {message}");
+    }
+    #[derive(serde::Deserialize)]
+    struct Served {
+        id: String,
+        path: PathBuf,
+    }
+    let served: Served = response.json().await.map_err(|_| silent())?;
+    let wanted = tokio::fs::canonicalize(notebook)
+        .await
+        .unwrap_or_else(|_| notebook.to_path_buf());
+    anyhow::ensure!(
+        served.path == wanted,
+        "The service on port {port} has {} open, not {}. Open {} in that service, or serve it on another port with tessera --workshop {} serve --port <port>.",
+        served.path.display(),
+        wanted.display(),
+        wanted.display(),
+        wanted.display()
+    );
+    Ok(Service {
+        client,
+        base,
+        header: reqwest::header::HeaderValue::from_str(&served.id)?,
+        id: served.id.into(),
+    })
 }
 
 async fn checked(response: reqwest::Response) -> anyhow::Result<reqwest::Response> {
@@ -277,33 +388,15 @@ async fn checked(response: reqwest::Response) -> anyhow::Result<reqwest::Respons
     anyhow::bail!("Service returned {status}: {text}")
 }
 
-async fn tag_titles<'a>(
-    client: &reqwest::Client,
-    base: &str,
-    ids: std::collections::BTreeSet<&'a str>,
-) -> anyhow::Result<std::collections::HashMap<&'a str, String>> {
-    let mut titles = std::collections::HashMap::new();
-    for id in ids {
-        let response = client.get(format!("{base}/api/blocks/{id}")).send().await?;
-        if response.status() == reqwest::StatusCode::NOT_FOUND {
-            continue;
-        }
-        let block: tessera_core::Block = checked(response).await?.json().await?;
-        if block.kind == tessera_core::BlockKind::Page {
-            titles.insert(id, block.text);
-        }
-    }
-    Ok(titles)
-}
-
-async fn add(notebook: &std::path::Path, inputs: Vec<String>, wait: bool) -> anyhow::Result<()> {
+async fn add(notebook: &Path, inputs: Vec<String>, wait: bool) -> anyhow::Result<()> {
+    use reqwest::Method;
     use tessera_core::library::{IngestJob, IngestJobState, SourceView};
-    let (client, base) = service(notebook).await?;
+    let service = service(notebook).await?;
     let mut jobs = Vec::with_capacity(inputs.len());
     for input in inputs {
         let response = if input.starts_with("http://") || input.starts_with("https://") {
-            client
-                .post(format!("{base}/api/library/jobs"))
+            service
+                .request(Method::POST, "/api/library/jobs")
                 .json(&serde_json::json!({"url":input}))
                 .send()
                 .await?
@@ -316,8 +409,8 @@ async fn add(notebook: &std::path::Path, inputs: Vec<String>, wait: bool) -> any
             let bytes = tokio::fs::read(path)
                 .await
                 .with_context(|| format!("Cannot read {input}"))?;
-            client
-                .post(format!("{base}/api/library/uploads"))
+            service
+                .request(Method::POST, "/api/library/uploads")
                 .header("Content-Type", "application/octet-stream")
                 .header(
                     "X-Filename",
@@ -340,8 +433,8 @@ async fn add(notebook: &std::path::Path, inputs: Vec<String>, wait: bool) -> any
         for id in jobs {
             loop {
                 let job: IngestJob = checked(
-                    client
-                        .get(format!("{base}/api/library/jobs/{id}"))
+                    service
+                        .request(Method::GET, &format!("/api/library/jobs/{id}"))
                         .send()
                         .await?,
                 )
@@ -354,22 +447,21 @@ async fn add(notebook: &std::path::Path, inputs: Vec<String>, wait: bool) -> any
                             .source_id
                             .context("The completed ingestion has no source.")?;
                         let source: SourceView = checked(
-                            client
-                                .get(format!("{base}/api/sources/{source_id}"))
+                            service
+                                .request(Method::GET, &format!("/api/sources/{source_id}"))
                                 .send()
                                 .await?,
                         )
                         .await?
                         .json()
                         .await?;
-                        let titles = tag_titles(
-                            &client,
-                            &base,
-                            tessera_core::tag_tokens(&source.page.text)
-                                .filter_map(|token| token.id)
-                                .collect(),
-                        )
-                        .await?;
+                        let titles = service
+                            .titles(
+                                tessera_core::tag_tokens(&source.page.text)
+                                    .filter_map(|token| token.id)
+                                    .collect::<std::collections::BTreeSet<_>>(),
+                            )
+                            .await?;
                         println!(
                             "{}: {}",
                             id,
@@ -405,11 +497,12 @@ async fn export(
     ids: &[String],
     view: Option<&str>,
 ) -> anyhow::Result<()> {
-    let (client, base) = service(notebook).await?;
+    use reqwest::Method;
+    let service = service(notebook).await?;
     let request = if let Some(name) = view {
         let views: Vec<tessera_core::library::LibraryView> = checked(
-            client
-                .get(format!("{base}/api/library/views"))
+            service
+                .request(Method::GET, "/api/library/views")
                 .send()
                 .await?,
         )
@@ -424,12 +517,12 @@ async fn export(
             matching.next().is_none(),
             "More than one library view is named {name}"
         );
-        client
-            .post(format!("{base}/api/library/export"))
+        service
+            .request(Method::POST, "/api/library/export")
             .json(&serde_json::json!({ "format": format, "query": view.query }))
     } else {
-        let mut request = client
-            .get(format!("{base}/api/library/export"))
+        let mut request = service
+            .request(Method::GET, "/api/library/export")
             .query(&[("format", format)]);
         if !ids.is_empty() {
             request = request.query(&[("ids", ids.join(","))]);
