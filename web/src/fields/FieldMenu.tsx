@@ -14,7 +14,7 @@ import { countsAsValues, countsLabels, countsReason, fieldCounts } from './count
 import type { CountsAs } from './counts';
 import { fieldRole, fieldRoles, roleLabels } from './roles';
 import type { FieldRole } from './roles';
-import { fieldKinds, kindLabels } from './kinds';
+import { fieldKinds, fieldLabel, kindLabels } from './kinds';
 import { typeKeys } from './templates';
 import { titleKey } from '../document/title-key';
 
@@ -55,7 +55,8 @@ export function createFieldMenu(context: Pick<OutlineContext,
     try {
       await doc.flush();
       await saveHide(field, value);
-      const label = value === 'when_empty' ? `${field.name} hidden when empty.` : value === 'always' ? `${field.name} hidden.` : `${field.name} always shown.`;
+      const name = fieldLabel(field);
+      const label = value === 'when_empty' ? `${name} hidden when empty.` : value === 'always' ? `${name} hidden.` : `${name} always shown.`;
       context.showNotice(label, () => saveHide(field, previous));
     } catch (error) { failure(error); }
   }
@@ -67,7 +68,7 @@ export function createFieldMenu(context: Pick<OutlineContext,
       const result = document.edit({ kind: 'fieldCountsAs', definition: field, value });
       if (!result.ok) throw new Error(result.reason);
       await document.flush();
-      context.showNotice(`${field.name} counts as ${(value ?? 'nothing')}.`, async () => { document.undo(); await document.flush(); });
+      context.showNotice(`${fieldLabel(field)} counts as ${(value ?? 'nothing')}.`, async () => { document.undo(); await document.flush(); });
     } catch (error) { failure(error); }
   }
   async function changeRole(field: FieldDefinition, value: FieldRole) {
@@ -88,7 +89,7 @@ export function createFieldMenu(context: Pick<OutlineContext,
       await props.notebook.commit([{ op: 'set_type_fields', type_id: current.page.id, base_revision: current.page.revision,
         fields: remove ? current.fields.filter(id => id !== field.id) : [...new Set([...current.fields, field.id])],
       }], 'Change tag template');
-      context.showNotice(`${field.name} ${remove ? 'removed from' : 'added to'} ${type.page.text} template.`, async () => {
+      context.showNotice(`${fieldLabel(field)} ${remove ? 'removed from' : 'added to'} ${type.page.text} template.`, async () => {
         const fresh = await props.notebook.api.type(type.page.id);
         await props.notebook.commit([{ op: 'set_type_fields', type_id: fresh.page.id, base_revision: fresh.page.revision, fields: current.fields }], 'Undo tag template change');
       });
@@ -104,7 +105,8 @@ export function createFieldMenu(context: Pick<OutlineContext,
     const ownerTypes = (types.error ? [] : types() ?? []).filter(type => keys.includes(titleKey(type.page.text)) || keys.includes(type.page.id.toLowerCase()));
     const document = definitionDocument();
     const unavailable = document?.status() !== 'ready' ? 'Field definitions are loading.' : document.saveState() !== 'saved' ? 'Wait for field changes to save.' : undefined;
-    setMenu({ anchor, label: field.name, title: field.name, context: (block && plainText(block.text, target => props.notebook.lookup(target))) || field.name, items: [
+    const name = fieldLabel(field);
+    setMenu({ anchor, label: name, title: name, context: (block && plainText(block.text, target => props.notebook.lookup(target))) || name, items: [
       { label: 'Open field definition', action: event => open(opensBeside(event)) },
       { label: 'Definition…', submenu: () => ({ title: 'Definition', items: [
         { label: 'Format…', disabledReason: taskFieldName(field) ? 'Built-in task field formats cannot change.' : undefined, submenu: () => ({ title: 'Format', items: fieldKinds.map(kind => ({ label: kindLabels[kind], checked: kind === field.kind, action: () => { if (kind !== field.kind) open(false, { previewKind: kind }); } })) }) },

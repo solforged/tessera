@@ -6,7 +6,7 @@ import { Picker } from '../ui/Picker';
 import { Button } from '../ui/Button';
 import { kindLabels } from './kinds';
 import { instancePages } from './instances';
-import { completeNames } from '../outline/names';
+import { completeNames, plainText } from '../outline/names';
 
 export function readingLabel(reading: Reading): string {
   if (!reading.ok) return reading.problem;
@@ -33,7 +33,7 @@ export function ChoiceConversion(props: { detail: FieldDetail; mappings: Interpr
       return <Show when={rows().length}><h3>{heading}</h3><table class="field-ledger field-interpretations"><thead><tr><th>Written value</th><th>Uses</th><th>Interpretation</th></tr></thead><tbody>
         <For each={rows()}>{row => {
           const mapping = () => props.mappings[row.text] ?? { mode: 'keep' as const };
-          return <tr><td>{row.text}</td><td class="field-apparatus">{row.values.length}</td><td>
+          return <tr><td>{plainText(row.text, id => props.notebook.lookup(id))}</td><td class="field-apparatus">{row.values.length}</td><td>
             <Show when={props.detail.kind === 'choice'} fallback={<Show when={props.detail.kind === 'instance'} fallback={<span classList={{ 'field-rubric': !row.reading.ok }}>{row.reading.ok ? readingLabel(row.reading) : `${readingLabel(row.reading)}; left as written`}</span>}>
               <span>{(() => { const value = mapping(); return value.mode === 'page' ? props.notebook.lookup(value.value)()?.text ?? value.value : value.mode === 'create' ? `Create atom: ${value.value}` : row.reading.ok ? readingLabel(row.reading) : 'No unique atom; left as written'; })()}</span>
               <Button disabled={props.disabled} onClick={event => { setQuery(''); setPicker({ anchor: event.currentTarget, text: row.text }); }}>Choose atom…</Button>

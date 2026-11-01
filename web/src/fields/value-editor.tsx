@@ -10,21 +10,31 @@ import { RelationPicker } from './RelationPicker';
 import { choiceRows } from './value-options';
 import type { ChoiceRow } from './value-options';
 import { fieldLabel, partialDatePlaceholder } from './kinds';
+import './fields.css';
 
 /** Plain table values retain multiline input, native input modes and Enter/blur commit behavior. */
 export function PlainValueInput(props: {
   field?: FieldDefinition; text: string; class?: string;
+  /** The height the edited value had, in px. A table cell stays at that height and scrolls; other fields never open shorter. */
+  minHeight?: number;
   onInput(text: string): void; onCommit(returnFocus: boolean): void; onCancel(): void;
   /** Tab and Shift+Tab: the caller commits and moves to the neighboring cell. Without it Tab keeps its browser meaning. */
   onAdvance?(backward: boolean): void;
 }) {
   const placeholders = { date: partialDatePlaceholder, url: 'https://', identifier: 'ISBN, DOI or arXiv ID' };
-  return <textarea class={`input ${props.class ?? ''}`} data-value-editor aria-label={`Edit ${props.field ? fieldLabel(props.field) : 'field'} value`}
+  // A table cell keeps the height it opened at and scrolls inside it. Every other plain field grows with its text.
+  const fit = (input: HTMLTextAreaElement) => {
+    const cap = input.classList.contains('table-cell-input') ? props.minHeight : undefined;
+    if (cap) { input.style.height = `${cap}px`; return; }
+    input.style.height = 'auto';
+    input.style.height = `${input.scrollHeight + input.offsetHeight - input.clientHeight}px`;
+  };
+  return <textarea class={`input value-editor-input ${props.class ?? ''}`} style={props.minHeight ? { 'min-height': `${props.minHeight}px`, ...((props.class ?? '').split(/\s+/).includes('table-cell-input') ? { 'max-height': `${props.minHeight}px`, 'overflow-y': 'auto' } : {}) } : undefined} data-value-editor aria-label={`Edit ${props.field ? fieldLabel(props.field) : 'field'} value`}
     placeholder={props.field && props.field.kind in placeholders ? placeholders[props.field.kind as keyof typeof placeholders] : undefined}
     inputmode={props.field?.kind === 'number' ? 'decimal' : props.field?.kind === 'url' ? 'url' : undefined}
     rows={Math.min(8, Math.max(1, (props.text.match(/\n/g)?.length ?? 0) + 1))} value={props.text}
-    ref={input => queueMicrotask(() => { input.focus({ preventScroll: true }); input.select(); })}
-    onInput={event => props.onInput(event.currentTarget.value)} onKeyDown={event => {
+    ref={input => queueMicrotask(() => { input.focus({ preventScroll: true }); input.select(); fit(input); })}
+    onInput={event => { fit(event.currentTarget); props.onInput(event.currentTarget.value); }} onKeyDown={event => {
       if (event.isComposing) return;
       if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.stopPropagation(); props.onCommit(true); }
       else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); props.onCancel(); }
