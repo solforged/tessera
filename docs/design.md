@@ -85,9 +85,9 @@ Page titles are Piazzolla at 36/42 px, 26/32 px below 600 px. A title written wi
 
 Orrery uses midnight `--shell` (#0a0d13), ink-blue `--canvas` (#0e121a), parchment `--text` (#e6e1d6) and gilt `--accent` (#d8aa55). Muted text is cool gray. Rubric red `--danger` (#d97a6b) marks danger and short insertion rules; `--warning` is warm orange. Doing and scheduled work are blue; done is sage. Type and highlight hues stay separate from these roles.
 
-Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f5ee inside a #ebe5d8 shell, ink `--text` (#1f1b15), antique gold `--accent` (#93650f), oxblood `--danger` (#ad3a2b) and a deeper steel blue. It overrides color tokens only, under `:root[data-theme="light"]`; type, space and shape never change, and reader figures are not dimmed.
+Orrery by day is the light theme: the same roles on vellum, a `--canvas` of #f8f5ee inside a #ebe5d8 shell, ink `--text` (#1f1b15), antique gold `--accent` (#80560a), oxblood `--danger` (#ad3a2b) and a deeper steel blue. It overrides color tokens only, under `:root[data-theme="light"]`; type, space and shape never change, and reader figures are not dimmed. Every text role (`--muted`, `--faint`, `--accent`, `--danger`, `--warning`) holds 4.5:1 on each surface it is drawn on, including the selected row and the tan hover and selection washes, in both themes.
 
-[Settings › Appearance](surfaces/settings.md) chooses System (the default, following the operating system), Light or Dark per device, stored in local storage rather than the workshop. The entry imports `shell/theme.ts` first so the page paints in the right theme, and `index.html` paints the system theme before any script runs.
+[Settings › Appearance](surfaces/settings.md) chooses System (the default, following the operating system), Light or Dark per device, stored in local storage rather than the workshop. The entry imports `shell/theme.ts` first so the page paints in the right theme. `index.html` paints the system theme before any stylesheet loads, and `theme-boot.js`, a blocking script every entry page loads first, reads a stored Light or Dark choice onto the root so that choice paints from the first frame; the CSP allows no inline script.
 
 | Role | Token |
 |---|---|
@@ -125,7 +125,7 @@ Focus has one frame per control:
 | Text field | A 2 px gilt baseline inside the well, with no outer ring |
 | Capture slip | Its ticks turn gilt and its ruled line is drawn in gilt |
 | Mode tab | Faint rule beneath its label |
-| Current mode tab | Keeps its gilt rule; its label brightens |
+| Current mode tab | Keeps its gilt rule; its label brightens and an inset gilt ring shows focus |
 | Other controls | Gilt ring |
 
 ### Shape and elevation
@@ -258,7 +258,7 @@ The panes share one square inset canvas, with a 12 px outside gutter at the righ
 
 The workspace is a row of up to four panes. Each has a header, in this order:
 
-1. Back and forward.
+1. Back and forward. Each pane keeps its own history, and a reload restores up to ten steps either side of the current one, so a split comes back with every Back and Forward as it was left. Browser Back and Forward do not step through panes.
 2. The glyph of the place or page kind, gilt in the active pane. Typed pages reuse the outline's loaded kinds, falling back to explicit page types and the loaded index; questions and projects use their capability glyphs.
 3. The pane's number while split, in faint mono.
 4. Breadcrumbs or the pane title in the apparatus.
@@ -814,9 +814,9 @@ Space c c makes a forward card.
 
 ## Popups and feedback
 
-Floating layers open below the element or caret that opened them, with a 4 px gap. They are start-aligned unless the anchor is in the viewport's right half, flip above when below is too short, are clamped to the viewport and never cover the anchor. A menu flips whenever only the space above holds all of its items and uses the available vertical space before scrolling, rather than an arbitrary fixed height cap.
+Floating layers open below the element or caret that opened them, with a 4 px gap. They are start-aligned unless the anchor is in the right half of the pane it sits in (the viewport's, outside any pane), flip above when below is too short, are clamped to that pane and the viewport and never cover the anchor. A menu flips whenever only the space above holds all of its items and uses the available vertical space before scrolling, rather than an arbitrary fixed height cap.
 
-Fixed forms opt into intrinsic-height fitting and choose the larger space when they cannot fit below; growing result lists keep the stable-placement policy. Find or create opens beneath the global search trigger; the dedicated command palette centers near the top of the viewport.
+Fixed forms opt into intrinsic-height fitting and choose the larger space when they cannot fit below; growing result lists keep the stable-placement policy, and a picker stays below when the space there holds its input and a few rows, scrolling the rest, flipping above only when below cannot hold that and above has more room.
 
 Escape closes the topmost popup only; a menu drilled into a page steps back one level first. Every way of closing (Escape, a pick, Cancel, Tab, a click outside) returns focus to the control that opened the popup, however it was opened, so the keyboard resumes where the user acted. A field or editor that held focus when the popup opened comes first (completions and value pickers return to the text being typed), and so does the target a closing popup would have returned to when another popup chains from it. A popup that never took focus leaves focus alone. When the trigger has been replaced, the pane's keyboard owner (title field, live editor or outline) is the last resort, or an open modal dialog's first control.
 
@@ -841,7 +841,7 @@ On a phone (below 600 px, coarse pointer) a sheet floats 8 px in from the screen
   It has no title, Close or context header: a caller passes `caption` for the one gray line that says what the rows act on when they cannot say it themselves, and a drilled-in page puts its title on a Back row. No row is focused on opening, since a finger lights a row only while it presses; the keyboard still gets one tab stop, the gilt edge and the arrows. A row with `palette` is a segment strip of 44 pt icon buttons (Outdent, Indent, Up, Down), left and right moving between them.
 - **Row context menu:** a long press of 450 ms on a row (`longPress`, touch only) gives a medium haptic, dims and blurs the page behind, lifts a copy of the row, frozen as it stood, as a leaf at its own place, and opens the menu under it, or above it when there is no room (`openContextMenu`). A press on the backdrop, Escape or a choice closes it; scrolling or moving past 10 px before 450 ms cancels the press, and a press that opened a menu is not followed by a click. A row with a context menu offers the same actions in its ⋯ menu.
 - **Picker:** an input on top and 28 px rows below. Arrows move, Page Up and Page Down move a page of rows, Enter picks, typing filters, the mouse hovers to highlight. Home and End edit the query; with Ctrl or ⌘ they jump the list. Rows and the cursor survive a refresh: the list dims instead of blanking, the cursor stays on the same row, and a new query starts at its first result. Chips before the input show steps already chosen. Optional apparatus section headings group results without entering the keyboard selection order. Used by the palette, reference completion, Add tag, Add condition and the time zone.
-- **Form:** compact labeled controls with an optional 18 px Piazzolla title and an action row. Fixed forms fit their content; a date picker's footer remains visible when its body must scroll, its calendar keeps one tab stop that follows the month shown, and on the cover screen it is a bottom sheet that does not raise the keyboard.
+- **Form:** compact labeled controls with an optional 17 px Piazzolla title (`--text-h3`, the menu head's size) and an action row. Fixed forms fit their content; a date picker's footer remains visible when its body must scroll, its calendar keeps one tab stop that follows the month shown, and on the cover screen it is a bottom sheet that does not raise the keyboard.
 - **Confirm:** 13 px body text and two buttons.
 - **Preview:** a read-only card for a reference's target; see [Reference previews](#reference-previews).
 
