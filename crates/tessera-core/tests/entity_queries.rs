@@ -242,6 +242,32 @@ fn relative_assessment_dates_keep_strict_boundaries_and_empty_questions() {
 }
 
 #[test]
+fn date_filters_refuse_values_that_are_neither_relative_nor_dates() {
+    let (_dir, nb) = fixture();
+    let query = |field: &str, value: &str| {
+        nb.query(
+            &serde_json::from_value(
+                json!({"source":"questions","filters":[{"field":field,"op":"lt","value":value}]}),
+            )
+            .unwrap(),
+        )
+    };
+    for field in ["@last_assessed".to_owned(), id(102)] {
+        for value in ["-3D", "-30x", "-3days", "yesterday", "2026-02-30", "+d"] {
+            match query(&field, value) {
+                Err(tessera_core::Error::Validation { message, .. }) => {
+                    assert!(message.contains("such as -30d"), "{message}")
+                }
+                other => panic!("{field} {value} should be refused, got {other:?}"),
+            }
+        }
+        for value in ["today", "-30d", "+7d", "2026-10-31", "2026-10", "2026"] {
+            query(&field, value).unwrap();
+        }
+    }
+}
+
+#[test]
 fn grouping_deduplicates_values_and_recipe_survives_empty_search_and_reopen() {
     let (dir, mut nb) = fixture();
     apply(

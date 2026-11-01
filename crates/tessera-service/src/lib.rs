@@ -1851,15 +1851,29 @@ async fn apply(
 }
 
 /// The agent write path: add a note, edit, move or delete a block, or set a
-/// task, as one attributed batch that records its own undo.
+/// task, as one attributed batch that records its own undo. An
+/// `Idempotency-Key` header makes a resent request return its first receipt.
 async fn agent_edit(
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
     body: Result<Json<AgentRequest>, JsonRejection>,
 ) -> Result<Json<AgentReceipt>, ApiError> {
     let Json(request) = body.map_err(ApiError::from)?;
+    let key = headers
+        .get("idempotency-key")
+        .map(|value| {
+            value.to_str().map(str::to_owned).map_err(|_| {
+                ApiError::new(
+                    axum::http::StatusCode::BAD_REQUEST,
+                    "invalid_header",
+                    "The Idempotency-Key header must be plain ASCII text.",
+                )
+            })
+        })
+        .transpose()?;
     let changes = state.changes.clone();
     run(&state, move |notebook| {
-        let mut receipt = notebook.agent_edit(&request)?;
+        let mut receipt = notebook.agent_edit_keyed(&request, key.as_deref())?;
         editor_receipt(notebook, &changes, &mut receipt.committed)?;
         Ok(receipt)
     })

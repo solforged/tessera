@@ -141,6 +141,106 @@ async fn history_lists_editor_and_agent_writes_and_undoes_with_the_shared_shape(
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
 
+async fn agent_change(app: &Router, key: Option<&str>, body: &Value) -> (StatusCode, Value) {
+    let mut builder = Request::builder()
+        .method("POST")
+        .uri("/api/agent-changes")
+        .header("content-type", "application/json");
+    if let Some(key) = key {
+        builder = builder.header("idempotency-key", key);
+    }
+    let response = app
+        .clone()
+        .oneshot(builder.body(Body::from(body.to_string())).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    (status, serde_json::from_slice(&bytes).unwrap())
+}
+
+#[tokio::test]
+async fn agent_changes_refuse_unknown_fields_and_write_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (app, _) = embedded(dir.path());
+    let note = |block: Value| {
+        json!({
+            "actor": {"kind":"agent", "name":"Strict test"},
+            "kind":"add_note", "target":{"kind":"page", "title":"Strict"},
+            "blocks":[block]
+        })
+    };
+    for (body, field) in [
+        (note(json!({"text":"Kitchen", "type":"heading"})), "type"),
+        (
+            json!({
+                "actor": {"kind":"agent", "name":"Strict test"},
+                "kind":"add_note", "target":{"kind":"journal", "title":"2026-10-31"},
+                "blocks":[{"text":"x"}]
+            }),
+            "title",
+        ),
+        (
+            json!({
+                "actor": {"kind":"agent", "name":"Strict test"}, "idempotency_key":"retry-1",
+                "kind":"add_note", "target":{"kind":"page", "title":"Strict"}, "blocks":[{"text":"x"}]
+            }),
+            "idempotency_key",
+        ),
+    ] {
+        let (status, error) = agent_change(&app, None, &body).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{error}");
+        assert_eq!(error["error"]["code"], "invalid_json", "{error}");
+        let message = error["error"]["message"].as_str().unwrap();
+        assert!(
+            message.contains(&format!("unknown field `{field}`")),
+            "{message}"
+        );
+    }
+    let (_, history) = request(&app, "GET", "/api/history?limit=5", Value::Null).await;
+    assert_eq!(history["entries"], json!([]));
+    let (status, added) =
+        agent_change(&app, None, &note(json!({"text":"Kitchen", "heading":2}))).await;
+    assert_eq!(status, StatusCode::OK, "{added}");
+}
+
+#[tokio::test]
+async fn an_idempotency_key_replays_the_first_receipt_and_refuses_another_request() {
+    let dir = tempfile::tempdir().unwrap();
+    let (app, _) = embedded(dir.path());
+    let body = json!({
+        "actor": {"kind":"agent", "name":"Retry test"},
+        "kind":"add_note", "target":{"kind":"page", "title":"Retries"},
+        "blocks":[{"text":"same thought"}]
+    });
+    let (status, first) = agent_change(&app, Some("retry-1"), &body).await;
+    assert_eq!(status, StatusCode::OK, "{first}");
+    assert_eq!(first["committed"]["replayed"], false);
+    let (status, again) = agent_change(&app, Some("retry-1"), &body).await;
+    assert_eq!(status, StatusCode::OK, "{again}");
+    assert_eq!(again["committed"]["replayed"], true);
+    for field in ["seq", "summary", "blocks", "page"] {
+        assert_eq!(again[field], first[field], "{field}");
+    }
+    let page = first["page"]["id"].as_str().unwrap();
+    let (_, view) = request(&app, "GET", &format!("/api/pages/{page}"), Value::Null).await;
+    assert_eq!(view["rows"].as_array().unwrap().len(), 1, "{view}");
+    let mut other = body.clone();
+    other["blocks"][0]["text"] = json!("another thought");
+    let (status, refused) = agent_change(&app, Some("retry-1"), &other).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{refused}");
+    assert!(
+        refused["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("already used for a different request"),
+        "{refused}"
+    );
+    let (status, fresh) = agent_change(&app, None, &body).await;
+    assert_eq!(status, StatusCode::OK, "{fresh}");
+    assert_ne!(fresh["seq"], first["seq"]);
+}
+
 async fn save(app: &Router, protocol: &str, base: &str, key: Option<Value>) -> Value {
     let mut provider = json!({"id":"local","name":"Test provider","protocol":protocol,"base_url":base,"model":"model"});
     if let Some(key) = key {

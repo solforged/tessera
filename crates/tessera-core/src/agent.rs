@@ -5,7 +5,7 @@
 //! transaction, so a person or the agent can undo it later; an undo refuses
 //! rather than overwrite anything changed since.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use rusqlite::{OptionalExtension, params};
 use serde::{Deserialize, Serialize};
@@ -14,13 +14,20 @@ use crate::history::{Step, Undo, inverse, provisional_undo_targets, resulting};
 use crate::notebook::{new_ulid, now_ms};
 use crate::storage::{validate_date, validate_id, validation};
 use crate::{
-    Actor, Batch, Block, BlockKind, CardQuery, Committed, Deck, Error, Notebook, Operation,
-    RelationKind, Result, Revision, TaskState, TaskStatus,
+    Actor, Batch, Block, BlockKind, CardQuery, Committed, Deck, Error, FieldKind, FieldOption,
+    Notebook, Operation, RelationKind, Result, Revision, TaskState, TaskStatus,
 };
+
+/// The most characters an agent may give a page title.
+const TITLE_LIMIT: usize = 1000;
+/// The most atoms one note may add, counting nested ones.
+const NOTE_LIMIT: usize = 5000;
+/// The longest idempotency key, in bytes.
+const KEY_LIMIT: usize = 255;
 
 /// Where a note is appended.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NoteTarget {
     /// The live page with this title, ignoring case; created when missing.
     Page { title: String },
@@ -36,6 +43,7 @@ pub enum NoteTarget {
 
 /// One block of a note and its nested children.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NoteBlock {
     /// `Name:: value` becomes a field entry with the value as its first
     /// child, before `children`; nested blocks use the same shorthand.
@@ -54,6 +62,7 @@ pub struct NoteBlock {
 /// Evidence to attach to an existing block. A quote selects its first exact
 /// occurrence in one passage; otherwise the whole passage or range is cited.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentCitation {
     pub block_id: String,
     #[serde(default)]
@@ -68,8 +77,9 @@ pub struct AgentCitation {
 /// What an agent asks to change. `revision`, when given, must be the
 /// target's current revision (a card's own revision for `SetCardHeld`, or a
 /// deck's for deck edits), so a change made since it was read is not overwritten.
+/// Unknown fields are refused rather than ignored.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum AgentEdit {
     /// Append an outline after the target's last child.
     AddNote {
@@ -166,7 +176,8 @@ pub struct AgentRequest {
     pub edit: AgentEdit,
 }
 
-/// The result of [`Notebook::agent_edit`].
+/// The result of [`Notebook::agent_edit`]. A keyed request sent again returns
+/// its first receipt with `committed.replayed` set.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AgentReceipt {
     /// The change to pass to [`Notebook::undo_change`].
@@ -199,6 +210,8 @@ struct Plan {
     created: Vec<String>,
     /// Live and newly created field definitions, keyed by lowercase name.
     fields: Option<HashMap<String, String>>,
+    /// Choice fields by definition ID, with their name and live options.
+    choices: HashMap<String, (String, Vec<FieldOption>)>,
     created_fields: Vec<String>,
     inserted: Vec<String>,
     removable: Vec<String>,
@@ -209,7 +222,8 @@ struct Plan {
 }
 
 impl Plan {
-    fn create_page(&mut self, title: &str) -> String {
+    fn create_page(&mut self, title: &str) -> Result<String> {
+        page_title(title)?;
         let id = new_ulid().to_string();
         self.operations.push(Operation::CreatePage {
             id: id.clone(),
@@ -218,8 +232,15 @@ impl Plan {
         self.titles
             .insert(crate::storage::title_key(title), id.clone());
         self.created.push(id.clone());
-        id
+        Ok(id)
     }
+}
+
+/// `Name:: value` shorthand with its name resolved to a field definition.
+struct Entry<'a> {
+    field: String,
+    name: &'a str,
+    value: Option<&'a str>,
 }
 
 /// The base revision for the next operation on `id`, which bumps it.
@@ -235,6 +256,34 @@ impl Notebook {
     /// Apply one agent request as an attributed batch and record how to undo
     /// it. A failure writes nothing.
     pub fn agent_edit(&mut self, request: &AgentRequest) -> Result<AgentReceipt> {
+        self.agent_edit_keyed(request, None)
+    }
+
+    /// [`Notebook::agent_edit`] under an idempotency key, so a client that
+    /// lost the answer can send the request again. The same key with the same
+    /// request returns the stored receipt and writes nothing; the same key
+    /// with a different request is refused.
+    pub fn agent_edit_keyed(
+        &mut self,
+        request: &AgentRequest,
+        key: Option<&str>,
+    ) -> Result<AgentReceipt> {
+        let keyed = match key {
+            Some(key) => {
+                if key.is_empty() || key.len() > KEY_LIMIT || key.contains(char::is_control) {
+                    return Err(validation(format!(
+                        "an idempotency key must have 1 to {KEY_LIMIT} characters and no control characters"
+                    )));
+                }
+                let value = serde_json::to_value(request).expect("request serializes");
+                let hash = crate::operations::operations_hash(&value.to_string());
+                if let Some(receipt) = self.keyed_receipt(key, &hash)? {
+                    return Ok(receipt);
+                }
+                Some((key, hash))
+            }
+            None => None,
+        };
         let mut plan = Plan::default();
         let on_page = |(id, summary): (String, String)| (Some(id), summary);
         let (page_id, summary) = match &request.edit {
@@ -306,18 +355,25 @@ impl Notebook {
                 let block = self.block(id)?;
                 touch(&mut plan, &block, *revision);
                 let previous = self.capabilities(id)?.relation.map(|info| info.kind);
+                if previous == *relation {
+                    return Err(validation(match relation {
+                        Some(kind) => format!(
+                            "nothing to change: the atom already has the {} relation",
+                            kind.as_str()
+                        ),
+                        None => "nothing to change: the atom has no relation".into(),
+                    }));
+                }
                 plan.operations.push(Operation::SetRelation {
                     id: id.clone(),
                     base_revision: next_revision(&mut plan.revisions, id),
                     relation: *relation,
                 });
-                if previous != *relation {
-                    plan.steps.push(Step::Relation {
-                        id: id.clone(),
-                        relation: previous,
-                    });
-                    plan.changed.push(id.clone());
-                }
+                plan.steps.push(Step::Relation {
+                    id: id.clone(),
+                    relation: previous,
+                });
+                plan.changed.push(id.clone());
                 let summary = match relation {
                     Some(kind) => format!("Set {} relation", kind.as_str()),
                     None => "Removed relation".into(),
@@ -333,18 +389,6 @@ impl Notebook {
                 let block = self.block(id)?;
                 touch(&mut plan, &block, *revision);
                 let state = crate::revisit_store::snapshot(&self.conn, id)?;
-                let event_id = matches!(
-                    action,
-                    crate::RevisitAction::Revisited | crate::RevisitAction::KeepRecurrent
-                )
-                .then(|| new_ulid().to_string());
-                plan.operations.push(Operation::Revisit {
-                    id: id.clone(),
-                    base_revision: next_revision(&mut plan.revisions, id),
-                    action: *action,
-                    next_on: next_on.clone(),
-                    event_id: event_id.clone(),
-                });
                 let changes = match action {
                     crate::RevisitAction::Revisited | crate::RevisitAction::KeepRecurrent => true,
                     crate::RevisitAction::Reopen => state.note.resolved_at.is_some(),
@@ -358,14 +402,44 @@ impl Notebook {
                                 .is_some_and(|q| q.review_on.is_some())
                     }
                     crate::RevisitAction::Resolve => {
-                        state
-                            .question
-                            .as_ref()
-                            .is_none_or(|q| q.unsettled || q.review_on.is_some())
-                            || state.note.revisit_on.is_some()
+                        state.question.as_ref().map_or_else(
+                            || state.note.resolved_at.is_none(),
+                            |q| q.unsettled || q.review_on.is_some(),
+                        ) || state.note.revisit_on.is_some()
                             || state.note.date_set_at.is_some()
                     }
                 };
+                // A target that cannot be revisited at all is refused when
+                // applied, with that reason instead.
+                let revisitable = state.question.is_some()
+                    || block.kind == BlockKind::Page
+                        && crate::fields::page_id(&self.conn)?.as_deref() != Some(id.as_str());
+                if !changes && revisitable {
+                    let reason = match action {
+                        crate::RevisitAction::Reopen => "the atom is not resolved",
+                        crate::RevisitAction::Later => "the atom has no revisit date to clear",
+                        crate::RevisitAction::Resolve if state.question.is_some() => {
+                            "the question has no revisit date and is not kept recurrent"
+                        }
+                        crate::RevisitAction::Resolve => "the atom is already resolved",
+                        crate::RevisitAction::Revisited | crate::RevisitAction::KeepRecurrent => {
+                            unreachable!("a completed revisit always changes the atom")
+                        }
+                    };
+                    return Err(validation(format!("nothing to change: {reason}")));
+                }
+                let event_id = matches!(
+                    action,
+                    crate::RevisitAction::Revisited | crate::RevisitAction::KeepRecurrent
+                )
+                .then(|| new_ulid().to_string());
+                plan.operations.push(Operation::Revisit {
+                    id: id.clone(),
+                    base_revision: next_revision(&mut plan.revisions, id),
+                    action: *action,
+                    next_on: next_on.clone(),
+                    event_id: event_id.clone(),
+                });
                 if changes {
                     plan.steps.push(Step::Revisit {
                         id: id.clone(),
@@ -452,13 +526,18 @@ impl Notebook {
                     created_fields: resulting(committed, &created_fields)?,
                 };
                 tx.execute(
-                    "INSERT INTO change_history(seq, summary, page_id, undo) VALUES (?1, ?2, ?3, ?4)
-                     ON CONFLICT(seq) DO UPDATE SET summary = excluded.summary, page_id = excluded.page_id, undo = excluded.undo",
+                    "INSERT INTO change_history(seq, summary, page_id, undo, idempotency_key, request_hash)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                     ON CONFLICT(seq) DO UPDATE SET summary = excluded.summary, page_id = excluded.page_id,
+                         undo = excluded.undo, idempotency_key = excluded.idempotency_key,
+                         request_hash = excluded.request_hash",
                     params![
                         committed.seq,
                         summary,
                         page_id,
-                        serde_json::to_string(&undo).expect("undo serializes")
+                        serde_json::to_string(&undo).expect("undo serializes"),
+                        keyed.as_ref().map(|(key, _)| *key),
+                        keyed.as_ref().map(|(_, hash)| hash),
                     ],
                 )?;
                 Ok(())
@@ -469,7 +548,7 @@ impl Notebook {
             .chain(&changed)
             .filter_map(|id| committed.revisions.iter().find(|r| &r.id == id).cloned())
             .collect();
-        Ok(AgentReceipt {
+        let receipt = AgentReceipt {
             seq: committed.seq,
             summary,
             page: match &page_id {
@@ -490,7 +569,55 @@ impl Notebook {
                 .map(|id| self.deck(id))
                 .collect::<Result<_>>()?,
             committed,
-        })
+        };
+        if keyed.is_some() {
+            self.conn.execute(
+                "UPDATE change_history SET receipt = ?1 WHERE seq = ?2",
+                params![
+                    serde_json::to_string(&receipt).expect("receipt serializes"),
+                    receipt.seq
+                ],
+            )?;
+        }
+        Ok(receipt)
+    }
+
+    /// The stored receipt of the change made under `key`, when there is one.
+    fn keyed_receipt(&self, key: &str, hash: &str) -> Result<Option<AgentReceipt>> {
+        let Some((seq, prior, receipt)) = self
+            .conn
+            .query_row(
+                "SELECT seq, request_hash, receipt FROM change_history WHERE idempotency_key = ?1",
+                [key],
+                |row| {
+                    Ok((
+                        row.get::<_, i64>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, Option<String>>(2)?,
+                    ))
+                },
+            )
+            .optional()?
+        else {
+            return Ok(None);
+        };
+        if prior.as_deref() != Some(hash) {
+            return Err(validation(format!(
+                "idempotency key {key} was already used for a different request, change {seq}; send this request with a new key"
+            )));
+        }
+        let Some(receipt) = receipt else {
+            return Err(validation(format!(
+                "change {seq} was made under idempotency key {key}, but its receipt was not kept; read the change in history instead"
+            )));
+        };
+        let mut receipt: AgentReceipt = serde_json::from_str(&receipt)
+            .map_err(|error| validation(format!("invalid stored receipt: {error}")))?;
+        // Sync can renumber a replica's changes; the history row keeps the current number.
+        receipt.seq = seq;
+        receipt.committed.seq = seq;
+        receipt.committed.replayed = true;
+        Ok(Some(receipt))
     }
 
     fn plan_note(
@@ -502,9 +629,18 @@ impl Notebook {
         if blocks.is_empty() {
             return Err(validation("a capture must contain an atom"));
         }
+        if note_size(blocks) > NOTE_LIMIT {
+            return Err(validation(format!(
+                "a note can add at most {NOTE_LIMIT} atoms, counting nested ones; split it into several notes"
+            )));
+        }
         let (page_id, parent_id, after, title) = match target {
             NoteTarget::Page { title } => {
                 let title = title.trim();
+                page_title(title)?;
+                if crate::storage::title_key(title) == "fields" {
+                    return Err(fields_target());
+                }
                 match self.page_by_title(title)? {
                     Some(page) => {
                         plan.titles
@@ -513,7 +649,7 @@ impl Notebook {
                         (page.id.clone(), page.id, after, page.text)
                     }
                     None => {
-                        let id = plan.create_page(title);
+                        let id = plan.create_page(title)?;
                         (id.clone(), id, None, title.to_owned())
                     }
                 }
@@ -544,6 +680,9 @@ impl Notebook {
             }
             NoteTarget::Block { id } => {
                 let block = self.block(id)?;
+                if crate::fields::page_id(&self.conn)?.as_deref() == Some(block.page_id.as_str()) {
+                    return Err(fields_target());
+                }
                 let after = self.last_child(&block.page_id, &block.id)?;
                 let title = self.block(&block.page_id)?.text;
                 (block.page_id, block.id, after, title)
@@ -568,7 +707,7 @@ impl Notebook {
     ) -> Result<()> {
         for block in blocks {
             let id = new_ulid().to_string();
-            let (text, value) = self.note_text(plan, &block.text)?;
+            let (text, entry) = self.note_text(plan, &block.text)?;
             plan.operations.push(Operation::Insert {
                 id: id.clone(),
                 parent_id: parent_id.to_owned(),
@@ -584,17 +723,24 @@ impl Notebook {
                 plan.revisions.insert(id.clone(), 1);
                 self.plan_task(plan, &id, None, block.task.clone(), false)?;
             }
-            let value_id = self.plan_value(plan, &id, value, false)?;
+            let value_id = self.plan_value(plan, &id, entry.as_ref(), false)?;
             self.plan_blocks(plan, &id, value_id, &block.children, false)?;
         }
         Ok(())
     }
 
     /// Convert editor field shorthand before resolving ordinary title links.
-    fn note_text<'a>(&self, plan: &mut Plan, text: &'a str) -> Result<(String, Option<&'a str>)> {
+    fn note_text<'a>(&self, plan: &mut Plan, text: &'a str) -> Result<(String, Option<Entry<'a>>)> {
         if let Some((name, value)) = field_shorthand(text) {
             let field = self.field_target(plan, name)?;
-            Ok((format!("[[{field}]]"), (!value.is_empty()).then_some(value)))
+            Ok((
+                format!("[[{field}]]"),
+                Some(Entry {
+                    field,
+                    name,
+                    value: (!value.is_empty()).then_some(value),
+                }),
+            ))
         } else {
             Ok((self.link_titles(plan, text)?, None))
         }
@@ -602,12 +748,18 @@ impl Notebook {
 
     fn field_target(&self, plan: &mut Plan, name: &str) -> Result<String> {
         if plan.fields.is_none() {
-            plan.fields = Some(
-                crate::fields::definitions(&self.conn)?
-                    .into_iter()
-                    .map(|field| (field.name.to_lowercase(), field.id))
-                    .collect(),
-            );
+            let mut fields = HashMap::new();
+            for field in crate::fields::definitions(&self.conn)? {
+                // Status and priority keep their task options, never value links.
+                if field.kind == FieldKind::Choice
+                    && crate::built_in::task_options(&field.name).is_empty()
+                {
+                    plan.choices
+                        .insert(field.id.clone(), (field.name.clone(), field.options));
+                }
+                fields.insert(field.name.to_lowercase(), field.id);
+            }
+            plan.fields = Some(fields);
         }
         let key = name.to_lowercase();
         if let Some(id) = plan.fields.as_ref().and_then(|fields| fields.get(&key)) {
@@ -648,14 +800,15 @@ impl Notebook {
         &self,
         plan: &mut Plan,
         parent_id: &str,
-        value: Option<&str>,
+        entry: Option<&Entry>,
         removable: bool,
     ) -> Result<Option<String>> {
-        let Some(value) = value else {
+        let Some((field, value)) = entry.and_then(|entry| Some((&entry.field, entry.value?)))
+        else {
             return Ok(None);
         };
         let id = new_ulid().to_string();
-        let text = self.link_titles(plan, value)?;
+        let text = self.value_text(plan, field, value)?;
         plan.operations.push(Operation::Insert {
             id: id.clone(),
             parent_id: parent_id.to_owned(),
@@ -670,6 +823,40 @@ impl Notebook {
         Ok(Some(id))
     }
 
+    /// A shorthand value as stored: a link to the option it names for a
+    /// choice field, which never creates a page, or the text with its title
+    /// references linked for any other field.
+    fn value_text(&self, plan: &mut Plan, field: &str, value: &str) -> Result<String> {
+        let Some((name, options)) = plan.choices.get(field) else {
+            return self.link_titles(plan, value);
+        };
+        let wanted = value.trim();
+        let label = wanted
+            .strip_prefix("[[")
+            .and_then(|inner| inner.strip_suffix("]]"))
+            .map_or(wanted, |inner| {
+                crate::storage::reference_parts(inner).0.trim()
+            });
+        let folded = label.to_lowercase();
+        if let Some(option) = options
+            .iter()
+            .find(|option| option.id == label || option.text.trim().to_lowercase() == folded)
+        {
+            return Ok(format!("[[{}]]", option.id));
+        }
+        Err(validation(if options.is_empty() {
+            format!(
+                "{name} is a choice field with no options yet; a person adds its options on the Fields page"
+            )
+        } else {
+            let options: Vec<&str> = options.iter().map(|option| option.text.trim()).collect();
+            format!(
+                "“{wanted}” is not an option of {name}; use one of {}",
+                listed(&options)
+            )
+        }))
+    }
+
     fn plan_edit(
         &self,
         plan: &mut Plan,
@@ -679,24 +866,41 @@ impl Notebook {
         heading: Option<u8>,
     ) -> Result<(String, String)> {
         let block = self.block(id)?;
+        if block.kind != BlockKind::Block && heading.is_some_and(|level| level != 0) {
+            return Err(validation(
+                "a page or journal title cannot be a heading; set the heading on an atom inside it",
+            ));
+        }
         touch(plan, &block, revision);
         if let Some(text) = text {
-            let (text, value) = if block.kind == BlockKind::Block {
-                self.note_text(plan, text)?
+            if block.kind == BlockKind::Block {
+                let (linked, entry) = self.note_text(plan, text)?;
+                let current = match crate::fields::reference(&block.text) {
+                    Some(field) if crate::fields::is_definition(&self.conn, field)? => Some(field),
+                    _ => None,
+                };
+                match (current, &entry) {
+                    (Some(current), Some(entry)) if current != entry.field => {
+                        return Err(validation(format!(
+                            "this atom is the {} entry and cannot become a {} entry; delete it and add a new {} entry, or edit its value atom instead",
+                            self.block(current)?.text,
+                            entry.name,
+                            entry.name
+                        )));
+                    }
+                    (Some(_), Some(entry)) => {
+                        self.plan_entry_value(plan, &block, revision, entry)?
+                    }
+                    _ => {
+                        self.plan_value(plan, id, entry.as_ref(), true)?;
+                        plan_text(plan, &block, linked);
+                    }
+                }
             } else {
-                (text.to_owned(), None)
-            };
-            self.plan_value(plan, id, value, true)?;
-            if text != block.text {
-                plan.operations.push(Operation::EditText {
-                    id: id.to_owned(),
-                    base_revision: next_revision(&mut plan.revisions, id),
-                    text,
-                });
-                plan.steps.push(Step::Text {
-                    id: id.to_owned(),
-                    text: block.text.clone(),
-                });
+                if block.kind == BlockKind::Page {
+                    page_title(text.trim())?;
+                }
+                plan_text(plan, &block, text.to_owned());
             }
         }
         if let Some(level) = heading {
@@ -713,7 +917,7 @@ impl Notebook {
                 });
             }
         }
-        if plan.steps.is_empty() {
+        if plan.steps.is_empty() && plan.inserted.is_empty() {
             return Err(validation(
                 "nothing to change: the atom already reads that way",
             ));
@@ -725,11 +929,47 @@ impl Notebook {
             }
             _ => format!(
                 "Edited “{}” on {}",
-                snippet(text.unwrap_or(&block.text)),
+                snippet(&self.readable(text.unwrap_or(&block.text))?),
                 self.block(&block.page_id)?.text
             ),
         };
         Ok((block.page_id, summary))
+    }
+
+    /// Replace a field entry's first value, or give a value to an entry that
+    /// has none, leaving the entry itself as it is.
+    fn plan_entry_value(
+        &self,
+        plan: &mut Plan,
+        block: &Block,
+        revision: Option<i64>,
+        entry: &Entry,
+    ) -> Result<()> {
+        // No operation may touch the entry itself, so check its revision here.
+        if let Some(expected) = revision
+            && expected != block.revision
+        {
+            return Err(Error::Conflict {
+                op_index: plan.operations.len(),
+                id: block.id.clone(),
+                expected,
+                found: Some(block.revision),
+            });
+        }
+        let Some(value) = entry.value else {
+            return Ok(());
+        };
+        let Some(first) = self.first_child(&block.id)? else {
+            self.plan_value(plan, &block.id, Some(entry), true)?;
+            return Ok(());
+        };
+        let text = self.value_text(plan, &entry.field, value)?;
+        if text != first.text {
+            touch(plan, &first, None);
+            plan.changed.push(first.id.clone());
+            plan_text(plan, &first, text);
+        }
+        Ok(())
     }
 
     fn plan_card_held(
@@ -790,8 +1030,39 @@ impl Notebook {
         name: &str,
         query: &CardQuery,
     ) -> Result<String> {
-        let (id, base_revision, summary) = if let Some(id) = id {
-            let deck = self.deck(id)?;
+        let existing = id.map(|id| self.deck(id)).transpose()?;
+        if existing.is_none() && revision.is_some() {
+            return Err(validation(
+                "revision applies only to an existing deck; give the deck's id, or leave revision out to create a deck",
+            ));
+        }
+        let trimmed = name.trim();
+        if let Some(deck) = &existing
+            && deck.name == trimmed
+            && deck.query == *query
+        {
+            return Err(validation(format!(
+                "nothing to change: deck {} already has that name and query",
+                deck.name
+            )));
+        }
+        // Keeping a name that already matches another deck lets an older
+        // duplicate still be saved; taking such a name is refused.
+        let folded = trimmed.to_lowercase();
+        if existing
+            .as_ref()
+            .is_none_or(|deck| deck.name.to_lowercase() != folded)
+            && let Some(other) = self.decks()?.into_iter().find(|deck| {
+                deck.name.to_lowercase() == folded
+                    && existing.as_ref().is_none_or(|own| own.id != deck.id)
+            })
+        {
+            return Err(validation(format!(
+                "a deck named {} already exists ({}); choose another name, or save that deck by its id",
+                other.name, other.id
+            )));
+        }
+        let (id, base_revision, summary) = if let Some(deck) = existing {
             let base_revision = revision.unwrap_or(deck.revision);
             plan.steps.push(Step::DeckSaved {
                 id: deck.id.clone(),
@@ -801,12 +1072,12 @@ impl Notebook {
             (
                 deck.id,
                 Some(base_revision),
-                format!("Saved deck {}", name.trim()),
+                format!("Saved deck {trimmed}"),
             )
         } else {
             let id = new_ulid().to_string();
             plan.steps.push(Step::DeckCreated { id: id.clone() });
-            (id, revision, format!("Created deck {}", name.trim()))
+            (id, None, format!("Created deck {trimmed}"))
         };
         plan.operations.push(Operation::SaveDeck {
             id: id.clone(),
@@ -820,7 +1091,7 @@ impl Notebook {
 
     fn plan_delete_deck(&self, plan: &mut Plan, id: &str, revision: Option<i64>) -> Result<String> {
         let deck = self.deck(id)?;
-        let summary = format!("Deleted deck {}", deck.name);
+        let summary = format!("Deleted deck {} ({})", deck.name, deck.id);
         plan.operations.push(Operation::DeleteDeck {
             id: id.to_owned(),
             base_revision: revision.unwrap_or(deck.revision),
@@ -841,7 +1112,10 @@ impl Notebook {
         if citations.is_empty() {
             return Err(validation("a cite change must contain a citation"));
         }
-        let mut page = None;
+        let mut pages: Vec<Block> = Vec::new();
+        // The passage ordinals each snapshot's citations cover, to count each passage once.
+        let mut covered: HashMap<String, Vec<(i64, i64)>> = HashMap::new();
+        let mut planned = HashSet::new();
         for citation in citations {
             let block = self.block(&citation.block_id)?;
             if let Some(expected) = citation.revision
@@ -854,8 +1128,8 @@ impl Notebook {
                     found: Some(block.revision),
                 });
             }
-            if page.is_none() {
-                page = Some(self.block(&block.page_id)?);
+            if !pages.iter().any(|page| page.id == block.page_id) {
+                pages.push(self.block(&block.page_id)?);
             }
             if !plan.revisions.contains_key(&block.id) {
                 touch(plan, &block, citation.revision);
@@ -864,41 +1138,79 @@ impl Notebook {
             if citation.quote.is_some() && citation.end_passage_id.is_some() {
                 return Err(validation("give quote or end_passage_id, not both"));
             }
+            if citation.quote.as_deref() == Some("") {
+                return Err(validation(
+                    "quote is empty; leave quote out to cite the whole passage",
+                ));
+            }
             let first = self.passage(&citation.passage_id)?;
             let snapshot: String = self.conn.query_row(
                 "SELECT snapshot_id FROM passages WHERE id = ?1",
                 [&first.id],
                 |row| row.get(0),
             )?;
-            let (start_offset, end_id, end_offset) = if let Some(quote) = &citation.quote {
-                let offset = first.text.find(quote).ok_or_else(|| {
-                    validation(format!("quote not found in passage {}", first.id))
-                })?;
-                (
-                    first.text[..offset].encode_utf16().count(),
-                    first.id.clone(),
-                    first.text[..offset + quote.len()].encode_utf16().count(),
-                )
-            } else {
-                let last = citation
-                    .end_passage_id
-                    .as_deref()
-                    .filter(|id| *id != first.id)
-                    .map(|id| self.passage(id))
-                    .transpose()?;
-                if let Some(last) = &last {
-                    let last_snapshot: String = self.conn.query_row(
-                        "SELECT snapshot_id FROM passages WHERE id = ?1",
-                        [&last.id],
-                        |row| row.get(0),
-                    )?;
-                    if snapshot != last_snapshot {
-                        return Err(validation("citation passages must share one snapshot"));
+            let (start_offset, end_id, end_offset, last_ordinal) =
+                if let Some(quote) = &citation.quote {
+                    let offset = first.text.find(quote).ok_or_else(|| {
+                        validation(format!("quote not found in passage {}", first.id))
+                    })?;
+                    (
+                        first.text[..offset].encode_utf16().count(),
+                        first.id.clone(),
+                        first.text[..offset + quote.len()].encode_utf16().count(),
+                        first.ordinal,
+                    )
+                } else {
+                    let last = citation
+                        .end_passage_id
+                        .as_deref()
+                        .filter(|id| *id != first.id)
+                        .map(|id| self.passage(id))
+                        .transpose()?;
+                    if let Some(last) = &last {
+                        let last_snapshot: String = self.conn.query_row(
+                            "SELECT snapshot_id FROM passages WHERE id = ?1",
+                            [&last.id],
+                            |row| row.get(0),
+                        )?;
+                        if snapshot != last_snapshot {
+                            return Err(validation("citation passages must share one snapshot"));
+                        }
                     }
-                }
-                let last = last.as_ref().unwrap_or(&first);
-                (0, last.id.clone(), last.text.encode_utf16().count())
-            };
+                    let last = last.as_ref().unwrap_or(&first);
+                    (
+                        0,
+                        last.id.clone(),
+                        last.text.encode_utf16().count(),
+                        last.ordinal,
+                    )
+                };
+            let start_offset = u32::try_from(start_offset)
+                .map_err(|_| validation("citation offset exceeds UTF-16 range"))?;
+            let end_offset = u32::try_from(end_offset)
+                .map_err(|_| validation("citation offset exceeds UTF-16 range"))?;
+            let duplicate = !planned.insert((
+                block.id.clone(),
+                first.id.clone(),
+                start_offset,
+                end_id.clone(),
+                end_offset,
+            )) || self.conn.query_row(
+                "SELECT EXISTS(SELECT 1 FROM citations WHERE block_id = ?1 AND active = 1
+                     AND start_passage = ?2 AND start_offset = ?3 AND end_passage = ?4 AND end_offset = ?5)",
+                params![block.id, first.id, start_offset, end_id, end_offset],
+                |row| row.get::<_, bool>(0),
+            )?;
+            if duplicate {
+                return Err(validation(format!(
+                    "nothing to change: atom {} already has this citation",
+                    block.id
+                )));
+            }
+            covered.entry(snapshot.clone()).or_default().push((
+                first.ordinal.min(last_ordinal),
+                first.ordinal.max(last_ordinal),
+            ));
             let citation_id = new_ulid().to_string();
             plan.operations.push(Operation::Cite {
                 id: block.id.clone(),
@@ -907,13 +1219,11 @@ impl Notebook {
                 snapshot_id: snapshot,
                 start: crate::library::PassagePoint {
                     passage_id: first.id,
-                    offset: u32::try_from(start_offset)
-                        .map_err(|_| validation("citation offset exceeds UTF-16 range"))?,
+                    offset: start_offset,
                 },
                 end: crate::library::PassagePoint {
                     passage_id: end_id,
-                    offset: u32::try_from(end_offset)
-                        .map_err(|_| validation("citation offset exceeds UTF-16 range"))?,
+                    offset: end_offset,
                 },
                 color: None,
             });
@@ -922,14 +1232,28 @@ impl Notebook {
                 citation_id,
             });
         }
-        let page = page.expect("citations are nonempty");
+        let count: i64 = covered
+            .into_values()
+            .map(|mut ranges| {
+                ranges.sort_unstable();
+                let (mut count, mut end) = (0, i64::MIN);
+                for (from, through) in ranges {
+                    let from = from.max(end.saturating_add(1));
+                    if through >= from {
+                        count += through - from + 1;
+                    }
+                    end = end.max(through);
+                }
+                count
+            })
+            .sum();
+        let titles: Vec<&str> = pages.iter().map(|page| page.text.as_str()).collect();
         Ok((
-            page.id,
+            pages[0].id.clone(),
             format!(
-                "Cited {} passage{} on {}",
-                citations.len(),
-                if citations.len() == 1 { "" } else { "s" },
-                page.text
+                "Cited {count} passage{} on {}",
+                if count == 1 { "" } else { "s" },
+                listed(&titles)
             ),
         ))
     }
@@ -1061,10 +1385,17 @@ impl Notebook {
                 .as_ref()
                 .is_none_or(|current| current.status != Some(TaskStatus::Done));
         if !finishing {
-            let verb = target.status.map_or_else(
-                || "Scheduled".to_owned(),
-                |status| format!("Set to {}", status_name(status)),
-            );
+            let verb = match target.status {
+                Some(status)
+                    if current
+                        .as_ref()
+                        .is_some_and(|current| current.status == Some(status)) =>
+                {
+                    "Updated the task".to_owned()
+                }
+                Some(status) => format!("Set to {}", status_name(status)),
+                None => "Scheduled".to_owned(),
+            };
             set(plan, current, Some(target));
             return Ok(verb);
         }
@@ -1112,6 +1443,18 @@ impl Notebook {
             )?
             .query_row([&block.id], |row| row.get(0))
             .optional()?)
+    }
+
+    fn first_child(&self, parent_id: &str) -> Result<Option<Block>> {
+        let id: Option<String> = self
+            .conn
+            .prepare_cached(
+                "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
+                 ORDER BY ordinal, id LIMIT 1",
+            )?
+            .query_row([parent_id], |row| row.get(0))
+            .optional()?;
+        id.map(|id| self.block(&id)).transpose()
     }
 
     /// The last live child of `parent_id`, which lives on `page_id`.
@@ -1213,13 +1556,7 @@ impl Notebook {
         if let Some(id) = plan.titles.get(&crate::storage::title_key(title)) {
             return Ok(Some(id.clone()));
         }
-        let bytes = title.as_bytes();
-        let date_shaped = bytes.len() == 10
-            && bytes.iter().enumerate().all(|(index, byte)| match index {
-                4 | 7 => *byte == b'-',
-                _ => byte.is_ascii_digit(),
-            });
-        if date_shaped {
+        if date_shaped(title) {
             return Ok(match validate_date(title) {
                 Ok(()) => self.journal(title)?.map(|day| day.id),
                 Err(_) => None,
@@ -1230,7 +1567,7 @@ impl Notebook {
                 .insert(crate::storage::title_key(title), page.id.clone());
             return Ok(Some(page.id));
         }
-        Ok(Some(plan.create_page(title)))
+        plan.create_page(title).map(Some)
     }
 }
 
@@ -1238,6 +1575,75 @@ impl Notebook {
 fn touch(plan: &mut Plan, block: &Block, revision: Option<i64>) {
     plan.revisions
         .insert(block.id.clone(), revision.unwrap_or(block.revision));
+}
+
+/// Replace `block`'s text unless it already reads that way.
+fn plan_text(plan: &mut Plan, block: &Block, text: String) {
+    if text != block.text {
+        plan.operations.push(Operation::EditText {
+            id: block.id.clone(),
+            base_revision: next_revision(&mut plan.revisions, &block.id),
+            text,
+        });
+        plan.steps.push(Step::Text {
+            id: block.id.clone(),
+            text: block.text.clone(),
+        });
+    }
+}
+
+/// Refuse a page title that is too long, can never be linked, or is a date,
+/// which names a journal day instead.
+fn page_title(title: &str) -> Result<()> {
+    if title.chars().count() > TITLE_LIMIT {
+        return Err(validation(format!(
+            "a page title can have at most {TITLE_LIMIT} characters"
+        )));
+    }
+    if title.contains("[[") || title.contains("]]") {
+        return Err(validation(
+            "a page title cannot contain [[ or ]]; give the title without brackets",
+        ));
+    }
+    if date_shaped(title) {
+        return Err(validation(format!(
+            "a page title cannot be a date: {title} names a journal day, which the journal target writes to"
+        )));
+    }
+    Ok(())
+}
+
+fn fields_target() -> Error {
+    validation(
+        "the Fields page holds field definitions, not notes; to give an atom a field, write `Name:: value` in its note",
+    )
+}
+
+/// `YYYY-MM-DD` in shape, whether or not it is a real date.
+fn date_shaped(title: &str) -> bool {
+    let bytes = title.as_bytes();
+    bytes.len() == 10
+        && bytes.iter().enumerate().all(|(index, byte)| match index {
+            4 | 7 => *byte == b'-',
+            _ => byte.is_ascii_digit(),
+        })
+}
+
+/// How many atoms `blocks` holds, counting nested ones.
+fn note_size(blocks: &[NoteBlock]) -> usize {
+    blocks
+        .iter()
+        .map(|block| 1 + note_size(&block.children))
+        .sum()
+}
+
+/// Names joined as prose: "A", "A and B", "A, B and C".
+fn listed(names: &[&str]) -> String {
+    match names {
+        [] => String::new(),
+        [only] => (*only).to_owned(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    }
 }
 
 fn status_name(status: TaskStatus) -> &'static str {
@@ -1250,11 +1656,19 @@ fn status_name(status: TaskStatus) -> &'static str {
     }
 }
 
-/// The start of a block's text for summaries.
+/// The start of a block's text for summaries. A tag or reference the cut
+/// would split is kept whole, so no identifier is truncated.
 fn snippet(text: &str) -> String {
     let line = text.lines().next().unwrap_or_default().trim();
     match line.char_indices().nth(48) {
-        Some((end, _)) => format!("{}…", line[..end].trim_end()),
+        Some((end, _)) => {
+            let end = crate::tag_tokens(line)
+                .map(|token| token.span)
+                .chain(crate::reference_spans(line).map(|(span, _, _)| span))
+                .find(|span| span.start < end && end < span.end)
+                .map_or(end, |span| span.end);
+            format!("{}…", line[..end].trim_end())
+        }
         None => line.to_owned(),
     }
 }

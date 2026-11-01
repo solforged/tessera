@@ -41,13 +41,8 @@ fn fixture() -> (tempfile::TempDir, Notebook) {
     );
     (dir, nb)
 }
-fn revisit(
-    nb: &mut Notebook,
-    value: u128,
-    action: RevisitAction,
-    next: Option<&str>,
-) -> tessera_core::AgentReceipt {
-    nb.agent_edit(&AgentRequest {
+fn request(nb: &Notebook, value: u128, action: RevisitAction, next: Option<&str>) -> AgentRequest {
+    AgentRequest {
         actor: Actor::Agent {
             name: "Researcher".into(),
         },
@@ -58,8 +53,15 @@ fn revisit(
             action,
             next_on: next.map(str::to_owned),
         },
-    })
-    .unwrap()
+    }
+}
+fn revisit(
+    nb: &mut Notebook,
+    value: u128,
+    action: RevisitAction,
+    next: Option<&str>,
+) -> tessera_core::AgentReceipt {
+    nb.agent_edit(&request(nb, value, action, next)).unwrap()
 }
 
 #[test]
@@ -318,4 +320,51 @@ fn ordinary_blocks_cannot_revisit_and_restore_is_revision_checked() {
         ..request
     };
     assert!(nb.apply(&stale).is_err());
+}
+
+#[test]
+fn revisits_that_change_nothing_are_refused_without_a_history_entry() {
+    let (_dir, mut nb) = fixture();
+    let refused = |nb: &mut Notebook, value, action, reason: &str| {
+        let before = nb.history(500, None).unwrap().len();
+        let ask = request(nb, value, action, None);
+        match nb.agent_edit(&ask) {
+            Err(tessera_core::Error::Validation { message, .. }) => {
+                assert!(message.contains(reason), "{message:?} lacks {reason:?}")
+            }
+            other => panic!("expected {reason:?}, got {other:?}"),
+        }
+        assert_eq!(nb.history(500, None).unwrap().len(), before);
+    };
+    refused(
+        &mut nb,
+        1,
+        RevisitAction::Reopen,
+        "nothing to change: the atom is not resolved",
+    );
+    refused(&mut nb, 2, RevisitAction::Reopen, "not resolved");
+    refused(&mut nb, 2, RevisitAction::Later, "no revisit date to clear");
+    refused(
+        &mut nb,
+        2,
+        RevisitAction::Resolve,
+        "the question has no revisit date and is not kept recurrent",
+    );
+    revisit(&mut nb, 1, RevisitAction::Resolve, None);
+    refused(&mut nb, 1, RevisitAction::Resolve, "already resolved");
+    revisit(&mut nb, 1, RevisitAction::Reopen, None);
+    revisit(&mut nb, 2, RevisitAction::Later, Some("2026-10-12"));
+    revisit(&mut nb, 2, RevisitAction::Later, None);
+    refused(&mut nb, 2, RevisitAction::Later, "no revisit date to clear");
+    // An atom that cannot be revisited keeps its own reason.
+    let revision = nb.block(&id(2)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![Operation::SetQuestion {
+            id: id(2),
+            base_revision: revision,
+            question: None,
+        }],
+    );
+    refused(&mut nb, 2, RevisitAction::Reopen, "Choose a titled atom");
 }
