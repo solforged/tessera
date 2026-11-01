@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, filterOperatorLabel, filterOperators, matchFieldEntry, missingQueryFields, noteTableQuery, queriesEqual, queryFieldIds, remapQueryField, removeFilter, removeQueryField, pageTableTarget, removeSort, sortLabel, typeQuery } from './query';
+import { addFilter, chooseSort, copyQuery, fieldEntryId, fieldEntryText, filterLabel, filterOperatorLabel, filterOperators, matchFieldEntry, missingQueryFields, noteTableQuery, queriesEqual, queryFieldIds, remapQueryField, removeFilter, removeQueryField, pageTableTarget, removeSort, sortLabel, typeQuery, untouchedQuery } from './query';
 import { attributeDefinitions } from './attributes';
 import type { FieldDefinition } from '../api/types';
 import type { NotebookClient } from '../document/contract';
@@ -184,5 +184,23 @@ describe('page table target', () => {
   });
   test('opens any other page as its type register', () => {
     expect(pageTableTarget('p', false)).toEqual({ kind: 'table', typeId: 'p', viewId: null, query: typeQuery('p') });
+  });
+});
+
+describe('untouched view', () => {
+  test('a kind table opened from its list is its own untouched view until something changes', () => {
+    const opened = noteTableQuery({ ...typeQuery(null), note_kind: 'task', note_view: { layout: 'index', grouping: 'letter' } });
+    expect(queriesEqual(opened, noteTableQuery(untouchedQuery(opened)))).toBe(true);
+    expect(queriesEqual(addFilter(opened, { field: '@resolved', op: 'is', value: 'true' }), noteTableQuery(untouchedQuery(opened)))).toBe(false);
+  });
+  test('a source table keeps its source in the untouched view', () => {
+    const opened = { ...typeQuery(null), source: 'sources' as const };
+    expect(queriesEqual(opened, untouchedQuery(opened))).toBe(true);
+    expect(queriesEqual(chooseSort(opened, { by: 'title', field: null }), untouchedQuery(opened))).toBe(false);
+  });
+  test('sort labels name built-in attribute keys', () => {
+    const fields: FieldDefinition[] = [...attributeDefinitions('sources'), { id: 'f', name: 'author', kind: 'instance', revision: 0, options: [], targets: [], built_in: true }];
+    expect(sortLabel({ by: 'field', field: '@creator', direction: 'asc' }, fields)).toBe('Creator ↑');
+    expect(sortLabel({ by: 'field', field: '@created', direction: 'desc' }, fields)).toBe('Created ↓');
   });
 });

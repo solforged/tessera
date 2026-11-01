@@ -3,7 +3,7 @@ import type { Block, FieldDefinition, FieldKind, Filter, FilterOp } from '../api
 import type { NotebookClient } from '../document/contract';
 import { instancePages, relationMembers } from '../fields/instances';
 import { completeNames, plainText, targetLabel } from '../outline/names';
-import { kindLabels, partialDatePlaceholder } from '../fields/kinds';
+import { fieldLabel, kindLabels, partialDatePlaceholder } from '../fields/kinds';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
@@ -15,12 +15,12 @@ type FilterRow = { kind: 'field'; id: string; name: string; type: FieldKind } | 
 export function FilterPopup(props: { anchor: HTMLElement; fields: readonly FieldDefinition[]; notebook: NotebookClient; initialField: string; initialFilter?: Filter; label?: string; sheet?: boolean; onDismiss(): void; onNewField?(name: string): Promise<string>; onAdd(filter: Filter): void }) {
   const initialField = props.initialFilter?.field ?? props.initialField;
   const initial = props.fields.find(candidate => candidate.id === initialField);
-  const [field, setField] = createSignal<{ id: string | null; name: string } | null>(initial ? { id: initial.id, name: initial.name } : props.initialFilter ? { id: initialField, name: initialField } : null);
+  const [field, setField] = createSignal<{ id: string | null; name: string } | null>(initial ? { id: initial.id, name: fieldLabel(initial) } : props.initialFilter ? { id: initialField, name: initialField } : null);
   const [op, setOp] = createSignal<FilterOp | null>(props.initialFilter?.op ?? (props.sheet && initial?.kind === 'choice' ? 'is' : null));
   const initialIdentity = initial?.kind === 'instance' && (props.initialFilter?.op === 'is' || props.initialFilter?.op === 'is_not');
   const initialValue = props.initialFilter?.value;
   const resolvedInitial = !!initialValue && /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(initialValue);
-  const [query, setQuery] = createSignal(initial?.kind === 'checkbox' ? '' : initialIdentity && resolvedInitial ? (target => target ? target.kind === 'page' ? target.text : targetLabel(target.text, id => props.notebook.lookup(id)) : '')(props.notebook.lookup(initialValue!)()) : initialValue ?? '');
+  const [query, setQuery] = createSignal(initial?.kind === 'checkbox' ? '' : initialIdentity && resolvedInitial ? (target => target ? targetLabel(target.text, id => props.notebook.lookup(id)) : '')(props.notebook.lookup(initialValue!)()) : initialValue ?? '');
   const [draftValue, setDraftValue] = createSignal<string | null | undefined>(initialIdentity && !resolvedInitial ? undefined : initialValue);
   const [orEmpty, setOrEmpty] = createSignal(props.initialFilter?.or_empty ?? false);
   const [busy, setBusy] = createSignal(false); const [error, setError] = createSignal('');
@@ -49,7 +49,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
     const members = await relationMembers(props.notebook, field.targets);
     return [...members.pages, ...members.blocks.map(row => row.block)];
   });
-  const label = (block: Block) => (block.kind === 'page' ? plainText(block.text, id => props.notebook.lookup(id)) : targetLabel(block.text, id => props.notebook.lookup(id))) || 'Empty atom';
+  const label = (block: Block) => targetLabel(block.text, id => props.notebook.lookup(id)) || 'Empty atom';
   const [names] = createResource(() => identity() && pages() ? { pages: pages()!, query: query() } : false, async ({ pages, query }) => {
     const names = await completeNames(props.notebook, query, pages);
     const other = pages.filter(block => block.kind !== 'page');
@@ -59,7 +59,7 @@ export function FilterPopup(props: { anchor: HTMLElement; fields: readonly Field
   const valueError = createMemo(() => identity() && (pages.error || names.error) ? 'Could not load targets.' : '');
   const rows = createMemo((): FilterRow[] => {
     if (step() === 'field') {
-      const matching = props.fields.filter(candidate => candidate.name.toLocaleLowerCase().includes(needle())).map((candidate): FilterRow => ({ kind: 'field', id: candidate.id, name: candidate.name, type: candidate.kind }));
+      const matching = props.fields.filter(candidate => fieldLabel(candidate).toLocaleLowerCase().includes(needle())).map((candidate): FilterRow => ({ kind: 'field', id: candidate.id, name: fieldLabel(candidate), type: candidate.kind }));
       const exact = props.fields.some(candidate => candidate.name.toLocaleLowerCase() === needle());
       return props.onNewField && query().trim() && !exact ? [...matching, { kind: 'new-field', name: query().trim() }] : matching;
     }

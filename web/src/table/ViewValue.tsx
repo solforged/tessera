@@ -4,7 +4,7 @@ import type { NotebookClient, PageDocument, RelationPickIntent } from '../docume
 import { CriteriaCellEditor } from '../compare/CriteriaCellEditor';
 import { ValueEditor, writeFieldValue } from '../fields/value-editor';
 import { hasValueEditor } from '../fields/value-options';
-import { checkboxValue } from '../fields/kinds';
+import { checkboxValue, fieldLabel } from '../fields/kinds';
 import { createOptionValue } from '../fields/commands';
 import { BlockText } from '../outline/BlockText';
 import { titleTargets, typedTitles, withLinkedTitles } from '../outline/link-titles';
@@ -94,14 +94,14 @@ export function ViewValue(props: {
     else setEditing(text);
   }
   onMount(() => props.onReady?.(() => start(undefined, true)));
-  return <div ref={host} class="view-value" data-field-id={props.field.id} data-field-role={props.field.role ?? 'attribute'} tabIndex={0} role="group" aria-label={`Edit ${props.field.name} value`} aria-busy={busy()} onClick={event => {
+  return <div ref={host} class="view-value" data-field-id={props.field.id} data-field-role={props.field.role ?? 'attribute'} tabIndex={0} role="group" aria-label={`Edit ${fieldLabel(props.field)} value`} aria-busy={busy()} onClick={event => {
     if (!(event.target as HTMLElement).closest('.cm-editor,button,.picker')) { event.stopPropagation(); start(); }
   }} onKeyDown={event => {
     if (editing() !== null || picker() || event.isComposing) return;
     if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); start(); }
   }}>
-    <Show when={editing() !== null} fallback={<Show when={values().some(value => value.text.trim())} fallback={<span class="view-value-empty">Add {props.field.name}</span>}><For each={values()}>{value => <button type="button" class="criteria-value" onClick={event => { event.stopPropagation(); start(value.id); }}><BlockText text={value.text} blockId={value.id} notebook={props.notebook} interactive={false} /></button>}</For></Show>}>
-      <CriteriaCellEditor id={valueId() ?? props.row.block.block.id} text={editing() ?? ''} label={`Edit ${props.field.name} value`} notebook={props.notebook} onCommit={(text, focus, quote) => void write(text, focus, quote)} onCancel={() => finish()} onTab={props.onFill ? (text, direction, quote) => void write(text, false, quote, direction) : undefined} />
+    <Show when={editing() !== null} fallback={<Show when={values().some(value => value.text.trim())} fallback={<span class="view-value-empty">Add {fieldLabel(props.field)}</span>}><For each={values()}>{value => <button type="button" class="criteria-value" onClick={event => { event.stopPropagation(); start(value.id); }}><BlockText text={value.text} blockId={value.id} notebook={props.notebook} interactive={false} /></button>}</For></Show>}>
+      <CriteriaCellEditor id={valueId() ?? props.row.block.block.id} text={editing() ?? ''} label={`Edit ${fieldLabel(props.field)} value`} notebook={props.notebook} onCommit={(text, focus, quote) => void write(text, focus, quote)} onCancel={() => finish()} onTab={props.onFill ? (text, direction, quote) => void write(text, false, quote, direction) : undefined} />
     </Show>
     <Show when={picker()}><Show when={taskField()} fallback={<ValueEditor anchor={host} field={props.field} owner={{ id: props.row.block.block.id, page: props.row.block.page.id }} text={values().find(value => value.id === valueId())?.text ?? ''} notebook={props.notebook} contextDate={props.notebook.todayDate()} onWrite={(text, relationPick) => write(text, true, undefined, undefined, undefined, relationPick)} onCreateOption={text => write('', true, undefined, undefined, text)} onError={props.onError} onDismiss={() => finish()} />}>{field => <TaskFieldEditor doc={props.doc!} notebook={props.notebook} id={props.row.block.block.id} field={field()} anchor={host} contextDate={props.notebook.todayDate()} onSaved={() => props.onEdited(props.doc!)} onDismiss={() => finish()} />}</Show></Show>
   </div>;
