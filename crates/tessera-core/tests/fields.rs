@@ -761,7 +761,7 @@ fn unknown_stored_field_kind_is_corruption() {
 }
 
 #[test]
-fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_entries() {
+fn fields_page_is_idempotent_undeletable_recreated_when_missing_and_backfilled_on_migration() {
     let (dir, mut nb) = fixture();
     let fields = nb.fields().unwrap().page_id;
     assert_eq!(
@@ -852,14 +852,24 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
         ok(ReadingValue::Text("1970".into()), None)
     );
     apply(&mut nb, vec![insert(101, 2, "#fields")]);
-    apply(
-        &mut nb,
-        vec![Operation::Delete {
+    assert!(matches!(
+        nb.apply(&batch(vec![Operation::Delete {
             id: fields.clone(),
             base_revision: 1,
-        }],
-    );
+        }])),
+        Err(Error::Validation { .. })
+    ));
+    assert_eq!(nb.fields().unwrap().page_id, fields);
     drop(nb);
+    // Workshops from before that refusal may have deleted it.
+    let event = id(9000);
+    rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE))
+        .unwrap()
+        .execute_batch(&format!(
+            "INSERT INTO deletion_events(id, change_seq, created_at) SELECT '{event}', MAX(seq), 0 FROM changes;
+             UPDATE blocks SET deletion_id = '{event}' WHERE page_id = '{fields}';"
+        ))
+        .unwrap();
     let nb = Notebook::open(dir.path()).unwrap();
     let replacement = nb.fields().unwrap().page_id;
     assert_ne!(replacement, fields);
@@ -877,7 +887,60 @@ fn fields_page_is_idempotent_recreated_after_deletion_and_migration_backfills_en
         replacement
     );
     assert!(nb.fields().unwrap().fields.is_empty());
-    assert!(indexed(&dir, 100).is_empty());
+}
+
+#[test]
+fn the_fields_register_keeps_its_name_and_every_definition() {
+    let (_dir, mut nb) = fixture();
+    let revision = nb.block(&id(100)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![Operation::SetTask {
+            id: id(100),
+            base_revision: revision,
+            task: Some(tessera_core::TaskState {
+                status: Some(tessera_core::TaskStatus::Todo),
+                ..Default::default()
+            }),
+        }],
+    );
+    let before = nb.fields().unwrap();
+    let names = |view: &tessera_core::FieldsView| {
+        view.fields
+            .iter()
+            .map(|field| (field.definition.id.clone(), field.definition.name.clone()))
+            .collect::<Vec<_>>()
+    };
+    assert!(
+        before
+            .fields
+            .iter()
+            .any(|field| field.definition.name == "status")
+    );
+    let fields = before.page_id.clone();
+    let edit = |nb: &Notebook, text: &str| Operation::EditText {
+        id: fields.clone(),
+        base_revision: nb.block(&fields).unwrap().revision,
+        text: text.into(),
+    };
+    for operation in [
+        Operation::Delete {
+            id: fields.clone(),
+            base_revision: nb.block(&fields).unwrap().revision,
+        },
+        edit(&nb, "Fields renamed"),
+    ] {
+        assert!(matches!(
+            nb.apply(&batch(vec![operation])),
+            Err(Error::Validation { .. })
+        ));
+    }
+    // Lookups go by the folded title, so a change of case keeps the register.
+    let operation = edit(&nb, "FIELDS");
+    apply(&mut nb, vec![operation]);
+    let after = nb.fields().unwrap();
+    assert_eq!(after.page_id, fields);
+    assert_eq!(names(&after), names(&before));
 }
 
 #[test]
@@ -913,23 +976,14 @@ fn only_complete_references_to_direct_live_definitions_are_entries() {
     archive(&mut nb, 10, false);
     assert_eq!(indexed(&dir, 100), vec![id(300)]);
     let field_page = nb.block(&fields).unwrap();
-    apply(
-        &mut nb,
-        vec![Operation::EditText {
-            id: fields.clone(),
+    assert!(matches!(
+        nb.apply(&batch(vec![Operation::EditText {
+            id: fields,
             base_revision: field_page.revision,
             text: "Former fields".into(),
-        }],
-    );
-    assert!(indexed(&dir, 100).is_empty());
-    apply(
-        &mut nb,
-        vec![Operation::EditText {
-            id: fields,
-            base_revision: field_page.revision + 1,
-            text: "Fields".into(),
-        }],
-    );
+        }])),
+        Err(Error::Validation { .. })
+    ));
     assert_eq!(indexed(&dir, 100), vec![id(300)]);
 }
 

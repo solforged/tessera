@@ -597,6 +597,139 @@ fn invert(patch: &[u8]) -> Result<Vec<u8>> {
     Ok(inverse)
 }
 
+/// The history rows of this replica's unconfirmed changes, kept aside while
+/// integrating renumbers those changes. `change_history` is local and keyed
+/// by log number; rows left under the old numbers would describe, and undo,
+/// whichever hub changes take those numbers.
+struct LocalHistory {
+    /// Each unconfirmed change's number before integrating, with its ID.
+    changes: BTreeMap<i64, String>,
+    rows: Vec<HistoryRow>,
+    /// Other rows' undo links to those changes: (row, column, linked change).
+    links: Vec<(i64, &'static str, i64)>,
+}
+
+struct HistoryRow {
+    seq: i64,
+    summary: String,
+    page_id: Option<String>,
+    undo: Option<String>,
+    undone_seq: Option<i64>,
+    undoes_seq: Option<i64>,
+}
+
+impl LocalHistory {
+    /// Take the rows out before the unconfirmed changes leave the log.
+    fn detach(conn: &Connection) -> Result<Self> {
+        const PENDING: &str = "SELECT seq FROM sync_pending WHERE seq IS NOT NULL";
+        let changes = conn
+            .prepare("SELECT seq, change_id FROM sync_pending WHERE seq IS NOT NULL")?
+            .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<rusqlite::Result<BTreeMap<i64, String>>>()?;
+        if changes.is_empty() {
+            return Ok(Self {
+                changes,
+                rows: Vec::new(),
+                links: Vec::new(),
+            });
+        }
+
+        let rows = conn
+            .prepare(&format!(
+                "SELECT seq, summary, page_id, undo, undone_seq, undoes_seq
+                 FROM change_history WHERE seq IN ({PENDING})"
+            ))?
+            .query_map([], |row| {
+                Ok(HistoryRow {
+                    seq: row.get(0)?,
+                    summary: row.get(1)?,
+                    page_id: row.get(2)?,
+                    undo: row.get(3)?,
+                    undone_seq: row.get(4)?,
+                    undoes_seq: row.get(5)?,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        let mut links = Vec::new();
+        for column in ["undone_seq", "undoes_seq"] {
+            let mut statement = conn.prepare(&format!(
+                "SELECT seq, {column} FROM change_history
+                 WHERE {column} IN ({PENDING}) AND seq NOT IN ({PENDING})"
+            ))?;
+            for link in statement.query_map([], |row| Ok((row.get(0)?, column, row.get(1)?)))? {
+                links.push(link?);
+            }
+            conn.execute(
+                &format!("UPDATE change_history SET {column} = NULL WHERE {column} IN ({PENDING})"),
+                [],
+            )?;
+        }
+        conn.execute(
+            &format!("DELETE FROM change_history WHERE seq IN ({PENDING})"),
+            [],
+        )?;
+        Ok(Self {
+            changes,
+            rows,
+            links,
+        })
+    }
+
+    /// Put the rows back under the numbers their changes have now. A change
+    /// that did not apply again, or that the hub rejected, has nothing here
+    /// to undo and loses its row.
+    fn reattach(self, conn: &mut Connection) -> Result<()> {
+        if self.rows.is_empty() && self.links.is_empty() {
+            return Ok(());
+        }
+        let tx = conn.transaction()?;
+        let mut renumbered = BTreeMap::new();
+        {
+            let mut current = tx.prepare(
+                "SELECT c.seq FROM changes c WHERE c.change_id = ?1 AND NOT EXISTS (
+                     SELECT 1 FROM sync_conflicts s WHERE s.change_id = c.change_id AND s.kind = 'rejected')",
+            )?;
+            for (seq, change_id) in &self.changes {
+                let now: Option<i64> = current
+                    .query_row([change_id], |row| row.get(0))
+                    .optional()?;
+                renumbered.insert(*seq, now);
+            }
+        }
+        let renumber =
+            |seq: Option<i64>| seq.and_then(|seq| *renumbered.get(&seq).unwrap_or(&Some(seq)));
+        for (seq, column, linked) in self.links {
+            tx.execute(
+                &format!("UPDATE change_history SET {column} = ?1 WHERE seq = ?2"),
+                params![renumber(Some(linked)), seq],
+            )?;
+        }
+        for row in self.rows {
+            let Some(seq) = renumber(Some(row.seq)) else {
+                continue;
+            };
+            // Earlier versions could leave another change's row under this
+            // number; this change's row replaces it.
+            tx.execute(
+                "INSERT INTO change_history(seq, summary, page_id, undo, undone_seq, undoes_seq)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                 ON CONFLICT(seq) DO UPDATE SET summary = excluded.summary, page_id = excluded.page_id,
+                     undo = excluded.undo, undone_seq = excluded.undone_seq, undoes_seq = excluded.undoes_seq",
+                params![
+                    seq,
+                    row.summary,
+                    row.page_id,
+                    row.undo,
+                    renumber(row.undone_seq),
+                    renumber(row.undoes_seq)
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+}
+
 /// Move the snapshots `ids` names from `fetch` to `store` in bounded pieces.
 /// Each piece is stored as it arrives; a snapshot stored partway counts as
 /// missing, so an interrupted transfer is finished by the next one.
@@ -1087,12 +1220,9 @@ impl Notebook {
         // Undoing a change can remove a citation a surfacing names; keep those
         // surfacings to restore once the change is applied again.
         let surfacings = crate::sync_library::pending_surfacings(&tx)?;
+        let history = LocalHistory::detach(&tx)?;
         // Remember invalidations for tentative effects that may disappear.
-        let pending_seqs = tx
-            .prepare("SELECT seq FROM sync_pending WHERE seq IS NOT NULL")?
-            .query_map([], |row| row.get::<_, i64>(0))?
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        for seq in pending_seqs {
+        for &seq in history.changes.keys() {
             crate::reads::record_editor_event(&tx, seq, true)?;
         }
         let patcher = Patcher::new(&tx)?;
@@ -1122,8 +1252,19 @@ impl Notebook {
             [],
         )?;
         tx.commit()?;
-        let remaining = self.sync_outbox()?.changes;
-        for change in &remaining {
+        let replayed = self.replay_outbox(&mut report);
+        let reattached = history.reattach(&mut self.conn);
+        replayed?;
+        reattached?;
+        crate::sync_library::restore_surfacings(&self.conn, &surfacings)?;
+        crate::sync_library::reconcile(&self.conn)?;
+        Ok(report)
+    }
+
+    /// Apply again the local changes the hub has not confirmed yet. One
+    /// that no longer applies stays in the outbox for the hub to decide.
+    fn replay_outbox(&mut self, report: &mut IntegrateReport) -> Result<()> {
+        for change in &self.sync_outbox()?.changes {
             match self.apply_replicated(change, false) {
                 Ok(outcome) => {
                     report.replayed += 1;
@@ -1141,9 +1282,7 @@ impl Notebook {
                 Err(error) => return Err(error),
             }
         }
-        crate::sync_library::restore_surfacings(&self.conn, &surfacings)?;
-        crate::sync_library::reconcile(&self.conn)?;
-        Ok(report)
+        Ok(())
     }
 
     /// Push this replica's changes to `hub` and bring it up to the hub.

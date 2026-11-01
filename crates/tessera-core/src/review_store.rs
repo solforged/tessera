@@ -6,7 +6,7 @@ use serde::de::{DeserializeOwned, value::StrDeserializer};
 use crate::card_query::tag_deck_pages;
 use crate::reads::hidden_blocks;
 use crate::scheduler::{self, Grade, SchedulingState};
-use crate::storage::{not_found, validate_id, validation};
+use crate::storage::{not_found_as, validate_id, validation};
 use crate::{
     CardPreviews, CardUnit, Error, GradePreview, Notebook, Operation, Result, ReviewEvent,
     ReviewSession, ReviewSessionState, Revision,
@@ -279,7 +279,7 @@ fn checked_card(conn: &Connection, id: &str, expected: i64, index: usize) -> Res
 fn check_review_session(conn: &Connection, id: Option<&str>, reviewed_at: i64) -> Result<()> {
     nonnegative(reviewed_at)?;
     if let Some(id) = id {
-        let current = session(conn, id)?.ok_or_else(|| not_found(id))?;
+        let current = session(conn, id)?.ok_or_else(|| not_found_as("review session", id))?;
         if current.state != ReviewSessionState::Open {
             return Err(validation("review session is closed"));
         }
@@ -520,7 +520,7 @@ pub(crate) fn apply(
                     ))?
                     .query_row([deck_id], |row| row.get::<_, bool>(0))?
             {
-                return Err(not_found(deck_id));
+                return Err(not_found_as("deck", deck_id));
             }
             conn.execute(
                 "INSERT INTO review_sessions(id, deck_id, started_at, ended_at, state, revision)
@@ -967,7 +967,7 @@ impl Notebook {
                         ))?
                         .query_row([deck_id], |row| row.get::<_, bool>(0))?;
                     if !live_page {
-                        return Err(not_found(deck_id));
+                        return Err(not_found_as("deck", deck_id));
                     }
                     Some(crate::Query {
                         r#type: Some(deck_id.to_owned()),
@@ -1119,7 +1119,7 @@ impl Notebook {
     }
 
     pub fn review_session(&self, id: &str) -> Result<ReviewSession> {
-        session(&self.conn, id)?.ok_or_else(|| not_found(id))
+        session(&self.conn, id)?.ok_or_else(|| not_found_as("review session", id))
     }
 
     pub fn card_previews(&self, id: &str, now: i64) -> Result<CardPreviews> {

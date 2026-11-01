@@ -505,18 +505,20 @@ fn empty_workshop_defers_task_seed_and_recreated_fields_have_fresh_ids() {
     let nb = Notebook::open(empty.path()).unwrap();
     assert!(nb.fields().unwrap().fields.is_empty());
     assert!(nb.page_by_title("Task").unwrap().is_none());
-    let (directory, mut nb) = fixture();
+    let (directory, nb) = fixture();
     let old_status = field(&nb, "status");
     let fields = nb.fields().unwrap().page_id;
-    let revision = nb.block(&fields).unwrap().revision;
-    apply(
-        &mut nb,
-        vec![Operation::Delete {
-            id: fields,
-            base_revision: revision,
-        }],
-    );
     drop(nb);
+    // The engine refuses to delete Fields; workshops from before that rule
+    // may have deleted it.
+    let event = id(9000);
+    rusqlite::Connection::open(directory.path().join(DATABASE_FILE))
+        .unwrap()
+        .execute_batch(&format!(
+            "INSERT INTO deletion_events(id, change_seq, created_at) SELECT '{event}', MAX(seq), 0 FROM changes;
+             UPDATE blocks SET deletion_id = '{event}' WHERE page_id = '{fields}';"
+        ))
+        .unwrap();
     let nb = Notebook::open(directory.path()).unwrap();
     assert_ne!(field(&nb, "status"), old_status);
     assert!(nb.capabilities(&id(2)).unwrap().task.is_some());

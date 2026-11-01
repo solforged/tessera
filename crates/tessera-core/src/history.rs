@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 
-use crate::storage::{not_found, stored, validation};
+use crate::storage::{not_found, not_found_as, stored, validation};
 use crate::{
     Actor, Batch, Block, BlockKind, CardQuery, Committed, Error, Notebook, Operation, RelationKind,
     Result, Revision, TaskState,
@@ -30,6 +30,10 @@ pub struct HistoryEntry {
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct UndoReceipt {
+    /// The undo's own change in the history log: pass it to
+    /// [`Notebook::undo_change`] to redo. Editor routes rewrite
+    /// `committed.seq` to their arrival cursor; this stays the log's number.
+    pub seq: i64,
     pub undone: i64,
     /// Pages the change created that were kept because they are now in use
     /// or were renamed.
@@ -297,7 +301,7 @@ impl Notebook {
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?
-            .ok_or_else(|| not_found(&format!("change {seq}")))?;
+            .ok_or_else(|| not_found_as("change", &seq.to_string()))?;
         if let Some(by) = undone {
             return Err(validation(format!(
                 "change {seq} was already undone by change {by}"
@@ -370,21 +374,31 @@ impl Notebook {
                     }),
             )
             .collect();
+        // Deleting a block takes its subtree, so blocks the change added
+        // below it must still read as the change left them.
+        let edited = self.edited_insertions(seq, &undone_later, &undo.inserted)?;
+        let unedited = |descendants: &[String]| match descendants
+            .iter()
+            .find(|id| edited.contains(id.as_str()))
+        {
+            Some(id) => Err(validation(format!(
+                "atom {id} changed after change {seq}; undo or revert that edit first"
+            ))),
+            None => Ok(()),
+        };
         let mut operations = undo.operations.clone();
         for block in &undo.removable {
             if self.live_block(&block.id)?.is_none() {
                 continue;
             }
-            if self
-                .live_descendants(&block.id)?
-                .iter()
-                .any(|id| !owned.contains(id.as_str()))
-            {
+            let descendants = self.live_descendants(&block.id)?;
+            if descendants.iter().any(|id| !owned.contains(id.as_str())) {
                 return Err(validation(format!(
                     "atom {} has children added after change {seq}; move or delete them first",
                     block.id
                 )));
             }
+            unedited(&descendants)?;
             operations.push(Operation::Delete {
                 id: block.id.clone(),
                 base_revision: block.revision,
@@ -394,16 +408,15 @@ impl Notebook {
             let Some(current) = self.live_block(&field.id)? else {
                 continue;
             };
+            let descendants = self.live_descendants(&field.id)?;
             if current.revision == field.revision
-                && self
-                    .live_descendants(&field.id)?
-                    .iter()
-                    .all(|id| owned.contains(id.as_str()))
+                && descendants.iter().all(|id| owned.contains(id.as_str()))
                 && self
                     .live_referrers(&field.id)?
                     .iter()
                     .all(|id| owned.contains(id.as_str()))
             {
+                unedited(&descendants)?;
                 operations.push(Operation::Delete {
                     id: field.id.clone(),
                     base_revision: field.revision,
@@ -416,16 +429,15 @@ impl Notebook {
             let Some(current) = self.live_block(&page.id)? else {
                 continue;
             };
+            let descendants = self.live_descendants(&page.id)?;
             let unused = current.revision == page.revision
-                && self
-                    .live_descendants(&page.id)?
-                    .iter()
-                    .all(|id| owned.contains(id.as_str()))
+                && descendants.iter().all(|id| owned.contains(id.as_str()))
                 && self
                     .live_referrers(&page.id)?
                     .iter()
                     .all(|id| owned.contains(id.as_str()));
             if unused {
+                unedited(&descendants)?;
                 operations.push(Operation::Delete {
                     id: page.id.clone(),
                     base_revision: page.revision,
@@ -468,6 +480,7 @@ impl Notebook {
                 error => error,
             })?;
         Ok(UndoReceipt {
+            seq: committed.seq,
             undone: seq,
             kept_pages,
             committed,
@@ -530,6 +543,35 @@ impl Notebook {
         } else {
             0
         })
+    }
+
+    /// Blocks change `seq` added that a later change edited, other than
+    /// edits that changes in `undone` cancelled.
+    fn edited_insertions(
+        &self,
+        seq: i64,
+        undone: &HashSet<i64>,
+        inserted: &[String],
+    ) -> Result<HashSet<String>> {
+        let changed: Vec<String> = self
+            .conn
+            .prepare_cached(
+                "SELECT r.block_id FROM change_revisions r JOIN blocks b ON b.id = r.block_id
+                 WHERE r.change_seq = ?1 AND b.deletion_id IS NULL AND b.revision <> r.revision",
+            )?
+            .query_map([seq], |row| row.get(0))?
+            .collect::<rusqlite::Result<_>>()?;
+        let mut edited = HashSet::new();
+        if changed.is_empty() {
+            return Ok(edited);
+        }
+        let inserted: HashSet<&str> = inserted.iter().map(String::as_str).collect();
+        for id in changed {
+            if inserted.contains(id.as_str()) && self.revision_shift(seq, undone, &id)? == 0 {
+                edited.insert(id);
+            }
+        }
+        Ok(edited)
     }
 
     /// Cards have their own revision stream, recorded in committed receipts

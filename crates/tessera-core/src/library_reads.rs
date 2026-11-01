@@ -3,7 +3,7 @@ use crate::library_store::{
     enum_at, json, json_at, source, source_at, source_columns, source_siglum,
 };
 use crate::reads::{fts_query, hidden_blocks};
-use crate::storage::{block_at, block_columns, not_found, validation};
+use crate::storage::{block_at, block_columns, not_found_as, validation};
 use crate::{Actor, Batch, BlockCapabilities, BlockInPage, Direction, Notebook, Operation, Result};
 use rusqlite::{Connection, OptionalExtension, params};
 use std::collections::HashMap;
@@ -98,7 +98,7 @@ pub(crate) fn passage(conn: &Connection, id: &str) -> Result<Passage> {
     statement
         .query_row([id], |r| passage_at(r, 0))
         .optional()?
-        .ok_or_else(|| not_found(id))
+        .ok_or_else(|| not_found_as("passage", id))
 }
 
 fn toc(conn: &Connection, snapshot: &str) -> Result<Vec<TocEntry>> {
@@ -387,7 +387,7 @@ pub(crate) fn progress(conn: &Connection, snapshot: &str) -> Result<f64> {
 impl Notebook {
     pub fn source(&self, id: &str) -> Result<SourceView> {
         let page = self.block(id)?;
-        let source = source(&self.conn, id)?.ok_or_else(|| not_found(id))?;
+        let source = source(&self.conn, id)?.ok_or_else(|| not_found_as("source", id))?;
         let mut statement = self.conn.prepare_cached(
             "SELECT s.id, s.sha256, s.format, s.media_type, s.metadata,
                     s.passage_count, s.text_length, a.attached_at, a.change_seq
@@ -448,7 +448,7 @@ impl Notebook {
                 |r| r.get(0),
             )
             .optional()?
-            .ok_or_else(|| not_found(snapshot))?;
+            .ok_or_else(|| not_found_as("snapshot", snapshot))?;
         let mut statement = self.conn.prepare_cached(concat!(
             "SELECT ",
             passage_columns!(),
@@ -606,7 +606,7 @@ impl Notebook {
                 |r| r.get(0),
             )
             .optional()?
-            .ok_or_else(|| not_found(snapshot))?;
+            .ok_or_else(|| not_found_as("snapshot", snapshot))?;
         if ordinal < 0 || ordinal >= count {
             return Err(validation("Reading positions must be inside the snapshot."));
         }
@@ -624,8 +624,8 @@ impl Notebook {
                 |r| r.get(0),
             )
             .optional()?
-            .ok_or_else(|| not_found(snapshot))?;
-        let source = source(&self.conn, &id)?.ok_or_else(|| not_found(&id))?;
+            .ok_or_else(|| not_found_as("snapshot", snapshot))?;
+        let source = source(&self.conn, &id)?.ok_or_else(|| not_found_as("source", &id))?;
         let seq = if source.state == ReadingState::Inbox {
             let mut state = source.source_state();
             state.state = ReadingState::Reading;
