@@ -324,3 +324,191 @@ fn plain_creator_opt_in_preserves_long_ordered_bylines_without_entity_pages() {
         .join(" and ");
     assert!(bib.contains(&format!("author = {{{authors}}}")), "{bib}");
 }
+
+fn id(value: u128) -> String {
+    ulid::Ulid::from(value).to_string()
+}
+fn apply(notebook: &mut Notebook, operations: Vec<tessera_core::Operation>) {
+    notebook
+        .apply(&Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations,
+        })
+        .unwrap();
+}
+fn insert(value: u128, parent: &str, text: &str) -> tessera_core::Operation {
+    tessera_core::Operation::Insert {
+        id: id(value),
+        parent_id: parent.into(),
+        after: None,
+        text: text.into(),
+        heading: None,
+    }
+}
+/// A manual record, as `#source` or a source action makes one: no key of its own.
+fn record(value: u128, citation_key: Option<&str>) -> tessera_core::Operation {
+    tessera_core::Operation::SetSource {
+        id: id(value),
+        base_revision: 1,
+        source: Some(SourceState {
+            format: SourceFormat::Record,
+            state: ReadingState::Inbox,
+            origin: None,
+            match_key: None,
+            citation_key: citation_key.map(str::to_owned),
+        }),
+    }
+}
+fn key(notebook: &Notebook, value: u128) -> Option<String> {
+    notebook.source(&id(value)).unwrap().source.citation_key
+}
+/// An authored edit that clears the key and keeps the rest of the source's state.
+fn clear_key(notebook: &mut Notebook, value: u128) {
+    let mut state = notebook.source(&id(value)).unwrap().source.source_state();
+    state.citation_key = None;
+    let base_revision = notebook.block(&id(value)).unwrap().revision;
+    apply(
+        notebook,
+        vec![tessera_core::Operation::SetSource {
+            id: id(value),
+            base_revision,
+            source: Some(state),
+        }],
+    );
+}
+
+#[test]
+fn manual_sources_get_a_citation_key_from_their_fields_when_made() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let fields = notebook.fields().unwrap().page_id;
+    apply(
+        &mut notebook,
+        vec![
+            insert(10, &fields, "author"),
+            insert(11, &fields, "published"),
+        ],
+    );
+    // A `#source` page filed with its author and date in one change, as agent notes are.
+    let filed = |page: u128, title: &str, author: &str, year: &str| {
+        vec![
+            tessera_core::Operation::CreatePage {
+                id: id(page),
+                title: title.into(),
+            },
+            insert(page * 100, &id(page), &format!("[[{}]]", id(10))),
+            insert(page * 100 + 1, &id(page * 100), author),
+            insert(page * 100 + 2, &id(page), &format!("[[{}]]", id(11))),
+            insert(page * 100 + 3, &id(page * 100 + 2), year),
+        ]
+    };
+    apply(
+        &mut notebook,
+        filed(
+            1,
+            "Attention Is All You Need #source",
+            "Ashish Vaswani",
+            "2017-06-12",
+        ),
+    );
+    assert_eq!(key(&notebook, 1).as_deref(), Some("vaswani2017attention"));
+    let bib = notebook.export(&[id(1)], ExportFormat::Bibtex).unwrap();
+    assert!(bib.contains("{vaswani2017attention,"), "{bib}");
+
+    // A source action's record keys the same way; a collision takes the next suffix.
+    let mut operations = filed(2, "Attention, revisited", "Vaswani, Ashish", "2017");
+    operations.push(record(2, None));
+    apply(&mut notebook, operations);
+    assert_eq!(key(&notebook, 2).as_deref(), Some("vaswani2017attentiona"));
+
+    // An authored key wins, and a record with no fields still gets one.
+    apply(
+        &mut notebook,
+        vec![
+            tessera_core::Operation::CreatePage {
+                id: id(3),
+                title: "Chosen".into(),
+            },
+            record(3, Some("mine")),
+            tessera_core::Operation::CreatePage {
+                id: id(4),
+                title: "The Bare Record".into(),
+            },
+            record(4, None),
+        ],
+    );
+    assert_eq!(key(&notebook, 3).as_deref(), Some("mine"));
+    assert_eq!(key(&notebook, 4).as_deref(), Some("anonndbare"));
+
+    // A key is never recomputed when fields change, and clearing it is an authored edit that stays.
+    let value = notebook.block(&id(101)).unwrap();
+    apply(
+        &mut notebook,
+        vec![tessera_core::Operation::EditText {
+            id: id(101),
+            base_revision: value.revision,
+            text: "Noam Shazeer".into(),
+        }],
+    );
+    assert_eq!(key(&notebook, 1).as_deref(), Some("vaswani2017attention"));
+    clear_key(&mut notebook, 4);
+    assert_eq!(key(&notebook, 4), None);
+}
+
+#[test]
+fn opening_gives_keyless_sources_a_suggested_key_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let fields = notebook.fields().unwrap().page_id;
+    let mut operations = vec![insert(10, &fields, "author")];
+    for (page, title) in [(1, "Notes on Keys"), (2, "Notes, again")] {
+        operations.extend([
+            tessera_core::Operation::CreatePage {
+                id: id(page),
+                title: title.into(),
+            },
+            insert(page * 100, &id(page), &format!("[[{}]]", id(10))),
+            insert(page * 100 + 1, &id(page * 100), "Jane Doe"),
+            record(page, None),
+        ]);
+    }
+    apply(&mut notebook, operations);
+    let last = |notebook: &Notebook| {
+        notebook
+            .changes_since(0, usize::MAX)
+            .unwrap()
+            .pop()
+            .unwrap()
+    };
+    let before = last(&notebook).seq;
+    drop(notebook);
+    // Before keys were made with the record, these sources had none.
+    let conn = rusqlite::Connection::open(dir.path().join(tessera_core::DATABASE_FILE)).unwrap();
+    conn.execute("UPDATE sources SET citation_key = NULL", [])
+        .unwrap();
+    drop(conn);
+
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    assert_eq!(key(&notebook, 1).as_deref(), Some("doendnotes"));
+    assert_eq!(key(&notebook, 2).as_deref(), Some("doendnotesa"));
+    let backfill = last(&notebook);
+    assert_eq!(backfill.seq, before + 1);
+    assert_eq!(
+        backfill.actor,
+        Actor::Client {
+            name: "Citation keys".into()
+        }
+    );
+    let bib = notebook
+        .export(&[id(1), id(2)], ExportFormat::Bibtex)
+        .unwrap();
+    assert!(bib.contains("{doendnotesa,"), "{bib}");
+
+    // Once that has run, a key a person clears stays clear.
+    clear_key(&mut notebook, 2);
+    drop(notebook);
+    let notebook = Notebook::open(dir.path()).unwrap();
+    assert_eq!(key(&notebook, 2), None);
+}

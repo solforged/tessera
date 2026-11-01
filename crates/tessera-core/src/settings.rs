@@ -14,7 +14,11 @@ pub(crate) fn validate_setting(key: &str, value: &str) -> Result<()> {
         "vim" => Err(validation("vim must be true or false")),
         "confirm_view_delete" if matches!(value, "true" | "false") => Ok(()),
         "confirm_view_delete" => Err(validation("confirm_view_delete must be true or false")),
-        "library_creator_targets" | "task_field_template" if value == "true" => Ok(()),
+        "library_creator_targets" | "task_field_template" | "built_in_roles" | "citation_keys"
+            if value == "true" =>
+        {
+            Ok(())
+        }
         "today_template" => validate_today_template(value),
         _ => Err(validation(format!("unknown setting: {key}"))),
     }

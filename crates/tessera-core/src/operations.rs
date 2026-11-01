@@ -143,6 +143,7 @@ impl Notebook {
             revisions: Vec::new(),
             settings: Vec::new(),
             capability_sources: HashSet::new(),
+            activated_sources: BTreeSet::new(),
             card_sources: HashSet::new(),
             template_types: HashSet::new(),
             cards: BTreeMap::new(),
@@ -260,6 +261,7 @@ impl Notebook {
             )));
         }
         engine.derive_templates(owners)?;
+        engine.assign_citation_keys()?;
         let mut views: Vec<&str> = Vec::new();
         for operation in &batch.operations {
             if let Operation::SaveView { id, .. } | Operation::DeleteView { id, .. } = operation
@@ -586,6 +588,8 @@ struct Engine<'a, 'conn> {
     revisions: Vec<Revision>,
     settings: Vec<SettingRevision>,
     capability_sources: HashSet<String>,
+    /// Sources this change made or reactivated, which get a citation key at its end if they have none.
+    activated_sources: BTreeSet<String>,
     card_sources: HashSet<String>,
     template_types: HashSet<String>,
     cards: BTreeMap<String, Revision>,
@@ -878,8 +882,37 @@ impl Engine<'_, '_> {
                     let current = self.live(&current.block.id)?;
                     self.bump(&current, false)?;
                     self.capability_sources.insert(id.clone());
+                    if *key == "source" && after & mask != 0 {
+                        self.activated_sources.insert(id.clone());
+                    }
                 }
             }
+        }
+        Ok(())
+    }
+
+    /// A source this change made without a citation key gets its suggested key, read from the title and
+    /// fields the change leaves it with, as ingestion assigns one. It is never recomputed afterwards.
+    fn assign_citation_keys(&mut self) -> Result<()> {
+        for id in std::mem::take(&mut self.activated_sources) {
+            let title: Option<String> = self
+                .tx
+                .prepare_cached(
+                    "SELECT b.text FROM sources s JOIN blocks b ON b.id = s.block_id
+                     WHERE s.block_id = ?1 AND s.active = 1 AND s.citation_key IS NULL
+                     AND b.deletion_id IS NULL",
+                )?
+                .query_row([&id], |row| row.get(0))
+                .optional()?;
+            let Some(title) = title else {
+                continue;
+            };
+            let key =
+                crate::library_ingest::source_citation_key(self.tx, &id, &title, &HashSet::new())?;
+            self.tx.execute(
+                "UPDATE sources SET citation_key = ?2 WHERE block_id = ?1",
+                params![id, key],
+            )?;
         }
         Ok(())
     }
@@ -2332,6 +2365,20 @@ impl Engine<'_, '_> {
                 id, base_revision, ..
             } => {
                 let current = self.checked(id, *base_revision, index, false)?;
+                let activates = matches!(
+                    operation,
+                    Operation::SetSource {
+                        source: Some(crate::library::SourceState {
+                            citation_key: None,
+                            ..
+                        }),
+                        ..
+                    }
+                ) && !self.tx.query_row(
+                    "SELECT EXISTS(SELECT 1 FROM sources WHERE block_id = ?1 AND active = 1)",
+                    [id],
+                    |row| row.get::<_, bool>(0),
+                )?;
                 let changed = crate::library_store::apply(self.tx, operation, self.now, self.seq)?;
                 let removed = matches!(operation, Operation::SetSource { source: None, .. })
                     && self.remove_capability_tag(id, "source")?;
@@ -2340,6 +2387,9 @@ impl Engine<'_, '_> {
                         self.bump(&current, false)?;
                     }
                     self.capability_sources.insert(id.clone());
+                    if activates {
+                        self.activated_sources.insert(id.clone());
+                    }
                 }
                 Ok(())
             }

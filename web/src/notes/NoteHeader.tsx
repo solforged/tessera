@@ -6,7 +6,7 @@ import { Icon } from '../ui/Icon';
 import { noteKindIcon } from './kinds';
 import type { NotebookClient, PageDocument } from '../document/contract';
 import { foldName } from '../outline/names';
-import { fieldEntryId } from '../table/query';
+import { aliasEntries, aliasNames } from './aliases';
 import type { OpenTarget } from '../shell/contract';
 import { calendarDate, civilDate } from '../tasks/relative-date';
 import { isPhone } from '../ui/phone';
@@ -22,35 +22,21 @@ export function NoteEyebrow(props: { kinds: NoteKind[] | undefined; onOpen(targe
   </Show>;
 }
 
-/** Alternate names read from the open document, including unsaved value edits. */
+/** Alternate names read from the open document, including unsaved value edits: every top-level Aliases entry's values, in outline order. */
 export function NoteAliases(props: { doc: PageDocument; fields: FieldDefinition[]; onEdit(entry: string): void }) {
   const fieldId = createMemo(() => props.fields.find(field => foldName(field.name) === 'aliases')?.id);
-  const entry = createMemo(() => {
+  const entries = createMemo(() => {
     const id = fieldId();
-    if (!id) return undefined;
+    if (!id) return [];
     const doc = props.doc;
     doc.archivedVersion();
-    const children = doc.outline.children(doc.pageId);
+    doc.outline.children(doc.pageId);
     // As with Gloss, entry identity follows structure, not every prose keystroke.
-    return untrack(() => children.find(child => {
-      const block = doc.block(child);
-      return block && !block.archived && fieldEntryId(block.text) === id;
-    }));
-  });
-  const aliases = createMemo(() => {
-    const id = entry();
-    if (!id) return [];
-    const result: string[] = [];
-    for (const child of props.doc.outline.children(id)) {
-      const block = props.doc.block(child);
-      if (!block || block.archived) continue;
-      const text = block.text.trim();
-      if (text) result.push(text);
-    }
-    return result;
-  });
+    return untrack(() => aliasEntries(doc, id));
+  }, [], { equals: (a, b) => a.length === b.length && a.every((id, index) => id === b[index]) });
+  const aliases = createMemo(() => aliasNames(props.doc, entries()));
   return <Show when={aliases().length}>
-    <p class="note-aliases"><button type="button" aria-label="Edit aliases" onClick={() => props.onEdit(entry()!)}><span class="note-aliases-label">Also</span>{' '}
+    <p class="note-aliases"><button type="button" aria-label="Edit aliases" onClick={() => props.onEdit(entries().find(entry => aliasNames(props.doc, [entry]).length) ?? entries()[0]!)}><span class="note-aliases-label">Also</span>{' '}
       <For each={aliases()}>{(alias, index) => <>
         <Show when={index()}><span class="note-aliases-separator" aria-hidden="true"> · </span></Show>
         <span>{alias}</span>

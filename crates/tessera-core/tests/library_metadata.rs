@@ -86,6 +86,15 @@ fn duplicate_key_within_one_batch_is_atomic_and_names_the_first_source() {
     let mut notebook = Notebook::open(directory.path()).unwrap();
     let first = source(&mut notebook, "First selected source", None);
     let second = source(&mut notebook, "Second selected source", None);
+    // Each record got its suggested key when it was made; a rejected batch keeps both.
+    let assigned: Vec<_> = [&first, &second]
+        .into_iter()
+        .map(|id| notebook.source(id).unwrap().source.citation_key)
+        .collect();
+    assert_eq!(
+        assigned,
+        [Some("anonndfirst".into()), Some("anonndsecond".into())]
+    );
     let operations = [&first, &second]
         .into_iter()
         .map(|id| {
@@ -101,8 +110,8 @@ fn duplicate_key_within_one_batch_is_atomic_and_names_the_first_source() {
         .collect();
     let error = notebook.apply(&batch(operations)).unwrap_err().to_string();
     assert!(error.contains("First selected source"), "{error}");
-    for id in [&first, &second] {
-        assert_eq!(notebook.source(id).unwrap().source.citation_key, None);
+    for (id, key) in [&first, &second].into_iter().zip(&assigned) {
+        assert_eq!(&notebook.source(id).unwrap().source.citation_key, key);
     }
 }
 

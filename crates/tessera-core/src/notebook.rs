@@ -74,6 +74,7 @@ impl Notebook {
         )?;
         let mut notebook = Self { dir, conn };
         notebook.backfill_library_creators()?;
+        notebook.backfill_citation_keys()?;
         notebook.ensure_built_in_fields()?;
         Ok(notebook)
     }

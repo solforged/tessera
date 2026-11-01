@@ -2355,7 +2355,19 @@ fn shorthand_creates_built_in_fields_with_their_kind_links_and_options() {
 
     let lived = definition(&nb, "lived");
     assert_eq!((lived.kind, lived.built_in), (FieldKind::Span, true));
-    assert_eq!(definition(&nb, "gloss").kind, FieldKind::Text);
+    // Gloss is the built-in standfirst: it reads under the title and previews the note in its finding aid.
+    let gloss = definition(&nb, "gloss");
+    assert_eq!(
+        (gloss.kind, gloss.role),
+        (FieldKind::Text, tessera_core::FieldRole::Standfirst)
+    );
+    let babbage_id = babbage.page.as_ref().unwrap().id.clone();
+    assert_eq!(
+        nb.kind_notes("person").unwrap().summaries[&babbage_id]
+            .preview
+            .as_deref(),
+        Some("English mathematician")
+    );
     let affiliated = definition(&nb, "affiliated with");
     assert_eq!(affiliated.kind, FieldKind::Instance);
     assert_eq!(affiliated.targets, std::slice::from_ref(&group));
@@ -2381,10 +2393,27 @@ fn shorthand_creates_built_in_fields_with_their_kind_links_and_options() {
         ]
     );
     let paper = form.options[3].id.clone();
+    let note_g_id = note_g.page.as_ref().unwrap().id.clone();
     assert_eq!(
-        outline(&nb, &note_g.page.unwrap().id)[..2],
+        outline(&nb, &note_g_id)[..2],
         [format!("[[{}]]", form.id), format!("  [[{paper}]]")]
     );
+    // A source filed with its fields gets its citation key then, so it exports at once.
+    assert_eq!(
+        nb.source(&note_g_id)
+            .unwrap()
+            .source
+            .citation_key
+            .as_deref(),
+        Some("lovelace1843note")
+    );
+    let bib = nb
+        .export(
+            std::slice::from_ref(&note_g_id),
+            tessera_core::library::ExportFormat::Bibtex,
+        )
+        .unwrap();
+    assert!(bib.contains("{lovelace1843note,"), "{bib}");
     for field in [
         &lived,
         &affiliated,

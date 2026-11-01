@@ -215,7 +215,7 @@ A field entry is a block whose whole text is one reference to a definition, rend
 
 Each definition has a `hide` setting for outlines. `never` is the default and shows entries and faint missing template slots, on a page at rest and on a nested owner while it is focused. `when_empty` hides entries with no values or only blank values and omits missing slots; `always` hides entries and slots regardless of values. Editing or selecting an entry or its values keeps it visible, as does revealing the owner's hidden fields in that pane. Tables, queries, field pages, the Fields register and exports ignore this setting.
 
-A definition also has a presentation role: `standfirst`, `attribute` (the default), `prose` or `citation`. Standfirst values read as sentences under their owner, attributes form an aligned field bed, prose follows it at full width, and citation values show references as siglum and locator. The role changes no value or kind. Changing it is revision-checked, attributed and undoable; sync keeps the later change. Migration gives existing Gist and Gloss definitions the standfirst role. A later rename never changes a role.
+A definition also has a presentation role: `standfirst`, `attribute` (the default), `prose` or `citation`. Standfirst values read as sentences under their owner, attributes form an aligned field bed, prose follows it at full width, and citation values show references as siglum and locator. The role changes no value or kind. Changing it is revision-checked, attributed and undoable; sync keeps the later change. The built-in Gist and Gloss start as standfirst, including when agent shorthand creates them. Migration gives existing Gist and Gloss definitions the standfirst role, and opening a workshop once does the same for one still on the default role that no one chose. A later rename never changes a role.
 
 The reading register projects field entry identities and reads each value from the shared document. Editing a blank standfirst does not replace its perspective slip or editor. Add perspective enters filling mode at the new Gist value; its recipe order continues with Work and the subject's criteria.
 
@@ -226,7 +226,7 @@ Values are plain blocks read through the field's kind. A value that does not fit
 | Date | Links to a journal day or spells out the date. A bare year or year-month is valid for sources dated no more precisely. |
 | Span | Keeps the written historical notation and reads an inclusive year range. BCE years are negative; unknown bounds are open. |
 | Choice | Links to its option. |
-| Relation | Links to a live block: a page, a journal day or a block inside a page. With Links to types, the target must be a member of one, by tag or manually. Links to can also name Source, which any page with a source capability meets. |
+| Relation | Links to a live block: a page, a journal day or a block inside a page. With Links to types, the target must be a member of one, by tag or manually. Links to can also name Source, which any page with a source capability meets. A relation that counts as creator or contributor also reads a plain name. |
 | URL | An absolute `http` or `https` address. |
 | Identifier | Reads an ISBN, DOI or arXiv ID in its usual spellings. Normalizes to `isbn:` with 13 digits, lowercase `doi:` or `arxiv:`, so the same work matches however it was written. |
 
@@ -462,7 +462,7 @@ Opening a citation is not reading: it changes neither state nor position. A cita
 
 ### Citation keys and sigla
 
-Citation keys are assigned at ingestion and never recomputed when fields change. An explicit authored edit may replace the key.
+Citation keys are assigned when a source is made: at ingestion, or for a `#source` or source-action record at the end of the change that makes it, from the title and fields that change leaves it with. They are never recomputed when fields change. An explicit authored edit may replace or clear the key. Opening a workshop once gives each active source still without a key its suggested key, as one change.
 
 A suggested key combines:
 
@@ -531,7 +531,7 @@ Read from a position zoom opens its titled subject in the unzoomed Read projecti
 
 Only identical trimmed authored cell text is marked as an exact repeat; differing wording implies nothing.
 
-A page's gloss is an entry for the Gloss field among its top-level blocks: the one- or two-sentence hover form shown under the title and in reference previews. It is an ordinary field, created on first use.
+A page's gloss is an entry for the Gloss field among its top-level blocks: the one- or two-sentence hover form shown under the title and in reference previews. It is an ordinary field, built in with the standfirst role and created on first use.
 
 These map the three kinds of knowledge in the [vision](vision.md): a fact is an ordinary block, with a passage when it came from reading; someone else's view is a position; your own conclusion is an assessment. A perspective lens is a view of positions grouped by holder.
 

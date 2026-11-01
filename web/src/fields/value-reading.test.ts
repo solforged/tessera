@@ -27,6 +27,13 @@ describe('outline field reading problems', () => {
     for (const kind of ['date', 'instance'] as const) expect(fieldValueProblem(field(kind), '[[unresolved]]')).toBeUndefined();
     for (const kind of ['number', 'date', 'choice', 'checkbox'] as const) expect(fieldValueProblem(field(kind), '  ')).toBeUndefined();
   });
+  test('accepts plain names in creator and contributor relations', () => {
+    for (const counts_as of ['creator', 'contributor'] as const) {
+      expect(fieldValueProblem({ ...field('instance'), counts_as }, 'Ashish Vaswani')).toBeUndefined();
+      expect(fieldValueProblem({ ...field('instance'), counts_as }, 'et al.')).toBeUndefined();
+    }
+    expect(fieldValueProblem({ ...field('instance'), counts_as: 'originator' }, 'Ashish Vaswani')).toBe('not a reference');
+  });
 });
 
 describe('first-value kind guesses', () => {

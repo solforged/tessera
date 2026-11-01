@@ -559,6 +559,63 @@ fn field_roles_migrate_only_existing_summaries_and_preserve_kind() {
 }
 
 #[test]
+fn opening_gives_a_default_role_gloss_the_standfirst_once_and_keeps_a_chosen_role() {
+    let (dir, mut nb) = fixture();
+    let fields = nb.fields().unwrap().page_id;
+    // As agent shorthand once made them: the built-in names with the default role.
+    apply(
+        &mut nb,
+        vec![child(50, &fields, "gloss"), child(51, &fields, "gist")],
+    );
+    let base_revision = nb.block(&id(51)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![Operation::SetFieldRole {
+            id: id(51),
+            base_revision,
+            role: FieldRole::Attribute,
+        }],
+    );
+    let role = |nb: &Notebook, value| {
+        nb.field_detail(&id(value), None, None)
+            .unwrap()
+            .field
+            .definition
+            .role
+    };
+    assert_eq!(role(&nb, 50), FieldRole::Attribute);
+    drop(nb);
+    let mut nb = Notebook::open(dir.path()).unwrap();
+    assert_eq!(role(&nb, 50), FieldRole::Standfirst);
+    assert_eq!(role(&nb, 51), FieldRole::Attribute, "a chosen role stays");
+    let repair = nb.changes_since(0, usize::MAX).unwrap().pop().unwrap();
+    assert_eq!(
+        repair.actor,
+        Actor::Client {
+            name: "Built-in fields".into()
+        }
+    );
+    // Later a person may make the gloss an attribute again; opening leaves that alone.
+    let base_revision = nb.block(&id(50)).unwrap().revision;
+    apply(
+        &mut nb,
+        vec![Operation::SetFieldRole {
+            id: id(50),
+            base_revision,
+            role: FieldRole::Attribute,
+        }],
+    );
+    let seq = nb.changes_since(0, usize::MAX).unwrap().pop().unwrap().seq;
+    drop(nb);
+    let nb = Notebook::open(dir.path()).unwrap();
+    assert_eq!(role(&nb, 50), FieldRole::Attribute);
+    assert_eq!(
+        nb.changes_since(0, usize::MAX).unwrap().pop().unwrap().seq,
+        seq
+    );
+}
+
+#[test]
 fn field_hide_defaults_round_trips_and_preserves_kind_and_query_values() {
     let (dir, mut nb) = fixture();
     let definition = nb

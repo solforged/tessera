@@ -920,6 +920,14 @@ impl Notebook {
                     .insert(id.clone(), (field.name.to_owned(), field.kind));
             }
         }
+        if let Some(field) = built_in.filter(|field| field.role != crate::FieldRole::Attribute) {
+            // A gloss reads as a standfirst under its owner, as the editor's Gloss makes it.
+            plan.operations.push(Operation::SetFieldRole {
+                id: id.clone(),
+                base_revision: if field.kind == FieldKind::Text { 1 } else { 2 },
+                role: field.role,
+            });
+        }
         plan.fields
             .as_mut()
             .expect("fields were loaded")

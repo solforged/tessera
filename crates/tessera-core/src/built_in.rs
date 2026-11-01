@@ -9,7 +9,7 @@ use rusqlite::{Connection, OptionalExtension};
 use crate::FieldKind::{self, Choice, Date, Identifier, Instance, Number, Span, Text, Url};
 use crate::fields::SOURCE_TARGET;
 use crate::library_ingest::Planner;
-use crate::{Actor, Batch, CountsAs, FieldOption, Notebook, Operation, Result};
+use crate::{Actor, Batch, CountsAs, FieldOption, FieldRole, Notebook, Operation, Result};
 
 pub(crate) struct BuiltInField {
     pub name: &'static str,
@@ -24,6 +24,8 @@ pub(crate) struct BuiltInField {
     /// The options a new choice definition starts with, as ordinary option atoms that change and
     /// grow like any choice field's.
     pub options: &'static [&'static str],
+    /// How its values present when the app creates it; a person may change it later.
+    pub role: FieldRole,
 }
 
 const fn field(name: &'static str, kind: FieldKind) -> BuiltInField {
@@ -34,6 +36,7 @@ const fn field(name: &'static str, kind: FieldKind) -> BuiltInField {
         counts_as: None,
         fallback: false,
         options: &[],
+        role: FieldRole::Attribute,
     }
 }
 
@@ -49,6 +52,7 @@ const fn person(
         counts_as: Some(counts_as),
         fallback: false,
         options: &[],
+        role: FieldRole::Attribute,
     }
 }
 
@@ -106,8 +110,14 @@ pub(crate) const FIELDS: &[BuiltInField] = &[
         counts_as: Some(CountsAs::Originator),
         ..field("coined in", Instance)
     },
-    field("gist", Text),
-    field("gloss", Text),
+    BuiltInField {
+        role: FieldRole::Standfirst,
+        ..field("gist", Text)
+    },
+    BuiltInField {
+        role: FieldRole::Standfirst,
+        ..field("gloss", Text)
+    },
     BuiltInField {
         targets: &[SOURCE_TARGET],
         ..field("work", Instance)
@@ -237,6 +247,18 @@ pub(crate) fn targets(conn: &Connection, field: &BuiltInField) -> Result<Vec<Str
         }
     }
     Ok(targets)
+}
+
+/// Whether any change set definition `id`'s role, so its current role is a choice rather than the default.
+fn role_chosen(conn: &Connection, id: &str) -> Result<bool> {
+    Ok(conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM change_revisions r JOIN changes c ON c.seq = r.change_seq,
+             json_each(c.operations) o
+         WHERE r.block_id = ?1 AND json_extract(o.value, '$.op') = 'set_field_role'
+           AND json_extract(o.value, '$.id') = ?1)",
+        [id],
+        |row| row.get(0),
+    )?)
 }
 
 /// Renaming a built-in field is refused; changing only its case is not, so older names can become lowercase.
@@ -377,6 +399,14 @@ impl Notebook {
         let definitions = crate::fields::definitions(&self.conn)?;
         let mut revisions: HashMap<String, i64> = HashMap::new();
         let mut operations = vec![];
+        // Agent shorthand once created Gist and Gloss with the default role. Opening repairs those once,
+        // keeping a role a person chose.
+        let roles_settled: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM settings WHERE key = 'built_in_roles' AND value = 'true')",
+            [],
+            |row| row.get(0),
+        )?;
+        let mut roles_examined = false;
         for definition in definitions.iter().filter(|definition| !definition.archived) {
             let Some(field) = field_named(&definition.name) else {
                 continue;
@@ -403,6 +433,27 @@ impl Notebook {
                     *revision += 1;
                 }
             }
+            if !roles_settled
+                && field.role != FieldRole::Attribute
+                && definition.role == FieldRole::Attribute
+            {
+                roles_examined = true;
+                if !role_chosen(&self.conn, &definition.id)? {
+                    operations.push(Operation::SetFieldRole {
+                        id: definition.id.clone(),
+                        base_revision: *revision,
+                        role: field.role,
+                    });
+                    *revision += 1;
+                }
+            }
+        }
+        if roles_examined {
+            operations.push(Operation::SetSetting {
+                key: "built_in_roles".into(),
+                value: "true".into(),
+                base_revision: None,
+            });
         }
         let mut planner = Planner::new(self)?;
         let mut added_creators = false;

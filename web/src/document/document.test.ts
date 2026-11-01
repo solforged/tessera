@@ -3968,12 +3968,15 @@ describe('library inspector metadata commands', () => {
     const instance = await client(session);
     const a = await metadataSource(instance), b = await metadataSource(instance);
     const key = `taken${++serial}`;
+    // A source action's record gets its suggested key when it is made.
+    const assigned = (await api.source(b.id)).source.citation_key;
+    expect(assigned).toBeTruthy();
     await saveSourceField([a.doc], instance, 'citationKey', key);
     await expect(saveSourceField([b.doc], instance, 'citationKey', key.toUpperCase())).rejects.toThrow(a.doc.root()!.text);
-    expect((await api.source(b.id)).source.citation_key).toBeNull();
+    expect((await api.source(b.id)).source.citation_key).toBe(assigned);
     await expect(saveSourceField([a.doc, b.doc], instance, 'citationKey', `batch${++serial}`)).rejects.toThrow(a.doc.root()!.text);
     expect((await api.source(a.id)).source.citation_key).toBe(key);
-    expect((await api.source(b.id)).source.citation_key).toBeNull();
+    expect((await api.source(b.id)).source.citation_key).toBe(assigned);
     expect(instance.rejectedText()).toBe('');
     expect(instance.queuedChanges()).toBe(0);
     expect(instance.saveState()).toBe('saved');

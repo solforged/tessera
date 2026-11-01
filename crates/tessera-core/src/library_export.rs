@@ -111,27 +111,14 @@ fn read_field_readings(
         };
         let field = definition.name.to_lowercase();
         let tier = tiers.get(definition.id.as_str()).copied();
-        // Creator metadata can be an unlinked name even when imported names use
-        // an instance field. References still retain their constrained reading.
-        let reading = if definition.kind == crate::FieldKind::Instance
-            && tier.is_some()
-            && crate::fields::reference(&text).is_none()
-            && !text.trim().is_empty()
-        {
-            Reading::Value {
-                ok: true,
-                value: ReadingValue::Text(text.trim().to_owned()),
-                target: None,
-            }
-        } else {
-            crate::fields::constrained_reading(
-                conn,
-                definition.kind,
-                definition,
-                &text,
-                target.as_ref(),
-            )?
-        };
+        // Creator metadata can be an unlinked name even in a relation field; the reading accepts it.
+        let reading = crate::fields::constrained_reading(
+            conn,
+            definition.kind,
+            definition,
+            &text,
+            target.as_ref(),
+        )?;
         if let Reading::Value {
             ok: true,
             value,
