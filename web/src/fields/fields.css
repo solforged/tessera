@@ -12,14 +12,14 @@
 .fields-scroll > .empty-state { margin: var(--space-16) var(--space-24); }
 .fields-index { width: 100%; min-width: calc(var(--space-48) * 10 + var(--space-32)); table-layout: fixed; border-spacing: 0; font-size: var(--text-control); line-height: var(--line-control); }
 .fields-index th, .fields-index td { padding: 0 var(--space-8); border-bottom: var(--rule-width) solid var(--line); text-align: left; vertical-align: middle; overflow-wrap: anywhere; }
-.fields-index th { position: sticky; top: 0; z-index: 2; height: var(--row-height); background: var(--canvas); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
+.fields-index th { position: sticky; top: 0; z-index: 2; height: var(--row-height); background: var(--paper-grain), var(--canvas); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 .fields-index th:first-child, .fields-index td:first-child { position: sticky; left: 0; width: calc(var(--space-48) * 4); padding-left: var(--space-16); border-right: var(--rule-width) solid var(--line); background: var(--canvas); }
 .fields-index td:first-child { z-index: 1; }
-.fields-index th:first-child { z-index: 3; }
+.fields-index th:first-child { z-index: 3; background: var(--paper-grain), var(--canvas); }
 /* Name, kind and count are buttons; their labels sit one button inset in from the cell edge, and so do the headers. */
 .fields-index th:not(:last-child) { padding-inline: calc(var(--space-8) + var(--space-4) + 1px); }
 .fields-index th:first-child { padding-left: calc(var(--space-16) + var(--space-4) + 1px); }
-.fields-index .fields-kind { width: calc(var(--row-height) * 3 + var(--space-24)); }
+.fields-index .fields-kind { width: calc(var(--row-height) * 4 + var(--space-24)); }
 .fields-index .fields-count { width: calc(var(--row-height) * 2 + var(--space-8)); text-align: right; font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .fields-index .fields-count .button { font: inherit; letter-spacing: inherit; }
 .fields-count .fields-unused { padding-right: calc(var(--space-4) + 1px); }
@@ -29,7 +29,7 @@
 .fields-index .field-name { justify-content: flex-start; color: var(--text); font-weight: var(--weight-body); }
 .fields-index .field-name:hover { text-decoration: underline; text-underline-offset: var(--space-4); }
 /* Keep the format menu discoverable without competing with the field name. */
-.fields-kind-button.button { font-weight: var(--weight-body); color: var(--muted); }
+.fields-kind-button.button { font-weight: var(--weight-body); color: var(--muted); white-space: nowrap; }
 .fields-kind-button > .icon { width: var(--icon-size-small); height: var(--icon-size-small); color: var(--faint); transition: color var(--motion-fast) var(--motion-ease); }
 .fields-index tr:is(:hover, :focus-within) .fields-kind-button > .icon, .fields-kind-button[aria-expanded="true"] > .icon { color: var(--text); }
 .fields-unused { color: var(--faint); }
@@ -42,6 +42,18 @@
 .field-create-fields :is(.input, .button) { min-height: var(--space-32); color: var(--text); }
 .field-create-fields .button { justify-content: space-between; border-color: var(--line); }
 .fields-actions { display: flex; gap: var(--space-4); }
+.fields-toolbar > .fields-search-well { flex: 1 1 0; min-width: 0; }
+/* Fingertips: the register's controls and rows reach the touch target on a phone, as Settings' do. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .fields-toolbar > .button, .fields-actions .button, .fields-index .button { min-height: var(--touch-target); min-width: var(--touch-target); }
+  .fields-pane .fields-index tbody tr { padding-block: 0; }
+}
+/* A popup value grows with its text and draws no grip. A table cell keeps its row and scrolls. */
+.value-editor-input { resize: none; }
+.value-editor-input:not(.table-cell-input) { max-height: calc(8 * var(--line-control) + var(--space-8)); overflow-y: auto; }
+.links-to-choice { display: flex; align-items: center; gap: var(--space-8); cursor: pointer; }
+.links-to-choice .field-checkbox { margin-block: 0; }
+.links-to-choice[aria-checked="true"] .field-checkbox { border-color: var(--accent); }
 .fields-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-8); min-height: var(--space-32); padding-block: var(--space-8); border-top: var(--rule-width) solid var(--line); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 
 /* Narrow panes keep each field on one line, with templates only when present. */
@@ -55,10 +67,15 @@
   .fields-index tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; column-gap: var(--space-8); padding-block: var(--space-8); border-bottom: var(--rule-width) solid var(--line); }
   .fields-index td, .fields-index td:first-child, .fields-index .fields-count { position: static; width: auto; min-width: 0; padding: 0; border: 0; background: transparent; }
   .fields-index .field-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .fields-index .fields-kind-button { color: var(--faint); white-space: nowrap; }
+  .fields-index .fields-kind-button { color: var(--muted); white-space: nowrap; }
   .fields-index .fields-count { justify-self: end; text-align: right; }
   .fields-index .fields-templates { grid-column: 1 / -1; padding-top: var(--space-4); }
   .fields-index .fields-templates[data-empty] { display: none; }
+}
+/* The capsule cannot share a 412 px row with New field and the 44 px history buttons, so it takes the line and the placeholder reads whole. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .fields-toolbar { flex-wrap: wrap; }
+  .fields-toolbar > .fields-search-well { flex: 1 0 100%; }
 }
 
 /* A type page's template heads like the journal's sections: name, hairline, the fields in order, chevron. */
@@ -142,3 +159,8 @@
 .field-picker { display: flex; flex-direction: column; }
 .field-picker > .picker-query { flex: none; }
 .field-picker > .picker-list { min-height: 0; max-height: calc(8 * var(--row-height) + 2 * var(--space-4)); }
+
+/* On a phone the title sits where Library's and Index's do: below the line their eyebrow takes. */
+@media (max-width: 599px) and (pointer: coarse) {
+  .fields-heading { padding-top: calc(var(--line-apparatus) + var(--page-eyebrow-gap)); }
+}

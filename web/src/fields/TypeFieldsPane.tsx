@@ -5,11 +5,13 @@ import { opensBeside } from '../shell/beside';
 import { typeQuery } from '../table/query';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
-import { kindLabel, noteKindIcon } from '../notes/kinds';
+import { censusNoun, kindLabel, noteKindIcon } from '../notes/kinds';
 import { TypeModeTabs } from '../ui/TypeModeTabs';
 import { TemplateEditor } from './TemplateEditor';
 import { autoPlural } from './presentation';
 import './fields.css';
+import { isPhone } from '../ui/phone';
+import '../notes/notes.css';
 
 interface TypeFieldsPaneProps {
   typeId: string;
@@ -55,10 +57,17 @@ export function TypeFieldsPane(props: TypeFieldsPaneProps) {
   });
   return <div ref={scroll} class="type-fields-pane" role="region" tabIndex={0} data-pane-pending={!data.latest && !error() ? '' : undefined} aria-label={`${title()} fields`} onFocusIn={props.onActivate} onScroll={() => props.onViewChange({ scroll: scroll.scrollTop })}>
     <div class="type-fields-register">
-      <header class="type-fields-heading">
+      <Show when={isPhone()} fallback={<header class="type-fields-heading">
         <div class="fields-register"><Button class="type-fields-crumb" onClick={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}>{registerName()}</Button></div>
         <div class="type-fields-title"><h1><Show when={data.latest?.kind}>{kind => <Icon name={noteKindIcon(kind())} />}</Show>{registerName()}</h1></div>
-      </header>
+      </header>}>
+        {/* List's phone title block: the crumb, then the count and the 34 pt name, so the strip keeps List's y. */}
+        <div class="fields-register"><Button class="type-fields-crumb" onClick={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}>{registerName()}</Button></div>
+        <div class="index-head">
+          <h1>{registerName()}</h1>
+          <Show when={data.latest?.kind}>{kind => <span class="index-census"><span class="fig">{kind().count.toLocaleString()}</span> {censusNoun(kind().count, kind().key, kind())}</span>}</Show>
+        </div>
+      </Show>
       <TypeModeTabs active="fields" indexCount={data.latest?.kind?.count} tableCount={tableCount()} fieldsCount={data.latest?.type.fields.length}
         cardsCount={data.latest?.type.card_templates} onCards={event => props.onOpen({ kind: 'cards', typeId: props.typeId }, opensBeside(event))}
         onIndex={event => props.onOpen({ kind: 'index', key: data.latest?.kind?.key ?? `type:${props.typeId}` }, opensBeside(event))}

@@ -9,6 +9,8 @@ import { relationCandidates, relationMembers } from './instances';
 import type { RelationCandidate } from './instances';
 import { SOURCE_TARGET, typeTargets } from './targets';
 import { noteIndex, noteKindIcon } from '../notes/kinds';
+import { displayTitle, targetLabel } from '../outline/names';
+import { fieldLabel } from './kinds';
 
 type RelationRow = { kind: 'target'; target: RelationCandidate } | { kind: 'create'; title: string; type?: Block; source?: boolean };
 
@@ -25,12 +27,13 @@ export function RelationPicker(props: {
   const [members] = createResource(() => ({ targets: props.field.targets, sequence: props.notebook.changeSequence() }), ({ targets }) => relationMembers(props.notebook, targets));
   const [types] = createResource(() => props.field.targets, targets => Promise.all(typeTargets(targets).map(id => props.notebook.api.block(id))));
   const index = noteIndex(props.notebook);
+  const lookup: NotebookClient['lookup'] = id => props.notebook.lookup(id);
   const targetKind = createMemo(() => props.field.targets.length === 1
     ? index()?.kinds.find(kind => kind.type_id === props.field.targets[0] || kind.key === props.field.targets[0])
     : undefined);
   const prompt = createMemo(() => {
     const kind = targetKind()?.name.toLowerCase();
-    return kind ? `Find ${/^[aeiou]/.test(kind) ? 'an' : 'a'} ${kind}…` : `${props.field.name}…`;
+    return kind ? `Find ${/^[aeiou]/.test(kind) ? 'an' : 'a'} ${kind}…` : `${fieldLabel(props.field)}…`;
   });
   const [matches] = createResource(() => members() && { query: query(), members: members()!, sequence: props.notebook.changeSequence() }, state =>
     relationCandidates(props.notebook, state.members, props.field.targets.length > 0, state.query, props.owner).then(result => ({ ...result, query: state.query })));
@@ -62,7 +65,7 @@ export function RelationPicker(props: {
   const blocks = () => !props.field.targets.length || !!members()?.blocks.length;
   // Place the popup once, at the size of its first rows; refreshes after that keep it ready.
   const loaded = () => members.state === 'errored' || (members.state !== 'pending' && members.state !== 'unresolved' && matches.state !== 'pending' && matches.state !== 'unresolved');
-  return <Picker<RelationRow> anchor={props.anchor} label={props.field.name} query={query()} onQuery={setQuery} placeholder={prompt()} ready={loaded()}
+  return <Picker<RelationRow> anchor={props.anchor} label={fieldLabel(props.field)} query={query()} onQuery={setQuery} placeholder={prompt()} ready={loaded()}
     items={busy() ? [] : rows()} key={row => row.kind === 'target' ? row.target.block.id : `create:${row.source ? SOURCE_TARGET : row.type?.id ?? ''}`}
     initial={Math.max(0, rows().findIndex(row => row.kind === 'target' && row.target.block.id === props.current))}
     isCurrent={row => row.kind === 'target' && row.target.block.id === props.current}
@@ -72,9 +75,9 @@ export function RelationPicker(props: {
       if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) void pick();
     }}
     row={row => row.kind === 'target'
-      ? <><Icon name={row.target.block.id === props.current ? 'check' : targetKind() ? noteKindIcon(targetKind()!) : row.target.page ? 'bullet' : 'page'} /><span class="picker-text" title={row.target.label}>{row.target.label}</span>
+      ? <><Icon name={row.target.block.id === props.current ? 'check' : targetKind() ? noteKindIcon(targetKind()!) : row.target.page ? 'bullet' : 'page'} /><span class="picker-text" title={targetLabel(row.target.label, lookup)}>{targetLabel(row.target.label, lookup)}</span>
         {row.target.alias && <span class="reference-via">via {row.target.alias}</span>}
-        {row.target.page && !row.target.here && <span class="picker-meta">{row.target.page.text}</span>}</>
+        {row.target.page && !row.target.here && <span class="picker-meta">{displayTitle(row.target.page.text, lookup)}</span>}</>
       : <><Icon name="plus" /><span class="picker-text">Create {row.source ? 'source' : row.type?.text.toLowerCase() ?? 'page'} “{row.title}”</span></>}
     empty={busy() ? 'Choosing…' : members.error || types.error || matches.error ? 'Could not load targets.' : members.loading || matches.loading ? 'Loading…'
       : !props.field.targets.length && query().trim().length < 3 && query().trim() ? 'No matching atoms. Keep typing to search atoms.' : 'No matches.'} />;

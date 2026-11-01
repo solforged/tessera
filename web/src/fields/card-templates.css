@@ -8,6 +8,9 @@
 .ct-apparatus, .ct-footnote, .ct-marker { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; color: var(--faint); }
 .ct-title-row { display: flex; justify-content: space-between; align-items: baseline; gap: var(--space-16); margin-bottom: var(--space-8); }
 .ct-sheet .type-mode-tabs { margin-bottom: var(--space-16); }
+/* The head repeats the Fields tab's, so the strip below keeps its place when the tab changes. */
+.ct-heading h1 { margin: 0; }
+.ct-heading .ct-title-row { margin-bottom: 0; align-items: center; }
 .ct-marker { color: var(--danger); }
 .ct-section { padding-block: var(--space-16); border-bottom: var(--rule-width) solid var(--line); }
 .ct-template-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-32); }
