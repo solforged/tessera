@@ -1,5 +1,6 @@
 import { opensBeside, listOpensBeside } from '../shell/beside';
 import { For, Match, Show, Switch, createEffect, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
+import { scrollBehavior } from '../shell/motion';
 import type { JSX } from 'solid-js';
 import type { FieldDefinition, PositionRow, Query, QueryGroup, QueryResult, QueryRow } from '../api/types';
 import type { NotebookClient, PageDocument } from '../document/contract';
@@ -14,6 +15,9 @@ import { OutgoingRelations } from '../outline/RelationLines';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { attributeDefinitions } from './attributes';
+import { columnEdge } from './edge';
+import { fieldLabel } from '../fields/kinds';
+import { displayTitle } from '../outline/names';
 import { cardFields, defaultEntityColumns, registerMembers, sourceDefinition } from './register';
 import { fieldEntryId } from './query';
 import { TableGrid } from './TableGrid';
@@ -41,6 +45,16 @@ export function ViewBody(props: ViewBodyProps) {
   const [fields] = createResource(() => props.notebook.changeSequence(), () => props.notebook.api.fields());
   const definitions = createMemo(() => [...new Map([...(fields()?.fields ?? []), ...props.result.fields].map(field => [field.id, field])).values()]);
   const definition = (id: string) => definitions().find(field => field.id === id);
+  const sharedTitleWidth = () => props.query.columns?.find(column => column.key === '@title')?.width ?? 340;
+  const lookup = (id: string) => props.notebook.lookup(id);
+  /** A page's name as a reader sees it, without its identity tag. */
+  const nameOf = (id: string, loading: string) => { const text = lookup(id)()?.text; return text === undefined ? loading : displayTitle(text, lookup); };
+  // Columns past the embed's right edge fade and are counted, as a table's are, so a clipped header never reads as a bug.
+  const [edge, setEdge] = createSignal({ height: 0, hidden: 0 });
+  let sharedScroll: HTMLElement | undefined; let sharedGrid: HTMLTableElement | undefined;
+  const measureEdge = () => setEdge(sharedScroll && sharedGrid?.isConnected ? columnEdge(sharedScroll, sharedGrid) : { hidden: 0, height: 0 });
+  const resize = new ResizeObserver(measureEdge);
+  onCleanup(() => resize.disconnect());
   const rows = createMemo(() => {
     const next = props.result.rows;
     const focusedElement = document.activeElement;
@@ -104,7 +118,7 @@ export function ViewBody(props: ViewBodyProps) {
     if (props.query.layout !== 'register') return [];
     const grouped = new Map<string, string[]>();
     for (const row of positions()) grouped.set(row.subject_id, [...grouped.get(row.subject_id) ?? [], row.block.block.id]);
-    return [...grouped].map(([id, row_ids]) => ({ key: id, title: props.notebook.lookup(id)()?.text ?? 'Loading subject…', target: id, row_ids, count: row_ids.length }));
+    return [...grouped].map(([id, row_ids]) => ({ key: id, title: nameOf(id, 'Loading subject…'), target: id, row_ids, count: row_ids.length }));
   });
   const groupKeys = createMemo(() => groups().map(group => group.key));
   const groupByKey = createMemo(() => new Map(groups().map(group => [group.key, group])));
@@ -137,10 +151,10 @@ export function ViewBody(props: ViewBodyProps) {
       if (next) fillStarts.get(next)?.();
     }
     return <article ref={slip} class="position-register-row" data-block-id={rowProps.id}>
-      <header><span class="compare-siglum">{sigla().get(sources().find(item => item.id === rowProps.id)?.source ?? '') ?? ''}</span><Button class="compare-holder-name" onClick={event => openRow(row(), listOpensBeside(event, !!props.neighbour))}>{position().holder_id ? props.notebook.lookup(position().holder_id!)()?.text ?? 'Loading holder…' : 'Unattributed'}</Button><Button class="view-open-reading" onClick={event => openRow(row(), listOpensBeside(event, !!props.neighbour))}>Open perspective</Button></header>
-      <div class="position-field-bed"><For each={fieldIds()}>{id => { const field = () => definition(id)!; return <div class="position-register-field" data-field-role={fieldRole(field())}><Show when={fieldRole(field()) !== 'standfirst'}><span class="position-field-label">{field().name}</span></Show><ViewValue row={row()} field={field()} doc={doc()} notebook={props.notebook} onEdited={edited} onError={setError} onFill={fill} onReady={start => fillStarts.set(id, start)} /></div>; }}</For></div>
+      <header><Show when={sigla().get(sources().find(item => item.id === rowProps.id)?.source ?? '')}>{siglum => <span class="compare-siglum">{siglum()}</span>}</Show><Button class="compare-holder-name" onClick={event => openRow(row(), listOpensBeside(event, !!props.neighbour))}>{position().holder_id ? nameOf(position().holder_id!, 'Loading holder…') : 'Unattributed'}</Button><Button class="view-open-reading" onClick={event => openRow(row(), listOpensBeside(event, !!props.neighbour))}>Open perspective</Button></header>
+      <div class="position-field-bed"><For each={fieldIds()}>{id => { const field = () => definition(id)!; return <div class="position-register-field" data-field-role={fieldRole(field())}><Show when={fieldRole(field()) !== 'standfirst'}><span class="position-field-label">{fieldLabel(field())}</span></Show><ViewValue row={row()} field={field()} doc={doc()} notebook={props.notebook} onEdited={edited} onError={setError} onFill={fill} onReady={start => fillStarts.set(id, start)} /></div>; }}</For></div>
       <Show when={doc()?.status() === 'ready'}><OutgoingRelations rows={positionRelations(doc()!, rowProps.id)} notebook={props.notebook} onOpen={props.onOpen} /></Show>
-      <div class="position-register-subject">on <Button onClick={event => void openTarget(position().subject_id, opensBeside(event)).catch(reason => setError(String(reason)))}>{props.notebook.lookup(position().subject_id)()?.text ?? 'Loading subject…'}</Button></div>
+      <div class="position-register-subject">on <Button onClick={event => void openTarget(position().subject_id, opensBeside(event)).catch(reason => setError(String(reason)))}>{nameOf(position().subject_id, 'Loading subject…')}</Button></div>
     </article>;
   }
   const columns = createMemo(() => (props.query.columns?.map(column => column.key) ?? (props.query.source ? defaultEntityColumns(props.query.source, props.result) : props.result.columns)).filter(id => id !== '@title'));
@@ -167,8 +181,9 @@ export function ViewBody(props: ViewBodyProps) {
     <Show when={error() || fields.error || subjectResults.error}><p class="pane-error" role="alert">{error() || 'Could not load the perspective fields. Reopen the view to try again.'}</p></Show>
     <Switch>
       <Match when={props.query.source === 'positions' && props.query.layout === 'register'}><div class="position-register"><For each={groupKeys()}>{key => { const group = () => groupByKey().get(key)!; return <section><h2 class="view-group-heading"><Button aria-expanded={!props.query.group?.collapsed?.includes(key)} onClick={() => toggleGroup(key)}><Icon name={props.query.group?.collapsed?.includes(key) ? 'right' : 'down'} />{group().title}<span>{group().count}</span></Button></h2><Show when={!props.query.group?.collapsed?.includes(key)}><For each={group().row_ids}>{id => <Show when={rowById().has(id)}><RegisterRow id={id} /></Show>}</For></Show></section>; }}</For></div></Match>
-      <Match when={props.query.source === 'positions' && props.query.layout === 'matrix'}><div class="view-matrices"><For each={subjects()}>{subject => <section class="view-subject-matrix"><h2 class="view-group-heading"><Button onClick={event => void openTarget(subject, opensBeside(event)).catch(reason => setError(String(reason)))}>{props.notebook.lookup(subject)()?.text ?? 'Loading subject…'}</Button><span>{positions().filter(row => row.subject_id === subject).length} perspectives</span></h2><Show when={criteria().get(subject)?.length} fallback={<p class="view-empty">{subjectResults.loading ? 'Loading criteria…' : 'This subject has no criteria. Open the subject and choose Edit criteria in Compare.'}</p>}><CriteriaMatrix orientation="holders" rows={positions().filter(row => row.subject_id === subject)} allRows={positions().filter(row => row.subject_id === subject)} criteria={criteria().get(subject) ?? []} questions={[]} notebook={props.notebook} docs={docs()} field={definition} focusedCriterion={null} holder={row => row.holder_id ? props.notebook.lookup(row.holder_id)()?.text ?? 'Loading holder…' : 'Unattributed'} siglum={row => sigla().get(sources().find(item => item.id === row.block.block.id)?.source ?? '') ?? ''} work={row => row.fields.find(field => definition(field.field_id)?.name.trim().toLowerCase() === 'work')?.values.map(value => value.text).join('\n') ?? ''} onOpen={props.onOpen} onEdited={edited} /></Show></section>}</For><Show when={!rowIds().length}><p class="view-empty">No perspectives match this view. Clear its filters to include more.</p></Show></div></Match>
-      <Match when={true}><Show when={props.table} fallback={<div class="view-shared-table" style={{ '--table-title-width': `${props.query.columns?.find(column => column.key === '@title')?.width ?? 340}px`, '--table-width': `${(props.query.columns?.find(column => column.key === '@title')?.width ?? 340) + columns().reduce((width, id) => width + (props.query.columns?.find(column => column.key === id)?.width ?? 180), 0)}px` }}><TableGrid neighbour={props.neighbour} rows={groupedRows()} columns={columns()} notebook={props.notebook} field={tableField} fieldName={id => tableField(id)?.name ?? 'Missing field'} columnWidth={id => `${props.query.columns?.find(column => column.key === id)?.width ?? 180}px`} tagged={registerMembers(rows()).taggedGroup} grouped={!!props.query.group} onOpen={openRow} onGroup={toggleGroup} title={row => <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} cards />} cell={tableValue} cardFields={phoneFields} cardCell={(row, field) => <div class="table-card-field"><span class="table-card-field-name">{field.name}</span>{tableValue(row, field.id)}</div>} /></div>}>{render => render()()}</Show></Match>
+      <Match when={props.query.source === 'positions' && props.query.layout === 'matrix'}><div class="view-matrices"><For each={subjects()}>{subject => <section class="view-subject-matrix"><h2 class="view-group-heading"><Button onClick={event => void openTarget(subject, opensBeside(event)).catch(reason => setError(String(reason)))}>{nameOf(subject, 'Loading subject…')}</Button><span>{positions().filter(row => row.subject_id === subject).length} perspectives</span></h2><Show when={criteria().get(subject)?.length} fallback={<p class="view-empty">{subjectResults.loading ? 'Loading criteria…' : 'This subject has no criteria. Open the subject and choose Edit criteria in Compare.'}</p>}><CriteriaMatrix orientation="holders" rows={positions().filter(row => row.subject_id === subject)} allRows={positions().filter(row => row.subject_id === subject)} criteria={criteria().get(subject) ?? []} questions={[]} notebook={props.notebook} docs={docs()} field={definition} focusedCriterion={null} holder={row => row.holder_id ? nameOf(row.holder_id, 'Loading holder…') : 'Unattributed'} siglum={row => sigla().get(sources().find(item => item.id === row.block.block.id)?.source ?? '') ?? ''} work={row => row.fields.find(field => definition(field.field_id)?.name.trim().toLowerCase() === 'work')?.values.map(value => value.text).join('\n') ?? ''} onOpen={props.onOpen} onEdited={edited} /></Show></section>}</For><Show when={!rowIds().length}><p class="view-empty">No perspectives match this view. Clear its filters to include more.</p></Show></div></Match>
+      <Match when={true}><Show when={props.table} fallback={<div class="view-shared-frame"><div ref={element => { sharedScroll = element; resize.observe(element); }} class="view-shared-table" onScroll={measureEdge} style={{ '--table-title-width': `${sharedTitleWidth()}px`, '--table-width': `${sharedTitleWidth() + columns().reduce((width, id) => width + (props.query.columns?.find(column => column.key === id)?.width ?? 180), 0)}px` }}><TableGrid neighbour={props.neighbour} gridRef={element => { sharedGrid = element; resize.observe(element); }} rows={groupedRows()} columns={columns()} notebook={props.notebook} field={tableField} fieldName={id => { const field = tableField(id); return field ? fieldLabel(field) : 'Missing field'; }} columnWidth={id => `${props.query.columns?.find(column => column.key === id)?.width ?? 180}px`} tagged={registerMembers(rows()).taggedGroup} grouped={!!props.query.group} onOpen={openRow} onGroup={toggleGroup} title={row => <BlockText text={row.block.block.text} notebook={props.notebook} interactive={false} cards />} cell={tableValue} cardFields={phoneFields} cardCell={(row, field) => <div class="table-card-field"><span class="table-card-field-name">{fieldLabel(field)}</span>{tableValue(row, field.id)}</div>} /></div>
+        <Show when={edge().hidden}><div class="table-more-right" style={{ height: `${edge().height}px` }}><Button class="table-more-columns" label={`Scroll to ${edge().hidden} more ${edge().hidden === 1 ? 'column' : 'columns'}`} onClick={() => sharedScroll?.scrollBy({ left: sharedScroll.clientWidth - sharedTitleWidth(), behavior: scrollBehavior() })}>+{edge().hidden} <Icon name="right" /></Button></div></Show></div>}>{render => render()()}</Show></Match>
     </Switch>
   </div>;
 }

@@ -1,6 +1,9 @@
 .view-body { min-width: 0; max-width: 100%; --criterion-width: calc(var(--space-48) * 4); }
+.view-shared-frame { position: relative; max-width: 100%; }
 .view-shared-table { max-width: 100%; overflow: auto; }
 .view-body[data-layout="register"], .view-body[data-layout="matrix"] { width: 100%; }
+/* A subject's heading and its note on missing criteria sit on the measure, as the register's groups do; only the grid may use the wider pane. */
+.view-subject-matrix > :is(.view-group-heading, .view-empty) { width: min(100%, var(--measure)); margin-inline: auto; }
 .position-register { max-width: var(--measure); margin-inline: auto; padding-bottom: var(--page-bottom-space); }
 .table-pane:has(.view-body[data-layout="register"]) .table-register { width: min(100%, var(--measure)); }
 .view-group-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--space-12); margin: var(--space-16) 0 var(--space-8); padding-block: var(--space-8); border-bottom: var(--rule-width) solid var(--line); font: var(--apparatus); color: var(--muted); }
@@ -21,8 +24,16 @@
 .view-value { min-width: 0; padding: var(--space-2) 0; outline: none; cursor: text; }
 .view-value:focus-visible { box-shadow: inset var(--rule-width) 0 var(--accent); }
 .view-value .criteria-input { min-height: var(--row-height); }
+/* In a table cell the editor sits inside the 28 px row at the table's own size, so the rows below it stay put. */
+.view-shared-table .view-value { padding-block: 0; }
+.view-shared-table .view-value .criteria-input { min-height: 0; padding: var(--rule-width) var(--space-4); font: inherit; }
+/* The outline editor's 24 px floor plus this border is taller than the cell's content box (a 28 px row minus its padding and rule), so an empty cell grew the row. One line at the table's size fits; longer text still grows a taller row. */
+.view-shared-table .view-value .criteria-input .cm-content { min-height: var(--line-control); padding-block: 0; line-height: var(--line-control); }
 .view-value .criteria-value { min-height: var(--target-size); }
 .view-value-empty { color: var(--faint); font: var(--apparatus); }
+/* An embedded table leaves empty cells blank, as the register does; the prompt shows where the cell has focus. */
+.view-shared-table .view-value-empty { visibility: hidden; }
+.view-shared-table .view-value:is(:focus, :focus-within) .view-value-empty { visibility: visible; }
 .view-matrices { padding-bottom: var(--page-bottom-space); }
 .view-subject-matrix + .view-subject-matrix { margin-top: var(--space-32); }
 .position-register-field:has(.view-value-empty):not(:has(.cm-editor)) { display: none; }

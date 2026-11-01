@@ -3,6 +3,7 @@ import type { NotebookClient } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
 import { parseCardText } from '../review/card-text';
 import { targetLabel } from '../outline/names';
+import { fieldLabel } from '../fields/kinds';
 
 export const filterLabels: Record<FilterOp, string> = {
   is: 'is', is_not: 'is not', contains: 'contains', gt: '>', gte: '≥', lt: '<', lte: '≤', present: 'has the field', set: 'has a value', empty: 'is empty',
@@ -20,6 +21,10 @@ export function filterOperatorLabel(op: FilterOp, kind?: FieldKind): string {
 }
 export function typeQuery(type: string | null): Query {
   return { type, text: null, filters: [], sort: [], limit: null };
+}
+/** What a type, source or kind opens on before anything is chosen: the query the views menu's "All <Type>" row stands for. */
+export function untouchedQuery(query: Pick<Query, 'type' | 'source' | 'note_kind'>): Query {
+  return { ...typeQuery(query.type), ...(query.source ? { source: query.source } : {}), ...(query.note_kind ? { note_kind: query.note_kind, note_view: { layout: 'table' as const, grouping: 'letter' } } : {}) };
 }
 /** A page's Table: a project lists its tasks, by ancestry or explicit Project field as its task query does, rather than members of a type it is not. */
 export function pageTableTarget(pageId: string, project: boolean): Extract<OpenTarget, { kind: 'table' }> {
@@ -124,15 +129,16 @@ function sameSort(left: Pick<SortKey, 'by' | 'field'>, right: Pick<SortKey, 'by'
   return left.by === right.by && left.field === right.field;
 }
 export function sortLabel(key: SortKey, fields: readonly FieldDefinition[], names?: Record<string, string>): string {
-  const name = key.by === 'field' ? fields.find(field => field.id === key.field)?.name ?? names?.[key.field ?? ''] ?? 'Missing field'
+  const definition = key.by === 'field' ? fields.find(field => field.id === key.field) : undefined;
+  const name = key.by === 'field' ? definition ? fieldLabel(definition) : names?.[key.field ?? ''] ?? 'Missing field'
     : { title: 'Title', created: 'Created', updated: 'Updated' }[key.by];
   return `${name} ${key.direction === 'asc' ? '↑' : '↓'}`;
 }
 export function filterLabel(filter: Filter, fields: readonly FieldDefinition[], notebook: NotebookClient, names?: Record<string, string>): string {
   const definition = fields.find(field => field.id === filter.field);
-  const name = definition?.name ?? names?.[filter.field] ?? 'Missing field';
+  const name = definition ? fieldLabel(definition) : names?.[filter.field] ?? 'Missing field';
   const value = definition?.kind === 'instance' && (filter.op === 'is' || filter.op === 'is_not') && filter.value
-    ? (target => !target ? filter.value : target.kind === 'page' ? target.text : targetLabel(target.text, id => notebook.lookup(id)) || 'Empty atom')(notebook.lookup(filter.value)())
+    ? (target => !target ? filter.value : targetLabel(target.text, id => notebook.lookup(id)) || 'Empty atom')(notebook.lookup(filter.value)())
     : definition?.kind === 'choice' && definition.id.startsWith('@') ? definition.options.find(option => option.id === filter.value)?.text ?? filter.value : filter.value;
   if (filter.field === '@resolved' && (filter.op === 'is' || filter.op === 'is_not') && (value === 'true' || value === 'false')) {
     return (value === 'true') === (filter.op === 'is') ? 'Resolved' : 'Not resolved';

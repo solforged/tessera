@@ -2,7 +2,7 @@
 .table-pane { --table-field-width: calc(var(--apparatus-width) - var(--space-48)); --table-source-width: calc(var(--apparatus-width) + var(--space-48)); --table-compact-width: calc(3 * var(--space-48)); --table-refs-width: calc(var(--space-48) + var(--space-16)); display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; max-width: 100%; padding: var(--page-top-space) var(--pane-inset) 0; outline: none; container-type: inline-size; container-name: table-pane; }
 .table-register { display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; width: 100%; margin-inline: auto; }
 .table-header { display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0; gap: var(--page-title-gap); padding-bottom: var(--page-title-gap); }
-.table-heading { min-width: 0; }
+.table-heading { flex: 1 1 auto; min-width: 0; }
 /* The title button fills the heading's line exactly, so Table mode's tabs sit where List mode's do. */
 .table-heading h1 { display: flex; margin: var(--page-eyebrow-gap) 0 0; font: var(--page-title-font); }
 .table-title.button { align-items: baseline; justify-content: flex-start; max-width: 100%; min-width: 0; padding: 0; border: 0; font-family: var(--font-display); font-size: inherit; line-height: inherit; font-weight: var(--weight-title); }
@@ -20,7 +20,10 @@
 .table-view-status .required-gap::before { content: "· "; color: var(--faint); }
 .table-needed { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
 .table-columns-button { margin-left: auto; color: var(--muted); }
-.table-register > :is(.table-header, .type-mode-tabs, .table-toolbar, .table-query-chips, .table-footer, .note-find) { width: min(100%, var(--measure)); margin-inline: auto; }
+.table-register > :is(.table-header, .type-mode-tabs, .table-toolbar, .table-query-chips, .table-footer, .note-find, .fields-register) { width: min(100%, var(--measure)); margin-inline: auto; }
+/* The type crumb is the Fields eyebrow. It replaces the title's top gap, so the strip drops by one apparatus line. */
+.table-register > .fields-register { flex-shrink: 0; }
+.table-register > .fields-register + .table-header .table-heading h1 { margin-top: 0; }
 /* The find field stands off the tabs as far as it does in List mode, where its margin collapses into theirs. */
 .table-register > .type-mode-tabs + .note-find { margin-top: var(--page-head-gap); }
 .table-toolbar { display: flex; align-items: center; flex-shrink: 0; flex-wrap: wrap; width: 100%; gap: var(--space-8); padding-block: var(--page-head-gap); }
@@ -32,9 +35,11 @@
 .table-chip .button { flex: none; min-height: var(--target-size); padding: 0 var(--space-8); border-radius: var(--radius-pill); }
 .table-scroll-frame { position: relative; display: flex; flex: 1; flex-direction: column; min-height: 0; min-width: 0; }
 .table-scroll { flex: 1; min-height: 0; min-width: 0; max-width: 100%; overflow: auto; overscroll-behavior: contain; scroll-padding-left: var(--table-title-width); padding-bottom: var(--page-bottom-space); }
-.table-more-right { position: absolute; top: 0; right: 0; z-index: 4; display: flex; justify-content: flex-end; align-items: flex-start; width: calc(var(--space-48) + var(--space-24)); pointer-events: none; background: linear-gradient(to right, transparent, var(--canvas) 60%); }
-.table-more-columns.button { min-height: var(--target-size); margin-top: var(--space-4); padding-inline: var(--space-8); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); pointer-events: auto; }
-.type-table { table-layout: fixed; border-spacing: 0; width: max(100%, var(--table-width)); font-size: var(--text-control); line-height: var(--line-control); }
+.table-more-right { position: absolute; top: 0; right: calc(-1 * var(--space-2)); z-index: 4; display: flex; justify-content: flex-end; align-items: flex-start; box-sizing: content-box; width: calc(var(--space-48) + var(--space-24)); padding-right: var(--space-2); pointer-events: none; }
+/* The fade is the sheet's own paper, canvas under the same grain, so it never reads as a lighter patch; it is solid where the badge sits, so no header label shows through it. */
+.table-more-right::before { content: ''; position: absolute; inset: 0; background: var(--paper-grain), var(--canvas); -webkit-mask-image: linear-gradient(to right, transparent, #000 35%); mask-image: linear-gradient(to right, transparent, #000 35%); }
+.table-more-columns.button { position: relative; min-height: var(--target-size); margin-top: var(--space-4); padding-inline: var(--space-8); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); pointer-events: auto; }
+.type-table { table-layout: fixed; border-spacing: 0; width: var(--table-width, 100%); font-size: var(--text-control); line-height: var(--line-control); }
 .type-table th, .type-table td { padding: var(--space-4) var(--space-12); min-height: var(--row-height); border-bottom: var(--rule-width) solid var(--line); text-align: left; vertical-align: middle; overflow-wrap: anywhere; transition: background-color var(--motion-fast) var(--motion-ease); }
 .type-table td { height: var(--row-height); padding-block: var(--space-2); }
 .type-table th { position: sticky; top: 0; z-index: 2; background: var(--canvas); color: var(--muted); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); padding: var(--space-4) var(--space-12); }
@@ -47,7 +52,8 @@
 .type-table thead th { --header-start: var(--space-12); --header-end: var(--space-12); }
 .type-table thead .table-title-column { --header-start: var(--space-8); --header-end: var(--space-32); }
 .type-table thead th > .button { width: calc(100% + var(--header-start) + var(--header-end) - 2 * var(--space-4)); margin-inline: calc(var(--space-4) - var(--header-start)) calc(var(--space-4) - var(--header-end)); padding-inline: calc(var(--header-start) - var(--space-4)) calc(var(--header-end) - var(--space-4)); }
-.type-table th.table-title-column { z-index: 3; }
+/* Above the sheet's grain, so it carries the grain itself rather than reading as flat canvas. */
+.type-table th.table-title-column { z-index: 3; background: var(--paper-grain), var(--canvas); }
 .type-table tbody tr:hover .table-title-column { background: var(--hover); }
 .table-cell { white-space: pre-wrap; }
 .table-cell-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
@@ -59,9 +65,12 @@
 .type-table :is(.table-kind-number, .table-refs) { text-align: right; font: var(--figures); font-variant-numeric: tabular-nums; }
 .table-kind-date { font: var(--figures); font-variant-numeric: tabular-nums; }
 .table-page-title { color: var(--faint); font: var(--apparatus); margin-top: var(--space-4); white-space: normal; }
-.table-value-pill.button { display: inline-block; min-height: 0; padding: 0 var(--space-8); margin: var(--rule-width) var(--space-2) var(--rule-width) 0; border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: transparent; font-size: var(--text-meta); font-weight: var(--weight-body); line-height: var(--line-meta); white-space: normal; }
-.table-reading-problem { text-decoration: underline dotted var(--warning); text-underline-offset: var(--space-4); }
-.table-cell-input { display: block; width: 100%; min-width: 0; padding: var(--space-4); min-height: var(--row-height); resize: vertical; font: inherit; line-height: inherit; }
+.table-value-pill.button, .table-choice-pill { display: inline-block; max-width: 100%; min-height: 0; padding: 0 var(--space-8); margin: var(--rule-width) var(--space-2) var(--rule-width) 0; border: var(--rule-width) solid var(--line); border-radius: var(--radius-pill); background: transparent; font-size: var(--text-meta); font-weight: var(--weight-body); line-height: var(--line-meta); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+.table-reading-problem { color: var(--warning); text-decoration: underline dotted var(--warning); text-underline-offset: var(--space-4); }
+/* No grip. A cell editor keeps the height the cell had and scrolls inside it, so the rows below stay put. */
+.table-cell-input { display: block; width: 100%; min-width: 0; padding: var(--space-4); min-height: var(--row-height); resize: none; font: inherit; line-height: inherit; }
+.type-table .table-cell-input { min-height: 0; padding-block: var(--space-2); border: 0; resize: none; overflow-y: auto; }
+.table-checkbox { vertical-align: middle; margin-block: 0; pointer-events: none; }
 .table-source-cell { display: flex; align-items: center; gap: var(--space-8); white-space: normal; }
 .table-source-summary { flex: 1; min-width: 0; }
 .table-source-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); line-height: var(--line-meta); }
@@ -109,7 +118,7 @@
 .table-card .table-row-menu { top: var(--space-12); transform: none; visibility: visible; }
 @media (pointer: coarse) { .table-row-menu.button { visibility: visible; } }
 .table-kind-instance .table-value-pill { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 30%, transparent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
-.table-kind-choice .table-value-pill { background: var(--surface); color: var(--muted); }
+.table-kind-choice :is(.table-value-pill, .table-choice-pill) { background: var(--surface); color: var(--muted); }
 .type-table .table-member-group th { position: static; padding: var(--space-16) var(--space-8) var(--space-8); border-top: var(--rule-width) solid var(--line); border-bottom: 0; }
 .type-table tr:has(+ .table-member-group) td { border-bottom: 0; }
 .table-member-group-label { display: flex; align-items: baseline; gap: var(--space-8); color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
@@ -170,7 +179,7 @@
     .table-card-group .icon, .table-card-arrow, .table-card-grouped-field { display: none; }
     .table-card { padding: calc(var(--space-8) + var(--space-2)) 0 var(--space-12); }
     .table-card-title.button { min-height: var(--touch-target); font-size: calc(var(--text-h2) - var(--rule-width)); line-height: var(--line-body); }
-    .table-card-fields { margin-top: var(--space-2); gap: 0 var(--space-12); }
+    .table-card-fields { margin-top: var(--space-4); gap: 0 var(--space-12); }
     .table-card-field { min-height: 0; min-width: 0; overflow: hidden; }
     .table-card-field-name { flex: none; margin-right: calc(var(--space-4) + var(--space-2)); }
     :is(.table-kind-choice, .table-kind-instance, .table-card-gloss) .table-card-field-name { display: none; }
@@ -178,7 +187,8 @@
     .table-card-field:not(.table-card-gloss) .table-value-pill { white-space: nowrap; }
     .table-card-field .table-cell-more { display: none; }
     .table-card-gloss { flex-basis: 100%; }
-    .table-card-gloss .table-cell-clamp { -webkit-line-clamp: 2; color: var(--muted); font-size: var(--text-control); line-height: calc(var(--line-control) + var(--space-2)); }
+    .table-card-gloss:not(.property-row) { display: block; }
+    .table-card-gloss .table-cell-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; text-overflow: ellipsis; text-align: start; color: var(--muted); font-size: var(--text-control); line-height: calc(var(--line-control) + var(--space-2)); }
     .table-query-bar { position: fixed; bottom: calc(var(--bottom-nav-height, 0px) + var(--bottom-inset) + var(--space-8)); z-index: 6; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--space-8); }
     .table-query-bar > :is(.table-query-find, .button) { display: flex; align-items: center; gap: var(--space-8); min-width: 0; min-height: var(--touch-target); padding-inline: var(--space-12); border: var(--rule-width) solid var(--line); border-radius: var(--radius-popup); background: var(--raised); }
     .table-query-find { color: var(--muted); }
@@ -230,8 +240,20 @@
   .table-card .table-card-field .property-label { display: block; margin: 0; color: var(--muted); font: inherit; }
   .table-card .property-value > * { min-width: 0; }
   .table-card .table-kind-text .property-value { white-space: normal; }
+  /* A long gloss reads at the size of its neighbours and clamps to two lines with an ellipsis, standing off the title above it. */
+  .table-card .table-card-gloss .table-cell-clamp { font: inherit; text-align: start; }
+  /* The clamp must be a block child, not a flex item, or Chrome blockifies its -webkit-box and drops the ellipsis. Right alignment does the same. */
+  .table-card .table-card-gloss .property-value { display: block; text-align: start; }
+  .table-card .table-card-gloss:first-child { margin-top: var(--space-4); }
+  /* A drill-in in the options sheet replaces the rows; its Back row names where it returns, as a menu's does. */
+  .table-sheet-back { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; margin-bottom: 4px; padding: 0 18px 0 14px; border: 0; background: transparent; color: var(--text); font: 600 15px/20px var(--font-body); text-align: left; box-shadow: inset 0 -.5px 0 var(--line); }
+  .table-sheet-back > .icon { width: 16px; height: 16px; color: var(--faint); }
+  .table-sheet-back:active { background: var(--ink-wash); }
+  .table-query-sheet .popup-inline form > .input { margin-top: var(--space-12); }
   .table-card .table-kind-text .table-cell-clamp { display: -webkit-box; white-space: normal; -webkit-line-clamp: 2; }
-  .table-card .table-value-pill.button { position: relative; max-width: 100%; min-height: 0; margin: 0; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .table-card :is(.table-value-pill.button, .table-choice-pill) { position: relative; max-width: 100%; min-height: 0; margin: 0; padding: var(--rule-width) var(--space-2); border: 0; background: transparent; color: var(--text); font: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Choice pills are spans, not buttons, so a button-only :last-child rule never separates them. */
+  .table-card :is(.table-value-pill.button, .table-choice-pill) + :is(.table-value-pill.button, .table-choice-pill) { margin-inline-start: var(--space-8); }
   .table-card .table-source-cell { display: block; min-width: 0; }
   .table-card .table-source-label { color: var(--accent); }
   .table-card .table-source-host, .table-card .table-source-remainder { display: none; }
