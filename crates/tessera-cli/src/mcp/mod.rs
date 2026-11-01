@@ -426,16 +426,8 @@ fn describe(receipt: &AgentReceipt) -> String {
 
 /// Live titles for the `[[ID]]` references and `#[[ID|…]]` tags in some block
 /// texts, so a tool prints them by name, as tessera_read_page does.
-#[allow(
-    dead_code,
-    reason = "tools adopt it as they render each block text instead of the whole output"
-)]
 struct Titles(HashMap<String, String>);
 
-#[allow(
-    dead_code,
-    reason = "tools adopt it as they render each block text instead of the whole output"
-)]
 impl Titles {
     /// The titles of every page and journal day the texts name. A target that
     /// no longer exists keeps its ID; any other failed lookup is an error, which
