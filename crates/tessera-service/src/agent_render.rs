@@ -1,5 +1,6 @@
 //! Plain-text renderings of notebook state for agents.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -46,17 +47,24 @@ pub struct PageContext<'a> {
 
 /// The page, or the subtree under `subtree`, as an indented outline. Each
 /// block's comment holds its ID and revision, then its tags, task, other
-/// capabilities, citations and cards. References to pages and journal days
-/// show their title so an agent can write them back as `[[Title]]`, and
-/// field entries show as `Name::`, the shorthand that writes them.
+/// capabilities, revisit state, citations and cards; the page's comment does
+/// the same for its root, with the task's status. References to pages and
+/// journal days show their title without its tags so an agent can write them
+/// back as `[[Title]]`, tags show as [`agent_tags`] writes them, and field
+/// entries show as `Name::`, the shorthand that writes them. Block text reads
+/// back through `tessera_add_note` as the same text: a line that would read as
+/// structure starts with a backslash, and `-->` shows as `--\>`. Citation
+/// quotes are passage text and show as stored.
 pub fn render(
     page: &PageView,
     context: &PageContext,
     subtree: Option<&str>,
 ) -> anyhow::Result<String> {
+    // The page itself is a target too, for links from its own blocks.
     let titles: HashMap<&str, &str> = page
         .targets
         .iter()
+        .chain([&page.root])
         .filter(|block| block.kind != BlockKind::Block)
         .map(|block| (block.id.as_str(), block.text.as_str()))
         .collect();
@@ -74,34 +82,41 @@ pub fn render(
     }
     let mut header = vec![format!("{} r{}", page.root.id, page.root.revision)];
     // The title's tags leave the display title and ride in the comment, as rows' manual tags do.
-    let tags: Vec<&str> = tessera_core::tag_tokens(&page.root.text)
+    let tags: Vec<Cow<str>> = tessera_core::tag_tokens(&page.root.text)
         .map(|token| match token.id {
-            Some(id) => titles
-                .get(id)
-                .copied()
-                .unwrap_or(if token.title.is_empty() {
-                    id
-                } else {
-                    token.title
-                }),
-            None => token.title,
+            Some(id) => display(id, &titles).unwrap_or(Cow::Borrowed(if token.title.is_empty() {
+                id
+            } else {
+                token.title
+            })),
+            None => Cow::Borrowed(token.title),
         })
         .collect();
     if !tags.is_empty() {
         header.push(format!("tags {}", tags.join(", ")));
     }
-    if let Some(caps) = capabilities.get(page.root.id.as_str()) {
-        header.extend(capability_details(caps));
+    let root_caps = capabilities.get(page.root.id.as_str()).copied();
+    if let Some(task) = root_caps.and_then(|caps| caps.task.as_ref()) {
+        // Rows show the status as their marker; a title has none.
+        if let Some(status) = task.status {
+            header.push(format!("status {}", name(status)));
+        }
+        header.extend(task_details(task));
     }
-    let root_quote = capabilities
-        .get(page.root.id.as_str())
-        .and_then(|caps| caps.quote.as_ref());
+    if let Some(caps) = root_caps {
+        header.extend(capability_details(caps, context.clock));
+    }
+    let root_quote = root_caps.and_then(|caps| caps.quote.as_ref());
     let quote_title = root_quote.map(|quote| format!("Quote of {}", quote.target_id));
     let root_title = tessera_core::display_title(&page.root.text, |id| titles.get(id).copied());
     let title = titled(quote_title.as_deref().unwrap_or(&root_title), &titles);
-    let mut text = format!("# {title} <!-- {} -->\n", header.join(", "));
+    let mut text = format!(
+        "# {} <!-- {} -->\n",
+        comment_safe(&title),
+        comment_safe(&header.join(", "))
+    );
     if let Some(quote) = root_quote {
-        render_quote(&mut text, quote, 0);
+        render_quote(&mut text, quote, 0, &titles);
     }
     let (rows, base) = match subtree.filter(|id| *id != page.root.id) {
         Some(id) => {
@@ -122,7 +137,8 @@ pub fn render(
     };
     for row in rows {
         let indent = "  ".repeat((row.depth - base) as usize);
-        let caps = capabilities.get(row.block.id.as_str());
+        let newline = format!("\n{indent}  ");
+        let caps = capabilities.get(row.block.id.as_str()).copied();
         let task = caps.and_then(|caps| caps.task.as_ref());
         let marker = task.map_or("", |task| marker(task.status));
         let heading = row
@@ -134,19 +150,22 @@ pub fn render(
         let body = if let Some(quote) = quote {
             format!("Quote of {}", quote.target_id)
         } else if let Some(image) = caps.and_then(|caps| caps.image.as_ref()) {
-            format!(
-                "![{}](/api/images/{})",
-                row.block
-                    .text
-                    .replace('\\', "\\\\")
-                    .replace('[', "\\[")
-                    .replace(']', "\\]"),
-                image.sha256
+            outline_text(
+                &format!(
+                    "![{}](/api/images/{})",
+                    row.block
+                        .text
+                        .replace('\\', "\\\\")
+                        .replace('[', "\\[")
+                        .replace(']', "\\]"),
+                    image.sha256
+                ),
+                &newline,
             )
         } else {
             match field_entry(&row.block.text).and_then(|id| context.fields.get(id)) {
-                Some(name) => format!("{name}::"),
-                None => titled(&row.block.text, &titles).replace('\n', &format!("\n{indent}  ")),
+                Some(name) => format!("{}::", comment_safe(name)),
+                None => outline_text(&titled(&row.block.text, &titles), &newline),
             }
         };
         let archived = if row.block.archived {
@@ -162,22 +181,23 @@ pub fn render(
             note.extend(task_details(task));
         }
         if let Some(caps) = caps {
-            note.extend(capability_details(caps));
+            note.extend(capability_details(caps, context.clock));
         }
         for card in cards.get(row.block.id.as_str()).into_iter().flatten() {
             let label = card_label(card, context.clock);
             note.push(if card.kind == CardKind::Occlusion {
-                format!("{label}: {}", card_answer(card))
+                format!("{label}: {}", titled(&card_answer(card), &titles))
             } else {
                 label
             });
         }
-        text.push_str(&format!(
-            "{indent}- {marker}{heading}{body}{archived} <!-- {} -->\n",
-            note.join(", ")
-        ));
+        writeln!(
+            text,
+            "{indent}- {marker}{heading}{body}{archived} <!-- {} -->",
+            comment_safe(&note.join(", "))
+        )?;
         if let Some(quote) = quote {
-            render_quote(&mut text, quote, row.depth - base + 1);
+            render_quote(&mut text, quote, row.depth - base + 1, &titles);
         }
     }
     for caps in page.capabilities.iter().filter(|caps| {
@@ -186,7 +206,6 @@ pub fn render(
                 || rows.iter().any(|row| row.block.id == caps.block_id))
     }) {
         let question = caps.question.as_ref().expect("filtered question");
-        writeln!(text, "\nDecision journal for {}:", caps.block_id)?;
         let mut assessments: Vec<_> = page
             .rows
             .iter()
@@ -199,12 +218,17 @@ pub fn render(
                     .then_some((row, assessment))
             })
             .collect();
+        // The decision journal appears once the question has an assessment.
+        if assessments.is_empty() {
+            continue;
+        }
         assessments.sort_by(|(a, ai), (b, bi)| {
             bi.state
                 .assessed_on
                 .cmp(&ai.state.assessed_on)
                 .then_with(|| b.block.id.cmp(&a.block.id))
         });
+        writeln!(text, "\nDecision journal for {}:", caps.block_id)?;
         for (row, assessment) in assessments {
             let decision = question
                 .state
@@ -226,19 +250,24 @@ pub fn render(
                 "- {} · {} · {} [{}]",
                 assessment.state.assessed_on,
                 status,
-                titled(row.block.text.lines().next().unwrap_or_default(), &titles),
+                comment_safe(&titled(
+                    row.block.text.lines().next().unwrap_or_default(),
+                    &titles
+                )),
                 row.block.id
             )?;
         }
     }
-    Ok(tessera_core::render_tags(&text, |id| titles.get(id).copied()).into_owned())
+    Ok(text)
 }
 
-fn render_quote(text: &mut String, quote: &QuoteState, depth: u32) {
+/// A quote's frozen rows under `> `, with links and tags shown by title.
+fn render_quote(text: &mut String, quote: &QuoteState, depth: u32, titles: &HashMap<&str, &str>) {
     for row in &quote.rows {
         let indent = "  ".repeat((depth + row.depth) as usize);
         let heading = "#".repeat(row.heading.unwrap_or(0) as usize);
-        let body = row.text.replace('\n', &format!("\n{indent}>   "));
+        let body =
+            comment_safe(&titled(&row.text, titles)).replace('\n', &format!("\n{indent}>   "));
         writeln!(
             text,
             "{indent}> - {heading}{}{body}",
@@ -250,6 +279,119 @@ fn render_quote(text: &mut String, quote: &QuoteState, depth: u32) {
         writeln!(text, "{}> (truncated)", "  ".repeat(depth as usize))
             .expect("writing to a string");
     }
+}
+
+/// Block text as outline lines that `tessera_add_note` reads back as the same
+/// text, each line after the first starting with `newline`. A block that is
+/// one fenced code block stays as written. In other text, a line that would
+/// read back as structure gets one backslash before its first non-blank
+/// character (see [`structural`]). Everywhere, `-->` shows as `--\>` so text
+/// never ends the row's comment.
+fn outline_text(text: &str, newline: &str) -> String {
+    let code = fenced(text);
+    let mut out = String::with_capacity(text.len() + newline.len());
+    for (index, line) in text.split('\n').enumerate() {
+        if index > 0 {
+            out.push_str(newline);
+        }
+        let content = line.trim_start();
+        if !code && structural(content) {
+            out.push_str(&line[..line.len() - content.len()]);
+            out.push('\\');
+            out.push_str(content);
+        } else {
+            out.push_str(line);
+        }
+    }
+    match comment_safe(&out) {
+        Cow::Borrowed(_) => out,
+        Cow::Owned(escaped) => escaped,
+    }
+}
+
+/// Whether a line, from its first non-blank character, would read back as
+/// outline structure instead of text: a backslash escape itself, a heading,
+/// quote or fence, a list item or task marker, a thematic break, or field
+/// shorthand. `tessera_add_note` removes the one backslash before each. Tags
+/// and clozes are text, so `#Tag` and `{{c1::answer}}` lines stay as written.
+fn structural(line: &str) -> bool {
+    const TASKS: [&str; 6] = ["[ ]", "[x]", "[X]", "[doing]", "[waiting]", "[cancelled]"];
+    // Outline lines end before `\r\n`.
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    let marker_ends = |rest: &str| rest.is_empty() || rest.starts_with([' ', '\t']);
+    let mark = |ch: char| matches!(ch, '-' | '*' | '_');
+    let hashes = line.bytes().take_while(|byte| *byte == b'#').count();
+    let digits = line.bytes().take_while(u8::is_ascii_digit).count();
+    line.starts_with(['\\', '>'])
+        || ((1..=6).contains(&hashes) && marker_ends(&line[hashes..]))
+        || line.starts_with("```")
+        || line.starts_with("~~~")
+        || line.strip_prefix(['-', '*', '+']).is_some_and(marker_ends)
+        || ((1..=9).contains(&digits)
+            && line[digits..]
+                .strip_prefix(['.', ')'])
+                .is_some_and(marker_ends))
+        || TASKS
+            .iter()
+            .any(|task| line.strip_prefix(task).is_some_and(marker_ends))
+        || (line.chars().all(|ch| mark(ch) || matches!(ch, ' ' | '\t'))
+            && line.chars().filter(|ch| mark(*ch)).count() >= 2)
+        || line.find("::").is_some_and(|at| {
+            // As the outline reads field shorthand: a name of up to 60
+            // characters that is not card syntax.
+            let name = line[..at].trim();
+            !name.is_empty()
+                && line[..at].chars().count() <= 60
+                && !name.contains(['\\', '`', '[', ']', '#', ':'])
+                && {
+                    let card = tessera_core::card_text::parse_card_text(name);
+                    card.cards.is_empty() && card.problems.is_empty()
+                }
+        })
+}
+
+/// Whether `text` is one fenced code block: three or more backticks or
+/// tildes open its first line, and the same character, at least as many and
+/// alone on the line, closes its last line and no line before it.
+fn fenced(text: &str) -> bool {
+    let Some(mark) = text.chars().next().filter(|ch| matches!(ch, '`' | '~')) else {
+        return false;
+    };
+    let mut lines = text.split('\n');
+    let opening = lines.next().unwrap_or_default();
+    let width = opening.chars().take_while(|ch| *ch == mark).count();
+    // A backtick fence's info string has no backtick (CommonMark 4.5).
+    if width < 3 || (mark == '`' && opening[width..].contains('`')) {
+        return false;
+    }
+    let closes = |line: &str| line.len() >= width && line.chars().all(|ch| ch == mark);
+    let mut lines = lines.peekable();
+    while let Some(line) = lines.next() {
+        if lines.peek().is_none() {
+            return closes(line.trim_end());
+        }
+        if closes(line.trim()) {
+            return false;
+        }
+    }
+    false
+}
+
+/// `-->` as `--\>`, so text never ends the HTML comment it shares a line with.
+fn comment_safe(text: &str) -> Cow<'_, str> {
+    if text.contains("-->") {
+        Cow::Owned(text.replace("-->", "--\\>"))
+    } else {
+        Cow::Borrowed(text)
+    }
+}
+
+/// A page or journal day's title from `titles`, their text by ID, without
+/// the title's tags.
+fn display<'a>(id: &str, titles: &HashMap<&str, &'a str>) -> Option<Cow<'a, str>> {
+    titles
+        .get(id)
+        .map(|text| tessera_core::display_title(text, |id| titles.get(id).copied()))
 }
 
 /// The field definition ID of a field entry's text, `[[ID]]` alone.
@@ -317,8 +459,9 @@ pub fn repeat_text(repeat: &Repeater) -> String {
     format!("{}{unit}", repeat.every)
 }
 
-/// Project, question, assessment, position, relation, source and citation details.
-fn capability_details(caps: &BlockCapabilities) -> Vec<String> {
+/// Project, question, assessment, position, relation, source, revisit and
+/// citation details. Citation quotes are passage text, shown as stored.
+fn capability_details(caps: &BlockCapabilities, clock: &Clock) -> Vec<String> {
     let mut parts = Vec::new();
     if let Some(project) = &caps.project {
         let mut part = format!("project {} {:?}", name(project.status), project.outcome);
@@ -387,6 +530,18 @@ fn capability_details(caps: &BlockCapabilities) -> Vec<String> {
             name(source.state)
         ));
     }
+    if let Some(note) = &caps.note {
+        if let Some(day) = &note.revisit_on {
+            parts.push(format!("revisit {day}"));
+        }
+        if let Some(at) = note.resolved_at {
+            let mut part = format!("resolved {}", clock.date(at));
+            if caps.note_changed {
+                part.push_str(" (edited since)");
+            }
+            parts.push(part);
+        }
+    }
     for citation in &caps.citations {
         parts.push(format!(
             "cites “{}” at {} (passage {})",
@@ -398,9 +553,9 @@ fn capability_details(caps: &BlockCapabilities) -> Vec<String> {
     parts
 }
 
-/// A card's ID, kind, template and scheduling state.
+/// A card's ID and revision, kind, template and scheduling state.
 pub fn card_label(card: &CardUnit, clock: &Clock) -> String {
-    let mut label = format!("card {} {}", card.id, name(card.kind));
+    let mut label = format!("card {} r{} {}", card.id, card.revision, name(card.kind));
     if card.kind == CardKind::Occlusion {
         label.push(' ');
         label.push_str(&tessera_core::occlusion::group_letter(
@@ -504,23 +659,73 @@ pub fn snippet(text: &str) -> String {
     }
 }
 
+/// `text` with its canonical tags as [`agent_tags`] writes them and its
+/// references to the pages and journal days in `titles`, their text by ID,
+/// showing the target's title without its tags, the `[[Title]]` that links
+/// it again. Other references keep their ID.
 pub fn titled(text: &str, titles: &HashMap<&str, &str>) -> String {
-    let text = tessera_core::render_tags(text, |id| titles.get(id).copied());
+    let text = agent_tags(text, |id| titles.get(id).copied());
     let mut out = String::with_capacity(text.len());
     let mut cursor = 0;
     for (span, target, _) in tessera_core::reference_spans(&text) {
         if !text[span.clone()].starts_with("[[") {
             continue;
         }
-        let Some(title) = titles.get(target) else {
+        let Some(title) = display(target, titles) else {
             continue;
         };
         out.push_str(&text[cursor..span.start + 2]);
-        out.push_str(title);
+        out.push_str(&title);
         cursor = span.start + 2 + target.len();
     }
     out.push_str(&text[cursor..]);
     out
+}
+
+/// Canonical tags as an agent writes them back: `#Title`, or `#[[Title]]`
+/// when `#Title` would read back as another tag, as a multi-word title
+/// would. `title` gives a tag page's text by ID, shown without its own tags;
+/// for a page that is gone the authored alias, then the ID, stands in, as in
+/// [`tessera_core::render_tags`]. Other tags and code stay as written.
+pub fn agent_tags<'a, 'b>(
+    text: &'a str,
+    mut title: impl FnMut(&str) -> Option<&'b str>,
+) -> Cow<'a, str> {
+    let mut rewritten: Option<String> = None;
+    let mut cursor = 0;
+    for token in tessera_core::tag_tokens(text) {
+        let Some(id) = token.id else { continue };
+        let live = title(id).map(|page| tessera_core::display_title(page, &mut title));
+        let label = match live.as_deref() {
+            // A title no tag can spell keeps the authored alias.
+            Some(label) if !label.is_empty() && !label.contains(['[', ']', '\n', '\r']) => label,
+            _ if !token.title.is_empty() => token.title,
+            _ => id,
+        };
+        let output = rewritten.get_or_insert_with(|| String::with_capacity(text.len()));
+        output.push_str(&text[cursor..token.span.start]);
+        cursor = token.span.end;
+        // A tag runs on through the characters a bare tag may hold.
+        let joined = text[cursor..]
+            .chars()
+            .next()
+            .is_some_and(|next| tessera_core::bare_tag(next.encode_utf8(&mut [0; 4])));
+        if tessera_core::bare_tag(label) && !joined {
+            output.push('#');
+            output.push_str(label);
+        } else {
+            output.push_str("#[[");
+            output.push_str(label);
+            output.push_str("]]");
+        }
+    }
+    match rewritten {
+        Some(mut output) => {
+            output.push_str(&text[cursor..]);
+            Cow::Owned(output)
+        }
+        None => Cow::Borrowed(text),
+    }
 }
 
 pub fn quoted(pages: &[Block]) -> String {
@@ -587,8 +792,356 @@ mod tests {
                 &titles
             ),
             format!(
-                "#Current title #Lost #{missing} `#[[{id}|Code]]` [[Current title|label|3.12]]"
+                "#[[Current title]] #Lost #{missing} `#[[{id}|Code]]` [[Current title|label|3.12]]"
             )
+        );
+    }
+
+    #[test]
+    fn tags_read_back_as_the_same_tag_titles() {
+        let marine = "00000000000000000000000001";
+        let spring = "00000000000000000000000002";
+        let plus = "00000000000000000000000003";
+        let person = "00000000000000000000000004";
+        let kind = "00000000000000000000000005";
+        let missing = "00000000000000000000000006";
+        let person_text = format!("Person #[[{kind}|kind]]");
+        let titles = HashMap::from([
+            (marine, "Marine"),
+            (spring, "Spring cleaning"),
+            (plus, "C++"),
+            (person, person_text.as_str()),
+            (kind, "Kind"),
+        ]);
+        let shown = titled(
+            &format!(
+                "Plan for #[[{spring}|Spring cleaning]] soon: #[[{marine}|m]], #[[{plus}|c]], \
+                 #[[{person}|p]], #[[{missing}|Old name]], #[[{marine}|m]]s, #Legacy #[[Legacy words]]"
+            ),
+            &titles,
+        );
+        assert_eq!(
+            shown,
+            "Plan for #[[Spring cleaning]] soon: #Marine, #[[C++]], #Person, #[[Old name]], \
+             #[[Marine]]s, #Legacy #[[Legacy words]]"
+        );
+        let read: Vec<&str> = tessera_core::tag_tokens(&shown)
+            .map(|token| token.title)
+            .collect();
+        assert_eq!(
+            read,
+            [
+                "Spring cleaning",
+                "Marine",
+                "C++",
+                "Person",
+                "Old name",
+                "Marine",
+                "Legacy",
+                "Legacy words"
+            ]
+        );
+    }
+
+    #[test]
+    fn links_show_the_target_title_without_its_tags() {
+        let page = "00000000000000000000000001";
+        let tag = "00000000000000000000000002";
+        let text = format!("Charles Babbage #[[{tag}|person]]");
+        let titles = HashMap::from([(page, text.as_str()), (tag, "Person")]);
+        assert_eq!(
+            titled(&format!("Then [[{page}|Babbage]] and [[{page}]]."), &titles),
+            "Then [[Charles Babbage|Babbage]] and [[Charles Babbage]]."
+        );
+    }
+
+    #[test]
+    fn text_that_reads_as_structure_is_escaped_and_code_stays_fenced() {
+        for (text, shown) in [
+            (
+                "Line one\n- Fake child <!-- X r1 -->\n# Fake heading -->\n<!-- open comment",
+                "Line one\n  \\- Fake child <!-- X r1 --\\>\n  \\# Fake heading --\\>\n  <!-- open comment",
+            ),
+            ("## not a heading", "\\## not a heading"),
+            // Tags and clozes are text.
+            (
+                "#tag first\n#\n####### seven\n#Tag:: no",
+                "#tag first\n  \\#\n  ####### seven\n  #Tag:: no",
+            ),
+            (
+                "Capital of France is {{c1::Paris}}\nThe {{c2::Seine::river}} too",
+                "Capital of France is {{c1::Paris}}\n  The {{c2::Seine::river}} too",
+            ),
+            (
+                "[ ] not a task\n[x]\n[doing] x\n[later] x",
+                "\\[ ] not a task\n  \\[x]\n  \\[doing] x\n  [later] x",
+            ),
+            (
+                "1. one\n2) two\n2026. year\n1234567890. no\n+ plus\n* star\n-\n-x\n> quote\n\\ slash\n\\frac",
+                "\\1. one\n  \\2) two\n  \\2026. year\n  1234567890. no\n  \\+ plus\n  \\* star\n  \\-\n  -x\n  \\> quote\n  \\\\ slash\n  \\\\frac",
+            ),
+            (
+                "a\n---\n***\n___\n- - -\n--\n--->",
+                "a\n  \\---\n  \\***\n  \\___\n  \\- - -\n  \\--\n  ---\\>",
+            ),
+            (
+                "a\nWhere:: Lisbon\nsee [[X]]:: no\n:: no",
+                "a\n  \\Where:: Lisbon\n  see [[X]]:: no\n  :: no",
+            ),
+            (
+                format!("a\n{}:: too long", "n".repeat(61)).as_str(),
+                format!("a\n  {}:: too long", "n".repeat(61)).as_str(),
+            ),
+            ("a\n   # indented", "a\n     \\# indented"),
+            ("-\r\nx", "\\-\r\n  x"),
+            (
+                "```rust\n- not an item\nKey:: value\n# not a heading\nx --> y\n```",
+                "```rust\n  - not an item\n  Key:: value\n  # not a heading\n  x --\\> y\n  ```",
+            ),
+            ("~~~\n```\n~~~", "~~~\n  ```\n  ~~~"),
+            ("````\n```\n````  ", "````\n  ```\n  ````  "),
+            // Fences that do not close at the block's end are text.
+            ("```\nunclosed\n- item", "\\```\n  unclosed\n  \\- item"),
+            ("```\na\n```\nmore", "\\```\n  a\n  \\```\n  more"),
+            ("```js``` is how\n```", "\\```js``` is how\n  \\```"),
+        ] {
+            assert_eq!(outline_text(text, "\n  "), shown, "{text:?}");
+        }
+    }
+
+    #[test]
+    fn details_show_the_revisit_date_and_resolution() {
+        let mut caps: BlockCapabilities = serde_json::from_value(serde_json::json!({
+            "block_id": "00000000000000000000000001",
+            "merge_protected": false,
+            "reviewed_cards": false,
+            "note": { "resolved_at": 0, "revisit_on": "2026-11-02", "date_set_at": 0 },
+            "note_changed": true,
+        }))
+        .unwrap();
+        let clock = Clock {
+            zone: jiff::tz::TimeZone::UTC,
+            today: "2026-10-12".into(),
+        };
+        assert_eq!(
+            capability_details(&caps, &clock),
+            ["revisit 2026-11-02", "resolved 1970-01-01 (edited since)"]
+        );
+        caps.note_changed = false;
+        caps.note = Some(tessera_core::NoteState::default());
+        assert!(capability_details(&caps, &clock).is_empty());
+    }
+
+    #[test]
+    fn page_render_reads_back_as_the_same_text_with_tags_links_and_quotes() {
+        use tessera_core::{Actor, Batch, Notebook, Operation};
+        let dir = tempfile::tempdir().unwrap();
+        let mut nb = Notebook::open(dir.path()).unwrap();
+        let id = |n| format!("{n:026}");
+        let insert = |n: u32, text: &str, heading: Option<u8>| Operation::Insert {
+            id: id(n),
+            parent_id: id(2),
+            after: (n > 3).then(|| id(n - 1)),
+            text: text.into(),
+            heading,
+        };
+        nb.apply(&Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations: vec![
+                Operation::CreatePage {
+                    id: id(1),
+                    title: "Charles Babbage #person".into(),
+                },
+                Operation::CreatePage {
+                    id: id(2),
+                    title: "Reading list".into(),
+                },
+                insert(
+                    3,
+                    &format!("Then [[{}|Babbage]] and [[{}]].", id(1), id(1)),
+                    None,
+                ),
+                insert(4, "Plan for #[[Spring cleaning]] soon", None),
+                insert(5, "Line one\n- Fake child\n# Fake heading -->", None),
+                insert(6, "Real heading", Some(2)),
+                insert(7, "# hash task", None),
+                Operation::SetTask {
+                    id: id(7),
+                    base_revision: 1,
+                    task: Some(TaskState {
+                        status: Some(TaskStatus::Todo),
+                        ..TaskState::default()
+                    }),
+                },
+                insert(8, "```rust\n- not an item\nKey:: value\n```", None),
+            ],
+        })
+        .unwrap();
+        let mut page = nb.page(&id(2)).unwrap();
+        // A cited passage keeps its text as stored, tags and all.
+        let tag = id(99);
+        page.capabilities.push(
+            serde_json::from_value(serde_json::json!({
+                "block_id": id(3),
+                "merge_protected": false,
+                "reviewed_cards": false,
+                "citations": [{
+                    "id": id(90), "block_id": id(3), "source_id": id(91), "snapshot_id": id(92),
+                    "start": { "passage_id": id(93), "offset": 0 },
+                    "end": { "passage_id": id(93), "offset": 9 },
+                    "quote": format!("cmd --> out #[[{tag}|Example]]"), "locator": "#p3",
+                    "ordinal": 3, "triage": null, "color": null,
+                }],
+            }))
+            .unwrap(),
+        );
+        let fields = HashMap::new();
+        let clock = Clock {
+            zone: jiff::tz::TimeZone::UTC,
+            today: "2026-10-12".into(),
+        };
+        let context = PageContext {
+            fields: &fields,
+            cards: &[],
+            clock: &clock,
+        };
+        let output = render(&page, &context, None).unwrap();
+        let rows: Vec<&str> = output
+            .lines()
+            .map(|line| line.split(" <!-- ").next().unwrap())
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                "# Reading list",
+                "- Then [[Charles Babbage|Babbage]] and [[Charles Babbage]].",
+                "- Plan for #[[Spring cleaning]] soon",
+                "- Line one",
+                "  \\- Fake child",
+                "  \\# Fake heading --\\>",
+                "- ## Real heading",
+                "- [ ] \\# hash task",
+                "- ```rust",
+                "  - not an item",
+                "  Key:: value",
+                "  ```",
+            ],
+            "{output}"
+        );
+        assert!(
+            output.contains(&format!(
+                "cites “cmd --\\> out #[[{tag}|Example]]” at #p3 (passage {}) -->",
+                id(93)
+            )),
+            "{output}"
+        );
+    }
+
+    #[test]
+    fn page_header_shows_the_root_task_and_revisit_state_and_journal_only_once_assessed() {
+        use tessera_core::{Actor, Batch, Notebook, Operation, RevisitAction};
+        let dir = tempfile::tempdir().unwrap();
+        let mut nb = Notebook::open(dir.path()).unwrap();
+        let id = |n| format!("{n:026}");
+        let batch = |operations| Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations,
+        };
+        nb.apply(&batch(vec![
+            Operation::CreatePage {
+                id: id(1),
+                title: "Kitchen".into(),
+            },
+            Operation::Insert {
+                id: id(2),
+                parent_id: id(1),
+                after: None,
+                text: "Is it worth it? #question".into(),
+                heading: None,
+            },
+            Operation::Insert {
+                id: id(3),
+                parent_id: id(2),
+                after: None,
+                text: "Mostly".into(),
+                heading: None,
+            },
+            Operation::SetTask {
+                id: id(1),
+                base_revision: 1,
+                task: Some(TaskState {
+                    status: Some(TaskStatus::Todo),
+                    scheduled: Some("2026-11-03".into()),
+                    ..TaskState::default()
+                }),
+            },
+        ]))
+        .unwrap();
+        for (action, next_on) in [
+            (RevisitAction::Resolve, None),
+            (RevisitAction::Later, Some("2026-11-02".to_owned())),
+        ] {
+            nb.apply(&batch(vec![Operation::Revisit {
+                id: id(1),
+                base_revision: nb.block(&id(1)).unwrap().revision,
+                action,
+                next_on,
+                event_id: None,
+            }]))
+            .unwrap();
+        }
+        let fields = HashMap::new();
+        let clock = Clock {
+            zone: jiff::tz::TimeZone::UTC,
+            today: "2026-10-12".into(),
+        };
+        let context = PageContext {
+            fields: &fields,
+            cards: &[],
+            clock: &clock,
+        };
+        let mut page = nb.page(&id(1)).unwrap();
+        assert!(
+            page.capabilities
+                .iter()
+                .any(|caps| caps.block_id == id(2) && caps.question.is_some())
+        );
+        let output = render(&page, &context, None).unwrap();
+        let header = output.lines().next().unwrap();
+        assert!(
+            header.contains(", status todo, scheduled 2026-11-03, "),
+            "{header}"
+        );
+        assert!(
+            header.contains(", revisit 2026-11-02, resolved 2"),
+            "{header}"
+        );
+        assert!(!output.contains("Decision journal"), "{output}");
+        page.capabilities.push(
+            serde_json::from_value(serde_json::json!({
+                "block_id": id(3),
+                "merge_protected": false,
+                "reviewed_cards": false,
+                "assessment": {
+                    "state": { "assessed_on": "2026-10-20", "aporia": false },
+                    "question_id": id(2),
+                    "accepted": true,
+                },
+            }))
+            .unwrap(),
+        );
+        let output = render(&page, &context, None).unwrap();
+        assert!(
+            output.contains(&format!(
+                "\nDecision journal for {}:\n- 2026-10-20 · current answer · Mostly [{}]\n",
+                id(2),
+                id(3)
+            )),
+            "{output}"
         );
     }
 
@@ -767,7 +1320,7 @@ mod tests {
                 "mode": "hide_one", "tested": [{"shape": "rect", "x": 0.1, "y": 0.2, "w": 0.3, "h": 0.4}],
                 "hint": "Hint", "covered": []
             }).to_string(),
-            "back": "{\"answer\":\"Answer\"}", "answer_blocks": [], "revision": 1,
+            "back": "{\"answer\":\"Answer\"}", "answer_blocks": [], "revision": 3,
             "schedule": tessera_core::scheduler::new_card(0), "occlusion_index": 1
         })).unwrap();
         let clock = Clock {
@@ -775,7 +1328,8 @@ mod tests {
             today: "2026-10-16".into(),
         };
         assert_eq!(card_front(&card), "occlusion B");
-        assert_eq!(card_label(&card, &clock), "card card occlusion B new");
+        // The card's own revision, which tessera_hold_card checks, not its block's.
+        assert_eq!(card_label(&card, &clock), "card card r3 occlusion B new");
         assert_eq!(card_answer(&card), "Answer");
         card.back = "{}".into();
         assert_eq!(card_answer(&card), "Hint");

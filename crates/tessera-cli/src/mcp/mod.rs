@@ -305,8 +305,9 @@ impl Session<'_> {
             Err(error) => Err(error),
         };
         match titles {
-            Ok(titles) => tessera_core::render_tags(&text, |id| titles.get(id).map(String::as_str))
-                .into_owned(),
+            Ok(titles) => {
+                render::agent_tags(&text, |id| titles.get(id).map(String::as_str)).into_owned()
+            }
             Err(_) => text,
         }
     }
