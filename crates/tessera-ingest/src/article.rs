@@ -28,22 +28,26 @@ pub(crate) fn page_metadata(contents: &str, address: &str) -> Result<ExtractedMe
         message: error.to_string(),
     })?;
     let document = Html::parse_document(contents);
-    Ok(metadata(&document, content_root(&document), &url))
+    Ok(metadata(&document, content_root(&document), Some(&url)))
 }
 
-pub(crate) fn extract(contents: &str, address: &str) -> Result<ExtractedDocument> {
-    let url = Url::parse(address).map_err(|error| Error::Malformed {
-        format: "article",
-        message: error.to_string(),
-    })?;
+/// `address` is where the page was fetched from; a local file has none.
+pub(crate) fn extract(contents: &str, address: Option<&str>) -> Result<ExtractedDocument> {
+    let url = address
+        .map(Url::parse)
+        .transpose()
+        .map_err(|error| Error::Malformed {
+            format: "article",
+            message: error.to_string(),
+        })?;
     let document = Html::parse_document(contents);
     let root = content_root(&document);
-    let metadata = metadata(&document, root, &url);
+    let metadata = metadata(&document, root, url.as_ref());
     let canonical = metadata
         .url
         .as_deref()
         .and_then(|value| Url::parse(value).ok())
-        .unwrap_or_else(|| url.clone());
+        .or_else(|| url.clone());
     let base = Base::Article { url, canonical };
     let mut passages = Passages::default();
     passages.read(root, &base);
@@ -498,8 +502,14 @@ fn byline_kind(byline: ElementRef<'_>) -> Option<CreatorKind> {
         .and_then(|types| types.split_whitespace().find_map(schema_kind))
 }
 
-fn metadata(document: &Html, root: ElementRef<'_>, url: &Url) -> ExtractedMetadata {
-    let site = meta(document, "og:site_name").or_else(|| url.host_str().map(str::to_owned));
+fn metadata(document: &Html, root: ElementRef<'_>, url: Option<&Url>) -> ExtractedMetadata {
+    let site =
+        meta(document, "og:site_name").or_else(|| url.and_then(Url::host_str).map(str::to_owned));
+    // Without an address, only absolute references name a page.
+    let address = |href: &str| {
+        url.map_or_else(|| Url::parse(href), |url| url.join(href))
+            .ok()
+    };
     let json_values: Vec<Value> = document
         .select(&selector("script[type='application/ld+json']"))
         .filter_map(|script| serde_json::from_str(&script.text().collect::<String>()).ok())
@@ -626,7 +636,7 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: &Url) -> ExtractedMetada
             root.select(&selector("time[datetime]"))
                 .find_map(|time| time.value().attr("datetime").and_then(date))
         })
-        .or_else(|| path_date(url));
+        .or_else(|| url.and_then(path_date));
     let canonical = document
         .select(&selector("link[href]"))
         .find(|link| {
@@ -637,9 +647,9 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: &Url) -> ExtractedMetada
             })
         })
         .and_then(|link| link.value().attr("href"))
-        .and_then(|href| url.join(href).ok())
-        .or_else(|| meta(document, "og:url").and_then(|href| url.join(&href).ok()))
-        .unwrap_or_else(|| url.clone());
+        .and_then(address)
+        .or_else(|| meta(document, "og:url").and_then(|href| address(&href)))
+        .or_else(|| url.cloned());
     let identifiers = document
         .select(&selector("meta[content]"))
         .filter(|element| {
@@ -662,7 +672,7 @@ fn metadata(document: &Html, root: ElementRef<'_>, url: &Url) -> ExtractedMetada
         creators,
         published,
         site,
-        url: Some(canonical.into()),
+        url: canonical.map(Into::into),
         identifiers,
         description: meta(document, "og:description")
             .or_else(|| meta(document, "description"))

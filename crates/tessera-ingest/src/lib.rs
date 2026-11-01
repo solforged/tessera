@@ -88,11 +88,14 @@ pub fn epub(bytes: &[u8]) -> Result<ExtractedDocument> {
     Ok(document)
 }
 
-/// Extract the readable article from an HTML page fetched from `url`.
+/// Extract the readable article from an HTML page fetched from `url`, or from
+/// a local file when `url` is `None`.
 ///
-/// Relative image addresses become absolute URLs; this function never fetches
-/// them. An article without readable text returns [`Error::Empty`].
-pub fn article(html: &str, url: &str) -> Result<ExtractedDocument> {
+/// Relative image and link addresses become absolute URLs; this function never
+/// fetches them. A local file has no address to resolve them against, so its
+/// relative links stay plain text and its relative images keep only their
+/// alternative text. An article without readable text returns [`Error::Empty`].
+pub fn article(html: &str, url: Option<&str>) -> Result<ExtractedDocument> {
     let mut document = article::extract(html, url)?;
     normalize_language(&mut document);
     Ok(document)
