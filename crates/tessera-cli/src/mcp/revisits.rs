@@ -61,8 +61,13 @@ impl Session<'_> {
             return Ok(format!("Nothing is due for a revisit by {due}."));
         }
         let shown = &rows[..rows.len().min(count)];
-        let titles =
-            Titles::load(&api, shown.iter().map(|row| row.block.block.text.as_str())).await?;
+        let titles = Titles::load(
+            &api,
+            shown
+                .iter()
+                .flat_map(|row| [row.block.block.text.as_str(), row.block.page.text.as_str()]),
+        )
+        .await?;
         let mut text = format!(
             "{} of {} revisits due by {due}, earliest first:\n",
             shown.len(),
@@ -87,7 +92,7 @@ fn revisit_line(row: &RevisitRow, titles: &Titles) -> String {
         format!(
             "- {} {:?} (id {})",
             kind_label(page.kind),
-            page.text,
+            titles.show(&page.text),
             page.id
         )
     } else {
@@ -95,7 +100,7 @@ fn revisit_line(row: &RevisitRow, titles: &Titles) -> String {
             "- “{}” (block {}) {}",
             one_line(&titles.show(&block.text)),
             block.id,
-            location(page)
+            location(&titles.block(page))
         )
     };
     let mut details = Vec::new();
