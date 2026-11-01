@@ -1,7 +1,7 @@
 //! In-process replica orchestration. Network work never owns the notebook lock.
 use crate::{
     AppState, EmbeddedHandles,
-    sync_client::{HttpHub, HubError, Pairing},
+    sync_client::{HttpHub, HubError, InvalidHubUrl, Pairing},
 };
 use axum::{
     Json, Router,
@@ -34,6 +34,9 @@ impl LastError {
     }
     fn from_ref(error: &anyhow::Error) -> Self {
         for source in error.chain() {
+            if let Some(invalid) = source.downcast_ref::<InvalidHubUrl>() {
+                return Self::new("invalid_url", &invalid.to_string());
+            }
             let hub = source.downcast_ref::<HubError>().or_else(|| {
                 source
                     .downcast_ref::<std::io::Error>()
@@ -71,18 +74,21 @@ impl LastError {
         }
     }
 }
+/// The same `{"error":{"code","message"}}` envelope every other route answers with, which the
+/// web client reads to tell a wrong code from an expired one or an unreachable Mac.
 impl IntoResponse for LastError {
     fn into_response(self) -> Response {
         let status = match self.code.as_str() {
             "already_replica" => StatusCode::CONFLICT,
             "bad_code" => StatusCode::FORBIDDEN,
             "expired_code" => StatusCode::GONE,
+            "invalid_url" => StatusCode::BAD_REQUEST,
             "schema_mismatch" => StatusCode::CONFLICT,
             _ => StatusCode::BAD_GATEWAY,
         };
         (
             status,
-            Json(serde_json::json!({"code":self.code,"message":self.message})),
+            Json(serde_json::json!({"error":{"code":self.code,"message":self.message}})),
         )
             .into_response()
     }
@@ -619,7 +625,89 @@ mod tests {
         let body: serde_json::Value =
             serde_json::from_slice(&to_bytes(response.into_body(), usize::MAX).await.unwrap())
                 .unwrap();
-        assert_eq!(body["code"], "already_replica");
+        assert_eq!(body["error"]["code"], "already_replica");
+    }
+
+    async fn post_join(app: &Router, url: &str) -> (StatusCode, serde_json::Value) {
+        let body = serde_json::json!({"url": url, "code": "ABCD-EFGH", "name": "Phone"});
+        let response = app
+            .clone()
+            .oneshot(
+                Request::post("/api/sync/join")
+                    .header("Content-Type", "application/json")
+                    .body(Body::from(body.to_string()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        (status, serde_json::from_slice(&body).unwrap())
+    }
+
+    async fn serve_pairing(
+        status: StatusCode,
+        code: &'static str,
+        message: &'static str,
+    ) -> String {
+        let hub = Router::new().route(
+            "/api/sync/pair",
+            post(move || async move {
+                (
+                    status,
+                    Json(serde_json::json!({"error":{"code":code,"message":message}})),
+                )
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        tokio::spawn(async move { axum::serve(listener, hub).await });
+        url
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn join_failures_answer_in_the_error_envelope_the_client_reads() {
+        let phone_dir = tempfile::tempdir().unwrap();
+        let (app, _handles) =
+            crate::embedded_router(Notebook::open(phone_dir.path()).unwrap()).unwrap();
+        for (status, code, message) in [
+            (
+                StatusCode::FORBIDDEN,
+                "bad_code",
+                "The pairing code is incorrect.",
+            ),
+            (
+                StatusCode::GONE,
+                "expired_code",
+                "The pairing code has expired.",
+            ),
+        ] {
+            let url = serve_pairing(status, code, message).await;
+            let (answered, body) = post_join(&app, &url).await;
+            assert_eq!(answered, status);
+            assert_eq!(body["error"]["code"], code);
+            assert_eq!(body["error"]["message"], message);
+        }
+
+        // Nothing listens: the Mac cannot be reached.
+        let closed = {
+            let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+            format!("http://{}", listener.local_addr().unwrap())
+        };
+        let (answered, body) = post_join(&app, &closed).await;
+        assert_eq!(answered, StatusCode::BAD_GATEWAY);
+        assert_eq!(body["error"]["code"], "hub_unreachable");
+
+        // Plain http to another machine is refused before anything is sent, and says why.
+        let (answered, body) = post_join(&app, "http://10.0.2.2:4802").await;
+        assert_eq!(answered, StatusCode::BAD_REQUEST);
+        assert_eq!(body["error"]["code"], "invalid_url");
+        assert!(
+            body["error"]["message"]
+                .as_str()
+                .unwrap()
+                .starts_with("Sync needs an https address")
+        );
     }
 
     #[tokio::test]

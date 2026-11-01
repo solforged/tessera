@@ -292,7 +292,9 @@ async fn set_sharing(
     let Json(request) = request?;
     // Serialize toggles so a slow enable cannot complete after a later disable.
     let _guard = state.sharing.lock().await;
-    let sharing = sharing::set(state.sync_port, request.on).await;
+    let sharing = sharing::set(state.sync_port, request.on)
+        .await
+        .map_err(|message| ApiError::new(StatusCode::CONFLICT, "sharing_taken", message))?;
     if !sharing.on {
         *state.pairing.lock() = Pairing::None;
     }
@@ -524,6 +526,7 @@ mod tests {
         let (phone, handles) =
             crate::embedded_router(tessera_core::Notebook::open(phone_dir.path()).unwrap())
                 .unwrap();
+        let before = handles.notebook.lock().info().unwrap().id;
         let join = json!({"url": url, "code": "4f7k-92qd", "name": "Phone"});
         assert_eq!(
             request(&phone, "/api/sync/join", None, join.clone())
@@ -531,6 +534,19 @@ mod tests {
                 .status(),
             StatusCode::OK
         );
+        // The clone replaced the workshop in place, so a window bound to the old one must reload.
+        let stale = phone
+            .clone()
+            .oneshot(
+                Request::get("/api/roots")
+                    .header("X-Tessera-Notebook", before)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(stale.status(), StatusCode::CONFLICT);
+        assert_eq!(value(stale).await["error"]["code"], "notebook_changed");
         let device = state.notebook.lock().sync_devices().unwrap()[0].id.clone();
         forget(State(state.clone()), Path(device))
             .await
