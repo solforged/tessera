@@ -46,6 +46,7 @@ pub(crate) fn attributes(source: QuerySource) -> Vec<QueryAttribute> {
             ("@cited_by", "Cited by", Number),
             ("@cited_in", "Cited in", Instance),
             ("@highlights", "Highlights", Number),
+            ("@citation_key", "Citation key", Text),
         ],
         QuerySource::Tasks => &[
             ("@status", "Status", Choice),
@@ -432,12 +433,15 @@ impl Notebook {
                         .or_default()
                         .insert(row.block.block.id);
                 }
-                let mut statement = self
-                    .conn
-                    .prepare_cached("SELECT block_id FROM sources WHERE active = 1")?;
-                for id in statement.query_map([], |r| r.get::<_, String>(0))? {
-                    let id = id?;
+                let mut statement = self.conn.prepare_cached(
+                    "SELECT block_id, citation_key FROM sources WHERE active = 1",
+                )?;
+                for row in statement.query_map([], |r| {
+                    Ok((r.get::<_, String>(0)?, r.get::<_, Option<String>>(1)?))
+                })? {
+                    let (id, key) = row?;
                     let attrs = entities.entry(id.clone()).or_default();
+                    optional(attrs, "@citation_key", key);
                     let blocks = citing.remove(&id).unwrap_or_default();
                     let count = blocks
                         .iter()

@@ -345,3 +345,74 @@ fn pages_list_by_offset_and_choice_values_read_back_by_name() {
         "{offset}"
     );
 }
+
+#[test]
+fn title_targets_find_pages_as_links_do_and_sources_show_keys_and_roles() {
+    let mut workshop = Workshop::start();
+    let created = workshop.ok(
+        "tessera_add_note",
+        json!({ "page": "Fold repro target #source", "markdown": "gloss:: A page for the fold repro.\n" }),
+    );
+    let target = page_id(&created).to_owned();
+
+    // Another spelling reads the page and writes to it; nothing is created.
+    let read = workshop.ok("tessera_read_page", json!({ "title": "Fold-repro target" }));
+    let header = read.lines().next().unwrap();
+    assert!(header.starts_with("# Fold repro target "), "{read}");
+    assert!(header.contains(&target), "{header}");
+    let added = workshop.ok(
+        "tessera_add_note",
+        json!({ "page": "Fold-repro target", "markdown": "Written by a folded page name.\n" }),
+    );
+    assert_eq!(page_id(&added), target, "{added}");
+    assert!(!added.contains("Created atoms"), "{added}");
+
+    // A page whose title differs only in punctuation keeps its own title,
+    // and a spelling both share is refused with each page and its ID.
+    let other = workshop.ok(
+        "tessera_add_note",
+        json!({ "page": "Other page", "markdown": "- x" }),
+    );
+    let other = page_id(&other).to_owned();
+    workshop.ok(
+        "tessera_edit_block",
+        json!({ "id": other, "text": "Fold-repro target" }),
+    );
+    let exact = workshop.ok("tessera_read_page", json!({ "title": "Fold-repro target" }));
+    assert!(exact.lines().next().unwrap().contains(&other), "{exact}");
+    let shared = workshop.refused("tessera_read_page", json!({ "title": "fold.repro target" }));
+    assert!(
+        shared.contains(&format!("Fold repro target ({target})"))
+            && shared.contains(&format!("Fold-repro target ({other})")),
+        "{shared}"
+    );
+    let missing = workshop.refused("tessera_read_page", json!({ "title": "Fold repro" }));
+    assert_eq!(missing, "No atom is titled \"Fold repro\"");
+
+    // The source's citation key shows on its title and in the sources query.
+    let key = header
+        .split("citation key ")
+        .nth(1)
+        .and_then(|rest| rest.split([',', ' ']).next())
+        .unwrap_or_else(|| panic!("no citation key: {header}"));
+    assert!(
+        header.contains("source record inbox, citation key "),
+        "{header}"
+    );
+    let sources = workshop.ok("tessera_query", json!({ "source": "sources" }));
+    assert!(
+        sources.contains(&format!("; @citation_key: {key}")),
+        "{sources}"
+    );
+
+    // The overview gives each field's role after its kind.
+    let overview = workshop.ok("tessera_query", json!({}));
+    let gloss = overview
+        .lines()
+        .find(|line| line.starts_with("- gloss (field "))
+        .unwrap_or_else(|| panic!("{overview}"));
+    assert!(
+        gloss.ends_with("): text, standfirst, on 1 atoms"),
+        "{gloss}"
+    );
+}

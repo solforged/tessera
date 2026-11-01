@@ -87,11 +87,11 @@ fn list() -> Value {
         {
             "name": "tessera_read_page",
             "title": "Read a page",
-            "description": "A page or journal day as an indented Markdown outline that tessera_add_note reads back. Each block ends with an HTML comment holding its ID and revision, then its tags, task planning, project, question, assessment, position, relation, source, revisit date, resolution, citations and cards (each with the card ID and revision tessera_hold_card takes); the title's comment covers the page itself. Links to pages show as [[Title]], tags as #Tag or #[[Multi word tag]], field entries as `Name::` and choice values under them as [[Option]]. A text line that would read as structure starts with `\\`, and `-->` shows as `--\\>`.",
+            "description": "A page or journal day as an indented Markdown outline that tessera_add_note reads back. Each block ends with an HTML comment holding its ID and revision, then its tags, task planning, project, question, assessment, position, relation, source and its citation key, revisit date, resolution, citations and cards (each with the card ID and revision tessera_hold_card takes); the title's comment covers the page itself. Links to pages show as [[Title]], tags as #Tag or #[[Multi word tag]], field entries as `Name::` and choice values under them as [[Option]]. A text line that would read as structure starts with `\\`, and `-->` shows as `--\\>`.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "title": { "type": "string", "description": "Page title, ignoring case." },
+                    "title": { "type": "string", "description": "Page title or alias, ignoring case, accents and punctuation." },
                     "date": { "type": "string", "description": "Journal day as YYYY-MM-DD." },
                     "id": { "type": "string", "description": "Any block ID; reads the page that contains it." },
                     "subtree": { "type": "boolean", "default": false, "description": "With id, show only that block and its descendants." }
@@ -107,7 +107,7 @@ fn list() -> Value {
                 "type": "object",
                 "properties": {
                     "markdown": { "type": "string", "description": "The note as a Markdown outline." },
-                    "page": { "type": "string", "description": "Page title, ignoring case; give a day as journal. Tags in it, such as #person, file the page." },
+                    "page": { "type": "string", "description": "Page title or alias, ignoring case, accents and punctuation; give a day as journal. Tags in it, such as #person, file the page." },
                     "journal": { "type": "string", "description": "Journal day as YYYY-MM-DD, or today." },
                     "parent_id": { "type": "string", "description": "Block ID to append children to." },
                     "reason": { "type": "string", "description": "Why this note was written, kept in the change history." }
@@ -342,7 +342,7 @@ fn list() -> Value {
         {
             "name": "tessera_query",
             "title": "Query notes and entities",
-            "description": "Without source, type or view: list types, fields and saved views; every other argument needs one of the three. Sources: notes, questions, positions, sources, tasks, highlights. type alone selects that type's members, tagged blocks included; source notes without type selects titled notes. Filters and sorts accept field names or attributes. All sources: @title, @page, @created, @updated. Notes: @kind, @resolved, @revisit. Questions: @state, @parent, @program, @readings, @current, @last_assessed, @revisit, @inline. Positions: @holder, @subject, @question, @relation, @target_holder, @cites. Sources: @creator, @contributor, @cited_by, @cited_in, @highlights. Tasks: @status, @scheduled, @deadline (or @due), @priority, @repeat, @project. Highlights: @source, @color. Instance equality uses block IDs. Dates accept today, -30d or +7d, YYYY-MM-DD, YYYY-MM or YYYY; or_empty also includes missing values. Rows include entity identity, attributes and editable field value block IDs.",
+            "description": "Without source, type or view: list types, fields and saved views; every other argument needs one of the three. Sources: notes, questions, positions, sources, tasks, highlights. type alone selects that type's members, tagged blocks included; source notes without type selects titled notes. Filters and sorts accept field names or attributes. All sources: @title, @page, @created, @updated. Notes: @kind, @resolved, @revisit. Questions: @state, @parent, @program, @readings, @current, @last_assessed, @revisit, @inline. Positions: @holder, @subject, @question, @relation, @target_holder, @cites. Sources: @creator, @contributor, @cited_by, @cited_in, @highlights, @citation_key. Tasks: @status, @scheduled, @deadline (or @due), @priority, @repeat, @project. Highlights: @source, @color. Instance equality uses block IDs. Dates accept today, -30d or +7d, YYYY-MM-DD, YYYY-MM or YYYY; or_empty also includes missing values. Rows include entity identity, attributes and editable field value block IDs.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

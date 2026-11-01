@@ -1293,7 +1293,7 @@ async fn page_by_title(
     let Path(title) = path.map_err(ApiError::from)?;
     run(&state, move |notebook| {
         notebook
-            .page_by_title(&title)?
+            .page_by_name(&title)?
             .ok_or(tessera_core::Error::NotFound {
                 what: "atom",
                 id: title,
@@ -2248,6 +2248,75 @@ mod tests {
             notifications.try_recv(),
             Err(broadcast::error::TryRecvError::Empty)
         ));
+    }
+
+    #[tokio::test]
+    async fn by_title_route_finds_a_page_as_a_link_does() {
+        async fn get(app: &Router, title: &str) -> (StatusCode, serde_json::Value) {
+            let uri = format!(
+                "/api/pages/by-title/{}",
+                percent_encoding::utf8_percent_encode(title, percent_encoding::NON_ALPHANUMERIC)
+            );
+            let response = app
+                .clone()
+                .oneshot(Request::get(uri).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            let status = response.status();
+            let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            (status, serde_json::from_slice(&bytes).unwrap())
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let spaced = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+        let hyphened = "01ARZ3NDEKTSV4RRFFQ69G5FAW";
+        let cicero = "01ARZ3NDEKTSV4RRFFQ69G5FAX";
+        notebook
+            .apply(&Batch {
+                actor: Actor::Person,
+                reason: None,
+                idempotency_key: None,
+                operations: [
+                    (spaced, "Fold repro target"),
+                    (hyphened, "Fold-repro target"),
+                    (cicero, "Cicero"),
+                ]
+                .into_iter()
+                .map(|(id, title)| tessera_core::Operation::CreatePage {
+                    id: id.into(),
+                    title: title.into(),
+                })
+                .collect(),
+            })
+            .unwrap();
+        notebook.add_alias(cicero, "Tully", Actor::Person).unwrap();
+        let (app, _) = embedded_router(notebook).unwrap();
+
+        // The exact title wins, so titles that differ only in punctuation
+        // each reach their own page; another spelling or an alias reaches
+        // the one page it matches.
+        for (title, id) in [
+            ("fold repro target", spaced),
+            ("Fold repro target #project", spaced),
+            ("Fold-repro target", hyphened),
+            ("Cicéro", cicero),
+            ("tully", cicero),
+        ] {
+            let (status, page) = get(&app, title).await;
+            assert_eq!(status, StatusCode::OK, "{title}: {page}");
+            assert_eq!(page["id"], id, "{title}");
+        }
+        let (status, error) = get(&app, "fold.repro target").await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{error}");
+        let message = error["error"]["message"].as_str().unwrap();
+        assert!(
+            message.contains(&format!("Fold repro target ({spaced})"))
+                && message.contains(&format!("Fold-repro target ({hyphened})")),
+            "{message}"
+        );
+        let (status, _) = get(&app, "Marcus").await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

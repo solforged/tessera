@@ -285,7 +285,7 @@ Attributes use a leading `@` wherever a field key is accepted, including filters
 | Notes | `@kind`, `@resolved`, `@revisit` |
 | Questions | `@state`, `@parent`, `@program`, `@readings`, `@current`, `@last_assessed`, `@revisit`, `@inline` |
 | Positions | `@holder`, `@subject`, `@question`, `@relation`, `@target_holder`, `@cites` |
-| Sources | `@creator`, `@contributor`, `@cited_by`, `@cited_in`, `@highlights` |
+| Sources | `@creator`, `@contributor`, `@cited_by`, `@cited_in`, `@highlights`, `@citation_key` |
 | Tasks | `@status`, `@scheduled`, `@deadline`, `@priority`, `@repeat`, `@project`, and legacy `@due` |
 | Highlights | `@source`, `@color` |
 

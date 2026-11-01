@@ -2547,14 +2547,23 @@ fn title_references_link_a_unique_alias_and_refuse_a_shared_one() {
     assert!(nb.page_by_title("Pliny").unwrap().is_none());
     assert_eq!(agent_history(&nb).len(), before);
 
+    // A page target refuses the shared alias as a link does, rather than
+    // creating a third page, and writes nothing.
+    refused(
+        nb.agent_edit(&note(page("Pliny"), vec![block("Which one?", vec![])])),
+        &format!("“Pliny” could name Pliny the Elder ({elder}) and Pliny the Younger ({younger})"),
+    );
+    assert_eq!(agent_history(&nb).len(), before);
+
     // A page with that title wins over other pages' aliases.
-    let pliny = run(
+    let pliny = id(900);
+    seed(
         &mut nb,
-        &note(page("Pliny"), vec![block("Which one?", vec![])]),
-    )
-    .page
-    .unwrap()
-    .id;
+        vec![Operation::CreatePage {
+            id: pliny.clone(),
+            title: "Pliny".into(),
+        }],
+    );
     let linked = run(
         &mut nb,
         &note(page("Reading list"), vec![block("See [[pliny]].", vec![])]),
@@ -2562,5 +2571,100 @@ fn title_references_link_a_unique_alias_and_refuse_a_shared_one() {
     assert_eq!(
         nb.block(&linked.blocks[0].id).unwrap().text,
         format!("See [[{pliny}]].")
+    );
+}
+
+#[test]
+fn page_targets_find_a_page_as_links_do_and_create_only_when_none_matches() {
+    let (_dir, mut nb) = fixture();
+    let target = run(
+        &mut nb,
+        &note(page("Fold repro target"), vec![block("first", vec![])]),
+    )
+    .page
+    .unwrap()
+    .id;
+
+    // Another spelling reaches the page instead of creating a second one,
+    // and a link with the same wording keeps it.
+    let folded = run(
+        &mut nb,
+        &note(
+            page("Fold-repro target"),
+            vec![block("See [[Fold-repro target]].", vec![])],
+        ),
+    );
+    assert_eq!(folded.page.as_ref().unwrap().id, target);
+    assert!(folded.created_pages.is_empty());
+    assert_eq!(folded.summary, "Added 1 atom to Fold repro target");
+    assert_eq!(
+        nb.block(&folded.blocks[0].id).unwrap().text,
+        format!("See [[{target}|Fold-repro target]].")
+    );
+    assert!(nb.page_by_title("Fold-repro target").unwrap().is_none());
+
+    // So does an alias, and the lookup the read tools use agrees.
+    run(
+        &mut nb,
+        &note(
+            page("Fold repro target"),
+            vec![block("aliases:: FRT", vec![])],
+        ),
+    );
+    let alias = run(&mut nb, &note(page("frt"), vec![block("by alias", vec![])]));
+    assert_eq!(alias.page.unwrap().id, target);
+    for name in [
+        "FOLD REPRO TARGET",
+        "fold.repro target",
+        "Fóld repro-target",
+        "frt",
+    ] {
+        assert_eq!(nb.page_by_name(name).unwrap().unwrap().id, target, "{name}");
+    }
+
+    // The exact title wins, so a page whose title differs only in
+    // punctuation stays reachable by its own title.
+    let hyphened = id(900);
+    seed(
+        &mut nb,
+        vec![Operation::CreatePage {
+            id: hyphened.clone(),
+            title: "Fold-repro target".into(),
+        }],
+    );
+    for (title, expected) in [
+        ("Fold-repro target", &hyphened),
+        ("fold repro target", &target),
+    ] {
+        assert_eq!(nb.page_by_name(title).unwrap().unwrap().id, *expected);
+        let receipt = run(&mut nb, &note(page(title), vec![block(title, vec![])]));
+        assert_eq!(receipt.page.unwrap().id, *expected, "{title}");
+    }
+
+    // A spelling both pages share is refused, naming each, and writes nothing.
+    let shared = format!(
+        "“fold.repro target” could name Fold repro target ({target}) and Fold-repro target ({hyphened})"
+    );
+    refused(nb.page_by_name("fold.repro target"), &shared);
+    let before = agent_history(&nb).len();
+    refused(
+        nb.agent_edit(&note(page("fold.repro target"), vec![block("x", vec![])])),
+        &shared,
+    );
+    assert_eq!(agent_history(&nb).len(), before);
+
+    // Only a name nothing matches makes a page.
+    assert!(nb.page_by_name("Fold repro").unwrap().is_none());
+    let created = run(
+        &mut nb,
+        &note(page("Fold repro"), vec![block("new", vec![])]),
+    );
+    assert_eq!(created.created_pages.len(), 1);
+    assert_eq!(created.page.unwrap().text, "Fold repro");
+
+    // The Fields page is refused under any spelling.
+    refused(
+        nb.agent_edit(&note(page("Fields."), vec![block("x", vec![])])),
+        "the Fields page holds field definitions",
     );
 }
