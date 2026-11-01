@@ -9,8 +9,8 @@ use serde::Serialize;
 use tessera_core::calendar::{RepeatUnit, Repeater};
 use tessera_core::card_text::CardKind;
 use tessera_core::{
-    Block, BlockCapabilities, BlockKind, CardUnit, PageView, QuoteState, SettingsView, TaskState,
-    TaskStatus,
+    Block, BlockCapabilities, BlockKind, CardUnit, FieldKind, FieldOption, FieldsView, PageView,
+    QuoteState, SettingsView, TaskState, TaskStatus,
 };
 
 /// The notebook's calendar: today and the zone timestamps are shown in.
@@ -38,11 +38,35 @@ impl Clock {
 
 /// What a page rendering needs beyond the page itself.
 pub struct PageContext<'a> {
-    /// Field definition names by ID.
-    pub fields: &'a HashMap<String, String>,
+    pub fields: &'a Fields,
     /// Active cards whose source blocks are on the page.
     pub cards: &'a [CardUnit],
     pub clock: &'a Clock,
+}
+
+/// The field definitions a page rendering names.
+#[derive(Default)]
+pub struct Fields {
+    /// Names by definition ID.
+    pub names: HashMap<String, String>,
+    /// Choice fields' live options by definition ID.
+    pub choices: HashMap<String, Vec<FieldOption>>,
+}
+
+impl From<FieldsView> for Fields {
+    fn from(view: FieldsView) -> Self {
+        let mut fields = Self::default();
+        for field in view.fields {
+            let definition = field.definition;
+            if definition.kind == FieldKind::Choice {
+                fields
+                    .choices
+                    .insert(definition.id.clone(), definition.options);
+            }
+            fields.names.insert(definition.id, definition.name);
+        }
+        fields
+    }
 }
 
 /// The page, or the subtree under `subtree`, as an indented outline. Each
@@ -50,11 +74,12 @@ pub struct PageContext<'a> {
 /// capabilities, revisit state, citations and cards; the page's comment does
 /// the same for its root, with the task's status. References to pages and
 /// journal days show their title without its tags so an agent can write them
-/// back as `[[Title]]`, tags show as [`agent_tags`] writes them, and field
-/// entries show as `Name::`, the shorthand that writes them. Block text reads
-/// back through `tessera_add_note` as the same text: a line that would read as
-/// structure starts with a backslash, and `-->` shows as `--\>`. Citation
-/// quotes are passage text and show as stored.
+/// back as `[[Title]]`, tags show as [`agent_tags`] writes them, field
+/// entries show as `Name::`, the shorthand that writes them, and a choice
+/// field's values under them as `[[Option]]`. Block text reads back through
+/// `tessera_add_note` as the same text: a line that would read as structure
+/// starts with a backslash, and `-->` shows as `--\>`. Citation quotes are
+/// passage text and show as stored.
 pub fn render(
     page: &PageView,
     context: &PageContext,
@@ -72,6 +97,15 @@ pub fn render(
         .capabilities
         .iter()
         .map(|caps| (caps.block_id.as_str(), caps))
+        .collect();
+    // Each choice field entry on the page, with the options its values name.
+    let choices: HashMap<&str, &[FieldOption]> = page
+        .rows
+        .iter()
+        .filter_map(|row| {
+            let options = context.fields.choices.get(field_entry(&row.block.text)?)?;
+            Some((row.block.id.as_str(), options.as_slice()))
+        })
         .collect();
     let mut cards: HashMap<&str, Vec<&CardUnit>> = HashMap::new();
     for card in context.cards {
@@ -162,11 +196,20 @@ pub fn render(
                 ),
                 &newline,
             )
+        } else if let Some(name) =
+            field_entry(&row.block.text).and_then(|id| context.fields.names.get(id))
+        {
+            format!("{}::", comment_safe(name))
+        } else if let Some(option) = row
+            .block
+            .parent_id
+            .as_deref()
+            .and_then(|parent| choices.get(parent))
+            .and_then(|options| option_name(&row.block.text, options))
+        {
+            outline_text(&format!("[[{option}]]"), &newline)
         } else {
-            match field_entry(&row.block.text).and_then(|id| context.fields.get(id)) {
-                Some(name) => format!("{}::", comment_safe(name)),
-                None => outline_text(&titled(&row.block.text, &titles), &newline),
-            }
+            outline_text(&titled(&row.block.text, &titles), &newline)
         };
         let archived = if row.block.archived {
             " (archived)"
@@ -399,6 +442,22 @@ fn field_entry(text: &str) -> Option<&str> {
     let inner = text.trim().strip_prefix("[[")?.strip_suffix("]]")?;
     let id = inner.split_once('|').map_or(inner, |(id, _)| id);
     (!id.is_empty() && !id.contains(['[', ']'])).then_some(id)
+}
+
+/// The name of the option a choice value's text, `[[ID]]` alone, links among
+/// its field's `options`, which `tessera_add_note` and `tessera_edit_block`
+/// read back under the entry as the same link. A name no link can spell, or
+/// that another option shares ignoring case, is left out so the ID stays.
+fn option_name<'a>(text: &str, options: &'a [FieldOption]) -> Option<&'a str> {
+    let id = text.strip_prefix("[[")?.strip_suffix("]]")?;
+    let name = options.iter().find(|option| option.id == id)?.text.trim();
+    let folded = name.to_lowercase();
+    let shared = options
+        .iter()
+        .filter(|option| option.text.trim().to_lowercase() == folded)
+        .count()
+        > 1;
+    (!shared && !name.is_empty() && !name.contains(['[', ']', '|', '\n', '\r'])).then_some(name)
 }
 
 /// The checkbox-style marker `outline` reads back as the same status.
@@ -997,7 +1056,7 @@ mod tests {
             }))
             .unwrap(),
         );
-        let fields = HashMap::new();
+        let fields = Fields::default();
         let clock = Clock {
             zone: jiff::tz::TimeZone::UTC,
             today: "2026-10-12".into(),
@@ -1094,7 +1153,7 @@ mod tests {
             }]))
             .unwrap();
         }
-        let fields = HashMap::new();
+        let fields = Fields::default();
         let clock = Clock {
             zone: jiff::tz::TimeZone::UTC,
             today: "2026-10-12".into(),
@@ -1204,7 +1263,7 @@ mod tests {
             },
         ]))
         .unwrap();
-        let fields = HashMap::new();
+        let fields = Fields::default();
         let clock = Clock {
             zone: jiff::tz::TimeZone::UTC,
             today: "2026-10-12".into(),
@@ -1237,7 +1296,7 @@ mod tests {
             }],
         })
         .unwrap();
-        let fields = HashMap::new();
+        let fields = Fields::default();
         let clock = Clock {
             zone: jiff::tz::TimeZone::UTC,
             today: "2026-10-18".into(),
@@ -1294,7 +1353,7 @@ mod tests {
             ],
         })
         .unwrap();
-        let fields = HashMap::new();
+        let fields = Fields::default();
         let clock = Clock {
             zone: jiff::tz::TimeZone::UTC,
             today: "2026-10-12".into(),
@@ -1308,6 +1367,110 @@ mod tests {
         assert!(output.contains(&format!("relation answers target {}", id(1))));
         assert!(output.contains("question as its target"));
         assert!(output.contains("[[Person]]"));
+    }
+
+    #[test]
+    fn choice_values_show_their_option_by_name_where_it_reads_back() {
+        use tessera_core::{
+            Actor, AgentEdit, AgentRequest, Batch, NoteBlock, NoteTarget, Notebook, Operation,
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let mut nb = Notebook::open(dir.path()).unwrap();
+        let receipt = nb
+            .agent_edit(&AgentRequest {
+                actor: Actor::Agent {
+                    name: "test".into(),
+                },
+                reason: None,
+                edit: AgentEdit::AddNote {
+                    target: NoteTarget::Page {
+                        title: "Attention".into(),
+                    },
+                    blocks: vec![NoteBlock {
+                        text: "form:: paper".into(),
+                        heading: None,
+                        task: None,
+                        children: Vec::new(),
+                    }],
+                },
+            })
+            .unwrap();
+        let page = receipt.page.unwrap().id;
+        let fields = Fields::from(nb.fields().unwrap());
+        let form = fields
+            .names
+            .iter()
+            .find(|(_, name)| *name == "form")
+            .map(|(id, _)| id.clone())
+            .unwrap();
+        let paper = fields.choices[&form]
+            .iter()
+            .find(|option| option.text == "paper")
+            .map(|option| option.id.clone())
+            .unwrap();
+        // Elsewhere an option is a block reference, which keeps its ID.
+        let insert = |id: String, parent_id: &str, text: String| Operation::Insert {
+            id,
+            parent_id: parent_id.to_owned(),
+            after: None,
+            text,
+            heading: None,
+        };
+        let batch = |operations| Batch {
+            actor: Actor::Person,
+            reason: None,
+            idempotency_key: None,
+            operations,
+        };
+        nb.apply(&batch(vec![insert(
+            format!("{:026}", 1),
+            &page,
+            format!("see [[{paper}]]"),
+        )]))
+        .unwrap();
+        let clock = Clock {
+            zone: jiff::tz::TimeZone::UTC,
+            today: "2026-11-01".into(),
+        };
+        let rows = |nb: &Notebook, fields: &Fields| -> Vec<String> {
+            let context = PageContext {
+                fields,
+                cards: &[],
+                clock: &clock,
+            };
+            render(&nb.page(&page).unwrap(), &context, None)
+                .unwrap()
+                .lines()
+                .map(|line| line.split(" <!-- ").next().unwrap().to_owned())
+                .collect()
+        };
+        assert_eq!(
+            rows(&nb, &fields),
+            [
+                "# Attention".to_owned(),
+                format!("- see [[{paper}]]"),
+                "- form::".to_owned(),
+                "  - [[paper]]".to_owned(),
+            ]
+        );
+        // The subtree under the value still knows its entry.
+        let value = nb.page(&page).unwrap().rows[2].block.id.clone();
+        let context = PageContext {
+            fields: &fields,
+            cards: &[],
+            clock: &clock,
+        };
+        let subtree = render(&nb.page(&page).unwrap(), &context, Some(&value)).unwrap();
+        assert!(subtree.contains("\n- [[paper]] <!-- "), "{subtree}");
+        // A name another option shares would read back as the first of them.
+        nb.apply(&batch(vec![insert(
+            format!("{:026}", 2),
+            &form,
+            "Paper ".into(),
+        )]))
+        .unwrap();
+        let fields = Fields::from(nb.fields().unwrap());
+        assert_eq!(rows(&nb, &fields)[3], format!("  - [[{paper}]]"));
     }
 
     #[test]

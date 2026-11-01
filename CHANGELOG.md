@@ -133,6 +133,9 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Bypassed `HTTP_PROXY` and other proxy settings for requests to the running service, and gave plain messages when no service runs, its lock cannot be read or nothing answers on its port.
 - Counted a CLI `sync clone` as the replica's first sync, so `tessera_sync` no longer says it has not synced.
 - Fixed adding a local HTML file to the Library, which failed with `relative URL without a base`. It ingests as an article with no address; relative links stay plain text and relative images keep their alt text.
+- Showed a choice field's values in `tessera_read_page` as `[[Option]]` instead of the option's bare ID. Values indented under a choice entry, a note added under one and a value edited with `tessera_edit_block` now link the option they name, as `Name:: value` does, so a page written back from `tessera_read_page` keeps its options and creates no page named after one.
+- Let `tessera_list_pages` list past its first 1000 pages: it takes `offset`, and a list that stops short names the offset of the rest.
+- Refused tool arguments a tool's schema does not declare, naming the ones it takes, instead of ignoring them, and refused the agenda's `date`, `days` and `unplanned` in `tessera_tasks` view list.
 
 ## 0.5.1, 2026-10-23
 

@@ -1,6 +1,6 @@
 //! Tools for pages and blocks: search, read, write, and the change history.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use anyhow::Context;
 use serde_json::Value;
@@ -11,15 +11,15 @@ use tessera_core::{
 
 use super::outline::{block_text, note_problems, outline, text_problems};
 use super::render::{
-    Clock, PageContext, age, card_answer, card_front, card_label, kind_label, location, one_line,
-    quoted, render, snippet,
+    Clock, Fields, PageContext, age, card_answer, card_front, card_label, kind_label, location,
+    one_line, quoted, render, snippet,
 };
-use super::{Api, Session, Titles, boolean, integer, limit, required, segment, string};
+use super::{Api, Session, Titles, boolean, integer, limit, offset, required, segment, string};
 
 /// The most hits tessera_search returns.
 const SEARCH_LIMIT: usize = 200;
 
-/// The most pages tessera_list_pages lists.
+/// The most pages one tessera_list_pages call lists.
 const PAGES_LIMIT: usize = 1000;
 
 /// The most entries tessera_recent_changes lists, the history route's cap.
@@ -56,25 +56,39 @@ impl Session<'_> {
 
     pub(super) async fn list_pages(&self, arguments: &Value) -> anyhow::Result<String> {
         let count = limit(arguments, "limit", 100, PAGES_LIMIT)?;
+        let skip = offset(arguments)?.unwrap_or(0);
         let journals = boolean(arguments, "journals")?.unwrap_or(false);
         let api = self.api().await?;
         let roots: Vec<Block> = api.get("/api/roots").await?;
         let roots: Vec<&Block> = roots
             .iter()
             .filter(|root| journals || root.kind == BlockKind::Page)
-            .take(count)
             .collect();
         if roots.is_empty() {
             return Ok("The workshop has no titled atoms yet.".into());
         }
-        let titles = Titles::lenient(&api, roots.iter().map(|root| root.text.as_str())).await;
+        let total = roots.len();
+        if skip >= total {
+            return Ok(format!(
+                "The list has {total} entries, so offset {skip} is past the end; give an offset below {total}."
+            ));
+        }
+        let shown = &roots[skip..total.min(skip + count)];
+        let titles = Titles::lenient(&api, shown.iter().map(|root| root.text.as_str())).await;
         let mut text = String::new();
-        for root in roots {
+        for root in shown {
             text.push_str(&format!(
                 "- {} {:?} (id {})\n",
                 kind_label(root.kind),
                 titles.show(&root.text),
                 root.id
+            ));
+        }
+        let next = skip + shown.len();
+        if next < total {
+            text.push_str(&format!(
+                "{} more follow; pass offset: {next} to list them.\n",
+                total - next
             ));
         }
         Ok(text)
@@ -102,7 +116,7 @@ impl Session<'_> {
         anyhow::ensure!(!subtree || id.is_some(), "subtree needs id.");
         let page: PageView = api.get(&format!("/api/pages/{}", root.page_id)).await?;
         let cards = page_cards(&api, &page.root.id).await?;
-        let fields = field_names(&api).await?;
+        let fields = fields(&api).await?;
         let clock = clock(&api).await?;
         render(
             &page,
@@ -322,14 +336,9 @@ pub(super) async fn page_cards(api: &Api, page_id: &str) -> anyhow::Result<Vec<C
         .await
 }
 
-/// Field definition names by ID.
-pub(super) async fn field_names(api: &Api) -> anyhow::Result<HashMap<String, String>> {
-    let fields: FieldsView = api.get("/api/fields").await?;
-    Ok(fields
-        .fields
-        .into_iter()
-        .map(|field| (field.definition.id, field.definition.name))
-        .collect())
+/// Field definitions as tessera_read_page names them.
+pub(super) async fn fields(api: &Api) -> anyhow::Result<Fields> {
+    Ok(Fields::from(api.get::<FieldsView>("/api/fields").await?))
 }
 
 pub(super) async fn clock(api: &Api) -> anyhow::Result<Clock> {

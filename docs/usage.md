@@ -317,7 +317,7 @@ The server stays with the workshop it starts with:
 - After a switch in Settings › Workshops, or when the lock names a port that serves another workshop, calls are refused with both folders named, and nothing is written. Switch the service back, or restart the MCP server to work in the other workshop.
 - Requests to the running service, from `tessera mcp` and from other commands, bypass `HTTP_PROXY` and other proxy settings.
 
-Messages are newline-delimited JSON-RPC 2.0. A batch is accepted only under protocol version 2025-03-26, the one version that defines batches. A malformed message gets a JSON-RPC error, and the session keeps serving.
+Messages are newline-delimited JSON-RPC 2.0. A batch is accepted only under protocol version 2025-03-26, the one version that defines batches. A malformed message gets a JSON-RPC error, and the session keeps serving. A tool refuses an argument its schema does not declare, naming the ones it takes.
 
 ### Read tools
 
@@ -326,9 +326,9 @@ Eleven tools read:
 | Tool | Returns |
 |---|---|
 | `tessera_search` | Blocks matching text, with their pages, up to 200. |
-| `tessera_list_pages` | Page titles, optionally with journal days, up to 1000. |
-| `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline that `tessera_add_note` reads back. Each block's comment gives its ID and revision, tags, task planning, project, question, assessment, position, relation, source, revisit date, resolution, citations, and cards with their IDs and revisions. The title's comment does the same for the page. Field entries show as `Name::`, multi-word tags as `#[[Title]]` and image blocks as `![caption](/api/images/<sha>)`. A text line that would read back as structure starts with `\`, and `-->` shows as `--\>`. |
-| `tessera_tasks` | The agenda for a day or a run of days, or tasks filtered by status, dates, priority, project or a saved task view. The agenda refuses the list's filters. When `status` names `done` or `cancelled`, `include` defaults to `all`. |
+| `tessera_list_pages` | Page titles, optionally with journal days, up to 1000 from `offset`. A list that stops short names the `offset` that lists the rest. |
+| `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline that `tessera_add_note` reads back. Each block's comment gives its ID and revision, tags, task planning, project, question, assessment, position, relation, source, revisit date, resolution, citations, and cards with their IDs and revisions. The title's comment does the same for the page. Field entries show as `Name::` and choice values under them as `[[Option]]`, multi-word tags as `#[[Title]]` and image blocks as `![caption](/api/images/<sha>)`. A text line that would read back as structure starts with `\`, and `-->` shows as `--\>`. |
+| `tessera_tasks` | The agenda for a day or a run of days, or tasks filtered by status, dates, priority, project or a saved task view. Each view refuses the other's arguments. When `status` names `done` or `cancelled`, `include` defaults to `all`. |
 | `tessera_cards` | A block's or page's cards, the due, new or full queue (optionally a saved deck's, a tag deck's or a type's), review statistics, or decks. A page is a title, a page or journal day ID, `YYYY-MM-DD` or `today`. A deck's queue uses the deck's own selection unless `selection` is given. Arguments the chosen mode does not use are refused. |
 | `tessera_query` | Types, fields and saved views, or notes, questions, positions, sources, tasks and highlights selected by `source`, `type` or `view`; every other argument needs one of those three. Filters and sorts accept field names or `@` attributes; rows include editable field value IDs. Date values are `today`, a signed day count such as `-30d`, or a date, month or year, and `or_empty` includes absent values. |
 | `tessera_library` | Sources, a source's contents, its passages in order from an ordinal with passage IDs, passage search, or highlights. A range citation marks every passage it covers. |
@@ -378,7 +378,7 @@ Written text follows the editor's syntax:
 - Card operators (`>>`, `<<`, `<>`, `>>>`, `>>1.`) and clozes (`{{c1::answer}}`) make cards. `A << B` shows B and asks for A. A tag on that same block, such as `#arabic` after the card, files it into a deck of that name. Review lists the deck without a saved deck. A tag on the page does not file the cards beneath it.
 - Beneath a `Mitochondria` block, a child `Function ;; makes ATP` makes a descriptor card asking `Mitochondria › Function`.
 - `Name:: value` is always its own block: a field entry on the page at the top level, or on the item it is indented under. It creates the field when missing. A built-in name such as author, lived, published, url or form gets the built-in field's kind.
-- A value the field cannot read as its kind (date, span, URL, number, identifier, checkbox or choice) is refused. A choice value names an option, as `Stage:: Budding` or `Stage:: [[Budding]]`, and links that option; it never creates a page.
+- A value the field cannot read as its kind (date, span, URL, number, identifier, checkbox or choice) is refused. A choice value names an option, as `Stage:: Budding`, `Stage:: [[Budding]]` or an item indented under `Stage::`, and links that option; it never creates a page. `tessera_edit_block` reads a value under a choice entry the same way.
 - A note cannot go on the Fields page; `Name:: value` creates fields.
 - A write given a block's, card's or deck's revision is refused if it changed since it was read: `expected revision 1, found revision 2`, or `…, but it no longer exists`.
 

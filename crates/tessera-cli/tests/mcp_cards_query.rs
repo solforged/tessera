@@ -1,6 +1,6 @@
 #![cfg(unix)]
 
-//! `tessera mcp`'s card, deck and query tools against a running service.
+//! `tessera mcp`'s page, card, deck and query tools against a running service.
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
@@ -250,4 +250,98 @@ fn queries_refuse_what_they_would_ignore_and_show_fields_by_name() {
     let row = tasks.lines().find(|line| line.contains("Ask")).unwrap();
     assert!(row.contains("Ask [[Hana Okafor]] about it"), "{row}");
     assert_eq!(row.matches("todo").count(), 1, "{row}");
+}
+
+#[test]
+fn pages_list_by_offset_and_choice_values_read_back_by_name() {
+    let mut workshop = Workshop::start();
+    workshop.ok(
+        "tessera_add_note",
+        json!({ "page": "Choice repro paper #source", "markdown": "gloss:: A paper whose form is paper.\nform:: paper\n" }),
+    );
+    for n in 1..=4 {
+        workshop.ok(
+            "tessera_add_note",
+            json!({ "page": format!("Bulk page {n}"), "markdown": "- x" }),
+        );
+    }
+
+    // A choice value shows its option's name, and the page written back from
+    // what read_page shows links the same option instead of a page named paper.
+    let read = workshop.ok(
+        "tessera_read_page",
+        json!({ "title": "Choice repro paper" }),
+    );
+    assert!(read.contains("\n  - [[paper]] <!-- "), "{read}");
+    let markdown: Vec<&str> = read
+        .lines()
+        .skip(1)
+        .map(|line| &line[..line.rfind(" <!-- ").unwrap()])
+        .collect();
+    workshop.ok(
+        "tessera_add_note",
+        json!({ "page": "Choice copy", "markdown": markdown.join("\n") }),
+    );
+    let copy = workshop.ok("tessera_read_page", json!({ "title": "Choice copy" }));
+    assert!(copy.contains("\n  - [[paper]] <!-- "), "{copy}");
+    let missing = workshop.refused("tessera_read_page", json!({ "title": "paper" }));
+    assert!(missing.contains("No atom is titled"), "{missing}");
+    let query = workshop.ok(
+        "tessera_query",
+        json!({ "source": "notes", "filters": [{ "field": "@title", "op": "is", "value": "Choice copy" }] }),
+    );
+    assert!(query.contains("form: paper (value "), "{query}");
+
+    // Pages list in runs from an offset, each naming the next.
+    let all = workshop.ok("tessera_list_pages", json!({ "limit": 1000 }));
+    let total = all.lines().count();
+    assert!(total >= 7, "{all}");
+    let mut paged = Vec::new();
+    let mut offset = 0;
+    loop {
+        let run = workshop.ok(
+            "tessera_list_pages",
+            json!({ "limit": 2, "offset": offset }),
+        );
+        let (rows, more): (Vec<&str>, Vec<&str>) =
+            run.lines().partition(|line| line.starts_with("- "));
+        assert!(rows.len() <= 2, "{run}");
+        paged.extend(rows.iter().map(|row| row.to_string()));
+        offset += rows.len();
+        if offset == total {
+            assert!(more.is_empty(), "{run}");
+            break;
+        }
+        assert_eq!(
+            more,
+            [format!(
+                "{} more follow; pass offset: {offset} to list them.",
+                total - offset
+            )],
+            "{run}"
+        );
+    }
+    assert_eq!(paged, all.lines().collect::<Vec<_>>());
+    let past = workshop.ok("tessera_list_pages", json!({ "offset": total }));
+    assert!(
+        past.contains(&format!("offset {total} is past the end")),
+        "{past}"
+    );
+    let negative = workshop.refused("tessera_list_pages", json!({ "offset": -1 }));
+    assert_eq!(negative, "offset must be 0 or more");
+
+    // An argument a tool does not declare is refused, not ignored.
+    let bogus = workshop.refused("tessera_list_pages", json!({ "limit": 2, "bogus": 1 }));
+    assert_eq!(
+        bogus,
+        "tessera_list_pages does not take bogus; it takes journals, limit and offset."
+    );
+    let offset = workshop.refused(
+        "tessera_search",
+        json!({ "query": "paper", "limit": 1, "offset": 5 }),
+    );
+    assert!(
+        offset.starts_with("tessera_search does not take offset"),
+        "{offset}"
+    );
 }

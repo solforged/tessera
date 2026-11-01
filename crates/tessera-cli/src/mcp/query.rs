@@ -12,7 +12,7 @@ use tessera_core::{
 
 use super::cards::type_id;
 use super::render::{location, name, one_line};
-use super::{Api, Session, Titles, choice, integer, limit, string};
+use super::{Api, Session, Titles, choice, limit, offset, string};
 
 const OPS: &str = "is, is_not, contains, gt, gte, lt, lte, set or empty";
 
@@ -71,10 +71,8 @@ impl Session<'_> {
             query.sort = vec![key];
         }
         query.limit = Some(limit(arguments, "limit", 50, 500)?);
-        if let Some(offset) = integer(arguments, "offset")? {
-            query.offset = usize::try_from(offset)
-                .ok()
-                .context("offset must be 0 or more")?;
+        if let Some(offset) = offset(arguments)? {
+            query.offset = offset;
         }
         let result: QueryResult = api.post("/api/query", &query).await?;
         if result.rows.is_empty() {

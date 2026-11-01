@@ -47,6 +47,9 @@ const LIST_ONLY: [&str; 10] = [
     "limit",
 ];
 
+/// The tessera_tasks arguments only the agenda reads.
+const AGENDA_ONLY: [&str; 3] = ["date", "days", "unplanned"];
+
 impl Session<'_> {
     /// Merge the given fields into the block's current task state.
     pub(super) async fn set_task(&self, arguments: &Value) -> anyhow::Result<String> {
@@ -176,6 +179,15 @@ impl Session<'_> {
     }
 
     async fn task_list(&self, arguments: &Value) -> anyhow::Result<String> {
+        let agenda_only: Vec<&str> = AGENDA_ONLY
+            .into_iter()
+            .filter(|key| given(arguments, key))
+            .collect();
+        anyhow::ensure!(
+            agenda_only.is_empty(),
+            "The task list does not take these agenda arguments: {}. Pass view agenda to use them, or leave them out.",
+            agenda_only.join(", ")
+        );
         let api = self.api().await?;
         let today = clock(&api).await?.today;
         let query = match string(arguments, "saved")? {

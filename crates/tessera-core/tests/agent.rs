@@ -1816,6 +1816,82 @@ fn choice_values_link_their_option_and_never_create_pages() {
 }
 
 #[test]
+fn choice_values_under_their_entry_link_their_option_as_shorthand_does() {
+    let (_dir, mut nb) = fixture();
+    // Values indented under `form::` read as `form:: paper` does; only the
+    // entry's own children are values.
+    run(
+        &mut nb,
+        &note(
+            page("Attention"),
+            vec![block(
+                "form::",
+                vec![
+                    block("[[paper]]", vec![block("[[Vaswani]]", vec![])]),
+                    block("Report", vec![]),
+                ],
+            )],
+        ),
+    );
+    let form = nb
+        .fields()
+        .unwrap()
+        .fields
+        .into_iter()
+        .map(|field| field.definition)
+        .find(|definition| definition.name == "form")
+        .unwrap();
+    let option = |name: &str| {
+        let option = form.options.iter().find(|option| option.text == name);
+        format!("[[{}]]", option.unwrap().id)
+    };
+    let attention = nb.page_by_title("Attention").unwrap().unwrap().id;
+    let vaswani = nb.page_by_title("Vaswani").unwrap().unwrap().id;
+    let rows = outline(&nb, &attention);
+    assert_eq!(
+        rows,
+        [
+            format!("[[{}]]", form.id),
+            format!("  {}", option("paper")),
+            format!("    [[{vaswani}]]"),
+            format!("  {}", option("report")),
+        ]
+    );
+    for title in ["paper", "Report"] {
+        assert!(nb.page_by_title(title).unwrap().is_none(), "{title}");
+    }
+    refused(
+        nb.agent_edit(&note(
+            page("Attention"),
+            vec![block("form::", vec![block("[[Wilting]]", vec![])])],
+        )),
+        "“[[Wilting]]” is not an option of form; use one of book, chapter",
+    );
+    assert!(nb.page_by_title("Wilting").unwrap().is_none());
+
+    // A note added under an existing entry adds values, and an edited value
+    // names its option.
+    let entry = nb.page(&attention).unwrap().rows[0].block.id.clone();
+    let value = nb.page(&attention).unwrap().rows[1].block.id.clone();
+    run(
+        &mut nb,
+        &note(
+            NoteTarget::Block { id: entry },
+            vec![block("Video", vec![])],
+        ),
+    );
+    run(&mut nb, &edit(&value, "[[thread]]"));
+    let rows = outline(&nb, &attention);
+    assert_eq!(rows[1], format!("  {}", option("thread")));
+    assert_eq!(rows[4], format!("  {}", option("video")));
+    refused(
+        nb.agent_edit(&edit(&value, "Wilting")),
+        "“Wilting” is not an option of form",
+    );
+    assert!(nb.page_by_title("thread").unwrap().is_none());
+}
+
+#[test]
 fn page_titles_must_be_linkable_short_and_not_dates() {
     let (_dir, mut nb) = fixture();
     dune(&mut nb);

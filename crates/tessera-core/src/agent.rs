@@ -647,6 +647,7 @@ impl Notebook {
             )));
         }
         let mut tagged = Vec::new();
+        let mut values = None;
         let (page_id, parent_id, after, title) = match target {
             NoteTarget::Page { title } => {
                 let title = title.trim();
@@ -699,10 +700,11 @@ impl Notebook {
                 }
                 let after = self.last_child(&block.page_id, &block.id)?;
                 let title = self.block(&block.page_id)?.text;
+                values = self.choice_entry(plan, &block)?;
                 (block.page_id, block.id, after, title)
             }
         };
-        self.plan_blocks(plan, &parent_id, after, blocks, true)?;
+        self.plan_blocks(plan, &parent_id, after, blocks, true, values.as_deref())?;
         let count = plan.inserted.len();
         let mut summary = format!(
             "Added {count} atom{} to {title}",
@@ -762,6 +764,9 @@ impl Notebook {
         Ok(missing)
     }
 
+    /// Plan `blocks` under `parent_id`. When the parent is an entry of the
+    /// choice field `values`, each block is one of its values and links the
+    /// option it names, as the entry's shorthand value does.
     fn plan_blocks(
         &self,
         plan: &mut Plan,
@@ -769,10 +774,14 @@ impl Notebook {
         mut after: Option<String>,
         blocks: &[NoteBlock],
         top: bool,
+        values: Option<&str>,
     ) -> Result<()> {
         for block in blocks {
             let id = new_ulid().to_string();
-            let (text, entry) = self.note_text(plan, &block.text)?;
+            let (text, entry) = match values {
+                Some(field) => (self.value_text(plan, field, &block.text)?, None),
+                None => self.note_text(plan, &block.text)?,
+            };
             plan.operations.push(Operation::Insert {
                 id: id.clone(),
                 parent_id: parent_id.to_owned(),
@@ -789,7 +798,11 @@ impl Notebook {
                 self.plan_task(plan, &id, None, block.task.clone(), false)?;
             }
             let value_id = self.plan_value(plan, &id, entry.as_ref(), false)?;
-            self.plan_blocks(plan, &id, value_id, &block.children, false)?;
+            let choice = entry
+                .as_ref()
+                .map(|entry| entry.field.as_str())
+                .filter(|field| plan.choices.contains_key(*field));
+            self.plan_blocks(plan, &id, value_id, &block.children, false, choice)?;
         }
         Ok(())
     }
@@ -811,26 +824,47 @@ impl Notebook {
         }
     }
 
-    fn field_target(&self, plan: &mut Plan, name: &str) -> Result<String> {
-        if plan.fields.is_none() {
-            let mut fields = HashMap::new();
-            for field in crate::fields::definitions(&self.conn)? {
-                match field.kind {
-                    // Status and priority keep their task options, never value links.
-                    FieldKind::Choice if crate::built_in::task_options(&field.name).is_empty() => {
-                        plan.choices
-                            .insert(field.id.clone(), (field.name.clone(), field.options));
-                    }
-                    kind if value_form(kind).is_some() => {
-                        plan.checked
-                            .insert(field.id.clone(), (field.name.clone(), kind));
-                    }
-                    _ => {}
-                }
-                fields.insert(field.name.to_lowercase(), field.id);
-            }
-            plan.fields = Some(fields);
+    /// Load the live field definitions into the plan once: their IDs by
+    /// lowercase name, choice fields' options and the kinds values must read as.
+    fn load_fields(&self, plan: &mut Plan) -> Result<()> {
+        if plan.fields.is_some() {
+            return Ok(());
         }
+        let mut fields = HashMap::new();
+        for field in crate::fields::definitions(&self.conn)? {
+            match field.kind {
+                // Status and priority keep their task options, never value links.
+                FieldKind::Choice if crate::built_in::task_options(&field.name).is_empty() => {
+                    plan.choices
+                        .insert(field.id.clone(), (field.name.clone(), field.options));
+                }
+                kind if value_form(kind).is_some() => {
+                    plan.checked
+                        .insert(field.id.clone(), (field.name.clone(), kind));
+                }
+                _ => {}
+            }
+            fields.insert(field.name.to_lowercase(), field.id);
+        }
+        plan.fields = Some(fields);
+        Ok(())
+    }
+
+    /// The choice field `block` is an entry of, whose values are the blocks
+    /// under it.
+    fn choice_entry(&self, plan: &mut Plan, block: &Block) -> Result<Option<String>> {
+        let Some(field) = crate::fields::reference(&block.text) else {
+            return Ok(None);
+        };
+        if block.kind != BlockKind::Block {
+            return Ok(None);
+        }
+        self.load_fields(plan)?;
+        Ok(plan.choices.contains_key(field).then(|| field.to_owned()))
+    }
+
+    fn field_target(&self, plan: &mut Plan, name: &str) -> Result<String> {
+        self.load_fields(plan)?;
         let key = name.to_lowercase();
         if let Some(id) = plan.fields.as_ref().and_then(|fields| fields.get(&key)) {
             return Ok(id.clone());
@@ -923,8 +957,8 @@ impl Notebook {
         Ok(Some(id))
     }
 
-    /// A shorthand value as stored: a link to the option it names for a
-    /// choice field, which never creates a page, or the text with its title
+    /// A field value as stored: a link to the option it names for a choice
+    /// field, which never creates a page, or the text with its title
     /// references linked for any other field. A value a number, date, span,
     /// URL, identifier or checkbox field cannot read is refused.
     fn value_text(&self, plan: &mut Plan, field: &str, value: &str) -> Result<String> {
@@ -992,10 +1026,18 @@ impl Notebook {
         touch(plan, &block, revision);
         if let Some(text) = text {
             if block.kind == BlockKind::Block {
-                let (linked, entry) = self.note_text(plan, text)?;
                 let current = match crate::fields::reference(&block.text) {
                     Some(field) if crate::fields::is_definition(&self.conn, field)? => Some(field),
                     _ => None,
+                };
+                // A value under a choice entry links the option it names.
+                let values = match (current, &block.parent_id) {
+                    (None, Some(parent)) => self.choice_entry(plan, &self.block(parent)?)?,
+                    _ => None,
+                };
+                let (linked, entry) = match &values {
+                    Some(field) => (self.value_text(plan, field, text)?, None),
+                    None => self.note_text(plan, text)?,
                 };
                 match (current, &entry) {
                     (Some(current), Some(entry)) if current != entry.field => {
