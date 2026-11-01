@@ -56,6 +56,7 @@ import { createOutlineHints } from './hints';
 import { kindNoun } from '../fields/kinds';
 import { guessFieldKind } from '../fields/value-reading';
 import { sourceFieldName } from './source';
+import { contentsTitle } from '../reader/openings';
 import { createOutlineCompletions } from './completions';
 import { headingPrefix } from './completion';
 import { createOutlineCommands } from './commands';
@@ -232,7 +233,11 @@ function Pane(props: OutlinePaneProps) {
   let restoring = true;
   let disposed = false;
   let focusEpoch = 0;
-  let focusRequest: { id: string; offset: number; insert: boolean; epoch: number } | null = null;
+  let focusRequest: { id: string; offset: number; insert: boolean; epoch: number; focus: boolean } | null = null;
+  /** A navigation open restores the caret without scrolling it into view. Cleared when the reader acts, or when an open names a row to reveal. */
+  let suppressCaretScroll = false;
+  /** While set, a browser or CodeMirror focus scroll is put back so a journal opens on its title. */
+  let holdOpeningScroll = false;
   let focusRestoresPending = 0;
   let reportingFrame = 0;
   let scrollSettle = 0;
@@ -613,7 +618,7 @@ function Pane(props: OutlinePaneProps) {
       if (name && isCatalogueField(name)) fields.set(id, name);
       else if (citation) {
         const title = citation.chapter_title ?? null;
-        if (sourceGrouped() && title && title !== chapter) chapters.set(id, `${title}${counts.has(title) ? ` · ${counts.get(title)}` : ''}`);
+        if (sourceGrouped() && title && title !== chapter) chapters.set(id, `${contentsTitle(title)}${counts.has(title) ? ` · ${counts.get(title)}` : ''}`);
         chapter = title;
       }
     }
@@ -817,7 +822,7 @@ function Pane(props: OutlinePaneProps) {
   }
   createEffect(on([viewport, editingBarVisible], () => {
     const id = editing();
-    if (!id || !props.active || !editor?.view.hasFocus) return;
+    if (suppressCaretScroll || !id || !props.active || !editor?.view.hasFocus) return;
     scrollReveal = { id, epoch: focusEpoch, caret: true };
     scheduleScroll();
   }, { defer: true }));
@@ -868,7 +873,7 @@ function Pane(props: OutlinePaneProps) {
     if (!request && same && host.contains(editor.view.dom)) { editor.sync(block.text); followText(id); return; }
     const offset = request?.offset ?? (caret()?.id === id ? caret()!.offset : 0);
     const popupFocused = document.activeElement?.closest('[role="dialog"], [role="menu"], [role="listbox"]');
-    editor.mount(host, id, block.text, offset, request?.insert ?? !props.vim, !!request && props.active && !popupFocused && !renaming());
+    editor.mount(host, id, block.text, offset, request?.insert ?? !props.vim, !!request?.focus && props.active && !popupFocused && !renaming());
     if (same) followText(id);
     // Publishing the inserted row's height and revealing its caret must finish before the same paint.
     if (anchorFrame) settleScroll();
@@ -932,11 +937,14 @@ function Pane(props: OutlinePaneProps) {
   function restoreFocus() {
     if (disposed || !props.active || composition() || renaming()) return;
     const id = editing();
-    if (id && indices().has(id) && editor?.id === id && editor.view.dom.isConnected) editor.view.focus();
-    else scroll.focus({ preventScroll: true });
+    if (id && indices().has(id) && editor?.id === id && editor.view.dom.isConnected) {
+      if (suppressCaretScroll) editor.focusHeld();
+      else editor.view.focus();
+    } else scroll.focus({ preventScroll: true });
   }
-  function editAt(id: string, offset = 0, insert = !props.vim, reveal = true, activate = true) {
+  function editAt(id: string, offset = 0, insert = !props.vim, reveal = true, activate = true, focus = true) {
     if (disposed || composition()) return;
+    if (reveal) { suppressCaretScroll = false; holdOpeningScroll = false; }
     revealRow(id);
     if (!indices().has(id)) { selectSurvivor(id, ids()); return; }
     if (fieldSheet.start(id)) return;
@@ -949,7 +957,7 @@ function Pane(props: OutlinePaneProps) {
     setSelected(id);
     setRowRange(null);
     setCaret({ id, offset });
-    focusRequest = { id, offset, insert, epoch: ++focusEpoch };
+    focusRequest = { id, offset, insert, epoch: ++focusEpoch, focus };
     if (reveal) { scrollReveal = { id, epoch: focusEpoch, caret: true }; scheduleScroll(); }
     setEditing(id);
     mountEditor(id);
@@ -958,6 +966,8 @@ function Pane(props: OutlinePaneProps) {
   }
   function rowFocus(id: string, extend = false, keepValue = false) {
     if (disposed || composition()) return;
+    suppressCaretScroll = false;
+    holdOpeningScroll = false;
     if (!indices().has(id)) { selectSurvivor(id, ids()); return; }
     const previous = editing();
     if (previous && doc.block(previous) && commitFieldEntry(previous)) return;
@@ -1526,7 +1536,14 @@ function Pane(props: OutlinePaneProps) {
     scroll.addEventListener('paste', paste, true);
     scroll.addEventListener('beforeinput', beforeInput, true);
     onCleanup(() => { scroll.removeEventListener('copy', copy, true); scroll.removeEventListener('cut', cut, true); scroll.removeEventListener('paste', paste, true); scroll.removeEventListener('beforeinput', beforeInput, true); cancelAnimationFrame(compositionFrame); });
+    const releaseCaretHold = () => { suppressCaretScroll = false; holdOpeningScroll = false; };
+    for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const) scroll.addEventListener(type, releaseCaretHold, { capture: true, passive: true });
+    onCleanup(() => { for (const type of ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const) scroll.removeEventListener(type, releaseCaretHold, { capture: true }); });
+    const keepOpeningScroll = () => { if (holdOpeningScroll && scroll.scrollTop !== 0) scroll.scrollTop = 0; };
+    scroll.addEventListener('scroll', keepOpeningScroll);
+    onCleanup(() => scroll.removeEventListener('scroll', keepOpeningScroll));
     editor = new PaneEditor({
+      suppressScroll: () => suppressCaretScroll,
       rewrite: syncCompletions,
       key: editorKey,
       input: referenceInput,
@@ -1599,8 +1616,8 @@ function Pane(props: OutlinePaneProps) {
         focusEpoch++;
         setCaret(at);
         setTextRange(previous => previous && previous.head.id === at.id ? { anchor: previous.anchor, head: at } : previous);
-        scrollReveal = { id: at.id, epoch: focusEpoch, caret: true };
-        scheduleScroll();
+        // A navigation restore reports the caret but must not reveal it. Create-and-edit and a later move still do.
+        if (!suppressCaretScroll) { scrollReveal = { id: at.id, epoch: focusEpoch, caret: true }; scheduleScroll(); }
         if (editor) { const text = editor.view.state.doc.toString(); doc.holdTag(at.id, pendingType(at.id) || !!typeTokenAt(text, at.offset)); updateCompletion(text, at, false); updateTriggers(text, at); }
         scheduleReport();
       },
@@ -1684,7 +1701,13 @@ function Pane(props: OutlinePaneProps) {
         setCaret(first);
         if (props.active) scroll.focus({ preventScroll: true });
         scheduleReport();
-      } else if (first) editAt(first.id, first.offset, !props.vim, !initial.scroll, false);
+      } else if (first) {
+        // A journal opens editing its last empty block. Focus that caret without scrolling it into view.
+        const reveal = !!initial.edit && !initial.scroll;
+        if (!reveal) suppressCaretScroll = true;
+        if (!reveal && !initial.scroll) holdOpeningScroll = true;
+        editAt(first.id, first.offset, !props.vim, reveal, false, reveal || !initial.scroll);
+      }
       if (initial.scroll) restoreInitialAnchor();
     }
   });

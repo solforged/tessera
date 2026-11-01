@@ -17,6 +17,8 @@ test('folded Find highlights map back to complete original glyphs and UTF-16 off
   expect(foldedHighlights('Flann O’Brien', 'obrien')).toEqual([[6, 13]]);
   expect(foldedHighlights('no match', '?!')).toEqual([]);
   expect(foldedHighlights('ΟΣ', 'ΟΣ')).toEqual([[0, 2]]);
+  expect(foldedHighlights('This island lists is called', 'is')).toEqual([[5, 11], [18, 20]]);
+  expect(foldedHighlights('Attention is all you need, called Attention', 'attention is all')).toEqual([[0, 9], [10, 12], [13, 16], [34, 43]]);
 });
 
 test('tag labels follow the live title, falling back to an alias or missing identity', () => {

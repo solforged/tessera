@@ -390,14 +390,14 @@ export function createOutlineRows(context: Pick<OutlineContext,
             <Show when={!editedConflicts().has(id())} fallback={<button type="button" onClick={() => doc.resolveConflict(id(), 'mine')}>Use edited text</button>}><button type="button" onClick={() => { setEditedConflicts(previous => new Set([...previous, id()])); editAt(id(), 0, true); }}>Edit merged text</button></Show></div>
         </div></Show>
       </div>
-      <Show when={sectionHead()}>{head => <span class="row-section-tail"><span class="section-rule" /><span class="section-head-count">{head().count}</span>
+      <Show when={sectionHead()}>{head => <span class="row-section-tail"><span class="section-rule" /><Show when={head().count}><span class="section-head-count">{head().count}</span></Show>
         <Show when={head().section.id === 'inbox' && journal()?.toFile.length}><span class="section-head-action"><Button onClick={event => context.fileAll(journal()!.toFile, event.currentTarget)}>File all…</Button></span></Show>
         <Show when={head().section.id === 'reading' && head().today}><span class="section-head-action"><Button onClick={() => requestCreate({ kind: 'note', text: '', into: { kind: 'journal', section: head().section.id } })}>+ Note on…</Button></span></Show>
       </span>}</Show>
       <Show when={editing() !== id() ? readingSource() : undefined}>{source => <ReadingCreators notebook={props.notebook} sourceId={source()} text={block()?.text ?? ''} />}</Show>
       <Show when={linkSite() && editing() !== id()}><span class="row-link-site">{linkSite()}</span></Show>
       <Show when={inboxRow() && editing() !== id()}><span class="row-inbox-actions">
-        <Show when={journal()?.toFile.includes(id())}>
+        <Show when={journal()?.toFile.includes(id())} fallback={<span class="row-inbox-spacer" aria-hidden="true"><span class="button bordered">Plan</span><span class="button bordered">File to…</span></span>}>
           <Button class="bordered" onClick={() => {
             if (!block()?.task?.status) capabilities.invoke(capabilities.status(id(), 'todo'));
             context.openPlanning(id(), 'schedule');
@@ -405,6 +405,10 @@ export function createOutlineRows(context: Pick<OutlineContext,
           <Button class="bordered" aria-haspopup="listbox" onClick={event => context.openRelation(id(), 'integrate', event.currentTarget)}>File to…</Button>
         </Show>
         <Button class="bordered" icon="more" label="More" aria-haspopup="menu" onClick={event => blockMenu(id(), event.currentTarget)} />
+      </span></Show>
+      {/* A Notes task keeps the width an Inbox row gives its hover actions, so task facts share one right edge across both sections. */}
+      <Show when={journal() && !inboxRow() && !sectionHead() && !readingSource() && block()?.task && editing() !== id()}><span class="row-inbox-actions row-inbox-reserve" aria-hidden="true">
+        <span class="row-inbox-spacer"><span class="button bordered">Plan</span><span class="button bordered">File to…</span><Button class="bordered" icon="more" label="More" /></span>
       </span></Show>
       <AgentMark id={id()} />
       <ReferenceCount id={id()} />

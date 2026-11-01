@@ -2,9 +2,10 @@ import { For, Match, Show, Switch, createEffect, createMemo, createResource, cre
 import { Portal } from 'solid-js/web';
 import type { NotebookClient, CaptureReceipt } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
-import { shortDay } from '../shell/desk-counts';
 import { noteIndex, noteKindIcon } from '../notes/kinds';
-import { completeNames } from '../outline/names';
+import { completeNames, displayTitle } from '../outline/names';
+import { createClock } from '../tasks/clock';
+import { relativeDate } from '../tasks/relative-date';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import type { IconName } from '../ui/Icon';
@@ -106,6 +107,7 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean; onCan
   const [query, setQuery] = createSignal('');
   const [added, setAdded] = createSignal(0);
   const index = noteIndex(props.notebook);
+  const clock = createClock(props.notebook);
   const noteKind = createMemo(() => index()?.kinds.find(value => value.key === (kind().startsWith('type:') ? kind().slice(5) : kind())));
   const moreKinds = createMemo(() => (index()?.kinds ?? []).filter(value => value.tag && !lineKinds.some(line => line.kind === value.key)));
   const [kindMenu, setKindMenu] = createSignal<HTMLElement>();
@@ -145,7 +147,7 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean; onCan
   /** Escape, Cancel and Close abandon the draft; saving and creating dismiss without it. */
   const cancel = () => { if (!closeEditor()) (props.onCancel ?? props.onDismiss)(); };
   const atom = () => { const destination = into(); return destination.kind === 'under' ? destination.pageId : undefined; };
-  const destinationTitle = () => atom() ? props.notebook.lookup(atom()!)()?.text ?? props.notebook.roots().find(page => page.id === atom())?.text ?? 'Atom' : '';
+  const destinationTitle = () => atom() ? displayTitle(props.notebook.lookup(atom()!)()?.text ?? props.notebook.roots().find(page => page.id === atom())?.text ?? 'Atom', props.notebook.lookup) : '';
   const pageDraft = () => kind() === 'project' || kind().startsWith('type:') || (kind() === 'note' || kind() === 'question') && into().kind === 'page';
   const lineKind = () => lineKinds.find(value => value.kind === kind());
   const lineBody = () => !pageDraft() && kind() !== 'card' && kind() !== 'source';
@@ -248,10 +250,10 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean; onCan
       { label: 'Project', section: 'More', icon: 'flag' as const, checked: kind() === 'project', action: () => changeKind('project', true) },
       ...moreKinds().filter(value => value.key !== 'project').map(value => ({ label: value.name, section: 'More', icon: noteKindIcon(value), checked: kind() === `type:${value.key}`, action: () => changeKind(`type:${value.key}`, true) })),
     ]} />}</Show>
-    <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Atom" query={query()} onQuery={setQuery} placeholder="Find an atom" items={pages()?.rows ?? []} key={value => value.page.id} onDismiss={() => setPicker(undefined)} onPick={value => { chooseInto({ kind: 'under', pageId: value.page.id }); setPicker(undefined); }} row={value => <><Icon name="page" /><span class="picker-text">{value.page.text}</span></>} empty="No matching atoms." error={pages.error ? String(pages.error) : undefined} />}</Show>
+    <Show when={picker()}>{anchor => <Picker anchor={anchor()} label="Atom" query={query()} onQuery={setQuery} placeholder="Find an atom" items={pages()?.rows ?? []} key={value => value.page.id} onDismiss={() => setPicker(undefined)} onPick={value => { chooseInto({ kind: 'under', pageId: value.page.id }); setPicker(undefined); }} row={value => <><Icon name="page" /><span class="picker-text">{displayTitle(value.page.text, props.notebook.lookup)}</span></>} empty="No matching atoms." error={pages.error ? String(pages.error) : undefined} />}</Show>
   </>;
   return <SlipLoadingContext.Provider value={track}><div ref={body} class="create-body" onKeyDown={event => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); event.stopPropagation(); cancel(); } }}>
-    <Show when={!props.sheet}><header class="capture-head"><span><span class="capture-title">{action()}</span> <span class="capture-where">{where()}</span></span><span class="capture-where">{shortDay(props.notebook.todayDate())}</span></header></Show>
+    <Show when={!props.sheet}><header class="capture-head"><span><span class="capture-title">{action()}</span> <span class="capture-where">{where()}</span></span><span class="capture-where">{relativeDate(props.notebook.todayDate(), props.notebook.todayDate())} · <span class="capture-clock">{clock()}</span></span></header></Show>
     <Show when={!lineBody() && !phoneControls()}>
       <Show when={!props.request.lockKind}><div class="create-kind-line">{chip()}</div></Show>
       {destination()}
@@ -272,7 +274,7 @@ export function CreateSlipBody(props: CreateSlipProps & { sheet?: boolean; onCan
           <Show when={!phoneControls()}>{destination()}</Show>
           <Show when={!atom() && !props.sheet}><CapturedToday notebook={props.notebook} refresh={added()} onOpen={(pageId, blockId) => props.onOpen({ kind: 'page', pageId, blockId }, false)} /></Show>
           <Show when={!props.sheet} fallback={<Show when={head()}>{mount => <Portal mount={mount()}><Button kind="stamp" disabled={state.busy() || !text().trim()} onClick={() => state.submit(false)}>Add</Button></Portal>}</Show>}>
-            <footer class="create-foot"><span class="create-keys"><Show when={status()} fallback={<><kbd>↵</kbd> Add <kbd>⇧↵</kbd> Add another <kbd>esc</kbd> Close</>}>{value => <span role="status">{value()}</span>}</Show></span><Button onClick={cancel}>Cancel</Button><Button class="bordered create-add" disabled={state.busy() || !text().trim()} onClick={() => state.submit(false)}>{atom() ? `Add to ${destinationTitle()}` : `Add ${landing()}`}</Button></footer>
+            <footer class="create-foot"><span class="create-keys"><Show when={status()} fallback={<><kbd>↵</kbd> Add <kbd>⇧↵</kbd> Add another <kbd>esc</kbd> Close</>}>{value => <span role="status">{value()}</span>}</Show></span><Button onClick={cancel}>Cancel</Button><Button class="bordered create-add" disabled={state.busy() || !text().trim()} onClick={() => state.submit(false)}><span class="create-add-label">{atom() ? `Add to ${destinationTitle()}` : `Add ${landing()}`}</span></Button></footer>
           </Show>
         </>}
       </CaptureField></Match>

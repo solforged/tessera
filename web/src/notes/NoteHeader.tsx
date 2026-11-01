@@ -8,8 +8,7 @@ import type { NotebookClient, PageDocument } from '../document/contract';
 import { foldName } from '../outline/names';
 import { aliasEntries, aliasNames } from './aliases';
 import type { OpenTarget } from '../shell/contract';
-import { calendarDate, civilDate } from '../tasks/relative-date';
-import { isPhone } from '../ui/phone';
+import { civilDate, relativeDate } from '../tasks/relative-date';
 import './note-header.css';
 
 /** The kinds a note is filed under, in rubric capitals above its title; each opens that kind's index. */
@@ -45,15 +44,11 @@ export function NoteAliases(props: { doc: PageDocument; fields: FieldDefinition[
   </Show>;
 }
 
-/** The note's apparatus line under its title: the day it was created in the notebook's time zone, then any trailing controls such as Revisit. */
+/** The note's apparatus line under its title: created day in the notebook's zone, named like every other list (`today`, `Thu`, `Oct 16`), then any trailing controls such as Revisit. */
 export function NoteLine(props: { pageId: string; notebook: NotebookClient; children?: JSX.Element }) {
   const root = createMemo(() => props.notebook.roots().find(block => block.id === props.pageId));
-  const created = (at: number) => {
-    const day = civilDate(at, props.notebook.settings()?.time_zone);
-    return isPhone() ? calendarDate(day, props.notebook.todayDate()) : day;
-  };
   return <Show when={root()}>{page => <p class="note-line">
-    <span class="note-created">Created {created(page().created_at)}</span>
+    <span class="note-created">Created <span class="fig">{relativeDate(civilDate(page().created_at, props.notebook.settings()?.time_zone), props.notebook.todayDate())}</span></span>
     {props.children}
   </p>}</Show>;
 }

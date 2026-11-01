@@ -337,7 +337,7 @@ export function createFieldSheet(context: Pick<OutlineContext,
       if (pending && !pending.signal.aborted) pendingCaretInput.begin(props.pane, value);
       if (kind === 'checkbox' || left) context.rowFocus(value);
       else context.editAt(value, doc.block(value)?.text.length ?? 0, true);
-      context.showNotice(`${fieldLabel(field)} created.`, bufferedText ? undefined : change.undo);
+      context.showNotice(`Created field “${field.name}”`, bufferedText ? undefined : change.undo);
     } catch (error) { pending?.(); setMessage(error instanceof Error ? error.message : String(error)); }
   }
   function fill(entry: string) {

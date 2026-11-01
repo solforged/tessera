@@ -14,6 +14,7 @@ export function noteKindIcon(kind: string | Pick<NoteKind, 'key' | 'icon'>): Ico
     switch (kind) {
       case 'all': return 'contents';
       case 'question': return 'question-open';
+      case 'unfiled': return 'page';
       case 'project': return 'flag';
       default: return 'tag';
     }
@@ -66,14 +67,14 @@ export function indexKindTarget(kind: IndexKind): OpenTarget {
 /** The Index's finding-aid heads, in order; spreads follow under their own head. */
 export const shelves: readonly (readonly [Shelf, string])[] = [['notes', 'Atoms'], ['sources', 'Sources'], ['work', 'Work'], ['tags', 'Tags'], ['loose', 'Loose']];
 
-/** The sidebar index, refreshed after committed changes like the desk counts. A failed read hides it rather than going stale. */
+/** The sidebar index, refreshed after committed changes like the desk counts. A failed read hides it rather than going stale, except while the notebook is offline, when the last one stays. */
 export function noteIndex(notebook: NotebookClient): Accessor<NoteIndex | undefined> {
   const [index, setIndex] = createSignal<NoteIndex>();
   createEffect(() => {
     notebook.changeSequence(); notebook.lastChange(); notebook.connection();
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      notebook.api.noteIndex(controller.signal).then(value => { if (!controller.signal.aborted) setIndex(value); }, () => { if (!controller.signal.aborted) setIndex(undefined); });
+      notebook.api.noteIndex(controller.signal).then(value => { if (!controller.signal.aborted) setIndex(value); }, () => { if (!controller.signal.aborted && notebook.connection() !== 'offline') setIndex(undefined); });
     }, 0);
     onCleanup(() => { clearTimeout(timer); controller.abort(); });
   });

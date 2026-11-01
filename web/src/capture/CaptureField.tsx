@@ -1,24 +1,29 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onMount } from 'solid-js';
 import type { JSX } from 'solid-js';
-import type { TaskState } from '../api/types';
+import { Dynamic } from 'solid-js/web';
+import type { Block, TaskState } from '../api/types';
 import type { CaptureIntent, CaptureReceipt, NotebookClient } from '../document/contract';
 import { textTokens } from '../document/text-tokens';
+import type { Token as TextToken } from '../document/text-tokens';
 import { capturePresentation, editCaptureDraft } from './draft';
 import { openReferenceRange } from '../outline/completion';
-import { completeNames, foldName } from '../outline/names';
+import { completeNames, displayTitle, foldName } from '../outline/names';
 import type { TitleTargets } from '../outline/link-titles';
 import { completeTypes, typeSpelling, typeTokenAt } from '../outline/type-completion';
+import { createPageIcon } from '../outline/source';
+import { noteKindIcon } from '../notes/kinds';
 import { parseCardText } from '../review/card-text';
 import { captureDateToken, dateSuggestions, insideProtectedSyntax, newTask, planDateToken } from '../tasks/quick-date';
 import { relativeDate } from '../tasks/relative-date';
 import type { SectionTarget } from '../tasks/today-template';
 import { Icon } from '../ui/Icon';
+import type { IconName } from '../ui/Icon';
 import { Popup } from '../ui/Popup';
 import './capture.css';
 
 /** An open `[[page` or `#type` query in the draft, and the text a choice replaces. */
 interface Token { kind: 'page' | 'type'; from: number; to: number; query: string }
-interface Choice { title: string; id?: string; create?: boolean }
+interface Choice { title: string; id?: string; create?: boolean; block?: Block; alias?: string | null; icon?: string | null }
 
 /** `[[` before the caret with no closing pair yet; the range runs on through a closing pair already typed. */
 function pageTokenAt(text: string, caret: number): Token | null {
@@ -61,7 +66,7 @@ export interface CaptureFieldProps {
   /** Escape with no completion open. */
   onCancel?(): void;
   onTaskChange?(task: boolean): void;
-  inputRef?(input: HTMLInputElement): void;
+  inputRef?(input: HTMLInputElement | HTMLTextAreaElement): void;
   /** Rendered after the field, before the preview, such as the sheet's footer. */
   children?: (state: { task: () => boolean; busy: () => boolean; submit(again: boolean): void }) => JSX.Element;
 }
@@ -70,7 +75,7 @@ export interface CaptureFieldProps {
  * One durable line. `[[` and `#` complete atoms and tags, `@` schedules, and Enter saves.
  */
 export function CaptureField(props: CaptureFieldProps) {
-  let input!: HTMLInputElement;
+  let input!: HTMLInputElement | HTMLTextAreaElement;
   let line!: HTMLDivElement;
   const [draft, setDraft] = createSignal(props.initialText ?? '');
   const presentation = createMemo(() => capturePresentation(draft()));
@@ -98,15 +103,34 @@ export function CaptureField(props: CaptureFieldProps) {
   });
   const [choices] = createResource(() => token() && `${token()!.kind}:${token()!.query}`, async (key): Promise<Choice[]> => {
     const kind = key.slice(0, key.indexOf(':')), query = key.slice(key.indexOf(':') + 1);
+    // Stored titles carry their tags (`Title #[[id|source]]`); rows, the inserted name and the picked identity all read the tagless live title.
+    const label = (text: string) => displayTitle(text, props.notebook.lookup);
     if (kind === 'type') {
       const result = await completeTypes(props.notebook, query);
-      return [...result.rows.map(block => ({ title: block.text, id: block.id })), ...result.canCreate ? [{ title: query.trim(), create: true }] : []];
+      // A type whose name starts with the query leads, so Enter files under it rather than minting a tag; Create tag comes last.
+      const key = foldName(query), starts = (title: string) => foldName(title).startsWith(key) ? 0 : 1;
+      const existing = result.rows.map(block => ({ title: label(block.text), id: block.id, icon: block.icon })).sort((a, b) => starts(a.title) - starts(b.title));
+      return [...existing, ...result.canCreate ? [{ title: query.trim(), create: true }] : []];
     }
     const result = await completeNames(props.notebook, query, props.notebook.roots());
-    const rows: Choice[] = result.rows.map(({ page }) => ({ title: page.text, id: page.id }));
+    const rows: Choice[] = result.rows.map(({ page, alias }) => ({ title: label(page.text), id: page.id, block: page, alias }));
     const title = query.trim();
     return title && result.canCreate && !/^\d{4}-\d{2}-\d{2}$/.test(title) ? [...rows, { title, create: true }] : rows;
   });
+  // The registry gives each kind its own glyph; read it only once the draft holds a tag.
+  const [kinds] = createResource(() => tags().length > 0 || undefined, () => props.notebook.api.noteIndex().then(value => value.kinds));
+  const tagIcon = (tag: TextToken): IconName => {
+    const kind = kinds()?.find(value => tag.id ? value.type_id === tag.id : foldName(value.name) === foldName(tag.value));
+    return kind ? noteKindIcon(kind) : 'tag';
+  };
+  // The boxed Add a task field is one clipped line; the slip's grows. Both share the input's props and value handling.
+  const field = (props.boxed ? 'input' : 'textarea') as 'input';
+  /** A one-line field that grows to hold a long line instead of scrolling it sideways. */
+  const fit = () => {
+    if (!(input instanceof HTMLTextAreaElement)) return;
+    input.style.height = 'auto';
+    input.style.height = `${input.scrollHeight + input.offsetHeight - input.clientHeight}px`;
+  };
   createEffect(on(() => token()?.query, () => setIndex(0)));
   const open = () => !!token() && !!choices()?.length;
 
@@ -135,7 +159,7 @@ export function CaptureField(props: CaptureFieldProps) {
     props.onTextChange?.(next);
     const at = from + capturePresentation(insert).text.length;
     setCaret(at);
-    queueMicrotask(() => { input.value = capturePresentation(next).text; input.setSelectionRange(at, at); input.focus(); });
+    queueMicrotask(() => { input.value = capturePresentation(next).text; fit(); input.setSelectionRange(at, at); input.focus(); });
   };
   const choose = async (choice: Choice | undefined) => {
     const current = token();
@@ -170,7 +194,7 @@ export function CaptureField(props: CaptureFieldProps) {
         picked.clear();
         setDraft(next);
         const visible = capturePresentation(next).text;
-        setCaret(visible.length); input.value = visible; input.setSelectionRange(visible.length, visible.length);
+        setCaret(visible.length); input.value = visible; fit(); input.setSelectionRange(visible.length, visible.length);
       }
       if (!props.taskOnly && !again && !next) setTask(false);
       props.onSaved?.(again, receipt);
@@ -208,6 +232,12 @@ export function CaptureField(props: CaptureFieldProps) {
   };
   const track = () => setCaret(input.selectionStart ?? input.value.length);
   const acceptInput = () => {
+    if (input instanceof HTMLTextAreaElement && /[\r\n]/.test(input.value)) {
+      // A line is one line: pasted breaks become spaces, as an input would have taken them.
+      const at = input.value.slice(0, input.selectionStart ?? input.value.length).replace(/[\r\n]+/g, ' ').length;
+      input.value = input.value.replace(/[\r\n]+/g, ' ');
+      input.setSelectionRange(at, at);
+    }
     const text = input.value;
     const prefix = /^\[ ?\] /.exec(text)?.[0] ?? '';
     const start = Math.max(0, (input.selectionStart ?? text.length) - prefix.length);
@@ -218,10 +248,11 @@ export function CaptureField(props: CaptureFieldProps) {
       input.setSelectionRange(start, end);
     }
     const next = editCaptureDraft(draft(), input.value);
+    fit();
     setDraft(next); track(); setError('');
     props.onTextChange?.(next);
   };
-  onMount(() => { acceptInput(); props.inputRef?.(input); });
+  onMount(() => { acceptInput(); props.inputRef?.(input); requestAnimationFrame(fit); });
 
   return <div class="capture-field" classList={{ busy: busy() }}>
     <div ref={line} class="capture-line" classList={{ 'capture-boxed': !!props.boxed }} onPointerDown={event => { if (props.boxed && event.target !== input) { event.preventDefault(); input.focus(); } }}>
@@ -230,28 +261,31 @@ export function CaptureField(props: CaptureFieldProps) {
           <Icon name={isTask() || plan()?.explicit && plan()?.choice ? 'select' : hasCards() ? 'card' : 'bullet'} />
         </button>
       </Show></Show>
-      <input ref={input} class="capture-input" aria-label={props.label} placeholder={props.placeholder} value={presentation().text} aria-busy={busy()} autocomplete="off" spellcheck
+      <Dynamic component={field} ref={(element: HTMLInputElement) => { input = element; if (element instanceof HTMLTextAreaElement) element.rows = 1; }} class="capture-input" aria-label={props.label} placeholder={props.placeholder} value={presentation().text} aria-busy={busy()} autocomplete="off" spellcheck
         role="combobox" aria-expanded={open()} aria-autocomplete="list"
-        onInput={event => { if (event.isComposing) { setDraft(editCaptureDraft(draft(), event.currentTarget.value)); track(); } else acceptInput(); }} onCompositionEnd={acceptInput} onKeyDown={keydown} onKeyUp={track} onClick={track} onSelect={track} />
-      <Show when={props.boxed && preview()}>{state => <span class="capture-inline-preview" classList={{ warning: state().warning }} role="status">
+        onInput={event => { if (event.isComposing) { setDraft(editCaptureDraft(draft(), event.currentTarget.value)); track(); fit(); } else acceptInput(); }} onCompositionEnd={acceptInput} onKeyDown={keydown} onKeyUp={track} onClick={track} onSelect={track} />
+      <Show when={preview()}>{state => <span class="capture-inline-preview" classList={{ warning: state().warning }} role="status">
         <Show when={!state().warning}><Icon name="calendar" /></Show><span class="capture-inline-plan">{state().label}</span><Show when={!state().warning}><span class="capture-inline-enter">↵ add</span></Show>
       </span>}</Show>
       <Show when={props.boxed && !preview() && props.trailing}><span class="capture-trailing" aria-hidden="true">{props.trailing}</span></Show>
     </div>
-    <Show when={tags().length}><div class="capture-tags" aria-label="Tags in draft"><For each={tags()}>{tag => <span class="capture-tag"><Icon name="tag" />{tag.value}</span>}</For></div></Show>
+    <Show when={tags().length}><div class="capture-tags" aria-label="Tags in draft"><For each={tags()}>{tag => <span class="capture-tag"><Icon name={tagIcon(tag)} />{tag.value}</span>}</For></div></Show>
     <Show when={open()}>
       <Popup anchor={line} role="listbox" label={token()?.kind === 'type' ? 'Tags' : 'Atoms'} class="picker capture-choices" width={line.offsetWidth} autofocus={false} onDismiss={() => setDismissed(presentation().text)}>
         <div class="picker-list" onMouseDown={event => event.preventDefault()}>
-          <For each={choices()}>{(choice, row) =>
-            <div role="option" aria-selected={index() === row()} class="picker-row" classList={{ selected: index() === row() }} onMouseEnter={() => setIndex(row())} onClick={() => { void choose(choice); }}>
-              <Icon name={choice.create ? 'plus' : token()?.kind === 'type' ? 'tag' : 'page'} />
+          <For each={choices()}>{(choice, row) => {
+            const pageIcon = choice.block ? createPageIcon(props.notebook, () => choice.block!) : undefined;
+            const icon = (): IconName => choice.create ? 'plus' : token()?.kind === 'type' ? choice.icon ? noteKindIcon({ key: '', icon: choice.icon }) : 'tag' : pageIcon?.() ?? 'page';
+            return <div role="option" aria-selected={index() === row()} class="picker-row" classList={{ selected: index() === row() }} onMouseMove={() => { if (index() !== row()) setIndex(row()); }} onClick={() => { void choose(choice); }}>
+              <Icon name={icon()} />
               <span class="picker-text">{choice.create ? `${token()?.kind === 'type' ? 'Create tag' : 'Create atom'} “${choice.title}”` : choice.title}</span>
-            </div>}</For>
+              <Show when={choice.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>
+            </div>;
+          }}</For>
         </div>
       </Popup>
     </Show>
     <Show when={props.hint}><p class="capture-hint">{props.hint}</p></Show>
-    <Show when={!props.boxed && preview()}>{state => <p class="capture-preview" classList={{ warning: state().warning }} role="status">{state().label}</p>}</Show>
     <Show when={error()}><p class="capture-error" role="alert">{error()}</p></Show>
     {props.children?.({ task: isTask, busy, submit: again => { void submit(again); } })}
   </div>;

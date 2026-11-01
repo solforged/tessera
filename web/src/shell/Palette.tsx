@@ -41,9 +41,9 @@ type FindScope = 'Everything' | 'Highlights' | 'Books' | 'Pages';
 function createLabel(entry: CreateEntry, phone = false): string {
   if (entry.action === 'source') return `Add “${entry.title}” to library`;
   if (entry.action === 'tag') return `Create an atom with ${entry.title}`;
-  if (entry.action === 'choose') return 'Choose a type…';
+  if (entry.action === 'choose') return `Create “${entry.title}” as…`;
   if (entry.action === 'page' && phone) return `Create “${entry.title}”`;
-  return `Create ${entry.action} “${entry.title}”`;
+  return `Create ${entry.action === 'page' ? 'atom' : entry.action} “${entry.title}”`;
 }
 
 /** Find or create pages, search blocks, or prefix commands with `>`. Tab drills into a result's children. */
@@ -153,7 +153,8 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     const [pages, blocks] = await Promise.all([api.complete(q, 40), api.search(q)]);
     const roots = pages.filter(page => page.kind !== 'block').map(page => ({ block: page, page, alias: page.alias }));
     const ids = new Set(roots.map(hit => hit.block.id));
-    return [...roots, ...blocks.filter(hit => !ids.has(hit.block.id))];
+    // A field entry whose whole text is the field's name matches the label, not anything written: its page is not a result.
+    return [...roots, ...blocks.filter(hit => !ids.has(hit.block.id) && !(hit.block.id !== hit.page.id && fieldEntryId(hit.block.text)))];
   });
   const scope = () => scopes().at(-1);
   const [scopedPage] = createResource(() => {
@@ -177,6 +178,7 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
     const title = text();
     const exact = !parent && title ? cachedExactPage(props.notebook, title)
       ?? rows.find(hit => hit.block.kind === 'page' && titleKey(hit.block.text) === titleKey(title))?.block : null;
+    const isExact = (entry: Entry) => entry.kind === 'hit' && entry.hit.block.id === exact?.id;
     const result: Entry[] = [];
     const highlightRows: Entry[] = !parent && (findScope() === 'Everything' || findScope() === 'Highlights') && title
       ? (highlights.error ? [] : highlights()?.rows ?? []).filter(row => highlightMatches(row, title)).map((row): Entry => ({ kind: 'highlight', row })) : [];
@@ -199,7 +201,8 @@ export function Palette(props: { anchor: HTMLElement; pane: PaneId; mode: 'searc
         }
       }
     }
-    if (!parent) result.sort((a, b) => Number(isDefinition(a)) - Number(isDefinition(b)));
+    // The exact identity name keeps its lead even when it names a definition; the other definitions follow all content.
+    if (!parent) result.sort((a, b) => Number(isDefinition(a) && !isExact(a)) - Number(isDefinition(b) && !isExact(b)));
     if (phone) result.push(...highlightRows);
     if (!parent && title && !exact && (findScope() === 'Everything' || findScope() === 'Pages')) {
       const tag = textTokens(title);
@@ -365,9 +368,14 @@ function HitRow(props: { hit: SearchHit; query: string; notebook: NotebookClient
   const isPage = () => props.hit.block.id === props.hit.page.id;
   const phone = isPhone();
   const icon = createPageIcon(props.notebook, () => props.hit.block);
+  // A phone's meta line names the kind, so the title does not also carry its tag pill.
+  const title = () => {
+    const text = props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text;
+    return phone && isPage() && !props.book && props.noteKind ? displayTitle(text, id => props.notebook.lookup(id)) : text;
+  };
   return <>
     <Icon name={isPage() && props.noteKind ? noteKindIcon(props.noteKind) : icon()} />
-    <span class="picker-text find-result"><span classList={{ 'find-snippet': !isPage(), 'find-work': isPage() && !!props.book }}><BlockText text={props.notebook.lookup(props.hit.block.id)()?.text ?? props.hit.block.text} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{displayTitle(props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text, id => props.notebook.lookup(id))}</small></Show><Show when={isPage() && props.book}>{book => <Show when={phone} fallback={<small>{sourceFacts(book()).join(' · ')}</small>}><small class="find-meta"><For each={sourceFacts(book())}>{(fact, at) => <span classList={{ fig: at() > 0 }}>{fact}</span>}</For></small></Show>}</Show><Show when={phone && isPage() && !props.book && props.noteKind}>{kind => <small class="find-meta"><span>{kind().name}</span></small>}</Show></span>
+    <span class="picker-text find-result"><span classList={{ 'find-snippet': !isPage(), 'find-work': isPage() && !!props.book }}><BlockText text={title()} notebook={props.notebook} interactive={false} highlight={props.query} /></span><Show when={!isPage()}><small>{displayTitle(props.notebook.lookup(props.hit.page.id)()?.text ?? props.hit.page.text, id => props.notebook.lookup(id))}</small></Show><Show when={isPage() && props.book}>{book => <Show when={phone} fallback={<small>{sourceFacts(book()).join(' · ')}</small>}><small class="find-meta"><For each={sourceFacts(book())}>{(fact, at) => <span classList={{ fig: at() > 0 }}>{fact}</span>}</For></small></Show>}</Show><Show when={phone && isPage() && !props.book && props.noteKind}>{kind => <small class="find-meta"><span>{kind().name}</span></small>}</Show></span>
     <Show when={isPage() && props.hit.alias}>{alias => <span class="reference-via">via {alias()}</span>}</Show>
     <Show when={props.selected}><kbd class="picker-hint">{besideKey}↵ beside</kbd></Show>
   </>;
@@ -509,7 +517,7 @@ function FindPreview(props: { entry?: Entry; query: string; notebook: NotebookCl
       <footer class="find-preview-keys"><kbd>↵ {value().passages ? 'Open in the book' : 'Open atom'}</kbd><kbd>{besideKey}↵ Beside</kbd></footer>
     </>}</Show>
     <Show when={!content() && !loading() && !error()}>
-      <Show when={props.entry?.kind === 'command' ? props.entry.command : undefined} fallback={<p class="empty-state">{props.entry?.kind === 'create' ? props.entry.action === 'choose' ? 'Choose a type for the new atom' : createLabel(props.entry) : 'Select a result to preview it.'}</p>}>{command => <>
+      <Show when={props.entry?.kind === 'command' ? props.entry.command : undefined} fallback={<p class="empty-state">{props.entry?.kind === 'create' ? props.entry.action === 'choose' ? `Choose a tag for “${props.entry.title}”` : createLabel(props.entry) : 'Select a result to preview it.'}</p>}>{command => <>
         <header class="find-preview-header"><div><h2>{command().title}</h2><small>{command().section === 'Page' ? 'This atom' : command().section}</small></div></header>
         <Show when={command().disabledReason?.() || command().description}>{text => <div class="find-preview-prose"><p>{text()}</p></div>}</Show>
         <footer class="find-preview-keys"><Show when={!command().disabledReason?.()}><kbd>↵ Run</kbd></Show><Show when={command().keys?.length}><kbd>{command().keys!.join(' / ')}</kbd></Show></footer>

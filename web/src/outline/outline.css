@@ -11,14 +11,15 @@
 .outline-heading:has(> .field-slots) { padding-bottom: 0; }
 .outline-heading > .field-slots { margin-top: var(--page-head-gap); }
 
-/* The apparatus appears only when its real side column fits beside the text measure.
-   Sigla retain their body rail, but do not add padding to the page heading. */
+/* The apparatus appears only when its real side column fits beside the text measure. Sigla hang in the margin left of
+   the rows, so where the centred column leaves too little room the whole column (heading, rows and sections) steps right
+   by the same rail and gives up that width, whether or not a siglum is on the page yet: the title and the text share one
+   edge and nothing jumps when the first siglum appears. */
 .outline-apparatus { display: none; }
 @container outline-pane (min-width: 1096px) {
-  .has-apparatus > :is(.section-navigator, .outline-heading, .outline-list, .related-sections, .add-first-block) { --outline-column-start: calc((100cqi - var(--measure) - var(--space-48) - var(--apparatus-width)) / 2); }
-  .has-apparatus > :is(.section-navigator, .outline-heading, .related-sections, .add-first-block) { margin-left: var(--outline-column-start); margin-right: 0; }
-  .has-apparatus > .outline-list { margin-left: calc(var(--outline-column-start) - var(--gutter)); margin-right: 0; }
-  .has-apparatus.has-sigla > .outline-list { --sigla-rail-space: max(0px, calc(var(--siglum-width) + var(--space-8) - var(--outline-column-start) + var(--gutter))); margin-left: calc(var(--outline-column-start) - var(--gutter) + var(--sigla-rail-space)); max-width: calc(var(--measure) + var(--gutter) - var(--sigla-rail-space)); }
+  .has-apparatus > :is(.section-navigator, .outline-heading, .outline-list, .related-sections, .add-first-block) { --outline-column-start: calc((100cqi - var(--measure) - var(--space-48) - var(--apparatus-width)) / 2); --sigla-rail-space: max(0px, calc(var(--siglum-width) + var(--space-8) + var(--gutter) - var(--outline-column-start))); }
+  .has-apparatus > :is(.section-navigator, .outline-heading, .related-sections, .add-first-block) { margin-left: calc(var(--outline-column-start) + var(--sigla-rail-space)); margin-right: 0; max-width: calc(var(--measure) - var(--sigla-rail-space)); }
+  .has-apparatus > .outline-list { margin-left: calc(var(--outline-column-start) - var(--gutter) + var(--sigla-rail-space)); margin-right: 0; max-width: calc(var(--measure) + var(--gutter) - var(--sigla-rail-space)); }
   .has-apparatus > .outline-apparatus { display: flex; flex-direction: column; gap: var(--section-item-gap); position: absolute; top: var(--page-top-space); left: calc(var(--pane-inset) + (100cqi + var(--measure) + var(--space-48) - var(--apparatus-width)) / 2); width: var(--apparatus-width); }
 }
 /* Below a full editing measure sigla lead the row, rather than narrowing every paragraph. */
@@ -246,6 +247,12 @@
 @container outline-pane (max-width: 856px) {
   .outline-heading > .field-slots { padding-left: calc(2px + var(--gutter) + var(--slot-indent)); }
 }
+/* Prose rows keep their text on the title edge in a narrow pane (their controls follow the text), so the slots and the
+   hairlines of a page's field bed start there too, in line with the filled rows. */
+@container outline-pane (max-width: 856px) {
+  [data-page-style="prose"] .outline-pane[data-projection="outline"] .field-slots { padding-left: calc(2px + var(--slot-indent)); }
+  [data-page-style="prose"] .outline-pane:not(:has(.journal-header, .reading-register)) .inline-field-value[aria-level="1"]:is([data-field-role="attribute"], [data-field-role="citation"]):not([data-field-end="false"])::after { left: 0; }
+}
 .field-slot { display: flex; align-items: center; min-height: var(--row-height); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--faint); font: inherit; text-align: left; cursor: pointer; transition: color var(--motion-fast) var(--motion-ease), background-color var(--motion-fast) var(--motion-ease); }
 .field-slot:is(:hover, :focus-visible) { background: var(--hover); color: var(--muted); }
 .field-slot-label { display: inline-flex; align-items: flex-start; flex: 0 0 calc(var(--target-size) + var(--space-48) * 3); min-width: 0; padding-right: var(--space-8); }
@@ -270,16 +277,20 @@
 .outline-source-line { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--space-8); }
 /* A single fact trails the text. A cluster keeps the right edge, so dates still line up. */
 .outline-source { flex: 1 1 auto; min-width: 0; }
-.outline-source-line:has(> .outline-capability-metadata > :only-child):not(:has(.outline-citation-local)) > .outline-source { flex-grow: 0; }
+.outline-source-line:has(> .outline-capability-metadata > :only-child):not(:has(.outline-citation-local, .outline-card-decks)) > .outline-source { flex-grow: 0; }
 .outline-capability-metadata { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); font-weight: var(--weight-body); }
 .outline-capability-metadata .outline-planning { display: inline-flex; flex-wrap: wrap; justify-content: flex-start; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 /* Tasks reserve a trailing gutter for facts, rather than adding a selected planning-only line. */
 .outline-row[data-task-status] > .outline-body > .outline-source-line { flex-wrap: nowrap; }
 .outline-row[data-task-status] > .outline-body > .outline-source-line > .outline-source { flex: 1 1 0; }
 .outline-row[data-task-status] > .outline-body > .outline-source-line > .outline-capability-metadata { flex: 0 1 auto; min-width: 0; max-width: 40%; }
+/* A card badge is one unit. It stays on the line, or the whole badge wraps; the row text wraps instead and keeps a width. */
+.outline-row:has(.outline-card-decks) > .outline-body > .outline-source-line { flex-wrap: wrap; }
+.outline-row:has(.outline-card-decks) > .outline-body > .outline-source-line > .outline-source { flex: 1 1 0; min-width: min(100%, 8em); }
+.outline-row:has(.outline-card-decks) > .outline-body > .outline-source-line > .outline-capability-metadata { flex: none; min-width: max-content; max-width: 100%; }
 /* A card count is a count: apparatus mono, like every other number the notebook reports. */
 .outline-capability-metadata .outline-card-count { font: var(--figures); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
-.outline-card-decks { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); }
+.outline-card-decks { display: inline-flex; flex: none; flex-wrap: nowrap; align-items: baseline; gap: var(--space-4); white-space: nowrap; }
 /* Task facts are the machine's: dates, progress and the running clock in apparatus mono. Missed plans take the danger colour. */
 .outline-capability-metadata :is(.outline-task-facts, .outline-task-progress, .outline-task-logged) { font: var(--apparatus); letter-spacing: var(--tracking-apparatus); font-variant-numeric: tabular-nums; }
 .outline-capability-metadata .outline-task-facts { display: inline-flex; align-items: center; gap: var(--space-8); padding: 0 var(--space-4); color: var(--muted); }
@@ -447,7 +458,7 @@
   .outline-editing-tools .button { display: grid; place-items: center; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 22px; background: transparent; box-shadow: none; color: var(--text); }
   .outline-editing-tools .button > .icon { width: 22px; height: 22px; }
   .outline-editing-tools .button:active:not(:disabled) { background: var(--ink-wash); }
-  .outline-editing-tools .button:disabled { opacity: .35; }
+  .outline-editing-tools .button:disabled { opacity: var(--disabled-opacity); }
   .outline-editing-divider { flex: none; width: .5px; height: 22px; margin: 0 4px; background: var(--glass-edge); }
   .outline-editing-bar .outline-editing-done.button { display: grid; place-items: center; flex: none; width: 48px; min-width: 48px; height: 48px; min-height: 48px; padding: 0; border: 0; border-radius: 24px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--raised)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 var(--lit-edge), var(--glass-shadow); }
   .outline-editing-done > .icon { width: 22px; height: 22px; stroke-width: 1.8; }
@@ -506,7 +517,11 @@
 /* The cover keeps reading and status under the thumb, clear of the app's bottom navigation. */
 @media (max-width: 599px) and (pointer: coarse) {
   .pane:has(.source-cover-actions) .source-page { padding-bottom: calc(var(--page-bottom-space) + var(--target-size) + 2 * var(--space-12) + var(--rule-width)); }
-  .source-cover-actions { position: fixed; z-index: 12; left: var(--space-4); right: var(--space-4); bottom: calc(var(--bottom-nav-height) + var(--bottom-inset)); margin: 0; padding: var(--space-12) var(--space-16); border-top: var(--rule-width) solid var(--line); background: var(--canvas); }
+  /* The actions float as glass over a blurred fade of the canvas, as the tab bar does, so text scrolls under them without a hard edge. */
+  .source-cover-actions { position: fixed; z-index: 12; isolation: isolate; left: 0; right: 0; bottom: calc(var(--bottom-nav-height) + var(--bottom-inset)); margin: 0; padding: var(--space-12) var(--space-16); pointer-events: none; }
+  .source-cover-actions::before { content: ''; position: absolute; z-index: -1; inset: calc(-1 * var(--space-24)) 0 0; pointer-events: none; background: linear-gradient(color-mix(in srgb, var(--canvas) 0%, transparent), color-mix(in srgb, var(--canvas) 78%, transparent) 60%); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); -webkit-mask-image: linear-gradient(transparent, #000 45%); mask-image: linear-gradient(transparent, #000 45%); }
+  .source-cover-actions > .button { pointer-events: auto; }
+  .source-cover-actions > .button:not(.stamp) { border: 0; background: var(--glass-fill); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(170%); backdrop-filter: blur(var(--glass-blur)) saturate(170%); box-shadow: var(--glass-ring); }
   .source-cover-actions .outline-source-read { flex: 1; }
   .app.keyboard-open .source-cover-actions { bottom: var(--bottom-inset); }
 }

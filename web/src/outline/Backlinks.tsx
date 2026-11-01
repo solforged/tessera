@@ -66,7 +66,7 @@ export function BlockReferenceCount(props: {
     const ids = createMemo(() => [...values().keys()]);
     return <>
       <Show when={rows.loading && !rows()}><p role="status">Loading backlinks…</p></Show>
-      <Show when={rows.error}><p role="alert">Couldn't load backlinks.</p></Show>
+      <Show when={rows.error}><p role="alert">Couldn’t load backlinks.</p></Show>
       <For each={ids()}>{id => <BacklinkSource block={values().get(id)!.source} page={values().get(id)!.page} notebook={props.notebook} onOpen={(target, beside) => { setAnchor(undefined); props.onOpen(target, beside); }} context breadcrumb />}</For>
       <Show when={!rows.loading && !rows.error && !ids().length}><p>No backlinks.</p></Show>
     </>;

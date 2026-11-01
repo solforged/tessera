@@ -11,6 +11,8 @@ const CY = HEIGHT / 2;
 const INNER = 56;
 const OUTER = 92;
 const LABEL = 11;
+const LABEL_LINES = 3;
+const LINE = 12;
 
 interface Node { id: string; x: number; y: number; angle: number }
 /** An authored relation between two holders' perspectives on this page's subject. */
@@ -41,6 +43,20 @@ function ring(ids: readonly string[], radius: number, offset: number): Node[] {
 }
 
 const clip = (text: string) => text.length > LABEL ? `${text.slice(0, LABEL - 1).trimEnd()}…` : text;
+
+/** A holder's name on up to three short lines, so long names read whole and holders who share a first name read apart; the full name is in the title. */
+function labelLines(text: string): string[] {
+  const lines: string[] = [];
+  let line = '';
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word;
+    if (!line || next.length <= LABEL) line = next;
+    else { lines.push(line); line = word; }
+  }
+  if (line) lines.push(line);
+  if (lines.length <= LABEL_LINES) return lines.map(clip);
+  return [...lines.slice(0, LABEL_LINES - 1).map(clip), clip(lines.slice(LABEL_LINES - 1).join(' '))];
+}
 
 /**
  * The margin of a concept page with three or more perspectives: the constellation (the concept at the centre,
@@ -88,11 +104,15 @@ export function Apparatus(props: {
         const cos = Math.cos(node.angle);
         const anchor = cos > 0.35 ? 'start' : cos < -0.35 ? 'end' : 'middle';
         const x = node.x + (anchor === 'start' ? 8 : anchor === 'end' ? -8 : 0);
-        const y = anchor !== 'middle' ? node.y + 4 : Math.sin(node.angle) < 0 ? node.y - 9 : node.y + 16;
+        const lines = labelLines(title(node.id));
+        const middle = anchor === 'middle';
+        const above = middle && Math.sin(node.angle) < 0;
+        // Side labels centre on the node, labels above it grow upward from just over it, labels below grow downward.
+        const y = !middle ? node.y + 4 - (lines.length - 1) * LINE / 2 : above ? node.y - 9 - (lines.length - 1) * LINE : node.y + 16;
         return <g class="constellation-holder" role="link" tabIndex={0} aria-label={title(node.id)} onClick={event => open(node.id, event)}>
           <title>{title(node.id)}</title>
           <circle cx={node.x} cy={node.y} r={4} />
-          <text x={x} y={y} text-anchor={anchor}>{clip(title(node.id))}</text>
+          <text x={x} y={y} text-anchor={anchor}><For each={lines}>{(line, index) => <tspan x={x} dy={index() ? LINE : 0}>{line}</tspan>}</For></text>
         </g>;
       }}</For>
       <circle class="constellation-centre" cx={CX} cy={CY} r={8} />

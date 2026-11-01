@@ -19,7 +19,7 @@ function foldWords(value: string): string {
 
 const highlightGraphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
-/** Match the same folded words as Find, but mark complete glyphs in the authored string. */
+/** Match the same folded words as Find, but mark complete glyphs in the authored string. A match starts at a word and washes that whole word. */
 export function foldedHighlights(value: string, query: string): [number, number][] {
   const terms = foldName(query).split(' ').filter(Boolean);
   if (!terms.length) return [];
@@ -39,8 +39,11 @@ export function foldedHighlights(value: string, query: string): [number, number]
   const folded = foldWords(value);
   const ranges: [number, number][] = [];
   for (const term of terms) {
-    for (let at = folded.indexOf(term); at >= 0; at = folded.indexOf(term, at + term.length)) {
-      const start = offsets[at], end = offsets[at + term.length - 1];
+    for (let at = folded.indexOf(term); at >= 0; at = folded.indexOf(term, at + 1)) {
+      if (at > 0 && folded[at - 1] !== ' ') continue;
+      let last = at + term.length - 1;
+      while (last + 1 < folded.length && folded[last + 1] !== ' ') last++;
+      const start = offsets[at], end = offsets[last];
       if (start && end) ranges.push([start[0], end[1]]);
     }
   }

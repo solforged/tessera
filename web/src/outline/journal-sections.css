@@ -8,6 +8,8 @@
 .row-section-tail > .section-rule { min-width: var(--space-16); }
 /* The ⌘E section's capture line sits under its head at the text column of the rows it fills. */
 .outline-row > .section-capture { flex-basis: 100%; order: 10; padding: var(--space-8) 0 var(--space-4) calc(var(--gutter) + var(--indent-unit)); }
+/* The boxed ⌘E field keeps the heading's own edge, so writing the first line under it does not move it. */
+.outline-row > .section-capture.section-capture-boxed { padding-left: var(--gutter); }
 .capture-trailing { flex: none; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
 /* Notes is drawn, never written: its head opens the first row outside every section. */
 .outline-row.row-banner { flex-wrap: wrap; }
@@ -16,10 +18,29 @@
 /* Rows are measured without margins, so the space above a written head is padding. */
 .outline-row.row-section-head:not(.row-banner) { padding-top: calc(var(--space-2) + var(--space-16)); }
 .row-section-head > .row-section-banner { margin-bottom: var(--space-16); }
+/* Under a full editing measure the list sits inside the measure instead of hanging its gutter left of it, which would push
+   every head 50 px off the title and the tiles. Heads and their banners start on the title edge and the handles follow
+   the head's rule, as they follow the text of a prose row. */
+@container outline-pane (max-width: 856px) {
+  .row-section-banner { padding-left: 2px; }
+  .row-section-head > :is(.row-menu, .row-fold) { order: 1; }
+}
+@container outline-pane (max-width: 856px) { .outline-row > .section-capture.section-capture-boxed { padding-left: 0; } }
 .journal-missing-end { max-width: var(--measure); margin: var(--section-gap) auto 0; }
 /* Inbox rows carry their capture clock in the gutter, giving way to the row's handles on hover. */
-.row-capture-time { position: absolute; top: calc(var(--space-2) + (var(--line-body) - var(--line-apparatus)) / 2); left: calc(var(--row-indent) + 2 * var(--target-size) - 56px); width: 48px; color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-align: right; pointer-events: none; }
+.row-capture-time { --row-controls: calc(2 * var(--target-size)); position: absolute; top: calc(var(--space-2) + (var(--line-body) - var(--line-apparatus)) / 2); left: calc(var(--row-indent) + var(--row-controls) - 56px); width: 48px; color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); text-align: right; pointer-events: none; }
+/* A touch row has no handle, only the fold before the bullet or checkbox, so the clock ends one control from the row's start. */
+@media (pointer: coarse) { .row-capture-time { --row-controls: var(--target-size); } }
 .outline-row:is(:hover, :focus-within, .row-selected) > .row-capture-time { visibility: hidden; }
+/* Below 857 px the siglum is the row's first line, where the clock sits: it starts at the text column, past the clock. */
+@container outline-pane (max-width: 856px) {
+  .outline-pane[data-projection="outline"] .outline-row:has(> .row-capture-time) > .row-sigla { box-sizing: border-box; padding-left: calc(var(--row-indent) + 2 * var(--target-size)); }
+}
+@media (pointer: coarse) {
+  @container outline-pane (max-width: 856px) {
+    .outline-pane[data-projection="outline"] .outline-row:has(> .row-capture-time) > .row-sigla { padding-left: calc(var(--row-indent) + var(--target-size)); }
+  }
+}
 /* Missing sections on Today: the head, then one line that writes the heading with its first entry. */
 .journal-missing-section > .section-capture { padding-top: var(--space-4); }
 .journal-missing-section .capture-line:not(.capture-boxed) .capture-input { border-bottom-color: transparent; }
@@ -33,6 +54,8 @@
 .row-inbox-actions .button { min-height: calc(var(--line-body) + 2 * var(--space-2)); padding: 0 var(--space-8); color: var(--muted); font-size: var(--text-meta); line-height: var(--line-meta); }
 .row-inbox-actions .button:hover:not(:disabled) { color: var(--text); }
 .row-inbox-actions .button > .icon { width: var(--icon-size-small); height: var(--icon-size-small); }
+/* Done and filed rows reserve the width of the open rows' Plan and File to… without showing them. */
+.row-inbox-spacer { display: contents; visibility: hidden; }
 .outline-row:is(:hover, :focus-within, .row-selected) > .row-inbox-actions { opacity: 1; }
 @media (hover: none) { .row-inbox-actions { display: none; } }
 /* An Inbox link reads as its page: the title in Piazzolla, then its site in faint. */

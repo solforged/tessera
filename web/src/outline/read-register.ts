@@ -6,6 +6,7 @@ import { positionFields, positionRelations, readingPassages } from './perspectiv
 import { earlierKey, verdictAssessments } from './assessments';
 import { isCatalogueField } from '../library/details';
 import { fieldBedRows, fieldRole } from '../fields/roles';
+import { fieldLabel } from '../fields/kinds';
 import { aliasesInHeader } from '../notes/aliases';
 export interface ReadingField { name: string; entryId: string }
 export interface ReadingQuestion { id: string; holders: string[] }
@@ -63,7 +64,7 @@ export function readingRegister(doc: PageDocument, definition: (id: string) => F
       work: named('work').filter(field => !gist.some(gist => gist.entryId === field.entryId) && !prose.some(prose => prose.entryId === field.entryId)),
       account: named('account').filter(field => !gist.some(gist => gist.entryId === field.entryId) && !prose.some(prose => prose.entryId === field.entryId)),
       prose: prose.map(({ name, entryId }) => ({ name, entryId })),
-      facts: facts.map(({ name, entryId }) => ({ name, entryId })),
+      facts: facts.map(field => ({ name: fieldLabel(definition(field.fieldId) ?? field), entryId: field.entryId })),
       passages: readingPassages(doc, id, gist[0]?.value, fieldName).map(row => row.id),
       relations: positionRelations(doc, id).map(row => row.id),
     });
