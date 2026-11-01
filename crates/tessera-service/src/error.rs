@@ -69,6 +69,7 @@ impl From<tessera_core::Error> for ApiError {
                 id,
                 expected,
                 found,
+                ..
             } => Self {
                 status: StatusCode::CONFLICT,
                 code: "conflict",

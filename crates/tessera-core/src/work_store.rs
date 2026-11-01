@@ -43,6 +43,7 @@ fn checked_session(
     if found != Some(expected) {
         return Err(Error::Conflict {
             op_index: index,
+            what: "work session",
             id: session_id.to_owned(),
             expected,
             found,

@@ -86,10 +86,13 @@ impl Session<'_> {
                         )
                     })
                     .chain(tag_decks.iter().map(|deck| {
-                        format!(
-                            "- {:?} (tag {}): cards tagged #{}\n",
-                            deck.name, deck.id, deck.name
-                        )
+                        // A multi-word tag needs brackets to read back as the same tag.
+                        let tag = if tessera_core::bare_tag(&deck.name) {
+                            format!("#{}", deck.name)
+                        } else {
+                            format!("#[[{}]]", deck.name)
+                        };
+                        format!("- {:?} (tag {}): cards tagged {tag}\n", deck.name, deck.id)
                     }))
                     .collect())
             }

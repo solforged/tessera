@@ -403,13 +403,22 @@ impl Notebook {
                     crate::RevisitAction::Revisited | crate::RevisitAction::KeepRecurrent => true,
                     crate::RevisitAction::Reopen => state.note.resolved_at.is_some(),
                     crate::RevisitAction::Later => {
-                        next_on.is_some()
-                            || state.note.revisit_on.is_some()
-                            || state.note.date_set_at.is_some()
-                            || state
-                                .question
-                                .as_ref()
-                                .is_some_and(|q| q.review_on.is_some())
+                        let current = state
+                            .question
+                            .as_ref()
+                            .map_or(state.note.revisit_on.as_ref(), |q| q.review_on.as_ref());
+                        match next_on {
+                            // Moving to the date it already has changes nothing.
+                            Some(date) => current != Some(date),
+                            None => {
+                                state.note.revisit_on.is_some()
+                                    || state.note.date_set_at.is_some()
+                                    || state
+                                        .question
+                                        .as_ref()
+                                        .is_some_and(|q| q.review_on.is_some())
+                            }
+                        }
                     }
                     crate::RevisitAction::Resolve => {
                         state.question.as_ref().map_or_else(
@@ -427,6 +436,9 @@ impl Notebook {
                 if !changes && revisitable {
                     let reason = match action {
                         crate::RevisitAction::Reopen => "the atom is not resolved",
+                        crate::RevisitAction::Later if next_on.is_some() => {
+                            "the atom already revisits on that date"
+                        }
                         crate::RevisitAction::Later => "the atom has no revisit date to clear",
                         crate::RevisitAction::Resolve if state.question.is_some() => {
                             "the question has no revisit date and is not kept recurrent"
@@ -1072,7 +1084,7 @@ impl Notebook {
                 match (current, &entry) {
                     (Some(current), Some(entry)) if current != entry.field => {
                         return Err(validation(format!(
-                            "this atom is the {} entry and cannot become a {} entry; delete it and add a new {} entry, or edit its value atom instead",
+                            "this atom is the {} entry and cannot change to {}; delete it and write `{}:: …` as a new atom, or edit its value atom instead",
                             self.block(current)?.text,
                             entry.name,
                             entry.name
@@ -1141,6 +1153,7 @@ impl Notebook {
         {
             return Err(Error::Conflict {
                 op_index: plan.operations.len(),
+                what: "atom",
                 id: block.id.clone(),
                 expected,
                 found: Some(block.revision),
@@ -1175,6 +1188,7 @@ impl Notebook {
         {
             return Err(Error::Conflict {
                 op_index: plan.operations.len(),
+                what: "card",
                 id: card_id.to_owned(),
                 expected,
                 found: Some(card.revision),
@@ -1313,6 +1327,7 @@ impl Notebook {
             {
                 return Err(Error::Conflict {
                     op_index: plan.operations.len(),
+                    what: "atom",
                     id: block.id,
                     expected,
                     found: Some(block.revision),

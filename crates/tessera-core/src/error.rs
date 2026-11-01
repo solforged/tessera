@@ -16,13 +16,15 @@ pub enum Error {
     #[error("database {path} fails SQLite's quick_check: {problems}")]
     Corrupt { path: PathBuf, problems: String },
     /// An operation was based on a revision that is no longer current. The
-    /// whole batch wrote nothing. `found` is `None` when the block is gone.
+    /// whole batch wrote nothing. `found` is `None` when the record is gone.
+    /// `what` names the kind of record, as in `NotFound`.
     #[error(
-        "operation {op_index} is stale for atom {id}: expected revision {expected}, {}",
+        "operation {op_index} is stale for {what} {id}: expected revision {expected}, {}",
         Found(.found)
     )]
     Conflict {
         op_index: usize,
+        what: &'static str,
         id: String,
         expected: i64,
         found: Option<i64>,

@@ -354,6 +354,21 @@ fn revisits_that_change_nothing_are_refused_without_a_history_entry() {
     refused(&mut nb, 1, RevisitAction::Resolve, "already resolved");
     revisit(&mut nb, 1, RevisitAction::Reopen, None);
     revisit(&mut nb, 2, RevisitAction::Later, Some("2026-10-12"));
+    revisit(&mut nb, 1, RevisitAction::Later, Some("2026-10-12"));
+    // Moving a question or a page to the date it already has changes nothing.
+    for value in [1, 2] {
+        let before = nb.history(500, None).unwrap().len();
+        let ask = request(&nb, value, RevisitAction::Later, Some("2026-10-12"));
+        match nb.agent_edit(&ask) {
+            Err(tessera_core::Error::Validation { message, .. }) => assert!(
+                message.contains("already revisits on that date"),
+                "{message:?}"
+            ),
+            other => panic!("expected a refusal, got {other:?}"),
+        }
+        assert_eq!(nb.history(500, None).unwrap().len(), before);
+    }
+    revisit(&mut nb, 1, RevisitAction::Later, None);
     revisit(&mut nb, 2, RevisitAction::Later, None);
     refused(&mut nb, 2, RevisitAction::Later, "no revisit date to clear");
     // An atom that cannot be revisited keeps its own reason.

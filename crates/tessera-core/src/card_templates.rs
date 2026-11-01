@@ -274,6 +274,7 @@ pub(crate) fn apply(
     if old.revision != base {
         return Err(Error::Conflict {
             op_index: index,
+            what: "card template",
             id: id.clone(),
             expected: base,
             found: Some(old.revision),
@@ -356,6 +357,7 @@ pub(crate) fn transfer_key(
     if found != *base_revision {
         return Err(Error::Conflict {
             op_index: index,
+            what: "card",
             id: source_id.clone(),
             expected: base_revision.unwrap_or(0),
             found,
