@@ -21,6 +21,17 @@ pub struct Completion {
     pub alias: Option<String>,
 }
 
+/// How a title target's name reached a page; see [`Notebook::page_by_name`].
+pub(crate) enum Named {
+    None,
+    /// The page with this title, ignoring tags and case.
+    Title(Block),
+    /// The one page whose title or alias matches the name folded.
+    Folded(Block),
+    /// Every page the folded name matches, titles before aliases.
+    Several(Vec<NameMatch>),
+}
+
 /// Folds an identity name for matching: ignore tags, case, diacritics and
 /// apostrophes; punctuation becomes spaces, so `J. M. Keynes` matches `j m keynes`.
 pub(crate) fn fold(value: &str) -> String {
@@ -236,6 +247,63 @@ impl Notebook {
         }
         matches.sort_by_key(|matched| matched.alias.is_some());
         Ok(matches)
+    }
+
+    /// The page a title target names, found as a typed `[[Name]]` finds it:
+    /// the page with that title, ignoring tags and case; else the one page
+    /// whose title or alias matches it ignoring case, diacritics and
+    /// punctuation. A name several pages share is refused, naming each page
+    /// and its ID, so a caller creates a page only when this finds none.
+    pub fn page_by_name(&self, name: &str) -> Result<Option<Block>> {
+        match self.named_page(name)? {
+            Named::None => Ok(None),
+            Named::Title(page) | Named::Folded(page) => Ok(Some(page)),
+            Named::Several(matches) => Err(self.ambiguous_name(name, &matches)?),
+        }
+    }
+
+    /// [`Notebook::page_by_name`], saying how the name reached its page.
+    /// The exact title wins, so pages whose titles differ only in
+    /// punctuation each stay reachable by their own title.
+    pub(crate) fn named_page(&self, name: &str) -> Result<Named> {
+        match self.page_by_title(name)? {
+            Some(page) => Ok(Named::Title(page)),
+            None => self.folded_page(name),
+        }
+    }
+
+    /// The folded half of [`Notebook::named_page`], for a caller that has
+    /// already looked for the exact title; it never returns [`Named::Title`].
+    pub(crate) fn folded_page(&self, name: &str) -> Result<Named> {
+        let mut matches = self.resolve_name(name)?;
+        Ok(match matches.len() {
+            0 => Named::None,
+            1 => Named::Folded(matches.remove(0).page),
+            _ => Named::Several(matches),
+        })
+    }
+
+    /// The pages a shared name could reach, as `Title (ID)` joined as prose.
+    pub(crate) fn name_candidates(&self, matches: &[NameMatch]) -> Result<String> {
+        let mut pages = Vec::with_capacity(matches.len());
+        for matched in matches {
+            pages.push(format!(
+                "{} ({})",
+                self.display_title(&matched.page.text)?,
+                matched.page.id
+            ));
+        }
+        let pages: Vec<&str> = pages.iter().map(String::as_str).collect();
+        Ok(crate::agent::listed(&pages))
+    }
+
+    /// Refuses a title target several pages share, naming each one.
+    pub(crate) fn ambiguous_name(&self, name: &str, matches: &[NameMatch]) -> Result<crate::Error> {
+        Ok(validation(format!(
+            "“{}” could name {}, which share that name or alias; give the ID of the one you mean",
+            name.trim(),
+            self.name_candidates(matches)?
+        )))
     }
 
     /// Add an ordinary field value, creating the definition and entry in the same batch.

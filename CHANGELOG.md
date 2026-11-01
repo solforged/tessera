@@ -87,6 +87,8 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 
 - Gave a field added under a built-in name the core's definition whichever client adds it, so typing `gloss:: …` in the outline makes the standfirst gloss and `author:: …` the creator relation, with the lowercase name, kind, Links to types and Form's starting options; the editor now uses the definition the service made.
 - Left a note's aliases entries out of Read's body, every one of them, since its ALSO line already shows them.
+- Found pages for title targets as `[[Name]]` does: `tessera_read_page`'s title, `tessera_add_note`'s page and `GET /api/pages/by-title` reach the one page whose title or alias matches ignoring case, accents and punctuation, the exact title first, and refuse a name several pages share by naming each, so another spelling no longer makes a second page.
+- Showed a source's citation key in `tessera_read_page`'s title comment and as `@citation_key` in sources queries, and each field's role in `tessera_query`'s overview.
 - Linked people in the Sources bibliography byline to their pages again; the service now sends each creator's page id.
 - Kept margin sigla beside their row when one row cites several sources: the row grows to hold its stack, so later rows' marks no longer overlap it.
 - Kept the Library list byline visible beside long titles: title and byline now share the row's free width instead of the byline shrinking to nothing.

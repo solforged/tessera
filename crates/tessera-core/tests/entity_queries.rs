@@ -200,6 +200,18 @@ fn entity_rows_keep_field_value_ids_and_attribute_group_counts_before_paging() {
         serde_json::to_value(&sources.rows[0].attributes["@cited_by"][0].reading).unwrap()["value"],
         2.0
     );
+    // A source's citation key reads and filters as a text attribute.
+    assert_eq!(
+        sources.rows[0].attributes["@citation_key"][0].text,
+        "book-key"
+    );
+    assert_eq!(
+        ids(
+            &nb,
+            json!({"source":"sources","filters":[{"field":"@citation_key","op":"is","value":"book-key"}]})
+        ),
+        [id(5)]
+    );
     let tasks = run(
         &nb,
         json!({"source":"tasks", "filters":[{"field":id(102),"op":"is","value":"today"},{"field":"@due","op":"lte","value":"+7d"}]}),

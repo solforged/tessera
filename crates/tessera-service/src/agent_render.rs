@@ -588,6 +588,9 @@ fn capability_details(caps: &BlockCapabilities, clock: &Clock) -> Vec<String> {
             name(source.format),
             name(source.state)
         ));
+        if let Some(key) = &source.citation_key {
+            parts.push(format!("citation key {key}"));
+        }
     }
     if let Some(note) = &caps.note {
         if let Some(day) = &note.revisit_on {

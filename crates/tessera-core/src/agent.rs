@@ -29,7 +29,9 @@ const KEY_LIMIT: usize = 255;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum NoteTarget {
-    /// The live page with this title, ignoring case; created when missing.
+    /// The live page with this title, ignoring tags and case, else the one
+    /// page whose title or alias matches it folded, as `[[Name]]` links;
+    /// created when none matches. A name several pages share is refused.
     Page { title: String },
     /// The journal root for a `YYYY-MM-DD` date, or today in the notebook
     /// time zone; created when missing.
@@ -655,10 +657,30 @@ impl Notebook {
                 if crate::storage::title_key(title) == "fields" {
                     return Err(fields_target());
                 }
-                match self.page_by_title(title)? {
-                    Some(page) => {
+                let page = match self.named_page(title)? {
+                    crate::aliases::Named::Title(page) => {
                         plan.titles
                             .insert(crate::storage::title_key(title), page.id.clone());
+                        Some(page)
+                    }
+                    // A link with the same wording in the note keeps it, as
+                    // `[[Name]]` does when it reaches a page by another name.
+                    crate::aliases::Named::Folded(page) => {
+                        plan.names
+                            .insert(crate::aliases::fold(title), page.id.clone());
+                        Some(page)
+                    }
+                    crate::aliases::Named::Several(matches) => {
+                        return Err(self.ambiguous_name(title, &matches)?);
+                    }
+                    crate::aliases::Named::None => None,
+                };
+                match page {
+                    Some(page) => {
+                        if crate::fields::page_id(&self.conn)?.as_deref() == Some(page.id.as_str())
+                        {
+                            return Err(fields_target());
+                        }
                         tagged = self.plan_tags(plan, &page, title)?;
                         let after = self.last_child(&page.id, &page.id)?;
                         (page.id.clone(), page.id, after, page.text)
@@ -1752,8 +1774,8 @@ impl Notebook {
         if let Some(id) = plan.names.get(&name) {
             return Ok(Some((id.clone(), true)));
         }
-        let id = match self.resolve_name(title)?.as_slice() {
-            [] => {
+        let id = match self.folded_page(title)? {
+            crate::aliases::Named::None => {
                 // A page this change creates is not stored yet, so match it here.
                 let created = plan
                     .titles
@@ -1769,20 +1791,11 @@ impl Notebook {
                     None => return plan.create_page(title).map(|id| Some((id, false))),
                 }
             }
-            [matched] => matched.page.id.clone(),
-            several => {
-                let mut pages = Vec::with_capacity(several.len());
-                for matched in several {
-                    pages.push(format!(
-                        "{} ({})",
-                        self.display_title(&matched.page.text)?,
-                        matched.page.id
-                    ));
-                }
-                let pages: Vec<&str> = pages.iter().map(String::as_str).collect();
+            crate::aliases::Named::Title(page) | crate::aliases::Named::Folded(page) => page.id,
+            crate::aliases::Named::Several(matches) => {
                 return Err(validation(format!(
                     "[[{title}]] could link {}, which share that name or alias; link the one you mean as [[ID|{title}]]",
-                    listed(&pages)
+                    self.name_candidates(&matches)?
                 )));
             }
         };
@@ -1881,7 +1894,7 @@ fn value_form(kind: FieldKind) -> Option<(&'static str, &'static str)> {
 }
 
 /// Names joined as prose: "A", "A and B", "A, B and C".
-fn listed(names: &[&str]) -> String {
+pub(crate) fn listed(names: &[&str]) -> String {
     match names {
         [] => String::new(),
         [only] => (*only).to_owned(),

@@ -103,7 +103,7 @@ fn page(
         id.to_owned()
     } else if let Some(title) = title {
         notebook
-            .page_by_title(title)?
+            .page_by_name(title)?
             .with_context(|| format!("No atom is titled {title:?}."))?
             .id
     } else if let Some(id) = block_id {
@@ -515,5 +515,53 @@ mod tests {
         .unwrap();
         assert!(subtree.contains("- Last block <!--"));
         assert!(!subtree.contains('界'));
+    }
+
+    #[test]
+    fn read_page_and_page_targets_find_a_page_by_another_spelling() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut notebook = Notebook::open(dir.path()).unwrap();
+        let changes = tokio::sync::broadcast::channel(16).0;
+        let mut add = |page: &str, text: &str| {
+            let (_, event) = execute(
+                &mut notebook,
+                &changes,
+                "add_note",
+                &json!({"target":{"page":page},"text":text}),
+                "Local · model",
+                "",
+            )
+            .unwrap();
+            let EventKind::Edit { page: Some(id), .. } = event else {
+                panic!("expected edit");
+            };
+            id
+        };
+        let target = add("Fold repro target", "First");
+        assert_eq!(add("Fold-repro target", "Second"), target);
+        let (text, event) = execute(
+            &mut notebook,
+            &changes,
+            "read_page",
+            &json!({"title":"fold.repro-target"}),
+            "Local · model",
+            "",
+        )
+        .unwrap();
+        assert!(
+            matches!(event, EventKind::Tool { summary, .. } if summary == "Read Fold repro target")
+        );
+        assert!(text.contains("- First <!--") && text.contains("- Second <!--"));
+        let Err(missing) = execute(
+            &mut notebook,
+            &changes,
+            "read_page",
+            &json!({"title":"Fold repro"}),
+            "Local · model",
+            "",
+        ) else {
+            panic!("a name no page has read a page");
+        };
+        assert_eq!(missing.to_string(), "No atom is titled \"Fold repro\".");
     }
 }

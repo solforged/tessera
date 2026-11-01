@@ -327,10 +327,10 @@ Eleven tools read:
 |---|---|
 | `tessera_search` | Blocks matching text, with their pages, up to 200. |
 | `tessera_list_pages` | Page titles, optionally with journal days, up to 1000 from `offset`. A list that stops short names the `offset` that lists the rest. |
-| `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline that `tessera_add_note` reads back. Each block's comment gives its ID and revision, tags, task planning, project, question, assessment, position, relation, source, revisit date, resolution, citations, and cards with their IDs and revisions. The title's comment does the same for the page. Field entries show as `Name::` and choice values under them as `[[Option]]`, multi-word tags as `#[[Title]]` and image blocks as `![caption](/api/images/<sha>)`. A text line that would read back as structure starts with `\`, and `-->` shows as `--\>`. |
+| `tessera_read_page` | A page, journal day or one block's subtree as an indented Markdown outline that `tessera_add_note` reads back. A title finds its page as `[[Title]]` does ([Text syntax](#text-syntax-and-revisions)). Each block's comment gives its ID and revision, tags, task planning, project, question, assessment, position, relation, source and its citation key, revisit date, resolution, citations, and cards with their IDs and revisions. The title's comment does the same for the page. Field entries show as `Name::` and choice values under them as `[[Option]]`, multi-word tags as `#[[Title]]` and image blocks as `![caption](/api/images/<sha>)`. A text line that would read back as structure starts with `\`, and `-->` shows as `--\>`. |
 | `tessera_tasks` | The agenda for a day or a run of days, or tasks filtered by status, dates, priority, project or a saved task view. Each view refuses the other's arguments. When `status` names `done` or `cancelled`, `include` defaults to `all`. |
 | `tessera_cards` | A block's or page's cards, the due, new or full queue (optionally a saved deck's, a tag deck's or a type's), review statistics, or decks. A page is a title, a page or journal day ID, `YYYY-MM-DD` or `today`. A deck's queue uses the deck's own selection unless `selection` is given. Arguments the chosen mode does not use are refused. |
-| `tessera_query` | Types, fields and saved views, or notes, questions, positions, sources, tasks and highlights selected by `source`, `type` or `view`; every other argument needs one of those three. Filters and sorts accept field names or `@` attributes; rows include editable field value IDs. Date values are `today`, a signed day count such as `-30d`, or a date, month or year, and `or_empty` includes absent values. |
+| `tessera_query` | Types, fields with their kinds and roles, and saved views, or notes, questions, positions, sources, tasks and highlights selected by `source`, `type` or `view`; every other argument needs one of those three. Filters and sorts accept field names or `@` attributes; rows include editable field value IDs. Date values are `today`, a signed day count such as `-30d`, or a date, month or year, and `or_empty` includes absent values. |
 | `tessera_library` | Sources, a source's contents, its passages in order from an ordinal with passage IDs, passage search, or highlights. A range citation marks every passage it covers. |
 | `tessera_sync` | Whether the workshop is a replica, when it last synced, how many of its changes have not reached the hub, and the last sync error; `now` syncs first. |
 | `tessera_relations` | Authored argument edges filtered by `kind`, `source`, `target`, `source_holder` or `target_holder`, with an optional `limit`. At least one filter is required. Each row is one line naming both endpoints, their holders and any problem. |
@@ -343,7 +343,7 @@ Eleven tools write:
 
 | Tool | Change |
 |---|---|
-| `tessera_add_note` | Appends a Markdown [outline](#outlines) to a page, journal day or block, creating a missing page or day; without a target it appends to today's journal. A page title that is a date is refused in favor of the journal day. Tags in a page title, such as `Ada Lovelace #person`, file the page, an existing one too. The result lists each card made, what it shows and asks for, and any card syntax that made none. |
+| `tessera_add_note` | Appends a Markdown [outline](#outlines) to a page, journal day or block, creating a missing page or day; without a target it appends to today's journal. A page title finds its page as `[[Title]]` does, so a page is created only when no title or alias matches. A page title that is a date is refused in favor of the journal day. Tags in a page title, such as `Ada Lovelace #person`, file the page, an existing one too. The result lists each card made, what it shows and asks for, and any card syntax that made none. |
 | `tessera_edit_block` | Replaces a block's text or heading level; editing a page's root renames the page, and a page or journal title takes no heading. Text written over an existing field entry as `Name:: value` replaces its first value; naming a different field is refused. |
 | `tessera_move_block` | Moves a block and its children after a sibling, or first or last under a parent. |
 | `tessera_delete_block` | Deletes a block and its children, or a page. |
@@ -417,7 +417,7 @@ A change body has an `actor`, an optional `reason`, a `kind` and that kind's fie
 
 | Target | Appends to |
 |---|---|
-| `{"kind": "page", "title": "Inbox"}` | The page with that title, ignoring case and tags. A missing page is created; a title that is a date is refused in favor of a journal target. |
+| `{"kind": "page", "title": "Inbox"}` | The page with that title, ignoring case and tags, else the one page whose title or alias matches it as `[[Title]]` does. A name several pages share is refused, naming each; a page is created only when none matches. A title that is a date is refused in favor of a journal target. |
 | `{"kind": "journal", "date": "2026-10-31"}` | That journal day, or today without `date`. A missing day is created. |
 | `{"kind": "block", "id": "<block ID>"}` | The end of an existing block's children. |
 

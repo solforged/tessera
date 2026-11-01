@@ -209,7 +209,7 @@ pub(super) fn unused(arguments: &Value, keys: &[&str], when: &str) -> anyhow::Re
     }
 }
 
-/// Tags with their fields, field definitions with kinds, and saved views.
+/// Tags with their fields, field definitions with kinds and roles, and saved views.
 async fn overview(api: &Api, fields: &FieldsView) -> anyhow::Result<String> {
     let types: Vec<TypeInfo> = api.get("/api/types").await?;
     let views: Vec<View> = api.get("/api/views").await?;
@@ -261,10 +261,11 @@ async fn overview(api: &Api, fields: &FieldsView) -> anyhow::Result<String> {
     }
     for field in &fields.fields {
         text.push_str(&format!(
-            "- {} (field {}): {}, on {} atoms",
+            "- {} (field {}): {}, {}, on {} atoms",
             field.definition.name,
             field.definition.id,
             name(field.definition.kind),
+            field.definition.role.as_str(),
             field.owners
         ));
         if !field.definition.options.is_empty() {

@@ -9,6 +9,7 @@ use tessera_core::{
     NoteTarget, PageView, SettingsView, UndoReceipt,
 };
 
+use super::cards::found;
 use super::outline::{block_text, note_problems, outline, text_problems};
 use super::render::{
     Clock, Fields, PageContext, age, card_answer, card_front, card_label, kind_label, location,
@@ -101,8 +102,10 @@ impl Session<'_> {
             (Some(title), None, None) => {
                 let title = title.trim();
                 anyhow::ensure!(!title.is_empty(), "title must not be empty");
-                api.get(&format!("/api/pages/by-title/{}", segment(title)))
-                    .await
+                // Another spelling or an alias also finds a page; a name
+                // several pages share is refused with the service's message.
+                found(&api, &format!("/api/pages/by-title/{}", segment(title)))
+                    .await?
                     .with_context(|| format!("No atom is titled {title:?}"))?
             }
             (None, Some(date), None) => api
