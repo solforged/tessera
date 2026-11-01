@@ -361,14 +361,22 @@ fn merge(
         };
     }
     if current.is_none() && status.is_none() {
-        // Planning an ordinary block makes it a todo task. A record with no
-        // status would be an appointment that never advances, or plan nothing.
         anyhow::ensure!(
             task != TaskState::default(),
             "This atom has no task, so there is nothing to clear. Give status todo, or a date, \
              repeat or priority to plan it."
         );
-        task.status = Some(TaskStatus::Todo);
+        // A date alone makes an appointment, as `@` planning does in the
+        // editor. Anything more makes a todo task: a repeat without a status
+        // could never advance, and a deadline or priority needs a checkbox.
+        let appointment = TaskState {
+            scheduled: task.scheduled.clone(),
+            scheduled_time: task.scheduled_time.clone(),
+            ..TaskState::default()
+        };
+        if task.scheduled.is_none() || task != appointment {
+            task.status = Some(TaskStatus::Todo);
+        }
     }
     Ok(Some(task))
 }
@@ -527,10 +535,10 @@ mod tests {
     }
 
     #[test]
-    fn planning_an_ordinary_block_makes_it_a_todo_task() {
+    fn planning_an_ordinary_block_makes_it_a_todo_task_or_an_appointment() {
         for arguments in [
             json!({ "priority": "high" }),
-            json!({ "scheduled": "2026-11-05" }),
+            json!({ "scheduled": "2026-11-05", "deadline": "2026-11-09" }),
             json!({ "repeat": "1w" }),
         ] {
             let task = merged(None, arguments.clone()).unwrap().unwrap();
@@ -539,6 +547,14 @@ mod tests {
         // A repeat on a block with no task starts today, so it can advance.
         let task = merged(None, json!({ "repeat": "1w" })).unwrap().unwrap();
         assert_eq!(task.scheduled.as_deref(), Some(TODAY));
+        // A date alone makes an appointment, as `@` planning does.
+        let task = merged(
+            None,
+            json!({ "scheduled": "2026-11-05", "scheduled_time": "10:00" }),
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(task.status, None);
         // An appointment keeps having no status.
         let appointment = TaskState {
             scheduled: Some("2026-11-05".into()),
