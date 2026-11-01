@@ -458,6 +458,36 @@ fn manual_sources_get_a_citation_key_from_their_fields_when_made() {
 }
 
 #[test]
+fn a_closing_et_al_exports_as_others_not_as_a_person() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut notebook = Notebook::open(dir.path()).unwrap();
+    let fields = notebook.fields().unwrap().page_id;
+    apply(&mut notebook, vec![insert(10, &fields, "author")]);
+    apply(
+        &mut notebook,
+        vec![
+            tessera_core::Operation::CreatePage {
+                id: id(1),
+                title: "Attention Is All You Need #source".into(),
+            },
+            insert(100, &id(1), &format!("[[{}]]", id(10))),
+            // Each insert without `after` goes first, so the byline is filed last to first.
+            insert(103, &id(100), "et al."),
+            insert(102, &id(100), "Noam Shazeer"),
+            insert(101, &id(100), "Ashish Vaswani"),
+        ],
+    );
+    let bib = notebook.export(&[id(1)], ExportFormat::Bibtex).unwrap();
+    assert!(
+        bib.contains("author = {Vaswani, Ashish and Shazeer, Noam and others}"),
+        "{bib}"
+    );
+    let csl: serde_json::Value =
+        serde_json::from_str(&notebook.export(&[id(1)], ExportFormat::CslJson).unwrap()).unwrap();
+    assert_eq!(csl[0]["author"].as_array().unwrap().len(), 2, "{csl}");
+}
+
+#[test]
 fn opening_gives_keyless_sources_a_suggested_key_once() {
     let dir = tempfile::tempdir().unwrap();
     let mut notebook = Notebook::open(dir.path()).unwrap();

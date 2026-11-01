@@ -229,6 +229,12 @@ fn person(name: &str) -> (String, String) {
         |(given, family)| (family.into(), given.into()),
     )
 }
+fn et_al(name: &str) -> bool {
+    matches!(
+        name.trim().to_lowercase().as_str(),
+        "et al." | "et al" | "others"
+    )
+}
 fn escape(text: &str) -> String {
     let mut output = String::with_capacity(text.len());
     for c in text.chars() {
@@ -373,7 +379,14 @@ impl Notebook {
             for (role, names) in &roles {
                 let role = *role;
                 if !names.is_empty() {
-                    let names: Vec<_> = names.iter().map(|n| person(n)).collect();
+                    // A plain `et al.` closes a truncated list: BibTeX spells it
+                    // `and others`, and CSL has no name for it.
+                    let truncated = names.iter().any(|n| et_al(n));
+                    let names: Vec<_> = names
+                        .iter()
+                        .filter(|n| !et_al(n))
+                        .map(|n| person(n))
+                        .collect();
                     // BibTeX names only these three; CSL takes every name variable.
                     if matches!(role, "author" | "editor" | "translator") {
                         fields.push((
@@ -387,6 +400,7 @@ impl Notebook {
                                         format!("{family}, {given}")
                                     }
                                 })
+                                .chain(truncated.then(|| "others".to_owned()))
                                 .collect::<Vec<_>>()
                                 .join(" and "),
                         ));

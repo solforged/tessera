@@ -619,7 +619,7 @@ A field may count as creator, contributor or originator, so readers find who mad
 - A work's creators are its creator fields' values, author first and then the other fields in Fields page order. Editors count only when a work has no other creator.
 - `@creator`, sigla, the bibliography byline, Library search and the Markdown export header read these creators. A director that counts as creator files a film under its director with no code change.
 - Contributors, such as translators, are listed after the creators and never appear in a byline, siglum or sort. `@contributor` reads them.
-- BibTeX and CSL keep author, editor and translator. Another field exports as the CSL name variable its name matches, such as `director`, and otherwise as author for a creator or contributor for a contributor. BibTeX takes only its three roles.
+- BibTeX and CSL keep author, editor and translator. Another field exports as the CSL name variable its name matches, such as `director`, and otherwise as author for a creator or contributor for a contributor. BibTeX takes only its three roles. A plain `et al.` closing a byline exports as BibTeX `and others` and is left out of CSL names.
 - A person's Works lists works whose creator fields, editors or translators name them, so those fields are left out of the person's `←` lines.
 - Originator is recorded but not yet read.
 
