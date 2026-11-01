@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 import type { Plugin, ResolvedConfig } from 'vite';
@@ -6,7 +7,7 @@ import { defineConfig } from 'vite';
 import solid from 'vite-plugin-solid';
 
 export default defineConfig(({ mode }) => ({
-  plugins: [solid(), ...(mode === 'demo' ? [demoOffline()] : [])],
+  plugins: [solid(), themeBoot(), ...(mode === 'demo' ? [demoOffline()] : [])],
   define: { __TESSERA_DEMO__: mode === 'demo', __TESSERA_MOBILE__: mode === 'mobile' },
   ...(mode === 'demo' ? {
     build: { outDir: 'dist-demo', rollupOptions: { input: 'demo.html' } },
@@ -28,6 +29,25 @@ export default defineConfig(({ mode }) => ({
   },
   preview: { host: '127.0.0.1', port: 5173, strictPort: true },
 }));
+
+/**
+ * Every entry page loads theme-boot.js first: a script from this origin (the CSP allows no inline script) that blocks
+ * the first paint just long enough to read the stored theme choice.
+ */
+function themeBoot(): Plugin {
+  const source = readFileSync(new URL('./theme-boot.js', import.meta.url), 'utf8');
+  return {
+    name: 'tessera-theme-boot',
+    configureServer(server) {
+      server.middlewares.use('/theme-boot.js', (_request, response) => {
+        response.setHeader('content-type', 'text/javascript');
+        response.end(source);
+      });
+    },
+    generateBundle() { this.emitFile({ type: 'asset', fileName: 'theme-boot.js', source }); },
+    transformIndexHtml: () => [{ tag: 'script', attrs: { src: '/theme-boot.js' }, injectTo: 'head-prepend' }],
+  };
+}
 
 const cachePrefix = 'tessera-demo-';
 
