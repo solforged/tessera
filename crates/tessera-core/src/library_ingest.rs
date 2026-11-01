@@ -292,6 +292,13 @@ impl<'a> Planner<'a> {
                 targets: targets.clone(),
             });
         }
+        let (seeds, options) = match crate::built_in::field_named(label) {
+            Some(field) if kind == FieldKind::Choice => {
+                crate::built_in::starting_options(field, &id)
+            }
+            _ => (vec![], vec![]),
+        };
+        self.operations.extend(seeds);
         self.fields.insert(
             key,
             crate::FieldDefinition {
@@ -303,7 +310,7 @@ impl<'a> Planner<'a> {
                 counts_as: crate::built_in::field_named(label).and_then(|field| field.counts_as),
                 archived: false,
                 revision: if targets.is_empty() { 2 } else { 3 },
-                options: vec![],
+                options,
                 targets,
                 built_in: crate::built_in::field_named(label).is_some(),
             },
