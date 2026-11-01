@@ -100,6 +100,55 @@ fn members(nb: &Notebook, q: &Query) -> Vec<String> {
         .map(|row| row.block.block.id)
         .collect()
 }
+fn sorted(mut ids: Vec<String>) -> Vec<String> {
+    ids.sort();
+    ids
+}
+#[test]
+fn a_kinds_table_lists_its_tagged_blocks_and_its_list_stays_notes_only() {
+    let (_dir, mut nb) = fixture();
+    apply(&mut nb, vec![insert(20, id(1), "A tagged idea".into())]);
+    apply(
+        &mut nb,
+        vec![Operation::AddType {
+            id: id(20),
+            base_revision: 1,
+            title: "Concept".into(),
+        }],
+    );
+    let view = |layout| {
+        Some(NoteView {
+            layout,
+            grouping: "letter".into(),
+        })
+    };
+    let list = Query {
+        note_view: view(NoteLayout::Index),
+        ..query()
+    };
+    let table = Query {
+        note_view: view(NoteLayout::Table),
+        ..query()
+    };
+    let notes = members(&nb, &list);
+    assert_eq!(notes.len(), 4);
+    assert!(!notes.contains(&id(20)));
+    assert_eq!(members(&nb, &query()), notes, "no layout is the List");
+
+    let rows = members(&nb, &table);
+    assert_eq!(rows.len(), 5);
+    assert!(rows.contains(&id(20)));
+    let concept = nb.page_by_title("Concept").unwrap().unwrap().id;
+    let register = Query {
+        r#type: Some(concept),
+        ..Query::default()
+    };
+    assert_eq!(
+        sorted(rows),
+        sorted(members(&nb, &register)),
+        "the kind's Table and the type's own table list the same rows"
+    );
+}
 #[test]
 fn note_predicates_resolve_aliases_and_intersect_all_terms() {
     let (_dir, nb) = fixture();

@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use crate::aliases::fold;
 use crate::reads::hidden_blocks;
 use crate::storage::{validate_id, validation};
-use crate::{NoteGroup, Notebook, Query, QueryRow, Reading, Result};
+use crate::{NoteGroup, NoteLayout, Notebook, Query, QueryRow, Reading, Result};
 
 impl Query {
     pub(crate) fn selects_notes(&self) -> bool {
@@ -67,11 +67,22 @@ impl Notebook {
         }
         let mut pages: HashMap<String, String> =
             if let Some(kind) = query.note_kind.as_deref().or(capability_type) {
-                self.kind_notes(kind)?
+                let mut members: HashMap<String, String> = self
+                    .kind_notes(kind)?
                     .notes
                     .into_iter()
                     .map(|note| (note.id, note.title))
-                    .collect()
+                    .collect();
+                // A kind's Table lists its tagged blocks after its notes, as the type's own table
+                // does, so both routes count the same rows. Its List stays notes only.
+                let table = query
+                    .note_view
+                    .as_ref()
+                    .is_some_and(|view| view.layout == NoteLayout::Table);
+                if let Some(kind) = query.note_kind.as_deref().filter(|_| table) {
+                    members.extend(self.kind_tagged_blocks(kind)?);
+                }
+                members
             } else if query.filters.iter().any(|filter| filter.field == "@kind") {
                 self.query_kind_titles()?
             } else {
