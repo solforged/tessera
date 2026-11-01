@@ -207,12 +207,20 @@ struct Plan {
     steps: Vec<Step>,
     /// Pages resolved or created for this batch, by lowercase title.
     titles: HashMap<String, String>,
+    /// Pages a `[[Name]]` reached by alias or another spelling of their title,
+    /// by folded name.
+    names: HashMap<String, String>,
     created: Vec<String>,
     /// Live and newly created field definitions, keyed by lowercase name.
     fields: Option<HashMap<String, String>>,
     /// Choice fields by definition ID, with their name and live options.
     choices: HashMap<String, (String, Vec<FieldOption>)>,
+    /// Fields whose values must read as their kind, by definition ID, with
+    /// their name and kind.
+    checked: HashMap<String, (String, FieldKind)>,
     created_fields: Vec<String>,
+    /// Option atoms of created definitions, removed with them by undo.
+    options: Vec<String>,
     inserted: Vec<String>,
     removable: Vec<String>,
     changed: Vec<String>,
@@ -481,12 +489,16 @@ impl Notebook {
             steps,
             created,
             created_fields,
+            options,
             inserted,
             removable,
             changed,
             saved_decks,
             ..
         } = plan;
+        // Undo deletes a created definition only while the change made every
+        // atom under it, so its starting options count as made here.
+        let created_atoms: Vec<String> = inserted.iter().chain(&options).cloned().collect();
         let provisional = provisional_undo_targets(&self.conn, &steps)?;
         let committed = self.apply_with(
             &Batch {
@@ -521,7 +533,7 @@ impl Notebook {
                 let undo = Undo {
                     operations,
                     removable: resulting(committed, &removable)?,
-                    inserted: inserted.clone(),
+                    inserted: created_atoms.clone(),
                     created_pages,
                     created_fields: resulting(committed, &created_fields)?,
                 };
@@ -634,6 +646,7 @@ impl Notebook {
                 "a note can add at most {NOTE_LIMIT} atoms, counting nested ones; split it into several notes"
             )));
         }
+        let mut tagged = Vec::new();
         let (page_id, parent_id, after, title) = match target {
             NoteTarget::Page { title } => {
                 let title = title.trim();
@@ -645,6 +658,7 @@ impl Notebook {
                     Some(page) => {
                         plan.titles
                             .insert(crate::storage::title_key(title), page.id.clone());
+                        tagged = self.plan_tags(plan, &page, title)?;
                         let after = self.last_child(&page.id, &page.id)?;
                         (page.id.clone(), page.id, after, page.text)
                     }
@@ -690,11 +704,62 @@ impl Notebook {
         };
         self.plan_blocks(plan, &parent_id, after, blocks, true)?;
         let count = plan.inserted.len();
-        let summary = format!(
+        let mut summary = format!(
             "Added {count} atom{} to {title}",
             if count == 1 { "" } else { "s" }
         );
+        if !tagged.is_empty() {
+            summary.push_str(" and tagged it ");
+            summary.push_str(&listed(&tagged));
+        }
         Ok((page_id, summary))
+    }
+
+    /// File an existing page under the tags its target title gives, as
+    /// creating the page with that title would: each tag the page is not
+    /// yet filed under is appended to its title as written. Tags never
+    /// change a page's name, so this is not a rename. Returns those tags.
+    fn plan_tags<'a>(&self, plan: &mut Plan, page: &Block, title: &'a str) -> Result<Vec<&'a str>> {
+        let mut seen = HashSet::new();
+        let mut missing = Vec::new();
+        for token in crate::tag_tokens(title) {
+            let key = crate::storage::title_key(token.title);
+            let type_id = match token.id {
+                Some(id) => crate::storage::live_tag(&self.conn, id)?.map(|_| id.to_owned()),
+                None => crate::storage::resolve_type(
+                    &self.conn,
+                    token.title,
+                    &key,
+                    None,
+                    &mut Vec::new(),
+                )?,
+            };
+            let filed = match &type_id {
+                // A page is never filed under itself.
+                Some(type_id) => {
+                    *type_id == page.id
+                        || self.conn.query_row(
+                            "SELECT EXISTS(SELECT 1 FROM memberships WHERE block_id = ?1 AND type_id = ?2)",
+                            params![page.id, type_id],
+                            |row| row.get(0),
+                        )?
+                }
+                None => false,
+            };
+            if seen.insert(type_id.unwrap_or(key)) && !filed {
+                missing.push(&title[token.span]);
+            }
+        }
+        if !missing.is_empty() {
+            touch(plan, page, None);
+            plan_text(
+                plan,
+                page,
+                format!("{} {}", page.text.trim_end(), missing.join(" ")),
+            );
+            plan.changed.push(page.id.clone());
+        }
+        Ok(missing)
     }
 
     fn plan_blocks(
@@ -750,12 +815,17 @@ impl Notebook {
         if plan.fields.is_none() {
             let mut fields = HashMap::new();
             for field in crate::fields::definitions(&self.conn)? {
-                // Status and priority keep their task options, never value links.
-                if field.kind == FieldKind::Choice
-                    && crate::built_in::task_options(&field.name).is_empty()
-                {
-                    plan.choices
-                        .insert(field.id.clone(), (field.name.clone(), field.options));
+                match field.kind {
+                    // Status and priority keep their task options, never value links.
+                    FieldKind::Choice if crate::built_in::task_options(&field.name).is_empty() => {
+                        plan.choices
+                            .insert(field.id.clone(), (field.name.clone(), field.options));
+                    }
+                    kind if value_form(kind).is_some() => {
+                        plan.checked
+                            .insert(field.id.clone(), (field.name.clone(), kind));
+                    }
+                    _ => {}
                 }
                 fields.insert(field.name.to_lowercase(), field.id);
             }
@@ -767,9 +837,10 @@ impl Notebook {
         }
         let page = match crate::fields::page_id(&self.conn)? {
             Some(id) => id,
-            None => self
-                .title_target(plan, "Fields")?
-                .expect("Fields is a page title"),
+            None => match plan.titles.get("fields") {
+                Some(id) => id.clone(),
+                None => plan.create_page("Fields")?,
+            },
         };
         let after = if let Some(id) = plan.created_fields.last() {
             Some(id.clone())
@@ -778,14 +849,43 @@ impl Notebook {
         } else {
             self.last_child(&page, &page)?
         };
-        let id = new_ulid().to_string();
+        // A built-in name gets the definition the core owns: its lowercase
+        // name, kind and starting options, as a template would make it.
+        let built_in = crate::built_in::field_named(name);
+        let id = match built_in {
+            Some(field) if crate::built_in::task_field(field.name).is_some() => {
+                crate::notebook::derived_id(&["task-field", &page, field.name])
+            }
+            _ => new_ulid().to_string(),
+        };
         plan.operations.push(Operation::Insert {
             id: id.clone(),
             parent_id: page,
             after,
-            text: name.to_owned(),
+            text: built_in.map_or(name, |field| field.name).to_owned(),
             heading: None,
         });
+        if let Some(field) = built_in.filter(|field| field.kind != FieldKind::Text) {
+            // Setting a relation's kind files Links to its types where those pages exist.
+            plan.operations.push(Operation::SetFieldKind {
+                id: id.clone(),
+                base_revision: 1,
+                kind: field.kind,
+            });
+            if field.kind == FieldKind::Choice {
+                if crate::built_in::task_options(field.name).is_empty() {
+                    let (operations, options) = crate::built_in::starting_options(field, &id);
+                    plan.operations.extend(operations);
+                    plan.options
+                        .extend(options.iter().map(|option| option.id.clone()));
+                    plan.choices
+                        .insert(id.clone(), (field.name.to_owned(), options));
+                }
+            } else if value_form(field.kind).is_some() {
+                plan.checked
+                    .insert(id.clone(), (field.name.to_owned(), field.kind));
+            }
+        }
         plan.fields
             .as_mut()
             .expect("fields were loaded")
@@ -825,10 +925,28 @@ impl Notebook {
 
     /// A shorthand value as stored: a link to the option it names for a
     /// choice field, which never creates a page, or the text with its title
-    /// references linked for any other field.
+    /// references linked for any other field. A value a number, date, span,
+    /// URL, identifier or checkbox field cannot read is refused.
     fn value_text(&self, plan: &mut Plan, field: &str, value: &str) -> Result<String> {
         let Some((name, options)) = plan.choices.get(field) else {
-            return self.link_titles(plan, value);
+            let text = self.link_titles(plan, value)?;
+            let Some((name, kind)) = plan.checked.get(field) else {
+                return Ok(text);
+            };
+            let target = match crate::fields::reference(&text) {
+                Some(id) if validate_id(id).is_ok() => self.live_block(id)?,
+                _ => None,
+            };
+            let crate::Reading::Problem { problem, .. } =
+                crate::fields::reading(*kind, field, &text, target.as_ref())
+            else {
+                return Ok(text);
+            };
+            let (noun, form) = value_form(*kind).expect("checked kinds have a written form");
+            return Err(validation(format!(
+                "{name} is {noun} field and “{}” is {problem}; {form}",
+                value.trim()
+            )));
         };
         let wanted = value.trim();
         let label = wanted
@@ -1482,10 +1600,11 @@ impl Notebook {
         Ok(last.cloned())
     }
 
-    /// Rewrite `[[Title]]` to `[[id]]` for the live page with that title,
-    /// creating it when missing, and keep any `|alias|locator`. A date names a
-    /// journal day and stays as written when that day does not exist. ID
-    /// references and `#[[Tag]]` tags are left alone.
+    /// Rewrite `[[Title]]` to `[[id]]` for the live page with that title, or
+    /// to `[[id|Title]]` for the one page with that name or alias, creating it
+    /// when missing, and keep any `|alias|locator`. A date names a journal day
+    /// and stays as written when that day does not exist. ID references and
+    /// `#[[Tag]]` tags are left alone.
     fn link_titles(&self, plan: &mut Plan, text: &str) -> Result<String> {
         let mut linked = String::with_capacity(text.len());
         let mut rest = text;
@@ -1531,12 +1650,18 @@ impl Notebook {
             };
             linked.push_str(before);
             match resolved {
-                Some(id) => {
+                Some((id, renamed)) => {
                     linked.push_str("[[");
                     linked.push_str(&id);
-                    if let Some(alias) = alias {
+                    // A page reached by another name keeps the typed wording.
+                    let label = if renamed && alias.is_none_or(str::is_empty) {
+                        Some(title)
+                    } else {
+                        alias
+                    };
+                    if let Some(label) = label {
                         linked.push('|');
-                        linked.push_str(alias);
+                        linked.push_str(label);
                     }
                     if let Some(locator) = locator {
                         linked.push('|');
@@ -1552,22 +1677,67 @@ impl Notebook {
         Ok(linked)
     }
 
-    fn title_target(&self, plan: &mut Plan, title: &str) -> Result<Option<String>> {
-        if let Some(id) = plan.titles.get(&crate::storage::title_key(title)) {
-            return Ok(Some(id.clone()));
+    /// The page a hand-typed `[[Name]]` links, found as the editor finds it: a
+    /// journal day for a date; the page with that title; else the one page
+    /// whose title or alias matches ignoring case, diacritics and
+    /// punctuation, marked `true` so the link keeps the typed name; else a
+    /// new page. A name several pages share is refused with their IDs rather
+    /// than guessed or duplicated.
+    fn title_target(&self, plan: &mut Plan, title: &str) -> Result<Option<(String, bool)>> {
+        let key = crate::storage::title_key(title);
+        if let Some(id) = plan.titles.get(&key) {
+            return Ok(Some((id.clone(), false)));
         }
         if date_shaped(title) {
             return Ok(match validate_date(title) {
-                Ok(()) => self.journal(title)?.map(|day| day.id),
+                Ok(()) => self.journal(title)?.map(|day| (day.id, false)),
                 Err(_) => None,
             });
         }
         if let Some(page) = self.page_by_title(title)? {
-            plan.titles
-                .insert(crate::storage::title_key(title), page.id.clone());
-            return Ok(Some(page.id));
+            plan.titles.insert(key, page.id.clone());
+            return Ok(Some((page.id, false)));
         }
-        plan.create_page(title).map(Some)
+        let name = crate::aliases::fold(title);
+        if let Some(id) = plan.names.get(&name) {
+            return Ok(Some((id.clone(), true)));
+        }
+        let id = match self.resolve_name(title)?.as_slice() {
+            [] => {
+                // A page this change creates is not stored yet, so match it here.
+                let created = plan
+                    .titles
+                    .iter()
+                    .find(|(known, id)| {
+                        !name.is_empty()
+                            && plan.created.contains(id)
+                            && crate::aliases::fold(known) == name
+                    })
+                    .map(|(_, id)| id.clone());
+                match created {
+                    Some(id) => id,
+                    None => return plan.create_page(title).map(|id| Some((id, false))),
+                }
+            }
+            [matched] => matched.page.id.clone(),
+            several => {
+                let mut pages = Vec::with_capacity(several.len());
+                for matched in several {
+                    pages.push(format!(
+                        "{} ({})",
+                        self.display_title(&matched.page.text)?,
+                        matched.page.id
+                    ));
+                }
+                let pages: Vec<&str> = pages.iter().map(String::as_str).collect();
+                return Err(validation(format!(
+                    "[[{title}]] could link {}, which share that name or alias; link the one you mean as [[ID|{title}]]",
+                    listed(&pages)
+                )));
+            }
+        };
+        plan.names.insert(name, id.clone());
+        Ok(Some((id, true)))
     }
 }
 
@@ -1635,6 +1805,29 @@ fn note_size(blocks: &[NoteBlock]) -> usize {
         .iter()
         .map(|block| 1 + note_size(&block.children))
         .sum()
+}
+
+/// How a field kind whose unreadable values are refused is named, and how to
+/// write a value it reads; `None` for kinds that keep any text.
+fn value_form(kind: FieldKind) -> Option<(&'static str, &'static str)> {
+    Some(match kind {
+        FieldKind::Number => ("a number", "write a number such as 42 or 3.5"),
+        FieldKind::Date => (
+            "a date",
+            "write YYYY-MM-DD, YYYY-MM or YYYY, or link an existing journal day",
+        ),
+        FieldKind::Span => (
+            "a span",
+            "write years such as 1791–1871, c. 1493, b. 1947, d. 1871 or 1947–?",
+        ),
+        FieldKind::Url => (
+            "a URL",
+            "write an address that starts with https:// or http://",
+        ),
+        FieldKind::Identifier => ("an identifier", "write an ISBN, DOI or arXiv ID"),
+        FieldKind::Checkbox => ("a checkbox", "write yes or no"),
+        FieldKind::Text | FieldKind::Choice | FieldKind::Instance => return None,
+    })
 }
 
 /// Names joined as prose: "A", "A and B", "A, B and C".

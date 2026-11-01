@@ -6,7 +6,8 @@ const SYNTAX: &str = "Markdown outline: `- ` or `1. ` items nest by indentation;
 and `###` headings become heading blocks that contain the content below them; other lines \
 become blocks; indented lines under an item continue that item; `- [ ] `, `- [x] `, \
 `- [doing] `, `- [waiting] ` and `- [cancelled] ` items become tasks. In block text, \
-`[[Page title]]` links a page by title and creates it if missing, `[[Page title|label]]` \
+`[[Page title]]` links a page by title, or by alias when one page has it (a name several \
+pages share is refused), and creates it if missing, `[[Page title|label]]` \
 links with a label, `[[2026-10-07]]` links an existing journal day, `[[BLOCK_ID]]` \
 references a live block, and `#Tag` or `#[[Multi word tag]]` gives the block a type. \
 Quote rows use `((BLOCK_ID))` alone with an attached frozen subtree snapshot; writing \
@@ -21,9 +22,11 @@ children one at a time in order; a child block `Function ;; makes ATP` under \
 never mix operators with clozes. Write results list each card with what it shows and asks \
 for. Field entries: a line `Name:: value` is its own block and sets that field on its \
 parent block, the page itself at the top level or the item it is indented under (the \
-field is created when missing); `Name::` with indented children gives several values. \
-Values of instance fields (see tessera_query) are links such as \
-`Author:: [[George Eliot]]`.";
+field is created when missing, a built-in one such as author, lived, published, url or \
+form with its built-in kind); a choice, date, span, URL, number, identifier or checkbox \
+value the field cannot read is refused; `Name::` with indented children gives several \
+values. Values of instance fields (see tessera_query) are links such as \
+`author:: [[George Eliot]]`.";
 
 const REVISION: &str = "The block's revision from tessera_read_page (`r3` is 3). When given, \
 the change is refused if the block changed since; read it again and retry.";
@@ -88,7 +91,7 @@ pub(super) fn tools() -> Value {
                 "type": "object",
                 "properties": {
                     "markdown": { "type": "string", "description": "The note as a Markdown outline." },
-                    "page": { "type": "string", "description": "Page title." },
+                    "page": { "type": "string", "description": "Page title. Tags in it, such as #person, file the page, an existing one too." },
                     "journal": { "type": "string", "description": "Journal day as YYYY-MM-DD, or today." },
                     "parent_id": { "type": "string", "description": "Block ID to append children to." },
                     "reason": { "type": "string", "description": "Why this note was written, kept in the change history." }

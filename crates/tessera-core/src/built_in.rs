@@ -1,5 +1,6 @@
 //! Fields the app itself creates, named lowercase, and the built-in types that carry them.
-//! Every surface that makes one of these fields takes its name, kind and Links to types from here.
+//! Every surface that makes one of these fields takes its name, kind, Links to types and starting
+//! options from here.
 
 use std::collections::HashMap;
 
@@ -8,7 +9,7 @@ use rusqlite::{Connection, OptionalExtension};
 use crate::FieldKind::{self, Choice, Date, Identifier, Instance, Number, Span, Text, Url};
 use crate::fields::SOURCE_TARGET;
 use crate::library_ingest::Planner;
-use crate::{Actor, Batch, CountsAs, Notebook, Operation, Result};
+use crate::{Actor, Batch, CountsAs, FieldOption, Notebook, Operation, Result};
 
 pub(crate) struct BuiltInField {
     pub name: &'static str,
@@ -20,6 +21,9 @@ pub(crate) struct BuiltInField {
     pub counts_as: Option<CountsAs>,
     /// A creator read only when a work has no other creator, as an editor is.
     pub fallback: bool,
+    /// The options a new choice definition starts with, as ordinary option atoms that change and
+    /// grow like any choice field's.
+    pub options: &'static [&'static str],
 }
 
 const fn field(name: &'static str, kind: FieldKind) -> BuiltInField {
@@ -29,6 +33,7 @@ const fn field(name: &'static str, kind: FieldKind) -> BuiltInField {
         targets: &[],
         counts_as: None,
         fallback: false,
+        options: &[],
     }
 }
 
@@ -43,6 +48,7 @@ const fn person(
         targets,
         counts_as: Some(counts_as),
         fallback: false,
+        options: &[],
     }
 }
 
@@ -55,6 +61,12 @@ pub(crate) const FIELDS: &[BuiltInField] = &[
         ..person("editor", CREATORS, CountsAs::Creator)
     },
     person("translator", CREATORS, CountsAs::Contributor),
+    BuiltInField {
+        options: &[
+            "book", "chapter", "article", "paper", "report", "post", "thread", "video", "web page",
+        ],
+        ..field("form", Choice)
+    },
     field("subtitle", Text),
     field("published", Date),
     field("first published", Date),
@@ -181,6 +193,31 @@ pub(crate) fn task_options(name: &str) -> &'static [&'static str] {
         Some("priority") => &["high", "medium", "low"],
         _ => &[],
     }
+}
+
+/// The option atoms a new definition `id` of built-in `field` starts with, in order, and the options
+/// they make, so a value in the same change can link one.
+pub(crate) fn starting_options(
+    field: &BuiltInField,
+    id: &str,
+) -> (Vec<Operation>, Vec<FieldOption>) {
+    let mut operations = Vec::with_capacity(field.options.len());
+    let mut options: Vec<FieldOption> = Vec::with_capacity(field.options.len());
+    for &text in field.options {
+        let option = crate::notebook::new_ulid().to_string();
+        operations.push(Operation::Insert {
+            id: option.clone(),
+            parent_id: id.to_owned(),
+            after: options.last().map(|previous| previous.id.clone()),
+            text: text.to_owned(),
+            heading: None,
+        });
+        options.push(FieldOption {
+            id: option,
+            text: text.to_owned(),
+        });
+    }
+    (operations, options)
 }
 
 /// The Links to a built-in relation files: Sources, and those of its types whose pages exist.

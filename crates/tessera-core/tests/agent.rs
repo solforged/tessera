@@ -701,14 +701,17 @@ fn shorthand_creates_and_reuses_a_definition_with_values_before_authored_childre
         &note(
             page("Dune"),
             vec![block(
-                "  Author :: [[Frank Herbert]]",
-                vec![block("authored", vec![]), block("aUTHOR:: another", vec![])],
+                "  Narrator :: [[Frank Herbert]]",
+                vec![
+                    block("authored", vec![]),
+                    block("nARRATOR:: another", vec![]),
+                ],
             )],
         ),
     );
     assert_eq!(receipt.created_fields.len(), 1);
     let definition = &receipt.created_fields[0];
-    assert_eq!(definition.text, "Author");
+    assert_eq!(definition.text, "Narrator");
     assert_eq!(
         definition.parent_id.as_deref(),
         Some(nb.fields().unwrap().page_id.as_str())
@@ -739,7 +742,7 @@ fn shorthand_creates_and_reuses_a_definition_with_values_before_authored_childre
     assert!(change.blocks.iter().any(|block| block == definition));
     let second = run(
         &mut nb,
-        &note(page("Dune"), vec![block("AUTHOR:: reused", vec![])]),
+        &note(page("Dune"), vec![block("NARRATOR:: reused", vec![])]),
     );
     assert!(second.created_fields.is_empty());
     assert_eq!(
@@ -2126,4 +2129,333 @@ fn a_keyed_request_sent_again_returns_its_first_receipt_without_writing() {
     assert!(reopened.committed.replayed);
     assert_eq!(reopened.seq, first.seq);
     assert_eq!(agent_history(&nb).len(), 2);
+}
+
+fn kinds(nb: &Notebook, page_id: &str) -> Vec<String> {
+    let mut keys: Vec<String> = nb
+        .note_kinds(page_id)
+        .unwrap()
+        .into_iter()
+        .map(|kind| kind.key)
+        .collect();
+    keys.sort();
+    keys
+}
+
+fn definition(nb: &Notebook, name: &str) -> tessera_core::FieldDefinition {
+    nb.fields()
+        .unwrap()
+        .fields
+        .into_iter()
+        .map(|field| field.definition)
+        .find(|definition| definition.name == name)
+        .unwrap_or_else(|| panic!("no field named {name}"))
+}
+
+#[test]
+fn a_tagged_page_target_files_an_existing_page_as_creating_it_would() {
+    let (_dir, mut nb) = fixture();
+    run(
+        &mut nb,
+        &note(
+            page("Reading list"),
+            vec![block("See [[Ada Lovelace]].", vec![])],
+        ),
+    );
+    let stub = nb.page_by_title("Ada Lovelace").unwrap().unwrap();
+    let created = run(
+        &mut nb,
+        &note(page("Charles Babbage #person"), vec![block("x", vec![])]),
+    );
+    assert_eq!(kinds(&nb, &created.page.unwrap().id), ["person"]);
+
+    let filed = run(
+        &mut nb,
+        &note(page("Ada Lovelace #person"), vec![block("Note G", vec![])]),
+    );
+    assert_eq!(
+        filed.summary,
+        "Added 1 atom to Ada Lovelace and tagged it #person"
+    );
+    let root = filed.page.clone().unwrap();
+    assert_eq!(root.id, stub.id);
+    assert!(filed.created_pages.is_empty());
+    assert_eq!(kinds(&nb, &stub.id), ["person"]);
+    assert_eq!(nb.display_title(&root.text).unwrap(), "Ada Lovelace");
+    assert!(
+        filed
+            .blocks
+            .iter()
+            .any(|revision| revision.id == stub.id && revision.revision == root.revision)
+    );
+    assert_eq!(outline(&nb, &stub.id), ["Note G"]);
+
+    // Only tags the page is not filed under yet are added.
+    let more = run(
+        &mut nb,
+        &note(
+            page(" ada lovelace #Person #concept "),
+            vec![block("Bernoulli numbers", vec![])],
+        ),
+    );
+    assert_eq!(
+        more.summary,
+        format!("Added 1 atom to {} and tagged it #concept", root.text)
+    );
+    assert_eq!(kinds(&nb, &stub.id), ["concept", "person"]);
+    let tagged = more.page.unwrap();
+    let same = run(
+        &mut nb,
+        &note(page("Ada Lovelace #concept"), vec![block("again", vec![])]),
+    );
+    assert_eq!(same.summary, format!("Added 1 atom to {}", tagged.text));
+    assert_eq!(same.page.unwrap().revision, tagged.revision);
+
+    undo(&mut nb, same.seq).unwrap();
+    undo(&mut nb, more.seq).unwrap();
+    let restored = nb.block(&stub.id).unwrap().text;
+    assert_eq!(
+        nb.render_tag_text(&restored).unwrap(),
+        "Ada Lovelace #Person"
+    );
+    assert_eq!(kinds(&nb, &stub.id), ["person"]);
+    undo(&mut nb, filed.seq).unwrap();
+    assert_eq!(nb.block(&stub.id).unwrap().text, "Ada Lovelace");
+    assert!(kinds(&nb, &stub.id).is_empty());
+}
+
+#[test]
+fn shorthand_creates_built_in_fields_with_their_kind_links_and_options() {
+    use tessera_core::{CountsAs, FieldKind};
+    let (_dir, mut nb) = fixture();
+    run(
+        &mut nb,
+        &note(page("Ada Lovelace #person"), vec![block("x", vec![])]),
+    );
+    run(
+        &mut nb,
+        &note(page("Royal Society #group"), vec![block("x", vec![])]),
+    );
+    let person = nb.page_by_title("Person").unwrap().unwrap().id;
+    let group = nb.page_by_title("Group").unwrap().unwrap().id;
+    let babbage = run(
+        &mut nb,
+        &note(
+            page("Charles Babbage #person"),
+            vec![
+                block("Lived:: 1791–1871", vec![]),
+                block("affiliated with:: [[Royal Society]]", vec![]),
+                block("Gloss:: English mathematician", vec![]),
+            ],
+        ),
+    );
+    assert_eq!(
+        babbage
+            .created_fields
+            .iter()
+            .map(|field| field.text.as_str())
+            .collect::<Vec<_>>(),
+        ["lived", "affiliated with", "gloss"]
+    );
+    let note_g = run(
+        &mut nb,
+        &note(
+            page("Note G #source"),
+            vec![
+                block("form:: Paper", vec![]),
+                block("published:: 1843-09", vec![]),
+                block("url:: https://en.wikipedia.org/wiki/Note_G", vec![]),
+                block("author:: [[Ada Lovelace]]", vec![]),
+            ],
+        ),
+    );
+    let engine = run(
+        &mut nb,
+        &note(
+            page("Analytical Engine #concept"),
+            vec![block("coined by:: [[Charles Babbage]]", vec![])],
+        ),
+    );
+
+    let lived = definition(&nb, "lived");
+    assert_eq!((lived.kind, lived.built_in), (FieldKind::Span, true));
+    assert_eq!(definition(&nb, "gloss").kind, FieldKind::Text);
+    let affiliated = definition(&nb, "affiliated with");
+    assert_eq!(affiliated.kind, FieldKind::Instance);
+    assert_eq!(affiliated.targets, std::slice::from_ref(&group));
+    let author = definition(&nb, "author");
+    assert_eq!(author.kind, FieldKind::Instance);
+    assert_eq!(author.targets, [person, group]);
+    assert_eq!(author.counts_as, Some(CountsAs::Creator));
+    let coined = definition(&nb, "coined by");
+    assert_eq!(coined.counts_as, Some(CountsAs::Originator));
+    let published = definition(&nb, "published");
+    assert_eq!(published.kind, FieldKind::Date);
+    let url = definition(&nb, "url");
+    assert_eq!(url.kind, FieldKind::Url);
+    let form = definition(&nb, "form");
+    assert_eq!(form.kind, FieldKind::Choice);
+    assert_eq!(
+        form.options
+            .iter()
+            .map(|option| option.text.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "book", "chapter", "article", "paper", "report", "post", "thread", "video", "web page"
+        ]
+    );
+    let paper = form.options[3].id.clone();
+    assert_eq!(
+        outline(&nb, &note_g.page.unwrap().id)[..2],
+        [format!("[[{}]]", form.id), format!("  [[{paper}]]")]
+    );
+    for field in [
+        &lived,
+        &affiliated,
+        &author,
+        &coined,
+        &published,
+        &url,
+        &form,
+    ] {
+        let detail = nb.field_detail(&field.id, None, None).unwrap();
+        assert_eq!(
+            (detail.values_total, detail.problems_total),
+            (1, 0),
+            "{}",
+            field.name
+        );
+    }
+
+    undo(&mut nb, engine.seq).unwrap();
+    undo(&mut nb, note_g.seq).unwrap();
+    for id in [&form.id, &paper, &author.id, &url.id] {
+        assert!(matches!(nb.block(id), Err(Error::NotFound { .. })), "{id}");
+    }
+}
+
+#[test]
+fn shorthand_values_a_typed_field_cannot_read_are_refused() {
+    let (_dir, mut nb) = fixture();
+    dune(&mut nb);
+    for (text, reason) in [
+        (
+            "lived:: 1947–",
+            "lived is a span field and “1947–” is not a historical span; write years such as",
+        ),
+        (
+            "published:: June 2017",
+            "published is a date field and “June 2017” is not a date",
+        ),
+        (
+            "url:: en.wikipedia.org/wiki/Note_G",
+            "url is a URL field and “en.wikipedia.org/wiki/Note_G” is not a URL",
+        ),
+    ] {
+        refused(
+            nb.agent_edit(&note(page("Dune"), vec![block(text, vec![])])),
+            reason,
+        );
+    }
+    assert!(
+        nb.fields()
+            .unwrap()
+            .fields
+            .iter()
+            .all(|field| !["lived", "published", "url"].contains(&field.definition.name.as_str()))
+    );
+    assert!(agent_history(&nb).is_empty());
+
+    let lived = run(
+        &mut nb,
+        &note(page("Dune"), vec![block("lived:: 1947–?", vec![])]),
+    );
+    let entry = lived.blocks[0].id.clone();
+    refused(
+        nb.agent_edit(&edit(&entry, "lived:: someday")),
+        "lived is a span field and “someday” is not a historical span",
+    );
+    run(&mut nb, &edit(&entry, "Lived:: b. 1947"));
+    assert_eq!(outline(&nb, &id(1))[4], "  b. 1947");
+}
+
+#[test]
+fn title_references_link_a_unique_alias_and_refuse_a_shared_one() {
+    let (_dir, mut nb) = fixture();
+    let with_alias = |nb: &mut Notebook, title: &str, alias: &str| {
+        run(
+            nb,
+            &note(
+                page(title),
+                vec![block(&format!("aliases:: {alias}"), vec![])],
+            ),
+        )
+        .page
+        .unwrap()
+        .id
+    };
+    let ada = with_alias(&mut nb, "Ada Lovelace", "Augusta Ada King");
+    let elder = with_alias(&mut nb, "Pliny the Elder", "Pliny");
+    let younger = with_alias(&mut nb, "Pliny the Younger", "Pliny");
+
+    let receipt = run(
+        &mut nb,
+        &note(
+            page("Reading list"),
+            vec![
+                block(
+                    "Also [[Augusta Ada King]], [[augusta áda king|her]] and [[Ada Lovelace]].",
+                    vec![],
+                ),
+                block("author:: [[Augusta Ada King]]", vec![]),
+            ],
+        ),
+    );
+    assert_eq!(
+        receipt
+            .created_pages
+            .iter()
+            .map(|page| page.text.as_str())
+            .collect::<Vec<_>>(),
+        ["Reading list"]
+    );
+    assert_eq!(
+        outline(&nb, &receipt.page.unwrap().id),
+        [
+            format!("Also [[{ada}|Augusta Ada King]], [[{ada}|her]] and [[{ada}]]."),
+            format!("[[{}]]", definition(&nb, "author").id),
+            format!("  [[{ada}|Augusta Ada King]]"),
+        ]
+    );
+    assert_eq!(nb.backlinks(&ada, 10).unwrap().len(), 2);
+
+    let before = agent_history(&nb).len();
+    refused(
+        nb.agent_edit(&note(
+            page("Reading list"),
+            vec![block("See [[Pliny]].", vec![])],
+        )),
+        &format!(
+            "[[Pliny]] could link Pliny the Elder ({elder}) and Pliny the Younger ({younger})"
+        ),
+    );
+    assert!(nb.page_by_title("Pliny").unwrap().is_none());
+    assert_eq!(agent_history(&nb).len(), before);
+
+    // A page with that title wins over other pages' aliases.
+    let pliny = run(
+        &mut nb,
+        &note(page("Pliny"), vec![block("Which one?", vec![])]),
+    )
+    .page
+    .unwrap()
+    .id;
+    let linked = run(
+        &mut nb,
+        &note(page("Reading list"), vec![block("See [[pliny]].", vec![])]),
+    );
+    assert_eq!(
+        nb.block(&linked.blocks[0].id).unwrap().text,
+        format!("See [[{pliny}]].")
+    );
 }
