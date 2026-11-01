@@ -1,6 +1,10 @@
 .popup.create-slip, .popup-exit.create-slip { padding: 0; }
 .create-body { display: flex; flex-direction: column; min-width: 0; }
-.create-body .capture-head { flex-wrap: wrap; }
+/* The rubric stays one line: a long destination ends in an ellipsis and the day and time keep the right edge. */
+.create-body .capture-head { flex-wrap: nowrap; }
+.create-body .capture-head > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.create-body .capture-head > :last-child { flex: none; white-space: nowrap; }
+.capture-clock { font: var(--figures); font-variant-numeric: tabular-nums; }
 /* The kind chip leads the line: its glyph, the kind in apparatus type and a chevron; it opens the kind menu. */
 .create-kind-line { display: flex; padding: var(--space-8) var(--space-16) 0; }
 .create-chip.button { flex: none; gap: var(--space-4); min-height: calc(var(--target-size) - var(--space-8)); margin-right: var(--space-8); padding: 0 var(--space-4) 0 var(--space-8); border-color: var(--line); border-radius: var(--radius-pill); color: var(--muted); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
@@ -14,8 +18,12 @@
 .create-under-options { display: flex; flex-wrap: wrap; gap: var(--space-4); min-width: 0; }
 .create-under-option.button { gap: var(--space-8); max-width: 200px; padding: var(--space-4) var(--space-8) var(--space-4) var(--space-4); border-color: var(--line); }
 .create-under-option.button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-tint); }
-.create-under-cover { display: grid; flex: none; place-items: center; width: 22px; height: 32px; overflow: hidden; border-radius: var(--radius-control); color: var(--faint); }
-.create-under-cover :is(img, .library-spine) { width: 100%; height: 100%; object-fit: cover; }
+.create-under-cover { display: grid; flex: none; place-items: center; width: var(--space-24); height: var(--space-32); overflow: hidden; border-radius: var(--radius-control); color: var(--faint); }
+.create-under-cover :is(img, .library-spine, .library-cover) { width: 100%; height: 100%; object-fit: cover; }
+/* A sigla must read whole on the small cover: no spine padding, and it never wraps a letter per line. */
+.create-under-cover .library-cover { aspect-ratio: auto; }
+.create-under-cover .library-spine { padding: 0; }
+.create-under-cover .library-spine-siglum { overflow-wrap: normal; letter-spacing: 0; white-space: nowrap; }
 .create-under-text { display: flex; flex-direction: column; min-width: 0; }
 .create-under-title { overflow: hidden; color: var(--text); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-display); text-overflow: ellipsis; white-space: nowrap; }
 .create-under-reason { color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); white-space: nowrap; }
@@ -47,6 +55,11 @@
 .create-page-title:focus-visible { outline: none; }
 .create-foot { display: flex; align-items: center; gap: var(--space-8); margin: var(--space-8) calc(-1 * var(--space-16)) 0; padding: var(--space-8) var(--space-16); border-top: var(--rule-width) solid var(--line); }
 .create-keys { display: flex; flex: 1; flex-wrap: wrap; align-items: baseline; gap: var(--space-4); color: var(--faint); font: var(--apparatus); }
+/* In the footer the key hints keep their line; the gilt button gives way and ends in an ellipsis. */
+.create-foot > .create-keys { flex: 1 0 auto; flex-wrap: nowrap; white-space: nowrap; }
+.create-foot > .button { flex: none; }
+.create-foot > .create-add.button { flex: 0 1 auto; min-width: 0; }
+.create-add-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Each key opens its own hint, set apart from the previous hint's label. */
 .create-keys > kbd:not(:first-child) { margin-left: var(--space-8); }
 .create-match { display: flex; align-items: baseline; gap: var(--space-8); font: var(--apparatus); }
@@ -109,7 +122,9 @@
   .create-slip .capture-line:focus-within { box-shadow: var(--well-shade), inset 0 -2px 0 var(--accent); }
   .create-slip .capture-line > .icon { display: none; }
   .create-slip .capture-input { min-height: 56px; padding: 0; border: 0; background: transparent; font: var(--weight-body) 17px/24px var(--font-body); }
+  .create-slip textarea.capture-input { padding-block: var(--space-16); }
   .create-slip .capture-input:focus-visible { border: 0; }
+  .create-body { padding-bottom: max(var(--space-16), var(--bottom-inset)); }
   .create-controls { display: flex; flex-direction: column; gap: var(--space-8); padding: var(--space-12) var(--phone-gutter) 0; }
   .create-into-label { margin: var(--space-4) var(--space-4) 0; color: var(--faint); font: var(--apparatus); }
   .create-into-seg > button { display: block; overflow: hidden; padding: 0 var(--space-8); line-height: 40px; text-overflow: ellipsis; }

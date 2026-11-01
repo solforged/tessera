@@ -2,7 +2,7 @@ import { createEffect, createMemo, createResource, createSignal, createUniqueId,
 import type { JSX } from 'solid-js';
 import type { Query } from '../api/types';
 import type { NotebookClient } from '../document/contract';
-import { foldName } from '../outline/names';
+import { displayTitle, foldName } from '../outline/names';
 import { BlockText } from '../outline/BlockText';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
@@ -32,7 +32,7 @@ export function NoteFind(props: { query: Query; plural: string; notebook: Notebo
     return props.notebook.api.complete(text, 8);
   });
   const options = createMemo(() => {
-    const result = (completion() ?? []).map(page => ({ id: page.id, title: page.text, alias: page.alias }));
+    const result = (completion() ?? []).map(page => ({ id: page.id, title: displayTitle(page.text, props.notebook.lookup), alias: page.alias }));
     if (pending()?.[1] === 'cites') {
       const source = sources(); const key = foldName(pending()?.[2] ?? '');
       for (const note of source?.notes ?? []) {

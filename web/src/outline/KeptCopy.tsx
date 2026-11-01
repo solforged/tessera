@@ -6,7 +6,7 @@ import './kept-copy.css';
 
 /** The mono line over a copy another device's wording made beside a block both devices edited. */
 export function KeptCopyLabel(props: { copy: KeptCopy }) {
-  return <div class="kept-copy-label">{props.copy.mine ? MOBILE ? 'This phone' : 'This device' : props.copy.origin_name ?? 'Another device'}'s version, kept beside</div>;
+  return <div class="kept-copy-label">{props.copy.mine ? MOBILE ? 'This phone' : 'This device' : props.copy.origin_name ?? 'Another device'}’s version, kept beside</div>;
 }
 
 export function KeptCopyActions(props: { id: string; apply: (edit: Edit) => void }) {

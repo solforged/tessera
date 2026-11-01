@@ -5,7 +5,7 @@ import type { OpenTarget } from '../shell/contract';
 import { Picker } from '../ui/Picker';
 import type { PopupAnchor } from '../ui/Popup';
 import { Icon } from '../ui/Icon';
-import { completeNames } from './names';
+import { completeNames, displayTitle } from './names';
 import { documentReady } from './source-fields';
 import type { OutlineContext } from './context';
 
@@ -45,7 +45,7 @@ export function EmbedOnPagePicker(props: { anchor: PopupAnchor; view: View; note
   };
   return <Picker anchor={props.anchor} label="Embed on atom" query={query()} onQuery={setQuery} placeholder="Find an atom" items={names()?.rows ?? []} key={match => match.page.id}
     onDismiss={() => { if (!busy()) props.onDismiss(); }} onPick={match => { void insert(match.page.id); }} busy={names.loading || busy()} error={error() || (names.error ? String(names.error) : undefined)}
-    empty="No matching atoms. Try another name." row={match => <><Icon name="note" /><span class="picker-text">{match.page.text}</span><Show when={match.alias}><span class="reference-via">via {match.alias}</span></Show></>} />;
+    empty="No matching atoms. Try another name." row={match => <><Icon name="note" /><span class="picker-text">{displayTitle(match.page.text, id => props.notebook.lookup(id))}</span><Show when={match.alias}><span class="reference-via">via {match.alias}</span></Show></>} />;
 }
 
 export function createViewEmbedActions(context: Pick<OutlineContext, 'props' | 'doc' | 'rowAnchor' | 'heading' | 'selected' | 'apply' | 'rowFocus' | 'editing' | 'editor' | 'restoreFocus'>) {

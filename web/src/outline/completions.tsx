@@ -647,7 +647,7 @@ export function createOutlineCompletions(context: Pick<OutlineContext,
       status('doing', ['start', 'in progress']),
       status('waiting', ['blocked', 'hold']),
       status('done', ['complete', 'finish']),
-      status('cancelled', ['cancel']),
+      status('cancelled', ['cancel', 'cancelled']),
       { id: 'schedule', title: 'Schedule', aliases: ['date', 'scheduled', 'when'], section: 'Task', icon: 'calendar', keys: '@', run: id => openPlanning(id, 'schedule') },
       { id: 'deadline', title: 'Deadline', aliases: ['due'], section: 'Task', icon: 'warning', keys: '@due', run: id => openPlanning(id, 'deadline') },
       { id: 'priority', title: 'Priority', aliases: ['important', 'urgent'], section: 'Task', icon: 'up', keys: keys('priority-task'), run: priorityMenu },
@@ -749,7 +749,7 @@ function CompletionPopups(){ return <>
       <div class="picker-list" onMouseDown={event => event.preventDefault()}>
         <div class="picker-row" role="presentation"><span class="picker-text">{dateCompletion()?.field === 'deadline' ? 'Deadline' : 'Scheduled'}</span><span class="picker-meta"><kbd>Tab</kbd></span></div>
         <For each={dateRows()}>{(row, index) => <div role="option" aria-selected={dateIndex() === index()} class="picker-row" classList={{ selected: dateIndex() === index() }} onClick={() => chooseDate(index())}>
-          <Icon name={dateCompletion()?.field === 'deadline' ? 'warning' : 'calendar'} /><span class="picker-text">{row.label}</span><span class="picker-meta">{row.date}</span>
+          <Icon name={dateCompletion()?.field === 'deadline' ? 'warning' : 'calendar'} /><span class="picker-text">{row.label}</span><span class="picker-meta fig">{row.date}</span>
         </div>}</For>
         <Show when={dateError()} fallback={<Show when={!dateRows().length}><p class="empty-state">No matching date</p></Show>}>{error => <p class="error" role="alert">{error()}</p>}</Show>
         <div role="option" aria-selected={dateIndex() === dateRows().length} class="picker-row" classList={{ selected: dateIndex() === dateRows().length }} onClick={() => chooseDate(dateRows().length)}>

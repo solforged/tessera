@@ -1,5 +1,6 @@
 import { opensBeside } from '../shell/beside';
 import { For, Show, createMemo, createResource, createSignal, onCleanup } from 'solid-js';
+import { ApiError } from '../api/client';
 import type { FieldOwner, IncomingFieldValue, RelationRow } from '../api/types';
 import type { BlockState, NotebookClient } from '../document/contract';
 import type { OpenTarget } from '../shell/contract';
@@ -107,7 +108,8 @@ export function IncomingRelations(props: RelationProps & { target: string; versi
     return { relations, fields };
   });
   return <Show when={props.enabled !== false}>
-    <Show when={!rows.error} fallback={<div class="relation-line" role="status">Arguments unavailable.</div>}>
+    {/* A stopped service is already said once by the offline banner; any other failure names what could not load. */}
+    <Show when={!rows.error} fallback={<Show when={!(rows.error instanceof ApiError && rows.error.status === 0)}><div class="relation-line" role="status">Relations unavailable.</div></Show>}>
       <Show when={props.heading && isPhone()} fallback={<>
         <IncomingRelationLine rows={rows()?.relations ?? []} notebook={props.notebook} onOpen={props.onOpen} />
         <IncomingFieldLine rows={rows()?.fields ?? []} notebook={props.notebook} onOpen={props.onOpen} />

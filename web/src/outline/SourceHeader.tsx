@@ -25,6 +25,7 @@ import { sectionLabel } from '../reader/openings';
 import { timeLeft } from '../reader/paged';
 import { BookMap } from '../ui/BookMap';
 import { bookChapters, chapterAt } from '../ui/book-map';
+import { civilDate, journalLabel } from '../tasks/relative-date';
 import '../library/library.css';
 
 const stateLabels: Record<ReadingState, string> = { inbox: 'Inbox', reading: 'Reading', finished: 'Finished', abandoned: 'Abandoned' };
@@ -146,7 +147,7 @@ export function SourceHeader(props: {
         ...props.resetItems(),
         { label: 'Snapshots…', disabledReason: source.error ? String(source.error) : !source()?.snapshots.length ? 'No snapshots' : undefined,
           submenu: () => ({ title: 'Snapshots', items: (source()?.snapshots ?? []).map(snapshot => ({
-            label: `${new Date(snapshot.attached_at).toLocaleDateString()} · ${snapshot.passage_count} ${snapshot.passage_count === 1 ? 'passage' : 'passages'}`,
+            label: `${journalLabel(civilDate(snapshot.attached_at, props.notebook.settings()?.time_zone), props.notebook.todayDate())} · ${snapshot.passage_count} ${snapshot.passage_count === 1 ? 'passage' : 'passages'}`,
             action: () => props.onOpen({ kind: 'reader', sourceId: props.doc.pageId, snapshotId: snapshot.id }, false),
           })) }) },
       ] }) },

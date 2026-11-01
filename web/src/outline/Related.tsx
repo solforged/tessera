@@ -215,7 +215,7 @@ export function createOutlineRelated(context: Pick<OutlineContext, 'props' | 'do
     return <details class="related-section backlinks-section" classList={{ 'related-section-empty': !count() && !unavailable() && !pending() }} open={open()} onToggle={event => setExpanded(event.currentTarget.open)}>
       <summary class="related-section-heading"><span class="related-section-name">{!count() && !unavailable() && !pending() ? section.cited ? 'No citations yet' : zoom() ? 'No links to this atom yet' : 'No backlinks yet' : section.cited ? 'Cited in' : zoom() ? 'Linked to this atom' : 'Backlinks'}</span><span class="section-rule" aria-hidden="true" /><span class="related-section-count">{unavailable() ? 'Unavailable' : pending() ? 'Loading…' : count()}</span><Icon name="down" /></summary>
       <Show when={mounted()}>
-        <Show when={scoped() ? blockBacklinks.error : relatedError()}><p role="alert">Couldn't load backlinks.</p></Show>
+        <Show when={scoped() ? blockBacklinks.error : relatedError()}><p role="alert">Couldn’t load backlinks.</p></Show>
         <For each={pages()}>{pageId => {
           const group = () => groups().get(pageId)!;
           const page = createMemo(() => props.notebook.lookup(pageId)() ?? group().page);

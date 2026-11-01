@@ -28,6 +28,7 @@ import type { FindingAidSnapshot } from './finding-aid';
 import { CreateSlip } from '../create/CreateSlip';
 import { kindNoun } from '../create/kinds';
 import './notes.css';
+import '../fields/fields.css';
 import { QuestionLedger } from './QuestionLedger';
 import { sourceKindLabel } from '../library/query';
 
@@ -110,6 +111,9 @@ export function IndexDirectory(props: IndexPaneProps) {
     </div>
   </div>;
 }
+
+/** A byline never breaks inside `et al.`: the stored name keeps its plain space, the display joins it. */
+const joinEtAl = (name: string) => name.replace(/\bet al\./g, 'et\u00A0al.');
 
 /** Finding aids share one batched read; Unfiled is a queue, Sources a bibliography. */
 function KindIndexPane(props: IndexPaneProps) {
@@ -349,9 +353,17 @@ function KindIndexPane(props: IndexPaneProps) {
       </form>
     </Popup>}</Show>
   </>;
+  // The Fields eyebrow. A plain click on this tab is already the index, so it scrolls to the top; beside, and a saved view, open that index.
+  const openTypeIndex = (event: MouseEvent) => {
+    const beside = opensBeside(event);
+    if (!beside && !props.view.viewId) { scroll.scrollTop = 0; return; }
+    props.onOpen({ kind: 'index', key: props.kind?.key ?? props.kindKey }, beside);
+  };
   return <div ref={scroll} class={`index-pane ${props.kindKey === 'unfiled' ? 'index-unfiled' : props.kindKey === 'source' ? 'index-sources' : ''}`} classList={{ 'index-selecting': selecting() }} role="region" tabIndex={0} aria-label={`${title()} list`} aria-busy={index.loading || definitions.loading || matches.loading} data-pane-pending={pending() ? '' : undefined} onFocusIn={props.onActivate} onScroll={scrollChanged}>
     <div class="index-sheet">
       <Show when={!cover() && (props.kindKey === 'unfiled' || props.kindKey === 'source')}><p class="index-eyebrow index-kind-eyebrow">{props.kindKey === 'unfiled' ? 'Filing queue' : 'Bibliography'}</p></Show>
+      {/* The Fields eyebrow. Its margin collapses with the head's, so the strip drops by one apparatus line. Sources and Unfiled already spend this line on their own eyebrow; on a phone that eyebrow steps aside. */}
+      <Show when={!!typeId() && (cover() || (props.kindKey !== 'source' && props.kindKey !== 'unfiled'))}><div class="fields-register"><Button class="type-fields-crumb" onClick={openTypeIndex}>{title()}</Button></div></Show>
       <div class="index-head"><h1><Icon name={noteKindIcon(props.kind ?? props.kindKey)} />{saved()?.name ?? title()}</h1>
         <Show when={count() != null && !missingFields().length}><Show when={cover()} fallback={<span class="index-tally">{kindTally(count()!, props.kindKey)}</span>}>
           <span class="index-census"><span class="fig">{count()!.toLocaleString()}</span> {censusNoun(count()!, props.kindKey, props.kind)}{props.kindKey === 'unfiled' ? ' · filing queue' : props.kindKey === 'source' ? ' · bibliography' : ''}</span>
@@ -410,7 +422,7 @@ function KindIndexPane(props: IndexPaneProps) {
                     <div class="index-queue-actions"><Button class="index-file bordered" onClick={event => showPopup('file', note, event.currentTarget)}>File</Button><Button class="bordered" icon="more" label={`Actions for ${note.title}`} data-note-actions={note.id} onClick={event => showPopup('menu', note, event.currentTarget)} /></div>
                   </div>}</For>
                 </section>}</For>
-              </div><Show when={selectedNote()}>{note => <aside class="index-inspector" aria-label="Selected atom">
+              </div><Show when={selectedNote()} fallback={<aside class="index-inspector index-inspector-empty" aria-label="Selected atom"><p class="index-eyebrow">Selected atom</p><p class="index-apparatus">Select an atom to read its opening and file it.</p></aside>}>{note => <aside class="index-inspector" aria-label="Selected atom">
                 <p class="index-eyebrow">Selected atom</p><h2>{note().title}</h2><p class="index-apparatus">{apparatus(summary(note()))}</p>
                 <Show when={preview(note())}><p class="index-inspector-preview">{preview(note())}</p></Show>
                 <Show when={excerpt(note()).length}><div class="index-inspector-excerpt" aria-label="Opening prose"><For each={excerpt(note())}>{text => <p>{text}</p>}</For></div></Show>
@@ -422,10 +434,10 @@ function KindIndexPane(props: IndexPaneProps) {
           </Match>
           <Match when={props.kindKey === 'source' && displayedGrouping() === 'letter'}>
             <div class="index-source-tabs mode-tabs tab-strip" role="group" aria-label="Sources view"><Button aria-pressed="true">Bibliography <span class="faint">{index.latest!.notes.length}</span></Button><Button onClick={event => props.onOpen({ kind: 'library', tab: 'all' }, opensBeside(event))}>Open Library <Icon name="right" /></Button></div>
-            <Show when={shown()?.notes.length} fallback={<div class="index-empty"><p class="index-empty-title">No sources found.</p><p class="index-empty-hint">Books and articles you add in the Library are listed here with their sigla and citation keys.</p></div>}><For each={shown()?.notes}>{note => <article class="index-source-row index-selectable" classList={{ selected: picked().includes(note.id) }}>
+            <Show when={shown()?.notes.length} fallback={<div class="index-empty"><p class="index-empty-title">No sources yet.</p><p class="index-empty-hint">Books and articles you add in the Library are listed here with their sigla and citation keys.</p></div>}><For each={shown()?.notes}>{note => <article class="index-source-row index-selectable" classList={{ selected: picked().includes(note.id) }}>
               <label class="index-select-target"><input type="checkbox" class="index-select" aria-label={`Select ${entryTitle(note)}`} checked={picked().includes(note.id)} onClick={event => toggleSelection(note.id, event.shiftKey)} /></label>
               <span class="index-source-siglum">{summary(note)?.source?.siglum}</span><div class="index-source-main"><button type="button" class="index-source-title" onClick={event => selectOrOpen(note, event)}>{entryTitle(note)}</button>
-                <Show when={summary(note)?.source}>{source => <><Show when={source().authors.length}><p class="index-source-byline"><For each={source().authors}>{(author, at) => <>{at() ? ' · ' : ''}<Show when={author.id} fallback={author.name}>{id => <Button onClick={event => props.onOpen({ kind: 'page', pageId: id() }, listOpensBeside(event, !!props.neighbour))}>{author.name}</Button>}</Show></>}</For></p></Show>
+                <Show when={summary(note)?.source}>{source => <><Show when={source().authors.length}><p class="index-source-byline"><For each={source().authors}>{(author, at) => <>{at() ? ' · ' : ''}<Show when={author.id} fallback={joinEtAl(author.name)}>{id => <Button onClick={event => props.onOpen({ kind: 'page', pageId: id() }, listOpensBeside(event, !!props.neighbour))}>{joinEtAl(author.name)}</Button>}</Show></>}</For></p></Show>
                   <div class="index-source-footer"><p class="index-apparatus">{[sourceKindLabel(source().form, source().format), source().publisher, source().published?.match(/^\d{4}/)?.[0], source().citation_key, source().highlights ? tally(source().highlights, 'highlight') : '', summary(note)!.backlinks ? tally(summary(note)!.backlinks, 'atom backlink') : ''].filter(Boolean).join(' · ')}</p>
                     <div class="index-source-actions"><Button onClick={event => openNote(note, event)}>Open source atoms</Button><Show when={readableSources.latest?.has(note.id)}><Button onClick={event => props.onOpen({ kind: 'reader', sourceId: note.id }, listOpensBeside(event, !!props.neighbour))}>Read <Icon name="right" /></Button></Show></div>
                   </div></>}</Show>

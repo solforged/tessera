@@ -3,6 +3,7 @@ import type { LibraryRow } from '../api/types';
 import type { NotebookClient } from '../document/contract';
 import { SourceCover } from '../library/SourceCover';
 import { BlockText } from '../outline/BlockText';
+import { displayTitle } from '../outline/names';
 import { Button } from '../ui/Button';
 import { Icon } from '../ui/Icon';
 import { Picker } from '../ui/Picker';
@@ -27,6 +28,8 @@ export const underText = (choice: UnderChoice) => readingRowText(choice.id, shor
  * Library's Reading shelf, and a search of all sources that also takes a pasted link.
  */
 export function ReadingUnder(props: { notebook: NotebookClient; value?: UnderChoice; onChange(choice: UnderChoice): void }) {
+  /** A source's stored title carries its `#source` tag; every label and the filed row read the live tagless title. */
+  const title = (text: string) => displayTitle(text, props.notebook.lookup);
   const [options] = createResource(async (): Promise<UnderChoice[]> => {
     const template = props.notebook.todayTemplate();
     const [recent, reading, page] = await Promise.all([
@@ -37,12 +40,12 @@ export function ReadingUnder(props: { notebook: NotebookClient; value?: UnderCho
     const result: UnderChoice[] = [];
     const add = (choice: UnderChoice) => { if (!result.some(value => value.id === choice.id)) result.push(choice); };
     const opened = recent.rows.find(row => row.source.last_read_at !== null);
-    if (opened) add({ id: opened.page.id, title: opened.page.text, reason: 'Open in the reader', row: opened });
+    if (opened) add({ id: opened.page.id, title: title(opened.page.text), reason: 'Open in the reader', row: opened });
     for (const id of page ? readingSources(page, template) : []) {
       const row = reading.rows.find(value => value.page.id === id);
-      add({ id, title: row?.page.text ?? props.notebook.lookup(id)()?.text ?? 'Source', reason: 'In Reading today', row });
+      add({ id, title: title(row?.page.text ?? props.notebook.lookup(id)()?.text ?? 'Source'), reason: 'In Reading today', row });
     }
-    for (const row of reading.rows) add({ id: row.page.id, title: row.page.text, reason: 'Reading', row });
+    for (const row of reading.rows) add({ id: row.page.id, title: title(row.page.text), reason: 'Reading', row });
     return result.slice(0, 5);
   });
   // The first offer is chosen until another is, so a Reading note always has a source when one exists.
@@ -62,7 +65,7 @@ export function ReadingUnder(props: { notebook: NotebookClient; value?: UnderCho
       const id = await importedSource(props.notebook, job.id);
       if (!id) { setProblem('Still importing. Choose it here once it is in the Library.'); return; }
       const view = await props.notebook.api.source(id);
-      props.onChange({ id, title: view.page.text, reason: 'Added from the link' });
+      props.onChange({ id, title: title(view.page.text), reason: 'Added from the link' });
       setAnchor(undefined);
     } catch (reason) { setProblem(reason instanceof Error ? reason.message : String(reason)); }
     finally { setImporting(false); }
@@ -82,10 +85,10 @@ export function ReadingUnder(props: { notebook: NotebookClient; value?: UnderCho
     <Show when={anchor()}>{at => <Picker<Other> anchor={at()} label="Under a source" query={query()} onQuery={value => { setQuery(value); setProblem(''); }} placeholder="Find a source or paste a link" items={items()} key={item => 'url' in item ? `url:${item.url}` : item.row.page.id}
       busy={found.loading || importing()} error={problem() || (found.error ? String(found.error) : undefined)} empty="No matching sources." onDismiss={() => { if (!importing()) setAnchor(undefined); }}
       disabledReason={() => importing() ? 'Adding the link to the Library…' : undefined}
-      onPick={item => { if ('url' in item) void importLink(item.url); else { props.onChange({ id: item.row.page.id, title: item.row.page.text, reason: 'Chosen', row: item.row }); setAnchor(undefined); } }}
+      onPick={item => { if ('url' in item) void importLink(item.url); else { props.onChange({ id: item.row.page.id, title: title(item.row.page.text), reason: 'Chosen', row: item.row }); setAnchor(undefined); } }}
       row={item => 'url' in item
-        ? <><Icon name={importing() ? 'clock' : 'plus'} /><span class="picker-text">{importing() ? 'Adding to the Library…' : 'Add to the Library and file under it'}</span><span class="picker-meta">{item.url}</span></>
-        : <><Icon name="library" /><span class="picker-text">{item.row.page.text}</span><Show when={item.row.creators.length}><span class="picker-meta">{item.row.creators.join(', ')}</span></Show></>} />}</Show>
+        ? <><Icon name={importing() ? 'clock' : 'plus'} /><span class="picker-text">{importing() ? 'Adding to the Library…' : 'Add to the Library and file under it'}</span><span class="picker-meta fig">{item.url}</span></>
+        : <><Icon name="library" /><span class="picker-text">{title(item.row.page.text)}</span><Show when={item.row.creators.length}><span class="picker-meta">{item.row.creators.join(', ')}</span></Show></>} />}</Show>
   </div>;
 }
 

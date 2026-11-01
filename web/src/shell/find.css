@@ -45,3 +45,9 @@
   .palette.palette-search mark { background: color-mix(in srgb, var(--accent) 24%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; margin: 0 -1px; }
   .palette .empty-state, .palette .error { margin: var(--space-16) var(--phone-gutter); }
 }
+
+/* Light: gilt text on its own gilt wash is 3.0 to 3.8:1; the matched word keeps the wash and takes the ink (9.9:1). Dark's gilt text clears 4.5. */
+:root[data-theme="light"] .palette-search mark { color: var(--text); }
+
+/* The query field's placeholder is the faint token, not the browser's grey (3.75:1 in Dark). */
+.palette .picker-input::placeholder { color: var(--faint); opacity: 1; }

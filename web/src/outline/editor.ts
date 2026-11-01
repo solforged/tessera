@@ -306,6 +306,8 @@ export interface EditorHooks {
   referenceMenu?(token: Token, anchor: HTMLElement): void;
   openReference?(token: Token, beside: boolean): void;
   selection(caret: Caret): void;
+  /** While true, a selection restore must not scroll this editor or its ancestors. */
+  suppressScroll?(): boolean;
   key(event: KeyboardEvent, view: EditorView): boolean;
   blur(): void;
   composition(active: boolean, committed?: string): void;
@@ -366,6 +368,20 @@ export class PendingEditorRange {
     if (this.range) this.range = { from: changes.mapPos(range.from, 1), to: changes.mapPos(range.to, -1) };
   }
 }
+/** Ancestor scroll positions, so a contenteditable focus can be undone if the browser still scrolls the caret into view. */
+function captureScroll(start: Node): { restore(): void } {
+  const saved: { el: Element; top: number; left: number }[] = [];
+  const seen = new Set<Element>();
+  const remember = (el: Element | null) => {
+    if (!el || seen.has(el)) return;
+    seen.add(el);
+    saved.push({ el, top: el.scrollTop, left: el.scrollLeft });
+  };
+  for (let node: Node | null = start; node; node = node.parentNode) if (node instanceof Element) remember(node);
+  remember(document.scrollingElement);
+  return { restore() { for (const item of saved) { if (item.el.scrollTop !== item.top) item.el.scrollTop = item.top; if (item.el.scrollLeft !== item.left) item.el.scrollLeft = item.left; } } };
+}
+
 
 /** A single retained CM instance moves between row hosts; composition never moves it. */
 export class PaneEditor {
@@ -417,6 +433,8 @@ export class PaneEditor {
         compositionstart: () => { this.composing = true; this.hooks.composition(true); return false; },
         compositionend: event => { this.composing = false; this.hooks.composition(false, event.data); return false; },
       })),
+      // A page that opens at its top restores the caret without EditorView.scrollIntoView moving the pane.
+      EditorView.scrollHandler.of(() => hooks.suppressScroll?.() ?? false),
       EditorView.updateListener.of(update => {
         for (const pending of this.pendingRanges) if (pending.id === this.id && update.docChanged) pending.tracker.map(update.changes);
         const caret = { id: this.id, offset: update.state.selection.main.head };
@@ -482,6 +500,14 @@ export class PaneEditor {
     return true;
   }
 
+  /** CodeMirror focuses with preventScroll; setting the DOM selection can still scroll. Put those ancestors back. */
+  focusHeld(): void {
+    const held = captureScroll(this.view.contentDOM);
+    this.view.focus();
+    held.restore();
+    queueMicrotask(() => { if (this.view.dom.isConnected) held.restore(); });
+  }
+
   mount(host: HTMLElement, id: string, text: string, offset: number, insert: boolean, focus = true): void {
     if (this.composing && id !== this.id) return;
     this.replacing = true;
@@ -491,16 +517,20 @@ export class PaneEditor {
     if (changed) this.view.dispatch({
       changes: { from: 0, to: this.view.state.doc.length, insert: text },
       selection: EditorSelection.cursor(Math.min(offset, text.length)),
+      scrollIntoView: false,
     });
-    else this.view.dispatch({ selection: EditorSelection.cursor(Math.min(offset, text.length)) });
+    else this.view.dispatch({ selection: EditorSelection.cursor(Math.min(offset, text.length)), scrollIntoView: false });
     const selection = this.view.state.selection;
     if (this.useVim && this.vimApi && insert) {
       const cm = this.vimApi.getCM(this.view);
       if (cm && !cm.state.vim?.insertMode) this.vimApi.Vim.handleKey(cm, 'i', 'outline');
     }
+    const held = focus && this.hooks.suppressScroll?.() ? captureScroll(host) : null;
     if (focus) this.view.focus();
     // Moving a focused contenteditable can reset WebKit's native caret and CM's observed selection.
-    if (!this.view.state.selection.eq(selection)) this.view.dispatch({ selection });
+    if (!this.view.state.selection.eq(selection)) this.view.dispatch({ selection, scrollIntoView: false });
+    held?.restore();
+    if (held) queueMicrotask(() => { if (this.view.dom.isConnected) held.restore(); });
     this.replacing = false;
     this.view.requestMeasure();
     this.reportMode();

@@ -1,6 +1,10 @@
 .outline-pane[data-projection="read"] > .outline-list { width: 100%; max-width: var(--measure); margin-inline: auto; }
-.outline-pane[data-projection="read"] > .outline-apparatus { display: none; }
+/* The apparatus margin is the page's, in Read as in Outline. Read hangs no sigla in a margin (its slips carry them inline),
+   but its column starts where Outline's does, rail included, so the title does not move between the two projections. */
 .outline-pane[data-projection="read"] > :is(.outline-heading, .related-sections, .add-first-block) { margin-inline: auto; }
+@container outline-pane (min-width: 1096px) {
+  .outline-pane.has-apparatus[data-projection="read"] > :is(.section-navigator, .outline-heading, .related-sections, .add-first-block, .outline-list) { margin-left: calc(var(--outline-column-start) + var(--sigla-rail-space)); margin-right: 0; max-width: calc(var(--measure) - var(--sigla-rail-space)); }
+}
 .reading-register { font-family: var(--font-display); font-size: var(--text-body); line-height: var(--line-body); }
 .reading-register .outline-row { position: relative; inset: auto; transform: none; padding-left: 0; border-left: 0; min-width: 0; }
 .reading-register .outline-row::before { display: none; }
@@ -15,6 +19,8 @@
 .reading-register :is(.field-slots, .field-area-controls) { display: none; }
 .reading-opening > .reading-outline-row { margin-bottom: var(--space-4); }
 .reading-outline-row { padding-inline-start: calc(var(--read-depth) * var(--indent-width)); min-width: 0; }
+/* A gloss is a field value one level down, but Read sets it on the title's edge. */
+.reading-outline-row:has(:is(.row-gloss, .row-gist, .inline-field-value[data-field-role="standfirst"])) { padding-inline-start: 0; }
 
 /* Counts and actions are apparatus: the count faint, the actions muted until hovered. On the register they share
    the section heading's line and wrap below it when the pane is narrow. */

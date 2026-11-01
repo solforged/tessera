@@ -1,5 +1,6 @@
 import { createMemo, mapArray } from 'solid-js';
 import type { PageDocument } from '../document/contract';
+import { relativeDate } from '../tasks/relative-date';
 
 /** Only a whole, unaliased canonical block reference is an embed. */
 export function embedTarget(text: string): string | undefined {
@@ -24,7 +25,8 @@ export function addArrival(doc: PageDocument, id: string) {
   return doc.edit({ kind: 'insert', parentId: doc.pageId, after: last ?? null, text: `[[${id}]]` });
 }
 
-export function streamDay(date: string) {
-  const value = new Date(`${date}T12:00:00Z`);
-  return `${new Intl.DateTimeFormat('en', { weekday: 'short', timeZone: 'UTC' }).format(value)} ${value.getUTCDate()}`;
+/** A journal day as a stream names it, by the shared civil-date rule (`Today`, a weekday within six days, then `Oct 16`), measured from `today`. */
+export function streamDay(date: string, today: string) {
+  const day = relativeDate(date, today);
+  return day[0]!.toUpperCase() + day.slice(1);
 }

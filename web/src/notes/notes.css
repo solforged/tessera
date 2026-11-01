@@ -2,7 +2,7 @@
 .index-pane { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; outline: none; container: finding-aid / inline-size; }
 .index-sheet { max-width: calc(var(--measure) + 2 * var(--pane-inset)); margin-inline: auto; padding: var(--page-top-space) var(--pane-inset) var(--page-bottom-space); }
 .index-eyebrow { margin: 0; color: var(--danger); font: var(--caps); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
-.index-kind-eyebrow { text-transform: none; }
+.index-kind-eyebrow { color: var(--faint); text-transform: none; }
 .index-phone-control.button { display: none; }
 /* A title too long to share its line sends the tally and action to the next line instead of running under them. */
 .index-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-8) var(--space-16); margin: var(--page-eyebrow-gap) 0 var(--page-head-gap); }
@@ -19,11 +19,13 @@
 .index-columns { columns: 3; column-gap: var(--space-32); }
 .index-group { break-inside: avoid-column; margin-bottom: var(--section-gap); scroll-margin-top: var(--page-top-space); }
 .index-group h2, .index-queue-group h2 { display: flex; align-items: center; gap: var(--section-item-gap); margin: 0 0 var(--section-item-gap); break-after: avoid; color: var(--danger); font: var(--apparatus); font-weight: var(--weight-body); }
-.index-group-count { color: var(--faint); font-variant-numeric: tabular-nums; }
+.index-group-count, .index-queue-group h2 .faint { color: var(--faint); font: var(--figures); font-variant-numeric: tabular-nums; letter-spacing: var(--tracking-apparatus); }
 .index-entry { display: block; width: 100%; padding: var(--space-4) 0 var(--space-12); border: 0; border-radius: var(--radius-control); background: none; color: var(--text); text-align: left; overflow-wrap: anywhere; cursor: pointer; break-inside: avoid; }
 .index-entry-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; font: var(--weight-display-heading) var(--text-h2)/var(--line-h3) var(--font-display); }
 .index-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: var(--space-4); color: var(--muted); font: var(--weight-body) var(--text-control)/var(--line-control) var(--font-body); }
 .index-apparatus { display: block; margin: var(--space-4) 0 0; color: var(--faint); font: var(--apparatus); font-variant-numeric: tabular-nums; }
+/* A mono figure in a Plex line sets its own line-height of 0, so its box never stretches the line (WebKit rounds it to 16.39 px otherwise). */
+.index-census .fig, .index-apparatus .fig { font: var(--figures); line-height: 0; font-variant-numeric: tabular-nums; }
 @media (hover: hover) { .index-entry:not(.index-cross-reference):hover .index-entry-title, .index-source-title:hover { color: var(--accent); } }
 .index-entry:focus-visible, .index-see-target:focus-visible, .index-queue-note:focus-visible, .index-source-title:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
 .index-cross-reference { cursor: default; font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-display); }
@@ -55,6 +57,7 @@
 .index-blank-preview { color: var(--faint); font: var(--apparatus); }
 .index-inspector { position: sticky; top: var(--page-top-space); min-width: 0; padding: var(--card-padding); background: var(--surface); border: var(--rule-width) solid var(--line); border-radius: var(--radius-control); }
 .index-inspector > .index-eyebrow { margin-top: 0; }
+.index-inspector-empty > .index-apparatus { margin: var(--space-8) 0 0; }
 .index-inspector h2, .index-action-header h2, .index-filing-head h2 { margin: var(--space-8) 0; font: var(--weight-display-heading) var(--text-h1)/var(--line-h1) var(--font-display); }
 .index-inspector-preview { margin: var(--space-16) 0; color: var(--muted); font: var(--weight-body) var(--text-gloss)/var(--line-gloss) var(--font-body); }
 .index-inspector-excerpt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 8; overflow: hidden; margin-block: var(--space-16); color: var(--muted); font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); }
@@ -73,14 +76,14 @@
 .index-source-row.index-selectable { display: grid; grid-template-columns: auto max-content minmax(0, 1fr); gap: var(--space-8); padding: var(--space-12) 0; border-bottom: var(--rule-width) solid var(--line); }
 .index-source-main { min-width: 0; }
 .index-source-siglum { padding-top: var(--space-4); color: var(--accent); font: var(--figures); }
-.index-source-title { padding: 0; border: 0; background: none; color: var(--text); text-align: left; font: var(--weight-display-heading) var(--text-h1)/var(--line-h1) var(--font-display); cursor: pointer; }
+.index-source-title { display: block; padding: 0; border: 0; background: none; color: var(--text); text-align: left; font: var(--weight-display-heading) var(--text-h1)/var(--line-h1) var(--font-display); cursor: pointer; }
 .index-source-byline { margin: var(--space-4) 0; color: var(--muted); font: var(--weight-body) var(--text-body)/var(--line-body) var(--font-body); }
 .index-source-byline .button { display: inline; min-height: 0; padding: 0; font: inherit; color: inherit; }
 .index-source-footer { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-4) var(--space-12); }
 .index-source-footer > .index-apparatus { flex: 1; }
 .index-source-actions { display: flex; flex: none; gap: var(--space-8); opacity: 0; }
 .index-source-actions .button { padding-inline: 0; }
-.index-source-row:hover .index-source-actions, .index-source-row:focus-within .index-source-actions { opacity: 1; }
+.index-source-row:hover .index-source-actions, .index-source-row:focus-within .index-source-actions, .index-source-row.selected .index-source-actions { opacity: 1; }
 /* The directory shares the bounded type register and keeps memberships explicit. */
 .index-directory .index-sheet { width: calc(100% - 2 * var(--space-24)); max-width: calc(var(--measure) + var(--apparatus-width) - var(--space-16)); padding: var(--space-16) 0 var(--space-48); }
 .index-directory .index-eyebrow { margin: 0 0 var(--space-8); color: var(--faint); text-transform: none; }
@@ -122,11 +125,12 @@
 @media (max-width: 599px) and (pointer: coarse) {
   /* The head is the plates' large title: a count line in Plex (its figure in mono), then the title in 34 pt Piazzolla; the
      kind's glyph stays in the Index and sidebar. */
-  .index-head, .index-sheet > .index-head:has(+ :is(.type-mode-tabs, .index-queue-tabs, .index-source-tabs, .question-inquiry-tabs)) { flex-direction: column; align-items: stretch; gap: var(--space-2); margin: 0 0 var(--space-12); }
+  .index-head, .index-head:has(+ :is(.type-mode-tabs, .index-queue-tabs, .index-source-tabs, .question-inquiry-tabs)), .index-sheet > .index-head:has(+ :is(.type-mode-tabs, .index-queue-tabs, .index-source-tabs, .question-inquiry-tabs)) { flex-direction: column; align-items: stretch; gap: var(--space-2); margin: 0 0 var(--space-12); }
+  /* The crumb repeats the 34 pt name. The back button and the strip already navigate. */
+  .fields-register:has(> .type-fields-crumb) { display: none; }
   .index-head h1 { flex: none; font: var(--phone-title-font); }
   .index-head h1 > .icon { display: none; }
   .index-census { order: -1; color: var(--faint); font: var(--apparatus); letter-spacing: var(--tracking-apparatus); }
-  .index-census .fig, .index-apparatus .fig { font: var(--figures); font-variant-numeric: tabular-nums; }
   .index-sheet > .type-mode-tabs { margin-bottom: 0; }
   /* A List/Table strip says what the eyebrow already does: the figure stays on Fields and Cards, where it counts something else. */
   .type-mode-tabs > .button:nth-child(-n+2) > .faint { display: none; }
@@ -174,8 +178,9 @@
 
 .note-find { margin-block: var(--space-12); }
 .note-find-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
-/* Controls beside the find field take its height, so the row shares one top and bottom edge. */
+/* Controls beside the find field take its height, so the row shares one top and bottom edge. The list options are the 28 px row of every other toolbar button. */
 .note-find-line > .button { align-self: stretch; }
+.note-find-line > .button.index-desktop-control { align-self: center; min-height: var(--row-height); }
 .note-find-input { position: relative; flex: 1; min-width: var(--apparatus-width); }
 .note-find-input > .input { width: 100%; }
 .note-find .table-query-chips { padding-block: var(--space-8) 0; }

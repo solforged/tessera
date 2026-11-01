@@ -30,6 +30,7 @@ import { PaneChromeContext } from '../ui/NavBar';
 import { installInputModality } from '../ui/input-modality';
 import type { BarTitle, PaneChrome } from '../ui/NavBar';
 import { journalBarTitle } from '../tasks/journal-date';
+import { civilDate, relativeDate } from '../tasks/relative-date';
 import { dismissNotice, showNotice as showToast } from '../ui/Notice';
 import { Popup, type PopupAnchor } from '../ui/Popup';
 import { createPaneMotion, crossfade, navigatePane, paneMotionIdentity, paneTargetIdentity, reflowPanes } from '../ui/pane-motion';
@@ -116,7 +117,9 @@ const ComparePane = lazy(() => paneModules.compare().then(module => ({ default: 
 const IndexPane = lazy(() => paneModules.index().then(module => ({ default: module.IndexPane })));
 const SpreadPane = lazy(() => paneModules.spread().then(module => ({ default: module.SpreadPane })));
 
-type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; pagePresentations?: Record<string, PagePresentation>; pageStyles?: Record<string, 'bullets' | 'prose'>; recent?: string[]; vim?: boolean; panes?: Record<PaneId, HistoryEntry>; phone?: Record<PaneId, { tab: PhoneTab; stacks: Partial<Record<PhoneTab, PaneHistory>> }>; order?: PaneId[]; widths?: Record<PaneId, number>; active?: PaneId };
+/** How many Back and Forward steps each side of a pane's current entry are kept across a reload. */
+const SAVED_HISTORY = 10;
+type SavedNavigation = { pinned?: string[]; pinnedViews?: string[]; pagePresentations?: Record<string, PagePresentation>; pageStyles?: Record<string, 'bullets' | 'prose'>; recent?: string[]; vim?: boolean; panes?: Record<PaneId, HistoryEntry>; histories?: Record<PaneId, PaneHistory>; phone?: Record<PaneId, { tab: PhoneTab; stacks: Partial<Record<PhoneTab, PaneHistory>> }>; order?: PaneId[]; widths?: Record<PaneId, number>; active?: PaneId };
 type VimMode = 'insert' | 'normal' | 'visual' | 'outline' | null;
 /** A drop replaces a pane, or inserts a new one at a position in the row. */
 type DropZone = { replace: PaneId } | { insert: number };
@@ -151,6 +154,8 @@ function paneLabel(target: OpenTarget | undefined): string {
   if (target?.kind === 'revisits') return 'Revisits';
   if (target?.kind === 'directory') return 'Index';
   if (target?.kind === 'table' && target.query.layout === 'desk') return 'Research desk';
+  // Unfiled leaves the index once nothing is filed there; the pane that stays open still names itself.
+  if (target?.kind === 'index' && target.key === 'unfiled') return 'Unfiled';
   return target?.kind === 'table' ? 'Table' : target?.kind === 'fields' ? 'Fields' : target?.kind === 'settings' ? 'Settings' : target?.kind === 'history' ? 'History' : target?.kind === 'agenda' ? 'Agenda' : target?.kind === 'review' ? 'Review' : target?.kind === 'library' ? 'Library' : target?.kind === 'reader' ? 'Reader' : target?.kind === 'compare' ? 'Compare' : target?.kind === 'index' ? 'Index' : 'Loading…';
 }
 function snapshotView(view: PaneView): PaneView {
@@ -520,9 +525,11 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   /** Closing a pane hands focus to the pane that was left of it, or right of it when it was first. */
   const closePane = (pane: PaneId) => {
     if (!split()) return;
-    const panes = order(), at = panes.indexOf(pane);
-    const next = panes[at > 0 ? at - 1 : 1]!;
     reflowPanes(() => {
+      // The drop runs after the transition starts: a second close in the same tick finds the row already down to one pane.
+      const panes = order(), at = panes.indexOf(pane);
+      if (panes.length < 2 || at < 0) return;
+      const next = panes[at > 0 ? at - 1 : 1]!;
       dropPane(pane);
       setActive(next); reveal(next);
       focusPane(next);
@@ -837,6 +844,12 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
         const current = await restoreEntry(stored.panes?.[pane]);
         if (!current) continue;
         let session: PaneSession = { entries: [current], index: 0, generation: 1 };
+        // Each pane's Back and Forward survive a reload, so a split returns as it was left.
+        const savedHistory = stored.histories?.[pane];
+        if (!cover() && savedHistory && Array.isArray(savedHistory.entries) && Number.isInteger(savedHistory.index) && savedHistory.index >= 0 && savedHistory.index < savedHistory.entries.length) {
+          const entries = await Promise.all(savedHistory.entries.map((saved, at) => at === savedHistory.index ? current : restoreEntry(saved)));
+          if (entries.every(value => value)) session = { entries: entries as HistoryEntry[], index: savedHistory.index, generation: 1 };
+        }
         const savedPhone = stored.phone?.[pane];
         if (cover() && savedPhone && phoneTabs.includes(savedPhone.tab)) {
           const stacks: Partial<Record<PhoneTab, PaneHistory>> = {};
@@ -889,14 +902,20 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const id = navigationId(); if (!id) return;
     const panes: Record<PaneId, HistoryEntry> = {};
     const phone: NonNullable<SavedNavigation['phone']> = {};
+    const histories: Record<PaneId, PaneHistory> = {};
+    const saved = (value: HistoryEntry): HistoryEntry => value.target.kind === 'page' && 'zoom' in value.view ? { target: targetFromView(value), view: { ...copyView(value.view), reveal: undefined } } : value;
     for (const pane of order()) {
       const current = entry(pane);
-      if (current) panes[pane] = current.target.kind === 'page' && 'zoom' in current.view
-        ? { target: targetFromView(current), view: { ...copyView(current.view), reveal: undefined } } : current;
+      if (current) panes[pane] = saved(current);
       const session = sessions()[pane];
       if (session?.tab) phone[pane] = { tab: session.tab, stacks: { ...session.tabs, [session.tab]: { entries: session.entries, index: session.index } } };
+      else if (session && session.entries.length > 1) {
+        // A window around the current entry keeps the stored navigation small.
+        const from = Math.max(0, session.index - SAVED_HISTORY), to = Math.min(session.entries.length, session.index + SAVED_HISTORY + 1);
+        histories[pane] = { entries: session.entries.slice(from, to).map(saved), index: session.index - from };
+      }
     }
-    navigationWrite = { key: `tessera.navigation.${id}`, value: { pinned: pinned(), pinnedViews: pinnedViews(), pagePresentations: pagePresentations(), recent: recent(), vim: vim(), panes, phone, order: order(), widths: weights(), active: active() } };
+    navigationWrite = { key: `tessera.navigation.${id}`, value: { pinned: pinned(), pinnedViews: pinnedViews(), pagePresentations: pagePresentations(), recent: recent(), vim: vim(), panes, histories, phone, order: order(), widths: weights(), active: active() } };
     clearTimeout(navigationTimer);
     navigationTimer = window.setTimeout(writeNavigation, 500);
   });
@@ -975,7 +994,8 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   registerNotebookCommands(commands, notebook, reportError);
   const rootById = createMemo(() => new Map(notebook.roots().map(root => [root.id, root])));
   const pinnedRoots = () => pinned().map(id => rootById().get(id)).filter((root): root is Block => !!root);
-  const recentRoots = () => recent().filter(id => !pinned().includes(id)).map(id => rootById().get(id)).filter((root): root is Block => !!root).slice(0, 10);
+  // The Today row is today's journal day; Recent keeps the other atoms you opened, so one page is never two selected rows.
+  const recentRoots = () => recent().filter(id => !pinned().includes(id)).map(id => rootById().get(id)).filter((root): root is Block => !!root && !(root.kind === 'journal' && root.text === todayDate())).slice(0, 10);
   const pinnedViewList = createMemo(() => (views() ?? []).filter(view => pinnedViews().includes(view.id)));
   const otherViews = createMemo(() => (views() ?? []).filter(view => !pinnedViews().includes(view.id)));
   const index = noteIndex(notebook);
@@ -1052,9 +1072,15 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
   const [guide, setGuide] = createSignal<{ left: number; width: number; label: string; fresh: boolean } | null>(null);
   const [dragChip, setDragChip] = createSignal<{ x: number; y: number; label: string } | null>(null);
   onMount(() => {
-    const observer = new ResizeObserver(([item]) => setRowWidth(item!.contentRect.width));
+    // The width drives how many panes fit, which re-lays out the observed row: write it on the next frame, not inside the observer's delivery.
+    let frame = 0;
+    const observer = new ResizeObserver(([item]) => {
+      const width = item!.contentRect.width;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => setRowWidth(width));
+    });
     observer.observe(paneRow);
-    onCleanup(() => observer.disconnect());
+    onCleanup(() => { cancelAnimationFrame(frame); observer.disconnect(); });
   });
   const rowChild = (selector: string) => paneRow.querySelector<HTMLElement>(`:scope > ${selector}`);
   /** A new pane at `index` would add a pane, fold one into a spine, or close the one farthest from it. */
@@ -1259,7 +1285,7 @@ export function App(props: { onNotebook?(notebook: Notebook): void } = {}) {
     const revisits = () => <Button icon="history" class={entry(active())?.target.kind === 'revisits' ? 'selected' : ''} aria-label={`Revisits · ${counts()?.revisits ?? 0} to revisit`} onClick={event => onOpen({ kind: 'revisits' }, opensBeside(event))}><span>Revisits</span><Show when={counts()?.revisits}>{due => <span class="desk-count" title={`${due()} to revisit`}>{due()}</span>}</Show></Button>;
     const fields = () => <Button class={`index-kind ${entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'selected' : ''}`} icon="field" title="Fields" aria-current={entry(active())?.target.kind === 'fields' && !(entry(active())?.target as Extract<OpenTarget, { kind: 'fields' }>).typeId ? 'page' : undefined} onClick={event => onOpen({ kind: 'fields' }, opensBeside(event))}><span>Fields</span><span class="desk-count">{index()?.fields.toLocaleString()}</span></Button>;
     const kindRow = (kind: Accessor<IndexKind>) => <>
-      <div classList={{ 'index-question-heading': kind().key === 'question' }}>
+      <div class="index-kind-row">
         <Button class={`index-kind ${activeKindKey() === kind().key || tagOnly(kind()) && activeTypeId() === kind().type_id ? 'selected' : ''} ${kind().count || kind().tagged_block_count ? '' : 'empty'}`} icon={noteKindIcon(kind())} title={kindLabel(kind())} onClick={event => onOpen(indexKindTarget(kind()), opensBeside(event))}><span>{kindLabel(kind())}</span><Show when={kind().count || kind().tagged_block_count}>{count => <span class="desk-count">{count().toLocaleString()}</span>}</Show></Button>
         <Show when={kind().key === 'question' && (kind().count || kind().tagged_block_count || otherViews().some(view => viewInKind(view, kind())))}><Button icon="more" label="Questions menu" aria-haspopup="menu" onClick={event => setQuestionsMenu(event.currentTarget)} /></Show>
       </div>
@@ -1527,7 +1553,7 @@ function GlobalBanner(props: { notebook: NotebookClient; onReview(): void }) {
     <Show when={props.notebook.saveState() === 'error' || props.notebook.connection() === 'offline'}><Button onClick={() => props.notebook.retry()}>Retry</Button></Show>
     <Show when={props.notebook.localPersistence() === 'failed' || props.notebook.rejectedText()}><Button onClick={() => { navigator.clipboard.writeText(props.notebook.rejectedText() || props.notebook.unsavedText()).then(() => setCopyMessage('Copied unsaved text'), () => setCopyMessage('Couldn’t copy · Select and copy your text manually')); }}>Copy unsaved text</Button></Show>
     <Show when={copyMessage()}><span>{copyMessage()}</span></Show>
-    <Show when={props.notebook.saveMessage()}><details><summary>Details</summary>{props.notebook.saveMessage()}</details></Show>
+    <Show when={props.notebook.saveMessage() && props.notebook.saveMessage() !== text()}><details><summary>Details</summary>{props.notebook.saveMessage()}</details></Show>
     <Show when={props.notebook.rejectedText()}><div class="rejected-changes">
       <pre tabIndex={0} aria-label="Rejected changes kept locally">{props.notebook.rejectedText()}</pre>
       <Button onClick={() => props.notebook.dismissRejected()}>Dismiss</Button>
@@ -1767,13 +1793,11 @@ function Pane(props: { pane: PaneId; number: number; folded: boolean; grow: numb
     } } satisfies MenuItem] : []),
   ];
   const pageInfo = () => props.notebook.roots().find(page => page.id === pageId());
-  // Dates read in prose on a phone: "Oct 23" this year, "Oct 23, 2025" before.
+  // The Info sheet names the created day the same way the page header does.
   const createdDate = () => {
     const page = pageInfo();
     if (!page) return '';
-    const zone = props.notebook.settings()?.time_zone;
-    const year = (date: number | Date) => new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric' }).format(date);
-    return new Intl.DateTimeFormat('en-US', { timeZone: zone, month: 'short', day: 'numeric', ...year(page.created_at) === year(Date.now()) ? {} : { year: 'numeric' } }).format(page.created_at);
+    return relativeDate(civilDate(page.created_at, props.notebook.settings()?.time_zone), props.notebook.todayDate());
   };
   const [info, setInfo] = createSignal(false);
   // A phone keeps the title in its bar; projection and depth remain explicit, checked choices here.

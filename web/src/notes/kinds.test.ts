@@ -19,6 +19,7 @@ test('a tag-only kind keeps the spelling you wrote', () => {
 test('shell capabilities have their glyphs without overriding registry icons', () => {
   expect(noteKindIcon('question')).toBe('question-open');
   expect(noteKindIcon('project')).toBe('flag');
+  expect(noteKindIcon('unfiled')).toBe('page');
   expect(noteKindIcon('all')).toBe('contents');
   expect(noteKindIcon('unknown')).toBe('tag');
   expect(noteKindIcon({ key: 'project', icon: 'book' })).toBe('book');
