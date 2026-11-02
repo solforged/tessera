@@ -1,8 +1,13 @@
 # Domain model
 
-Everything a person writes is a block. Behavior is added as capabilities, each with its own table, rules and history. Indexes such as links and full-text search are derived and can be rebuilt.
+Everything a person writes is a block. Behavior is added as capabilities, each
+with its own table, rules and history. Indexes such as links and full-text
+search are derived and can be rebuilt.
 
-The main tables, with identity and reference columns only. Capabilities attach to block IDs; passages belong to immutable snapshots, not to the outline. Dashed lines are joins left out of the picture (`source_snapshots`, `change_revisions`) and the link target, which has no foreign key.
+The main tables, with identity and reference columns only. Capabilities attach
+to block IDs; passages belong to immutable snapshots, not to the outline. Dashed
+lines are joins left out of the picture (`source_snapshots`, `change_revisions`)
+and the link target, which has no foreign key.
 
 ```mermaid
 erDiagram
@@ -111,211 +116,513 @@ erDiagram
 
 ## Vocabulary
 
-| Term | Meaning |
-|---|---|
-| Block | Addressable authored text with one parent and a position among its siblings |
-| Page | A named root block |
-| Note | A titled page, with the blocks beneath it as its content |
-| Kind | What a note is about: a built-in kind such as Person or Concept, or a type you define |
-| Journal day | A root block for one calendar date in the workshop's time zone |
-| Reference | `[[id]]`, `[[id\|label]]` or `[[id\|label\|locator]]` in a block's text, pointing at another block |
-| Link | The indexed occurrence of a reference; derived |
-| Type | Reusable membership, such as `#book`, with an optional field template; a page whose title the tag names |
-| Field | A typed reading of value blocks, such as Author or Read on |
-| Capability | Behavior attached to a block: task, question, assessment, card, source, position, project, note |
-| Change | One committed operation, with its actor and the revisions it produced |
+| Term        | Meaning                                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------------- |
+| Block       | Addressable authored text with one parent and a position among its siblings                             |
+| Page        | A named root block                                                                                      |
+| Note        | A titled page, with the blocks beneath it as its content                                                |
+| Kind        | What a note is about: a built-in kind such as Person or Concept, or a type you define                   |
+| Journal day | A root block for one calendar date in the workshop's time zone                                          |
+| Reference   | `[[id]]`, `[[id\|label]]` or `[[id\|label\|locator]]` in a block's text, pointing at another block      |
+| Link        | The indexed occurrence of a reference; derived                                                          |
+| Type        | Reusable membership, such as `#book`, with an optional field template; a page whose title the tag names |
+| Field       | A typed reading of value blocks, such as Author or Read on                                              |
+| Capability  | Behavior attached to a block: task, question, assessment, card, source, position, project, note         |
+| Change      | One committed operation, with its actor and the revisions it produced                                   |
 
-Only these words appear in the schema, the API and the code. The interface uses three: an **atom** is any block, a line, a task, a person or a question alike, and opening it is zooming it; a **tag** is a type, named by `#name`, which may carry a template of fields and lists every atom that carries it; a **field** keeps its name. Built-in behavior is a built-in tag (`#task`, `#question`, `#project`, `#source`); the capability tables stay in the engine. "Supertag" is not a word Tessera uses. A page stays as storage: an atom born on a day stays there, its parent is provenance and its tag page is its address, and the user never picks a root.
+Only these words appear in the schema, the API and the code. The interface uses
+three:
+
+- An **atom** is any block, a line, a task, a person or a question alike, and
+  opening it is zooming it.
+- A **tag** is a type, named by `#name`, which may carry a template of fields
+  and lists every atom that carries it.
+- A **field** keeps its name.
+
+Built-in behavior is a built-in tag (`#task`, `#question`, `#project`,
+`#source`). The capability tables stay in the engine. "Supertag" is not a word
+Tessera uses. A page stays as storage: an atom born on a day stays there, its
+parent is provenance and its tag page is its address, and the user never picks a
+root.
 
 ## Blocks
 
-A block has an ID (ULID), parent, page, ordinal, text, optional heading level (1 to 3), revision, archive flag and an optional deletion event. Roots have no parent. Page names exclude tag tokens: `Lab #project` is named `Lab`. Removing tags collapses adjoining whitespace; titles without tags and titles made only of tags keep their full text for identity. The title key applies NFC normalization and default full Unicode case folding to that name, with accents significant. Stored title text keeps its tags. Live page names are unique, so creating `Lab` or `Lab #person` while `Lab #project` lives is refused. Migration 053 re-keys all pages without recording changes; for each collision the oldest page (creation time, then ID) keeps its name, and newer pages receive the first free ` (2)`, ` (3)`, … suffix at the end of their stored text. IDs and memberships stay intact. Journal dates remain unique among live roots.
+A block has an ID (ULID), parent, page, ordinal, text, optional heading level (1
+to 3), revision, archive flag and an optional deletion event. Roots have no
+parent. Page names exclude tag tokens: `Lab #project` is named `Lab`. Removing
+tags collapses adjoining whitespace. Titles without tags and titles made only of
+tags keep their full text for identity. The title key applies NFC normalization
+and default full Unicode case folding to that name, with accents significant.
+Stored title text keeps its tags. Live page names are unique, so creating `Lab`
+or `Lab #person` while `Lab #project` lives is refused.
+
+Migration 053 re-keys all pages without recording changes. For each collision
+the oldest page (creation time, then ID) keeps its name, and newer pages receive
+the first free `(2)`, `(3)`, … suffix at the end of their stored text. IDs and
+memberships stay intact. Journal dates remain unique among live roots.
 
 Rules:
 
 - **Split** keeps the original ID on the left part. Children stay with it.
-- **Merge** keeps the destination ID and the union of both pages' type memberships, without duplicates. It refuses when the source has history that cannot move, such as reviewed cards.
+- **Merge** keeps the destination ID and the union of both pages' type
+  memberships, without duplicates. It refuses when the source has history that
+  cannot move, such as reviewed cards.
 - **Move** keeps the ID and the whole subtree.
-- **Archive** hides; **delete** tombstones with a shared deletion event; **restore** needs that event and the exact revision. **Purge** is explicit and refuses to destroy review history.
+- **Archive** hides; **delete** tombstones with a shared deletion event;
+  **restore** needs that event and the exact revision. **Purge** is explicit and
+  refuses to destroy review history.
 - Every write checks the revision it was based on. A mismatch writes nothing.
 
-Parentage gives a block its reading context. A question beneath a source is about that source. Agent context always includes ancestors.
+Parentage gives a block its reading context. A question beneath a source is
+about that source. Agent context always includes ancestors.
 
 ## Images
 
-An image block is an ordinary block with an image capability: the SHA-256 of a content-addressed file, its media type (PNG, JPEG, WebP or GIF) and its pixel size. The block's text is the caption and keeps every text behavior, including links, tags, card syntax and search. Upload reads the bytes rather than the declared type, refuses other formats such as SVG, and stores a file once however many blocks show it. Attaching an image the workshop does not hold is refused; a change from another device never is.
+An image block is an ordinary block with an image capability: the SHA-256 of a
+content-addressed file, its media type (PNG, JPEG, WebP or GIF) and its pixel
+size. The block's text is the caption and keeps every text behavior, including
+links, tags, card syntax and search. Upload reads the bytes rather than the
+declared type, refuses other formats such as SVG, and stores a file once however
+many blocks show it. Attaching an image the workshop does not hold is refused; a
+change from another device never is.
 
 - **Split** keeps the image on the left part, with the original ID.
 - **Merge** refuses when either block has an image.
-- **Delete** and **restore** keep the image with the block. Removing the image leaves the caption as an ordinary block.
+- **Delete** and **restore** keep the image with the block. Removing the image
+  leaves the caption as an ordinary block.
 - A quoted copy cannot hold an image.
-- An image in a card's child outline is part of the answer, so changing it changes the card.
+- An image in a card's child outline is part of the answer, so changing it
+  changes the card.
 
 ## References and links
 
-A reference renders the target's current text. Editing the target updates every reference. A link row records source, target, alias and occurrence order; repeated references stay distinct. Backlinks come from links. A reference to a deleted block renders as unresolved and keeps its authored label when present, otherwise its raw ID. A perspective's deleted holder is the exception: its tombstone supplies the last-known readable name, marked Deleted holder, without making it a live holder again.
+A reference renders the target's current text. Editing the target updates every
+reference. A link row records source, target, alias and occurrence order;
+repeated references stay distinct. Backlinks come from links. A reference to a
+deleted block renders as unresolved and keeps its authored label when present,
+otherwise its raw ID. A perspective's deleted holder is the exception: its
+tombstone supplies the last-known readable name, marked Deleted holder, without
+making it a live holder again.
 
-A reference can carry an authored label and locator. The target ends at the first `|`; with a second pipe, the locator follows the last `|` and any intervening pipes belong to the label. An empty label uses the target's current text (`[[id||3.12]]`). Locators stay in authored text through resolution, editing, merge rewriting and export; they do not create passage citations or require a snapshot.
+A reference can carry an authored label and locator. The target ends at the
+first `|`. With a second pipe, the locator follows the last `|` and any
+intervening pipes belong to the label. An empty label uses the target's current
+text (`[[id||3.12]]`). Locators stay in authored text through resolution,
+editing, merge rewriting and export. They do not create passage citations or
+require a snapshot.
 
-A reference to a source-capable page with a nonempty label or locator is a citation reference. It reads in ink with a dotted underline, with its locator after a thin space in faint apparatus mono; hover turns the text and underline to the accent. Plain title links to sources and references to ordinary pages keep the accent-link treatment. Source pages separate citing rows, including passage citations, into Cited in and all remaining referring rows into Backlinks, without counting a row twice.
+A reference to a source-capable page with a nonempty label or locator is a
+citation reference. It reads in ink with a dotted underline, with its locator
+after a thin space in faint apparatus mono; hover turns the text and underline
+to the accent. Plain title links to sources and references to ordinary pages
+keep the accent-link treatment. Source pages separate citing rows, including
+passage citations, into Cited in and all remaining referring rows into
+Backlinks, without counting a row twice.
 
-Full-text search includes the current labels of canonical references. This index is derived from authored text and live targets, and refreshes when either changes; an explicit alias keeps its authored wording.
+Full-text search includes the current labels of canonical references. This index
+is derived from authored text and live targets, and refreshes when either
+changes; an explicit alias keeps its authored wording.
 
-Canonical tags are memberships, not links, and never create reference backlinks. Their authored aliases remain searchable. Pills and text exports print `#Title` from the live tag page, falling back to the alias or ID when that page is gone. Plain-text clipboard exports bracket multi-word titles as `#[[Title]]`; Tessera's private clipboard retains the canonical authored tokens. An unresolved pill is faint and keeps its authored token. A root title's tag tokens are not part of its display title: every surface and export shows the authored text with those tokens removed and the whitespace around them collapsed, while the stored title, its uniqueness key and title lookups keep the authored text. A title that is nothing but tags displays them as `#Title`.
+Canonical tags are memberships, not links, and never create reference backlinks.
+Their authored aliases remain searchable. Pills and text exports print `#Title`
+from the live tag page, falling back to the alias or ID when that page is gone.
+Plain-text clipboard exports bracket multi-word titles as `#[[Title]]`;
+Tessera's private clipboard retains the canonical authored tokens. An unresolved
+pill is faint and keeps its authored token. A root title's tag tokens are not
+part of its display title: every surface and export shows the authored text with
+those tokens removed and the whitespace around them collapsed, while the stored
+title, its uniqueness key and title lookups keep the authored text. A title that
+is nothing but tags displays them as `#Title`.
 
-Agent outlines print a tag as `#Title`, or as `#[[Title]]` when the title is not a bare tag or the next character would extend it, so the tag reads back whole. Links show their target's title without its tags. The agent outline lists a root title's tags in its header comment.
+Agent outlines print a tag as `#Title`, or as `#[[Title]]` when the title is not
+a bare tag or the next character would extend it, so the tag reads back whole.
+Links show their target's title without its tags. The agent outline lists a root
+title's tags in its header comment.
 
-A page's backlinks cover references to its root and to every block on it, grouped by referring page. Sources on the same page are left out of that list but count towards each block's reference count. Unlinked mentions are blocks elsewhere that contain the page's title or an alias as a whole word, outside references, tags, URLs and code, and do not already link to the page.
+A page's backlinks cover references to its root and to every block on it,
+grouped by referring page. Sources on the same page are left out of that list
+but count towards each block's reference count. Unlinked mentions are blocks
+elsewhere that contain the page's title or an alias as a whole word, outside
+references, tags, URLs and code, and do not already link to the page.
 
-A page opts into a stream with the manual `Stream` type or a project capability. Its Arrivals list contains the direct children of journal blocks linking that page, newest journal day first, limited to the last 100 calendar days and 200 children. Adding one appends a whole-row reference to the child's ID as one undoable outline edit; the source stays in its journal. Whole-row references anywhere on the stream page exclude those children from Arrivals. The page's ordinary outline order is the added order.
+A page opts into a stream with the manual `Stream` type or a project capability.
+Its Arrivals list contains the direct children of journal blocks linking that
+page, newest journal day first, limited to the last 100 calendar days and 200
+children. Adding one appends a whole-row reference to the child's ID as one
+undoable outline edit; the source stays in its journal. Whole-row references
+anywhere on the stream page exclude those children from Arrivals. The page's
+ordinary outline order is the added order.
 
-A whole-row `[[ID]]` reference to a live non-root block renders its current text and read-only descendants, with provenance opening the source. It initially shows 12 descendants and expands in place. Page links and missing targets keep inline-reference rendering. Batch subtree reads accept at most 256 IDs, return preorder rows capped at 200 per ID and 4096 in total, and flag each truncated subtree; these live reads do not change frozen quote semantics.
+A whole-row `[[ID]]` reference to a live non-root block renders its current text
+and read-only descendants, with provenance opening the source. It initially
+shows 12 descendants and expands in place. Page links and missing targets keep
+inline-reference rendering. Batch subtree reads accept at most 256 IDs, return
+preorder rows capped at 200 per ID and 4096 in total, and flag each truncated
+subtree; these live reads do not change frozen quote semantics.
 
-A saved-view reference uses `[[view:ID|remembered name]]`. The target is a canonical ID from the view store. Its authored text travels through ordinary block edits and sync; it creates no block link, backlink or field entry. A whole-row reference renders the saved query live, with its current name, purpose and recipe. Inline references and search snippets remain named links. The block keeps its remembered name when the view is missing, and offers relinking or removal. Restoring the view restores the live result. A desk recipe renders a compact name, purpose and Open desk link.
+A saved-view reference uses `[[view:ID|remembered name]]`. The target is a
+canonical ID from the view store. Its authored text travels through ordinary
+block edits and sync; it creates no block link, backlink or field entry. A
+whole-row reference renders the saved query live, with its current name, purpose
+and recipe. Inline references and search snippets remain named links. The block
+keeps its remembered name when the view is missing, and offers relinking or
+removal. Restoring the view restores the live result. A desk recipe renders a
+compact name, purpose and Open desk link.
 
-The plain-text clipboard export keeps the authored view reference, just as it keeps page references. It exports the view's remembered name and target, not a snapshot of the result rows. Full-text search can find the remembered name in the authored text.
+The plain-text clipboard export keeps the authored view reference, just as it
+keeps page references. It exports the view's remembered name and target, not a
+snapshot of the result rows. Full-text search can find the remembered name in
+the authored text.
 
-Committing a live view cell returns keyboard undo to its page history before the save finishes. An immediate undo follows the committed write in the workshop's queue, including when that write creates the field entry and value.
+Committing a live view cell returns keyboard undo to its page history before the
+save finishes. An immediate undo follows the committed write in the workshop's
+queue, including when that write creates the field entry and value.
 
 ### Quotes
 
-A quote is frozen; a reference is live. A block whose whole text is `((ID))` is a quote row. It holds a snapshot of the target and its subtree (text, heading, revision and depth of each row), captured when the quote was made, and records one link to the target so the target's backlinks include it.
+A quote is frozen; a reference is live. A block whose whole text is `((ID))` is
+a quote row. It holds a snapshot of the target and its subtree (text, heading,
+revision and depth of each row), captured when the quote was made, and records
+one link to the target so the target's backlinks include it.
 
-- The snapshot travels in the `set_quote` operation, so every device applies the same rows. Applying it never reads the source.
-- A capture keeps at most 200 rows and 64 KiB of text and marks the snapshot truncated past either limit. A root too large to fit is refused.
-- Editing or deleting the source leaves the quote unchanged. A quote reports whether its source is still live and whether any captured row changed or disappeared, or the source gained a descendant. Updating re-captures it as one undoable edit.
-- Editing the row's text away from `((ID))` leaves the snapshot inert rather than deleting it, so undoing that edit brings the quote back.
-- Merging pages redirects quote rows and their stored targets like references; the frozen text stays as captured.
+- The snapshot travels in the `set_quote` operation, so every device applies the
+  same rows. Applying it never reads the source.
+- A capture keeps at most 200 rows and 64 KiB of text and marks the snapshot
+  truncated past either limit. A root too large to fit is refused.
+- Editing or deleting the source leaves the quote unchanged. A quote reports
+  whether its source is still live and whether any captured row changed or
+  disappeared, or the source gained a descendant. Updating re-captures it as one
+  undoable edit.
+- Editing the row's text away from `((ID))` leaves the snapshot inert rather
+  than deleting it, so undoing that edit brings the quote back.
+- Merging pages redirects quote rows and their stored targets like references;
+  the frozen text stays as captured.
 
 ## Types and fields
 
-A type is an ordinary page used as the target of memberships. A block can have many types. Membership keys are `(block_id, type_id, manual)`. The `title` column keeps the authored spelling but does not decide identity. Membership records whether it came from text or was added manually; either keeps it.
+A type is an ordinary page used as the target of memberships. A block can have
+many types. Membership keys are `(block_id, type_id, manual)`. The `title`
+column keeps the authored spelling but does not decide identity. Membership
+records whether it came from text or was added manually; either keeps it.
 
-Canonical tag text is `#[[id|alias]]`. The alias may be empty and cannot contain brackets, pipes or line breaks. Legacy `#Title` and `#[[Title]]` remain valid input. A bracket token with a non-ID before a pipe keeps the whole bracket content as its legacy title. On commit, the engine resolves legacy tags to a live page by the tag-free title key described above, creating a provisional page when needed, and reports canonical text in `text_rewrites`. Canonical tags resolve by ID, not by name or alias. A spelling that cannot fit the alias grammar uses an empty alias. An existing canonical tag keeps its ID and refreshes its alias to the live title when its atom is next edited. Renaming a tag page changes that page alone; members keep their text and revisions.
+Canonical tag text is `#[[id|alias]]`. The alias may be empty and cannot contain
+brackets, pipes or line breaks. Legacy `#Title` and `#[[Title]]` remain valid
+input. A bracket token with a non-ID before a pipe keeps the whole bracket
+content as its legacy title. On commit, the engine resolves legacy tags to a
+live page by the tag-free title key described above, creating a provisional page
+when needed, and reports canonical text in `text_rewrites`. Canonical tags
+resolve by ID, not by name or alias. A spelling that cannot fit the alias
+grammar uses an empty alias. An existing canonical tag keeps its ID and
+refreshes its alias to the live title when its atom is next edited. Renaming a
+tag page changes that page alone; members keep their text and revisions.
 
-A canonical tag without a live target stays in the text and creates no membership. Reusing its old title on another page does not rebind it. Migration 051 normalizes live legacy tags without creating pages or recording changes. `tessera check` reports unresolved tokens and text memberships that disagree with tags. Repair normalizes legacy tags and rebuilds memberships, while dangling IDs remain unresolved.
+A canonical tag without a live target stays in the text and creates no
+membership. Reusing its old title on another page does not rebind it. Migration
+051 normalizes live legacy tags without creating pages or recording changes.
+`tessera check` reports unresolved tokens and text memberships that disagree
+with tags. Repair normalizes legacy tags and rebuilds memberships, while
+dangling IDs remain unresolved.
 
-The built-in tags `#task`, `#question`, `#project` and `#source` add behavior to an atom through text or manual membership. Gaining membership reactivates retained state, or uses defaults if no record exists. Losing the last membership deactivates it and keeps its history. An action can still add behavior without writing a tag; unrelated text edits leave that record alone. Removing behavior also removes its text tokens and manual membership, with text rewrites in the change receipt.
+The built-in tags `#task`, `#question`, `#project` and `#source` add behavior to
+an atom through text or manual membership. Gaining membership reactivates
+retained state, or uses defaults if no record exists. Losing the last membership
+deactivates it and keeps its history. An action can still add behavior without
+writing a tag; unrelated text edits leave that record alone. Removing behavior
+also removes its text tokens and manual membership, with text rewrites in the
+change receipt.
 
-Built-in tag pages use their canonical names, such as `Task` and `Person`, when first created by membership. A page named for a built-in tag cannot be deleted, merged away or renamed, except for a change of case. The block's `built_in_tag` flag identifies these pages. The tag registry includes all four behavior tags and the live page ID for each. `tessera check` reports missing or inactive records on tagged atoms; repair and membership gain reactivate existing records with their retained state, including task completion and citation keys, and use defaults only for missing records.
+Built-in tag pages use their canonical names, such as `Task` and `Person`, when
+first created by membership. A page named for a built-in tag cannot be deleted,
+merged away or renamed, except for a change of case. The block's `built_in_tag`
+flag identifies these pages. The tag registry includes all four behavior tags
+and the live page ID for each. `tessera check` reports missing or inactive
+records on tagged atoms; repair and membership gain reactivate existing records
+with their retained state, including task completion and citation keys, and use
+defaults only for missing records.
 
-`#source` makes a manual Library record with no snapshot, including on an outline atom. Journal roots cannot be sources.
+`#source` makes a manual Library record with no snapshot, including on an
+outline atom. Journal roots cannot be sources.
 
-Undoing a first-use collection creation keeps the system tag page. It removes the created collection and restores the field register and templates.
+Undoing a first-use collection creation keeps the system tag page. It removes
+the created collection and restores the field register and templates.
 
-A field definition is a block under the live page titled `Fields`, the system page every workshop has. That page cannot be deleted, and renaming it changes only its case. A workshop that renamed it before that rule gets the name back on open; an untouched empty `Fields` page an earlier open made beside it is removed. A definition is shaped as follows:
+A field definition is a block under the live page titled `Fields`, the system
+page every workshop has. That page cannot be deleted, and renaming it changes
+only its case. A workshop that renamed it before that rule gets the name back on
+open; an untouched empty `Fields` page an earlier open made beside it is
+removed. A definition is shaped as follows:
 
 - Its name is the block's text.
-- Its kind is text, number, date, span, checkbox, choice, relation, URL or identifier; the default is text. Relation is stored as `instance`.
+- Its kind is text, number, date, span, checkbox, choice, relation, URL or
+  identifier; the default is text. Relation is stored as `instance`.
 - Choice options are child blocks of the definition.
 
-The task tag has six built-in field definitions: status, scheduled, deadline, priority, repeat and project. The first five project the task record, never child entries. Status and priority have fixed choices; dates include optional times, and repeat presents the existing repeater as Repeat. Project reuses the existing relation definition and its ordinary explicit entry; without one the task reads its nearest project ancestor. Built-in names, formats and global deletion are protected.
+The task tag has six built-in field definitions: status, scheduled, deadline,
+priority, repeat and project. The first five project the task record, never
+child entries. Status and priority have fixed choices. Dates include optional
+times, and repeat presents the existing repeater as Repeat. Project reuses the
+existing relation definition and its ordinary explicit entry. Without one the
+task reads its nearest project ancestor. Built-in names, formats and global
+deletion are protected.
 
-A field entry is a block whose whole text is one reference to a definition, rendering as its name. The entry's parent owns the field; its children are the values. Typing `author::` in the editor produces an entry. A name no field has creates one spelled as typed, and an existing name matches regardless of case. A built-in name instead creates the [built-in field](#kinds), lowercase and with its own kind, which no value changes.
+A field entry is a block whose whole text is one reference to a definition,
+rendering as its name. The entry's parent owns the field; its children are the
+values. Typing `author::` in the editor produces an entry. A name no field has
+creates one spelled as typed, and an existing name matches regardless of case. A
+built-in name instead creates the [built-in field](#kinds), lowercase and with
+its own kind, which no value changes.
 
-Any other new field's kind comes from its first value. A whole reference makes it a relation, or a date when it names a journal day. A calendar date, a number or an `http(s)` address makes it a date, number or URL, and anything else leaves it text. A value typed before conversion sets the kind at creation. Otherwise leaving the first nonblank value sets it, with an Undo that returns the field to text.
+Any other new field's kind comes from its first value. A whole reference makes
+it a relation, or a date when it names a journal day. A calendar date, a number
+or an `http(s)` address makes it a date, number or URL, and anything else leaves
+it text. A value typed before conversion sets the kind at creation. Otherwise
+leaving the first nonblank value sets it, with an Undo that returns the field to
+text.
 
-Each definition has a `hide` setting for outlines. `never` is the default and shows entries and faint missing template slots, on a page at rest and on a nested owner while it is focused. `when_empty` hides entries with no values or only blank values and omits missing slots; `always` hides entries and slots regardless of values. Editing or selecting an entry or its values keeps it visible, as does revealing the owner's hidden fields in that pane. Tables, queries, field pages, the Fields register and exports ignore this setting.
+Each definition has a `hide` setting for outlines. `never` is the default and
+shows entries and faint missing template slots, on a page at rest and on a
+nested owner while it is focused. `when_empty` hides entries with no values or
+only blank values and omits missing slots; `always` hides entries and slots
+regardless of values. Editing or selecting an entry or its values keeps it
+visible, as does revealing the owner's hidden fields in that pane. Tables,
+queries, field pages, the Fields register and exports ignore this setting.
 
-A definition also has a presentation role: `standfirst`, `attribute` (the default), `prose` or `citation`. Standfirst values read as sentences under their owner, attributes form an aligned field bed, prose follows it at full width, and citation values show references as siglum and locator. The role changes no value or kind. Changing it is revision-checked, attributed and undoable; sync keeps the later change. The built-in Gist and Gloss start as standfirst, however a client adds them. Migration gives existing Gist and Gloss definitions the standfirst role, and opening a workshop once does the same for one still on the default role that no one chose. A later rename never changes a role.
+A definition also has a presentation role: `standfirst`, `attribute` (the
+default), `prose` or `citation`. Standfirst values read as sentences under their
+owner, attributes form an aligned field bed, prose follows it at full width, and
+citation values show references as siglum and locator. The role changes no value
+or kind. Changing it is revision-checked, attributed and undoable; sync keeps
+the later change. The built-in Gist and Gloss start as standfirst, however a
+client adds them. Migration gives existing Gist and Gloss definitions the
+standfirst role, and opening a workshop once does the same for one still on the
+default role that no one chose. A later rename never changes a role.
 
-The reading register projects field entry identities and reads each value from the shared document. Editing a blank standfirst does not replace its perspective slip or editor. Add perspective enters filling mode at the new Gist value; its recipe order continues with Work and the subject's criteria.
+The reading register projects field entry identities and reads each value from
+the shared document. Editing a blank standfirst does not replace its perspective
+slip or editor. Add perspective enters filling mode at the new Gist value; its
+recipe order continues with Work and the subject's criteria.
 
-Values are plain blocks read through the field's kind. A value that does not fit shows a problem but is never rejected or rewritten, except in agent writes, which refuse it.
+Values are plain blocks read through the field's kind. A value that does not fit
+shows a problem but is never rejected or rewritten, except in agent writes,
+which refuse it.
 
-| Kind | Value rule |
-|---|---|
-| Date | Links to a journal day or spells out the date. A bare year or year-month is valid for sources dated no more precisely. |
-| Span | Keeps the written historical notation and reads an inclusive year range. BCE years are negative; unknown bounds are open. |
-| Choice | Links to its option. |
-| Relation | Links to a live block: a page, a journal day or a block inside a page. With Links to types, the target must be a member of one, by tag or manually. Links to can also name Source, which any page with a source capability meets. A relation that counts as creator or contributor also reads a plain name. |
-| URL | An absolute `http` or `https` address. |
-| Identifier | Reads an ISBN, DOI or arXiv ID in its usual spellings. Normalizes to `isbn:` with 13 digits, lowercase `doi:` or `arxiv:`, so the same work matches however it was written. |
+| Kind       | Value rule                                                                                                                                                                                                                                                                                                  |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Date       | Links to a journal day or spells out the date. A bare year or year-month is valid for sources dated no more precisely.                                                                                                                                                                                      |
+| Span       | Keeps the written historical notation and reads an inclusive year range. BCE years are negative; unknown bounds are open.                                                                                                                                                                                   |
+| Choice     | Links to its option.                                                                                                                                                                                                                                                                                        |
+| Relation   | Links to a live block: a page, a journal day or a block inside a page. With Links to types, the target must be a member of one, by tag or manually. Links to can also name Source, which any page with a source capability meets. A relation that counts as creator or contributor also reads a plain name. |
+| URL        | An absolute `http` or `https` address.                                                                                                                                                                                                                                                                      |
+| Identifier | Reads an ISBN, DOI or arXiv ID in its usual spellings. Normalizes to `isbn:` with 13 digits, lowercase `doi:` or `arxiv:`, so the same work matches however it was written.                                                                                                                                 |
 
-A relation target's label is its first line as plain text: trailing tags are dropped, inner tags read as their titles and references as their labels. Sorting, contains filters, group headings, card rendering and exports use that label.
+A relation target's label is its first line as plain text: trailing tags are
+dropped, inner tags read as their titles and references as their labels.
+Sorting, contains filters, group headings, card rendering and exports use that
+label.
 
-A relation reads from both ends. Its target lists each owner whose value is exactly a reference to it, as `← qualifies` followed by the owners' labels, with no inverse name to define. A reference inside longer text stays a mention. Archived definitions and hidden owners or values are left out. author, editor, translator and collections read back elsewhere, as a person's Works and a collection's members, so the target's line omits them.
+A relation reads from both ends. Its target lists each owner whose value is
+exactly a reference to it, as `← qualifies` followed by the owners' labels, with
+no inverse name to define. A reference inside longer text stays a mention.
+Archived definitions and hidden owners or values are left out. author, editor,
+translator and collections read back elsewhere, as a person's Works and a
+collection's members, so the target's line omits them.
 
-Changing a field's kind opens a reviewed interpretation map of every distinct written value. Choice mappings reuse or create options, and different spellings can share one option. Relation mappings propose only a page with a unique exact title or alias; creating a page requires an explicit choice, and the new page joins the field's Links to type when it has exactly one, or becomes a source when that one is Source. Ambiguous and unreadable values stay as written. Applying the map and kind is one undoable change across every owner. Owner counts include empty entries and count each owning block once. Archived or deleted entries and owners do not count.
+Changing a field's kind opens a reviewed interpretation map of every distinct
+written value. Choice mappings reuse or create options, and different spellings
+can share one option. Relation mappings propose only a page with a unique exact
+title or alias; creating a page requires an explicit choice, and the new page
+joins the field's Links to type when it has exactly one, or becomes a source
+when that one is Source. Ambiguous and unreadable values stay as written.
+Applying the map and kind is one undoable change across every owner. Owner
+counts include empty entries and count each owning block once. Archived or
+deleted entries and owners do not count.
 
-Renaming to another definition's name offers a merge preview with affected owners, pages, templates, saved views and conflicts. A merge redirects entries, template slots and saved view references to the surviving definition. It keeps conflicting entries side by side and moves option blocks without changing their identities. Filters, sort keys, column widths, grouping, collapsed headings and phone card fields stay in their original order. One undo restores both definitions, their entries and the exact saved queries.
+Renaming to another definition's name offers a merge preview with affected
+owners, pages, templates, saved views and conflicts. A merge redirects entries,
+template slots and saved view references to the surviving definition. It keeps
+conflicting entries side by side and moves option blocks without changing their
+identities. Filters, sort keys, column widths, grouping, collapsed headings and
+phone card fields stay in their original order. One undo restores both
+definitions, their entries and the exact saved queries.
 
-Deleting a definition first shows its impact, including affected views by name. Archive hides it from field pickers but keeps values and views readable. Detach turns its values into ordinary `Name: value` blocks, retaining their child notes. Delete values requires explicit confirmation and removes their subtrees. Each action has one undo, including when the definition was archived first.
+Deleting a definition first shows its impact, including affected views by name.
+Archive hides it from field pickers but keeps values and views readable. Detach
+turns its values into ordinary `Name: value` blocks, retaining their child
+notes. Delete values requires explicit confirmation and removes their subtrees.
+Each action has one undo, including when the definition was archived first.
 
-Detaching a choice definition materializes its option labels in the ordinary values before removing the options. Deleting an in-use choice option likewise keeps its labels as written problem values after an impact confirmation. Both preserve value identities and child notes, and Undo restores the exact references.
+Detaching a choice definition materializes its option labels in the ordinary
+values before removing the options. Deleting an in-use choice option likewise
+keeps its labels as written problem values after an impact confirmation. Both
+preserve value identities and child notes, and Undo restores the exact
+references.
 
-Spans accept years and ranges, `c.`, `fl.`, `b.`, `d.`, decades, centuries and `?` for open ends. For example, `c. 200–118 BCE` reads from -200 through -118, and `fl. 1340s` reads from 1340 through 1349. Approximation markers do not invent a wider range. A birth has an open end; a death has an open start. Year zero and reversed ranges are unreadable. Span sorting compares start year, then end year; open bounds extend to infinity. Filters compare inclusive overlap, strictly before or strictly after another span.
+Spans accept years and ranges, `c.`, `fl.`, `b.`, `d.`, decades, centuries and
+`?` for open ends. For example, `c. 200–118 BCE` reads from -200 through -118,
+and `fl. 1340s` reads from 1340 through 1349. Approximation markers do not
+invent a wider range. A birth has an open end, and a death has an open start.
+Year zero and reversed ranges are unreadable. Span sorting compares start year,
+then end year. Open bounds extend to infinity. Filters compare inclusive
+overlap, strictly before or strictly after another span.
 
 Date precision and sorting:
 
-- Bare years of one to four digits have year precision: `180` and `0180` mean year 180; zero is invalid.
+- Bare years of one to four digits have year precision: `180` and `0180` mean
+  year 180; zero is invalid.
 - Month and day forms require a four-digit year.
-- Field sorting pads the year in its sort key without changing the written value.
+- Field sorting pads the year in its sort key without changing the written
+  value.
 
-A field's detail read may count readable and problem values using a proposed kind before one undoable kind change. Counts and samples follow these rules:
+A field's detail read may count readable and problem values using a proposed
+kind before one undoable kind change. Counts and samples follow these rules:
 
 - Empty-entry counts include entries whose children are all blank.
-- Owner samples combine an owner's entries in outline order and identify the first entry.
+- Owner samples combine an owner's entries in outline order and identify the
+  first entry.
 - Problem and readable samples identify each value's own entry.
 
-A type may carry a template: an ordered list of fields shown first in its table and offered as empty slots in its members' field areas. Members' other fields follow the template. Fill missing fields on the type page writes empty entries for members only when asked.
+A type may carry a template: an ordered list of fields shown first in its table
+and offered as empty slots in its members' field areas. Members' other fields
+follow the template. Fill missing fields on the type page writes empty entries
+for members only when asked.
 
-Opening a workshop seeds the Task tag's six-field template once, in one synced built-in-fields change recorded by `task_field_template`. Later opens restore only required Status. Other slots can be reordered or removed and user fields added. Removing a slot changes suggestions, not task state, field entries or Agenda membership.
+Opening a workshop seeds the Task tag's six-field template once, in one synced
+built-in-fields change recorded by `task_field_template`. Later opens restore
+only required Status. Other slots can be reordered or removed and user fields
+added. Removing a slot changes suggestions, not task state, field entries or
+Agenda membership.
 
-A template can grow from use. When a member's field gets a value and another member of that type already has one, the outline offers to add the field to the template, such as “strength is on another #proposition too”, with Add and Not now buttons. A field used once is never offered, since it may be a one-off. Each type and field is offered once per window, whatever the answer, and Add has an Undo.
+A template can grow from use. When a member's field gets a value and another
+member of that type already has one, the outline offers to add the field to the
+template, such as “strength is on another #proposition too”, with Add and Not
+now buttons. A field used once is never offered, since it may be a one-off. Each
+type and field is offered once per window, whatever the answer, and Add has an
+Undo.
 
 ## Queries and views
 
-A query selects notes, questions, positions, sources, tasks or highlights with `source`. Omitting it preserves the existing type, text and field-owner selection. An explicit notes source without a type selects titled notes; type tables still include tagged blocks. Other sources select the entity's own block, not its containing page. Every row names both and carries its ordinary field values with their value block IDs for editing.
+A query selects notes, questions, positions, sources, tasks or highlights with
+`source`. Omitting it preserves the existing type, text and field-owner
+selection. An explicit notes source without a type selects titled notes; type
+tables still include tagged blocks. Other sources select the entity's own block,
+not its containing page. Every row names both and carries its ordinary field
+values with their value block IDs for editing.
 
-| Predicate | Matches when |
-|---|---|
-| Is present | A field entry exists, including one with no values. |
-| Is set | At least one value has nonblank text. Unreadable values still count. |
-| Is empty | No value has nonblank text. |
-| Value comparison | Any value satisfies the comparison. |
-| Is not | No value matches. |
+| Predicate        | Matches when                                                         |
+| ---------------- | -------------------------------------------------------------------- |
+| Is present       | A field entry exists, including one with no values.                  |
+| Is set           | At least one value has nonblank text. Unreadable values still count. |
+| Is empty         | No value has nonblank text.                                          |
+| Value comparison | Any value satisfies the comparison.                                  |
+| Is not           | No value matches.                                                    |
 
-Missing and unreadable values sort last. Fields used by filters remain table columns even when all their values are empty.
+Missing and unreadable values sort last. Fields used by filters remain table
+columns even when all their values are empty.
 
-Relation equality and inequality compare the selected target's ID, not its label. A saved filter keeps its members when that target is renamed or edited. Older label-only filters migrate when the title identifies one page; an unresolved value matches nothing and must be selected again.
+Relation equality and inequality compare the selected target's ID, not its
+label. A saved filter keeps its members when that target is renamed or edited.
+Older label-only filters migrate when the title identifies one page; an
+unresolved value matches nothing and must be selected again.
 
-Attributes use a leading `@` wherever a field key is accepted, including filters, sorts, columns and grouping. Their values are derived and read-only; they have no value block IDs. Unknown attributes, including one from another source, are validation errors.
+Attributes use a leading `@` wherever a field key is accepted, including
+filters, sorts, columns and grouping. Their values are derived and read-only;
+they have no value block IDs. Unknown attributes, including one from another
+source, are validation errors.
 
-| Source | Attributes beyond title, page, created and updated |
-|---|---|
-| Notes | `@kind`, `@resolved`, `@revisit` |
-| Questions | `@state`, `@parent`, `@program`, `@readings`, `@current`, `@last_assessed`, `@revisit`, `@inline` |
-| Positions | `@holder`, `@subject`, `@question`, `@relation`, `@target_holder`, `@cites` |
-| Sources | `@creator`, `@contributor`, `@cited_by`, `@cited_in`, `@highlights`, `@citation_key` |
-| Tasks | `@status`, `@scheduled`, `@deadline`, `@priority`, `@repeat`, `@project`, and legacy `@due` |
-| Highlights | `@source`, `@color` |
+| Source     | Attributes beyond title, page, created and updated                                                |
+| ---------- | ------------------------------------------------------------------------------------------------- |
+| Notes      | `@kind`, `@resolved`, `@revisit`                                                                  |
+| Questions  | `@state`, `@parent`, `@program`, `@readings`, `@current`, `@last_assessed`, `@revisit`, `@inline` |
+| Positions  | `@holder`, `@subject`, `@question`, `@relation`, `@target_holder`, `@cites`                       |
+| Sources    | `@creator`, `@contributor`, `@cited_by`, `@cited_in`, `@highlights`, `@citation_key`              |
+| Tasks      | `@status`, `@scheduled`, `@deadline`, `@priority`, `@repeat`, `@project`, and legacy `@due`       |
+| Highlights | `@source`, `@color`                                                                               |
 
-The shared attributes are `@title` (text), `@page` (instance), `@created` and `@updated` (dates in the workshop's time zone). Questions use active, recurrent, parked and answered states. `@last_assessed` is the latest live assessment date, accepted or not. `@readings` counts positions about the question. Sources count distinct citing positions and highlighted blocks. Instance attributes compare stable IDs, not labels. `@creator` and `@contributor` read the fields that [count as](#counts-as) creator or contributor. Links and citations on a block source refer to its subtree.
+The shared attributes are `@title` (text), `@page` (instance), `@created` and
+`@updated` (dates in the workshop's time zone). Questions use active, recurrent,
+parked and answered states. `@last_assessed` is the latest live assessment date,
+accepted or not. `@readings` counts positions about the question. Sources count
+distinct citing positions and highlighted blocks. Instance attributes compare
+stable IDs, not labels. `@creator` and `@contributor` read the fields that
+[count as](#counts-as) creator or contributor. Links and citations on a block
+source refer to its subtree.
 
-Positions' `@question` includes their subject when it is a live question and every effective parent question above it. A parent question therefore selects positions about its branches too. Sources' `@cited_in` names each live block whose subtree cites that source, including positions and containing pages. Both are instance attributes and compare stable IDs. Repeated citations count once per block; hidden or deleted subtrees do not contribute.
+Positions' `@question` includes their subject when it is a live question and
+every effective parent question above it. A parent question therefore selects
+positions about its branches too. Sources' `@cited_in` names each live block
+whose subtree cites that source, including positions and containing pages. Both
+are instance attributes and compare stable IDs. Repeated citations count once
+per block; hidden or deleted subtrees do not contribute.
 
-Date filters accept `today`, `-30d` and `+7d`, resolved in the workshop's time zone on each read. A filter such as `{"field":"@last_assessed","op":"lt","value":"-30d","or_empty":true}` also matches an absent value. Saved filters keep the relative expression, not its current date.
+Date filters accept `today`, `-30d` and `+7d`. Saved filters retain these
+relative expressions and resolve them in the workshop's time zone on each read.
+A filter such as
+`{"field":"@last_assessed","op":"lt","value":"-30d","or_empty":true}` also
+matches an absent value.
 
-Grouping uses `group: {key, collapsed?}` and returns distinct row IDs and counts under every applicable heading, including None for empty values. Counts cover the full match before pagination. Relation headings use target IDs, so renaming a target keeps the collapsed group identity.
+Grouping uses `group: {key, collapsed?}` and returns distinct row IDs and counts
+under every applicable heading, including None for empty values. Counts cover
+the full match before pagination. Relation headings use target IDs, so renaming
+a target keeps the collapsed group identity.
 
-A view is a saved query with a name and a revision. Views are not blocks; saving and deleting them are operations like any other, so they are attributed and undoable. A type table is the unsaved query for that type's members.
+A view is a saved query with a name and a revision. Views are not blocks; saving
+and deleting them are operations like any other, so they are attributed and
+undoable. A type table is the unsaved query for that type's members.
 
-The query also carries its view recipe: `layout`, ordered columns with widths, sort keys in priority order, grouping with collapsed heading keys, phone card fields and a one-line purpose. Layout is `table` by default; positions also offer `register` and `matrix`. Register shows attributed perspective slips with editable field beds. Matrix groups positions by subject and places holders against that subject's criteria. Both edit the original value blocks through their page documents, with one undo per committed value. Saving, reopening and undoing a saved view keep the recipe with the query. Task attributes edit their canonical task or project state; other attributes remain read-only. `@due` remains an alias of Deadline for saved views, MCP and query text.
+The query also carries its view recipe: `layout`, ordered columns with widths,
+sort keys in priority order, grouping with collapsed heading keys, phone card
+fields and a one-line purpose. Layout is `table` by default. Positions also
+offer `register` and `matrix`. Register shows attributed perspective slips with
+editable field beds. Matrix groups positions by subject and places holders
+against that subject's criteria. Both edit the original value blocks through
+their page documents, with one undo per committed value. Saving, reopening and
+undoing a saved view keep the recipe with the query. Task attributes edit their
+canonical task or project state. Other attributes remain read-only. `@due`
+remains an alias of Deadline for saved views, MCP and query text.
 
-An unsaved entity view starts with its key attributes, applicable standfirst fields and fields filled on at least a quarter of its first result's rows. The register uses at most six starting columns, including Title and derived Refs. It records that choice in pane history, so later searches keep it. Existing saved recipes remain unchanged.
+An unsaved entity view starts with its key attributes, applicable standfirst
+fields and fields filled on at least a quarter of its first result's rows. The
+register uses at most six starting columns, including Title and derived Refs. It
+records that choice in pane history, so later searches keep it. Existing saved
+recipes remain unchanged.
 
 ## Tasks
 
-A task record adds optional status (todo, doing, waiting, done, canceled), scheduled and deadline dates with optional times, warning lead, repeater and priority. No status means an appointment: a scheduled atom with no checkbox. `@` planning creates an appointment; `#task` and task commands set todo. Adding `#task` to an appointment keeps its dates and adds todo status. Dates are local civil dates; times are `HH:MM` labels, not timestamps. Scheduling after a deadline is valid. Removing the task deactivates it without erasing its history.
+A task record adds optional status (todo, doing, waiting, done, canceled),
+scheduled and deadline dates with optional times, warning lead, repeater and
+priority. No status means an appointment: a scheduled atom with no checkbox. `@`
+planning creates an appointment. `#task` and task commands set todo. Adding
+`#task` to an appointment keeps its dates and adds todo status. Dates are local
+civil dates, and times are `HH:MM` labels. Neither represents a timestamp.
+Scheduling after a deadline is valid. Removing the task deactivates it without
+erasing its history.
 
-The focused atom shows one field bed in Task template order, with task-backed fields beside user field entries. Existing values remain visible even without a template slot. Status Done uses completion rather than setting a copied field value, preserving repeat advancement, work-session guards, undo and sync. An appointment shows Scheduled plus fields the person adds; Make task adds todo status and the Task template without moving the atom or changing its date.
+The focused atom shows one field bed in Task template order, with task-backed
+fields beside user field entries. Existing values remain visible even without a
+template slot. Status Done uses completion rather than setting a copied field
+value, preserving repeat advancement, work-session guards, undo and sync. An
+appointment shows Scheduled plus fields the person adds; Make task adds todo
+status and the Task template without moving the atom or changing its date.
 
-Completion records the exact planning snapshot and explicit completion date. A nonrecurring task becomes done; a recurring task stays on its original block and advances its dates. Fixed repeats advance one interval, catch-up repeats skip to the first interval after completion, and after-completion repeats count from the completion date. The scheduled date is the anchor when present, otherwise the deadline. Month/year repeats clamp to the last valid day; the signed separation between scheduled and deadline dates stays intact. Completion never archives. Undo reverses the exact latest occurrence only while its resulting task state still matches.
+Completion records the exact planning snapshot and explicit completion date. A
+nonrecurring task becomes done. A recurring task stays on its original block and
+advances its dates. Fixed repeats advance one interval, catch-up repeats skip to
+the first interval after completion, and after-completion repeats count from the
+completion date. The scheduled date is the anchor when present, otherwise the
+deadline. Month/year repeats clamp to the last valid day. The signed separation
+between scheduled and deadline dates stays intact. Completion never archives.
+Undo reverses the exact latest occurrence only while its resulting task state
+still matches.
 
-An appointment cannot be completed or advanced by a repeater. Completion is refused with `Add #task before completing.` A work session also requires an unfinished status.
+An appointment cannot be completed or advanced by a repeater. Completion is
+refused with `Add #task before completing.` A work session also requires an
+unfinished status.
 
-Status is stored, not a fixed workflow. `SetTask` moves between the unfinished statuses, cancels, or reopens a done task; only `CompleteTask` makes a task done, and a repeating task goes back to todo with its dates advanced. Undo restores the saved status and plan, including the completion date when undoing task removal without reversing its occurrence, so it has no arrow.
+Status is stored, not a fixed workflow. `SetTask` moves between the unfinished
+statuses, cancels, or reopens a done task; only `CompleteTask` makes a task
+done, and a repeating task goes back to todo with its dates advanced. Undo
+restores the saved status and plan, including the completion date when undoing
+task removal without reversing its occurrence, so it has no arrow.
 
 ```mermaid
 stateDiagram-v2
@@ -352,536 +659,1025 @@ stateDiagram-v2
     end note
 ```
 
-Clocked work sessions retain their start, end, note and revision. Only one unreversed session may run in a workshop. Completion, cancellation, removal and hiding the running task require an explicit stop first; stop and completion can commit atomically. Reversing a work command retains its audit record.
+Clocked work sessions retain their start, end, note and revision. Only one
+unreversed session may run in a workshop. Completion, cancellation, removal and
+hiding the running task require an explicit stop first; stop and completion can
+commit atomically. Reversing a work command retains its audit record.
 
-Task queries compose source type/text/field constraints with task status, priority, project ancestry and independent date ranges. Unfinished-or-recent selection includes unfinished tasks or an unreversed completion in the inclusive context-date range. Filtering precedes the outer result limit. The client query line resolves type and project titles to canonical IDs and relative dates to civil dates; field predicates remain separate from its text syntax. Named task views retain the full query, including its date context, rather than a textual query.
+Task queries compose source type/text/field constraints with task status,
+priority, project ancestry and independent date ranges. Unfinished-or-recent
+selection includes unfinished tasks or an unreversed completion in the inclusive
+context-date range. Filtering precedes the outer result limit. The client query
+line resolves type and project titles to canonical IDs and relative dates to
+civil dates; field predicates remain separate from its text syntax. Named task
+views retain the full query, including its date context, rather than a textual
+query.
 
-Task views exclude appointments, even with no status filter. Agenda day reads include appointments on their exact scheduled or deadline date, with the time and no checkbox. They do not carry an appointment forward as overdue work.
+Task views exclude appointments, even with no status filter. Agenda day reads
+include appointments on their exact scheduled or deadline date, with the time
+and no checkbox. They do not carry an appointment forward as overdue work.
 
-An agenda takes the displayed civil date, never an implicit device date. It merges schedule, deadline, warning, overdue, unplanned and in-progress reasons into one live row per canonical source. A completion on that date separately shows the latest occurrence's planning snapshot as done history; it never replaces the live task's advanced plan or current status. Canceled tasks are excluded. Opening a row edits the original block; the journal contains no copied tasks.
+An agenda takes the displayed civil date, never an implicit device date. It
+merges schedule, deadline, warning, overdue, unplanned and in-progress reasons
+into one live row per canonical source. A completion on that date separately
+shows the latest occurrence's planning snapshot as done history. It never
+replaces the live task's advanced plan or current status. Canceled tasks are
+excluded. Opening a row edits the original block. The journal contains no copied
+tasks.
 
 ## Investigations
 
-A question capability makes a block an enduring question with an optional revisit date. Criteria are blocks beneath it. An assessment capability turns any block into a dated reading of a question. At most one assessment per question is current. Write assessment adds a dated child block without accepting it. Assessments cite positions and passages through ordinary links and citations.
+A question capability makes a block an enduring question with an optional
+revisit date. Criteria are blocks beneath it. An assessment capability turns any
+block into a dated reading of a question. At most one assessment per question is
+current. Write assessment adds a dated child block without accepting it.
+Assessments cite positions and passages through ordinary links and citations.
 
-The decision journal appears once the question has an assessment. An empty question keeps Write assessment in its menu, Commands and slash completion.
+The decision journal appears once the question has an assessment. An empty
+question keeps Write assessment in its menu, Commands and slash completion.
 
 A question is in one of four states:
 
-| State | Meaning |
-|---|---|
-| Active | The default: no current answer yet |
-| Answered | A current answer exists and resolution is allowed |
-| Parked | Paused; it accepts nothing new until resumed |
+| State     | Meaning                                                   |
+| --------- | --------------------------------------------------------- |
+| Active    | The default: no current answer yet                        |
+| Answered  | A current answer exists and resolution is allowed         |
+| Parked    | Paused; it accepts nothing new until resumed              |
 | Recurrent | Open by design, with dated assessments and a revisit date |
 
-Stored with the question are whether it is recurrent (`unsettled`), whether it is parked, its review date, its current assessment and its answer history. State is derived in this order: parked, recurrent, answered when a live accepted assessment exists, otherwise active. Accept current answer on a recurrent question records an answer without resolving it. Make recurrent keeps it open. Allow resolution lets a current answer resolve it. Park stops it coming back. Resume returns it to its derived state.
+Stored with the question are whether it is recurrent (`unsettled`), whether it
+is parked, its review date, its current assessment and its answer history. State
+is derived in this order: parked, recurrent, answered when a live accepted
+assessment exists, otherwise active. Accept current answer on a recurrent
+question records an answer without resolving it. Make recurrent keeps it open.
+Allow resolution lets a current answer resolve it. Park stops it coming back.
+Resume returns it to its derived state.
 
-Accept current answer records a dated decision. Accepting another assessment records that the earlier answer was superseded on that date. Withdraw current answer clears the pointer and records its withdrawal date. The block, text and citations stay. Decisions live in the question's existing JSON state, with defaults for older workshops. Each change uses the ordinary revision-checked, undoable capability operation; undo restores the previous pointer and history together. Sync uses the same later-change-wins rule as other capabilities.
+Accept current answer records a dated decision. Accepting another assessment
+records that the earlier answer was superseded on that date. Withdraw current
+answer clears the pointer and records its withdrawal date. The block, text and
+citations stay. Decisions live in the question's existing JSON state, with
+defaults for older workshops. Each change uses the ordinary revision-checked,
+undoable capability operation; undo restores the previous pointer and history
+together. Sync uses the same later-change-wins rule as other capabilities.
 
-Remove assessment remains a separate destructive action: it removes the assessment capability, not its text, and clears acceptance in the same change. Undo restores the assessment before restoring acceptance. Removing and restoring a question with a current answer, including a parked question, restores its state and history. A parked question may withdraw its current answer but cannot accept a new one until resumed.
+Remove assessment remains a separate destructive action: it removes the
+assessment capability, not its text, and clears acceptance in the same change.
+Undo restores the assessment before restoring acceptance. Removing and restoring
+a question with a current answer, including a parked question, restores its
+state and history. A parked question may withdraw its current answer but cannot
+accept a new one until resumed.
 
-A question may name another question as its parent through a pointer in its question state. Set parent question changes it as one undoable edit. Plain “Part of” prose stays ordinary text and never sets a relation.
+A question may name another question as its parent through a pointer in its
+question state. Set parent question changes it as one undoable edit. Plain “Part
+of” prose stays ordinary text and never sets a relation.
 
-The effective parent is the explicit parent while that block is live and still a question, otherwise the nearest ancestor question. This includes inline questions. Removing or deleting the parent leaves the stored pointer untouched; the relation returns when the parent returns. A new parent must be a live question, not the question itself, and must not create a cycle through explicit or structural parents. Undo preserves a restored question's existing pointer while its parent is absent.
+The effective parent is the explicit parent while that block is live and still a
+question, otherwise the nearest ancestor question. This includes inline
+questions. Removing or deleting the parent leaves the stored pointer untouched;
+the relation returns when the parent returns. A new parent must be a live
+question, not the question itself, and must not create a cycle through explicit
+or structural parents. Undo preserves a restored question's existing pointer
+while its parent is absent.
 
-Branches are questions whose effective parent is this question, including question pages and inline questions. Add branch question creates a child question; its parent comes from its place. A question opens with branches before its body, showing state, perspective count, current answer and revisit date. Branches do not repeat in ordinary backlinks.
+Branches are questions whose effective parent is this question, including
+question pages and inline questions. Add branch question creates a child
+question; its parent comes from its place. A question opens with branches before
+its body, showing state, perspective count, current answer and revisit date.
+Branches do not repeat in ordinary backlinks.
 
-The Questions ledger groups questions by their top-level program, includes inline questions with their containing page, and counts both. Active includes active and recurrent questions. Recurrent, Due, Answered and Parked select their corresponding states; Due means a non-parked question whose revisit date has arrived. All includes every visible question. Rows report their current assessment's date and first line, derived from the live assessment rather than copied text.
+The Questions ledger groups questions by their top-level program, includes
+inline questions with their containing page, and counts both. Active includes
+active and recurrent questions. Recurrent, Due, Answered and Parked select their
+corresponding states; Due means a non-parked question whose revisit date has
+arrived. All includes every visible question. Rows report their current
+assessment's date and first line, derived from the live assessment rather than
+copied text.
 
 ## Sources, passages and positions
 
 ### Snapshots and passages
 
-A source is an atom with a source record. Library ingestion creates a page; `#source` can also activate an outline atom with no snapshot. Ingesting the same URL or file with different bytes creates a new, immutable snapshot identified by its content hash.
+A source is an atom with a source record. Library ingestion creates a page;
+`#source` can also activate an outline atom with no snapshot. Ingesting the same
+URL or file with different bytes creates a new, immutable snapshot identified by
+its content hash.
 
-- A snapshot holds the document's structure and passages: headings, paragraphs, footnotes and other units, each with a locator.
+- A snapshot holds the document's structure and passages: headings, paragraphs,
+  footnotes and other units, each with a locator.
 - Original bytes live in the workshop's object store, addressed by SHA-256.
 - Passages, structure and reading position live in the database.
-- Passages are evidence, not authored blocks, and are never edited.
+- Passages retain the extracted evidence and are never edited. They are separate
+  from authored blocks.
 
-Writing about a passage creates a block that cites it. A citation names the source, snapshot and passage, keeping the exact text read even after a newer snapshot exists.
+Writing about a passage creates a block that cites it. A citation names the
+source, snapshot and passage. This preserves the exact text read even after a
+newer snapshot exists.
 
 ### Bibliographic metadata
 
-Bibliographic metadata uses ordinary fields and entry/value blocks. The Library editor exposes:
+Bibliographic metadata uses ordinary fields and entry/value blocks. The Library
+editor exposes:
 
-| Purpose | Fields |
-|---|---|
-| Subtitle | Subtitle |
-| Ordered creators | Author, Editor and Translator person references |
-| Work | First published, Original language |
-| Edition | Published, Publisher, Edition, Series, Number, Volume, Issue, Page range, Pages, Language |
-| Identifiers | Repeated Identifier values for ISBN, DOI and arXiv |
-| Description and location | URL, Site, Description, Cover |
-| Reading dates | Started, Finished |
+| Purpose                  | Fields                                                                                    |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| Subtitle                 | Subtitle                                                                                  |
+| Ordered creators         | Author, Editor and Translator person references                                           |
+| Work                     | First published, Original language                                                        |
+| Edition                  | Published, Publisher, Edition, Series, Number, Volume, Issue, Page range, Pages, Language |
+| Identifiers              | Repeated Identifier values for ISBN, DOI and arXiv                                        |
+| Description and location | URL, Site, Description, Cover                                                             |
+| Reading dates            | Started, Finished                                                                         |
 
-Title remains the page title; tags remain page tags. Citation key and reading state belong to the source capability. Pages is a total page count, not a cited range; Number is the source's number within its series. Volume and Issue retain the journal's labels as text. Page range holds a journal locator, including an article number such as `e0132145`. Publication dates may be a year, year-month or full date.
+Title remains the page title, and tags remain page tags. Citation key and
+reading state belong to the source capability. Pages is a total page count. It
+does not hold a cited range. Number is the source's number within its series.
+Volume and Issue retain the journal's labels as text. Page range holds a journal
+locator, including an article number such as `e0132145`. Publication dates may
+be a year, year-month or full date.
 
-Non-empty bibliographic Pages values must contain only decimal digits and represent a positive whole number no greater than 9,007,199,254,740,991:
+Non-empty bibliographic Pages values must contain only decimal digits and
+represent a positive whole number no greater than 9,007,199,254,740,991:
 
 - The editor retains invalid drafts.
-- The command boundary rejects newly invalid values atomically, including edits outside Library.
-- Existing invalid values do not block unrelated work and may be cleared or repaired.
+- The command boundary rejects newly invalid values atomically, including edits
+  outside Library.
+- Existing invalid values do not block unrelated work and may be cleared or
+  repaired.
 - Generic Number fields and series Number retain their broader numeric domain.
 
-Optional metadata definitions are created on the first non-empty edit, reusing an ordinary definition by name without changing its kind. An empty inspector slot creates no definition, entry or value. These fields need no new source columns or database migration.
+Optional metadata definitions are created on the first non-empty edit, reusing
+an ordinary definition by name without changing its kind. An empty inspector
+slot creates no definition, entry or value. These fields need no new source
+columns or database migration.
 
-A snapshot's extracted value fills its field until an authored value replaces it. Resetting the field restores the extracted value; it is never discarded.
+A snapshot's extracted value fills its field until an authored value replaces
+it. Resetting the field restores the extracted value; it is never discarded.
 
 ### Metadata exports
 
-Exports read current field values, including authored overrides, and omit absent optional fields. BibTeX retains its BibLaTeX-compatible conventions:
-Both formats classify EPUBs and ISBN records as books, other DOI sources as journal articles, and remaining sources as web pages. BibTeX uses `book`, `article` and `online`; CSL uses `book`, `article-journal` and `webpage`.
+Exports read current field values, including authored overrides, and omit absent
+optional fields. BibTeX retains its BibLaTeX-compatible conventions: Both
+formats classify EPUBs and ISBN records as books, other DOI sources as journal
+articles, and remaining sources as web pages. BibTeX uses `book`, `article` and
+`online`; CSL uses `book`, `article-journal` and `webpage`.
 
-| Field | BibTeX | CSL JSON |
-|---|---|---|
-| First published | `origdate` | `original-date` |
-| Original language | `origlanguage` | `original-language` |
-| Published | `date`/`year` | `issued` |
-| Edition | `edition` | `edition` |
-| Series | `series` | `collection-title` |
-| Number | `number` | `collection-number` |
-| Volume | `volume` | `volume` |
-| Issue | `number` | `issue` |
-| Page range | `pages` | `page` |
-| Pages | `pages` | `number-of-pages` |
-| URL | `url` | `URL` |
-| Site | `journal` for journal articles, otherwise `organization` | `container-title` |
-| Description | `abstract` | `abstract` |
+| Field             | BibTeX                                                   | CSL JSON            |
+| ----------------- | -------------------------------------------------------- | ------------------- |
+| First published   | `origdate`                                               | `original-date`     |
+| Original language | `origlanguage`                                           | `original-language` |
+| Published         | `date`/`year`                                            | `issued`            |
+| Edition           | `edition`                                                | `edition`           |
+| Series            | `series`                                                 | `collection-title`  |
+| Number            | `number`                                                 | `collection-number` |
+| Volume            | `volume`                                                 | `volume`            |
+| Issue             | `number`                                                 | `issue`             |
+| Page range        | `pages`                                                  | `page`              |
+| Pages             | `pages`                                                  | `number-of-pages`   |
+| URL               | `url`                                                    | `URL`               |
+| Site              | `journal` for journal articles, otherwise `organization` | `container-title`   |
+| Description       | `abstract`                                               | `abstract`          |
 
-Partial original dates retain their precision independently of Published. CSL's `number-of-pages` is a count, never its `page` range. When both exist, BibTeX uses Page range for `pages`; Issue takes precedence over series Number for `number`. Record plans accept `volume`, `issue` and `page_range` (also `page` or `pages`); lookup and snapshot ingestion keep these values in ordinary fields.
+Partial original dates retain their precision independently of Published. CSL's
+`number-of-pages` is a count, never its `page` range. When both exist, BibTeX
+uses Page range for `pages`. Issue takes precedence over series Number for
+`number`. Record plans accept `volume`, `issue` and `page_range` (also `page` or
+`pages`). Lookup and snapshot ingestion keep these values in ordinary fields.
 
-Markdown retains the source title, author/date/citation-key heading, URL, highlights and notes, and adds metadata as labeled values. Started and Finished export only as Markdown labels. They are reading history, not publication or access dates, so neither standard format receives a misleading date or custom key.
+Markdown retains the source title, author/date/citation-key heading, URL,
+highlights and notes, and adds metadata as labeled values. Started and Finished
+record reading history and export only as Markdown labels. Neither represents
+publication or access dates, and both are omitted from BibTeX and CSL JSON
+without adding custom keys.
 
 ### Reading state and position
 
-Reading state (inbox, reading, finished, abandoned) belongs to the source. Reading position belongs to a snapshot; source progress is that position as a share of its current snapshot's text.
+Reading state (inbox, reading, finished, abandoned) belongs to the source.
+Reading position belongs to a snapshot; source progress is that position as a
+share of its current snapshot's text.
 
-Reading position is navigation state, not an authored change. It is stored per snapshot, is not undoable and adds no change rows. The first recorded reading of an inbox source changes its state to reading through an ordinary attributed batch.
+Reading position is navigation state, not an authored change. It is stored per
+snapshot, is not undoable and adds no change rows. The first recorded reading of
+an inbox source changes its state to reading through an ordinary attributed
+batch.
 
-Opening a citation is not reading: it changes neither state nor position. A citation jump must not call the reading-position endpoint.
+Opening a citation is not reading: it changes neither state nor position. A
+citation jump must not call the reading-position endpoint.
 
 ### Citation keys and sigla
 
-Citation keys are assigned when a source is made: at ingestion, or for a `#source` or source-action record at the end of the change that makes it, from the title and fields that change leaves it with. They are never recomputed when fields change. An explicit authored edit may replace or clear the key. Opening a workshop once gives each active source still without a key its suggested key, as one change.
+Citation keys are assigned when a source is made: at ingestion, or for a
+`#source` or source-action record at the end of the change that makes it, from
+the title and fields that change leaves it with. They are never recomputed when
+fields change. An explicit authored edit may replace or clear the key. Opening a
+workshop once gives each active source still without a key its suggested key, as
+one change.
 
 A suggested key combines:
 
-1. The ASCII-folded lowercase family name of the first author, otherwise editor, site or `anon`.
+1. The ASCII-folded lowercase family name of the first author, otherwise editor,
+   site or `anon`.
 2. The publication year, otherwise `nd`.
 3. The first non-stopword title word.
 
-Only letters and digits remain. Collisions gain `a` through `z`, then `aa` and onward.
+Only letters and digits remain. Collisions gain `a` through `z`, then `aa` and
+onward.
 
-Authored keys start with a letter, contain at most 64 letters, digits, underscores, colons or hyphens, and are unique among active sources ignoring case. A conflicting key is rejected, not silently suffixed or used to change the other source's key.
+Authored keys start with a letter, contain at most 64 letters, digits,
+underscores, colons or hyphens, and are unique among active sources ignoring
+case. A conflicting key is rejected, not silently suffixed or used to change the
+other source's key.
 
 Every source has a siglum, a short mark as in a critical edition:
 
-- **Authored:** a trimmed Siglum field of one to four letters wins and is upper-cased. Invalid values are ignored; clearing the override restores the derived mark.
-- **Derived:** use the first three letters of the first author's family name, else editor, site or the title's first word containing letters. Keep Unicode letters, skip non-letters and upper-case the result; shorter names use what they have.
+- **Authored:** a trimmed Siglum field of one to four letters wins and is
+  upper-cased. Invalid values are ignored; clearing the override restores the
+  derived mark.
+- **Derived:** use the first three letters of the first author's family name,
+  else editor, site or the title's first word containing letters. Keep Unicode
+  letters, skip non-letters and upper-case the result; shorter names use what
+  they have.
 
-Only the authored override is stored, as an ordinary field. The effective siglum, full letter-only basis and whether it is authored are derived on reads, so editing an author changes the default mark. CSL JSON exports it as `citation-label`.
+Only the authored override is stored, as an ordinary field. The effective
+siglum, full letter-only basis and whether it is authored are derived on reads,
+so editing an author changes the default mark. CSL JSON exports it as
+`citation-label`.
 
-Unlike citation keys, sigla need not be unique. Library shows each source's own mark. In a citation context with more than one source:
+Unlike citation keys, sigla need not be unique. Library shows each source's own
+mark. In a citation context with more than one source:
 
-- Extend a later colliding derived siglum with further letters of its basis name, in order of first appearance (`THO`, `THOM`, `THOMA`).
+- Extend a later colliding derived siglum with further letters of its basis
+  name, in order of first appearance (`THO`, `THOM`, `THOMA`).
 - Once the basis runs out, append `2`, `3`, … .
 - Authored sigla never change.
 
 ### Highlights and positions
 
-A highlight is an authored block that cites a passage, usually on the source's page. A citing block on another page is a highlight too; the source page lists it under Filed elsewhere. Like any block, it takes children, types, fields and card syntax. It is unprocessed when it has no non-blank children, no card and no incoming reference.
+A highlight is an authored block that cites a passage, usually on the source's
+page. A citing block on another page is a highlight too; the source page lists
+it under Filed elsewhere. Like any block, it takes children, types, fields and
+card syntax. It is unprocessed when it has no non-blank children, no card and no
+incoming reference.
 
-Marking a highlight processed or unprocessed overrides that rule until cleared; this is the only stored triage state. Because passages never change, a passage citation is a frozen quotation by construction.
+Marking a highlight processed or unprocessed overrides that rule until cleared;
+this is the only stored triage state. Because passages never change, a passage
+citation is a frozen quotation by construction.
 
-A position is an attributed claim: who holds it, about which question or subject, supported by which passages. A position capability marks an ordinary block as one; the interface calls it a perspective, and the `positions` query source is labeled Perspectives. Holder and subject are derived from its text and place, never stored:
+A position is an attributed claim: who holds it, about which question or
+subject, supported by which passages. A position capability marks an ordinary
+block as one; the interface calls it a perspective, and the `positions` query
+source is labeled Perspectives. Holder and subject are derived from its text and
+place, never stored:
 
-- **Holder:** the page its first link points to. It should be an entity, a person or group; otherwise the position keeps its holder and reports a problem until the page is filed or the holder changed.
-- **Subject:** the block or page its second link points to, else its nearest ancestor question, else its page.
+- **Holder:** the page its first link points to. It should be an entity, a
+  person or group; otherwise the position keeps its holder and reports a problem
+  until the page is filed or the holder changed.
+- **Subject:** the block or page its second link points to, else its nearest
+  ancestor question, else its page.
 
-A deleted first-link target keeps its last-known readable name in derived perspective reads, separately from the live holder ID. Its problem identifies a deleted holder and offers Change holder. The authored link and research stay untouched, so restoring the holder restores the live attribution.
+A deleted first-link target keeps its last-known readable name in derived
+perspective reads, separately from the live holder ID. Its problem identifies a
+deleted holder and offers Change holder. The authored link and research stay
+untouched, so restoring the holder restores the live attribution.
 
-Change holder and File under write the first and second link tokens through pickers. They keep the rest of the text. Change holder keeps an alias only when it also names the new holder. Use place removes a standalone subject token directly after the holder; a subject woven into prose stays for the author to edit. Each action is one undo step.
+Change holder and File under write the first and second link tokens through
+pickers. They keep the rest of the text. Change holder keeps an alias only when
+it also names the new holder. Use place removes a standalone subject token
+directly after the holder; a subject woven into prose stays for the author to
+edit. Each action is one undo step.
 
-A position can therefore sit beneath a source-page highlight and still be filed under its concept. Its fields are ordinary children, by convention:
+A position can therefore sit beneath a source-page highlight and still be filed
+under its concept. Its fields are ordinary children, by convention:
 
 - **Gist:** its one-line summary.
-- **Work:** the primary work it names, which gives its siglum; otherwise the first passage cited beneath it. The built-in `work` field is a relation to Source. An older text Work keeps its kind until a reviewed kind change maps its values.
-- **Account:** the secondary account, such as a position as another writer presents it. It shows under its own label, separate from Work and cited evidence.
+- **Work:** the primary work it names, which gives its siglum; otherwise the
+  first passage cited beneath it. The built-in `work` field is a relation to
+  Source. An older text Work keeps its kind until a reviewed kind change maps
+  its values.
+- **Account:** the secondary account, such as a position as another writer
+  presents it. It shows under its own label, separate from Work and cited
+  evidence.
 - Whatever criteria positions on one subject share.
 
-Positions on the same subject are compared side by side, never merged. Assessments cite positions and passages, tracing a conclusion to its evidence.
+Positions on the same subject are compared side by side, never merged.
+Assessments cite positions and passages, tracing a conclusion to its evidence.
 
-A subject may own an explicit ordered set of criterion fields. Without rows in that set, Compare derives criteria from active positions' field entries in outline order, excluding Gist, Work and Account. Position values remain ordinary entry/value blocks; explicit criteria offer missing fields as empty slots.
+A subject may own an explicit ordered set of criterion fields. Without rows in
+that set, Compare derives criteria from active positions' field entries in
+outline order, excluding Gist, Work and Account. Position values remain ordinary
+entry/value blocks; explicit criteria offer missing fields as empty slots.
 
-A position's recipe offers Gist, Work, then its subject's criteria, explicit when present and otherwise derived. Add field lists the missing recipe fields first under From this recipe. Filling mode uses the same order. Recipes are derived suggestions, not stored templates; they never require or add a field without an edit.
+A position's recipe derives suggestions in this order: Gist, Work, then its
+subject's criteria, explicit when present and otherwise derived. Add field lists
+the missing recipe fields first under From this recipe. Filling mode uses the
+same order. These suggestions are not stored templates and never require or add
+a field without an edit.
 
-Questions beneath the subject attach to the first criterion linked in their text. They are scoped to the linked holder pages of its positions, or to all holders when none are named. These attachments are derived.
+Questions beneath the subject attach to the first criterion linked in their
+text. They are scoped to the linked holder pages of its positions, or to all
+holders when none are named. These attachments are derived.
 
-Compare question focus is view state, never workshop content. It shows the perspectives of the question's linked holders and marks its criterion; the two sheets share a perspective selection. Cell commits edit the ordinary value blocks through their page document and use that document's history.
+Compare question focus is view state, never workshop content. It shows the
+perspectives of the question's linked holders and marks its criterion; the two
+sheets share a perspective selection. Cell commits edit the ordinary value
+blocks through their page document and use that document's history.
 
-A criterion cell is identified by its position and field IDs. A refreshed position read preserves its focused cell; keyboard commit returns focus to that cell for the next history command.
+A criterion cell is identified by its position and field IDs. A refreshed
+position read preserves its focused cell; keyboard commit returns focus to that
+cell for the next history command.
 
-Criterion cells use the definition's kind and the field bed's shared value editors. Choice and Relation selections write target references, Date uses its calendar for readable or empty values, and Checkbox writes `yes` or `no`. Span values retain their written notation in the text editor.
+Criterion cells use the definition's kind and the field bed's shared value
+editors. Choice and Relation selections write target references, Date uses its
+calendar for readable or empty values, and Checkbox writes `yes` or `no`. Span
+values retain their written notation in the text editor.
 
-Quoted criterion values keep the ordinary block's frozen quote capability and `((ID))` text. A newly inserted value and its snapshot share one document change, including the field entry when it is missing.
+Quoted criterion values keep the ordinary block's frozen quote capability and
+`((ID))` text. A newly inserted value and its snapshot share one document
+change, including the field entry when it is missing.
 
-A holder's register groups its positions by their derived subjects and opens each position in its original place. A position zoom is a dossier of that perspective with block-scoped incoming links and relations, not the containing page's backlinks.
+A holder's register groups its positions by their derived subjects and opens
+each position in its original place. A position zoom is a dossier of that
+perspective with block-scoped incoming links and relations, not the containing
+page's backlinks.
 
-Read from a position zoom opens its titled subject in the unzoomed Read projection, revealing that position in the subject's local register or filed-elsewhere section. Reveal and its brief highlight are pane navigation state. The stored caret and scroll retain the location after reload; no block is copied or edited.
+Read from a position zoom opens its titled subject in the unzoomed Read
+projection, revealing that position in the subject's local register or
+filed-elsewhere section. Reveal and its brief highlight are pane navigation
+state. The stored caret and scroll retain the location after reload; no block is
+copied or edited.
 
-Only identical trimmed authored cell text is marked as an exact repeat; differing wording implies nothing.
+Only identical trimmed authored cell text is marked as an exact repeat;
+differing wording implies nothing.
 
-A page's gloss is an entry for the Gloss field among its top-level blocks: the one- or two-sentence hover form shown under the title and in reference previews. It is an ordinary field, built in with the standfirst role and created on first use.
+A page's gloss is an entry for the Gloss field among its top-level blocks: the
+one- or two-sentence hover form shown under the title and in reference previews.
+It is an ordinary field, built in with the standfirst role and created on first
+use.
 
-These map the three kinds of knowledge in the [vision](vision.md): a fact is an ordinary block, with a passage when it came from reading; someone else's view is a position; your own conclusion is an assessment. A perspective lens is a view of positions grouped by holder.
+These map the three kinds of knowledge in the [vision](vision.md):
+
+- A fact is an ordinary block, with a passage when it came from reading.
+- Someone else's view is a position.
+- Your own conclusion is an assessment.
+
+A perspective lens is a view of positions grouped by holder.
 
 ### Arguments
 
-An argument capability, stored as a relation, marks an ordinary block as an authored argument edge. Its stored kind is `supports`, `disputes`, `qualifies` or `answers`. The block's text and children hold the reasoning and may cite passages. An edge cannot also be a position, question or assessment. Relations are never inferred from wording, link labels or differences between readings.
+An argument capability, stored as a relation, marks an ordinary block as an
+authored argument edge. Its stored kind is `supports`, `disputes`, `qualifies`
+or `answers`. The block's text and children hold the reasoning and may cite
+passages. An edge cannot also be a position, question or assessment. Relations
+are never inferred from wording, link labels or differences between readings.
 
 The endpoints are derived from the block's text and place, never stored:
 
 - **Target:** the first linked block or page, when it is live and visible.
-- **Source:** the nearest ancestor position or assessment; without either, the nearest ancestor question; without one, the page root. The edge itself is excluded.
+- **Source:** the nearest ancestor position or assessment; without either, the
+  nearest ancestor question; without one, the page root. The edge itself is
+  excluded.
 
-An edge with no target or a deleted target shows a problem. An `answers` edge also shows a problem when its target is not an active question. These problems never reject or rewrite the authored text.
+An edge with no target or a deleted target shows a problem. An `answers` edge
+also shows a problem when its target is not an active question. These problems
+never reject or rewrite the authored text.
 
-Relation reads filter by kind, source, target, source holder or target holder, with at least one filter. A holder filter matches a position held by that page or the holder page itself. Results include the edge, both endpoints with their containing pages, each position endpoint's holder and any problem. Moving an edge or changing its first link changes its derived endpoints.
+Relation reads filter by kind, source, target, source holder or target holder,
+with at least one filter. A holder filter matches a position held by that page
+or the holder page itself. Results include the edge, both endpoints with their
+containing pages, each position endpoint's holder and any problem. Moving an
+edge or changing its first link changes its derived endpoints.
 
-Arguments and relation fields stay separate. An argument's source is derived from its place, so under a plain tagged block it would be the page root, not that block. Arguments also carry fixed meanings that Perspectives reads. A relation field is named by its author, starts at the block that owns it and feeds tables and lenses. A `qualifies` field and a Qualifies… argument therefore appear on different surfaces.
+Arguments and relation fields stay separate. An argument's source is derived
+from its place, so under a plain tagged block it would be the page root, not
+that block. Arguments also carry fixed meanings that Perspectives reads. A
+relation field is named by its author, starts at the block that owns it and
+feeds tables and lenses. A `qualifies` field and a Qualifies… argument therefore
+appear on different surfaces.
 
 ## Projects
 
-A project capability gives a block an outcome, an optional deadline and active, done or canceled status. Tasks belong by ancestry or by an explicit `Project` relation field whose value references a block with an active project capability. The explicit field wins over ancestry; otherwise nested tasks report their nearest active project. A link in task prose does not assign membership. Removing a field assignment restores ancestry membership, if any. A completed project's capability remains active until explicitly removed. Completing a project does not complete its tasks or reassess questions beneath it. Removing the capability retains its history and block identity.
+A project capability gives a block an outcome, an optional deadline and active,
+done or canceled status. Tasks belong by ancestry or by an explicit `Project`
+relation field whose value references a block with an active project capability.
+The explicit field wins over ancestry; otherwise nested tasks report their
+nearest active project. A link in task prose does not assign membership.
+Removing a field assignment restores ancestry membership, if any. A completed
+project's capability remains active until explicitly removed. Completing a
+project does not complete its tasks or reassess questions beneath it. Removing
+the capability retains its history and block identity.
 
 ## Notes
 
-A note is a titled page: a root block of kind page. Journal days and the Fields page are not notes. Blocks beneath the title are its content; there is no separate note record or copy. They keep their own behavior, so a note can hold tasks, cards, questions and positions.
+A note is a titled page: a root block of kind page. Journal days and the Fields
+page are not notes. Blocks beneath the title are its content; there is no
+separate note record or copy. They keep their own behavior, so a note can hold
+tasks, cards, questions and positions.
 
-Read, Outline and Compare are projections of that same document. Opening a projection creates nothing. Projection choices, folds and reading disclosures are device-local view state, not note content.
+Read, Outline and Compare are projections of that same document. Opening a
+projection creates nothing. Projection choices, folds and reading disclosures
+are device-local view state, not note content.
 
-A reading subject is a question page or a page holding active positions about itself or its inline questions. Positions held on other pages do not make a holder's page a reading subject. The projections preserve field identities; a source's catalog card owns its bibliographic fields.
+A reading subject is a question page or a page holding active positions about
+itself or its inline questions. Positions held on other pages do not make a
+holder's page a reading subject. The projections preserve field identities; a
+source's catalog card owns its bibliographic fields.
 
 ### Kinds
 
 A kind says what a note is about. These are built in:
 
-| Kind | Marked by | Meaning |
-|---|---|---|
-| Person | `#person` | An individual, such as an author or a thinker |
-| Group | `#group` | A collective: an organization, a school, a dynasty, a people |
-| Concept | `#concept` | An idea, term or phenomenon, explained and compared |
-| Thesis | `#thesis` | A claim you hold, stated as the title and argued beneath it |
-| Question | A question capability on the page | An enduring question; see Investigations |
-| Source | A source capability on the page | Something read, watched or listened to |
-| Project | A project capability on the page | A bounded outcome |
+| Kind     | Marked by                         | Meaning                                                      |
+| -------- | --------------------------------- | ------------------------------------------------------------ |
+| Person   | `#person`                         | An individual, such as an author or a thinker                |
+| Group    | `#group`                          | A collective: an organization, a school, a dynasty, a people |
+| Concept  | `#concept`                        | An idea, term or phenomenon, explained and compared          |
+| Thesis   | `#thesis`                         | A claim you hold, stated as the title and argued beneath it  |
+| Question | A question capability on the page | An enduring question; see Investigations                     |
+| Source   | A source capability on the page   | Something read, watched or listened to                       |
+| Project  | A project capability on the page  | A bounded outcome                                            |
 
-Person and Group are entities: pages referred to by a position's holder or a source's creators. A page is an entity when it is filed as Person or Group, or as a type that is itself filed as one.
+Person and Group are entities: pages referred to by a position's holder or a
+source's creators. A page is an entity when it is filed as Person or Group, or
+as a type that is itself filed as one.
 
-- Person, Group, Concept and Thesis are system types in every workshop, like the Fields page. They take templates and fields like any type and cannot be deleted or merged.
-- An existing type with one of those titles becomes the built-in kind, keeping its page, members, fields and template.
+- Person, Group, Concept and Thesis are system types in every workshop, like the
+  Fields page. They take templates and fields like any type and cannot be
+  deleted or merged.
+- An existing type with one of those titles becomes the built-in kind, keeping
+  its page, members, fields and template.
 - Question, Source and Project come from capabilities and need no tag.
 
 Types you define are also kinds, listed after the built-ins:
 
-- A type can refine one built-in kind, as Philosopher refines Person. Its members are filed under both; positions and creators treat them as that kind.
-- A note can have more than one kind and is filed under each. A note with none is unfiled.
-- Tasks are a built-in tag kind, available on pages and outline atoms. Cards are faces derived from atom text. Agenda and Review remain their places.
+- A type can refine one built-in kind, as Philosopher refines Person. Its
+  members are filed under both; positions and creators treat them as that kind.
+- A note can have more than one kind and is filed under each. A note with none
+  is unfiled.
+- Tasks are a built-in tag kind, available on pages and outline atoms. Cards are
+  faces derived from atom text. Agenda and Review remain their places.
 
-A source's form is a built-in Form choice field, created on first use with the options book, chapter, article, paper, report, post, thread, video and web page; more options are added as for any choice field. Lookup and ingestion do not fill it yet, and export still derives the CSL type and BibTeX entry type from the format and identifiers.
+A source's form is a built-in Form choice field, created on first use with the
+options book, chapter, article, paper, report, post, thread, video and web page;
+more options are added as for any choice field. Lookup and ingestion do not fill
+it yet, and export still derives the CSL type and BibTeX entry type from the
+format and identifiers.
 
-Built-in kinds start with templates, filled in only when wanted. Their fields are built in: the core owns their lowercase names, kinds and Links to types. A definition added under one of their names, in any case, gets that built-in definition in the same change, whichever client adds it and whatever kind it asks for: the editor's `published:: 1843`, agent shorthand, the Fields register and a template's new field alike. The core writes the lowercase name and kind, the starting role unless that change set one, files Links to types where those type pages exist and gives Form its starting options, so a client reads the definition back rather than assuming the one it asked for. Renaming an existing field to a built-in name does not change its kind.
+Built-in kinds start with templates, filled in only when wanted. Their fields
+are built in: the core owns their lowercase names, kinds and Links to types. A
+definition added under one of their names, in any case, gets that built-in
+definition in the same change, whichever client adds it and whatever kind it
+asks for: the editor's `published:: 1843`, agent shorthand, the Fields register
+and a template's new field alike. The core writes the lowercase name and kind,
+the starting role unless that change set one, files Links to types where those
+type pages exist and gives Form its starting options, so a client reads the
+definition back rather than assuming the one it asked for. Renaming an existing
+field to a built-in name does not change its kind.
 
-| Kind | Template fields |
-|---|---|
-| person | aliases, lived (span), affiliated with (a relation to Group) |
-| group | aliases, active (span) |
-| concept | aliases, coined by (a relation to Person or Group), coined in (a relation to Source) |
-| book | author (required; a relation to Person or Group), editor, translator, published, publisher, identifier, language |
-| article | author, site, published, url |
+| Kind    | Template fields                                                                                                  |
+| ------- | ---------------------------------------------------------------------------------------------------------------- |
+| person  | aliases, lived (span), affiliated with (a relation to Group)                                                     |
+| group   | aliases, active (span)                                                                                           |
+| concept | aliases, coined by (a relation to Person or Group), coined in (a relation to Source)                             |
+| book    | author (required; a relation to Person or Group), editor, translator, published, publisher, identifier, language |
+| article | author, site, published, url                                                                                     |
 
-- A new type page with one of these titles gets its template. An existing page with an empty template offers it instead.
-- Required is rare: only a book requires author. Opening the workshop adds a missing author to Book's template; every other template field can be removed or reordered.
-- Required asks for attention and never refuses a note. A required field stays in its template: a change that drops it is refused with the reason, such as “Books require author.” A member without a nonblank value is incomplete. Its slot shows whatever the field's Hide setting, and the type reads each required field with a count of the members that lack it, which is the field's `empty` filter.
-- A built-in field cannot be renamed, only recased. Opening the workshop recases older Title Case names, such as Author, and gives a built-in relation with no Links to types the types it expects, where those type pages exist. A built-in field changed to a relation gets them in the same change. Opening never changes a field's kind, so an older `lived` stays text until a reviewed kind change. These are ordinary synced edits.
-- A built-in relation links to its types only where those type pages exist; it never creates Person or Group.
+- A new type page with one of these titles gets its template. An existing page
+  with an empty template offers it instead.
+- Required is rare: only a book requires author. Opening the workshop adds a
+  missing author to Book's template; every other template field can be removed
+  or reordered.
+- Required asks for attention and never refuses a note. A required field stays
+  in its template: a change that drops it is refused with the reason, such as
+  “Books require author.” A member without a nonblank value is incomplete. Its
+  slot shows whatever the field's Hide setting, and the type reads each required
+  field with a count of the members that lack it, which is the field's `empty`
+  filter.
+- A built-in field cannot be renamed, only recased. Opening the workshop recases
+  older Title Case names, such as Author, and gives a built-in relation with no
+  Links to types the types it expects, where those type pages exist. A built-in
+  field changed to a relation gets them in the same change. Opening never
+  changes a field's kind, so an older `lived` stays text until a reviewed kind
+  change. These are ordinary synced edits.
+- A built-in relation links to its types only where those type pages exist; it
+  never creates Person or Group.
 - A question page uses Add alias, since it has no type to carry a template.
-- A Group's members are the people affiliated with it, read back on its page as `← affiliated with`, not a second list.
+- A Group's members are the people affiliated with it, read back on its page as
+  `← affiliated with`, not a second list.
 - Templates change like any type's and never rewrite notes.
-- Thesis starts without a template. A perspective's holder remains its first link.
+- Thesis starts without a template. A perspective's holder remains its first
+  link.
 
 ### Counts as
 
-A field may count as creator, contributor or originator, so readers find who made a work by what a field means rather than by its name. A built-in field counts as the schema says and cannot change, like its name: author and editor count as creator, translator as contributor, and coined by and coined in as originator. Any text or relation field of the workshop's own can count as one of them, or as nothing, the default. A field of another kind cannot.
+A field may count as creator, contributor or originator, so readers find who
+made a work by what a field means rather than by its name. A built-in field
+counts as the schema says and cannot change, like its name: author and editor
+count as creator, translator as contributor, and coined by and coined in as
+originator. Any text or relation field of the workshop's own can count as one of
+them, or as nothing, the default. A field of another kind cannot.
 
-- A work's creators are its creator fields' values, author first and then the other fields in Fields page order. Editors count only when a work has no other creator.
-- `@creator`, sigla, the bibliography byline, Library search and the Markdown export header read these creators. A director that counts as creator files a film under its director with no code change.
-- Contributors, such as translators, are listed after the creators and never appear in a byline, siglum or sort. `@contributor` reads them.
-- BibTeX and CSL keep author, editor and translator. Another field exports as the CSL name variable its name matches, such as `director`, and otherwise as author for a creator or contributor for a contributor. BibTeX takes only its three roles. A plain `et al.` closing a byline exports as BibTeX `and others` and is left out of CSL names.
-- A person's Works lists works whose creator fields, editors or translators name them, so those fields are left out of the person's `←` lines.
+- A work's creators are its creator fields' values, author first and then the
+  other fields in Fields page order. Editors count only when a work has no other
+  creator.
+- `@creator`, sigla, the bibliography byline, Library search and the Markdown
+  export header read these creators. A director that counts as creator files a
+  film under its director with no code change.
+- Contributors, such as translators, are listed after the creators and never
+  appear in a byline, siglum or sort. `@contributor` reads them.
+- BibTeX and CSL keep author, editor and translator. Another field exports as
+  the CSL name variable its name matches, such as `director`, and otherwise as
+  author for a creator or contributor for a contributor. BibTeX takes only its
+  three roles. A plain `et al.` closing a byline exports as BibTeX `and others`
+  and is left out of CSL names.
+- A person's Works lists works whose creator fields, editors or translators name
+  them, so those fields are left out of the person's `←` lines.
 - Originator is recorded but not yet read.
 
 ### Aliases
 
-A note's aliases are values of the built-in aliases field among its top-level blocks, stored like the gloss and available on every page. An alias is a whole other name: Tully for Cicero, sublation for Aufhebung, a short name for a long question.
+A note's aliases are values of the built-in aliases field among its top-level
+blocks, stored like the gloss and available on every page. An alias is a whole
+other name: Tully for Cicero, sublation for Aufhebung, a short name for a long
+question.
 
-Aliases need not be unique; two Plinys may both have Pliny. Matching ignores case, diacritics and apostrophes, treating other punctuation as a space. Thus `J. M. Keynes` and `j m keynes` are one name.
+Aliases need not be unique; two Plinys may both have Pliny. Matching ignores
+case, diacritics and apostrophes, treating other punctuation as a space. Thus
+`J. M. Keynes` and `j m keynes` are one name.
 
-Completion and Find match titles and aliases. An alias result names that alias. Words within an alias match while typing, but only a whole alias links on its own.
+Completion and Find match titles and aliases. An alias result names that alias.
+Words within an alias match while typing, but only a whole alias links on its
+own.
 
-Hand-typed `[[Name]]` left as text resolves by identity name or alias. Name matching removes title tags before folding case, diacritics and punctuation, so `[[Lab]]`, Find, completion, by-title API calls, MCP and agent title targets reach `Lab #project`. Lookup input follows the same rule: `Lab`, `lab` and `Lab #project` identify the same page. Creation duplicate checks and Similar pages use these names too:
+Hand-typed `[[Name]]` left as text resolves by identity name or alias. Name
+matching removes title tags before folding case, diacritics and punctuation, so
+`[[Lab]]`, Find, completion, by-title API calls, MCP and agent title targets
+reach `Lab #project`. Lookup input follows the same rule: `Lab`, `lab` and
+`Lab #project` identify the same page. Creation duplicate checks and Similar
+pages use these names too:
 
-| Matching pages | Result |
-|---|---|
-| None | Creates a page as before. |
-| One | Links as `[[id\|Name]]`, preserving the wording. |
-| Two or more | Stays unlinked and marked. Choosing one links it; nothing is created. |
+| Matching pages | Result                                                                |
+| -------------- | --------------------------------------------------------------------- |
+| None           | Creates a page as before.                                             |
+| One            | Links as `[[id\|Name]]`, preserving the wording.                      |
+| Two or more    | Stays unlinked and marked. Choosing one links it; nothing is created. |
 
-Agent notes resolve `[[Name]]` the same way as they are written. An exact title links as `[[id]]`, and one other match links as `[[id|Name]]`. Two or more refuse the change, naming each page and its ID, rather than leaving the name unlinked.
+Agent notes resolve `[[Name]]` the same way as they are written. An exact title
+links as `[[id]]`, and one other match links as `[[id|Name]]`. Two or more
+refuse the change, naming each page and its ID, rather than leaving the name
+unlinked.
 
-Imported source creators match people by title or alias after turning around catalog forms such as `Cicero, Marcus Tullius`:
+Imported source creators match people by title or alias after turning around
+catalog forms such as `Cicero, Marcus Tullius`:
 
 - One match links.
-- Two or more leave an unlinked `[[Name]]`, marked like a hand-typed reference, rather than guessing or creating a duplicate.
-- Choosing a person links it and adds the import's spelling as that person's alias.
+- Two or more leave an unlinked `[[Name]]`, marked like a hand-typed reference,
+  rather than guessing or creating a duplicate.
+- Choosing a person links it and adds the import's spelling as that person's
+  alias.
 
-Record and snapshot imports file creators of kind `organisation` as Group, not Person, and keep their names in the given order. A combined byline (`A and B`, `A/B`, `A & B` or `A; B`) stays a plain name rather than becoming one Person. Existing callers still create individual creator pages by default. Each creator can set `create_page: false` to keep an ordered plain name instead, even when a matching page exists; this choice creates no entity and preserves the byline in details and exports.
+Record and snapshot imports file creators of kind `organisation` as Group, not
+Person, and keep their names in the given order. A combined byline (`A and B`,
+`A/B`, `A & B` or `A; B`) stays a plain name rather than becoming one Person.
+Existing callers still create individual creator pages by default. Each creator
+can set `create_page: false` to keep an ordered plain name instead, even when a
+matching page exists; this choice creates no entity and preserves the byline in
+details and exports.
 
 Other alias rules:
 
-- **Merge.** The page that goes away leaves its title as an alias of the one that stays.
-- **Finding aids** list aliases as cross-references, `Tully, see Cicero`. A shared alias appears once and points to each page. Cross-references do not count as notes. An alias that only lengthens another alias of the same page, containing all its words, is omitted from cross-references but still matches.
-- **Sorting.** A finding aid sorts by the full title. A person sorts by family name only when the page sets a Sort as field, since classical, medieval and many non-European names have no family name to find.
+- **Merge.** The page that goes away leaves its title as an alias of the one
+  that stays.
+- **Finding aids** list aliases as cross-references, `Tully, see Cicero`. A
+  shared alias appears once and points to each page. Cross-references do not
+  count as notes. An alias that only lengthens another alias of the same page,
+  containing all its words, is omitted from cross-references but still matches.
+- **Sorting.** A finding aid sorts by the full title. A person sorts by family
+  name only when the page sets a Sort as field, since classical, medieval and
+  many non-European names have no family name to find.
 
-An agent may propose aliases, such as other phrasings of a question that a search might use. Each is an ordinary value written by the agent, marked as suggested until kept or removed, and undone like any agent change.
+An agent may propose aliases, such as other phrasings of a question that a
+search might use. Each is an ordinary value written by the agent, marked as
+suggested until kept or removed, and undone like any agent change.
 
-Events are a likely future built-in kind; the workshop's own types cover them until then.
+Events are a likely future built-in kind; the workshop's own types cover them
+until then.
 
 ### State
 
-A note is working or resolved. Working is the default and is not stored. Resolve records that you stand behind the note as written; Reopen returns it to working. Editing a resolved note does not reopen it. The note's apparatus shows that it changed after resolution.
+A note is working or resolved. Working is the default and is not stored. Resolve
+records that you stand behind the note as written; Reopen returns it to working.
+Editing a resolved note does not reopen it. The note's apparatus shows that it
+changed after resolution.
 
 ### Revisits
 
-A note comes back only when it has a revisit date. On a page that is also a question, the revisit date is the question's review date; there is one date, not two. A question block within a page that has a review date comes back as itself.
+A note comes back only when it has a revisit date. On a page that is also a
+question, the revisit date is the question's review date; there is one date, not
+two. A question block within a page that has a review date comes back as itself.
 
-From its revisit date onward a note waits in Review's Revisits queue, earliest date first. Inline questions join the same queue. Parked questions keep their date but stay out of Review, Today and the due count. Resume brings them back if their date has arrived. Each opens in the ordinary outline, with its sources and backlinks at hand.
+From its revisit date onward a note waits in Review's Revisits queue, earliest
+date first. Inline questions join the same queue. Parked questions keep their
+date but stay out of Review, Today and the due count. Resume brings them back if
+their date has arrived. Each opens in the ordinary outline, with its sources and
+backlinks at hand.
 
-| Action | Effect |
-|---|---|
-| Revisited | Records the revisit and sets the next date, or none |
-| Later | Moves the date without recording a revisit |
-| Resolve | Resolves a note and clears its date; clears a question's date and allows resolution without accepting an assessment |
-| Keep recurrent | Marks a question recurrent and records a revisit with its next date |
+| Action         | Effect                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Revisited      | Records the revisit and sets the next date, or none                                                                 |
+| Later          | Moves the date without recording a revisit                                                                          |
+| Resolve        | Resolves a note and clears its date; clears a question's date and allows resolution without accepting an assessment |
+| Keep recurrent | Marks a question recurrent and records a revisit with its next date                                                 |
 
-Revisits have no grade or scheduler: they judge the note, not your memory of it. Revisited proposes the next date at the interval just ended, measured from the previous revisit or, for the first, from when the date was set. The date can be changed or cleared before confirming.
+Revisits have no grade or scheduler: they judge the note, not your memory of it.
+Revisited proposes the next date at the interval just ended, measured from the
+previous revisit or, for the first, from when the date was set. The date can be
+changed or cleared before confirming.
 
-Each action is attributed, undoable and redoable. Only Revisited and Keep recurrent write a revisit event. Later, Resolve and Reopen leave revisit history unchanged. The last revisit is the latest event not undone. Events remain authoritative history; undo marks the event undone and restores the prior date and state. Redo reapplies the action, recording a new effective event for a completed revisit. Both directions check the block revision and leave newer edits alone.
+Each action is attributed, undoable and redoable. Only Revisited and Keep
+recurrent write a revisit event. Later, Resolve and Reopen leave revisit history
+unchanged. The last revisit is the latest event not undone. Events remain
+authoritative history; undo marks the event undone and restores the prior date
+and state. Redo reapplies the action, recording a new effective event for a
+completed revisit. Both directions check the block revision and leave newer
+edits alone.
 
-A note capability on the page holds the resolved timestamp, revisit date and when that date was set. Working with no date needs no row. Questions keep their sole date in `review_on`; their note capability holds only the date-set timestamp. Today lists due items under Research to revisit, and Review's sidebar count includes them.
+A note capability on the page holds the resolved timestamp, revisit date and
+when that date was set. Working with no date needs no row. Questions keep their
+sole date in `review_on`; their note capability holds only the date-set
+timestamp. Today lists due items under Research to revisit, and Review's sidebar
+count includes them.
 
-`GET /api/revisits?due=today` reads the queue. `GET /api/blocks/{id}/revisits` reads effective events and their actors. The agent API's `revisit` edit and MCP's `tessera_revisit` expose the same actions; `tessera_revisits` reads the queue.
+`GET /api/revisits?due=today` reads the queue. `GET /api/blocks/{id}/revisits`
+reads effective events and their actors. The agent API's `revisit` edit and
+MCP's `tessera_revisit` expose the same actions; `tessera_revisits` reads the
+queue.
 
 ### Index and views
 
-The index lists kinds with note members or tagged non-page blocks, keeping their counts independent. Kinds with notes open a finding aid; tag-only types open their member table. Tagged blocks do not increase the distinct-note total or file their containing page under that kind. The finding aid is the unsaved note view for that kind, as a type table is for a type. It is derived from kinds and is never stored.
+The index lists kinds with note members or tagged non-page blocks, keeping their
+counts independent. Kinds with notes open a finding aid; tag-only types open
+their member table. Tagged blocks do not increase the distinct-note total or
+file their containing page under that kind. The finding aid is the unsaved note
+view for that kind, as a type table is for a type. It is derived from kinds and
+is never stored.
 
-The index is also the tag registry. Every kind carries its glyph, its type page's template as field IDs, the count of live cards on its members (its tag deck) and whether `#name` names it. Built-in types, behavior tags and types you make report `tag: true`; Unfiled does not. Every surface that offers a kind reads it: the sidebar, the creation slip, `#` completion, the deck editor's type choice and the Commands list. `#` completion offers a built-in kind by name before its page exists. Choosing it writes the tag, and the save makes the page and applies its starting template. A type's read names the starting template's fields while its template is empty, so no client keeps a copy of the schema.
+The index is also the tag registry. Every kind carries its glyph, its type
+page's template as field IDs, the count of live cards on its members (its tag
+deck) and whether `#name` names it. Built-in types, behavior tags and types you
+make report `tag: true`; Unfiled does not. Every surface that offers a kind
+reads it: the sidebar, the creation slip, `#` completion, the deck editor's type
+choice and the Commands list. `#` completion offers a built-in kind by name
+before its page exists. Choosing it writes the tag, and the save makes the page
+and applies its starting template. A type's read names the starting template's
+fields while its template is empty, so no client keeps a copy of the schema.
 
-Existing tag choices insert `#[[id|Title]]` and open by page ID. Tables, filters and decks retain that ID through renames. A built-in tag without a page uses the legacy spelling until the save normalizes it. The editor accepts the returned text without moving the caret into the token.
+Existing tag choices insert `#[[id|Title]]` and open by page ID. Tables, filters
+and decks retain that ID through renames. A built-in tag without a page uses the
+legacy spelling until the save normalizes it. The editor accepts the returned
+text without moving the caret into the token.
 
-A note view queries notes with a layout and grouping. It selects by kind and supports the block query's type, text and field predicates, plus:
+A note view queries notes with a layout and grouping. It selects by kind and
+supports the block query's type, text and field predicates, plus:
 
-| Constraint | Find-line example |
-|---|---|
-| State | `is:resolved` |
-| Revisit: due, set or none | `revisit:due` |
-| Links to a note | `links:Polybius` |
-| Links from a note | `from:Postone` |
-| Cited source, by siglum, citation key, title or alias | `cites:MAR` |
+| Constraint                                            | Find-line example |
+| ----------------------------------------------------- | ----------------- |
+| State                                                 | `is:resolved`     |
+| Revisit: due, set or none                             | `revisit:due`     |
+| Links to a note                                       | `links:Polybius`  |
+| Links from a note                                     | `from:Postone`    |
+| Cited source, by siglum, citation key, title or alias | `cites:MAR`       |
 
-Other Find words match title or gloss; all terms AND together. Titles and aliases resolve the link predicates, quoted values preserve spaces, and resolved terms become removable chips keyed by stable page identity. Ambiguous names require explicit completion selection. Field predicates stay in the filter picker, as on tables. `cites:` means notes with passage citations of any snapshot attached to the source, or any reference to its source page; it is independent of whether that reference carries a citation label or locator.
+Other Find words match title or gloss. All terms AND together. Titles and
+aliases resolve the link predicates, quoted values preserve spaces, and resolved
+terms become removable chips keyed by stable page identity. Ambiguous names
+require explicit completion selection. Field predicates stay in the filter
+picker, as on tables. `cites:` means notes with passage citations of any
+snapshot attached to the source, or any reference to its source page. It is
+independent of whether that reference carries a citation label or locator.
 
 One query has two layouts:
 
-| Layout | Presentation |
-|---|---|
-| Index | Titles in columns under headings; resolved marks and revisit dates are planned |
-| Table | One note per row, fields as columns, as in type tables |
+| Layout | Presentation                                                                   |
+| ------ | ------------------------------------------------------------------------------ |
+| Index  | Titles in columns under headings; resolved marks and revisit dates are planned |
+| Table  | One note per row, fields as columns, as in type tables                         |
 
-Index groups by first letter unless source cited, note linked, created month or a field's values is chosen. A query's `group` can also name any source attribute or field. A note appears under every applicable heading, as in a book index. Source, link and field-value headings sort by descending distinct-note count, ties by name, with None last. Source headings show siglum then title; link headings open the note. Created months sort newest first. Only Letter grouping shows the jump strip.
+Index groups by first letter unless source cited, note linked, created month or
+a field's values is chosen. A query's `group` can also name any source attribute
+or field. A note appears under every applicable heading, as in a book index.
+Source, link and field-value headings sort by descending distinct-note count,
+ties by name, with None last. Source headings show siglum then title; link
+headings open the note. Created months sort newest first. Only Letter grouping
+shows the jump strip.
 
-One query selects titled notes by type kind or capability kind; Index and Table show and count the same matches. Saving a note view stores its query, layout and grouping in the existing view's query JSON, filed in the sidebar under the kind it lists. Older stored queries without note presentation remain table views and default to Letter when opened in Index. No second store or database migration is needed.
+One query selects titled notes by type kind or capability kind; Index and Table
+show and count the same matches. Saving a note view stores its query, layout and
+grouping in the existing view's query JSON, filed in the sidebar under the kind
+it lists. Older stored queries without note presentation remain table views and
+default to Letter when opened in Index. No second store or database migration is
+needed.
 
-Entity view recipes use that same query JSON. `layout` is `table`, `register` or `matrix`; an omitted layout means Table. This is separate from `note_view.layout`, which keeps Index and Table for note finding aids. `columns` is an ordered array of `{key, width?}`; an explicit array overrides the source's defaults and stays fixed through search and filtering. `sort` keeps its array priority. `group` holds its key and optional collapsed heading keys. `card` names phone card fields, with sort keys also shown by the client, and `purpose` is one line. Saving and reopening preserves each of these values. No table is added.
+Entity view recipes use that same query JSON. `layout` is `table`, `register` or
+`matrix`, with an omitted layout meaning Table. This is separate from
+`note_view.layout`, which keeps Index and Table for note finding aids. `columns`
+is an ordered array of `{key, width?}`. An explicit array overrides the source's
+defaults and stays fixed through search and filtering. `sort` keeps its array
+priority. `group` holds its key and optional collapsed heading keys. `card`
+names phone card fields, with sort keys also shown by the client, and `purpose`
+is one line. Saving and reopening preserves each of these values. No table is
+added.
 
-When detaching or deleting a field leaves a saved recipe naming a missing definition, `field_names` remembers its label as an object keyed by field ID. It is absent from unaffected recipes. Table and Index pause the results and name the missing field, rather than treating a failed predicate as an empty result. Remove from view removes that field's predicates and presentation references, then saves the repaired recipe. Its remembered label is removed when no references remain. Merge redirects references in the same batch as the entries; undo restores the exact earlier query and remembered labels.
+When detaching or deleting a field leaves a saved recipe naming a missing
+definition, `field_names` remembers its label as an object keyed by field ID. It
+is absent from unaffected recipes. Table and Index pause the results and name
+the missing field, rather than treating a failed predicate as an empty result.
+Remove from view removes that field's predicates and presentation references,
+then saves the repaired recipe. Its remembered label is removed when no
+references remain. Merge redirects references in the same batch as the entries;
+undo restores the exact earlier query and remembered labels.
 
 ### Research desks
 
-A research desk is one saved view with `layout: "desk"`. The top-level query selects questions; `desk: {positions: Query, sources: Query}` carries the other two columns. All three use the existing query language. Selecting a question sets the positions query's `@question` condition. Selecting a position sets the sources query's `@cited_in` condition. Other conditions remain specific to their column.
+A research desk is one saved view with `layout: "desk"`. The top-level query
+selects questions; `desk: {positions: Query, sources: Query}` carries the other
+two columns. All three use the existing query language. Selecting a question
+sets the positions query's `@question` condition. Selecting a position sets the
+sources query's `@cited_in` condition. Other conditions remain specific to their
+column.
 
-The default questions query excludes parked and answered questions and groups by `@program`. Saving and reopening keep the three queries together, including their linked conditions. The focused column and selected row IDs belong to pane navigation state, so Back, Forward and reload restore them without changing workshop content. Linked filter labels resolve live reference titles while the column results load. Save and update use the ordinary attributed, revision-checked view operations and offer undo.
+The default questions query excludes parked and answered questions and groups by
+`@program`. Saving and reopening keep the three queries together, including
+their linked conditions. The focused column and selected row IDs belong to pane
+navigation state, so Back, Forward and reload restore them without changing
+workshop content. Linked filter labels resolve live reference titles while the
+column results load. Save and update use the ordinary attributed,
+revision-checked view operations and offer undo.
 
 ### Spreads
 
-A spread sets two to five notes side by side. Selecting two to five notes in a view offers Spread. Each note is a column, with aligned rows:
+A spread sets two to five notes side by side. Selecting two to five notes in a
+view offers Spread. Each note is a column, with aligned rows:
 
 1. Kind, title, gloss and state.
 2. Each field any selected note has, blank where absent.
 3. Cited sources, linked notes and opening prose.
 
-Values shared exactly by two or more columns are marked, as are links between columns. Text is compared after trimming; whole references compare by link target, not label. Repeating a value within one column does not make it shared. Differing values imply nothing. Fields are ordered by their first appearance in the first column's outline, then the next column's, including empty entries. Cited sources include passage citations of their snapshots and references to their source pages.
+Values shared exactly by two or more columns are marked, as are links between
+columns. Text is compared after trimming; whole references compare by link
+target, not label. Repeating a value within one column does not make it shared.
+Differing values imply nothing. Fields are ordered by their first appearance in
+the first column's outline, then the next column's, including empty entries.
+Cited sources include passage citations of their snapshots and references to
+their source pages.
 
-A spread is a page with a spread capability. Its top-level blocks reference notes in column order, following them as they change:
+A spread is a page with a spread capability. Its top-level blocks reference
+notes in column order, following them as they change:
 
 - Blocks beneath a reference are commentary on that column.
 - Other top-level blocks are notes on the whole spread.
 - Adding, removing or reordering columns edits these blocks.
 
-A spread opened from a selection is unsaved navigation state; Save spread creates the page. The index lists spreads after the kinds.
+A spread opened from a selection is unsaved navigation state; Save spread
+creates the page. The index lists spreads after the kinds.
 
-Compare perspectives remains the sheet for positions on one subject; a spread compares whole notes.
+Compare perspectives remains the sheet for positions on one subject; a spread
+compares whole notes.
 
 ## Cards
 
-Cards are not a built-in tag. Card syntax adds a face to an atom; its tags determine which tag decks include it. Adding a behavior tag such as `#task` does not create a card or change existing review history.
+Cards are not a built-in tag. Card syntax adds a face to an atom; its tags
+determine which tag decks include it. Adding a behavior tag such as `#task` does
+not create a card or change existing review history.
 
 ### Syntax
 
 Cards derive from block text:
 
-| Marker | Card kind | Front | Back |
-|---|---|---|---|
-| `>>` | Forward | Left side | Right side |
-| `<<` | Reverse | Right side | Left side |
-| `<>` | Both directions | Each side | The other side |
-| Trailing `>>>` | Multiline | Text before the marker | Non-empty child outline |
-| Trailing `>>1.` | List | Text before the marker | Direct children in order, with each child's subtree; one grade for the list |
+| Marker          | Card kind       | Front                  | Back                                                                        |
+| --------------- | --------------- | ---------------------- | --------------------------------------------------------------------------- |
+| `>>`            | Forward         | Left side              | Right side                                                                  |
+| `<<`            | Reverse         | Right side             | Left side                                                                   |
+| `<>`            | Both directions | Each side              | The other side                                                              |
+| Trailing `>>>`  | Multiline       | Text before the marker | Non-empty child outline                                                     |
+| Trailing `>>1.` | List            | Text before the marker | Direct children in order, with each child's subtree; one grade for the list |
 
-A descriptor `Function ;; makes ATP` asks its name in its parent's context. Under `Mitochondria`, its front is `Mitochondria › Function`. The parent's subject is:
+A descriptor `Function ;; makes ATP` asks its name in its parent's context.
+Under `Mitochondria`, its front is `Mitochondria › Function`. The parent's
+subject is:
 
-- The left side of its own operator, so `Mitochondria <> powerhouse of the cell` reads as `Mitochondria`.
+- The left side of its own operator, so `Mitochondria <> powerhouse of the cell`
+  reads as `Mitochondria`.
 - A cloze's full answer.
 - Otherwise its whole text. A page title serves for top-level blocks.
 
-An empty parent makes no descriptor card. Editing the parent changes the front without resetting progress.
+An empty parent makes no descriptor card. Editing the parent changes the front
+without resetting progress.
 
-The front must be non-empty. `::` remains field shorthand. A source block uses one direction operator, or numbered clozes. Numbered clozes use `{{c1::answer}}` or `{{c1::answer::hint}}`; repeated numbers form one unit, whose front masks that group's answers and reveals the other groups.
+The front must be non-empty. `::` remains field shorthand. A source block uses
+one direction operator, or numbered clozes. Numbered clozes use `{{c1::answer}}`
+or `{{c1::answer::hint}}`; repeated numbers form one unit, whose front masks
+that group's answers and reveals the other groups.
 
-Escapes, code and references shield literal syntax. Mixed or malformed operators produce diagnostics, not guessed cards.
+Escapes, code and references shield literal syntax. Mixed or malformed operators
+produce diagnostics, not guessed cards.
 
 ### Image occlusion
 
-An image block can also hold masks, drawn over the image in fractions of its size so they survive a replacement at another resolution. Masks are rectangles or ellipses and belong to groups; each group is one card, so masks in the same group are hidden and tested together, and group order gives the letters A, B, C and the card order. A group may have a hint, shown on its masks, an answer, shown after reveal and used wherever the card is read as text, and an area that crops the image the card shows.
+An image block can also hold masks, drawn over the image in fractions of its
+size so they survive a replacement at another resolution. Masks are rectangles
+or ellipses and belong to groups; each group is one card, so masks in the same
+group are hidden and tested together, and group order gives the letters A, B, C
+and the card order. A group may have a hint, shown on its masks, an answer,
+shown after reveal and used wherever the card is read as text, and an area that
+crops the image the card shows.
 
-- **Hide one** covers only the tested group; the rest of the image stays readable.
-- **Hide all** also covers every other group, so changing any group's masks changes every card on the image.
-- Hints and answers hold at most 200 characters. An image holds at most 100 groups and 300 masks.
-- Removing the image keeps the masks but retires their cards; restoring it brings them back with their progress.
-- Masks need an image: `Add an image before drawing masks.` Anything else that cannot be stored is refused as `These masks are not valid:` followed by the reason.
+- **Hide one** covers only the tested group; the rest of the image stays
+  readable.
+- **Hide all** also covers every other group, so changing any group's masks
+  changes every card on the image.
+- Hints and answers hold at most 200 characters. An image holds at most 100
+  groups and 300 masks.
+- Removing the image keeps the masks but retires their cards; restoring it
+  brings them back with their progress.
+- Masks need an image: `Add an image before drawing masks.` Anything else that
+  cannot be stored is refused as `These masks are not valid:` followed by the
+  reason.
 
 ### Identity and eligibility
 
-A source block plus a role key (`forward`, `reverse`, `cloze:c1`, `multiline`, `list`, `descriptor`, `occlusion:<group>`) identifies a card. Wording and child edits therefore keep progress, and an occlusion card keeps its progress while its group exists, including after a group is removed and restored.
+A source block plus a role key (`forward`, `reverse`, `cloze:c1`, `multiline`,
+`list`, `descriptor`, `occlusion:<group>`) identifies a card. Wording and child
+edits therefore keep progress, and an occlusion card keeps its progress while
+its group exists, including after a group is removed and restored.
 
-Only authored non-root block text derives syntax cards; page titles and journal dates do not. Applied type templates are the exception: each member, including a page, can supply a unit keyed by its identity and `tpl:<templateId>`.
+Only authored non-root block text derives syntax cards; page titles and journal
+dates do not. Applied type templates are the exception: each member, including a
+page, can supply a unit keyed by its identity and `tpl:<templateId>`.
 
-Derivation shares the transaction with field values, membership or template changes. It changes definition revisions without rewriting scheduling state.
+Derivation shares the transaction with field values, membership or template
+changes. It changes definition revisions without rewriting scheduling state.
 
-- Removed syntax, missing required values or a disabled or deleted template deactivate units.
+- Removed syntax, missing required values or a disabled or deleted template
+  deactivate units.
 - Restoring eligibility reuses the ID and progress.
-- Archive and deletion hide cards from queues without destroying units or evidence.
+- Archive and deletion hide cards from queues without destroying units or
+  evidence.
 
 ### Holding
 
 Each retained card has a `held` flag, independent of syntax and scheduling:
 
 - Not yet holds a new card; Pause holds a reviewed card.
-- Held units remain visible with their source but leave review queues, counts, forecasts and template introductions. They cannot be graded.
-- Start or Resume clears the flag without changing the schedule or original creation order.
+- Held units remain visible with their source but leave review queues, counts,
+  forecasts and template introductions. They cannot be graded.
+- Start or Resume clears the flag without changing the schedule or original
+  creation order.
 - Wording changes, syntax removal/restoration and Reset preserve it.
 - Holding and releasing are revision-checked, undoable document edits.
 
 ### Templates and introductions
 
-A card recipe belongs to a tag and stores a name, front/back patterns, an optional hint field, ordered after-answer detail fields, an applied flag and a new-per-day limit from 1 to 9999. The stored `card_templates` name remains the persistence protocol. A recipe starts as a draft.
+A card recipe belongs to a tag and stores a name, front/back patterns, an
+optional hint field, ordered after-answer detail fields, an applied flag and a
+new-per-day limit from 1 to 9999. The stored `card_templates` name remains the
+persistence protocol. A recipe starts as a draft.
 
-- Patterns reference field definitions by `{fieldId}` and the member atom’s own text by `{@text}`; `\{` is a literal brace. The reserved `@text` token cannot be a field ID. Renaming a field preserves its identity.
-- Every referenced side needs nonblank text. Unused fields, hints and details never delay a card.
-- Linked readings use the target’s text; other values use authored text. Multiple values join with a comma and space.
-- Draft previews and forecasts report ready members and those waiting on missing fields without creating empty cards.
-- An atom carrying explicit card syntax, including invalid syntax awaiting correction, gets no recipe cards. Its syntax cards keep working without doubling the deck. Migration 052 deactivates previously derived recipe cards on these atoms without discarding their schedules or history.
-- Opt-in conversion splits simple `<>`, `>>` and `<<` atoms into atom text and a chosen text-field entry. It creates or enables the two matching recipes, rekeys retained cards without replacing their identities, schedules or review events, and creates the previously absent direction held. Other syntax is left alone.
-- Conversion and its inverse are single revision-checked batches. Undo restores authored text, entries, recipes, keys and held flags; sync replays the same operations and deterministic counterpart IDs. An intervening edit or review rejects the inverse rather than losing newer work.
+- Patterns reference field definitions by `{fieldId}` and the member atom’s own
+  text by `{@text}`; `\{` is a literal brace. The reserved `@text` token cannot
+  be a field ID. Renaming a field preserves its identity.
+- Every referenced side needs nonblank text. Unused fields, hints and details
+  never delay a card.
+- Linked readings use the target’s text; other values use authored text.
+  Multiple values join with a comma and space.
+- Draft previews and forecasts report ready members and those waiting on missing
+  fields without creating empty cards.
+- An atom carrying explicit card syntax, including invalid syntax awaiting
+  correction, gets no recipe cards. Its syntax cards keep working without
+  doubling the deck. Migration 052 deactivates previously derived recipe cards
+  on these atoms without discarding their schedules or history.
+- Opt-in conversion splits simple `<>`, `>>` and `<<` atoms into atom text and a
+  chosen text-field entry. It creates or enables the two matching recipes,
+  rekeys retained cards without replacing their identities, schedules or review
+  events, and creates the previously absent direction held. Other syntax is left
+  alone.
+- Conversion and its inverse are single revision-checked batches. Undo restores
+  authored text, entries, recipes, keys and held flags; sync replays the same
+  operations and deterministic counterpart IDs. An intervening edit or review
+  rejects the inverse rather than losing newer work.
 
 Each template has its own daily introduction allowance:
 
-- Due and New queues, Today counts and forecasts subtract units first reviewed on the workshop's local day before selecting new template cards.
-- All is active, visible, non-held inventory, including deferred introductions. Explicitly reviewing All bypasses introduction pacing.
+- Due and New queues, Today counts and forecasts subtract units first reviewed
+  on the workshop's local day before selecting new template cards.
+- All is active, visible, non-held inventory, including deferred introductions.
+  Explicitly reviewing All bypasses introduction pacing.
 - Authored cards and already-reviewed units keep their existing queue rules.
-- Apply forecasts separate existing due reviews from new introductions, without simulating follow-up reviews.
+- Apply forecasts separate existing due reviews from new introductions, without
+  simulating follow-up reviews.
 
-Card reads carry recipe and tag names as provenance, separate from the source-page title, plus side labels and hint/detail readings resolved from current field values. Recipe review shows the hint only on request and details only after revealing the answer; prose-role fields use the prose voice, while other fields form a labeled apparatus. Syntax review remains unchanged.
+Card reads carry recipe and tag names as provenance, separate from the
+source-page title, plus side labels and hint/detail readings resolved from
+current field values. Recipe review shows the hint only on request and details
+only after revealing the answer; prose-role fields use the prose voice, while
+other fields form a labeled apparatus. Syntax review remains unchanged.
 
 ### Decks
 
-A tag deck groups active cards on atoms with that tag, whether the tag comes from text or a manual membership. It uses the tag page's identity and title. An atom can belong to several tag decks without copying its cards or progress. A tag on a parent does not include cards on its children.
+A tag deck groups active cards on atoms with that tag, whether the tag comes
+from text or a manual membership. It uses the tag page's identity and title. An
+atom can belong to several tag decks without copying its cards or progress. A
+tag on a parent does not include cards on its children.
 
-Saved decks keep revisioned card queries for other filters. Both appear in Review's deck ledger. A tag deck needs no saved row and leaves the ledger when its last active card loses the tag. Edit its membership on the source atoms, not with deck actions. A saved deck whose only filter is that tag replaces its row in the ledger.
+Saved decks keep revisioned card queries for other filters. Both appear in
+Review's deck ledger. A tag deck needs no saved row and leaves the ledger when
+its last active card loses the tag. Edit its membership on the source atoms, not
+with deck actions. A saved deck whose only filter is that tag replaces its row
+in the ledger.
 
 ### Source identity
 
-| Edit | Rule |
-|---|---|
-| End split | Leaves cards on their original source. |
-| Interior split | Cannot divide active card syntax. |
-| Start split | Cannot move a reviewed card onto a new identity. |
-| Merge | Cannot remove a source with any retained review event, even after markup removal. |
+| Edit           | Rule                                                                              |
+| -------------- | --------------------------------------------------------------------------------- |
+| End split      | Leaves cards on their original source.                                            |
+| Interior split | Cannot divide active card syntax.                                                 |
+| Start split    | Cannot move a reviewed card onto a new identity.                                  |
+| Merge          | Cannot remove a source with any retained review event, even after markup removal. |
 
 Task and project history impose the same source-identity protection.
 
 ### Review history and sessions
 
-Review events record shown text, grade, scheduler version and state before and after. A reset is an event, not an erasure; reset-plus-grade commits both events atomically.
+Review events record shown text, grade, scheduler version and state before and
+after. Reset records another event and preserves earlier evidence.
+Reset-plus-grade commits both events atomically.
 
-Scheduling uses FSRS-6 with default parameters, 90% retention and deterministic whole-day intervals. Reviewed cards acquire FSRS memory by replaying historical grades, keeping historical evidence intact.
+Scheduling uses FSRS-6 with default parameters, 90% retention and deterministic
+whole-day intervals. Reviewed cards acquire FSRS memory by replaying historical
+grades, keeping historical evidence intact.
 
-Grading checks the card revision, definition revision and exact shown front/back. Due queues include new cards after reviewed due cards, with stable tie ordering. Tag and saved decks share these queues. Held cards remain in their decks but stay out of review queues, counts and forecasts.
+Grading checks the card revision, definition revision and exact shown
+front/back. Due queues include new cards after reviewed due cards, with stable
+tie ordering. Tag and saved decks share these queues. Held cards remain in their
+decks but stay out of review queues, counts and forecasts.
 
-Optional review sessions have open, finished or abandoned state. Closing one never discards grades. A session excludes cards already graded within it. Deck selection, queue selection and session identity are navigation state, not card ownership.
+Optional review sessions have open, finished or abandoned state. Closing one
+never discards grades. A session excludes cards already graded within it. Deck
+selection, queue selection and session identity are navigation state, not card
+ownership.
 
-Creating an atom under a tag with applied recipes offers all of that tag’s fields and a live card preview. A new atom is captured into today; its field entries and derived cards commit in the same change. Filing an existing titled atom preserves its filled entries.
+Creating an atom under a tag with applied recipes offers all of that tag’s
+fields and a live card preview. A new atom is captured into today; its field
+entries and derived cards commit in the same change. Filing an existing titled
+atom preserves its filled entries.
 
-A stale or changed presentation's grade is rejected without an event. The client must obtain and show the current card before another grade. Pending delivery and confirmed rejection are distinct; neither is a successful review.
+A stale or changed presentation's grade is rejected without an event. The client
+must obtain and show the current card before another grade. Pending delivery and
+confirmed rejection are distinct; neither is a successful review.
 
-Undo last grade appends an immutable correction linked to the original review event and restores its exact before-grade schedule. Effective history excludes corrected grades without deleting evidence.
+Undo last grade appends an immutable correction linked to the original review
+event and restores its exact before-grade schedule. Effective history excludes
+corrected grades without deleting evidence.
 
-- Only the latest effective grade for the card and its session may be undone, with revision checks against intervening changes.
-- Undoing a finished session's final grade reopens it; an earlier reset in the same command stays effective.
+- Only the latest effective grade for the card and its session may be undone,
+  with revision checks against intervening changes.
+- Undoing a finished session's final grade reopens it; an earlier reset in the
+  same command stays effective.
 - Exhausting a confirmed session finishes it automatically after acknowledgment.
 
 ## Settings
 
-A workshop has settings: its time zone and editing preferences. Setting one is an operation like any other.
+A workshop has settings: its time zone and editing preferences. Setting one is
+an operation like any other.
 
 ## Changes and attribution
 
-Every committed operation writes a change row: actor (person, agent name or client), operation, affected IDs and resulting revisions, and an optional reason. An agent's request is applied atomically; one sent under an idempotency key is applied once, and sending it again returns its first receipt. Undo works by applying an inverse operation, so history remains linear and inspectable across clients.
+Every committed operation writes a change row: actor (person, agent name or
+client), operation, affected IDs and resulting revisions, and an optional
+reason. An agent's request is applied atomically; one sent under an idempotency
+key is applied once, and sending it again returns its first receipt. Undo works
+by applying an inverse operation, so history remains linear and inspectable
+across clients.
 
 ## Derived data
 
-Links, full-text search, type membership from text, card definitions and field readings are derived in the same transaction as the text that produces them. Definitions can be rebuilt from blocks while retaining their role identities. Card schedules, review evidence, task occurrences and work sessions are authoritative history; rebuilding derived data never recreates or resets them.
+Links, full-text search, type membership from text, card definitions and field
+readings are derived in the same transaction as the text that produces them.
+Definitions can be rebuilt from blocks while retaining their role identities.
+Card schedules, review evidence, task occurrences and work sessions are
+authoritative history; rebuilding derived data never recreates or resets them.
 
 ## Open decisions
 
 - How much change history to keep, and whether old assessments become immutable.
 - Configurable task keywords beyond the five fixed states.
 - Whether blank blocks persist or exist only in drafts.
-- How concept and taxonomy comparison is modeled: types, positions about a concept, or a capability of its own.
-- Whether vocabulary cards need anything beyond ordinary cards, such as language, part of speech or inflection fields.
-- How newsletters arrive: a polled mail folder, a forwarding address or feeds only.
-- How a thesis page answers a question. An assessment must sit beneath its question, and a thesis page is a root.
-- Whether note views need facet counts beside the Find line, such as cited sources with their note counts, once a kind holds thousands of notes.
+- How concept and taxonomy comparison is modeled: types, positions about a
+  concept, or a capability of its own.
+- Whether vocabulary cards need anything beyond ordinary cards, such as
+  language, part of speech or inflection fields.
+- How newsletters arrive: a polled mail folder, a forwarding address or feeds
+  only.
+- How a thesis page answers a question. An assessment must sit beneath its
+  question, and a thesis page is a root.
+- Whether note views need facet counts beside the Find line, such as cited
+  sources with their note counts, once a kind holds thousands of notes.
