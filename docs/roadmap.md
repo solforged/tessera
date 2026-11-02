@@ -1,42 +1,69 @@
 # Roadmap
 
-Each stage ends with an exit test: a real task done in the running app. Stages are ordered, not dated.
+Each stage ends with an exit test: a real task done in the running app. The
+stages below define a sequence with no assigned dates.
 
 ## Passes
 
-Stages describe what the product becomes. Passes are the order the remaining work is taken, decided on 2026-10-22 after a health check: the engine and tests are sound, stages 0 to 5 and 11 are done, and the cost of a lost edit now exceeds the cost of a missing feature.
+Stages describe what the product becomes. Passes are the order the remaining
+work is taken, decided on 2026-10-22 after a health check: the engine and tests
+are sound, stages 0 to 5 and 11 are done, and the cost of a lost edit now
+exceeds the cost of a missing feature.
 
-1. Stabilize. Ship each release to the Mac the same day, keep `mise run check` green under load, publish a current Android build and pair the Fold again, and fix the launcher-shortcut restart (issue 40).
-2. Trust before breadth. Run spike 5 (the eight-hour soak) and spike 4 (runtime and concurrency), replace the full `/api/changes` replay on launch with a cursor, add restore from Settings › Backups, and record history for every change, not only agents'. The leftovers of stage 8. History, restore, the cursor, both harnesses and both spike runs landed on 2026-10-22 and 23; what is left is a full eight-hour soak under the revised heap criteria and the spike 4 findings (a write queue, patching restructured pages under local edits, re-anchoring moves).
-3. Close the open stages. Stage 10: system types, filling the Form field from lookup and ingestion and exporting it, `is:` and `revisit:` predicates and State grouping. Stage 7: assessments that cite positions and passages. Stage 4: cards from field entries. Each has a mock or a settled model already.
-4. Capture, stage 6. The browser extension first, then feeds and newsletters, then providers.
-5. Perspectives, stage 9. PDFs first, then idea breakdowns and agent-assisted study.
+1. Stabilize. Ship each release to the Mac the same day, keep `mise run check`
+   green under load, publish a current Android build and pair the Fold again,
+   and fix the launcher-shortcut restart (issue 40).
+2. Trust before breadth. Run spike 5 (the eight-hour soak) and spike 4 (runtime
+   and concurrency), replace the full `/api/changes` replay on launch with a
+   cursor, add restore from Settings › Backups, and record history for every
+   change, not only agents'. The leftovers of stage 8. History, restore, the
+   cursor, both harnesses and both spike runs landed on 2026-10-22 and 23; what
+   is left is a full eight-hour soak under the revised heap criteria and the
+   spike 4 findings (a write queue, patching restructured pages under local
+   edits, re-anchoring moves).
+3. Close the open stages. Stage 10: system types, filling the Form field from
+   lookup and ingestion and exporting it, `is:` and `revisit:` predicates and
+   State grouping. Stage 7: assessments that cite positions and passages. Stage
+   4: cards from field entries. Each has a mock or a settled model already.
+4. Capture, stage 6. The browser extension first, then feeds and newsletters,
+   then providers.
+5. Perspectives, stage 9. PDFs first, then idea breakdowns and agent-assisted
+   study.
 6. Polish between passes, as drivethroughs of the shipped build.
 
 ## 0. Foundations
 
 - One vocabulary and a first schema from the [domain model](domain-model.md).
-- The block-level invariants in [lessons](lessons.md) as executable tests before features. Invariants for a capability, such as card progress or accepted assessments, are written first in the stage that adds it.
-- Corpus generator and benchmark harness with the [performance](performance.md) budgets.
-- Spike 1 (backend operations) and spike 2 (editor), which settle the core read path and the editor stack.
+- The block-level invariants in [lessons](lessons.md) as executable tests before
+  features. Invariants for a capability, such as card progress or accepted
+  assessments, are written first in the stage that adds it.
+- Corpus generator and benchmark harness with the [performance](performance.md)
+  budgets.
+- Spike 1 (backend operations) and spike 2 (editor), which settle the core read
+  path and the editor stack.
 
-Exit: a 10,000-block page loads within budget and single-block operations commit within budget, in tests.
+Exit: a 10,000-block page loads within budget and single-block operations commit
+within budget, in tests.
 
-Status: done. Spike 1 passed. Spike 2 chose CodeMirror over ProseMirror and Solid over React.
+Status: done. Spike 1 passed. Spike 2 chose CodeMirror over ProseMirror and
+Solid over React.
 
 ## 1. Daily outline
 
-- Today's journal on open; pages; Enter, Backspace, Tab and move with stable IDs.
+- Today's journal on open; pages; Enter, Backspace, Tab and move with stable
+  IDs.
 - Folding, zoom, breadcrumbs and two working panes.
 - Back and forward that restore page, zoom, scroll and caret.
 - References with completion, readable rendering, backlinks and opening beside.
 - Search with an outline preview and drill-down into a result's children.
 - One command palette that also lists shortcuts.
 - Vim inside blocks and structural Vim across them.
-- Operation-based autosave, undo across saves, the IndexedDB outbox, conflict handling.
+- Operation-based autosave, undo across saves, the IndexedDB outbox, conflict
+  handling.
 - Headings, types as tags, and spike 3 (windowing).
 
-Exit: write, rearrange, navigate away and reopen for a week of real notes without losing work or place, within budget on a 2,000-block page.
+Exit: write, rearrange, navigate away and reopen for a week of real notes
+without losing work or place, within budget on a 2,000-block page.
 
 ## 2. Structure
 
@@ -46,58 +73,124 @@ Exit: write, rearrange, navigate away and reopen for a week of real notes withou
 - Structured queries by type, field, task state, dates and text, saved as views.
 - Settings.
 
-Exit: record a reading list with authors and dates, then sort, filter and save it as a view.
+Exit: record a reading list with authors and dates, then sort, filter and save
+it as a view.
 
-Status: done. Fields, templates, type tables with sorting and filtering, saved queries, manual membership from a pill menu, a Fields destination and workshop settings (time zone, Vim) are in. Task-state and date filters are available in Agenda's Tasks view. The [design](design.md) language applies to the shell, outline, tables and capability surfaces.
+Status: done. Fields, templates, type tables with sorting and filtering, saved
+queries, manual membership from a pill menu, a Fields destination and workshop
+settings (time zone, Vim) are in. Task-state and date filters are available in
+Agenda's Tasks view. The [design](design.md) language applies to the shell,
+outline, tables and capability surfaces.
 
 ## 3. Action
 
 - Tasks with status, scheduled and deadline dates, repeaters and priority.
 - Quick date entry (`@friday`, a shortcut, a popup with quick picks).
-- Agenda in the journal; projects with outcomes and actions; clocked work sessions.
+- Agenda in the journal; projects with outcomes and actions; clocked work
+  sessions.
 
-Exit: plan a small project, work it across days with clocked time, and find the result from the agenda.
+Exit: plan a small project, work it across days with clocked time, and find the
+result from the agenda.
 
-Status: done. Browser proof planned a language-model project, recorded clocked work and notes, completed work in historical journals, advanced a recurring task across adjacent days, reopened and undid a completion without duplicating history, and saved and restored a project task query. Agenda rows open the canonical source beside the historical day. A parity pass added ⌘Enter and `[] ` task creation, the `@` date popup on any block, quick capture in Agenda, and a journal agenda that summarizes the day when collapsed. A keyboard pass added the `/` command menu, `@due` deadlines, the ⌘⇧Enter status menu and a Space leader for planning, clocking and cards.
+Status: done. Browser proof planned a language-model project, recorded clocked
+work and notes, completed work in historical journals, advanced a recurring task
+across adjacent days, reopened and undid a completion without duplicating
+history, and saved and restored a project task query. Agenda rows open the
+canonical source beside the historical day. A parity pass added ⌘Enter and `[]`
+task creation, the `@` date popup on any block, quick capture in Agenda, and a
+journal agenda that summarizes the day when collapsed. A keyboard pass added the
+`/` command menu, `@due` deadlines, the ⌘⇧Enter status menu and a Space leader
+for planning, clocking and cards.
 
 ## 4. Learning
 
-- Cards from `>>`, `<<`, `<>` and numbered clozes, with forgiving, visible syntax. `::` stays field shorthand.
+- Cards from `>>`, `<<`, `<>` and numbered clozes, with forgiving, visible
+  syntax. `::` stays field shorthand.
 - Review with grades, next-interval previews and return to source.
 - Keep progress or start over when a card's text changes.
 - Saved review decks backed by queries.
 
-Exit: study cards from real reading notes and a vocabulary deck in a language being read, correct a card from review, and keep its history.
+Exit: study cards from real reading notes and a vocabulary deck in a language
+being read, correct a card from review, and keep its history.
 
-Status: done. Browser proof studied Greek vocabulary and attention-study notes, including both card directions and independent numbered clozes. It saved and edited source/field-filtered decks, corrected a source beside review, retained progress and shown-text evidence, reset progress without erasing history, and restored the selected deck, queue and session through navigation and reload.
+Status: done. Browser proof studied Greek vocabulary and attention-study notes,
+including both card directions and independent numbered clozes. It saved and
+edited source/field-filtered decks, corrected a source beside review, retained
+progress and shown-text evidence, reset progress without erasing history, and
+restored the selected deck, queue and session through navigation and reload.
 
-Since then: a type can carry card templates, front and back patterns over its fields that make one card per member once every field they use has a value. A template stays a draft until Apply, which shows how many cards it makes, who is waiting and how a new-per-day limit spreads them over the coming days. Writing a card by hand now has the same reach as the syntax: every kind is in `/` and under Space c, ⌘⇧C turns selected words into a cloze, Enter after `>>>` starts the answer, a card row carries an index-card mark, and Not yet holds a card out of Review until you start it. Descriptor cards, as in RemNote, ask a child `Function ;; makes ATP` in its parent's context, `Mitochondria › Function`. A tag on the card's own block is a deck of that name, so a journal line such as `tahâfut >> incoherence #arabic` is the whole gesture; Review lists it without a saved deck.
+Since then: a type can carry card templates, front and back patterns over its
+fields that make one card per member once every field they use has a value. A
+template stays a draft until Apply, which shows how many cards it makes, who is
+waiting and how a new-per-day limit spreads them over the coming days.
 
-Next: cards from field entries. A field definition could make cards, so every `Name:: value` entry asks `Owner › Name` with its value as the answer. This reuses the template machinery without needing a type, but applies to every entry of the field rather than one block.
+Writing a card by hand now has the same reach as the syntax: every kind is in
+`/` and under Space c, ⌘⇧C turns selected words into a cloze, Enter after `>>>`
+starts the answer, a card row carries an index-card mark, and Not yet holds a
+card out of Review until you start it.
+
+Descriptor cards, as in RemNote, ask a child `Function ;; makes ATP` in its
+parent's context, `Mitochondria › Function`. A tag on the card's own block is a
+deck of that name, so a journal line such as `tahâfut >> incoherence #arabic` is
+the whole gesture; Review lists it without a saved deck.
+
+Next: cards from field entries. A field definition could make cards, so every
+`Name:: value` entry asks `Owner › Name` with its value as the answer. This
+reuses the template machinery without needing a type, but applies to every entry
+of the field rather than one block.
 
 ## 5. Library and reading
 
-- Fields that sources need: ordered creators with roles (author, editor, translator) as references to person pages; partial dates such as a bare year; URL and identifier kinds for ISBN, DOI and arXiv; values supplied by a snapshot's extracted metadata until an authored value replaces them, with reset back to the extracted value.
-- A source is a page with a source capability and a source type (`#book`, `#article`), so its metadata is ordinary fields ordered by the type's template. A compact header shows creators, year, reading state and progress instead of one outline row per field.
-- `tessera-ingest`, written fresh with Bibliotheca as reference only. EPUB first, then web articles: immutable, content-hashed snapshots; original files in the workshop's object store; passages with their own search index. Ingestion jobs with retry and resume run in the service.
-- Library joins the sidebar as its own pane over source pages, with Inbox, Reading, Finished, Abandoned and All tabs and Highlights for triage.
+- Fields that sources need: ordered creators with roles (author, editor,
+  translator) as references to person pages; partial dates such as a bare year;
+  URL and identifier kinds for ISBN, DOI and arXiv; values supplied by a
+  snapshot's extracted metadata until an authored value replaces them, with
+  reset back to the extracted value.
+- A source is a page with a source capability and a source type (`#book`,
+  `#article`), so its metadata is ordinary fields ordered by the type's
+  template. A compact header shows creators, year, reading state and progress
+  instead of one outline row per field.
+- `tessera-ingest`, written fresh with Bibliotheca as reference only. EPUB
+  first, then web articles: immutable, content-hashed snapshots; original files
+  in the workshop's object store; passages with their own search index.
+  Ingestion jobs with retry and resume run in the service.
+- Library joins the sidebar as its own pane over source pages, with Inbox,
+  Reading, Finished, Abandoned and All tabs and Highlights for triage.
 - A reader pane beside the outline, with reading position and progress.
-- Highlighting a passage writes an ordinary block on the source's page that cites it; citations pin source, snapshot and passage. A triage view lists unprocessed highlights across sources.
+- Highlighting a passage writes an ordinary block on the source's page that
+  cites it; citations pin source, snapshot and passage. A triage view lists
+  unprocessed highlights across sources.
 - Cards from highlights.
-- Export: stable citation keys, with BibTeX and CSL JSON for a source, a selection or a saved view.
+- Export: stable citation keys, with BibTeX and CSL JSON for a source, a
+  selection or a saved view.
 
-Exit: ingest a book and an article, read a chapter in the reader, take notes that cite passages, study cards made from them, and export the book as BibTeX and a reading list as CSL JSON. Afterwards the Bibliotheca repository is archived.
+Exit: ingest a book and an article, read a chapter in the reader, take notes
+that cite passages, study cards made from them, and export the book as BibTeX
+and a reading list as CSL JSON. Afterwards the Bibliotheca repository is
+archived.
 
-Status: done. Browser proof ingested The Tudors (EPUB) and Karpathy's RNN article through the CLI, jumped to chapter 1 from Contents, read until the source moved from Inbox to Reading, highlighted a sentence with a note and a `>>` card beneath it, turned an article highlight into a cloze, studied both cards in Review, worked the Highlights triage, and exported the book as BibTeX and the library as CSL JSON (`meyer2010tudors`, `scharre2018army`, `karpathy2015unreasonable`). Fields gained URL and identifier kinds and year-only dates. The Bibliotheca repository is archived at `~/src/archive/bibliotheca`.
+Status: done. Browser proof ingested The Tudors (EPUB) and Karpathy's RNN
+article through the CLI, jumped to chapter 1 from Contents, read until the
+source moved from Inbox to Reading, highlighted a sentence with a note and a
+`>>` card beneath it, turned an article highlight into a cloze, studied both
+cards in Review, worked the Highlights triage, and exported the book as BibTeX
+and the library as CSL JSON (`meyer2010tudors`, `scharre2018army`,
+`karpathy2015unreasonable`). Fields gained URL and identifier kinds and
+year-only dates. The Bibliotheca repository is archived at
+`~/src/archive/bibliotheca`.
 
 ## 6. Capture
 
-- A save-to-Tessera browser extension that sends the current page, or a selection as a highlight, to the loopback service.
-- RSS and Atom feeds polled by the service, with new items arriving in the Library inbox.
+- A save-to-Tessera browser extension that sends the current page, or a
+  selection as a highlight, to the loopback service.
+- RSS and Atom feeds polled by the service, with new items arriving in the
+  Library inbox.
 - Newsletters arriving in the same inbox.
 - Book search and download providers, such as OPDS catalogs, written fresh.
 
-Exit: subscribe to two feeds and a newsletter, save an article and a highlighted selection from the browser, find and ingest a book through a provider, and triage a week of arrivals from the inbox.
+Exit: subscribe to two feeds and a newsletter, save an article and a highlighted
+selection from the browser, find and ingest a book through a provider, and
+triage a week of arrivals from the inbox.
 
 ## 7. Inquiry and evidence
 
@@ -105,9 +198,15 @@ Exit: subscribe to two feeds and a newsletter, save an article and a highlighted
 - Attributed positions compared side by side, supported by passages.
 - Assessments that cite positions and passages.
 
-Exit: run the "which model fits my work" investigation twice, a month apart, and trace each answer to its evidence.
+Exit: run the "which model fits my work" investigation twice, a month apart, and
+trace each answer to its evidence.
 
-Progress: questions are open, answered, parked or unsettled, accept one answer, carry a review date and record aporia. Perspectives name a holder and subject with a gist and a source siglum, and a Compare pane sets them side by side. A subject owns ordered criteria, derived from its positions' fields until set, which Compare's Criteria tab sets out as a matrix with questions under the criterion they name. Assessments that cite positions and passages remain.
+Progress: questions are open, answered, parked or unsettled, accept one answer,
+carry a review date and record aporia. Perspectives name a holder and subject
+with a gist and a source siglum, and a Compare pane sets them side by side. A
+subject owns ordered criteria, derived from its positions' fields until set,
+which Compare's Criteria tab sets out as a matrix with questions under the
+criterion they name. Assessments that cite positions and passages remain.
 
 ## 8. Trust
 
@@ -116,58 +215,158 @@ Progress: questions are open, answered, parked or unsettled, accept one answer, 
 - Backup and restore from the app, including the object store.
 - Command line for capture, ingestion, search, queries and agent context.
 
-Exit: an agent does bounded work on a real project; every change is attributed and reversible; a restore from backup loses nothing acknowledged.
+Exit: an agent does bounded work on a real project. Every change is attributed
+and reversible. A restore from backup loses nothing acknowledged.
 
-Progress: `tessera backup` and `tessera restore` cover the database and object store from the command line, Settings › Backups makes a backup from inside the app and restores one, with a safety backup taken first and the service switching to the restored workshop. Through `tessera mcp` or `POST /api/agent-changes`, agents can search and read pages, the agenda and task lists, cards, typed queries, the library and sync state; add notes with cards, tasks and field entries; edit, move and delete blocks; set tasks with times, warnings and repeats; hold cards; save decks; and cite passages. Every local change, by a person, an agent or the service, is listed in the History pane with its actor and reason, and any change whose operations all have an inverse can be undone there; changes applied from other devices are listed with their origin. Launch reads changes since a persisted cursor, and `changes_since` reads ten thousand events in 33 ms. Spike 4 ran and was recorded in [performance](performance.md#spike-4-result-runtime-and-concurrency-2026-10-22): nothing acknowledged was lost, but four concurrent writers miss the commit and propagation budgets and concurrent moves can be refused. Spike 5 ran five of eight hours ([performance](performance.md#spike-5-result-soak-2026-10-23)): nothing acknowledged was lost through thirty forced crashes, heaps grow with visited pages and the workshop rather than leak, and three Find bugs it exposed are fixed. A full eight-hour run under the revised heap criteria, move re-anchoring and agent plans remain.
+Progress: `tessera backup` and `tessera restore` cover the database and object
+store from the command line. Settings › Backups makes a backup from inside the
+app and restores one, with a safety backup taken first and the service switching
+to the restored workshop.
+
+Through `tessera mcp` or `POST /api/agent-changes`, agents can:
+
+- Search and read pages, the agenda and task lists, cards, typed queries, the
+  library and sync state.
+- Add notes with cards, tasks and field entries.
+- Edit, move and delete blocks.
+- Set tasks with times, warnings and repeats.
+- Hold cards.
+- Save decks.
+- Cite passages.
+
+Every local change, by a person, an agent or the service, is listed in the
+History pane with its actor and reason, and any change whose operations all have
+an inverse can be undone there. Changes applied from other devices are listed
+with their origin. Launch reads changes since a persisted cursor, and
+`changes_since` reads ten thousand events in 33 ms.
+
+Spike 4 ran and was recorded in
+[performance](performance.md#spike-4-result-runtime-and-concurrency-2026-10-22):
+nothing acknowledged was lost, but four concurrent writers miss the commit and
+propagation budgets and concurrent moves can be refused.
+
+Spike 5 ran five of eight hours
+([performance](performance.md#spike-5-result-soak-2026-10-23)): nothing
+acknowledged was lost through thirty forced crashes, heaps grow with visited
+pages and the workshop rather than leak, and three Find bugs it exposed are
+fixed.
+
+A full eight-hour run under the revised heap criteria, move re-anchoring and
+agent plans remain.
 
 ## 9. Perspectives
 
-- Ideas: break a book or paper down into an outline of its ideas, each citing its passages.
-- Perspective lenses: flip between holders' positions on an idea, then record your own.
-- Side-by-side comparison of concepts and of how different thinkers classify them.
-- More sources: papers as PDF, tweets and threads, and highlight imports from Kindle and X.
-- Agent-assisted study: cards and quizzes drawn from a source's passages, with a study plan against a date.
+- Ideas: break a book or paper down into an outline of its ideas, each citing
+  its passages.
+- Perspective lenses: flip between holders' positions on an idea, then record
+  your own.
+- Side-by-side comparison of concepts and of how different thinkers classify
+  them.
+- More sources: papers as PDF, tweets and threads, and highlight imports from
+  Kindle and X.
+- Agent-assisted study: cards and quizzes drawn from a source's passages, with a
+  study plan against a date.
 
-Exit: break a chapter into ideas, link two authors' positions on one idea and state your own, then be quizzed on the chapter by an agent and review the resulting cards.
+Exit: break a chapter into ideas, link two authors' positions on one idea and
+state your own, then be quizzed on the chapter by an agent and review the
+resulting cards.
 
-Progress: perspective lenses and comparison arrived with stage 7's positions. Titled pages read as prose with page glosses, a depth dial from gloss to full, and an apparatus margin whose constellation links holders and pages. Idea breakdowns, more source types and agent-assisted study remain.
+Progress: perspective lenses and comparison arrived with stage 7's positions.
+Titled pages read as prose with page glosses, a depth dial from gloss to full,
+and an apparatus margin whose constellation links holders and pages. Idea
+breakdowns, more source types and agent-assisted study remain.
 
 ## 10. Notes
 
-- Built-in kinds: Person, Group, Concept and Thesis as system types, with Question, Source and Project read from capabilities. Existing types with those titles become the built-in kinds.
-- Aliases: a built-in field on every note, matched by completion, Find, hand-typed references and imports, kept by merges and listed as cross-references in finding aids. Starting templates for Person, Group and Concept.
-- A Form choice field on sources, filled by lookup and ingestion and exported as the CSL and BibTeX type, replacing the guess from format and identifiers.
-- A note capability with the resolved state and the revisit date; revisit events as history. A page question's review date becomes its revisit date.
-- An Index in the sidebar: built-in kinds, then your types, each with a count, then spreads. Each opens a finding aid: titles in columns under letters, with marks for resolved notes and revisit dates.
-- Note views: a Find line with `is:`, `revisit:`, `links:`, `from:` and `cites:` terms shown as chips; grouping by letter, source cited, note linked, state, created month or a field, with a note under every heading that applies; Index and Table layouts; saved views filed under their kind.
-- Spreads: up to five selected notes side by side with aligned rows for fields, sources and links, and shared values marked. Saved, a spread is a page of references with commentary beneath them.
-- A note header in the site's apparatus: the kind above the title (with a refining type, such as Person / Economist), then the gloss, then one mono line with the ID, state, created date and revisit date. State and revisit open their menus.
-- A Revisits queue in Review beside cards, with Revisited, Later, Resolve and Keep recurrent.
-- The agent API's `AddNote` and `NoteTarget` renamed to block terms, since they also write to journal days.
+- Built-in kinds: Person, Group, Concept and Thesis as system types, with
+  Question, Source and Project read from capabilities. Existing types with those
+  titles become the built-in kinds.
+- Aliases: a built-in field on every note, matched by completion, Find,
+  hand-typed references and imports, kept by merges and listed as
+  cross-references in finding aids. Starting templates for Person, Group and
+  Concept.
+- A Form choice field on sources, filled by lookup and ingestion and exported as
+  the CSL and BibTeX type, replacing the guess from format and identifiers.
+- A note capability with the resolved state and the revisit date; revisit events
+  as history. A page question's review date becomes its revisit date.
+- An Index in the sidebar: built-in kinds, then your types, each with a count,
+  then spreads. Each opens a finding aid: titles in columns under letters, with
+  marks for resolved notes and revisit dates.
+- Note views: a Find line with `is:`, `revisit:`, `links:`, `from:` and `cites:`
+  terms shown as chips; grouping by letter, source cited, note linked, state,
+  created month or a field, with a note under every heading that applies; Index
+  and Table layouts; saved views filed under their kind.
+- Spreads: up to five selected notes side by side with aligned rows for fields,
+  sources and links, and shared values marked. Saved, a spread is a page of
+  references with commentary beneath them.
+- A note header in the site's apparatus: the kind above the title (with a
+  refining type, such as Person / Economist), then the gloss, then one mono line
+  with the ID, state, created date and revisit date. State and revisit open
+  their menus.
+- A Revisits queue in Review beside cards, with Revisited, Later, Resolve and
+  Keep recurrent.
+- The agent API's `AddNote` and `NoteTarget` renamed to block terms, since they
+  also write to journal days.
 
-Exit: file a week of reading notes by kind, resolve two, give three revisit dates, and work them from the notes queue on the day, rewriting and linking in place. Find every concept citing one book, group them by the notes they link, save the view, spread three of them and write what they share on the spread page.
+Exit: file a week of reading notes by kind, resolve two, give three revisit
+dates, and work them from the notes queue on the day, rewriting and linking in
+place. Find every concept citing one book, group them by the notes they link,
+save the view, spread three of them and write what they share on the spread
+page.
 
-Progress: the model is settled in the [domain model](domain-model.md#notes), and clickable mocks of the index, note views, spreads, the note header and aliases are in `~/Documents/tessera-design/notes-index-mock/`. The sidebar Index, each kind's finding aid, the note header's kinds, aliases, ID and created date, and aliases across completion, Find, hand-typed references, imports, merges and finding aids are built, with starting templates for Person, Group and Concept. Kinds are read from types with the built-in titles and from capabilities.
+Progress: the model is settled in the [domain model](domain-model.md#notes), and
+clickable mocks of the index, note views, spreads, the note header and aliases
+are in `~/Documents/tessera-design/notes-index-mock/`. The sidebar Index, each
+kind's finding aid, the note header's kinds, aliases, ID and created date, and
+aliases across completion, Find, hand-typed references, imports, merges and
+finding aids are built, with starting templates for Person, Group and Concept.
+Kinds are read from types with the built-in titles and from capabilities.
 
-Note views have title and gloss finding, `links:`, `from:` and `cites:` chips, multi-heading grouping, shared Index and Table queries and counts, saved layout and grouping under each kind, and multi-note selection that opens a spread. Spreads derive aligned fields, sources, links and opening prose, mark exact shared values, and save as pages of references with undoable column edits and ordinary commentary. The note capability, resolved state, revisit menus, attributed revisit events and Revisits queue are built. Today lists Research to revisit; agents can read the queue and use its actions. The Form field exists as a built-in choice field with its starting options. System types, filling and exporting Form, `is:` and `revisit:` predicates and State grouping remain.
+Note views have title and gloss finding, `links:`, `from:` and `cites:` chips,
+multi-heading grouping, shared Index and Table queries and counts, saved layout
+and grouping under each kind, and multi-note selection that opens a spread.
+Spreads derive aligned fields, sources, links and opening prose, mark exact
+shared values, and save as pages of references with undoable column edits and
+ordinary commentary. The note capability, resolved state, revisit menus,
+attributed revisit events and Revisits queue are built. Today lists Research to
+revisit; agents can read the queue and use its actions. The Form field exists as
+a built-in choice field with its starting options. System types, filling and
+exporting Form, `is:` and `revisit:` predicates and State grouping remain.
 
-The [research desk](surfaces/desk.md) links three entity queries: questions, their positions and cited sources. Saved desks keep those queries in one view; spreads remain comparisons of selected notes.
+The [research desk](surfaces/desk.md) links three entity queries: questions,
+their positions and cited sources. Saved desks keep those queries in one view;
+spreads remain comparisons of selected notes.
 
 ## 11. Sync
 
-- Determinism and identity: change IDs and origins, a device ID, derived IDs inside apply, content-derived library IDs, table classes.
-- A replica protocol on loopback: clone, push, pull, rebase, conflicts and natural-key merges.
-- Objects by hash with books pinned for offline reading, and last-writer-wins rows for reading positions.
+- Determinism and identity: change IDs and origins, a device ID, derived IDs
+  inside apply, content-derived library IDs, table classes.
+- A replica protocol on loopback: clone, push, pull, rebase, conflicts and
+  natural-key merges.
+- Objects by hash with books pinned for offline reading, and last-writer-wins
+  rows for reading positions.
 - A sync listener on the tailnet with pairing, and the Android app as a replica.
 
-Exit: offline, highlight a book on the phone while editing today's journal on the Mac; reconnect, and both devices show the highlights and the journal. See [sync](sync.md).
+Exit: offline, highlight a book on the phone while editing today's journal on
+the Mac; reconnect, and both devices show the highlights and the journal. See
+[sync](sync.md).
 
-Progress: determinism and identity, the replica protocol on loopback, and objects and library state are done. `tessera sync clone` and `tessera sync` replicate a workshop from a running service, with text conflicts kept as copies, same-day journals, same-title pages and the same book merged, covers kept on every replica, other files fetched when used or pinned, and reading positions and surfacings ordered by a hybrid logical clock. The tailnet listener, pairing and the Android client are in. A paired phone syncs with the Mac; an unpaired phone keeps its own workshop.
+Progress: determinism and identity, the replica protocol on loopback, and
+objects and library state are done. `tessera sync clone` and `tessera sync`
+replicate a workshop from a running service, with text conflicts kept as copies,
+same-day journals, same-title pages and the same book merged, covers kept on
+every replica, other files fetched when used or pinned, and reading positions
+and surfacings ordered by a hybrid logical clock. The tailnet listener, pairing
+and the Android client are in. A paired phone syncs with the Mac; an unpaired
+phone keeps its own workshop.
 
 ## Later
 
-- A writing typeface choice in Settings › Appearance that sets the workshop's own sentences in Piazzolla, as the reader's Typeface setting does for books. Plex stays the default.
+- A writing typeface choice in Settings › Appearance that sets the workshop's
+  own sentences in Piazzolla, as the reader's Typeface setting does for books.
+  Plex stays the default.
 
 ## Not planned
 
-Collaboration, plugin and schema builders, graph visualization and autonomous background agents. Each may come later; none blocks daily use.
+Collaboration, plugin and schema builders, graph visualization and autonomous
+background agents. Each may come later; none blocks daily use.
