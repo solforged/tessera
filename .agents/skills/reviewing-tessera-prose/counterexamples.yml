@@ -1,0 +1,84 @@
+---
+provenance: The author requested the six named seed exceptions and reviewer-selected
+  additions. These seeds do not claim a separately recorded author rejection. Null
+  warning values mean no current warning was observed.
+counterexamples:
+- id: benchmark-harness
+  source:
+    path: docs/drafts/data-model-audit.md
+    line: 312
+  passage: 'Cost: about a week, with the bench harness proving the 42,000-member table
+    under 100 ms.'
+  objection: Treat harness as vague or inflated wording.
+  why_it_stays: The benchmark harness is a concrete measurement tool, and the draft
+    names its table size and target.
+  decision_basis: author-supplied seed; exact phrase is here, not in current docs/performance.md
+  observed_warning: 
+- id: short-landscape-screens
+  source:
+    path: docs/surfaces/reader.md
+    line: 168
+  passage: Short landscape screens put the setting groups in one horizontally scrolling
+    row so the reading page remains visible above them.
+  objection: Treat landscape as decorative wording or the purpose clause as filler.
+  why_it_stays: Landscape names the screen orientation, and the sentence states the
+    layout change and its reason.
+  decision_basis: author-supplied seed
+  observed_warning: 
+- id: citation-key-characters
+  source:
+    path: docs/domain-model.md
+    line: 886
+  passage: Authored keys start with a letter, contain at most 64 letters, digits,
+    underscores, colons or hyphens, and are unique among active sources ignoring case.
+  objection: Treat the character list as manufactured parallel phrasing.
+  why_it_stays: The list specifies the permitted characters and is necessary to the
+    key validation contract.
+  decision_basis: author-supplied seed
+  observed_warning: 
+- id: registration-survives-failure
+  source:
+    path: docs/usage.md
+    line: 165
+  passage: 'The Rust step fails because the Tauri CLI is not running, but the phone
+    stays registered:'
+  objection: Remove the contrast as a stock formula.
+  why_it_stays: The contrast explains why a failed build still completes the registration
+    step.
+  decision_basis: author-supplied seed
+  observed_warning: 
+- id: readme-document-label
+  source:
+    path: README.md
+    line: 68
+  passage: "- [Contributing](docs/contributing.md): reading order, development, builds
+    and checks."
+  objection: Replace the colon label or convert the document list into sentences.
+  why_it_stays: The linked document title and its contents are a parallel navigation
+    entry.
+  decision_basis: author-supplied seed
+  observed_warning: 
+- id: diagnosis-not-authorization
+  source:
+    path: ".agents/skills/distributing-tessera-android-apks/SKILL.md"
+    line: 90
+  passage: 'This is diagnosis, not permission to pair. The following is a **real host-side
+    pairing operation**, not a smoke test: require separate exact user authorization
+    for these Mac/phone endpoints and the clone, and coordinate with their owners
+    immediately before proceeding.'
+  objection: Remove the repeated contrasts as unnecessary disclaimers.
+  why_it_stays: The contrasts prevent an observed sync failure from being mistaken
+    for authorization to change a live pairing.
+  decision_basis: author-supplied seed; current warning covers the second contrast
+  observed_warning: Voice.ContrastiveFormulas
+- id: historical-tools-are-not-installed
+  source:
+    path: ".agents/skills/mocking-tessera-visual-directions/SKILL.md"
+    line: 134
+  passage: Those are historical citations, not installed tools.
+  objection: Remove the contrast and its negative qualification.
+  why_it_stays: The preceding dated design rounds name assets that a reader must not
+    assume are available tools.
+  decision_basis: reviewer-selected seed from current Vale warning; no author rejection
+    is claimed
+  observed_warning: Voice.ContrastiveFormulas

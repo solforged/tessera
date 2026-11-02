@@ -1,0 +1,164 @@
+---
+approval: Committed revisions on main are approved seed decisions. Text is exact except
+  for normalized line wrapping.
+examples:
+- id: lessons-composable-blocks
+  source:
+    commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+    path: docs/lessons.md
+    before_line: 15
+    after_line: 31
+  before: "**Composition over classification.**"
+  after: "**Composable blocks.**"
+  standard:
+    section: The standard
+    clause: Prefer concrete nouns and ordinary verbs.
+  reason: The label names the blocks described by the paragraph instead of an abstract
+    opposition.
+- id: vision-editable-pane
+  source:
+    commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+    path: docs/vision.md
+    before_line: 19
+    after_line: 33
+  before: A second pane is a full working outline or view, not a read-only inspector.
+  after: A second pane holds a full working outline or view and supports editing.
+  standard:
+    section: The standard
+    clause: Name the actor, the operation and the consequence.
+  reason: The sentence states what the second pane holds and permits.
+- id: vision-personal-scope
+  source:
+    commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+    path: docs/vision.md
+    before_line: 5
+    after_line: 8
+  before: It is a personal tool, not a commercial product or a hosted note service.
+  after: The project is intended for personal use. A commercial product and a hosted
+    note service are outside its scope.
+  standard:
+    section: The standard
+    clause: Name the actor, the operation and the consequence.
+  reason: The revision names the project and states its scope in two direct sentences.
+- id: design-distinct-form
+  source:
+    commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+    path: docs/design.md
+    before_line: 11
+    after_line: 19
+  before: "**One meaning, one form.**"
+  after: "**Give each meaning a distinct form.**"
+  standard:
+    section: The standard
+    clause: Prefer concrete nouns and ordinary verbs.
+  reason: The instruction names the action instead of presenting a slogan.
+- id: design-active-gilt
+  source:
+    commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+    path: docs/design.md
+    before_line: 274
+    after_line: 561
+  before: Inactive panes mute their title and hand their tab rules the control border,
+    keeping the gilt for the active pane.
+  after: Inactive panes mute their title and hand their tab rules the control border.
+    Gilt is reserved for the active pane.
+  standard:
+    section: The standard
+    clause: Name the actor, the operation and the consequence.
+  reason: The effect on the active pane becomes a separate claim.
+- id: design-touch-heading
+  source:
+    commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+    path: docs/design.md
+    before_line: 343
+    after_line: 751
+  before: "**Touch, not keyboard.**"
+  after: "**Touch input.**"
+  standard:
+    section: The standard
+    clause: Prefer concrete nouns and ordinary verbs.
+  reason: The label names the input method without an unnecessary opposition.
+- id: reader-highlight-band
+  source:
+    commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+    path: docs/surfaces/reader.md
+    before_line: 240
+    after_line: 440
+  before: Highlights are ink, not boxes. A band of their color sits under the lower
+    half of each line, from 55% to 92% of the line box, and is cloned onto every line.
+  after: Highlights use a band of color under the text without a surrounding box.
+    The band sits under the lower half of each line, from 55% to 92% of the line box,
+    and is cloned onto every line.
+  standard:
+    section: The standard
+    clause: Explain mechanisms and limitations instead of asserting quality.
+  reason: The revision replaces an ink metaphor with the visible band and preserves
+    its geometry.
+- id: notes-bibliography
+  source:
+    commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+    path: docs/surfaces/notes.md
+    before_line: 148
+    after_line: 367
+  before: Sources is a bibliography, not a second reading shelf.
+  after: Sources presents the bibliography separately from the Library's reading shelf.
+  standard:
+    section: The standard
+    clause: Prefer concrete nouns and ordinary verbs.
+  reason: The revision identifies the Library as the reading shelf being distinguished.
+- id: settings-switch-states
+  source:
+    commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+    path: docs/surfaces/settings.md
+    before_line: 112
+    after_line: 243
+  before: 'The switch is 51 × 31 pt: a well with a muted knob; on, an ink track with
+    a leaf-colored knob; locked, at 40% opacity with the reason on the row.'
+  after: The switch is 51 × 31 pt. Off, it is a well with a muted knob. On, it has
+    an ink track with a leaf-colored knob. A locked switch is at 40% opacity with
+    the reason on the row.
+  standard:
+    section: The standard
+    clause: Name the actor, the operation and the consequence.
+  reason: Complete sentences name the switch in each state without changing its dimensions
+    or appearance.
+- id: devices-ledger-period
+  source:
+    commit: ed1f97d37d5cf34b88228420de607d1e962638a3
+    path: web/src/settings/DevicesSection.tsx
+    before_line: 210
+    after_line: 214
+  before: Recent attempts from this service run. They clear when Tessera restarts.
+  after: Only attempts since Tessera last started are listed.
+  standard:
+    section: The standard
+    clause: Say each thing once.
+  reason: One sentence states the same time limit without repeating the service lifetime.
+- id: devices-no-attempts
+  source:
+    commit: ed1f97d37d5cf34b88228420de607d1e962638a3
+    path: web/src/settings/DevicesSection.tsx
+    before_line: 208
+    after_line: 212
+  before: No attempts recorded since this service started.
+  after: No attempts since Tessera started.
+  standard:
+    section: The standard
+    clause: Prefer concrete nouns and ordinary verbs.
+  reason: The message names Tessera instead of an internal service and removes an
+    unnecessary verb.
+- id: readme-workflows-work
+  source:
+    commit: 88554cadc3a2f2bf03a465c08892369c266aad5d
+    path: README.md
+    before_line: 5
+    after_line: 7
+  before: the daily outline, structure, action, learning, library and reading workflows
+    are working.
+  after: Daily outline, structure, action, learning, library and reading workflows
+    work.
+  standard:
+    section: The standard
+    clause: Prefer concrete nouns and ordinary verbs.
+  reason: The revision replaces the progressive verb phrase with the ordinary present
+    tense.

@@ -1,0 +1,275 @@
+---
+handling: Calibration only. Ordinary reviewers must not read this file. A separate
+  reader supplies only case IDs and input fields, then reveals answers after the review
+  is fixed. These seven cases were exposed in the first calibration and need replacement
+  before another blind run.
+cases:
+- id: holdout-01
+  input:
+    source:
+      commit: e13281565c1dfc9b4f80c8a0cba23b9874a9ef6d
+      path: docs/domain-model.md
+      line: 298
+    passage: Date filters accept `today`, `-30d` and `+7d`, resolved in the workshop's
+      time zone on each read. A filter such as `{"field":"@last_assessed","op":"lt","value":"-30d","or_empty":true}`
+      also matches an absent value. Saved filters keep the relative expression, not
+      its current date.
+    context:
+      heading: "## Queries and views"
+      before: Positions' `@question` includes their subject when it is a live question
+        and every effective parent question above it. A parent question therefore
+        selects positions about its branches too. Sources' `@cited_in` names each
+        live block whose subtree cites that source, including positions and containing
+        pages. Both are instance attributes and compare stable IDs. Repeated citations
+        count once per block; hidden or deleted subtrees do not contribute.
+      after: 'Grouping uses `group: {key, collapsed?}` and returns distinct row IDs
+        and counts under every applicable heading, including None for empty values.
+        Counts cover the full match before pagination. Relation headings use target
+        IDs, so renaming a target keeps the collapsed group identity.'
+  answer:
+    kind: approved_revision
+    source:
+      commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+      path: docs/domain-model.md
+      before_line: 298
+      after_line: 557
+    before: Date filters accept `today`, `-30d` and `+7d`, resolved in the workshop's
+      time zone on each read. A filter such as `{"field":"@last_assessed","op":"lt","value":"-30d","or_empty":true}`
+      also matches an absent value. Saved filters keep the relative expression, not
+      its current date.
+    after: Date filters accept `today`, `-30d` and `+7d`. Saved filters retain these
+      relative expressions and resolve them in the workshop's time zone on each read.
+      A filter such as `{"field":"@last_assessed","op":"lt","value":"-30d","or_empty":true}`
+      also matches an absent value.
+    standard:
+      section: The standard
+      clause: Name the actor, the operation and the consequence.
+    reason: The revision connects saved relative expressions to their resolution on
+      each read and removes the repeated date distinction.
+- id: holdout-02
+  input:
+    source:
+      path: docs/surfaces/fields-tables.md
+      line: 118
+    passage: |-
+      Choice and relation value pickers check the current value, expose it as selected
+      and start the keyboard cursor there. An unmatched choice query offers
+      `Add option “Y”`; adding the option and selecting it are one undoable change,
+      including in tables. A note's Add field picker offers `Create text field “X”`
+      and `Create field “X” as…`; the latter opens Text, Number, Date, Span, Checkbox,
+      Choice, Relation, URL and Identifier. The definition, chosen kind and entry are
+      created together. A new Choice field opens its value picker so its first option
+      can be added there.
+    context:
+      heading: "## Field pages"
+      before: |-
+        Deleting an in-use choice option from Atoms opens an impact confirmation with
+        the affected value and owner counts. Continuing keeps its labels as written
+        problem values, with their child notes, rather than unresolved option IDs. One
+        Undo restores the options and the exact original values.
+      after: |-
+        Creating a definition always uses a new block ID. Blank outline rows under
+        Fields are not definitions and are never adopted or offered by field pickers.
+  answer:
+    kind: counterexample
+    observed_warning: Voice.SemicolonDensity
+    why_it_stays: The clauses connect each picker action to its outcome; the option
+      and field controls are distinct operations.
+    decision_basis: Reviewer-selected seed from the current Vale warnings at the author's
+      request; no separate author rejection is claimed.
+- id: holdout-03
+  input:
+    source:
+      commit: e13281565c1dfc9b4f80c8a0cba23b9874a9ef6d
+      path: docs/domain-model.md
+      line: 398
+    passage: |-
+      - A snapshot holds the document's structure and passages: headings, paragraphs, footnotes and other units, each with a locator.
+      - Original bytes live in the workshop's object store, addressed by SHA-256.
+      - Passages, structure and reading position live in the database.
+      - Passages are evidence, not authored blocks, and are never edited.
+    context:
+      heading: "### Snapshots and passages"
+      before: A source is an atom with a source record. Library ingestion creates
+        a page; `#source` can also activate an outline atom with no snapshot. Ingesting
+        the same URL or file with different bytes creates a new, immutable snapshot
+        identified by its content hash.
+      after: Writing about a passage creates a block that cites it. A citation names
+        the source, snapshot and passage, keeping the exact text read even after a
+        newer snapshot exists.
+  answer:
+    kind: approved_revision
+    source:
+      commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+      path: docs/domain-model.md
+      before_line: 398
+      after_line: 766
+    before: |-
+      - A snapshot holds the document's structure and passages: headings, paragraphs, footnotes and other units, each with a locator.
+      - Original bytes live in the workshop's object store, addressed by SHA-256.
+      - Passages, structure and reading position live in the database.
+      - Passages are evidence, not authored blocks, and are never edited.
+    after: |-
+      - A snapshot holds the document's structure and passages: headings, paragraphs, footnotes and other units, each with a locator.
+      - Original bytes live in the workshop's object store, addressed by SHA-256.
+      - Passages, structure and reading position live in the database.
+      - Passages retain the extracted evidence and are never edited. They are separate from authored blocks.
+    standard:
+      section: The standard
+      clause: Prefer concrete nouns and ordinary verbs.
+    reason: The revision states what passages retain before distinguishing them from
+      authored blocks.
+- id: holdout-04
+  input:
+    source:
+      path: docs/surfaces/notes.md
+      line: 124
+    passage: |-
+      Below the mode tabs, `Find in Concepts…` (using the kind's plural) matches plain
+      words against title or Gloss. `links:`, `from:` and `cites:` resolve titles and
+      aliases; `cites:` also resolves source sigla and citation keys. Quote a
+      multiword value, for example `links:"Three generations of a dynasty"`. Names
+      complete after the colon. Enter, a closing quote or leaving the input resolves
+      each term to a removable table-style chip; unresolved names show
+      `No note named “X”`. All terms and field filters intersect. `cites:` includes
+      passage citations of any of the source's snapshots and any reference to its
+      source page.
+    context:
+      heading: "## Finding aid"
+      before: |-
+        Only populated jump letters appear, and only with Letter grouping. The strip
+        stays on one line, using compact targets on desktop. On the touch cover it
+        becomes a vertical rail at the right edge, with touch-sized letter targets and
+        compact inline initials in the list. The rail scrolls when its letters exceed
+        the available height; it never occupies a dock above bottom navigation. Sort as,
+        diacritic folding, `#` last and alias cross-references retain their filing
+        rules. A title opens its note. The finding aid fills the pane to the right when
+        one exists. Otherwise it uses its own pane. ⌘-click or ⌘Enter opens beside
+        (Ctrl-click or Ctrl+Enter off Mac). A coarse pointer at least 900 px wide opens
+        beside by default.
+      after: |-
+        The names that complete after a colon open as a list under the field. Arrows
+        highlight, Enter picks the highlighted name, and Escape closes the list for the
+        text typed; typing on reopens it.
+  answer:
+    kind: counterexample
+    observed_warning: Voice.SemicolonDensity
+    why_it_stays: The paragraph defines a query grammar and its resolution rules;
+      every qualification changes the contract.
+    decision_basis: Reviewer-selected seed from the current Vale warnings at the author's
+      request; no separate author rejection is claimed.
+- id: holdout-05
+  input:
+    source:
+      commit: e13281565c1dfc9b4f80c8a0cba23b9874a9ef6d
+      path: docs/domain-model.md
+      line: 518
+    passage: A position's recipe offers Gist, Work, then its subject's criteria, explicit
+      when present and otherwise derived. Add field lists the missing recipe fields
+      first under From this recipe. Filling mode uses the same order. Recipes are
+      derived suggestions, not stored templates; they never require or add a field
+      without an edit.
+    context:
+      heading: "### Highlights and positions"
+      before: A subject may own an explicit ordered set of criterion fields. Without
+        rows in that set, Compare derives criteria from active positions' field entries
+        in outline order, excluding Gist, Work and Account. Position values remain
+        ordinary entry/value blocks; explicit criteria offer missing fields as empty
+        slots.
+      after: Questions beneath the subject attach to the first criterion linked in
+        their text. They are scoped to the linked holder pages of its positions, or
+        to all holders when none are named. These attachments are derived.
+  answer:
+    kind: approved_revision
+    source:
+      commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+      path: docs/domain-model.md
+      before_line: 518
+      after_line: 970
+    before: A position's recipe offers Gist, Work, then its subject's criteria, explicit
+      when present and otherwise derived. Add field lists the missing recipe fields
+      first under From this recipe. Filling mode uses the same order. Recipes are
+      derived suggestions, not stored templates; they never require or add a field
+      without an edit.
+    after: 'A position''s recipe derives suggestions in this order: Gist, Work, then
+      its subject''s criteria, explicit when present and otherwise derived. Add field
+      lists the missing recipe fields first under From this recipe. Filling mode uses
+      the same order. These suggestions are not stored templates and never require
+      or add a field without an edit.'
+    standard:
+      section: The standard
+      clause: Name the actor, the operation and the consequence.
+    reason: The revision names derivation as the operation that produces the ordered
+      suggestions.
+- id: holdout-06
+  input:
+    source:
+      path: docs/surfaces/notes.md
+      line: 520
+    passage: |-
+      An inline link can display different wording without changing its target:
+      `[[Target|alias]]`. While `[[` completion is open, type `|` to accept the
+      highlighted target and begin the alias inside the paired `]]`; if no match or
+      Create atom is highlighted, the typed target stays as written without creating a
+      page. Alias text never filters or reopens completion. To add an alias to an
+      existing link, place the caret just before `]]` and type `|alias`. Enter and Tab
+      still accept a completion and continue after the link; Escape still dismisses it
+      without accepting a target.
+    context:
+      heading: "## Aliases"
+      before: |-
+        Add alias, under Description… in the page menu and in the palette, adds the
+        Aliases field after the gloss and starts a new value with keyboard focus, ready
+        for the first typed character. `[[` completion and Find name the alias a result
+        was found through as `via Tully`, in the faint apparatus at the row's end.
+      after: |-
+        At a note's top level, populated Aliases entries, however many the note holds,
+        stay out of Outline and Read while the header's ALSO line presents them.
+        Clicking or tapping that line, or activating it with the keyboard, reveals the
+        field and edits its first value. Add alias also reveals it before starting the
+        new value. Zoomed outlines and sources keep ordinary field presentation.
+  answer:
+    kind: counterexample
+    observed_warning: Voice.SemicolonDensity
+    why_it_stays: The two semicolons join the input action and fallback, then the
+      acceptance and dismissal keys; each condition is needed.
+    decision_basis: Reviewer-selected seed from the current Vale warnings at the author's
+      request; no separate author rejection is claimed.
+- id: holdout-07
+  input:
+    source:
+      commit: e13281565c1dfc9b4f80c8a0cba23b9874a9ef6d
+      path: docs/surfaces/cards-review.md
+      line: 142
+    passage: If that restored card is later held or removed, an explicit unavailable
+      state offers Next rather than silently replacing it. A transport failure remains
+      an error, not an unavailable-card state.
+    context:
+      heading: "### End and undo"
+      before: 'While a grade or undo is saved, the grade buttons and other session
+        controls are held shut without being disabled, so they neither dim nor lose
+        focus and a click during the write is refused. A card that replaces another
+        eases from the previous card''s height and fades in, so the page below it
+        glides. The last graded card stays on screen until the Done summary replaces
+        it, in the same frame. Undoing from the Done summary keeps the summary on
+        screen until the restored card has loaded. A second pane on the same session
+        follows an undo made in the first: it shows the restored card too.'
+      after: "## Tag recipes"
+  answer:
+    kind: approved_revision
+    source:
+      commit: f7aae90c80c7ba2e07208cb5c21008417f469586
+      path: docs/surfaces/cards-review.md
+      before_line: 142
+      after_line: 333
+    before: If that restored card is later held or removed, an explicit unavailable
+      state offers Next rather than silently replacing it. A transport failure remains
+      an error, not an unavailable-card state.
+    after: If that restored card is later held or removed, an explicit unavailable
+      state offers Next rather than silently replacing it. A transport failure must
+      remain an error and must never appear as an unavailable-card state.
+    standard:
+      section: The standard
+      clause: Keep the qualifications that are true and drop the ones that are reflexive.
+    reason: The revision states the required error presentation directly while preserving
+      the unavailable-card distinction.
