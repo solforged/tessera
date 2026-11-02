@@ -1,0 +1,21 @@
+# Voice.Spelling with Tessera's own words: ordinary technical and domain words
+# the en_US dictionary lacks ("siglum", "cloze", "subtree", "px") live in
+# config/ignore/tessera.txt, one per line, case-insensitive. Names whose case
+# matters (Logseq, Tauri, SQLite) go in config/vocabularies/Tessera/accept.txt
+# instead, where Vale.Terms also enforces their spelling.
+extends: Voice.Spelling
+scope: text & ~structure & ~gap
+ignore:
+  - tessera.txt
+
+tests:
+  - name: reports British spellings
+    input: |
+      The colour picker sat in the centre of the dialog.
+    contains:
+      - "'colour'"
+      - "'centre'"
+  - name: accepts Tessera's words
+    input: |
+      Each siglum opens a cloze card in the subtree, 12 px from the edge.
+    want: ''

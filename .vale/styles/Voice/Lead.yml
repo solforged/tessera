@@ -1,0 +1,28 @@
+# The paragraph under a document's title opens with the finding, not with a
+# description of the document. The rule reads only that paragraph.
+extends: existence
+message: "'%s' describes the document. Open with what the reader needs to know."
+level: warning
+ignorecase: true
+scope: 'text & doc(h1 + p)'
+tokens:
+  - 'this (?:document|page|guide|article|post|note|section) (?:describes|explains|covers|outlines|discusses|is about)'
+  - 'in this (?:document|page|guide|article|post|note|section)'
+  - 'the purpose of this (?:document|page|guide|article|post|note|section)'
+
+tests:
+  - name: reports a lead that describes the document
+    input: |
+      # Sync
+
+      This document describes how devices exchange changes.
+    want: |
+      3:1:Voice.Lead:'This document describes' describes the document. Open with what the reader needs to know.
+  - name: leaves the same words later in the document alone
+    input: |
+      # Sync
+
+      Devices exchange changes over the tailnet.
+
+      This document describes the wire format in its second half.
+    want: ''

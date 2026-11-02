@@ -1,0 +1,29 @@
+Third-party material in the Voice style
+=======================================
+
+The directories below start with "_", so Vale does not load them as rules.
+Rules in this style extend them by name (for example
+`extends: Voice._voices.Puffery`) and change only what this style decides
+differently. Update a copy by replacing the file from the upstream source and
+running the tests.
+
+_dictionaries/
+  en_US.dic and en_US.aff from the SCOWL/ESDB Hunspell dictionaries,
+  release 2026.02.25 (hunspell-en_US-2026.02.25.zip,
+  https://github.com/en-wl/wordlist/releases). Six entries that the
+  commit-time secret scan's vocabulary policy rejects were removed from
+  en_US.dic, and its word count lowered to match; prose that uses them is
+  reported as misspelled. The copyright and license terms are in
+  _dictionaries/README_en_US.txt.
+
+_voices/
+  Rules from Voices by Joseph Kato (https://github.com/jdkato/voices), commit
+  5409079d0abc1f63cbb1d329731b72444fbd5bea, MIT License. The upstream test
+  cases were removed from each file, since they assert the upstream rule
+  names. _voices/LICENSE and _voices/NOTICE are the upstream files; several
+  rules derive from no-ai-slop by Peter Yang, MIT License.
+
+_aitells/
+  Rules from vale-ai-tells by Tony Burns
+  (https://github.com/tbhb/vale-ai-tells), release v1.37.0, MIT License.
+  _aitells/LICENSE is the upstream license.

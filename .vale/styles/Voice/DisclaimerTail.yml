@@ -1,0 +1,19 @@
+extends: existence
+message: "'%s' rebuts a reading nobody offered; drop it unless a reader would actually make that mistake."
+level: warning
+ignorecase: true
+tokens:
+  - ',\s+(?:not|rather than)\s+(?:simply\s+|merely\s+|just\s+)?(?:a|an)\s+(?:claim|proof|demonstration|guarantee|description|requirement|prediction|recipe|statement|promise|rejection|endorsement)\b'
+  - '\bnot\s+(?:simply|merely|necessarily)\b'
+  - '\b(?:does not|doesn''t|did not|didn''t)\s+by itself\b'
+
+tests:
+  - name: reports a disclaimer tail
+    input: |
+      The result is a sketch, not a proof.
+    want: |
+      1:23:Voice.DisclaimerTail:', not a proof' rebuts a reading nobody offered; drop it unless a reader would actually make that mistake.
+  - name: leaves a plain statement alone
+    input: |
+      The result is a sketch of the proof.
+    want: ''

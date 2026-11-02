@@ -1,0 +1,18 @@
+extends: existence
+message: 'Wrap commit body lines at 72 columns, including bullet markers and indentation.'
+level: error
+scope: structure
+nonword: true
+raw:
+  - '(?m)^.{73,}$'
+tests:
+  - name: rejects a 73-character body line
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.\n"
+    contains: Voice.CommitBodyLength
+  - name: accepts a 72-character body line
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.\n"
+    want: ''

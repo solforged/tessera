@@ -1,0 +1,31 @@
+# Inflated words with one right replacement, from _voices/InflatedWords.yml.
+# The alert carries the fix, so an editor or an agent applies it directly.
+# "elevate" is removed ("elevates privileges" is the precise term), and
+# "robust" is in Voice.Filler, since "strong" is rarely the right swap.
+extends: Voice._voices.InflatedWords
+message: "Use '%s' instead of '%s'."
+level: warning
+swap-:
+  - elevate
+  - elevates
+  - elevated
+  - elevating
+  - robust
+
+tests:
+  - name: carries the replacement
+    input: |
+      We leverage the cache to facilitate reads.
+    want: |
+      1:4:Voice.Inflated:Use 'use' instead of 'leverage'.
+      1:26:Voice.Inflated:Use 'help' instead of 'facilitate'.
+  - name: keeps the case
+    input: |
+      Utilizing the index streamlines lookups.
+    want: |
+      1:1:Voice.Inflated:Use 'Using' instead of 'Utilizing'.
+      1:21:Voice.Inflated:Use 'simplifies' instead of 'streamlines'.
+  - name: leaves privilege elevation alone
+    input: |
+      The installer elevates privileges when needed.
+    want: ''

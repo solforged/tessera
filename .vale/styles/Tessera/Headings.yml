@@ -20,3 +20,24 @@ exceptions:
   - CLI
   - Orrery
   - Fold
+  - UI
+  - API
+  - CI
+  - iPhone
+  - APKs
+  - USB
+  - QA
+  - UX
+  - Chrome for Testing
+
+tests:
+  - name: reports title-case prose
+    input: |
+      # Setting Up a Workshop
+    contains: Tessera.Headings
+  - name: accepts sentence case and proper names
+    input: |
+      # Setting up a Tessera workshop
+
+      ## API checks on iPhone
+    want: ''

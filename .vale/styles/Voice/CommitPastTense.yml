@@ -1,0 +1,194 @@
+# A lexical check, not a parser: regular -ed forms and listed irregulars.
+extends: existence
+message: 'Start the summary with a lowercase past-tense verb (for example, added, fixed, or built).'
+level: error
+scope: subject
+nonword: true
+raw:
+  - '\A[a-z]+(?:\([a-z0-9_-]+(?:/[a-z0-9_-]+)?\))?: (?!(?:[a-z]+ed|awoke|became|began|bent|bet|bit|bled|blew|bore|bought|broke|brought|built|bound|burnt|burst|caught|chose|clung|cost|crept|cut|dealt|did|drew|drank|drove|dug|fed|fell|felt|fit|fled|flew|forbade|forgot|forgave|found|froze|gave|got|grew|ground|had|heard|held|hid|hit|hung|hurt|kept|knew|laid|lay|led|left|lent|let|lit|lost|made|meant|met|overcame|overdid|overrode|oversaw|overtook|paid|put|ran|read|rebuilt|redid|remade|reran|reset|retold|rewrote|rode|rose|said|sang|sank|sat|saw|sent|set|shone|shook|shot|showed|shrank|shut|slept|slid|sold|sought|spat|sped|spent|spilt|split|spoke|spread|sprang|spun|stank|stood|stole|struck|stuck|stung|sung|sunk|swam|swept|swore|swung|taught|thought|threw|told|took|tore|trod|undid|understood|upheld|upset|woke|wore|wept|went|wet|withdrew|withheld|withstood|won|wound|wove|wrote)\b)[^\s]+'
+tests:
+  - name: rejects present tense
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: repair the parser"
+    contains: Voice.CommitPastTense
+  - name: rejects an uppercase verb
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: Fixed the parser"
+    contains: Voice.CommitPastTense
+  - name: accepts a regular past tense
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser"
+    want: ''
+  - name: accepts made
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: made the parser"
+    want: ''
+  - name: accepts kept
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: kept the parser"
+    want: ''
+  - name: accepts built
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: built the parser"
+    want: ''
+  - name: accepts wrote
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: wrote the parser"
+    want: ''
+  - name: accepts set
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: set the parser"
+    want: ''
+  - name: accepts cut
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: cut the parser"
+    want: ''
+  - name: accepts put
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: put the parser"
+    want: ''
+  - name: accepts split
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: split the parser"
+    want: ''
+  - name: accepts ran
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: ran the parser"
+    want: ''
+  - name: accepts gave
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: gave the parser"
+    want: ''
+  - name: accepts took
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: took the parser"
+    want: ''
+  - name: accepts led
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: led the parser"
+    want: ''
+  - name: accepts let
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: let the parser"
+    want: ''
+  - name: accepts sent
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: sent the parser"
+    want: ''
+  - name: accepts bound
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: bound the parser"
+    want: ''
+  - name: accepts found
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: found the parser"
+    want: ''
+  - name: accepts held
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: held the parser"
+    want: ''
+  - name: accepts brought
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: brought the parser"
+    want: ''
+  - name: accepts left
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: left the parser"
+    want: ''
+  - name: accepts lost
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: lost the parser"
+    want: ''
+  - name: accepts read
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: read the parser"
+    want: ''
+  - name: accepts shut
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: shut the parser"
+    want: ''
+  - name: accepts sped
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: sped the parser"
+    want: ''
+  - name: accepts swept
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: swept the parser"
+    want: ''
+  - name: accepts threw
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: threw the parser"
+    want: ''
+  - name: accepts told
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: told the parser"
+    want: ''
+  - name: accepts undid
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: undid the parser"
+    want: ''
+  - name: accepts won
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: won the parser"
+    want: ''
+  - name: accepts rewrote
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: rewrote the parser"
+    want: ''
+  - name: accepts rebuilt
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: rebuilt the parser"
+    want: ''
+  - name: accepts reran
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: reran the parser"
+    want: ''
+  - name: accepts withheld
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: withheld the parser"
+    want: ''
+  - name: accepts upheld
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: upheld the parser"
+    want: ''
+  - name: accepts overrode
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: overrode the parser"
+    want: ''

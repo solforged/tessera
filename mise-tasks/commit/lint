@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+#MISE description="Lint commit messages with the shared Voice convention"
+#USAGE arg "[range]" help="Revision range to lint. Defaults to origin/main..HEAD."
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+cd "$root"
+range=${usage_range:-origin/main..HEAD}
+commits=$(git log --no-merges --format='%H%x09%an' "$range")
+status=0
+while IFS=$'	' read -r sha author; do
+  [ -n "$sha" ] || continue
+  [ "$author" != 'dependabot[bot]' ] || continue
+  if ! git log -1 --format=%B "$sha" | vale --no-global --path=COMMIT_EDITMSG; then
+    echo "commit:lint: $sha failed" >&2
+    status=1
+  fi
+done <<< "$commits"
+exit "$status"

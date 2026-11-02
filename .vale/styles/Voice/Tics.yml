@@ -1,0 +1,38 @@
+# Words that rose in frequency with machine-written prose (_voices/Tics.yml).
+# Removed after a run over Tessera's docs and skills, where each one named a
+# real thing: "unlock" (a phone), "navigate the" (a browser tab), "landscape"
+# (screen orientation), "in today's" (the Today journal), "showcase" (a named
+# notebook) and "underscore" (the character). "comprehensive" and "seamless"
+# are in Voice.Filler.
+extends: Voice._voices.Tics
+message: "'%s' is a stock phrase. Say the plain thing, or cut it."
+level: warning
+tokens-:
+  - "comprehensive"
+  - "seamless"
+  - "seamlessly"
+  - "unlock"
+  - "navigate the"
+  - "landscape"
+  - "in today's"
+  - "showcase"
+  - "showcases"
+  - "showcased"
+  - "underscore"
+  - "underscores"
+  - "underscored"
+
+tests:
+  - name: reports stock phrases
+    input: |
+      This crucial change is a testament to our holistic approach.
+    want: |
+      1:6:Voice.Tics:'crucial' is a stock phrase. Say the plain thing, or cut it.
+      1:26:Voice.Tics:'testament' is a stock phrase. Say the plain thing, or cut it.
+      1:43:Voice.Tics:'holistic' is a stock phrase. Say the plain thing, or cut it.
+  - name: leaves literal uses alone
+    input: |
+      Short landscape screens show tasks written in today's journal. Ask the user
+      to unlock the phone, then navigate the tab to the page. Names may contain
+      underscores.
+    want: ''

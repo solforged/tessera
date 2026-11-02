@@ -1,0 +1,17 @@
+extends: occurrence
+message: "More than one semicolon in this paragraph; split a sentence or two."
+level: warning
+scope: paragraph
+max: 1
+token: ';'
+
+tests:
+  - name: reports a paragraph with two semicolons
+    input: |
+      The writer holds the lock; readers wait; the sweeper runs last.
+    want: |
+      1:26:Voice.SemicolonDensity:More than one semicolon in this paragraph; split a sentence or two.
+  - name: allows one semicolon
+    input: |
+      The writer holds the lock; readers wait.
+    want: ''

@@ -1,0 +1,17 @@
+extends: occurrence
+message: 'Use at most six commit body bullets.'
+level: error
+scope: structure
+token: '(?m)^- '
+max: 6
+tests:
+  - name: rejects seven bullets
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- Fixed parsing.\n- Fixed parsing.\n- Fixed parsing.\n- Fixed parsing.\n- Fixed parsing.\n- Fixed parsing.\n- Fixed parsing.\n"
+    contains: Voice.CommitBulletCount
+  - name: accepts six bullets
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- Fixed parsing.\n- Fixed parsing.\n- Fixed parsing.\n- Fixed parsing.\n- Fixed parsing.\n- Fixed parsing.\n"
+    want: ''

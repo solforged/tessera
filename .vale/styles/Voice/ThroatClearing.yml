@@ -1,0 +1,16 @@
+# Phrases that announce a point before making it, from
+# _voices/ThroatClearing.yml.
+extends: Voice._voices.ThroatClearing
+message: "'%s' clears the throat. Cut it and state the point."
+level: warning
+
+tests:
+  - name: reports throat-clearing
+    input: |
+      Here's the thing: the cache is cold.
+    want: |
+      1:1:Voice.ThroatClearing:'Here's the thing' clears the throat. Cut it and state the point.
+  - name: leaves the point alone
+    input: |
+      The cache is cold.
+    want: ''

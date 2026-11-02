@@ -1,0 +1,15 @@
+# "What changed is the direction" and its relatives, from vale-ai-tells
+# (_aitells/PseudoCleft.yml).
+extends: Voice._aitells.PseudoCleft
+message: "'%s' frames the claim. Put the claim first as its own sentence."
+level: warning
+
+tests:
+  - name: reports the frame
+    input: |
+      What you get is one row per blob.
+    contains: Voice.PseudoCleft
+  - name: leaves a question alone
+    input: |
+      What value is the default?
+    want: ''

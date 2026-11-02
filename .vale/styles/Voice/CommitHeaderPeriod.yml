@@ -1,0 +1,18 @@
+extends: existence
+message: 'Do not end the commit header with a period.'
+level: error
+scope: subject
+nonword: true
+raw:
+  - '\.[ \t]*\z'
+tests:
+  - name: rejects a closing period
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser."
+    contains: Voice.CommitHeaderPeriod
+  - name: accepts an internal period
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed version 1.2 parsing"
+    want: ''

@@ -1,0 +1,16 @@
+# A trailing -ing clause that interprets instead of informing, from
+# _voices/SuperficialAnalysis.yml: "Sales rose, highlighting demand."
+extends: Voice._voices.SuperficialAnalysis
+message: "'%s' interprets without saying anything. State what it means for the reader."
+level: warning
+
+tests:
+  - name: reports the trailing interpretation
+    input: |
+      Imports doubled, highlighting the need for batching.
+    want: |
+      1:16:Voice.SuperficialAnalysis:', highlighting' interprets without saying anything. State what it means for the reader.
+  - name: leaves a stated cause alone
+    input: |
+      Imports doubled because each source now writes one row per chapter.
+    want: ''

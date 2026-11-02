@@ -1,0 +1,51 @@
+# American spelling, checked against the SCOWL en_US Hunspell dictionary in
+# _dictionaries/. That dictionary keeps one spelling per word, so "colour",
+# "behaviour", "organise" and "travelled" are reported. Vale's built-in
+# dictionary accepts both spellings and would let them through.
+#
+# A possessive ("pane's") is skipped: the dictionary has no possessive forms
+# for most nouns, and checking the bare word would report every one. A project
+# accepts its own terms through a vocabulary or an ignore file in a rule that
+# extends this one.
+extends: spelling
+message: "'%s' is not in the American English dictionary. Correct it, or add the term to the project's vocabulary."
+level: error
+dicpath: Voice/_dictionaries
+dictionaries:
+  - en_US
+filters:
+  - "[A-Za-z]+['’]s"
+action:
+  name: suggest
+  params:
+    - spellings
+
+tests:
+  - name: reports British spellings
+    input: |
+      The colour of the button changed after we organised the catalogue.
+    want: |
+      1:5:Voice.Spelling:'colour' is not in the American English dictionary. Correct it, or add the term to the project's vocabulary.
+      1:43:Voice.Spelling:'organised' is not in the American English dictionary. Correct it, or add the term to the project's vocabulary.
+      1:57:Voice.Spelling:'catalogue' is not in the American English dictionary. Correct it, or add the term to the project's vocabulary.
+  - name: reports doubled consonants and -re endings
+    input: |
+      The bevelled edge sat in the centre while we travelled.
+    contains:
+      - "'bevelled'"
+      - "'centre'"
+      - "'travelled'"
+  - name: reports typos
+    input: |
+      Teh build runs on evrey push.
+    contains:
+      - "'Teh'"
+      - "'evrey'"
+  - name: accepts American spelling
+    input: |
+      The color of the button changed after we organized the catalog in the center.
+    want: ''
+  - name: skips possessives and code
+    input: |
+      The pane's color comes from `colour_token`.
+    want: ''

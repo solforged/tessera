@@ -140,6 +140,36 @@ jobs:
       - name: Typecheck and build
         run: mise run web:build
 
+  # The rules' own tests, the prose in docs, skills and UI copy, and the
+  # messages of the pull request's commits. Only Vale is installed.
+  prose:
+    name: prose
+    runs-on: ubuntu-latest
+    env:
+      MISE_TASK_RUN_AUTO_INSTALL: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Install Vale
+        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: 2026.10.1
+          install_args: vale
+
+      - name: Rule tests
+        run: mise run docs:test
+
+      - name: Prose
+        run: mise run docs:lint
+
+      - name: Commit messages
+        if: github.event_name == 'pull_request'
+        run: mise run commit:lint "origin/${{ github.base_ref }}..${{ github.event.pull_request.head.sha }}"
+
   android:
     name: android app
     runs-on: ubuntu-latest

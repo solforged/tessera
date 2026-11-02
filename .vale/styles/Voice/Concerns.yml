@@ -1,0 +1,17 @@
+extends: existence
+message: "'%s' is a placeholder verb; say what the thing claims, argues, or asks."
+level: warning
+ignorecase: true
+tokens:
+  - '(?:concerns|concerned)\s+(?:how|what|whether|why|which|who|the|a|an|its|his|her|their|only|not)'
+
+tests:
+  - name: reports the placeholder verb
+    input: |
+      The essay concerns whether memory is reliable.
+    want: |
+      1:11:Voice.Concerns:'concerns whether' is a placeholder verb; say what the thing claims, argues, or asks.
+  - name: leaves a stated claim alone
+    input: |
+      The essay argues that memory edits what it stores.
+    want: ''

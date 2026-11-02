@@ -1,0 +1,52 @@
+extends: script
+message: 'End each commit body bullet with a period.'
+level: error
+scope: structure
+script: |
+  text := import("text")
+  matches := []
+  last := ""
+  start := 0
+  offset := 0
+  for line in text.split(scope, "\n") {
+    if text.has_prefix(line, "- ") {
+      if last != "" && !text.has_suffix(last, ".") {
+        matches = append(matches, {begin: start, end: start + len(last)})
+      }
+      last = text.trim_space(line)
+      start = offset
+    } else if text.has_prefix(line, "  ") && text.trim_space(line) != "" {
+      last = text.trim_right(line, " \t")
+      start = offset
+    }
+    offset += len(line) + 1
+  }
+  if last != "" && !text.has_suffix(last, ".") {
+    matches = append(matches, {begin: start, end: start + len(last)})
+  }
+tests:
+  - name: rejects a missing final period
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- Fixed parsing\n"
+    contains: Voice.CommitBulletPeriod
+  - name: checks each bullet
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- Fixed parsing\n- Added coverage.\n"
+    contains: Voice.CommitBulletPeriod
+  - name: checks the final continuation
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- Fixed parsing and\n  kept the result\n"
+    contains: Voice.CommitBulletPeriod
+  - name: accepts a period on the continuation
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- Fixed parsing and\n  kept the result.\n"
+    want: ''
+  - name: accepts no body
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n"
+    want: ''

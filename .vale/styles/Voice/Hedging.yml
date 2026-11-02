@@ -1,0 +1,18 @@
+# Hedges that announce a point instead of making it, from _voices/Hedging.yml.
+# A real uncertainty is stated with its cause: "The cause is unknown; the log
+# stops before the write."
+extends: Voice._voices.Hedging
+message: "'%s' hedges. State the point, or say what is uncertain and why."
+level: warning
+
+tests:
+  - name: reports hedges
+    input: |
+      It's worth noting that you may want to rebuild the index.
+    want: |
+      1:1:Voice.Hedging:'It's worth noting' hedges. State the point, or say what is uncertain and why.
+      1:24:Voice.Hedging:'you may want to' hedges. State the point, or say what is uncertain and why.
+  - name: leaves a stated uncertainty alone
+    input: |
+      The cause is unknown; the log stops before the write.
+    want: ''

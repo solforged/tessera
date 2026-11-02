@@ -1,0 +1,50 @@
+extends: script
+message: 'Use only - bullets and two-space continuation lines in the commit body.'
+level: error
+scope: structure
+script: |
+  text := import("text")
+  matches := []
+  bullet := false
+  offset := 0
+  for line in text.split(scope, "\n") {
+    if text.trim_space(line) != "" {
+      valid := false
+      if text.has_prefix(line, "- ") && text.trim_space(line[2:]) != "" {
+        bullet = true
+        valid = true
+      } else if bullet && text.re_match("^  [^ \t]", line) {
+        valid = true
+      }
+      if !valid {
+        matches = append(matches, {begin: offset, end: offset + len(line)})
+      }
+    }
+    offset += len(line) + 1
+  }
+tests:
+  - name: rejects a prose paragraph
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\nFixed parsing.\n"
+    contains: Voice.CommitBodyStructure
+  - name: rejects a leading continuation
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n  Fixed parsing.\n"
+    contains: Voice.CommitBodyStructure
+  - name: rejects nested bullets
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- Fixed parsing.\n    - Added nesting.\n"
+    contains: Voice.CommitBodyStructure
+  - name: accepts wrapped bullets
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- Fixed parsing and\n  kept the result.\n\n- Added coverage.\n"
+    want: ''
+  - name: ignores Git commentary
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- Fixed parsing.\n# Please enter the commit message.\n# ignored\n"
+    want: ''

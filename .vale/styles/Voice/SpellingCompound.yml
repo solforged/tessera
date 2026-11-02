@@ -1,0 +1,21 @@
+# Voice.Spelling for the parts of hyphenated words. Vale's spelling check skips
+# any token with a character other than a letter, so "colour-coded" and
+# "catalogue-style" pass Voice.Spelling. This rule reads only tokens containing
+# a hyphen and checks each part on its own. Words joined by a slash
+# ("Role/Organisation") are read as paths and skipped by both rules.
+extends: Voice.Spelling
+split: true
+filters:
+  - "^[^-]+$"
+
+tests:
+  - name: reports British parts of hyphenated words
+    input: |
+      A colour-coded, catalogue-style list.
+    want: |
+      1:3:Voice.SpellingCompound:'colour' is not in the American English dictionary. Correct it, or add the term to the project's vocabulary.
+      1:17:Voice.SpellingCompound:'catalogue' is not in the American English dictionary. Correct it, or add the term to the project's vocabulary.
+  - name: leaves plain words to Voice.Spelling
+    input: |
+      The colour of a color-coded, JSON-backed, read-only list.
+    want: ''

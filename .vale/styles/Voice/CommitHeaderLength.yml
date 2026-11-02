@@ -1,0 +1,18 @@
+extends: existence
+message: 'Keep the commit header at 72 characters or fewer.'
+level: error
+scope: subject
+nonword: true
+raw:
+  - '\A.{73,}\z'
+tests:
+  - name: rejects 73 characters
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    contains: Voice.CommitHeaderLength
+  - name: accepts 72 characters
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    want: ''

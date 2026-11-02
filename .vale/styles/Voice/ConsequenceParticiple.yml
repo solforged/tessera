@@ -1,0 +1,18 @@
+# A finished clause followed by ", leaving the ...", ", making it ...", and so
+# on, restating the effect as an afterthought. From vale-ai-tells
+# (_aitells/ConsequenceParticiple.yml), whose comments record the measured
+# costs of each participle.
+extends: Voice._aitells.ConsequenceParticiple
+message: "'%s' tacks the consequence on. End the sentence and state the effect as its own claim."
+level: warning
+
+tests:
+  - name: reports a consequence tail
+    input: |
+      The sweeper drops the row, leaving the cache cold.
+    want: |
+      1:26:Voice.ConsequenceParticiple:', leaving the' tacks the consequence on. End the sentence and state the effect as its own claim.
+  - name: leaves the split sentences alone
+    input: |
+      The sweeper drops the row. The cache stays cold.
+    want: ''

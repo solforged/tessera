@@ -1,0 +1,34 @@
+# Keep the original body for structural checks and parse a second copy as
+# Markdown for spelling. Git's commentary ends the message; trailers are
+# body text and must follow the same bullet convention.
+engine: textfsm
+template: |
+  Value Subject (.*)
+  Value Gap (.*)
+  Value List Body (.*)
+
+  Start
+    ^# -> End
+    ^${Subject} -> Gap
+
+  Gap
+    ^# -> End
+    ^${Gap} -> Continue
+    ^${Body} -> Body
+
+  Body
+    ^# -> End
+    ^${Body}
+scopes:
+  - name: subject
+    expr: Subject
+
+  - name: gap
+    expr: Gap
+
+  - name: structure
+    expr: Body
+
+  - name: body
+    expr: Body
+    type: md

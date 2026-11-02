@@ -30,7 +30,7 @@
 
 ## Development
 
-Requires [mise](https://mise.jdx.dev). `mise install` installs the toolchain
+Requires [`mise`](https://mise.jdx.dev). `mise install` installs the toolchain
 pinned in `mise.toml` and `mise.lock`. Run `mise tasks` to list the tasks.
 Definitions live in [`mise.toml`](../mise.toml) and
 [`mise-tasks/`](../mise-tasks), and the CI workflows use them too.
@@ -99,16 +99,19 @@ open.
 
 ### Checks
 
-| Command                                                      | Check                                                                                                     |
-| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `mise run check`                                             | Formatting, Clippy, Rust and editor tests, and the editor build.                                          |
-| `mise run docs:lint`                                         | Vale on `README.md` and `docs/`. Documentation changes must pass this check; it is separate from `check`. |
-| `mise run fmt`                                               | Formats Rust code.                                                                                        |
-| `mise run bench --root /tmp/tessera-bench --fail-on budgets` | Backend budgets; see [Performance](performance.md).                                                       |
+| Command                                                      | Check                                                                                       |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `mise run check`                                             | Formatting, Clippy, Rust and editor tests, the editor build, and the two prose checks below. |
+| `mise run docs:lint`                                         | Vale on `README.md`, `CHANGELOG.md`, `docs/`, `.agents/skills/` and the editor's UI copy.   |
+| `mise run docs:test`                                         | The Vale rules' own test cases, with every rule required to fire in at least one.          |
+| `mise run commit:lint`                                       | Commit messages from `origin/main` to `HEAD` against the commit convention.                 |
+| `mise run fmt`                                               | Formats Rust code.                                                                          |
+| `mise run bench --root /tmp/tessera-bench --fail-on budgets` | Backend budgets; see [Performance](performance.md).                                         |
 
 [CI](../.github/workflows/ci.yml) runs Rust `lint` and `test` on Linux and
-macOS, plus `web:build`, `demo:lint`, `demo:test`, `android:lint`, `cli:lint`
-and `cli:test`. Its backend job runs 50,000-row correctness and scaling checks
+macOS, plus `web:build`, `demo:lint`, `demo:test`, `android:lint`, `cli:lint`,
+`cli:test`, the prose checks and `commit:lint` over the pull request's commits.
+Its backend job runs 50,000-row correctness and scaling checks
 with `--sizes 50000 --fail-on scaling`. Absolute budgets are for named devices;
 shared runners report them but gate only on correctness and no-per-row-work
 checks.
@@ -134,7 +137,7 @@ workshop as one file. Web articles, sync and service details are omitted.
 mise run demo:build
 ```
 
-The task compiles the engine with the wasm32 target, binds it with wasm-bindgen
+The task compiles the engine with the wasm32 target, binds it with `wasm-bindgen`
 into `web/src/demo/pkg`, shrinks it with `wasm-opt`, then builds the pages.
 
 The output in `web/dist-demo` is static. Serve it with every non-asset path
@@ -159,8 +162,8 @@ mise run demo:test
 
 This runs the engine's wasm tests in headless Chrome for Testing, since they
 need the browser's private storage in a real worker. It uses Playwright's Chrome
-for Testing build unless `CHROME_PATH` names another Chrome. Mise supplies a
-matching chromedriver. The storage layer is a patched copy of `sqlite-wasm-vfs`
+for Testing build unless `CHROME_PATH` names another Chrome. `mise` supplies a
+matching `chromedriver`. The storage layer is a patched copy of `sqlite-wasm-vfs`
 in [`vendor/sqlite-wasm-vfs`](../vendor/sqlite-wasm-vfs). The root `Cargo.toml`
 says when it can go.
 
@@ -206,13 +209,29 @@ replaces it through the app's updates.
 
 ## Doc conventions
 
+Prose follows the shared house style in
+[`.vale/styles/Voice/Brief.md`](../.vale/styles/Voice/Brief.md). The Voice
+style is maintained in the system repository and copied here by
+`mise run docs:style`; Tessera's own rules and word lists are in
+`.vale/styles/Tessera` and `.vale/styles/config`. Spelling, the Tessera
+conventions below and the commit convention are errors; the other Voice rules
+are warnings that ask for a second look. The
+[prose review skill](../.agents/skills/reviewing-tessera-prose/SKILL.md) covers
+what the rules cannot check.
+
 - Put surface rules in the matching `docs/surfaces/*.md` file; see the
   [surface list](design.md#surfaces).
 - Put tokens and shared patterns in [`docs/design.md`](design.md).
 - Keep paragraphs under 150 words; Vale enforces the limit on paragraphs, list
   items and table cells.
 - Use American spelling (color, behavior, catalog, canceled, organize). Vale
-  flags British forms in prose and names the fix; code spans keep identifiers
-  such as the `cancelled` task status as written.
+  checks prose and UI copy against the SCOWL en_US dictionary; code spans keep
+  identifiers such as the `cancelled` task status as written. Add a domain word
+  the dictionary lacks to `.vale/styles/config/ignore/tessera.txt`, and a name
+  whose case matters to `.vale/styles/config/vocabularies/Tessera/accept.txt`.
+- Keep a quoted source's spelling: exempt it in place with
+  `<!-- vale Tessera.Spelling["colour"] = NO -->` and the matching `= YES`.
+- Run `mise run hooks:install` once per clone to check commit messages as you
+  write them.
 - Prefer lists and tables for parallel rules.
 - Update the document in the same commit as the behavior.

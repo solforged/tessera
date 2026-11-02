@@ -1,0 +1,48 @@
+# Names whose spelling and case Tessera enforces. Vale.Terms reports any other
+# case outside code spans; every rule treats these as exceptions. Ordinary
+# words the dictionary lacks belong in config/ignore/tessera.txt instead.
+arXiv
+Aufhebung
+AXe
+Bibliotheca
+Burgundians
+Calibre
+Clippy
+Crockford
+Crossref
+Datalog
+Datascript
+Dependabot
+DevTools
+Gboard
+Gradle
+Hana
+Histoire de la Gaule
+iPads
+iPhones
+Logseq
+Meiksins
+Menlo
+Moshi
+Muqaddimah
+Ninian
+Okafor
+Ollama
+Piazzolla
+Plex
+Plinys
+Polybius
+Raycast
+SFNSMono
+solforged
+Tailscale
+Tana
+Tauri
+Tessera
+Tudors
+Tully
+UIKit
+Vannevar
+Vercel
+Vite
+Xcode
