@@ -1,0 +1,37 @@
+# Tessera dependency updates. Bun >=1.1.39 and Cargo are both supported
+# ecosystems; the web editor lives in web/ with bun.lock.
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # wasm-bindgen-cli must match the crate version pinned by mise; keep
+    # those two moving together by hand.
+    ignore:
+      - dependency-name: "wasm-bindgen"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: "nix"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # flake.lock pins the dev container image's toolchain; the flake.nix
+    # rev pins only move after checking the caches have built them.
+    commit-message:
+      prefix: "chore(flake)"
+
+  - package-ecosystem: "bun"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(deps-web)"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore(ci)"
