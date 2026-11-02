@@ -1330,7 +1330,7 @@ export function LibraryPane(props: LibraryPaneProps) {
                   <p>{view().collection ? 'This collection has no sources yet. Select books in the library, then choose Add to collection.' : tab() === 'all' ? 'No sources.' : `No ${tabs.find(item => item.id === tab())?.label.toLowerCase()} sources yet.`}</p>
                 }>
                   <h2>Add your first source</h2>
-                  <p>{EMBEDDED ? 'Import an EPUB to read, highlight, and make notes.' : 'Import an EPUB, save an article, or add a catalogue record.'}</p>
+                  <p>{EMBEDDED ? 'Import an EPUB to read, highlight, and make notes.' : 'Import an EPUB, save an article, or add a catalog record.'}</p>
                 </Show>
                 {/* New sources land in the Inbox, so only an empty library or a tab that would list them offers to add one; a collection points back to the library instead. */}
                 <Show when={view().collection} fallback={<Show when={noSources() || tab() === 'inbox' || tab() === 'all'}><Button class="bordered" icon="plus" onClick={event => openAdd(event.currentTarget)}>{EMBEDDED ? 'Import an EPUB' : 'Add a source'}</Button></Show>}>

@@ -297,7 +297,7 @@ export function MetadataInspector(props: {
     <header class="metadata-inspector-head">
       <Show when={props.backLabel}><Button class="metadata-back" icon="left" onClick={() => (props.onBack ?? props.onClose)()}>{props.backLabel}</Button></Show>
       <div class="metadata-inspector-heading">
-        <span>{batch() ? `${docs().length} sources selected` : `${docs()[0]?.root()?.source?.siglum ?? ''} Catalogue card`}</span>
+        <span>{batch() ? `${docs().length} sources selected` : `${docs()[0]?.root()?.source?.siglum ?? ''} Catalog card`}</span>
         <div><Show when={docs().length === 1}><Button class="metadata-open" onClick={event => props.onOpen({ kind: 'page', pageId: docs()[0]!.pageId }, opensBeside(event))}>Open atom<Icon name="right" /></Button></Show><Button icon="close" label="Close source details" onClick={props.onClose} /></div>
       </div>
       <Show when={batch()}><p class="metadata-hint">An entered value replaces the field on all {docs().length} sources, unless a source is named.</p></Show>
@@ -337,8 +337,8 @@ export function MetadataInspector(props: {
       </Show>
       <Show when={actionError()}><p class="metadata-error" role="alert">{actionError()}</p></Show>
     </div>
-    <Show when={visibilityMenu()}>{anchor => <Popup anchor={anchor()} label="Catalogue fields" onDismiss={() => setVisibilityMenu(undefined)}>
-      <h2 class="popup-title">Catalogue fields</h2><p class="metadata-hint">Visibility is kept for each selected atom on this device.</p>
+    <Show when={visibilityMenu()}>{anchor => <Popup anchor={anchor()} label="Catalog fields" onDismiss={() => setVisibilityMenu(undefined)}>
+      <h2 class="popup-title">Catalog fields</h2><p class="metadata-hint">Visibility is kept for each selected atom on this device.</p>
       <For each={(Object.keys(labels) as SourceField[]).filter(field => field !== 'cover' && field !== 'siglum')}>{field => <label class="menu-item"><input type="checkbox" checked={!hiddenFields().includes(field)} onChange={event => setFieldVisible(field, event.currentTarget.checked)} />{labels[field]}</label>}</For>
     </Popup>}</Show>
     <Show when={toast()}>{notice => <div class="metadata-toast" role="status"><span>{notice().label} on {notice().count} {notice().count === 1 ? 'source' : 'sources'}.</span><Show when={notice().action}><Button disabled={!!pending()} onClick={() => { void travel(notice().action === 'redo'); }}>{notice().action === 'redo' ? 'Redo' : 'Undo'}</Button></Show><Button icon="close" label="Dismiss change notice" onClick={() => setToast(undefined)} /></div>}</Show>

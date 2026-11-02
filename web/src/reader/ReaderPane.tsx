@@ -1692,7 +1692,7 @@ export function ReaderPane(props: ReaderPaneProps) {
       </>}>
         <div class="reader-selection-actions">
           <Show when={!more()} fallback={<>
-            <Button class="reader-selection-page" icon="left" label="Colours and Annotate" onClick={() => setMore(false)} />
+            <Button class="reader-selection-page" icon="left" label="Colors and annotate" onClick={() => setMore(false)} />
             <Button disabled={blocked()} onClick={() => { void highlight(false); }}>Highlight</Button>
             <Button onClick={copy}>Copy</Button>
           </>}>
