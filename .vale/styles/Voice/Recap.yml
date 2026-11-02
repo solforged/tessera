@@ -1,0 +1,27 @@
+# A closing paragraph that summarizes instead of finishing, from
+# _voices/Recap.yml. The rule reads only the last paragraph of each section,
+# where the habit lives; "Overall" opening a paragraph mid-section is often an
+# honest aggregate ("Overall, 12 of 14 runs passed").
+extends: Voice._voices.Recap
+message: "'%s' opens a recap. End the section on its last concrete point."
+level: warning
+scope: 'text & doc(section > p:last-of-type)'
+
+tests:
+  - name: reports a recap ending a section
+    input: |
+      # Sync
+
+      Each device keeps a cursor.
+
+      In conclusion, sync is reliable.
+    want: |
+      5:1:Voice.Recap:'In conclusion' opens a recap. End the section on its last concrete point.
+  - name: leaves a mid-section aggregate alone
+    input: |
+      # Runs
+
+      Overall, 12 of 14 runs passed.
+
+      The two failures timed out on the first request.
+    want: ''

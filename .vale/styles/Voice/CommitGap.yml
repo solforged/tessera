@@ -1,0 +1,23 @@
+extends: existence
+message: 'Separate the commit header and body with a blank line.'
+level: error
+scope: gap
+nonword: true
+raw:
+  - '\A.+'
+tests:
+  - name: rejects an immediate body
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n- Fixed parsing.\n"
+    contains: Voice.CommitGap
+  - name: accepts a blank separator
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n\n- Fixed parsing.\n"
+    want: ''
+  - name: accepts no body
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser\n"
+    want: ''

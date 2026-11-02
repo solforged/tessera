@@ -1,0 +1,18 @@
+# Short dramatic declarations ("It matters." "This is key."), from
+# vale-ai-tells (_aitells/MicDrop.yml). List items are left out: a short
+# item such as "Not started." is a label, not a flourish.
+extends: Voice._aitells.MicDrop
+message: "'%s' is a mic-drop. Fold the point into the surrounding sentence, or cut it."
+level: warning
+scope: ~list
+
+tests:
+  - name: reports a mic-drop
+    input: |
+      Each read hits the index. It matters.
+    want: |
+      1:27:Voice.MicDrop:'It matters.' is a mic-drop. Fold the point into the surrounding sentence, or cut it.
+  - name: leaves a list label alone
+    input: |
+      - Saved views: People, Kitchen tasks, Not started.
+    want: ''

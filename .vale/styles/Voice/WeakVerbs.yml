@@ -1,0 +1,17 @@
+# Verb phrases with a shorter equivalent, from _voices/WeakVerbs.yml. Each
+# inflection carries its own replacement, so the fix agrees in tense.
+extends: Voice._voices.WeakVerbs
+message: "Use '%s' instead of '%s'."
+level: warning
+
+tests:
+  - name: carries the replacement
+    input: |
+      We made a decision to batch writes in order to save a round trip.
+    want: |
+      1:4:Voice.WeakVerbs:Use 'decided' instead of 'made a decision'.
+      1:36:Voice.WeakVerbs:Use 'to' instead of 'in order to'.
+  - name: leaves the plain forms alone
+    input: |
+      We decided to batch writes to save a round trip.
+    want: ''

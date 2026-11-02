@@ -1,0 +1,16 @@
+# Claims attributed to nobody in particular, from _voices/Weasel.yml.
+extends: Voice._voices.Weasel
+message: "'%s' cites no one. Name the source, or cut the claim."
+level: warning
+
+tests:
+  - name: reports unattributed claims
+    input: |
+      Studies show that experts agree on the format.
+    want: |
+      1:1:Voice.Weasel:'Studies show' cites no one. Name the source, or cut the claim.
+      1:19:Voice.Weasel:'experts agree' cites no one. Name the source, or cut the claim.
+  - name: leaves a named source alone
+    input: |
+      The 2024 SQLite benchmark shows the WAL mode faster for this load.
+    want: ''

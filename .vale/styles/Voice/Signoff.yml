@@ -1,0 +1,16 @@
+# Chat sign-offs in a document, from _voices/Closers.yml. A document ends on
+# its last concrete point.
+extends: Voice._voices.Closers
+message: "'%s' is a sign-off. End on the last concrete point."
+level: warning
+
+tests:
+  - name: reports sign-offs
+    input: |
+      Run the migration once. I hope this helps!
+    want: |
+      1:25:Voice.Signoff:'I hope this helps' is a sign-off. End on the last concrete point.
+  - name: leaves a closing instruction alone
+    input: |
+      Run the migration once, then restart the service.
+    want: ''

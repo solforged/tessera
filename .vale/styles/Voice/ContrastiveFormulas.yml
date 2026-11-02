@@ -1,0 +1,17 @@
+# "It's not just X; it's Y" and its relatives, from vale-ai-tells
+# (_aitells/ContrastiveFormulas.yml). Advisory: a contrast that rules out a
+# reading a reader would actually make is precise writing, and the rule cannot
+# tell the two apart.
+extends: Voice._aitells.ContrastiveFormulas
+message: "'%s' is a contrast formula. State the positive claim, unless the reader would really make the mistake it rules out."
+level: warning
+
+tests:
+  - name: reports the formula
+    input: |
+      It's not just a cache; it's the source of truth.
+    contains: Voice.ContrastiveFormulas
+  - name: leaves the positive claim alone
+    input: |
+      The cache is the source of truth.
+    want: ''

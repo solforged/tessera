@@ -1,0 +1,26 @@
+# The em dash joining clauses. A semicolon, comma, colon, period or pair of
+# parentheses says which relation is meant. The en dash in a range ("pages
+# 3–7") is correct typography and is not reported, nor is an em dash standing
+# alone as an empty value (a table cell or a UI placeholder).
+extends: existence
+message: "Use a semicolon, comma, colon or period instead of an em dash."
+level: warning
+nonword: true
+tokens:
+  - '(?<=\w[\s]?)—|—(?=[\s]?\w)'
+
+tests:
+  - name: reports an em dash
+    input: |
+      The cache is cold — nobody warmed it.
+    want: |
+      1:19:Voice.Dashes:Use a semicolon, comma, colon or period instead of an em dash.
+  - name: leaves a range alone
+    input: |
+      Read pages 3–7 first.
+    want: ''
+
+  - name: leaves an empty-value placeholder alone
+    input: |
+      | Retention | — |
+    want: ''

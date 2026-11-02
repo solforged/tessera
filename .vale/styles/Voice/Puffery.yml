@@ -1,0 +1,16 @@
+# Importance asserted instead of shown, from _voices/Puffery.yml.
+extends: Voice._voices.Puffery
+message: "'%s' asserts importance. State what happened and let the reader judge."
+level: warning
+
+tests:
+  - name: reports puffery
+    input: |
+      We are thrilled to announce a release that plays a vital role in sync.
+    want: |
+      1:8:Voice.Puffery:'thrilled to announce' asserts importance. State what happened and let the reader judge.
+      1:44:Voice.Puffery:'plays a vital role' asserts importance. State what happened and let the reader judge.
+  - name: leaves a plain announcement alone
+    input: |
+      Version 0.6 adds sync over the tailnet.
+    want: ''

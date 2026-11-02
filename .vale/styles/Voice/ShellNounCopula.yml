@@ -1,0 +1,16 @@
+# "The problem is that ..." and other abstract nouns whose content is the
+# clause after them, from vale-ai-tells (_aitells/ShellNounCopula.yml).
+extends: Voice._aitells.ShellNounCopula
+message: "'%s' delays the claim. Start the sentence at the claim."
+level: warning
+
+tests:
+  - name: reports the shell noun
+    input: |
+      The problem is that the index goes stale.
+    want: |
+      1:1:Voice.ShellNounCopula:'The problem is that' delays the claim. Start the sentence at the claim.
+  - name: leaves a stated rule alone
+    input: |
+      The rule is that every write takes the lock.
+    want: ''

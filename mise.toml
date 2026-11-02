@@ -9,8 +9,8 @@ bun = "1.4"
 # Must match the wasm-bindgen crate in Cargo.lock.
 "github:wasm-bindgen/wasm-bindgen" = "0.2.129"
 "github:WebAssembly/binaryen" = { version = "133", version_prefix = "version_" }
-# Checks the prose in README.md and docs/ against .vale.ini.
-vale = "3.24"
+# Checks prose against .vale.ini; 3.25 reads JSX text for the UI copy check.
+vale = "3.25"
 
 [tasks.deps]
 description = "Install the web dependencies"
@@ -34,8 +34,15 @@ depends = ["deps"]
 run = "bun run --cwd web test"
 
 [tasks."docs:lint"]
-description = "Check the prose in README.md and docs/ with Vale"
-run = "vale README.md docs"
+description = "Check the prose in the docs, changelog, agent skills and UI copy with Vale"
+run = "vale --no-global README.md CHANGELOG.md docs .agents/skills web/src"
+
+[tasks."docs:test"]
+description = "Run the Vale rules' own tests and check Brief.md names every Voice rule"
+run = [
+  "vale --no-global test --coverage .vale/styles/Voice .vale/styles/Tessera",
+  "for f in .vale/styles/Voice/*.yml; do n=$(basename \"$f\" .yml); grep -q \"\\*\\*$n:\\*\\*\" .vale/styles/Voice/Brief.md || { echo \"docs:test: Brief.md does not describe Voice.$n\" >&2; exit 1; }; done",
+]
 
 [tasks.serve]
 description = "Serve the development workshop in .tessera/dev on port 4320"
@@ -59,7 +66,7 @@ run = "cargo test --workspace --locked"
 
 [tasks.check]
 description = "Run the checks a change must pass"
-depends = ["lint", "test", "web:test", "web:build"]
+depends = ["lint", "test", "web:test", "web:build", "docs:test", "docs:lint"]
 
 [tasks.bench]
 description = "Run the backend benchmarks; arguments go to tessera-bench"

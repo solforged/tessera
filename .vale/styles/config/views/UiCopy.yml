@@ -1,0 +1,33 @@
+# The visible text of the editor's components: JSX text between tags; string
+# and template literals written directly as a child expression, or as either
+# branch of a conditional there; and the same literals as values of the
+# attributes a person reads or hears (title, aria-label, aria-description,
+# placeholder, alt, label). Identifiers, class names, other string literals
+# and comments are not prose and are left out.
+engine: tree-sitter
+scopes:
+  - name: ui
+    expr: (jsx_text) @prose
+
+  - name: ui
+    expr: |
+      (jsx_element
+        (jsx_expression
+          [(string (string_fragment) @prose)
+           (template_string (string_fragment) @prose)
+           (ternary_expression
+             [(string (string_fragment) @prose)
+              (template_string (string_fragment) @prose)])]))
+
+  - name: ui
+    expr: |
+      (jsx_attribute
+        (property_identifier) @_name
+        [(string (string_fragment) @prose)
+         (jsx_expression
+           [(string (string_fragment) @prose)
+            (template_string (string_fragment) @prose)
+            (ternary_expression
+              [(string (string_fragment) @prose)
+               (template_string (string_fragment) @prose)])])]
+        (#match? @_name "^(title|aria-label|aria-description|placeholder|alt|label)$"))

@@ -1,0 +1,30 @@
+# American forms the dictionary cannot enforce. The en_US dictionary behind
+# Voice.Spelling accepts these words, since each is in American use, but the
+# house writes the form on the right. Add a word here only when the dictionary
+# accepts the form the house avoids; Voice.Spelling reports the rest.
+extends: substitution
+message: "Use '%s' instead of '%s'."
+level: error
+ignorecase: true
+capitalize: true
+action:
+  name: replace
+swap:
+  whilst: while
+  orientated: oriented
+  'analogue(s)?': analog$1
+  per cent: percent
+
+tests:
+  - name: reports house preferences
+    input: |
+      Whilst the analogue clock ran, the team orientated the chart and saved ten per cent.
+    want: |
+      1:1:Voice.American:Use 'While' instead of 'Whilst'.
+      1:12:Voice.American:Use 'analog' instead of 'analogue'.
+      1:41:Voice.American:Use 'oriented' instead of 'orientated'.
+      1:76:Voice.American:Use 'percent' instead of 'per cent'.
+  - name: accepts the house forms
+    input: |
+      While the analog clocks ran, the team oriented the chart and saved ten percent.
+    want: ''

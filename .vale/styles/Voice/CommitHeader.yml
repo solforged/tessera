@@ -1,0 +1,47 @@
+extends: occurrence
+message: 'Use type(scope): summary or type: summary; scope has at most two lowercase segments.'
+level: error
+scope: subject
+token: '\A[a-z]+(?:\([a-z0-9_-]+(?:/[a-z0-9_-]+)?\))?: [^\s].*\z'
+min: 1
+tests:
+  - name: rejects a missing type
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fixed the parser"
+    contains: Voice.CommitHeader
+  - name: accepts an unscoped header
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: fixed the parser"
+    want: ''
+  - name: accepts two scope segments
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix(web/editor): fixed the parser"
+    want: ''
+  - name: rejects uppercase scope
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix(Web): fixed the parser"
+    contains: Voice.CommitHeader
+  - name: rejects three scope segments
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix(web/ui/editor): fixed the parser"
+    contains: Voice.CommitHeader
+  - name: rejects a breaking-change marker
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix!: fixed the parser"
+    contains: Voice.CommitHeader
+  - name: rejects an empty summary
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: "fix: "
+    contains: Voice.CommitHeader
+  - name: rejects an empty message
+    format: COMMIT_EDITMSG
+    view: Commit
+    input: ""
+    contains: Voice.CommitHeader

@@ -1,0 +1,15 @@
+# Voice.SpellingCompound with Tessera's word list (config/ignore/tessera.txt).
+extends: Voice.SpellingCompound
+ignore:
+  - tessera.txt
+scope: text & ~structure & ~gap
+
+tests:
+  - name: reports British parts of hyphenated words
+    input: |
+      A colour-coded list.
+    contains: "'colour'"
+  - name: accepts Tessera's words in compounds
+    input: |
+      A siglum-first, subtree-wide cloze-card list.
+    want: ''

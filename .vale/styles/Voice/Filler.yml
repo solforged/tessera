@@ -1,0 +1,37 @@
+# Words that claim a quality without saying what it is. Each one needs the
+# sentence rewritten around a mechanism, a number or a named property, so the
+# rule reports and carries no fix. Voice.Inflated holds the words with one
+# right replacement.
+#
+# Built on the Banned list from Voices (_voices/Banned.yml). "harness" is
+# removed: a test harness is an ordinary technical noun.
+extends: Voice._voices.Banned
+message: "'%s' is filler. Say the specific thing."
+level: warning
+tokens-:
+  - 'harness(?:es|ed|ing)?'
+tokens+:
+  - load-bearing
+  - comprehensive
+  - robust
+  - 'seamless(?:ly)?'
+  - simply
+
+tests:
+  - name: reports filler
+    input: |
+      The comprehensive, robust importer works seamlessly.
+    want: |
+      1:5:Voice.Filler:'comprehensive' is filler. Say the specific thing.
+      1:20:Voice.Filler:'robust' is filler. Say the specific thing.
+      1:42:Voice.Filler:'seamlessly' is filler. Say the specific thing.
+  - name: reports the Voices list
+    input: |
+      This transformative release will empower teams.
+    contains:
+      - "'transformative'"
+      - "'empower'"
+  - name: leaves a test harness alone
+    input: |
+      The bench harness proved the table under 100 ms.
+    want: ''

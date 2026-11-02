@@ -9,3 +9,24 @@ scope:
   - table.cell
 max: 150
 token: \b(\w+)\b
+
+tests:
+  - name: reports a 151-word paragraph
+    input: |
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word
+    contains: Tessera.ParagraphLength
+  - name: accepts a 150-word paragraph
+    input: |
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+    want: ''
