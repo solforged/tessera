@@ -7,7 +7,7 @@ description: "Reproduces and profiles Tessera slowness in the library, reader pa
 
 Use this for large-library slowness and small-notebook reports such as "the
 library feels sluggish on the Fold". First complete
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 and source its prepared environment.
 
 ## Quick triage (small notebook, sluggish UI)
@@ -90,12 +90,12 @@ and source its prepared environment.
    0864593, this took 73 s. Save output and exact inputs in `TASK_EVIDENCE`.
 2. Find the hot path while it runs:
    `sample <recorded-owned-pid> 8 -file "$TASK_EVIDENCE/import-sample.txt"`,
-   then read the tessera_core frames in the call graph.
+   then read the `tessera_core` frames in the call graph.
 3. For SQL: pull query text from source, then run `EXPLAIN QUERY PLAN` against a
    read-only copy of `$TASK_RUN/notebooks/base/notebook.db` (on Mac use
    `/usr/bin/sqlite3`; a compatible Python sqlite3 is usable for non-FTS
    queries). A `SCAN` inside a CORRELATED SUBQUERY is the bug. Do not time the
-   old full query in eval: it can run for minutes and kill the kernel.
+   old full query in `eval`: it can run for minutes and kill the kernel.
 4. Fix in the owned writer checkout, rebuild serially and restage the release
    executable; stop the old consumer, create a fresh baseline copy and serve on
    the recorded owned ports. Run about 20 serial imports and retain/report
@@ -118,9 +118,9 @@ and source its prepared environment.
 
 ## Integration and teardown
 
-The integration owner runs workspace tests and clippy once after integration
+The integration owner runs workspace tests and `clippy` once after integration
 (`--lib --bins` plus touched test targets; `tests/page_merge.rs` had a
-historical collapsible_if error). Transfer scoped fixes through
+historical `collapsible_if` error). Transfer scoped fixes through
 `landing-lane-patches-around-dirty-peer-trees`; use
 `shipping-tessera-live-builds` only for separately authorized landing/shipping.
 Retain before/after numbers, samples and generator/binary/fixture provenance in

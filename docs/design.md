@@ -281,7 +281,7 @@ Orrery by night is cyanotype, not parchment: every layer stays cool (a
 blue-white lit edge, a blue-tinted leaf, black contact and well shade, a fine
 sparse blue-white grain), so nothing warm floats over the ink-blue and grays it.
 Orrery by day is vellum: warm contact shade, `--raised` leaves, a fine fiber
-with a slow mottle, and an ink-wash hover rather than an ochre one.
+with a slow mottle, and an ink-wash hover rather than an ocher one.
 
 ### Motion
 
@@ -740,7 +740,7 @@ phone's own conventions:
   `size="lg"` the 52 px full-width one at a screen's foot. An icon-only button
   is a circle. There is no 1 px square box and no boxed stepper. Desktop keeps
   the hairline leaf and the gilt stamp it has.
-- **Leaf, list, seg and search.** A `leaf` is a 14 px-radius tile or group, lit
+- **Leaf, list, `seg` and search.** A `leaf` is a 14 px-radius tile or group, lit
   along its top. `ListGroup` sets a Plex label above a leaf of 48 px `ListRow`s,
   with hairlines starting at the text and a chevron on rows that push;
   `PropertyRow` puts a field's label at the left and its value at the right.
@@ -928,7 +928,7 @@ source and Add to today (⌘E), plus New {kind} for every page kind in the slip'
 More menu. Typed commands lock their kind. Tasks and cards start in Today.
 Command queries match titles, sections and keywords: `>capture` finds Add to
 today, `>todo` finds New task, and source keywords include book, article, paper,
-library, import and isbn. ⌥⌘N also works in the browser. The macOS app lets its
+library, import and ISBN. ⌥⌘N also works in the browser. The macOS app lets its
 menu dispatch the shortcut once.
 
 With no command query, This atom lists only applicable actions; searching
@@ -1782,7 +1782,7 @@ Unavailable actions stay listed with their reason.
 | `l`    | List card       |
 | `z`    | Cloze           |
 
-Space c c makes a forward card.
+`Space c c` makes a forward card.
 
 ## Popups and feedback
 
@@ -2048,7 +2048,7 @@ The app icon carries the workshop's central idea and its material. The idea is
 multiperspectival notes: one subject held in distinct attributed perspectives,
 with the source beside what you think of it; see
 [perspectives](surfaces/perspectives.md). The material is clockwork gold, the
-brass of an instrument: rings, rules and bevelled facets drawn in a few flat
+brass of an instrument: rings, rules and beveled facets drawn in a few flat
 gilt tones. No glows and no multi-stop metallic gradients.
 
 ### Direction
@@ -2063,7 +2063,7 @@ it never reads as a target. One parchment tile is lifted out of the ring at one
 o'clock and tilted 18°: a piece taken up to be looked at from another angle.
 Midnight ground only for now.
 
-The source is `crates/tessera-desktop/icons/icon.svg`; desktop PNGs, the icns
+The source is `crates/tessera-desktop/icons/icon.svg`; desktop PNGs, the `icns`
 and the Android launcher icons are rendered from it, Android as a mark-only
 adaptive foreground on a midnight background.
 
@@ -2095,6 +2095,9 @@ adaptive foreground on a midnight background.
 
 Rounds live in `~/Documents/tessera-design/icon-2026-10-10/`.
 
+<!-- "tessera" below is the Latin common noun, not the app's name. -->
+<!-- vale Vale.Terms["tessera"] = NO -->
+
 | Round   | Exploration                                                                                                             |
 | ------- | ----------------------------------------------------------------------------------------------------------------------- |
 | 1       | Mosaic, oculus, tessera hospitalis (a token split between two holders) and split oculus                                 |
@@ -2102,6 +2105,8 @@ Rounds live in `~/Documents/tessera-design/icon-2026-10-10/`.
 | 3       | Left the compass behind for an isometric cube (a tessera is also a die), a parted hospitalis tile and overlapping tiles |
 | 4       | The faceted tessera was on the right track but not distinctive, so the tessera became gold smalti                       |
 | 5 and 6 | Refined the ring with one tile lifted                                                                                   |
+
+<!-- vale Vale.Terms["tessera"] = YES -->
 
 ## Decisions
 

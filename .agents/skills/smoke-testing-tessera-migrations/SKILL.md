@@ -13,7 +13,7 @@ real upgrade on a notebook the shipped binary wrote.
 ## Shared lifecycle
 
 Complete
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 and source its prepared environment. Keep old/new fixtures under
 `TASK_RUN/notebooks` and retain versioned API snapshots, logs and binary
 provenance in `TASK_EVIDENCE`.
@@ -35,7 +35,7 @@ Run this as an exact named service and record actual ports/origin.
 `--sync-port 0` binds an ephemeral loopback listener, not disabled sync. Seed
 only this private fixture through `POST /api/batches` with
 `{"actor":{"kind":"person"},"operations":[...]}`; each operation carries
-`"op": "create_page" | "insert" | "edit_text" | "add_type" ...` (snake_case of
+`"op": "create_page" | "insert" | "edit_text" | "add_type" ...` (`snake_case` of
 `Operation` in `model.rs`). Cover every shape the migration touches: legacy and
 bracket forms, a code-span shield, a manual membership (`add_type` is
 title-addressed), a card (`front >> back`), a built-in tag (`#task`). Record ids

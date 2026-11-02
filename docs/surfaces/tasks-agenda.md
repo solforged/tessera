@@ -265,7 +265,7 @@ moves the list:
   under the nav bar with the page's ground behind it. The chosen tab stays gilt
   after a tap.
 - **Band, 68 px.** Day: a seven-day pager, swiped by week (three weeks are
-  mounted and recentred after each swipe), a lit pill on the chosen day, one
+  mounted and recentered after each swipe), a lit pill on the chosen day, one
   muted dot per open task, red once the day has passed. Week: previous and next
   circles around `WEEK 44` and `10 open · 2 overdue`. Tasks: the search well.
 

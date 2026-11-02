@@ -183,7 +183,7 @@ Browse narrows the sources by People, Decades, Publishers and Languages on every
 tab. The service counts each value over the current tab and search, ignoring the
 Browse filters themselves, so every value the tab offers stays visible.
 
-Values combine with OR inside a field and AND across fields. People match as
+Values combine with `OR` inside a field and `AND` across fields. People match as
 author, editor or translator, by page, so a renamed person keeps their filter.
 Languages count by primary code, so `en`, `en-US`, `eng` and case-insensitive
 English language names such as `English` are one English. Imports resolve ISO

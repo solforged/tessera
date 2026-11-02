@@ -62,7 +62,7 @@ fresh, owned `0700` task directories:
 | `TASK_BIN`, `TASK_DIST`    | Reserved paths for this run's matching executable and web assets; preparation does not build them.                                              |
 | `TASK_OWNS_WORKTREE`       | `yes` only for a manually created tree owned by this allocation; reuse never grants removal rights.                                             |
 
-`TASK_RUN/context.json` records the allocation and its `runtime_env` map. Eval
+`TASK_RUN/context.json` records the allocation and its `runtime_env` map. `Eval`
 subprocesses merge that map over their inherited environment for the same
 isolation as `task_run`. Keep a resource ledger beside it with exact
 service/browser handles, ports, device serials, ADB forwards/reverses, simulator

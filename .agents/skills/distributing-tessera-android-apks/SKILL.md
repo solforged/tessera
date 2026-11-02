@@ -1,6 +1,6 @@
 ---
 name: distributing-tessera-android-apks
-description: "Distributes fresh Tessera Android builds to phones without USB using the tailnet download page (mise run android:publish) or wireless adb; use for signer-compatible updates and API-based re-pairing of the Fold as a replica."
+description: "Distributes fresh Tessera Android builds to phones without USB using the tailnet download page or wireless Android debugging; use for signer-compatible updates and API-based re-pairing of the Fold as a replica."
 ---
 
 # Distributing Tessera APKs to phones without USB
@@ -11,7 +11,7 @@ Use this when the phone isn't on USB. For USB installs, use
 ## Workspace, run and authority
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source the workspace at the exact landed build. Record the selected
 phone as `SERIAL`; every device-targeting command or abbreviated shell fragment
 below uses `adb -s "$SERIAL"`.
@@ -101,7 +101,7 @@ against the host's live route for QA.
    `__TAURI_INTERNALS__.invoke('notebook_request', {request:{method:'POST', path:'/api/sync/join', headers:[['content-type','application/json']], body: btoa(JSON.stringify({url, code, name:'sophus'}))}})`.
 3. The join clones the Mac workshop and blocks past the 30 s `tab.evaluate`
    limit; the tool times out and later kills the tab. That is fine: wait ~45 s,
-   re-forward devtools, open a new tab and read `/api/sync/state`
+   re-forward DevTools, open a new tab and read `/api/sync/state`
    (`role: replica`, `attempts[0].ok: true`, `pending: 0`). The Mac's
    `/api/sync/pairing` then says `paired` and `/api/sync/devices` lists `sophus`
    as `active`. Join refuses with `already_replica` if the phone still thinks it
@@ -118,7 +118,7 @@ against the host's live route for QA.
   the APK at `https://hyperion.ussuri-alphard.ts.net:8443/` (stable
   `/tessera.apk`, page shows commit, SHA-256 and signer). ~25 s warm. Do not
   reallocate or delete this cache through task-worktree cleanup.
-- Key lookup order: `TESSERA_ANDROID_KEYSTORE`/`_PASSWORD` env, then
+- Key lookup order: `TESSERA_ANDROID_KEYSTORE`/`_PASSWORD` environment variables, then
   `~/.android` + Keychain, then 1Password (1Password needs a desktop approval
   and times out unattended, so the Keychain path matters).
 - Infrastructure, set up by the task's first run and persistent: launch agent
@@ -126,9 +126,9 @@ against the host's live route for QA.
   `~/.local/state/tessera/logs/downloads.log`) and
   `tailscale serve --https=8443`. The Mac App Store Tailscale cannot serve a
   folder directly (sandbox), hence the local server. Never touch the `:443`
-  entries (hyperion → 18790, sigil → 8787) or 4319 (Tessera sync).
+  entries (`hyperion` → 18790, `sigil` → 8787) or 4319 (Tessera sync).
 - Verify: download via the tailnet URL, `apksigner verify --print-certs` shows
-  `985788…`, `aapt dump badging` shows versionName = workspace version.
+  `985788…`, `aapt dump badging` shows `versionName` = workspace version.
 - Coordinate: one session owns combined Mac+Fold ships; ask over intercom before
   publishing or touching the publish cache.
 
@@ -174,15 +174,15 @@ and its asset contents for a string from the new commit. Record the build base,
 output hash and signer. If using the documented private-target exception,
 substitute that target in the build command; never clean the shared target.
 
-## Install over wireless adb
+## Install over wireless `adb`
 
-- adb: `~/.local/share/mise/installs/android-sdk/23.0/platform-tools/adb`. The
+- `adb`: `~/.local/share/mise/installs/android-sdk/23.0/platform-tools/adb`. The
   Fold is tailnet host `sophus`, 100.96.167.83. Try `adb devices` first.
 - Wireless debugging is off by default after a reboot: if the scan finds only
   one port that connects as `offline` (the pairing port, e.g. 39411), ask the
   user to turn on Developer options › Wireless debugging, then rescan; a second
   port (e.g. 41319) connects as `device`.
-- Scan: TCP-scan 30000–49999 from JS Eval with `Bun.connect` in batches of ~300,
+- Scan: TCP-scan 30000–49999 from JS `Eval` with `Bun.connect` in batches of ~300,
   2 s timeout, cell timeout 300+. Record the port as open _before_ `s.end()`
   (end fires close synchronously). `adb connect` each open port; disconnect the
   `offline` ones. (Sanity-checking on 127.0.0.1:4318/4319 may return empty when

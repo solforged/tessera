@@ -16,7 +16,7 @@ on protected main.
 ## Shared lifecycle and lane ownership
 
 Complete
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 before setting up lanes. Each finder/verifier/re-QA lane gets its own prepared
 run, while source-writing lanes transfer scoped handoffs to one integration
 owner.
@@ -44,7 +44,7 @@ owner.
   live notebook or host registry.
 - Write `TASK_EVIDENCE/qa-contract.md`: pinned build/source and run per lane,
   notebook/profile/service/ports, per-viewport browser recipes, coarse-pointer
-  simulation (matchMedia plus stylesheet rewrite re-applied after lazy CSS
+  simulation (`matchMedia` plus stylesheet rewrite re-applied after lazy CSS
   loads), rAF-then-setTimeout(0) sampler and report format (id, severity, kind,
   viewport, steps, expected/actual, evidence, cause as file:line, fix idea).
   Chrome for Testing and version-matched native Playwright WebKit are
@@ -120,8 +120,8 @@ entry (20 lanes + 23 verifiers, 72 of 76 verified, 10 data-loss,
   journal; multi-window sync/offline; widths/visual; menus and palette;
   types/tags/backlinks; randomized sessions (word it as property-based testing,
   never "fuzz"; it found a data-loss bug the hand lanes missed); Playwright
-  WebKit vs Chromium (desktop is WKWebView); large-page perf; Vim/settings;
-  notes from reader; unicode (graphemes, RTL, NFC/NFD, case folding); page
+  WebKit vs Chromium (desktop is WKWebView); large-page performance; Vim/settings;
+  notes from reader; Unicode (graphemes, RTL, NFC/NFD, case folding); page
   lifecycle (merge, delete/restore); Compare/perspectives. For research
   material: perspectives/Compare, questions/assessments, views over entities,
   sources/evidence, site-vs-app visual comparison (serve a separately owned
@@ -140,12 +140,12 @@ entry (20 lanes + 23 verifiers, 72 of 76 verified, 10 data-loss,
   predecessor's findings/coverage, then prepares its own runtime; it never takes
   over an unowned profile, notebook or process handle.
 - Verifier contract (`TASK_EVIDENCE/verify-contract.md`): statuses confirmed /
-  partial / not_reproduced / spec_mismatch_wrong / duplicate, adjusted severity,
+  partial / `not_reproduced` / `spec_mismatch_wrong` / duplicate, adjusted severity,
   refined steps, likely `code` path:line; output retained `verify/<name>.json`.
   Spawn verifiers (~2–5 ids each) as each lane finishes; round-2 additions name
   only new ids. Judge cross-lane duplicates explicitly (Undo-4 → TasksText-3
   style). Every verifier uses its own prepared run.
-- Merge retained findings/verdicts in eval
+- Merge retained findings/verdicts in `eval`
   (`TASK_EVIDENCE/findings-merged.json`), generate the appendix table and
   hand-write the themed top of `report.md`: data loss first, root-cause
   clusters, UX themes, what held up, prior bugs fixed/still open. Keep
@@ -167,7 +167,7 @@ entry (20 lanes + 23 verifiers, 72 of 76 verified, 10 data-loss,
   `-p tsconfig.demo.json`,
   `task_run env TESSERA_TEST_BINARY="$TASK_BIN" bun test src`, and matching Vite
   assets into `TASK_DIST`). Use the shared build procedure rather than symlink a
-  peer's node_modules or `src/demo/pkg`; checkpoint explicit scoped files in the
+  peer's `node_modules` or `src/demo/pkg`; checkpoint explicit scoped files in the
   integration owner's tree.
 - Type errors from a lane: revive that lane with the exact error
   (`write agent://<Lane>`), don't fix inline.
@@ -193,7 +193,7 @@ entry (20 lanes + 23 verifiers, 72 of 76 verified, 10 data-loss,
 - Steer lanes that propose changing app-wide defaults or adding migrations back;
   those are the user's decisions.
 
-## Re-QA
+## Repeat QA
 
 - Retain `TASK_EVIDENCE/reqa-contract.md`; each re-QA agent prepares its own
   run, owns distinct HTTP/sync ports and profile, and uses a fresh stopped base

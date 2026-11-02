@@ -91,7 +91,7 @@ mise run android:build
 adb install -r crates/tessera-mobile/gen/android/app/build/outputs/apk/universal/debug/app-universal-debug.apk
 ```
 
-mise supplies the JDK and Android SDK. The SDK needs an NDK
+`mise` supplies the JDK and Android SDK. The SDK needs an NDK
 (`sdkmanager --install 'ndk;<version>'`), or `NDK_HOME` must name one.
 
 Extra arguments go to `tauri android build`. For a release APK:
@@ -150,7 +150,7 @@ xcrun devicectl device install app --device <UDID> crates/tessera-mobile/gen/app
 ```
 
 `xcrun devicectl list devices` lists the UDIDs. The build needs Xcode with its
-iOS platform (`xcodebuild -downloadPlatform iOS`), plus xcodegen and CocoaPods
+iOS platform (`xcodebuild -downloadPlatform iOS`), plus `xcodegen` and CocoaPods
 (`brew install xcodegen cocoapods`). It signs for the development team in
 `crates/tessera-mobile/tauri.ios.conf.json`. When the keychain holds several
 Apple Development certificates for that team, `TESSERA_IOS_SIGNING_IDENTITY`
@@ -263,7 +263,7 @@ app, under `~/Applications/Brave Browser Apps.localized/` (Helium:
 
 ## Command line
 
-Build a self-contained binary with [mise](https://mise.jdx.dev). It installs the
+Build a self-contained binary with [`mise`](https://mise.jdx.dev). It installs the
 pinned Rust, Bun and wasm tools from [`mise.toml`](../mise.toml). From the
 repository root, run:
 
@@ -624,7 +624,7 @@ Written text follows the editor's syntax:
   descriptor card asking `Mitochondria › Function`.
 - `Name:: value` is always its own block: a field entry on the page at the top
   level, or on the item it is indented under. It creates the field when missing.
-  A built-in name such as author, lived, published, url or form gets the
+  A built-in name such as author, lived, published, `url` or form gets the
   built-in field's kind.
 - A value the field cannot read as its kind (date, span, URL, number,
   identifier, checkbox or choice) is refused. A choice value names an option, as

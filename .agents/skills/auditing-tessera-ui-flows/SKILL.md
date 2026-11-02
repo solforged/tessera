@@ -26,7 +26,7 @@ exercised verification and deviations. Keep evidence/provenance under
 ## Setup
 
 - Complete
-  [managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+  [`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
   and source its prepared environment. Give every finder/verifier its own
   prepared run, not shared dev :4320 or live :4318.
 - Build/stage matching `TASK_BIN` and `TASK_DIST` through the shared build
@@ -37,10 +37,10 @@ exercised verification and deviations. Keep evidence/provenance under
   days, Kitchen renovation and Essay projects with tasks (doing, waiting,
   warning, overdue, completed, clocked work), repeating Routines, Person/Concept
   pages, 24 cards with review sessions, Italian deck, Meditations with 6
-  coloured highlights and a reading position, 3 catalogue records
+  colored highlights and a reading position, 3 catalog records
   (Inbox/Finished), Stoics and Essay sources collections, saved views People,
   Concepts by stage, Kitchen tasks, Italian deck, Not started.
-  - Fields: every kind is present. Role/Organisation/Last
+  - Fields: every kind is present. Role/Organization/Last
     contact/Website/Tags/Met at on people; Stage on concepts;
     Rating/Owned/Recommended by on books; Priority; a Meeting template
     (Attendees, Follow-up, Where); a nested Status choice on Hana Okafor.
@@ -93,7 +93,7 @@ exercised verification and deviations. Keep evidence/provenance under
 - A page that renders as unstyled Times/Arial with giant icons means a CSS file
   lost a closing brace.
 - After an "Open beside" on a phone width, scope every query to `.pane.active`.
-- Popups: dump `[role=dialog], [role=menu], [role=listbox], .popup` innerText;
+- Popups: dump `[role=dialog], [role=menu], [role=listbox], .popup` `innerText`;
   dismiss with Escape on `document.activeElement` plus `document.body.click()`.
 - Long pages scroll inside a pane element, not the window: find the first
   `.pane.active *` with `scrollHeight > clientHeight` and
@@ -129,7 +129,7 @@ exercised verification and deviations. Keep evidence/provenance under
 
 ## Navigating
 
-- Desktop: click `.sidebar button` matched on the first line of innerText
+- Desktop: click `.sidebar button` matched on the first line of `innerText`
   (Today, Agenda, Revisits, Review, Library, Fields, types, Settings). Bottom
   nav `.bottom-nav button`.
 - Opening a page by title: click `.global-search`, type into `.picker-input`,
@@ -137,7 +137,7 @@ exercised verification and deviations. Keep evidence/provenance under
   content first, then a `Definitions` group.
 - Page projections: `.pane.active .pane-header button` with text Read / Outline
   / Compare.
-- In-pane controls: `.pane.active button` by innerText or aria-label; counted
+- In-pane controls: `.pane.active button` by `innerText` or aria-label; counted
   tabs read `All\n1`, match on the first line. Several buttons share text
   (`Relation`, `2`): pick the nth.
 - Agenda: Day/Week/Tasks tabs; Week header `W43 · 2026-10-19 – 2026-10-25`,
@@ -180,12 +180,12 @@ exercised verification and deviations. Keep evidence/provenance under
 
 - Compare a fresh private clickaround copy with a private copy of the requested
   real notebook, each under the shared lifecycle and copied-lock/sync-detachment
-  safeguards. Real data exposes import artefacts (e.g. Calibre `0101-01-01`
+  safeguards. Real data exposes import artifacts (e.g. Calibre `0101-01-01`
   dates) that seeds do not.
-- Surfaces: person page (Role/Organisation/Last contact), concept page (Stage
+- Surfaces: person page (Role/Organization/Last contact), concept page (Stage
   choice), journal block with `#Meeting` + `Where::` shorthand, Library source
   pages (Show metadata fields in Source actions; Add field; template slots),
-  catalogue card (Edit details…), type Table/Fields tabs, Fields register +
+  catalog card (Edit details…), type Table/Fields tabs, Fields register +
   field page, 412 px.
 - Interactions to exercise: click label vs value, Enter/Escape in a value, Enter
   on empty value, pill click (opens target beside, not an editor), slot click
@@ -220,7 +220,7 @@ Never point it at :4318 or the live notebook.
 
 ### Seed one card of each kind over MCP stdio
 
-- Spawn the staged `TASK_BIN --workshop <owned-notebook> mcp` from JS Eval with
+- Spawn the staged `TASK_BIN --workshop <owned-notebook> mcp` from JS `Eval` with
   `Bun.spawn`, merging `runtime_env` from `TASK_RUN/context.json` over the
   inherited environment. Record its process handle. Write `initialize`,
   `notifications/initialized`, then `tools/call` JSON-RPC lines, and read until
@@ -284,13 +284,13 @@ cross-lane contract, tokens-only styling and sentence case.
 - Data the row lacks (e.g. logged-work totals) needs a full-stack lane after the
   row lane finishes; don't let a lane fake it.
 - The integration owner runs `cargo fmt --all`, `cargo test -p tessera-core` and
-  `mise run lint` once after crate changes are integrated: CI runs fmt --check
-  and clippy -D warnings. Build/install under normal host HOME and isolate test
+  `mise run lint` once after crate changes are integrated: CI runs `fmt --check`
+  and `clippy` -D warnings. Build/install under normal host HOME and isolate test
   runtime HOME/XDG; lanes skip checks mid-flight.
 - When committing is authorized, assemble coherent area commits (`feat(core)`,
   `fix(tasks)`, `fix(outline)`, `fix(shell)`, `fix(library)`, `fix(fields)`,
   `fix(review)`, `docs`) only in the owned integration checkout with Git bound
-  by `-C` or tool cwd. Follow the commit hook rather than leave `fixup!`
+  by `-C` or tool `cwd`. Follow the commit hook rather than leave `fixup!`
   commits. Update CHANGELOG Unreleased and applicable `docs/surfaces/*.md` in
   that integration; never rewrite a shared branch/index to fold corrections.
 

@@ -5,7 +5,7 @@ description: "Seeds or inspects Tessera browser-build OPFS pool files from a pag
 
 # Planting and inspecting Tessera OPFS pool files
 
-The browser build stores SQLite files in the sqlite-wasm-vfs SAH pool at
+The browser build stores SQLite files in the `sqlite-wasm-vfs` SAH pool at
 `.opfs-sahpool/.opaque/<random>`. Each slot is a 4096-byte header (UTF-8 logical
 name NUL-terminated in bytes 0-511, u32 big-endian SQLite open flags at 512)
 followed by the file payload. An empty name means a free slot.
@@ -13,7 +13,7 @@ followed by the file payload. An empty name means a free slot.
 ## Shared lifecycle
 
 Complete
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 and source its prepared environment. Build this checkout's demo assets into
 `TASK_DIST` before launching the private OPFS browser context.
 

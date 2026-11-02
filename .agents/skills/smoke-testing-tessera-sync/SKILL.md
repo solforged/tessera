@@ -15,7 +15,7 @@ as well.
 ## Shared lifecycle and setup (sequential)
 
 Complete
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 and source its prepared environment. Build/stage `tessera-cli` through its
 release-build procedure before running the hub/replica commands.
 
@@ -87,6 +87,7 @@ hub/replica profiles and recorded origins.
   undo the new migration's tables, columns, indexes and triggers before setting
   `user_version`.
 - In a changeset conflict callback, never call `ChangesetItem::op()` for
-  `SQLITE_CHANGESET_FOREIGN_KEY`; it segfaults in rusqlite 0.40.
-- To prove a regression test works, add a temporary env-var toggle that reverts
-  the fix, run with it set to see the test fail, then remove the toggle.
+  `SQLITE_CHANGESET_FOREIGN_KEY`; it segfaults in `rusqlite` 0.40.
+- To prove a regression test works, add a temporary environment-variable
+  toggle that reverts the fix, run with it set to see the test fail, then
+  remove the toggle.

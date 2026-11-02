@@ -196,7 +196,7 @@ path. The root text remains ISO and other pages retain their own titles.
 
 A card line is ordinary card syntax, such as `tahâfut >> incoherence`. A tag on
 that line files the card into a deck of the same name. `#arabic` is enough;
-Review lists arabic without creating a deck. The card count names those tags, as
+Review lists `arabic` without creating a deck. The card count names those tags, as
 in `1 card · #arabic`, and the tag opens that deck. A tag on the journal day
 does not file the cards written under it. Put a filing tag on the page or a
 parent when it should not become a deck.

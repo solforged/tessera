@@ -1139,7 +1139,7 @@ field to a built-in name does not change its kind.
 | group   | aliases, active (span)                                                                                           |
 | concept | aliases, coined by (a relation to Person or Group), coined in (a relation to Source)                             |
 | book    | author (required; a relation to Person or Group), editor, translator, published, publisher, identifier, language |
-| article | author, site, published, url                                                                                     |
+| article | author, site, published, `url`                                                                                     |
 
 - A new type page with one of these titles gets its template. An existing page
   with an empty template offers it instead.
