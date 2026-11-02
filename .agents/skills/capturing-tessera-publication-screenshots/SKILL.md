@@ -11,7 +11,7 @@ captures.
 ## Shared lifecycle
 
 Complete
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 and source its prepared environment at the explicit capture commit. Retain
 originals, captions and provenance in `TASK_EVIDENCE` before copying approved
 publication outputs.
@@ -27,7 +27,7 @@ publication outputs.
   Recent list and Views.
 - Seed CSL sources with `Siglum:: <citation-label>` so Tessera's marks match the
   site (IBN, not KHA).
-- Before capturing, ask the ~/src/site omp session over intercom whether it is
+- Before capturing, ask the ~/src/site `omp` session over intercom whether it is
   already capturing Tessera. It keeps a public anacyclosis notebook
   (perspectives, sigla, Polybius 6 reader); existing finals at
   `~/Documents/solforge-process/<date>/tessera-current/final/` may be reused

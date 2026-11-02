@@ -13,7 +13,7 @@ the app's code or the engine.
 ## Setup
 
 - Complete
-  [managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+  [`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
   and source its prepared environment. Give old/patched comparisons separate
   prepared runs.
 - Allocate a fresh destination with `mkdir "$TASK_RUN/notebooks/jitter"`, then
@@ -37,7 +37,7 @@ the app's code or the engine.
   Tern WKWebView pane, if the host Tern preview tool and
   `tern-browser-and-preview` skill are available. Record the exact pane
   block/owner; do not re-home the harness-owned process or borrow the user's
-  private page. Wrap its `tern browser` eval call as `qeval`, navigate via
+  private page. Wrap its `tern browser` `eval` call as `qeval`, navigate via
   `location.href=` and wait for the tested state; capture bursts take about 30
   ms per capture. If this harness cannot provide a private context, use the
   task-run WebKit harness instead.
@@ -108,7 +108,7 @@ that never paint (false positives).
   needs frames to finish (reader position restore) can never be ready inside the
   hold; such surfaces use `data-pane-loading`, not `data-pane-pending`.
 - Solid `lazy()` panes render nothing for a microtask after mount even when the
-  module is cached (createResource), so an empty `.pane-content` must count as
+  module is cached (`createResource`), so an empty `.pane-content` must count as
   pending.
 - WebKit silently aborts a running transition (finished ~50 ms after ready,
   ready NOT rejected) when a named element is removed mid-animation, e.g. a

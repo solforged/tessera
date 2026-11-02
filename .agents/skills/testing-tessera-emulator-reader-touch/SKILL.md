@@ -1,15 +1,15 @@
 ---
 name: testing-tessera-emulator-reader-touch
-description: "Tests Tessera reader touch gestures, motion timings, full-screen and cover-screen layouts, and system-bar behaviour on the tessera_fold8 emulator via WebView CDP; use for real-touch reader QA and layout measurements."
+description: "Tests Tessera reader touch gestures, motion timings, full-screen and cover-screen layouts, and system-bar behavior on the tessera_fold8 emulator via WebView CDP; use for real-touch reader QA and layout measurements."
 ---
 
 # Testing Tessera emulator reader touch interactions
 
-Drive real touch input with adb; inspect and time the DOM through the WebView's
+Drive real touch input with `adb`; inspect and time the DOM through the WebView's
 CDP socket.
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source the workspace and private emulator run.
 
 Prerequisites: an installed foldable image/template, Android toolchain and
@@ -33,7 +33,7 @@ install on the physical Fold.
 3. Launch with
    `adb -s "$SERIAL" shell am start -W -n dev.tessera.android/.MainActivity`. A
    cold launch can open quick capture or the sync-setup sheet; dismiss with
-   `adb -s "$SERIAL" shell input keyevent 111` (Escape). Avoid keyevent 4, which
+   `adb -s "$SERIAL" shell input keyevent 111` (Escape). Avoid `keyevent` 4, which
    can close the activity. If the fresh emulator needs onboarding/content, use
    only its local throwaway notebook and the explicitly permitted seed
    procedure; never join a live hub.
@@ -64,8 +64,8 @@ install on the physical Fold.
 - Device px = CSS px × measured DPR (historically 2.25). Get element rects with
   `tab.evaluate`, then `adb -s "$SERIAL" shell input tap X Y`.
 - Enter reader full screen: tap `.reader-full-screen` (unfolded only; hidden on
-  cover), or dispatch a keydown `f` on `.reader-pane` to toggle.
-- Centre tap toggles reader chrome (e.g. `input tap 1700 1000` unfolded).
+  cover), or dispatch a `keydown` `f` on `.reader-pane` to toggle.
+- Center tap toggles reader chrome (e.g. `input tap 1700 1000` unfolded).
 - Long-press to select text: `input swipe x y x y 900`.
 - Drag or flick: `input swipe x1 y x2 y <ms>`.
 - Type text: `input text "a%sb"` (`%s` is a space).
@@ -85,7 +85,7 @@ install on the physical Fold.
 
 - Before the action, start a requestAnimationFrame sampler in the page that
   pushes `[t, computed opacity/transform/backgroundSize]` into `window.__e` for
-  about 2.5 s. Fire the adb input, wait, read `window.__e` back and collapse
+  about 2.5 s. Fire the `adb` input, wait, read `window.__e` back and collapse
   repeated values.
 - `document.getAnimations().map(a => a.animationName)` right after a tap
   confirms which keyframes ran.

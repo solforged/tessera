@@ -1,18 +1,18 @@
 ---
 name: editing-live-tessera-notes
-description: "Writes or edits notes in the live Tessera notebook via POST /api/agent-changes on :4318 (add_note, edit_block), not MCP, when the user requests live-notebook changes."
+description: "Writes or edits notes in the live Tessera notebook via POST /api/agent-changes on :4318 (note creation and block editing), not MCP, when the user requests live-notebook changes."
 ---
 
 # Writing or editing notes in the live Tessera notebook
 
 Use this from any working directory when the user asks to put a note in the live
 notebook or to change one. Do not use a throwaway notebook, and do not register
-or spawn `tessera mcp` for this. MCP is not configured for omp.
+or spawn `tessera mcp` for this. MCP is not configured for `omp`.
 
 ## Workspace, runtime and authorization
 
 First complete
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 and source its prepared environment. Retain live-edit request manifests,
 receipts and pre-edit backups in `TASK_EVIDENCE`.
 
@@ -57,7 +57,7 @@ The launch agent serves the live notebook at `http://127.0.0.1:4318`.
   (`Ada Lovelace #person`) files the page, an existing one too.
 - Each block is `{text, heading?, task?, children}`. `text` is NOT Markdown:
   `# Title` or `- [ ] Buy` stay literal text. Headings are `heading: 1..3`; a
-  task is `"task": {"status": "todo"}` (also doing, waiting, done, cancelled).
+  task is `"task": {"status": "todo"}` (also `doing`, `waiting`, `done`, `cancelled`).
   Unknown fields such as `type` are refused with 422 `invalid_json` naming the
   field (since the 2026-11-01 fixes).
 - Card syntax (`>>`, `<<`, `{{c1::…}}`) and `[[Title]]` links inside `text` are
@@ -65,7 +65,7 @@ The launch agent serves the live notebook at `http://127.0.0.1:4318`.
 - A `Name:: value` line must be a block on its own. The service turns it into a
   field entry: the block's text becomes a link to the field, and the value
   becomes its child. Built-in names (gloss, aliases, author, lived, published,
-  url, form, active, affiliated with, coined by/in) get their built-in kind;
+  `url`, form, active, affiliated with, coined by/in) get their built-in kind;
   values must read as that kind (`lived:: b. 1947` or `1871–1937`,
   `active:: 2015–?`, `published:: 2017-06-12`, `form:: paper`). Several aliases
   go under one `aliases::` entry as children.
@@ -162,7 +162,7 @@ Use the shared fresh-browser launch with `$TASK_RUN/profiles/check`, retain
 screenshots/profile and the recorded origin/handles in `TASK_EVIDENCE`, then
 follow shared teardown.
 
-## kvasir
+## `kvasir`
 
 kvasir-box (`tag:kvasir`, `100.67.171.46`) runs the tailnet Grok Bot and has its
 own Tessera replica. SSH to it is refused. Notes written there sync to this Mac,

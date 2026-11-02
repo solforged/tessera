@@ -115,7 +115,7 @@ ordering run before truncation.
 Review corrections live in append-only `review_undos`; the effective-events view
 excludes corrected grades from scheduling, counts and session progress. Evidence
 order is `(change_seq, event_order, id)`, with `event_order` derived from the
-operation's position within its command, never a local rowid. Migration 035
+operation's position within its command, never a local `rowid`. Migration 035
 reconstructs older ordering from retained operations. Sync repairs retained
 pre-upgrade review patches inside the transaction before publishing their
 effects.
@@ -249,7 +249,7 @@ origin checks unchanged. Tauri commands stay unreachable from the workshop page.
 Other origins open in the default browser, and downloads go to `~/Downloads`.
 
 Updates come from `latest.json` on the latest GitHub release, signed with a
-minisign key whose public half is in `tauri.conf.json`. The app installs a
+`minisign` key whose public half is in `tauri.conf.json`. The app installs a
 downloaded update only when the user restarts, after copying the outgoing
 `tessera` aside as the rollback target. The page reloads when the service's
 build changes. WebKit, not Chromium, renders the editor in the app; the outline,
@@ -328,7 +328,7 @@ EPUB 2 extraction checks the package guide's HTML contents when NCX contains
 only sparse navigation. Existing sparse imports lazily backfill navigation from
 the preserved linked contents passage without replacing source, snapshot or
 passage IDs. Citation reads return the chapter title rather than exposing an
-EPUB href as the location label.
+EPUB `href` as the location label.
 
 Page commands include task/project edits and work-session operations, with
 capability snapshots and inverses alongside text. Review sessions, decks, grades

@@ -6,7 +6,7 @@ description: "Builds and smoke-tests Tessera's wasm browser demo (demo.html, dis
 # Smoke-testing the Tessera browser demo
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source the workspace and demo run.
 
 Prerequisites: mise's WASM toolchain/LLVM tools and `wasm-opt`, an installed
@@ -26,7 +26,7 @@ cp -R "$TASK_SOURCE/web/dist-demo/." "$TASK_DIST/"
 - Quick Rust check (normal host environment, tool `cwd: TASK_SOURCE`):
   `AR_wasm32_unknown_unknown=$(rustc --print sysroot)/lib/rustlib/aarch64-apple-darwin/bin/llvm-ar CARGO_TARGET_DIR="$TASK_TARGET" cargo clippy -p tessera-web --target wasm32-unknown-unknown`.
   Also run native `cargo clippy --workspace --all-targets` there with the
-  selected target, since cfg splits differ.
+  selected target, since `cfg` splits differ.
 
 ## Serve
 
@@ -38,7 +38,7 @@ this service. Avoid live ports 4317/4318/5173. Each new origin has empty OPFS
 and reseeds the tour; use the same owned origin/profile within persistence
 checks.
 
-## Browser (eval `browser`)
+## Browser (`eval` `browser`)
 
 - Use the shared owned Chromium launcher/CDP procedure with
   `TASK_RUN/profiles/demo`; attach

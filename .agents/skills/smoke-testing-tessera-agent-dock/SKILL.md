@@ -14,7 +14,7 @@ Use a fake OpenAI-compatible server instead.
 ## Workspace, run and fixture
 
 - Follow
-  [managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+  [`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
   to prepare/source the owned workspace and run, including matching
   `TASK_BIN`/`TASK_DIST`.
 - Prerequisites: an explicitly permitted backup for notebook
@@ -76,7 +76,7 @@ Use a fake OpenAI-compatible server instead.
 - Run the web suite from `TASK_SOURCE/web` through `task_run` with
   `TESSERA_TEST_BINARY="$TASK_BIN"` and an owned test port. A later
   shared-target build must not replace the copied binary under test.
-- The `build:demo` tsc error in `src/demo/worker.ts` comes from wasm typings
+- The `build:demo` `tsc` error in `src/demo/worker.ts` comes from wasm typings
   missing in worktrees. It predates the dock.
 
 Retain the fake's request logs, screenshots and configuration-permission

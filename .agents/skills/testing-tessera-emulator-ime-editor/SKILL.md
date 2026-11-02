@@ -1,6 +1,6 @@
 ---
 name: testing-tessera-emulator-ime-editor
-description: "Tests Tessera outline typing, backspace and picker behaviour with the real Android Gboard keyboard on the tessera_fold emulator; use for phone-only editor QA when the physical Fold is unnecessary or disconnected."
+description: "Tests Tessera outline typing, backspace and picker behavior with the real Android Gboard keyboard on the foldable emulator; use for phone-only editor QA when the physical Fold is unnecessary or disconnected."
 ---
 
 # Testing the Tessera editor with real Gboard on the emulator
@@ -8,11 +8,11 @@ description: "Tests Tessera outline typing, backspace and picker behaviour with 
 Desktop `page.keyboard.type` cannot show phone-only bugs. On Android WebView,
 CodeMirror uses EditContext: printable keys arrive as
 `keydown key=Unidentified/229`, only Backspace and Enter arrive as real keys,
-and composition events never reach contentDOM handlers. Any behaviour keyed on
+and composition events never reach contentDOM handlers. Any behavior keyed on
 printable `keydown` silently fails on phones; use `EditorView.inputHandler`.
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source this audit's workspace, matching CLI/assets and device run.
 
 Prerequisites: an installed foldable image/template, Gboard, a Tessera WebView
@@ -22,7 +22,7 @@ emulator.
 ## Setup
 
 1. Create and boot a private run-owned AVD per
-   `smoke-testing-tessera-android-app`, with its userdata under
+   `smoke-testing-tessera-android-app`, with its `userdata` under
    `TASK_RUN/tools/avd`, a unique AVD/service identity and owned emulator port
    pair. Record its actual `SERIAL` from `adb devices -l` and verify Gboard is
    the IME. Do not reuse a peer's `emulator-5554` or navigate its app.
@@ -50,7 +50,7 @@ emulator.
 
 - Screenshot via `adb -s "$SERIAL" exec-out screencap -p` with binary capture
   (strip only bytes preceding the PNG signature), save the original under
-  `TASK_EVIDENCE`, read it and map Gboard key centres. Physical px = displayed
+  `TASK_EVIDENCE`, read it and map Gboard key centers. Physical px = displayed
   px × (1080/716) on the historical 1080×2364 screen; CSS px × the measured
   devicePixelRatio (historically 2.4375) for page elements.
 - Tap with `adb -s "$SERIAL" shell input tap X Y`. `[` and `]` live on `?123` →

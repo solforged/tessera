@@ -9,7 +9,7 @@ Use for a physical-device trial of the existing web reader before or alongside
 Android packaging. This is not a native Android build or offline/sync proof.
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source the trial's workspace, matching CLI/assets and private
 runtime. The authorized physical-browser trial stays host-side; resolve ADB
 before runtime HOME changes.

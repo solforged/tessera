@@ -16,7 +16,7 @@ does not authorize those effects or device installation.
 ## Shared lifecycle and authorization
 
 Complete
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 and source its prepared environment. It governs source ownership and private QA;
 the authorized host ship itself stays outside `task_run`.
 
@@ -29,7 +29,7 @@ uncommitted work, a peer's unlanded ancestors or a still-running PR. Landing,
 installing on replicas, publishing APKs and live content edits are separate
 effects requiring their own authorization.
 
-## Before EVERY ship
+## Before every ship
 
 Record the exact SHA and inspect its ancestry/range against fetched
 `origin/main` from the owned checkout, including one-line follow-ups. Shipping
@@ -37,7 +37,7 @@ includes every ancestor and migration. On 2026-10-12 a follow-up
 `mise run ship HEAD` accidentally shipped a peer's three fresh commits (schema
 36), refusing grok-bot (schema 35). Use an explicit full landed SHA and
 coordinate the host ship with peers immediately before invoking it. Complete the
-integration owner's required checks once on that exact integrated commit (tsc,
+integration owner's required checks once on that exact integrated commit (`tsc`,
 web tests with staged `TESSERA_TEST_BINARY` and isolated HOME/XDG, Vite build,
 `cargo test --workspace`); do not turn every finder lane into a verifier.
 
@@ -89,7 +89,7 @@ The ruleset `green` requires signed commits, linear history and seven checks:
    Otherwise, from the owned integration source use
    `mise run land -- --title "type(scope): summary" [--issue N] [--wait] [branch]`.
    It pushes that tree's HEAD to `omp/<short sha>` or the named branch and opens
-   a PR labelled `fast-forward`. CI runs only for pull requests; a bare branch
+   a PR labeled `fast-forward`. CI runs only for pull requests; a bare branch
    push runs nothing (`gh workflow run ci.yml --ref <branch>` runs it by hand).
 4. `.github/workflows/fast-forward.yml` moves main to exactly the head SHA after
    CI passes, preserves SHAs and signatures, deletes the branch and dispatches
@@ -97,11 +97,11 @@ The ruleset `green` requires signed commits, linear history and seven checks:
    if a required check fails or main moves.
 5. If main moves before CI finishes, the workflow comments instead of landing.
    The integration owner rebases its clean branch onto fetched `origin/main` and
-   reruns land with the same branch name; honour peers' hold requests.
+   reruns land with the same branch name; honor peers' hold requests.
 6. After landing, preserve integration provenance and follow shared teardown for
    manually owned worktrees/branches. Ship only the explicitly authorized landed
    SHA, never while its PR is pending. Demo deploy failures open or update one
-   issue labelled `demo-deploy`; the next good deploy closes it. A rollback
+   issue labeled `demo-deploy`; the next good deploy closes it. A rollback
    workflow (`gh workflow run demo.yml --ref main -f ref=<commit>`) changes a
    public deployment and needs explicit authorization; it is not an automatic QA
    cleanup step.
@@ -120,7 +120,7 @@ The ruleset `green` requires signed commits, linear history and seven checks:
 3. Confirm: `curl -s http://127.0.0.1:4318/api/service` shows `"build":"<sha>"`,
    and `/api/notebook` shows `schema_version`.
 4. If the shipped SHA changed schema, replicas (Fold, grok-bot) are refused with
-   schema_mismatch until updated. Report that compatibility consequence and
+   `schema_mismatch` until updated. Report that compatibility consequence and
    notify the appropriate sessions; do not install/publish a device build
    without separate authorization (see `distributing-tessera-android-apks`).
 5. Retain/report the shipped short/full commit, actual service/notebook/schema

@@ -10,7 +10,7 @@ push runs `.github/workflows/release.yml`, which refuses a tag that does not
 match `Cargo.toml` or a changelog section that is missing or still marked draft.
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source the release workspace and run. Execute mise/gh commands with
 tool `cwd: TASK_SOURCE`, and scope Git with `-C "$TASK_SOURCE"`.
 
@@ -50,7 +50,7 @@ protected-main rulesets, required CI checks and landing workflow. See also
    following the protected-main procedure if a leased branch update is required.
 6. Watch from `TASK_SOURCE`: `gh run list -w release.yml -L 1`, then
    `gh run watch <id> --exit-status` (~12–20 min). Assets: `latest.json`,
-   `SHA256SUMS`, darwin and linux tarballs, `.app.tar.gz` + `.sig`, `.dmg`,
+   `SHA256SUMS`, `darwin` and `linux` tarballs, `.app.tar.gz` + `.sig`, `.dmg`,
    `.apk`. Check `gh release download vX.Y.Z -p latest.json -O -` reports the
    version; put retained downloads and verification in `TASK_EVIDENCE`.
 7. Tell peers the landed sha and that new changelog bullets go under empty
@@ -61,7 +61,7 @@ protected-main rulesets, required CI checks and landing workflow. See also
    peers reconcile their own checkouts.
 
 The fast-forward workflow dispatches the browser demo deploy after each landing.
-Failures open or update one issue labelled `demo-deploy`; the next good deploy
+Failures open or update one issue labeled `demo-deploy`; the next good deploy
 closes it. Roll it back with
 `gh workflow run demo.yml --ref main -f ref=<commit>`. Do not delete the latest
 GitHub release; installed apps poll its `latest.json`. Publish a newer patch
@@ -84,8 +84,8 @@ After prepare, edit only the generated draft section and draft marker in the
 owned checkout; do not restore the whole changelog over curated work. Keep the
 hand-written notes and place `## X.Y.Z, DATE` below an empty `## Unreleased`.
 DATE is today's UTC date from `date -u +%F`, not the previous section's date.
-Published notes are that version section up to the next `##`. American spelling
-(color, not colour).
+Published notes are that version section up to the next `##`. Use American spelling
+throughout the published notes.
 
 Add user-visible work committed after the last changelog touch: use
 `git -C "$TASK_SOURCE" log vPREV..origin/main --oneline`, and for each
@@ -111,20 +111,20 @@ signer first.
   target/exception procedure; never substitute a debug APK for release
   acceptance.
 - Check with `apksigner verify --print-certs` (SHA-256 starts `985788718fa4`)
-  and `aapt2 dump badging` (versionName = workspace version, versionCode =
+  and `aapt2 dump badging` (`versionName` = workspace version, `versionCode` =
   major*1000000+minor*1000+patch, e.g. 5001 for 0.5.1).
 
 ## CI gotchas
 
 - Run `cargo fmt --all -- --check` (part of `mise run lint`, the CI "Format and
   Clippy" step) before landing any Rust change; lane patches often arrive
-  unformatted, and a fmt failure costs a full land cycle.
-- The mise `android-sdk@23.0` `sdkmanager --licenses` no longer records
+  unformatted, and a `fmt` failure costs a full land cycle.
+- The `mise` `android-sdk@23.0` `sdkmanager --licenses` no longer records
   acceptance. The workflow writes `\n24333f8a63b6825ea9c5514f83c2829b004d1fee`
   to `$(mise where android-sdk@23.0)/licenses/android-sdk-license` after
   `mise install android-sdk@23.0`; without it, Gradle fails on platform 37 and
   build-tools 36.
-- `NDK_HOME="$ANDROID_NDK_LATEST_HOME"` on ubuntu runners.
+- `NDK_HOME="$ANDROID_NDK_LATEST_HOME"` on `ubuntu` runners.
 - CI runs only for pull requests (and by hand:
   `gh workflow run ci.yml --ref <branch>`). A bare temp branch push does not run
   CI. To trial a workflow change before tagging, use a pull request with a copy

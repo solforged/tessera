@@ -10,7 +10,7 @@ export, shelf, Continue reading) in the running app. Never use ports
 4317/4318/4320/5173 or `.tessera/dev`.
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source the library smoke's workspace and run.
 
 The clickaround notebook and named Calibre edge-case books below are external
@@ -60,7 +60,7 @@ task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/library" add --wait <permit
   restart only the run-owned service; preserve the same origin/profile for
   persistence checks.
 
-## Browser (eval `browser`)
+## Browser (`eval` `browser`)
 
 - Use the shared owned Chrome for Testing launcher/CDP procedure with
   `TASK_RUN/profiles/desktop` and `--headless=new --hide-scrollbars`, then
@@ -96,7 +96,7 @@ task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/library" add --wait <permit
 
 Empty notebook and seeded copy, at 1440, 760 and 412: every tab empty and
 populated; search no-match; empty collection and the Collections index;
-Highlights with zero highlights, with highlights, and with a zero-match colour
+Highlights with zero highlights, with highlights, and with a zero-match color
 filter (filter sheet footer); failed import rows; Shelf grouped by year and by
 language; inspector open; saved view chosen while it sits in More. Measure left
 edges with `getBoundingClientRect` (tabs, controls, main, empty message, column

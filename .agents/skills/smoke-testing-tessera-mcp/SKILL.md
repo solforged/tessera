@@ -1,6 +1,6 @@
 ---
 name: smoke-testing-tessera-mcp
-description: "Smoke-tests Tessera's tessera mcp stdio server (18 tools incl. tasks, cards, decks, query, library, cite, sync) or POST /api/agent-changes against a throwaway notebook when checking agent integrations."
+description: "Smoke-tests Tessera's MCP standard-I/O server (18 tools incl. tasks, cards, decks, query, library, cite, sync) or POST /api/agent-changes against a throwaway notebook when checking agent integrations."
 ---
 
 # Smoke-testing Tessera's MCP server
@@ -16,7 +16,7 @@ every new write kind needs a `Step` and an inverse there so undo works
 ## Shared lifecycle
 
 Complete
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 and source its prepared environment before this smoke. Each concurrent smoke
 lane uses its own prepared run.
 
@@ -37,22 +37,22 @@ lane uses its own prepared run.
    service runs. Never exercise Sharing/Pair against host Tailscale.
 4. For library/cite checks, ingest the bundled EPUB:
    `task_run "$TASK_BIN" --workshop <owned-notebook> add --wait "$TASK_SOURCE/web/src/demo/meditations.epub"`.
-5. Drive raw JSON-RPC from Python eval: Popen the staged `TASK_BIN` with
+5. Drive raw JSON-RPC from Python `eval`: `Popen` the staged `TASK_BIN` with
    `--workshop <owned-notebook> mcp`, merging `runtime_env` from
    `TASK_RUN/context.json` over the inherited environment. Send one JSON per
    line (`initialize` with clientInfo.name, `notifications/initialized`,
    `tools/list`, `tools/call`), read one line per request. Use a
-   `call(tool, args_dict)` helper; kwargs collide with tool args named `name`.
+   `call(tool, args_dict)` helper; keyword arguments collide with tool arguments named `name`.
    Record the exact process handle, and respawn only it after rebuilding and
    restaging the binary.
-6. Cover: add_note with a paragraph followed by `Source:: x` (must become its
+6. Cover: `add_note` with a paragraph followed by `Source:: x` (must become its
    own block), items with indented `Name:: v` lines (children of the item),
    `A << B` (report says "shows B and asks for A"), broken `Kepler >>`;
-   edit_block with a multi-line text holding a field line (reported as a
-   problem); tessera_save_deck with filters on a `Deck::` child field, rename,
-   delete, undo each; tessera_cards view decks; tessera_sync with and without
+   `edit_block` with a multi-line text holding a field line (reported as a
+   problem); `tessera_save_deck` with filters on a `Deck::` child field, rename,
+   delete, undo each; `tessera_cards` view decks; `tessera_sync` with and without
    `now`; tasks, query, library, cite and hold as before.
-7. Agent change numbers (receipt.seq) differ from notebook change seqs on
+7. Agent change numbers (`receipt.seq`) differ from notebook change sequences on
    replicas; undo takes the agent number.
 8. Retain request/reply transcripts, agent receipts and notebook provenance in
    `TASK_EVIDENCE`, then terminate the recorded MCP process and follow shared

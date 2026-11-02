@@ -699,7 +699,7 @@ Moves query no children: the moved descriptor is a source, so moving from a
 The outline repeats the empty-parent check for diagnostics; review omits the
 parent from the source breadcrumb. Migration `034_descriptor_cards.sql` widens
 the `card_units.kind` check and rebuilds `card_units` and `review_events` with
-rowids, as migration 020 did. The runner rebuilds definitions to derive existing
+row IDs, as migration 020 did. The runner rebuilds definitions to derive existing
 `;;` text. Paired devices require schema 34.
 
 The operation engine collects changed card sources and derives them once at
@@ -761,7 +761,7 @@ task/project merge protection. Code:
 repetitions, lapses, due timestamp and last-review timestamp.
 
 The allocation-free Rust `fsrs-6` port uses the
-[official py-fsrs memory equations and default weights](https://github.com/open-spaced-repetition/py-fsrs/blob/9446cb06605c597a063aeee49f7d188d42e34dc2/fsrs/scheduler.py),
+[official `py-fsrs` memory equations and default weights](https://github.com/open-spaced-repetition/py-fsrs/blob/9446cb06605c597a063aeee49f7d188d42e34dc2/fsrs/scheduler.py),
 unchanged in native and wasm builds. It has no optimizer, randomness, clock
 dependency or separate learning-step engine.
 
@@ -773,7 +773,7 @@ dependency or separate learning-step engine.
   grades use the same policy; unit tests retain official memory-state and
   review-sequence vectors.
 
-Migration 020 replays each card's `review_events` by review timestamp and rowid
+Migration 020 replays each card's `review_events` by review timestamp and `rowid`
 through FSRS, respecting resets and same-timestamp reset/grade ordering. Cards
 without history retain new memory state. Existing evidence JSON is unchanged and
 marked `sm-2`; only a historical data variant remains, not its scheduling math.

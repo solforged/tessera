@@ -14,12 +14,12 @@ dirty files.
 ## Establish the integration source and run
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to establish the integration owner, prepare/source the intended integration
 workspace and allocate its run.
 
 Create an owned branch with `git -C "$TASK_SOURCE" switch -c "omp/$TASK_ID"`.
-Every Git command below is scoped to this source; run mise, Cargo, web and gh
+Every Git command below is scoped to this source; run `mise`, Cargo, web and `gh`
 commands with tool `cwd: TASK_SOURCE` or `TASK_SOURCE/web` as appropriate.
 Source separation does not grant permission to move shared main or another
 branch's refs.

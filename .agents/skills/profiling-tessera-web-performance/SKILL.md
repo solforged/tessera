@@ -8,7 +8,7 @@ description: "Profiles Tessera web client performance on a large notebook in hea
 ## Shared lifecycle, corpus and service
 
 Complete
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 and source its prepared environment. This timing procedure requires release
 binaries; retain measurements, profiles/traces and build/fixture provenance in
 `TASK_EVIDENCE`.
@@ -41,7 +41,7 @@ binaries; retain measurements, profiles/traces and build/fixture provenance in
    for cards, 250 ops per batch. Do not exercise Sharing/Pair against host
    Tailscale.
 
-## Browser harness (omp eval, headless)
+## Browser harness (`omp` `eval`, headless)
 
 - Use the shared fresh-browser launch with `$TASK_RUN/profiles/perf`, attach to
   the recorded CDP endpoint and emulate 1400x900. Keep the same origin/profile
@@ -50,17 +50,17 @@ binaries; retain measurements, profiles/traces and build/fixture provenance in
   `tab.run(async ({page}, h) => page.evaluate(h), {args:[str]})`. `tab.evaluate`
   strings and `addInitScript` did not leave `window.*` helpers callable later.
   Reinstall after every `goto`.
-- Helpers to install: a longtask PerformanceObserver pushing into
+- Helpers to install: a `longtask` PerformanceObserver pushing into
   `window.__long`, and `window.__waitFor(pred)`, a MutationObserver that
-  resolves two rAFs after `pred()` is true. Navigate with Ctrl+Shift+F, type the
+  resolves two `rAFs` after `pred()` is true. Navigate with Ctrl+Shift+F, type the
   title, then press Enter.
 - Event latency: a PerformanceObserver for `event` with `durationThreshold:16`.
-  Compare keydown `dur`/`proc` for 8×Enter and 4×Tab/Shift-Tab on the 10k page.
+  Compare `keydown` `dur`/`proc` for 8×Enter and 4×Tab/Shift-Tab on the 10k page.
 - Scrolling: record rAF deltas while sending 120 wheel events of 600 px each,
   then report p50, p95 and max.
 - Profiling: `tab.profileStart()`/`profileStop()` return a .cpuprofile path;
   copy it into `TASK_EVIDENCE` before teardown. Sum self/inclusive time per
-  `functionName:line` and filter Solid internals (runComputation, readSignal,
+  `functionName:line` and filter Solid internals (`runComputation`, `readSignal`,
   …). `traceStart`/`traceStop` give JSON traces; retain them in `TASK_EVIDENCE`,
   where Layout, UpdateLayoutTree and MinorGC events show layout cost. Save
   browser profile, fixture/base/binary/assets and exact action inputs with
@@ -80,7 +80,7 @@ binaries; retain measurements, profiles/traces and build/fixture provenance in
 - TanStack virtual: use a constant `estimateSize` equal to the row height. A
   per-index estimate that reads stores makes Enter slower.
 - Measure scroll anchors (`getBoundingClientRect`) on scroll settle, not every
-  frame. Debounce localStorage writes off the input path.
+  frame. Debounce `localStorage` writes off the input path.
 - Tables: batch clamp measurements (all reads, then all writes) and shape a
   preview capped at about 400 characters. The table is still not windowed, and
   the server query takes about 270 ms at 42k members.

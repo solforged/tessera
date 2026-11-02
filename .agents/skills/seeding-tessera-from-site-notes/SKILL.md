@@ -14,7 +14,7 @@ dry-run results are available.
 ## Shared lifecycle
 
 Complete
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 and source its prepared environment. Coordinate read-only access to `~/src/site`
 with its owner and retain import manifests/backups in `TASK_EVIDENCE`.
 

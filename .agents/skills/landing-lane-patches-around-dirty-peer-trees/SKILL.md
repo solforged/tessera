@@ -12,7 +12,7 @@ commits or patch to one owned integration checkout instead.
 ## Establish ownership and allocate
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to establish ownership, prepare the integration source/run and source its
 environment. Keep the original dirty checkout outside the integration path.
 

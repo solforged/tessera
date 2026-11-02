@@ -6,7 +6,7 @@ description: "Smoke-tests and UX-audits Tessera field entries, field sheet slots
 # Smoke-testing Tessera fields
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source the field smoke's workspace and run.
 
 1. Build the selected source with serialized
@@ -17,12 +17,12 @@ to prepare/source the field smoke's workspace and run.
    `task_run "$TASK_BIN" --workshop "$TASK_RUN/notebooks/fields" serve --port <owned-free-http> --sync-port <owned-free-sync> --assets "$TASK_DIST"`.
    Record readiness, both actual ports and origin; do not delete/reuse fixed
    notebook paths.
-3. Seed via JS eval with one POST `/api/batches`
+3. Seed via JS `eval` with one POST `/api/batches`
    `{actor:{kind:'client',name}, idempotency_key: ulid(), operations}`:
    - Fields page id: `GET /api/fields` → `page_id`. Each field definition =
      `insert` under it with the name; non-text kinds add
      `set_field_kind{id,base_revision:1,kind}` (instance, date, choice, number,
-     checkbox, url, identifier).
+     checkbox, `url`, identifier).
    - Choice options = child blocks of the definition.
    - Type page = `create_page{id,title:'Book'}`; template =
      `set_type_fields{type_id,base_revision:1,fields:[...]}`.

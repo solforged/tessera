@@ -1,6 +1,6 @@
 ---
 name: installing-tessera-ios-builds
-description: "Builds Tessera for iOS (crates/tessera-mobile, mise run ios:build) and installs it on the physical iPhone (archon) with devicectl or the iPhone 18 Pro simulator; use for device installation, touch-driven QA and Home Screen quick-action checks."
+description: "Builds Tessera for iOS with the iOS build task and installs it on the physical iPhone with Apple device-control tools or the iPhone 18 Pro simulator; use for device installation, touch-driven QA and Home Screen quick-action checks."
 ---
 
 # Installing Tessera iOS builds on devices and simulators
@@ -17,7 +17,7 @@ iOS support is on main since 43a0e6cf (2026-10-24). The pieces:
   - plays haptics (`tesseraHaptic`);
   - puts the edit-menu highlight dots in the selection menu (`tesseraEditMenu`);
   - delivers Home Screen quick actions (`tesseraShortcut`, see below).
-- iPhones are portrait-only, set in `project.yml` and Info.plist. xcodegen
+- iPhones are portrait-only, set in `project.yml` and Info.plist. `xcodegen`
   regenerates Info.plist from project.yml, so edit both. project.yml also
   carries `NSCameraUsageDescription` for the pairing scanner and
   `UIApplicationShortcutItems`; keep them.
@@ -31,15 +31,15 @@ iOS support is on main since 43a0e6cf (2026-10-24). The pieces:
   Berkeley Mono is not bundled, so apparatus falls back to SF Mono.
 - iOS WebKit: `web/src/ui/ios-viewport.ts` adds `maximum-scale=1` on iOS so 15
   px fields don't auto-zoom; don't remove it.
-- tao 0.37 runs the app on the scene lifecycle on iOS 27, even without a scene
+- `tao` 0.37 runs the app on the scene lifecycle on iOS 27, even without a scene
   manifest. Its classes `AppDelegate` and `TaoSceneDelegate` are only registered
   at run time, so main.mm patches them from a
   `UIApplicationDidFinishLaunchingNotification` observer.
 
-## Build and install on archon (proven 2026-10-24 and 2026-10-30, ~30 s warm)
+## Build and install on `archon` (proven 2026-10-24 and 2026-10-30, ~30 s warm)
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source the iOS build workspace and run. Native Xcode/WebKit
 acceptance stays host-side; resolve tools before runtime HOME changes.
 
@@ -70,7 +70,7 @@ acceptance stays host-side; resolve tools before runtime HOME changes.
    - `xcrun devicectl device info processes --device <UDID> | grep Tessera.app`;
    - `xcrun devicectl device info apps --device <UDID> --bundle-id dev.tessera.ios`;
    - `device info files --domain-type appDataContainer --domain-identifier dev.tessera.ios`
-     lists `notebook/notebook.db` with fresh WAL and shm times.
+     lists `notebook/notebook.db` with fresh WAL and `shm` times.
 5. Retain the confirmed UDID, signing/build identity, IPA hash and checks in
    `TASK_EVIDENCE`, then follow shared teardown.
 
@@ -82,7 +82,7 @@ simulator is functional QA, not release performance proof.
 
 Build pitfalls:
 
-- **Stale pages.** `ios:build` depends on `mobile:pages`, which mise skips when
+- **Stale pages.** `ios:build` depends on `mobile:pages`, which `mise` skips when
   its sources look unchanged, so a fixed build can still embed the old
   `web/dist-mobile`. Run `bun run --cwd web build:mobile` yourself first; step 2
   does.
@@ -124,24 +124,24 @@ Build pitfalls:
 - Test in the simulator:
   1. Press Home (`axe button home --udid "$SIM"`) twice; the second press leaves
      jiggle mode.
-  2. Find the icon frame with `axe describe-ui --udid "$SIM"` (AXLabel
+  2. Find the icon frame with `axe describe-ui --udid "$SIM"` (`AXLabel`
      `Tessera`).
   3. Long-press with selected-simulator `axe touch --down` immediately followed
      by `axe touch --up`, and no sleep: separate calls already hold about 0.5 s,
      and a longer hold enters jiggle mode. Pass `--udid "$SIM"` to both calls.
-  4. Tap the item whose AXLabel matches in `describe-ui`, again selecting `SIM`.
+  4. Tap the item whose `AXLabel` matches in `describe-ui`, again selecting `SIM`.
      For a cold launch, use `xcrun simctl terminate "$SIM" dev.tessera.ios` on
-     this run's simulator first. Native NSLog output appears in
+     this run's simulator first. Native `NSLog` output appears in
      `xcrun simctl spawn "$SIM" log show --last 2m --predicate 'process == "Tessera"'`;
      retain relevant output in `TASK_EVIDENCE`.
 
 ## Live inspection on the physical phone
 
-devicectl install and launch work over Wi-Fi (`Transport Type: localNetwork` in
+`devicectl` install and launch work over Wi-Fi (`Transport Type: localNetwork` in
 `devicectl device info details`).
 
 `ios_webkit_debug_proxy -c <UDID>:9621,:9622-9630` needs the phone on USB
-through usbmuxd. If `ideviceinfo` says "No device found" and
+through `usbmuxd`. If `ideviceinfo` says "No device found" and
 `system_profiler SPUSBHostDataType` lists no iPhone, the proxy never listens,
 even when the user says the phone is plugged in. The causes are a charge-only
 cable, a locked phone, or an unanswered "Trust this computer?". Ask the user to
@@ -181,7 +181,7 @@ Inspector must also be on (Settings › Apps › Safari › Advanced).
      `Library/Application Support/dev.tessera.ios/notebook` with the detached
      seed's `notebook.db` and `objects/`, then relaunch. No wildcard container
      writes, physical-phone copies or peer simulator writes.
-   - Uninstalling also wipes WKWebView localStorage and saved navigation; if
+   - Uninstalling also wipes WKWebView `localStorage` and saved navigation; if
      needed for a first-launch check, do it only on the recorded throwaway
      `SIM`.
 3. **Drive the WKWebView.** `ios_webkit_debug_proxy`, AXe and the external
@@ -201,7 +201,7 @@ Inspector must also be on (Settings › Apps › Safari › Advanced).
      into `TASK_RUN/tools` and inspect its dependencies/output behavior before
      use. If unavailable, report that prerequisite rather than invent a
      replacement. It offers `connect`, `evaluate`, `shot`, `tap`, `swipe`;
-     import it in Eval with this run's SIM/PORT and keep one connection
+     import it in `Eval` with this run's SIM/PORT and keep one connection
      (`c = await sim.connect(); ev = s => c.evaluate(s)`). Expressions are
      async-function bodies, so `return` values. Direct captures to
      `TASK_EVIDENCE`.
@@ -226,7 +226,7 @@ Inspector must also be on (Settings › Apps › Safari › Advanced).
    - Review: `Start…`, then `Reveal answer`.
    - Sheets close through `.popup button` "Close"; Find closes through "Cancel".
    - Tapping the active tab pops to its root.
-   - Phone tab history is in localStorage `tessera.navigation.<workshop id>` →
+   - Phone tab history is in `localStorage` `tessera.navigation.<workshop id>` →
      `phone.<pane>.{tab, stacks}`.
 6. **Pitfall.** The calendar glyph on a task row is "Schedule for tomorrow",
    which reschedules in one tap; don't click it looking for a date picker.

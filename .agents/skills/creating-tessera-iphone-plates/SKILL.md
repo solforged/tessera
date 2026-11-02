@@ -10,7 +10,7 @@ tokens, fonts and glyphs, with drawn status bar, Dynamic Island and home
 indicator.
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source each lane's workspace and run, with one integration owner.
 
 The kit/fonts/brief/helpers below are external prerequisites, not
@@ -32,12 +32,12 @@ from there:
     `.btn.plain`;
   - `.leaf` at 14 pt radius, `.seg`, `.strip` (mode tabs), the `.search` well
     and `.menu` pull-downs;
-  - sheets with an xmark close, `.check`, `.doing` and `.done`, and `.caret` and
+  - sheets with an `xmark` close, `.check`, `.doing` and `.done`, and `.caret` and
     `.sel-handle` in gilt.
 - `tokens.css` comes from the round's pinned commit:
   `git -C "$TASK_SOURCE" show <pinned-sha>:web/src/tokens.css`.
 - Fonts:
-  - Piazzolla's standard cut carries the opsz axis.
+  - Piazzolla's standard cut carries the `opsz` axis.
   - SFNS and SFNSMono stand in for Berkeley Mono, which iOS does not bundle.
 - `plates/kit/specimen.html` is the reference plate.
 - Tools:
@@ -70,7 +70,7 @@ Kit gaps to fix before the next round:
 1. Set up this run's owned simulator and private detached seed per
    `installing-tessera-ios-builds`, building from the pinned `TASK_SOURCE`. Do
    not borrow another lane's simulator or notebook.
-2. Drive it from a persistent JS eval using the required helper with this run's
+2. Drive it from a persistent JS `eval` using the required helper with this run's
    explicit SIM/PORT: `sim.connect()`, then `ev(...)`.
    - Use `axe tap` for real touches and `axe touch --down/--up` for long-press.
    - Never use `axe type`.
@@ -138,7 +138,7 @@ stay unchanged.
    - overlays: phone pull-down `Menu`; `longPress` and `openContextMenu`; sheets
      with title, × and an optional scrim; `showNotice`; `haptic()`;
    - native: `main.mm` script handlers `tesseraHaptic` and `tesseraEditMenu`,
-     the `buildMenuWithBuilder:` swizzle that puts colour dots in the selection
+     the `buildMenuWithBuilder:` swizzle that puts color dots in the selection
      menu and fires `tessera:edit-menu`, and a gilt `tintColor`. Integrate, run
      the gates, then write a FOUNDATION-API doc for the next phase.
 4. **Phase 2, surfaces.** Run eight lanes in parallel: system, task row (shared

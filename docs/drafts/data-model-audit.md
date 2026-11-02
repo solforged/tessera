@@ -127,7 +127,7 @@ Tokens, tags, card syntax and field shorthand are parsed twice: in Rust
 `card-text.ts`, `query.ts`). Parity is held by a few comparison tests on enum
 order. `Name:: value` converts only in the browser; a raw API write stays
 shorthand until a client touches it. Logseq OG had this exact split between
-mldoc and the editor and spent years on its edge cases. Tessera already compiles
+`mldoc` and the editor and spent years on its edge cases. Tessera already compiles
 `tessera-core` to wasm for the demo, so the fix is cheaper here than it was
 there.
 
@@ -168,7 +168,7 @@ makes detecting the opposite a requirement rather than a nicety.
 ### R9. JSON state columns carry no version
 
 `tasks.state`, `questions.state`, `card_units.schedule`, `views.query` and
-`changes.operations` are JSON read through serde with defaults. `user_version`
+`changes.operations` are JSON read through `serde` with defaults. `user_version`
 guards the database as a whole and `x-tessera-schema` guards sync, which covers
 the current single-user case. The domain model notes that older label-only
 filters migrate when a title identifies one page, which is a JSON migration done
@@ -254,7 +254,7 @@ pre-migration backup, which install already takes.
 ### P4. Tiered history retention
 
 Addresses R2. Keep every change header (seq, change ID, origin, actor, reason,
-created_at, revisions) forever, since attribution and undo depend on them. Age
+`created_at`, revisions) forever, since attribution and undo depend on them. Age
 out the payloads in tiers, each a setting with a default:
 
 | Age                                                      | Keep                                                                                                          |
@@ -325,7 +325,7 @@ Cost: a week; the build already exists.
 
 ### P8. Version the JSON columns
 
-Addresses R9. Add a `v` field to each JSON state shape with a serde default of
+Addresses R9. Add a `v` field to each JSON state shape with a `serde` default of
 1, and a `json_version` table listing the current version per column so
 `tessera check` can report rows behind it. Migrations that reshape a JSON column
 become a loop over rows with a documented upgrade function, as
@@ -334,7 +334,7 @@ become a loop over rows with a documented upgrade function, as
 ### P9. Strict tables everywhere
 
 Addresses R7. One migration rebuilds the non-STRICT tables with `STRICT`,
-preserving rowids where FTS depends on them (`passages`). Add a test that every
+preserving row IDs where FTS depends on them (`passages`). Add a test that every
 table in `replication::TABLES` is STRICT, so the next migration cannot regress.
 Cost: half a day.
 

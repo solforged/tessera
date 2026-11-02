@@ -1,6 +1,6 @@
 ---
 name: smoke-testing-tessera-android-app
-description: "Builds, installs and verifies the Tessera Tauri Android app (crates/tessera-mobile) on the physical Fold or tessera_fold foldable emulator; use for Android app changes, fold layouts, reader input and persistence checks."
+description: "Builds, installs and verifies the Tessera Tauri Android app on the physical Fold or the named foldable emulator; use for Android app changes, fold layouts, reader input and persistence checks."
 ---
 
 # Smoke-testing the Tessera Android app on the Fold
@@ -9,13 +9,13 @@ Use for `crates/tessera-mobile` changes. For the Brave and loopback-service
 trial, use `smoke-testing-tessera-android-usb-reader`. Prefer the foldable
 emulator below for fold tests (the user's preference); it folds on command, no
 human needed. Use the real Fold only when the emulator cannot show the thing
-(Samsung cover behaviour), and never act in the live notebook there beyond
+(Samsung cover behavior), and never act in the live notebook there beyond
 reading and page turns.
 
 ## Workspace and device ownership
 
 Follow
-[managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+[`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
 to prepare/source the owned build workspace and device run. Resolve the SDK/ADB
 executables first and record the selected `SERIAL`; every abbreviated guest
 command below uses `adb -s "$SERIAL" shell`.
@@ -24,7 +24,7 @@ command below uses `adb -s "$SERIAL" shell`.
 
 The physical Fold is a Galaxy Z Fold 8 (SM-F971U1, the wide model, not the
 Ultra): inner 2448×1848 (CSS 1088×821 unfolded), cover 1248×1972 (CSS 554×876),
-DPR 2.25. It is often reachable over wireless adb on the tailnet (`adb devices`
+DPR 2.25. It is often reachable over wireless `adb` on the tailnet (`adb devices`
 shows `100.96.167.83:<port>`); USB serial was `RFGL718CJYD`. Select the
 currently listed `model:SM_F971U1` device as `SERIAL`, rather than assuming that
 historical address. It is paired with the Mac and runs the **release** signer
@@ -58,12 +58,12 @@ adb -s "$SERIAL" shell am start -W -n dev.tessera.android/.MainActivity
   script alone proves nothing.
 - Install with `bun install --cwd "$TASK_SOURCE/web" --frozen-lockfile` in the
   owned source. Never symlink the main tree's `node_modules` (it can miss newly
-  added deps such as `@tauri-apps/plugin-barcode-scanner`, and nested links
+  added dependencies such as `@tauri-apps/plugin-barcode-scanner`, and nested links
   double-bundle solid-js).
 - `device unauthorized` or a locked phone: ask the user to unlock and accept USB
   debugging. Don't retry blindly.
 - A black screenshot usually means the screen is dozing. Check `dumpsys power`
-  (mWakefulness) before debugging the app; on the emulator, `input keyevent 224`
+  (`mWakefulness`) before debugging the app; on the emulator, `input keyevent 224`
   and `wm dismiss-keyguard`.
 - If `dumpsys window | grep mCurrentFocus` shows another app (Moshi etc.), the
   user may be using the phone; check before taking over.
@@ -80,7 +80,7 @@ adb -s "$SERIAL" shell am start -W -n dev.tessera.android/.MainActivity
   `hw.sensor.hinge.areas=1224-0-0-1848`, `hw.displayRegion.0.1.width=1248`,
   `height=1972`, `hw.initialOrientation=landscape`, `showDeviceFrame=no`, device
   name `tessera_z_fold8`. Viewports: unfolded 1088×822, cover 555×877 at DPR
-  2.25. Its old userdata contained The Waning of the Middle Ages and The Tudors;
+  2.25. Its old `userdata` contained The Waning of the Middle Ages and The Tudors;
   do not assume those fixtures exist in a fresh run.
 - Create a fresh per-run AVD under `TASK_RUN/tools/avd` with the installed SDK
   tooling, or clone a **stopped** permitted template there. Use a unique AVD
@@ -104,8 +104,8 @@ adb -s "$SERIAL" shell am start -W -n dev.tessera.android/.MainActivity
   LCD height. Historical `tessera_fold` (Pixel 10 Pro Fold profile, Android 36
   Google APIs arm64) measured inner 852×883 and cover 444×970 at DPR 2.4375.
 - Resolve the installed SDK under normal HOME; the historical path was
-  `~/.local/share/mise/installs/android-sdk/23.0`. avdmanager needs the selected
-  `JAVA_HOME` from mise. Keep its image/toolchain prerequisites on the host
+  `~/.local/share/mise/installs/android-sdk/23.0`. `avdmanager` needs the selected
+  `JAVA_HOME` from `mise`. Keep its image/toolchain prerequisites on the host
   rather than assuming isolated HOME provides them.
 - If the selected serial disappears, inspect the recorded emulator service and
   ownership before restarting only that run's emulator. Do not adopt whichever
@@ -129,10 +129,10 @@ adb -s "$SERIAL" shell am start -W -n dev.tessera.android/.MainActivity
 - The emulator is slow: right after opening the reader, page turns are ignored
   while it is still restoring. Wait ~2 s.
 - `adb -s "$SERIAL" shell input tap X Y` lands on the folded emulator's cover
-  (device px; centre ≈ 624,1100, right-edge page turn ≈ 1180,1100).
+  (device px; center ≈ 624,1100, right-edge page turn ≈ 1180,1100).
   `adb -s "$SERIAL" shell input keyevent 4` (Back) with no popup open leaves the
   app.
-- Headless Chromium cannot fake `(pointer: coarse)` (touch emulation, hasTouch
+- Headless Chromium cannot fake `(pointer: coarse)` (touch emulation, `hasTouch`
   and `--blink-settings` pointer types all leave it false), so cover-screen CSS
   must be checked on the emulator.
 
@@ -169,12 +169,12 @@ adb -s "$SERIAL" shell am start -W -n dev.tessera.android/.MainActivity
 
 Push fixture EPUBs from `TASK_RUN/downloads`, not the user's unrelated files.
 
-- Use adb input for touches. CDP touch events do not create selections.
-- Device pixels = CSS box centre × devicePixelRatio (2.25 on both Fold screens).
+- Use `adb` input for touches. CDP touch events do not create selections.
+- Device pixels = CSS box center × devicePixelRatio (2.25 on both Fold screens).
   Get boxes via `getBoundingClientRect` in `tab.evaluate`.
 - Long-press to select a word: `input touchscreen swipe x y x y 900`. For a
   whole sentence, set a DOM Range in the passage row with `tab.evaluate`; the
-  reader's selectionchange handler shows the same toolbar. Then tap the toolbar
+  reader's `selectionchange` handler shows the same toolbar. Then tap the toolbar
   button natively so the keyboard opens from a real gesture.
 - Type with `input text` (`%s` = space). Avoid apostrophes and quotes; the
   remote shell breaks on them.
@@ -189,8 +189,8 @@ Push fixture EPUBs from `TASK_RUN/downloads`, not the user's unrelated files.
   ignores `interactive-widget`. `MainActivity` pads `android.R.id.content` by
   the IME inset. With the keyboard open, `innerHeight` should equal
   `visualViewport.height` (about 493 unfolded, 544 on the cover) and
-  `visualViewport.offsetTop` should be 0. If innerHeight stays 821 with
-  offsetTop > 0, the lift is broken and fixed overlays slide off screen.
+  `visualViewport.offsetTop` should be 0. If `innerHeight` stays 821 with
+  `offsetTop` > 0, the lift is broken and fixed overlays slide off screen.
 
 ## Screenshots
 
@@ -215,7 +215,7 @@ folded on the real Fold.
   child.
 - Cover-screen reader chrome (since 725f06d): the masthead, toolbar and book map
   lie over the page. Hidden: `.reader-body` runs from the masthead's top to the
-  foot (~692 px tall on the Fold 8 cover). A centre tap shows them; a page turn,
+  foot (~692 px tall on the Fold 8 cover). A center tap shows them; a page turn,
   a contents jump, a scroll or opening the book hides them
   (`.reader-chrome-hidden`). Unfolded, `.reader-pane` stays `display: flex` with
   the header above the body.

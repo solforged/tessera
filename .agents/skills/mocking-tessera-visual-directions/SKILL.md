@@ -15,7 +15,7 @@ Nothing is committed until the user picks.
 ## Notebook and browser (all techniques)
 
 - Complete
-  [managing-tessera-task-workspaces](../managing-tessera-task-workspaces/SKILL.md)
+  [`managing-tessera-task-workspaces`](../managing-tessera-task-workspaces/SKILL.md)
   and source its prepared environment. Keep mock sources/shots and design
   decisions in `TASK_EVIDENCE`.
 - Copy the selected notebook into `$TASK_RUN/notebooks/mock` using the shared
@@ -46,7 +46,7 @@ Nothing is committed until the user picks.
 - Sizes: desktop 1440×900 DPR 2 mouse; Fold unfolded 1088×821 DPR 2.25 touch;
   Fold cover 554×876 DPR 2.25 touch (cover chrome applies under 600 px with a
   coarse pointer).
-- Don't name a helper `snap` in the eval kernel if you also store snapshot ids;
+- Don't name a helper `snap` in the `eval` kernel if you also store snapshot ids;
   globals collide.
 
 ## A. Restyling the private app copy (palette, typography)
@@ -110,7 +110,7 @@ Used 2026-10-11 for the notes Index, note views, spreads and note header
 2. Download every referenced `/assets/*.css` plus its `url(...)` fonts into this
    mock's `assets/`; rewrite absolute asset URLs to relative, retaining the
    source/build provenance.
-3. Strip `<script>` and modulepreload links, append your CSS/JS → `app.html`.
+3. Strip `<script>` and `modulepreload` links, append your CSS/JS → `app.html`.
    Stop only the recorded capture server after all dependent captures finish.
 4. If available, the historical `mock.js` template replaces regions
    (`aside.sidebar section.page-list`, `.pane.active .pane-header`,
@@ -259,7 +259,7 @@ that fixed scratch directory as a runnable default.
 
 - Report surfaces, directions and the decisions with picks, plus engineering
   consequences.
-- Before turning any draft into code, run its colour and font changes through
+- Before turning any draft into code, run its color and font changes through
   `web/src/tokens.css`, and put the reasons in `docs/design.md`.
 - When the user approves implementation, retain an API contract in
   `TASK_EVIDENCE` (wire fields, health/state model, wording table) and give Rust

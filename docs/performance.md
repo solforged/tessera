@@ -242,7 +242,7 @@ What it settled:
   does not re-anchor them after a remote restructure.
 - Chromium made 16 `/api/changes` requests while the harness considered the
   stream open; WebKit, with the same offline cycles, made none. Whether these
-  were reconnect catch-ups that the harness mis-timed or true polling is not yet
+  were reconnect catch-ups that the harness mistimed or true polling is not yet
   attributed.
 
 Decisions: keep the single writer and the WebSocket stream; they lost nothing.
