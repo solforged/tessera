@@ -611,7 +611,7 @@ Undo preserves another window's later text by patching only non-overlapping regi
 
 A tag page rename changes no member text. Undo restores the page title, and every pill follows the live title by ID.
 
-A version that sync kept beside a block sits under it, inset behind a hairline at its left, under an apparatus label (`Sol's Fold's version, kept beside`). Use this, Discard and Keep both follow as bordered buttons in the control font. Each is one undoable step.
+A version that sync kept beside a block sits under it, inset behind a hairline at its left, under an apparatus label (`Fold's version, kept beside`). Use this, Discard and Keep both follow as bordered buttons in the control font. Each is one undoable step.
 
 ### Headings and selection
 
@@ -931,13 +931,13 @@ The source is `crates/tessera-desktop/icons/icon.svg`; desktop PNGs, the icns an
 
 ### Grounds, family and legibility
 
-- Orrery midnight (`--shell`) first. Oxblood (`--desk` #290401, Solforge's desk) waits until the mark is settled.
+- Orrery midnight (`--shell`) first. Oxblood (`--desk` #290401) waits until the mark is settled.
 - It belongs with the wordmark's oculus and the place glyphs, which are drawn from circles and rules with an optional filled hub.
 - One silhouette that still reads at 32 and 16 px, on white and on near-black.
 
 ### Misreads to avoid
 
-- Safari's compass: a ticked ring with a needle or pointer; Sol judged the dial variants too close.
+- Safari's compass: a ticked ring with a needle or pointer; the dial variants were judged too close.
 - A gear: reads as Settings.
 - A bullseye or target.
 - A letterform (H, T).

@@ -49,6 +49,12 @@ mise run web:dev
 
 Then open <http://127.0.0.1:5173>.
 
+### Audit workspaces
+
+For agent audits and concurrent tasks, use [Managing Tessera task workspaces](../.agents/skills/managing-tessera-task-workspaces/SKILL.md) before the task-specific skill. Reuse an uncontended owned checkout; otherwise use a private worktree at a pinned commit. Each run has separate HOME/XDG state, notebook copies, browser profiles, and service identities. Retained evidence lives outside disposable runtime state.
+
+The preparation helper allocates these paths but does not build the app, infer ownership, or authorize publishing. Native macOS and physical-device acceptance remains on the host. Stop owned consumers and preserve needed files before non-forced worktree removal; keep unfinished work for an explicit handoff.
+
 ### Seeded clickaround workshop
 
 [`mise-tasks/seed/clickaround`](../mise-tasks/seed/clickaround) defines:
