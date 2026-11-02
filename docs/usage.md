@@ -103,7 +103,7 @@ mise run ios:build
 xcrun devicectl device install app --device <UDID> crates/tessera-mobile/gen/apple/build/arm64/Tessera.ipa
 ```
 
-`xcrun devicectl list devices` lists the UDIDs. The build needs Xcode with its iOS platform (`xcodebuild -downloadPlatform iOS`), plus xcodegen and CocoaPods (`brew install xcodegen cocoapods`). It signs for the development team in `crates/tessera-mobile/tauri.ios.conf.json`. When the keychain holds several Apple Development certificates for that team, `TESSERA_IOS_SIGNING_IDENTITY` names the one to use, for example `"Apple Development: sol@sowilo.io (82673GC873)"`.
+`xcrun devicectl list devices` lists the UDIDs. The build needs Xcode with its iOS platform (`xcodebuild -downloadPlatform iOS`), plus xcodegen and CocoaPods (`brew install xcodegen cocoapods`). It signs for the development team in `crates/tessera-mobile/tauri.ios.conf.json`. When the keychain holds several Apple Development certificates for that team, `TESSERA_IOS_SIGNING_IDENTITY` names the one to use, for example `"Apple Development: developer@example.com (ABCDE12345)"`.
 
 Before the first install on a new phone:
 
