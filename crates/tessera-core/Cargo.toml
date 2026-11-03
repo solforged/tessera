@@ -22,7 +22,7 @@ unicode-normalization = "0.1"
 caseless = "=0.2.2"
 isolang = { version = "2.4", default-features = false, features = ["english_names", "list_languages"] }
 tracing.workspace = true
-base64 = "0.22"
+base64 = "0.23"
 
 # Sync records each change's row-level effect with SQLite's session
 # extension. The browser build does not sync.
