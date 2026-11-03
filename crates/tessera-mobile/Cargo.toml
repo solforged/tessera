@@ -20,7 +20,7 @@ tauri-plugin-barcode-scanner = "2"
 tessera-core.workspace = true
 tessera-service.workspace = true
 axum = { version = "0.8", default-features = false }
-base64 = "0.22"
+base64 = "0.23"
 parking_lot = "0.12"
 percent-encoding = "2"
 serde.workspace = true
