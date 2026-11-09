@@ -22,7 +22,7 @@ Browser plates are simulations; native iOS/WebKit acceptance stays host-side.
 
 ## Latest kit: reuse it
 
-`~/Documents/tessera-design/2026-10-29-ios/` is the newest round. Copy `kit/`
+`~/artifacts/tessera/2026-10-29-ios/` is the newest round. Copy `kit/`
 from there:
 
 - `ios.css` v2 is a fixed phone vocabulary that the user accepted. Its top

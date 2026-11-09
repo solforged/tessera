@@ -8,6 +8,9 @@ Tessera is a local-first outline workstation for notes, questions, evidence, tas
 - Tasks support planning, recurrence, projects, clocked work and historical agendas.
 - Cards derive from authored notes and vocabulary, with query-backed decks, review sessions and retained scheduling history.
 - EPUB books and web articles become immutable snapshots, read beside the outline, highlighted into cited blocks and exported as BibTeX or CSL JSON.
+- Notes are filed by kind in a sidebar Index, with finding aids, saved views, side-by-side spreads and a queue of notes to revisit.
+- A workshop replicates between a Mac and paired Android and iOS phones over your own tailnet, and each device keeps working offline.
+- Every change is listed in History with its actor and can be undone there. Backups are made and restored from Settings, and agents work through the same checked operations.
 - Questions, perspectives and side-by-side comparison have started; capture and the rest of inquiry follow the [roadmap](docs/roadmap.md).
 
 ## Screenshots
@@ -66,6 +69,7 @@ Review a deck beside the notes its cards come from, on a quiet reading sheet wit
 ### Start here
 
 - [Contributing](docs/contributing.md): reading order, development, builds and checks.
+- [Releasing](docs/releasing.md): landing a change, cutting a version and rolling one back.
 - [How it works](docs/how-it-works.md): the implementation as built, and where to look when something breaks.
 - [Domain model](docs/domain-model.md): blocks, capabilities and their rules.
 - [Architecture](docs/architecture.md): runtime, editor, storage and sync decisions.
@@ -78,7 +82,7 @@ Review a deck beside the notes its cards come from, on a quiet reading sheet wit
 ### Design
 
 - [Design](docs/design.md): browser-client tokens, shell, rows, keyboard, popups and icons.
-- Surfaces: [library](docs/surfaces/library.md), [reader](docs/surfaces/reader.md), [tasks and agenda](docs/surfaces/tasks-agenda.md), [journal](docs/surfaces/journal.md), [cards and review](docs/surfaces/cards-review.md), [perspectives](docs/surfaces/perspectives.md), [notes](docs/surfaces/notes.md), [fields and tables](docs/surfaces/fields-tables.md), [settings](docs/surfaces/settings.md).
+- Surfaces: [library](docs/surfaces/library.md), [reader](docs/surfaces/reader.md), [tasks and agenda](docs/surfaces/tasks-agenda.md), [journal](docs/surfaces/journal.md), [cards and review](docs/surfaces/cards-review.md), [perspectives](docs/surfaces/perspectives.md), [notes](docs/surfaces/notes.md), [research desk](docs/surfaces/desk.md), [fields and tables](docs/surfaces/fields-tables.md), [settings](docs/surfaces/settings.md).
 
 ### Background
 

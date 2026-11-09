@@ -196,7 +196,7 @@ Inspector must also be on (Settings › Apps › Safari › Advanced).
      simulator and a new one per boot. Do not choose the first socket or reuse a
      peer's range.
    - Historical helper source:
-     `~/Documents/tessera-design/2026-10-29-ios/tools/sim.mjs`. It must be
+     `~/artifacts/tessera/2026-10-29-ios/tools/sim.mjs`. It must be
      present and support explicit `SIM` and `PORT`; copy the required helper
      into `TASK_RUN/tools` and inspect its dependencies/output behavior before
      use. If unavailable, report that prerequisite rather than invent a
@@ -290,10 +290,10 @@ opens the keyboard with the Outdent, Indent and Done bar. Tap software keys with
 ## Design rounds
 
 - 2026-10-24: the plate kit and proposals are in
-  `~/Documents/tessera-design/2026-10-24-iphone/` (`kit/`, `BRIEF.md`, `tools/`,
+  `~/artifacts/tessera/2026-10-24-iphone/` (`kit/`, `BRIEF.md`, `tools/`,
   `clk/`, `fix/`, `reqa/`).
 - 2026-10-29: the walkthrough is in
-  `~/Documents/tessera-design/2026-10-29-ios/`: `shots/00-33`, `notes.json` with
+  `~/artifacts/tessera/2026-10-29-ios/`: `shots/00-33`, `notes.json` with
   themes/bugs/per-screen notes, and `tools/index.mjs` for `index.html`. These
   are external historical assets/prerequisites, not checkout-generated tools.
   For a new walkthrough, place captures/notes/gallery under `TASK_EVIDENCE`, use

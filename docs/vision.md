@@ -94,9 +94,10 @@ review with saved decks, investigations, sources and positions, agent operations
 with attribution, and backup and restore. Perspective lenses, the reading flow
 and concept comparison follow directly after.
 
-Out of scope until the daily tool works: multi-device sync, collaboration,
-native mobile, plugin and schema builders, graph visualization and autonomous
-background agents.
+Multi-device sync and the phone apps waited until the daily tool worked, and
+have since arrived; see [sync](sync.md). Still out of scope: collaboration,
+plugin and schema builders, graph visualization and autonomous background
+agents.
 
 Reading lives in Tessera too. Books, papers, articles and posts are ingested
 into the workshop as immutable snapshots broken into passages, read in a pane

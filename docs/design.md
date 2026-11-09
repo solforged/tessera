@@ -2093,7 +2093,7 @@ adaptive foreground on a midnight background.
 
 ### Explorations
 
-Rounds live in `~/Documents/tessera-design/icon-2026-10-10/`.
+Rounds live in `~/artifacts/tessera/icon-2026-10-10/`.
 
 <!-- "tessera" below is the Latin common noun, not the app's name. -->
 <!-- vale Vale.Terms["tessera"] = NO -->

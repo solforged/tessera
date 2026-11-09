@@ -12,7 +12,8 @@ exceeds the cost of a missing feature.
 
 1. Stabilize. Ship each release to the Mac the same day, keep `mise run check`
    green under load, publish a current Android build and pair the Fold again,
-   and fix the launcher-shortcut restart (issue 40).
+   and fix the launcher-shortcut restart (issue 40). The restart was fixed on
+   2026-10-23.
 2. Trust before breadth. Run spike 5 (the eight-hour soak) and spike 4 (runtime
    and concurrency), replace the full `/api/changes` replay on launch with a
    cursor, add restore from Settings › Backups, and record history for every
@@ -21,10 +22,10 @@ exceeds the cost of a missing feature.
    is left is a full eight-hour soak under the revised heap criteria and the
    spike 4 findings (a write queue, patching restructured pages under local
    edits, re-anchoring moves).
-3. Close the open stages. Stage 10: system types, filling the Form field from
-   lookup and ingestion and exporting it, `is:` and `revisit:` predicates and
-   State grouping. Stage 7: assessments that cite positions and passages. Stage
-   4: cards from field entries. Each has a mock or a settled model already.
+3. Close the open stages. Stage 10: filling the Form field from lookup and
+   ingestion and exporting it, and State grouping. Stage 7: assessments that
+   cite positions and passages. Stage 4: cards from field entries. Each has a
+   mock or a settled model already.
 4. Capture, stage 6. The browser extension first, then feeds and newsletters,
    then providers.
 5. Perspectives, stage 9. PDFs first, then idea breakdowns and agent-assisted
@@ -64,6 +65,8 @@ Solid over React.
 
 Exit: write, rearrange, navigate away and reopen for a week of real notes
 without losing work or place, within budget on a 2,000-block page.
+
+Status: done.
 
 ## 2. Structure
 
@@ -316,7 +319,7 @@ page.
 
 Progress: the model is settled in the [domain model](domain-model.md#notes), and
 clickable mocks of the index, note views, spreads, the note header and aliases
-are in `~/Documents/tessera-design/notes-index-mock/`. The sidebar Index, each
+are in `~/artifacts/tessera/notes-index-mock/`. The sidebar Index, each
 kind's finding aid, the note header's kinds, aliases, ID and created date, and
 aliases across completion, Find, hand-typed references, imports, merges and
 finding aids are built, with starting templates for Person, Group and Concept.
@@ -330,8 +333,10 @@ shared values, and save as pages of references with undoable column edits and
 ordinary commentary. The note capability, resolved state, revisit menus,
 attributed revisit events and Revisits queue are built. Today lists Research to
 revisit; agents can read the queue and use its actions. The Form field exists as
-a built-in choice field with its starting options. System types, filling and
-exporting Form, `is:` and `revisit:` predicates and State grouping remain.
+a built-in choice field with its starting options. A built-in kind's page
+cannot be renamed, deleted or merged, and note views take `is:resolved` and
+`revisit:` terms. Filling and exporting Form, State grouping and the agent API's
+rename to block terms remain.
 
 The [research desk](surfaces/desk.md) links three entity queries: questions,
 their positions and cited sources. Saved desks keep those queries in one view;
@@ -351,14 +356,14 @@ Exit: offline, highlight a book on the phone while editing today's journal on
 the Mac; reconnect, and both devices show the highlights and the journal. See
 [sync](sync.md).
 
-Progress: determinism and identity, the replica protocol on loopback, and
+Status: done. Determinism and identity, the replica protocol on loopback, and
 objects and library state are done. `tessera sync clone` and `tessera sync`
 replicate a workshop from a running service, with text conflicts kept as copies,
 same-day journals, same-title pages and the same book merged, covers kept on
 every replica, other files fetched when used or pinned, and reading positions
 and surfacings ordered by a hybrid logical clock. The tailnet listener, pairing
-and the Android client are in. A paired phone syncs with the Mac; an unpaired
-phone keeps its own workshop.
+and the phone app on Android and iOS are in. A paired phone syncs with the Mac;
+an unpaired phone keeps its own workshop.
 
 ## Later
 

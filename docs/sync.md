@@ -426,7 +426,7 @@ the block stays the unit of text and the outline model does not change.
    for books imported on two devices offline.
 4. **Tailnet and Android.** Done: the sync listener behind Tailscale Serve,
    pairing, the in-process replica runner and the Android client. Interface,
-   chosen from mockups (`~/Documents/tessera-design/sync-devices-mock/`):
+   chosen from mockups (`~/artifacts/tessera/sync-devices-mock/`):
    - **Devices** is a Settings section after Backups. On the Mac: the tailnet
      sharing switch and address, Pair a phone, each device with its last sync
      and Forget, and how much the hub keeps for devices that have not caught up.
@@ -438,7 +438,7 @@ the block stays the unit of text and the outline model does not change.
      minutes.
    - **Status.** The third round, approved 2026-10-12, replaces the rail's mono
      line with a bare mark beside the Tessera wordmark (`wm-*` mockups in
-     `~/Documents/tessera-design/sync-indicator-2026-10-12/`). A filled
+     `~/artifacts/tessera/sync-indicator-2026-10-12/`). A filled
      `--status-done` dot means synced or sending; a hollow `--warning` ring
      means unreachable or needs review; a `--danger` diamond means version
      mismatch, forgotten or retired. Shape and color always agree. Pointer hover
