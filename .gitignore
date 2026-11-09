@@ -14,3 +14,6 @@
 !/web/perf/results/*.md
 # Local development notebooks.
 /.tessera/
+# Finder metadata and agent worktrees.
+.DS_Store
+/.claude/worktrees/
