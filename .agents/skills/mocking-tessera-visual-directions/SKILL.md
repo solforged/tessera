@@ -102,7 +102,7 @@ inject a CSS file plus an idempotent in-page script, screenshot.
 ## C. Structural mock on a captured shell (one view, mock.js)
 
 Used 2026-10-11 for the notes Index, note views, spreads and note header
-(`~/Documents/tessera-design/notes-index-mock/`).
+(`~/artifacts/tessera/notes-index-mock/`).
 
 1. Serve the owned notebook copy, open the base page in its private profile,
    blur focus and save `document.documentElement.outerHTML` under
@@ -227,7 +227,7 @@ in plates.
   retained, record the exact service handle, origin, folder, owner and stop
   instructions before setting `proc://<name>/mode` to `detached`. Index style:
   Orrery tokens, mono eyebrows, rubric numbers, click-to-zoom dialog; the
-  historical `~/Documents/tessera-design/ux-review-2026-10-11/index.html` is a
+  historical `~/artifacts/tessera/ux-review-2026-10-11/index.html` is a
   possible reviewed template only if available. Proposed sections (P1…) go above
   current-state shots with captions, real-vs-sample ledes and a numbered
   "Decisions, with my picks" list.
@@ -246,7 +246,7 @@ in plates.
 
 The user picked Orrery, with Plex Sans for writing and Piazzolla for headings.
 Historical galleries: 2026-10-10 UX review (P1–P5) at
-`~/Documents/tessera-design/ux-review-2026-10-10/`, round two (P6–P8) at
+`~/artifacts/tessera/ux-review-2026-10-10/`, round two (P6–P8) at
 `ux-review-2026-10-11/`, reader round one (P9 titles from contents, P10 progress
 at the foot, P11 highlight lower band) at `reader-2026-10-11/`, with historical
 scripts `reader-2026-10-11/scripts/{proto.js,proto.css,plates.mjs}`.
