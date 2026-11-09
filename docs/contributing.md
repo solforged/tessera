@@ -109,8 +109,11 @@ open.
 | `mise run bench --root /tmp/tessera-bench --fail-on budgets` | Backend budgets; see [Performance](performance.md).                                         |
 
 [CI](../.github/workflows/ci.yml) runs Rust `lint` and `test` on Linux and
-macOS, plus `web:build`, `demo:lint`, `demo:test`, `android:lint`, `cli:lint`,
-`cli:test`, the prose checks and `commit:lint` over the pull request's commits.
+macOS, plus `web:build`, `web:test`, `demo:lint`, `demo:test`, `android:lint`,
+`cli:lint`, `cli:test`, the prose checks and `commit:lint` over the pull
+request's commits. `web:test` builds the debug command line first, because the
+document tests save through a real service. Set `TESSERA_TEST_BINARY` to test
+against another build.
 Its backend job runs 50,000-row correctness and scaling checks
 with `--sizes 50000 --fail-on scaling`. Absolute budgets are for named devices;
 shared runners report them but gate only on correctness and no-per-row-work

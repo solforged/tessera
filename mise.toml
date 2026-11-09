@@ -28,10 +28,15 @@ sources = ["web/src/**/*", "web/public/**/*", "web/index.html", "web/package.jso
 outputs = ["web/dist/index.html"]
 run = "bun run --cwd web build"
 
+# The document tests drive a real service. They start target/debug/tessera, so
+# it is built first and never stale; TESSERA_TEST_BINARY names another build.
 [tasks."web:test"]
-description = "Run the editor's tests"
+description = "Run the editor's tests against a freshly built service"
 depends = ["deps"]
-run = "bun run --cwd web test"
+run = [
+  "[ -n \"${TESSERA_TEST_BINARY:-}\" ] || cargo build --locked -p tessera-cli",
+  "bun run --cwd web test",
+]
 
 [tasks."docs:lint"]
 description = "Check the prose in the docs, changelog, agent skills and UI copy with Vale"

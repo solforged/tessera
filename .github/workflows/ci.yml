@@ -140,6 +140,10 @@ jobs:
       - name: Typecheck and build
         run: mise run web:build
 
+      # Builds the service first: the document tests save through a real one.
+      - name: Editor tests
+        run: mise run web:test
+
   # The rules' own tests, the prose in docs, skills and UI copy, and the
   # messages of the pull request's commits. Only Vale is installed.
   prose:
