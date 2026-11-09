@@ -12,7 +12,7 @@ import { Group } from '../settings/Group';
 import './agent.css';
 
 type Protocol = ProviderView['protocol'];
-interface Draft { id?: string; name: string; protocol: Protocol; base_url: string; model: string; api_key: string; has_key: boolean; clearKey: boolean }
+interface Draft { id?: string; name: string; protocol: Protocol; base_url: string; model: string; api_key: string; has_key: boolean; key_url: string; clearKey: boolean }
 
 /** Where common providers listen; each fills the form and leaves the model to the user. */
 const presets: { label: string; protocol: Protocol; base_url: string; key: boolean }[] = [
@@ -24,6 +24,11 @@ const presets: { label: string; protocol: Protocol; base_url: string; key: boole
 ];
 const protocolLabels: Record<Protocol, string> = { anthropic: 'Anthropic', openai: 'OpenAI-compatible' };
 const message = (reason: unknown) => reason instanceof Error ? reason.message : String(reason);
+/** A saved key stays with the server it was entered for; the service forgets it once the address names another. */
+const keyStays = (value: Draft) => {
+  if (!value.has_key) return false;
+  try { return new URL(value.base_url.trim()).origin === new URL(value.key_url).origin; } catch { return false; }
+};
 
 /** Settings › Models: the models the agent dock can use, with keys kept on this machine. */
 export function AgentSettings(props: { id: string; heading: JSX.Element }) {
@@ -71,7 +76,7 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
       queueMicrotask(() => formElement.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus());
       return;
     }
-    const key = value.clearKey ? '' : value.api_key.trim() || null;
+    const key = value.clearKey && keyStays(value) ? '' : value.api_key.trim() || null;
     const entry: ProviderInput = { ...(value.id ? { id: value.id } : {}), name: value.name.trim(), protocol: value.protocol, base_url: value.base_url.trim(), model: value.model.trim(), api_key: key };
     const list = saved()?.providers ?? [];
     const providers = value.id ? inputs().map(item => item.id === value.id ? entry : item) : [...inputs(), entry];
@@ -95,8 +100,8 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
     // A result from before the edit no longer describes the model.
     if (provider) setTested(({ [provider.id]: _, ...rest }) => rest);
     setDraft(provider
-      ? { id: provider.id, name: provider.name, protocol: provider.protocol, base_url: provider.base_url, model: provider.model, api_key: '', has_key: provider.has_key, clearKey: false }
-      : { name: 'Anthropic', protocol: 'anthropic', base_url: presets[0]!.base_url, model: '', api_key: '', has_key: false, clearKey: false });
+      ? { id: provider.id, name: provider.name, protocol: provider.protocol, base_url: provider.base_url, model: provider.model, api_key: '', has_key: provider.has_key, key_url: provider.base_url, clearKey: false }
+      : { name: 'Anthropic', protocol: 'anthropic', base_url: presets[0]!.base_url, model: '', api_key: '', has_key: false, key_url: '', clearKey: false });
   };
   const update = (patch: Partial<Draft>) => setDraft(value => value && { ...value, ...patch });
   /** Closing the form returns the caret to the button that opened it. */
@@ -130,10 +135,11 @@ export function AgentSettings(props: { id: string; heading: JSX.Element }) {
     <label><span>Model</span><span class="agent-input-field"><input class="input settings-mono" value={form.value.model} placeholder="As the provider names it" onInput={event => update({ model: event.currentTarget.value })} required aria-invalid={!!fieldErrors().model} aria-describedby={fieldErrors().model ? `${props.id}-model-error` : undefined} />
       <Show when={fieldErrors().model}>{error => <span class="error agent-field-error" id={`${props.id}-model-error`} role="alert">{error()}</span>}</Show>
     </span></label>
-    <label><span>Key</span><input class="input settings-mono" type="password" autocomplete="off" value={form.value.api_key} disabled={form.value.clearKey}
-      placeholder={form.value.has_key && !form.value.clearKey ? 'Saved; type to replace it' : form.value.protocol === 'openai' ? 'Not needed for a local server' : 'Your API key'}
+    <label><span>Key</span><input class="input settings-mono" type="password" autocomplete="off" value={form.value.api_key} disabled={form.value.clearKey && keyStays(form.value)}
+      placeholder={keyStays(form.value) && !form.value.clearKey ? 'Saved; type to replace it' : form.value.protocol === 'openai' ? 'Not needed for a local server' : 'Your API key'}
       onInput={event => update({ api_key: event.currentTarget.value })} /></label>
-    <Show when={form.value.has_key}><label class="agent-clear-key"><input type="checkbox" checked={form.value.clearKey} onChange={event => update({ clearKey: event.currentTarget.checked, api_key: '' })} /><span>Forget the saved key</span></label></Show>
+    <Show when={form.value.has_key && !keyStays(form.value) && !form.value.api_key.trim()}><span class="agent-clear-key" role="status">The saved key belongs to the old address. Saving forgets it.</span></Show>
+    <Show when={keyStays(form.value)}><label class="agent-clear-key"><input type="checkbox" checked={form.value.clearKey} onChange={event => update({ clearKey: event.currentTarget.checked, api_key: '' })} /><span>Forget the saved key</span></label></Show>
     <div class="agent-form-actions">
       <Button class="text-button" onClick={closeForm}>Cancel</Button>
       <Button class="bordered" type="submit" disabled={busy()}>Save model</Button>
