@@ -297,6 +297,37 @@ async fn providers_round_trip_keeps_clears_and_never_returns_keys() {
             .1["providers"][0]["has_key"],
         true
     );
+    // A kept key follows its server: another path keeps it, another host, scheme or
+    // port forgets it, and moving back does not bring it back.
+    let moved = save(&app, "openai", "https://api.example/v2", None).await;
+    assert_eq!(moved["providers"][0]["has_key"], true);
+    for other in [
+        "https://elsewhere.example/v1",
+        "http://api.example/v1",
+        "https://api.example:8443/v1",
+    ] {
+        save(
+            &app,
+            "openai",
+            "https://api.example/v1",
+            Some(json!("super-secret-key")),
+        )
+        .await;
+        let forgotten = save(&app, "openai", other, None).await;
+        assert_eq!(forgotten["providers"][0]["has_key"], false, "{other}");
+        let stored: Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join("agent.json")).unwrap()).unwrap();
+        assert_eq!(stored["providers"][0]["api_key"], "", "{other}");
+        let back = save(&app, "openai", "https://api.example/v1", None).await;
+        assert_eq!(back["providers"][0]["has_key"], false, "{other}");
+    }
+    save(
+        &app,
+        "openai",
+        "https://api.example/v1",
+        Some(json!("super-secret-key")),
+    )
+    .await;
     let cleared = save(&app, "openai", "https://api.example/v1", Some(json!(""))).await;
     assert_eq!(cleared["providers"][0]["has_key"], false);
     let stored: Value =

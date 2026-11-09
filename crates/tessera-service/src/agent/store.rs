@@ -167,10 +167,17 @@ impl Store {
             if id.is_empty() || !ids.insert(id.clone()) {
                 return Err(invalid("Provider IDs must be nonempty and unique."));
             }
+            // A saved key belongs to the server it was entered for. A request that omits
+            // the key keeps it only while the address still names that server, so a
+            // changed address can never be sent a key meant for another one.
             let api_key = input.api_key.unwrap_or_else(|| {
                 old.providers
                     .iter()
-                    .find(|p| p.id == id)
+                    .find(|p| {
+                        p.id == id
+                            && reqwest::Url::parse(&p.base_url)
+                                .is_ok_and(|saved| saved.origin() == url.origin())
+                    })
                     .map(|p| p.api_key.clone())
                     .unwrap_or_default()
             });

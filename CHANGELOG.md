@@ -171,6 +171,7 @@ Releases are tagged `vX.Y.Z` and match the workspace version. [Releasing](docs/r
 - Showed every alias in a note's ALSO line when its aliases sit in more than one top-level `aliases` entry, not only the first entry's.
 - Stopped marking plain-name creators, such as `Noam Shazeer` or `et al.`, as `not a reference` in relation fields that count as creator or contributor; they read as names in tables, field pages and the outline, while originators and other relations still ask for a link.
 - Gave a source made by `#source` or a source action its suggested citation key when it is made, read from the title and fields it is made with, so BibTeX and CSL JSON export no longer refuse sources filed through MCP. Opening a workshop once gives each keyless source its key.
+- Forgot a model's saved key when its address moves to another host, port or scheme, so neither Test nor the dock can send a key to a server it was not entered for. The Models form says the key will be forgotten before you save.
 
 ## 0.5.1, 2026-10-23
 

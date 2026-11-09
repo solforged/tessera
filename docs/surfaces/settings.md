@@ -194,9 +194,12 @@ today's journal.
 The agent dock's models edit in place. API uses the shared menu, missing Name,
 Address and Model values show inline errors, and the form saves with Save model.
 An invalid address also shows its reason inline. Keys remain optional so local
-servers work without one. Remove asks `Remove?`, or `Remove it and its key?`
-when a key is saved, inline with Cancel and Confirm. Test is disabled until its
-answer arrives, and editing a model clears its last result.
+servers work without one. A saved key stays with its server: changing the
+address to another host, port or scheme forgets the key on Save, and the form
+says so in place of Forget the saved key. Remove asks `Remove?`, or
+`Remove it and its key?` when a key is saved, inline with Cancel and Confirm.
+Test is disabled until its answer arrives, and editing a model clears its last
+result.
 
 Provider presets use the shared mode tabs, scrolling horizontally when needed.
 
