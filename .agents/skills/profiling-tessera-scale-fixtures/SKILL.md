@@ -49,7 +49,7 @@ and source its prepared environment.
   or assumed to survive. Obtain a reviewed source artifact before using it,
   record its provenance and place the task-local copy under `TASK_RUN/tools`.
   The historical method is cited at
-  `~/Documents/tessera-design/calibre-scale-2026-10-10/calibre-scale-audit.md`;
+  `~/artifacts/tessera/calibre-scale-2026-10-10/calibre-scale-audit.md`;
   that citation is not a runnable generator. PIL is also a prerequisite. Its
   documented behavior uploads synthetic EPUBs to an owned service, with bulk
   uploads by default and per-job waits plus `serial_seconds` median/max in

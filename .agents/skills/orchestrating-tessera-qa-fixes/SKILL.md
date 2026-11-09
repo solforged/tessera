@@ -61,7 +61,7 @@ owner.
   those screens simulated. Merely loading Settings runs read-only
   `tailscale status --json`. `--sync-port 0` means a random loopback port, not
   off. A finished pass leaves
-  `~/Documents/tessera-design/2026-11-01-visual-clickthrough/` (13 finders, 28
+  `~/artifacts/tessera/2026-11-01-visual-clickthrough/` (13 finders, 28
   verifiers, 174 standing findings) as a template for harness.md,
   verify-contract.md and report.md.
 - **`/usr/bin/sqlite3` only.** The bare `sqlite3` on PATH is Android
@@ -87,9 +87,9 @@ sync, imported material) without fixes, or when findings need independent
 confirmation before fix lanes. Earlier passes: 2026-10-12 (16 lanes + 12
 verifiers, 69 verified bugs in ~1.5 h; import clickaround 14 lanes + 18
 verifiers, 155 of 159 verified,
-`~/Documents/tessera-design/2026-10-12-import-clickaround/`) and 2026-10-15 text
+`~/artifacts/tessera/2026-10-12-import-clickaround/`) and 2026-10-15 text
 entry (20 lanes + 23 verifiers, 72 of 76 verified, 10 data-loss,
-`~/Documents/tessera-design/2026-10-15-text-entry-qa/`).
+`~/artifacts/tessera/2026-10-15-text-entry-qa/`).
 
 - Harness: retain setup in `TASK_EVIDENCE/harness.md`, including page ids, field
   names and holder ids from the owned copied database. Each prepared lane copies

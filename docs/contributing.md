@@ -146,9 +146,9 @@ into `web/src/demo/pkg`, shrinks it with `wasm-opt`, then builds the pages.
 The output in `web/dist-demo` is static. Serve it with every non-asset path
 rewritten to `demo.html`; see [`web/vercel.json`](../web/vercel.json).
 [`.github/workflows/demo.yml`](../.github/workflows/demo.yml) deploys it to
-Vercel after CI succeeds on `main`, once `VERCEL_TOKEN`, `VERCEL_ORG_ID` and
-`VERCEL_PROJECT_ID` exist. [Releasing](releasing.md#browser-demo) covers a
-manual deploy and a rollback.
+Vercel when a pull request lands, from the commit `main` moved to, once
+`VERCEL_TOKEN`, `VERCEL_ORG_ID` and `VERCEL_PROJECT_ID` exist.
+[Releasing](releasing.md#browser-demo) covers a manual deploy and a rollback.
 
 The build is installable: the manifest and icons are in
 [`web/public-demo`](../web/public-demo), and a plugin in
