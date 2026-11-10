@@ -1,6 +1,11 @@
 # Runtime and soak spikes
 
-Run from the repository root. Both harnesses create a disposable 60-page, 9,000-block workshop through the public API, stop its seed service, and copy it for each run. They never use the live workshop or port 4318. Temporary workshops and browser contexts are removed on exit. JSON evidence and Markdown tables remain in `web/perf/results/`. A failed or unmeasured required budget exits nonzero.
+Run from the repository root. Both harnesses create a disposable 60-page,
+9,000-block workshop through the public API, stop its seed service, and copy it
+for each run. They never use the live workshop or port 4318. Temporary workshops
+and browser contexts are removed on exit. JSON evidence and Markdown tables
+remain in `web/perf/results/`. A failed or unmeasured required budget exits
+nonzero.
 
 ```sh
 cargo build --release -p tessera-cli
@@ -17,24 +22,116 @@ bun web/perf/concurrency.ts --minutes 3
 bun web/perf/soak.ts --hours 8
 ```
 
-`CHROME_PATH` overrides the Chromium executable. Its default matches `run.ts`: `~/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`. `BROWSER=chromium|webkit` selects one concurrency leg; the default runs both sequentially against independent copies of the same corpus. An unavailable runtime is reported as **not run**, not silently substituted. The soak requires Chromium for CDP heap measurements. WebKit here means Playwright WebKit over HTTP, **not Tauri or a native WKWebView**.
+`CHROME_PATH` overrides the Chromium executable. Its default matches `run.ts`:
+`~/Library/Caches/ms-playwright/chromium-1234/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing`.
+`BROWSER=chromium|webkit` selects one concurrency leg; the default runs both
+sequentially against independent copies of the same corpus. An unavailable
+runtime is reported as **not run**, not silently substituted. The soak requires
+Chromium for CDP heap measurements. WebKit here means Playwright WebKit over
+HTTP, **not Tauri or a native WKWebView**.
 
-Before the workload, the soak checks Find from a journal caret before existing text after Enter and ArrowUp. This catches the macOS CodeMirror control-key motion collision, rather than testing Find only at a row's end. Navigation waits for its destination title or journal header before choosing rows, rather than accepting rows left over from the prior view. If Find's input has not appeared within 3 s, the runner captures evidence and presses its chord once more. If Find still fails, the runner reloads the shell and opens the requested target through its public open event; Tessera has no HTTP page route. Retries and failures accumulate per window slot across context replacements; the `Find chords retried` and `Find failed` checks pass only at zero, but neither aborts the workload. Reloads reset that document's heap, so a run with failed Finds is not uninterrupted steady-state heap evidence. A failed or retried Find retains a screenshot path, active element and ancestry, inputs, raw popup HTML, open overlays and the last 20 Ctrl+Shift key events in the action's `error` or `findRetry` field.
+Before the workload, the soak checks Find from a journal caret before existing
+text after Enter and ArrowUp. This catches the macOS CodeMirror control-key
+motion collision, rather than testing Find only at a row's end. Navigation waits
+for its destination title or journal header before choosing rows, rather than
+accepting rows left over from the prior view. If Find's input has not appeared
+within 3 s, the runner captures evidence and presses its chord once more. If
+Find still fails, the runner reloads the shell and opens the requested target
+through its public open event; Tessera has no HTTP page route. Retries and
+failures accumulate per window slot across context replacements; the
+`Find chords retried` and `Find failed` checks pass only at zero, but neither
+aborts the workload. Reloads reset that document's heap, so a run with failed
+Finds is not uninterrupted steady-state heap evidence. A failed or retried Find
+retains a screenshot path, active element and ancestry, inputs, raw popup HTML,
+open overlays and the last 20 Ctrl+Shift key events in the action's `error` or
+`findRetry` field.
 
-Key diagnostics record every modifier, composition flag and target, the matching blocking popup at capture time, and prevention after dispatch. Find evidence also retains the last 20 uncaught page errors.
+Key diagnostics record every modifier, composition flag and target, the matching
+blocking popup at capture time, and prevention after dispatch. Find evidence
+also retains the last 20 uncaught page errors.
 
-The preflight also rejects a field-definition request after an edit, then checks that Find still searches and Commands reports Open as table as unavailable. A separate regression kills the service, submits a query while it is down, and requires the unchanged query to refetch after restart without another chord or keystroke. That regression's service crash is counted separately in JSON and included in the summary's service-crash total. The failed route is removed and the isolated tab reloaded before workload measurements begin.
+The preflight also rejects a field-definition request after an edit, then checks
+that Find still searches and Commands reports Open as table as unavailable. A
+separate regression kills the service, submits a query while it is down, and
+requires the unchanged query to refetch after restart without another chord or
+keystroke. That regression's service crash is counted separately in JSON and
+included in the summary's service-crash total. The failed route is removed and
+the isolated tab reloaded before workload measurements begin.
 
 ## Pass criteria
 
-Concurrency uses four isolated contexts, two sharing a page, plus agent-note and batch writers. Typing runs about every 300 ms, structural edits every 3 s, and background writes every 500 ms. Small browser batch round trips must have p95 ≤50 ms and another window must display a probe edit at p95 ≤100 ms. Propagation includes the write request and a 10 ms DOM observation interval. Every 30 s a context goes offline for 5 s while editing continues. On reconnect, writers pause briefly: the outbox must drain to zero, the pane must report Saved, and every server row must match text and depth across the complete scrolled view. Convergence time is reported without inventing an additional latency budget. There must be zero `/api/changes` fetches while the change WebSocket is live outside startup and the deliberately disconnected context's recovery. Every request retains its timestamp and phase in JSON; catch-up reads are counted separately. Every acknowledged receipt is checked for change-event membership and revision floors in current pages; every typed/probe/background marker must survive in server text. Change replay returns current blocks, not exact historical snapshots.
+Concurrency uses four isolated contexts, two sharing a page, plus agent-note and
+batch writers. Typing runs about every 300 ms, structural edits every 3 s, and
+background writes every 500 ms. Small browser batch round trips must have p95
+≤50 ms and another window must display a probe edit at p95 ≤100 ms. Propagation
+includes the write request and a 10 ms DOM observation interval. Every 30 s a
+context goes offline for 5 s while editing continues. On reconnect, writers
+pause briefly: the outbox must drain to zero, the pane must report Saved, and
+every server row must match text and depth across the complete scrolled view.
+Convergence time is reported without inventing an additional latency budget.
+There must be zero `/api/changes` fetches while the change WebSocket is live
+outside startup and the deliberately disconnected context's recovery. Every
+request retains its timestamp and phase in JSON; catch-up reads are counted
+separately. Every acknowledged receipt is checked for change-event membership
+and revision floors in current pages; every typed/probe/background marker must
+survive in server text. Change replay returns current blocks, not exact
+historical snapshots.
 
-The eight-hour soak uses PRNG seed 42 and two contexts for typing, Enter, Tab, Shift+Tab, Alt+ArrowUp, Find, back/forward, journal navigation and folding. It kills the service on a submitted batch every 10 minutes and replaces a context every 20 minutes. Overlapping edits, especially on the shared journal, can legitimately need conflict resolution; the runner uses Review conflict and Edit merged text to preserve both appended marker tails before continuing or draining. Per-window actions, targets, generations and outcomes are retained in the JSON. Receipts are retained by the runner, not inside the tabs. Every service restart and the final drain must preserve all acknowledged revisions and pass `/api/check`. No delete or merge operation is generated, so a missing live block cannot be explained away as intentional deletion.
+The eight-hour soak uses PRNG seed 42 and two contexts for typing, Enter, Tab,
+Shift+Tab, Alt+ArrowUp, Find, back/forward, journal navigation and folding. It
+kills the service on a submitted batch every 10 minutes and replaces a context
+every 20 minutes. Overlapping edits, especially on the shared journal, can
+legitimately need conflict resolution; the runner uses Review conflict and Edit
+merged text to preserve both appended marker tails before continuing or
+draining. Per-window actions, targets, generations and outcomes are retained in
+the JSON. Receipts are retained by the runner, not inside the tabs. Every
+service restart and the final drain must preserve all acknowledged revisions and
+pass `/api/check`. No delete or merge operation is generated, so a missing live
+block cannot be explained away as intentional deletion.
 
-Samples include CDP used/total JS heap after a forced collection (`HeapProfiler.collectGarbage`, so a sample measures live objects rather than when V8 last collected), nodes and listeners; DOM and mounted block counts; all six IndexedDB outbox stores; distinct cached pages and pages opened; and WAL and database bytes. Contexts are replaced in turn, so each lives 40 minutes, and heap growth is measured within each context generation that produced at least eight samples. A context is warmed once it has opened 80 percent of the pages it opens in its life, since each new page adds to the client's caches by design; the warmed median runs from that point to 40 percent of its life (or over the second quarter when saturation comes later), against the median of its last 15 percent. The median ratio across generations must not exceed 1.100; the worst generation is reported beside it. A second check follows end-of-life heap from the second measured generation to the last; because the workload appends text to every block it touches, the workshop itself grows, and that ratio may follow the database's growth ratio but not exceed the larger of it and 1.100. A decrease is acceptable. WAL samples must stay ≤64 MiB. Commands must return to zero after each drain, and distinct cached pages must not exceed distinct pages opened in that context. The `pages` store contains both snapshots and ordered structural patches; its raw record count remains in the samples, but each patch is not another cached page. SubtreeCache is not exposed by the production app, so mounted rows stand in, using the existing ≤102-row browser performance bound. WAL and storage bounds are sampled, not claims about unseen transient peaks.
+Samples include CDP used/total JS heap after a forced collection
+(`HeapProfiler.collectGarbage`, so a sample measures live objects rather than
+when V8 last collected), nodes and listeners; DOM and mounted block counts; all
+six IndexedDB outbox stores; distinct cached pages and pages opened; and WAL and
+database bytes. Contexts are replaced in turn, so each lives 40 minutes, and
+heap growth is measured within each context generation that produced at least
+eight samples. A context is warmed once it has opened 80 percent of the pages it
+opens in its life, since each new page adds to the client's caches by design;
+the warmed median runs from that point to 40 percent of its life (or over the
+second quarter when saturation comes later), against the median of its last 15
+percent. The median ratio across generations must not exceed 1.100; the worst
+generation is reported beside it. A second check follows end-of-life heap from
+the second measured generation to the last; because the workload appends text to
+every block it touches, the workshop itself grows, and that ratio may follow the
+database's growth ratio but not exceed the larger of it and 1.100. A decrease is
+acceptable. WAL samples must stay ≤64 MiB. Commands must return to zero after
+each drain, and distinct cached pages must not exceed distinct pages opened in
+that context. The `pages` store contains both snapshots and ordered structural
+patches; its raw record count remains in the samples, but each patch is not
+another cached page. SubtreeCache is not exposed by the production app, so
+mounted rows stand in, using the existing ≤102-row browser performance bound.
+WAL and storage bounds are sampled, not claims about unseen transient peaks.
 
-A row the other window moves or splits can stay detached across the typing action's three bounded click attempts; that is counted under `Rows reachable for typing` (pass only at zero) with the row's presence, row count and save state in the action's `fallback`, and the workload continues. A probe of two windows on one page (`remount-probe` on 2026-10-23, 92 remote text edits and 9 structural edits over 30 s) saw no remount of the edited row or of an untouched row, so rows patch in place under remote changes; only moved rows remount.
+A row the other window moves or splits can stay detached across the typing
+action's three bounded click attempts; that is counted under
+`Rows reachable for typing` (pass only at zero) with the row's presence, row
+count and save state in the action's `fallback`, and the workload continues. A
+probe of two windows on one page (`remount-probe` on 2026-10-23, 92 remote text
+edits and 9 structural edits over 30 s) saw no remount of the edited row or of
+an untouched row, so rows patch in place under remote changes; only moved rows
+remount.
 
-Conflict resolution is itself a command, so the runner resolves conflicts only while the window is live and waits up to 30 s for the acknowledgement that clears the label; a resolution attempted during a forced outage would queue and the next attempt would find the panel already consumed. A failed resolution records the conflict panel and save-state markup in the action's `error`.
+Conflict resolution is itself a command, so the runner resolves conflicts only
+while the window is live and waits up to 30 s for the acknowledgement that
+clears the label; a resolution attempted during a forced outage would queue and
+the next attempt would find the panel already consumed. A failed resolution
+records the conflict panel and save-state markup in the action's `error`.
 
-`--minutes` on the soak compresses service/tab crashes to one-third/two-thirds of the duration and samples at least 12 times; the same per-generation heap measurement applies, with only one or two generations. This exercises recovery quickly; it does **not** establish eight-hour steady-state behavior. An unusually short concurrency run under 35 s cannot complete an offline cycle and fails the convergence check. Close-and-replace contexts model loss of a tab's execution and isolated storage, not an OS-level browser-process crash. Native Tauri IPC, WebKit heap size and presentation-frame timing are not measured.
+`--minutes` on the soak compresses service/tab crashes to one-third/two-thirds
+of the duration and samples at least 12 times; the same per-generation heap
+measurement applies, with only one or two generations. This exercises recovery
+quickly; it does **not** establish eight-hour steady-state behavior. An
+unusually short concurrency run under 35 s cannot complete an offline cycle and
+fails the convergence check. Close-and-replace contexts model loss of a tab's
+execution and isolated storage, not an OS-level browser-process crash. Native
+Tauri IPC, WebKit heap size and presentation-frame timing are not measured.
