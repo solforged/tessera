@@ -566,6 +566,11 @@ pub struct Committed {
     /// in receipts stored before it was recorded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pages: Option<Vec<String>>,
+    /// Pages where the engine placed a block somewhere other than the request
+    /// named, because its `after` sibling had been moved or deleted, sorted.
+    /// The sender reloads these pages to learn the order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reanchored_pages: Vec<String>,
     /// Text normalized by the engine or changed by tag removal/merge operations.
     /// The client applies these rewrites to its editor and undo history.
     /// Older persisted receipts predate tag rewriting.

@@ -167,7 +167,9 @@ Rules:
 - **Merge** keeps the destination ID and the union of both pages' type
   memberships, without duplicates. It refuses when the source has history that
   cannot move, such as reviewed cards.
-- **Move** keeps the ID and the whole subtree.
+- **Move** keeps the ID and the whole subtree. When the sibling it names has
+  been moved or deleted by another writer, the block is still placed under the
+  named parent; see [how it works](how-it-works.md#blocks-and-the-outline).
 - **Archive** hides; **delete** tombstones with a shared deletion event;
   **restore** needs that event and the exact revision. **Purge** is explicit and
   refuses to destroy review history.
