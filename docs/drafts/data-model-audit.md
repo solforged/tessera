@@ -127,9 +127,9 @@ Tokens, tags, card syntax and field shorthand are parsed twice: in Rust
 `card-text.ts`, `query.ts`). Parity is held by a few comparison tests on enum
 order. `Name:: value` converts only in the browser; a raw API write stays
 shorthand until a client touches it. Logseq OG had this exact split between
-`mldoc` and the editor and spent years on its edge cases. Tessera already compiles
-`tessera-core` to wasm for the demo, so the fix is cheaper here than it was
-there.
+`mldoc` and the editor and spent years on its edge cases. Tessera already
+compiles `tessera-core` to wasm for the demo, so the fix is cheaper here than it
+was there.
 
 ### R5. One connection behind one lock
 

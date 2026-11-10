@@ -322,11 +322,11 @@ page.
 
 Progress: the model is settled in the [domain model](domain-model.md#notes), and
 clickable mocks of the index, note views, spreads, the note header and aliases
-are in `~/artifacts/tessera/notes-index-mock/`. The sidebar Index, each
-kind's finding aid, the note header's kinds, aliases, ID and created date, and
-aliases across completion, Find, hand-typed references, imports, merges and
-finding aids are built, with starting templates for Person, Group and Concept.
-Kinds are read from types with the built-in titles and from capabilities.
+are in `~/artifacts/tessera/notes-index-mock/`. The sidebar Index, each kind's
+finding aid, the note header's kinds, aliases, ID and created date, and aliases
+across completion, Find, hand-typed references, imports, merges and finding aids
+are built, with starting templates for Person, Group and Concept. Kinds are read
+from types with the built-in titles and from capabilities.
 
 Note views have title and gloss finding, `links:`, `from:` and `cites:` chips,
 multi-heading grouping, shared Index and Table queries and counts, saved layout
@@ -336,10 +336,10 @@ shared values, and save as pages of references with undoable column edits and
 ordinary commentary. The note capability, resolved state, revisit menus,
 attributed revisit events and Revisits queue are built. Today lists Research to
 revisit; agents can read the queue and use its actions. The Form field exists as
-a built-in choice field with its starting options. A built-in kind's page
-cannot be renamed, deleted or merged, and note views take `is:resolved` and
-`revisit:` terms. Filling and exporting Form, State grouping and the agent API's
-rename to block terms remain.
+a built-in choice field with its starting options. A built-in kind's page cannot
+be renamed, deleted or merged, and note views take `is:resolved` and `revisit:`
+terms. Filling and exporting Form, State grouping and the agent API's rename to
+block terms remain.
 
 The [research desk](surfaces/desk.md) links three entity queries: questions,
 their positions and cited sources. Saved desks keep those queries in one view;

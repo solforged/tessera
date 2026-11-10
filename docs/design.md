@@ -740,14 +740,14 @@ phone's own conventions:
   `size="lg"` the 52 px full-width one at a screen's foot. An icon-only button
   is a circle. There is no 1 px square box and no boxed stepper. Desktop keeps
   the hairline leaf and the gilt stamp it has.
-- **Leaf, list, `seg` and search.** A `leaf` is a 14 px-radius tile or group, lit
-  along its top. `ListGroup` sets a Plex label above a leaf of 48 px `ListRow`s,
-  with hairlines starting at the text and a chevron on rows that push;
-  `PropertyRow` puts a field's label at the left and its value at the right.
-  `Seg` chooses among two to four settings in a 44 px well whose chosen segment
-  is a leaf; `.mode-tabs` strips only switch a screen's views. `SearchWell` is
-  the one search and filter field: a capsule well with the glyph inside and a
-  gilt baseline on focus. Sheets are 34 px radius.
+- **Leaf, list, `seg` and search.** A `leaf` is a 14 px-radius tile or group,
+  lit along its top. `ListGroup` sets a Plex label above a leaf of 48 px
+  `ListRow`s, with hairlines starting at the text and a chevron on rows that
+  push; `PropertyRow` puts a field's label at the left and its value at the
+  right. `Seg` chooses among two to four settings in a 44 px well whose chosen
+  segment is a leaf; `.mode-tabs` strips only switch a screen's views.
+  `SearchWell` is the one search and filter field: a capsule well with the glyph
+  inside and a gilt baseline on focus. Sheets are 34 px radius.
 - **Touch input.** Key hints are hidden, the caret and selection are gilt, no
   band paints on a row at rest or being edited (the editing row's bullet turns
   gilt), the hover ··· on outline rows is gone and a 450 ms press on a row opens
@@ -2048,8 +2048,8 @@ The app icon carries the workshop's central idea and its material. The idea is
 multiperspectival notes: one subject held in distinct attributed perspectives,
 with the source beside what you think of it; see
 [perspectives](surfaces/perspectives.md). The material is clockwork gold, the
-brass of an instrument: rings, rules and beveled facets drawn in a few flat
-gilt tones. No glows and no multi-stop metallic gradients.
+brass of an instrument: rings, rules and beveled facets drawn in a few flat gilt
+tones. No glows and no multi-stop metallic gradients.
 
 ### Direction
 

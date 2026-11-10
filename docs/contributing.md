@@ -117,9 +117,8 @@ pull request's commits.
 It does not run `ts-web-test` yet: the document tests time out on its Linux
 runners. `ts-web-test` builds the debug command line first, because those tests
 save through a real service. Set `TESSERA_TEST_BINARY` to test against another
-build.
-Its backend job runs 50,000-row correctness and scaling checks
-with `--sizes 50000 --fail-on scaling`. Absolute budgets are for named devices;
+build. Its backend job runs 50,000-row correctness and scaling checks with
+`--sizes 50000 --fail-on scaling`. Absolute budgets are for named devices;
 shared runners report them but gate only on correctness and no-per-row-work
 checks.
 
@@ -144,8 +143,9 @@ workshop as one file. Web articles, sync and service details are omitted.
 ts-demo-build
 ```
 
-The task compiles the engine with the wasm32 target, binds it with `wasm-bindgen`
-into `web/src/demo/pkg`, shrinks it with `wasm-opt`, then builds the pages.
+The task compiles the engine with the wasm32 target, binds it with
+`wasm-bindgen` into `web/src/demo/pkg`, shrinks it with `wasm-opt`, then builds
+the pages.
 
 The output in `web/dist-demo` is static. Serve it with every non-asset path
 rewritten to `demo.html`; see [`web/vercel.json`](../web/vercel.json).
