@@ -252,6 +252,11 @@ structural events for a page that is being edited locally must patch instead of
 reload, and moves must re-anchor against the current siblings before they are
 sent. These are stage 8 work after this pass.
 
+Re-anchoring landed in the core instead of the client: a move or insert whose
+`after` sibling is gone is placed under the named parent and the receipt tells
+the sender to reload the page, which also covers agents and replicas. Neither
+spike has been rerun since.
+
 ## Spike 5 result: soak, 2026-10-23
 
 `bun web/perf/soak.ts --hours 8` ran a release service on the same 60-page

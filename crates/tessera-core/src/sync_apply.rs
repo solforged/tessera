@@ -169,6 +169,7 @@ impl Notebook {
             pruned_pages: Vec::new(),
             deletions: Vec::new(),
             pages: Some(Vec::new()),
+            reanchored_pages: Vec::new(),
             text_rewrites: Vec::new(),
             settings: Vec::new(),
             capabilities: Vec::new(),

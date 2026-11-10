@@ -703,6 +703,7 @@ fn record_change(
         pruned_pages: Vec::new(),
         deletions: Vec::new(),
         pages: Some(pages),
+        reanchored_pages: Vec::new(),
         text_rewrites,
         settings: Vec::new(),
         capabilities,
