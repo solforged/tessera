@@ -87,6 +87,8 @@ export class Notebook implements NotebookClient, DocumentHost {
   private sessionId: string;
   private actorName: string;
   private persisted = new Set<string>();
+  /** Pages whose order the service chose and this window has yet to reload, with the receipt's sequence. */
+  private reanchored = new Map<string, number>();
   private generations = new Map<string, number>();
   private commandWaiters = new Map<string, { resolve(value: Committed): void; reject(error: Error): void }>();
   private captureWaiters = new Map<string, { resolve(value: Committed | null): void; reject(error: Error): void }>();
@@ -1293,6 +1295,7 @@ export class Notebook implements NotebookClient, DocumentHost {
       this.commandWaiters.get(command.id)?.resolve(ack); this.commandWaiters.delete(command.id);
       this.captureWaiters.get(command.id)?.resolve(ack); this.captureWaiters.delete(command.id);
       this.activeCommand = undefined; this.touch();
+      await this.reloadReanchored(ack);
       return true;
     } catch (error) {
       this.activeCommand = undefined;
@@ -1300,6 +1303,28 @@ export class Notebook implements NotebookClient, DocumentHost {
       this.connectionSignal[1]('offline'); this.scheduleReconnect(); this.touch();
       return false;
     }
+  }
+  /**
+   * Reloads pages whose order the service chose because a command's `after` sibling was gone;
+   * a receipt's blocks carry no position. Call it once the command has left the queue, or the reload
+   * replays its stale anchor over the service's order. A page that cannot be read now waits for the
+   * next receipt or reconnect.
+   */
+  private async reloadReanchored(ack?: Committed) {
+    for (const pageId of ack?.reanchored_pages ?? []) this.reanchored.set(pageId, ack!.seq);
+    await Promise.all([...this.reanchored].map(async ([pageId, seq]) => {
+      try {
+        const view = await this.api.page(pageId);
+        this.snapshotSequence.set(view, seq);
+        const doc = this.docs.get(pageId);
+        if (doc) doc.merge(view, true);
+        else this.cachePage(view);
+      } catch (error) {
+        // The command is already acknowledged, so a failed read must not fail it; the page stays listed.
+        if (!(error instanceof ApiError) || error.status !== 404) return;
+      }
+      if (this.reanchored.get(pageId) === seq) this.reanchored.delete(pageId);
+    }));
   }
   private receiveReceipt(ack: Committed) {
     for (const doc of this.docs.values()) {
@@ -1456,6 +1481,7 @@ export class Notebook implements NotebookClient, DocumentHost {
           this.failure = '';
           this.activeCommand = undefined;
           this.touch();
+          await this.reloadReanchored(ack);
           if (extraRoots || command.actions.some(action => action.kind === 'insert' && action.block.kind !== 'block' || action.kind === 'delete' && action.id === doc.pageId || action.kind === 'restore' && action.id === doc.pageId || action.kind === 'text' && action.id === doc.pageId)) await this.refreshRoots().catch(() => this.connectionSignal[1]('offline'));
           // Derived type pages alone appear as new roots in a text/Add type receipt. Ordinary page creation and
           // references to existing empty type pages do not seed templates; the route is a no-op without a schema.
@@ -1703,6 +1729,8 @@ export class Notebook implements NotebookClient, DocumentHost {
       await work;
       if (this.closed) return;
       this.retryLookups();
+      await this.reloadReanchored();
+      if (this.closed) return;
       if (this.socket?.readyState === CHANGE_OPEN) { this.serviceReached(); return; }
       if (this.socket?.readyState === CHANGE_CONNECTING) return;
       const socket = this.api.stream(this.seq);

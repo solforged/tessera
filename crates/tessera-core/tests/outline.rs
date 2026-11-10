@@ -553,7 +553,6 @@ fn validation_rejects_cycles_bad_ids_headings_splits_and_root_merges_atomically(
             heading: None,
         },
         moving(10, 1, 1, Some(10)),
-        insert(20, 1, Some(11), "wrong sibling"),
     ];
     for operation in invalid {
         assert!(matches!(
@@ -922,4 +921,141 @@ fn written_journal_ranges_include_endpoints_and_reject_invalid_bounds() {
             Err(Error::Validation { .. })
         ));
     }
+}
+
+#[test]
+fn a_stale_after_re_anchors_moves_and_inserts_instead_of_refusing() {
+    let (_dir, mut nb) = fixture();
+    let ids = |nb: &Notebook, root: u128| -> Vec<(String, u32)> {
+        rows(nb, root)
+            .into_iter()
+            .map(|row| (row.0, row.1))
+            .collect()
+    };
+    let flat = |values: &[(u128, u32)]| -> Vec<(String, u32)> {
+        values
+            .iter()
+            .map(|(value, depth)| (id(*value), *depth))
+            .collect()
+    };
+    let placed = apply(
+        &mut nb,
+        vec![
+            page(1, "Work"),
+            page(2, "Other"),
+            insert(10, 1, None, "a"),
+            insert(11, 1, Some(10), "b"),
+            insert(12, 1, Some(11), "c"),
+            insert(13, 1, Some(12), "d"),
+            insert(20, 1, Some(13), "list"),
+            insert(21, 20, None, "one"),
+            insert(22, 20, Some(21), "two"),
+            insert(30, 2, None, "elsewhere"),
+        ],
+    );
+    // An anchor that is where the sender saw it changes nothing in the receipt.
+    assert!(placed.reanchored_pages.is_empty());
+
+    // Another writer deleted b. Its slot still says where "after b" was.
+    apply(&mut nb, vec![deleted(11, 1)]);
+    let moved = apply(&mut nb, vec![moving(13, 1, 1, Some(11))]);
+    assert_eq!(moved.reanchored_pages, [id(1)]);
+    assert_eq!(
+        ids(&nb, 1),
+        flat(&[(10, 0), (13, 0), (12, 0), (20, 0), (21, 1), (22, 1)])
+    );
+    let inserted = apply(&mut nb, vec![insert(14, 1, Some(11), "after b")]);
+    assert_eq!(inserted.reanchored_pages, [id(1)]);
+    assert_eq!(
+        ids(&nb, 1),
+        flat(&[
+            (10, 0),
+            (14, 0),
+            (13, 0),
+            (12, 0),
+            (20, 0),
+            (21, 1),
+            (22, 1)
+        ])
+    );
+
+    // Another writer moved c under the list. Reordering a after c names no
+    // place among a's siblings, so a stays and keeps its revision.
+    apply(&mut nb, vec![moving(12, 1, 20, Some(22))]);
+    let stayed = apply(&mut nb, vec![moving(10, 1, 1, Some(12))]);
+    assert_eq!(stayed.reanchored_pages, [id(1)]);
+    assert!(stayed.revisions.is_empty());
+    assert_eq!(nb.block(&id(10)).unwrap().revision, 1);
+    assert_eq!(
+        ids(&nb, 1),
+        flat(&[
+            (10, 0),
+            (14, 0),
+            (13, 0),
+            (20, 0),
+            (21, 1),
+            (22, 1),
+            (12, 1)
+        ])
+    );
+
+    // Another writer moved "one" out of the list. A block sent under the list
+    // after it goes to the end of the list, as does a new line. A block that
+    // crosses pages names only the page it arrives on.
+    apply(&mut nb, vec![moving(21, 1, 1, None)]);
+    let indented = apply(&mut nb, vec![moving(13, 2, 20, Some(21))]);
+    assert_eq!(indented.reanchored_pages, [id(1)]);
+    let typed = apply(&mut nb, vec![insert(23, 20, Some(21), "new line")]);
+    assert_eq!(typed.reanchored_pages, [id(1)]);
+    assert_eq!(
+        ids(&nb, 1),
+        flat(&[
+            (21, 0),
+            (10, 0),
+            (14, 0),
+            (20, 0),
+            (22, 1),
+            (12, 1),
+            (13, 1),
+            (23, 1)
+        ])
+    );
+    let crossed = apply(&mut nb, vec![moving(30, 1, 20, Some(21))]);
+    assert_eq!(crossed.reanchored_pages, [id(1)]);
+    assert_eq!(ids(&nb, 1).last(), Some(&(id(30), 1)));
+    assert!(ids(&nb, 2).is_empty());
+
+    // An emptied parent takes the block as its only child.
+    apply(
+        &mut nb,
+        vec![insert(40, 2, None, "only"), moving(40, 1, 1, None)],
+    );
+    let alone = apply(&mut nb, vec![insert(41, 2, Some(40), "alone")]);
+    assert_eq!(alone.reanchored_pages, [id(2)]);
+    assert_eq!(ids(&nb, 2), flat(&[(41, 0)]));
+
+    // An ID that never existed is a mistake, and an atom still cannot follow itself.
+    let before = nb.page(&id(1)).unwrap();
+    assert!(matches!(
+        nb.apply(&batch(vec![moving(10, 1, 20, Some(99))])),
+        Err(Error::NotFound { .. })
+    ));
+    assert!(matches!(
+        nb.apply(&batch(vec![insert(50, 1, Some(99), "nowhere")])),
+        Err(Error::NotFound { .. })
+    ));
+    assert!(matches!(
+        nb.apply(&batch(vec![moving(10, 1, 1, Some(10))])),
+        Err(Error::Validation { .. })
+    ));
+    assert_eq!(nb.page(&id(1)).unwrap(), before);
+
+    // The stored receipt keeps the mark, so a replayed request reloads too.
+    let mut keyed = batch(vec![insert(51, 1, Some(11), "keyed")]);
+    keyed.idempotency_key = Some("stale-anchor".into());
+    let first = nb.apply(&keyed).unwrap();
+    let replayed = nb.apply(&keyed).unwrap();
+    assert!(replayed.replayed);
+    assert_eq!(first.reanchored_pages, [id(1)]);
+    assert_eq!(replayed.reanchored_pages, first.reanchored_pages);
 }

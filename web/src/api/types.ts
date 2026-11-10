@@ -182,6 +182,8 @@ export interface Committed {
   pruned_pages?: { id: string; deletion_id: string; revision: number }[];
   /** Pages holding a block the batch changed or removed, plus restructured pages. Absent in receipts stored before it was recorded. */
   pages?: string[];
+  /** Pages where the service placed a block somewhere other than the request named, because its `after` sibling had been moved or deleted. */
+  reanchored_pages?: string[];
   settings: SettingRevision[];
   /** Deletion events created by `delete`, `merge` and `merge_page`, in operation order. */
   deletions: string[];

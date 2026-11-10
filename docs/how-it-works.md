@@ -154,12 +154,26 @@ Sparse integer ordinals choose the midpoint between neighbors, or add/subtract
 tombstones, without bumping authored revisions. Code:
 `crates/tessera-core/src/operations.rs:797` (`Engine::ordinal`).
 
-Insert takes `parent_id` and `after`, not a browser-supplied ordinal. Core
-checks that `after` is a live sibling and copies the parent's `page_id`. Move
-changes parent, page and ordinal. Cross-page moves update `page_id` and
-revisions throughout the subtree. Cycles and root moves are rejected. Code:
-`crates/tessera-core/src/model.rs:67` (`Operation::Move`),
-`crates/tessera-core/src/operations.rs:871` (`Operation::Insert` handling).
+Insert takes `parent_id` and `after`, not a browser-supplied ordinal, and copies
+the parent's `page_id`. Move changes parent, page and ordinal. Cross-page moves
+update `page_id` and revisions throughout the subtree. Cycles and root moves are
+rejected. Code: `crates/tessera-core/src/model.rs` (`Operation::Move`),
+`crates/tessera-core/src/operations.rs` (`Operation::Insert` handling).
+
+Another writer may have moved or deleted `after` since the sender last saw the
+list. Core then places the block itself instead of refusing:
+
+| `after` is now                  | The block lands                                                                                 |
+| ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| A live sibling under the parent | After it                                                                                        |
+| Deleted under the parent        | In the deleted sibling's slot                                                                   |
+| Under another parent            | Last under the named parent. A block already under that parent stays put, with no new revision. |
+| An ID that never existed        | Nowhere. The request is refused.                                                                |
+
+The receipt lists the page in `reanchored_pages`. A block carries no sibling
+position, so the editor reloads those pages once the command has left its
+queue. Code: `crates/tessera-core/src/operations.rs` (`anchor`, `reanchor`),
+`web/src/document/index.ts` (`reloadReanchored`).
 
 `Notebook::page` fetches live rows once, groups by parent and walks preorder. It
 returns a root, rows with computed depth (not a database column), manual

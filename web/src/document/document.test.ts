@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import type { Subprocess } from 'bun';
 import { ulid } from 'ulid';
 import { createApi } from '../api/client';
-import type { Batch, ChangeEvent, FieldKind, Occlusion, Operation, SourceState, TaskState } from '../api/types';
+import type { Batch, ChangeEvent, Committed, FieldKind, Occlusion, Operation, SourceState, TaskState } from '../api/types';
 import { createNotebookClient } from './index';
 import type { Notebook } from './index';
 import type { EditResult, NewCitation, PageDocument } from './contract';
@@ -2265,6 +2265,45 @@ describe('real notebook operations and recovery', () => {
       expect(shape(cached)).toEqual(latest);
       expect(cached.block(child)).toBeUndefined();
     } finally { globalThis.fetch = actualFetch; }
+  });
+
+  test('a move after a sibling another writer took away saves, and the page takes the service\'s order', async () => {
+    const session = `stale-anchor-${++serial}`, instance = await client(session);
+    const { doc, first, id } = await page(instance, 'Parent');
+    const anchor = success(doc.edit({ kind: 'insert', parentId: id, after: first, text: 'Anchor' })).created[0]!;
+    const third = success(doc.edit({ kind: 'insert', parentId: id, after: anchor, text: 'Third' })).created[0]!;
+    const moved = success(doc.edit({ kind: 'insert', parentId: id, after: third, text: 'Moved' })).created[0]!;
+    await instance.flush();
+    const receipts: Committed[] = [];
+    let lose = true;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const isClientBatch = String(input) === `${baseUrl}/api/batches` && init?.method === 'POST' && String(init.body).includes('"kind":"client"');
+      // The move never reaches the service from the first window.
+      if (isClientBatch && lose) { lose = false; throw new TypeError('Offline'); }
+      const response = await actualFetch(input, init);
+      if (isClientBatch && response.ok) receipts.push(await response.clone().json() as Committed);
+      return response;
+    }) as typeof fetch;
+    try {
+      success(doc.edit({ kind: 'moveTo', ids: [moved], parentId: id, after: anchor }));
+      expect(ids(doc)).toEqual([first, anchor, moved, third]);
+      await instance.flush();
+      expect(instance.queuedChanges()).toBe(1);
+      await instance.dispose();
+      const current = await api.block(anchor);
+      await api.submit({ actor: { kind: 'person' }, operations: [{ op: 'move', id: anchor, base_revision: current.revision, parent_id: first, after: null }] });
+      // The window reopens on a page that already has the other writer's change, so no later event reloads it.
+      const recovered = await client(session), reopened = recovered.open(id);
+      await eventually(() => reopened.status() === 'ready', 'the outbox did not reopen');
+      await recovered.flush();
+      const order = (await api.page(id)).rows.map(row => row.block.id);
+      expect(order).toEqual([first, anchor, third, moved]);
+      expect(receipts[0]?.reanchored_pages).toEqual([id]);
+      expect(ids(reopened)).toEqual(order);
+      expect(reopened.outline.parentOf(anchor)).toBe(first);
+      expect(recovered.saveState()).toBe('saved');
+      expect(recovered.queuedChanges()).toBe(0);
+    } finally { globalThis.fetch = actualFetch; doc.release(); }
   });
 
   test('a structural-only 409 rebases pending text and drains unrelated edits', async () => {

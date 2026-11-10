@@ -158,6 +158,7 @@ impl Notebook {
             removed: HashSet::new(),
             pruned_pages: Vec::new(),
             restructured_pages: HashSet::new(),
+            reanchored_pages: BTreeSet::new(),
             changed_pages: HashSet::new(),
             pending_types: BTreeMap::new(),
             capability_memberships: BTreeMap::new(),
@@ -303,6 +304,7 @@ impl Notebook {
             settings: engine.settings,
             deletions: engine.deletions,
             pages: Some(pages.into_iter().collect()),
+            reanchored_pages: engine.reanchored_pages.into_iter().collect(),
             text_rewrites: engine.text_rewrites,
             capabilities,
             cards: engine.cards.into_values().collect(),
@@ -614,12 +616,26 @@ struct Engine<'a, 'conn> {
     removed: HashSet<String>,
     pruned_pages: Vec<crate::PrunedPage>,
     restructured_pages: HashSet<String>,
+    reanchored_pages: BTreeSet<String>,
     changed_pages: HashSet<String>,
     pending_types: BTreeMap<(String, String), String>,
     capability_memberships: BTreeMap<String, u8>,
     text_rewrites: Vec<TextRewrite>,
     rewrite_positions: HashMap<String, usize>,
     op_index: usize,
+}
+
+/// What a request's `after` marks under the parent it names.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Anchor {
+    /// No `after`: the block goes first.
+    First,
+    /// A live sibling.
+    Sibling,
+    /// A sibling deleted under this parent, whose ordinal still marks its slot.
+    Slot,
+    /// A block that now sits under another parent.
+    Adrift,
 }
 
 struct Touched {
@@ -1442,19 +1458,66 @@ impl Engine<'_, '_> {
         )?)
     }
 
+    /// What a request's `after` still marks under `parent`. Another writer may
+    /// have moved or deleted that sibling since the sender last saw the list.
+    fn anchor(&self, parent: &str, after: Option<&str>, excluded: Option<&str>) -> Result<Anchor> {
+        let Some(after) = after else {
+            return Ok(Anchor::First);
+        };
+        if Some(after) == excluded {
+            return Err(validation("an atom cannot be placed after itself"));
+        }
+        validate_id(after)?;
+        let sibling = stored(self.tx, after)?.ok_or_else(|| not_found(after))?;
+        Ok(if sibling.block.parent_id.as_deref() != Some(parent) {
+            Anchor::Adrift
+        } else if sibling.deletion_id.is_some() {
+            Anchor::Slot
+        } else {
+            Anchor::Sibling
+        })
+    }
+
+    /// The sibling a new child of `parent` goes after, re-anchored when the
+    /// request's `after` is stale: a sibling deleted under this parent keeps
+    /// its slot, and one that left for another parent sends the block to the
+    /// end. The receipt names the page so the sender reloads its order.
+    fn reanchor(
+        &mut self,
+        parent: &Stored,
+        after: Option<&str>,
+        excluded: Option<&str>,
+    ) -> Result<Option<String>> {
+        let anchor = self.anchor(&parent.block.id, after, excluded)?;
+        if matches!(anchor, Anchor::Slot | Anchor::Adrift) {
+            self.reanchored_pages.insert(parent.block.page_id.clone());
+        }
+        if anchor != Anchor::Adrift {
+            return Ok(after.map(str::to_owned));
+        }
+        Ok(self
+            .tx
+            .prepare_cached(
+                "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL
+                 AND (?2 IS NULL OR id != ?2) ORDER BY ordinal DESC, id DESC LIMIT 1",
+            )?
+            .query_row(params![parent.block.id, excluded], |row| row.get(0))
+            .optional()?)
+    }
+
+    /// `after` is a row under `parent`, live or deleted; a deleted row's
+    /// ordinal still marks its slot among the live siblings.
     fn ordinal(&self, parent: &str, after: Option<&str>, excluded: Option<&str>) -> Result<i64> {
-        if let Some(after) = after {
-            if Some(after) == excluded {
-                return Err(validation("an atom cannot be placed after itself"));
-            }
-            let sibling = self.live(after)?;
-            if sibling.block.parent_id.as_deref() != Some(parent) {
-                return Err(validation("after must be a live sibling of the new parent"));
-            }
+        if self.anchor(parent, after, excluded)? == Anchor::Adrift {
+            return Err(validation("after must be a sibling under the new parent"));
         }
         let bounds = |engine: &Self| -> Result<(Option<i64>, Option<i64>)> {
             let left = after
-                .map(|id| engine.live(id).map(|row| row.ordinal))
+                .map(|id| {
+                    stored(engine.tx, id)?
+                        .map(|row| row.ordinal)
+                        .ok_or_else(|| not_found(id))
+                })
                 .transpose()?;
             let right = if let Some(left) = left {
                 engine
@@ -1524,13 +1587,22 @@ impl Engine<'_, '_> {
         if self.would_cycle(&current.block.id, parent_id)? {
             return Err(validation("move would create a cycle"));
         }
+        let same_parent = current.block.parent_id.as_deref() == Some(parent_id);
+        // Reordering after a sibling that has left this parent names no place
+        // in it any more, so the block stays where it is.
+        if same_parent && self.anchor(parent_id, after, Some(&current.block.id))? == Anchor::Adrift
+        {
+            self.reanchored_pages.insert(parent.block.page_id.clone());
+            return Ok(());
+        }
+        let after = self.reanchor(&parent, after, Some(&current.block.id))?;
+        let after = after.as_deref();
         let predecessor: Option<String> = self.tx.query_row(
             "SELECT id FROM blocks WHERE parent_id = ?1 AND deletion_id IS NULL AND ordinal < ?2
              ORDER BY ordinal DESC, id DESC LIMIT 1",
             params![current.block.parent_id, current.ordinal], |row| row.get(0),
         ).optional()?;
-        if current.block.parent_id.as_deref() == Some(parent_id) && predecessor.as_deref() == after
-        {
+        if same_parent && predecessor.as_deref() == after {
             return Ok(());
         }
         crate::work_store::guard_move(self.tx, &current.block.id, parent_id)?;
@@ -1973,6 +2045,7 @@ impl Engine<'_, '_> {
             } => {
                 self.unused(id)?;
                 let parent = self.live(parent_id)?;
+                let after = self.reanchor(&parent, after.as_deref(), None)?;
                 let ordinal = self.ordinal(parent_id, after.as_deref(), None)?;
                 self.create(NewBlock {
                     id,

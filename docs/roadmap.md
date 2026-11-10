@@ -19,9 +19,9 @@ exceeds the cost of a missing feature.
    cursor, add restore from Settings › Backups, and record history for every
    change, not only agents'. The leftovers of stage 8. History, restore, the
    cursor, both harnesses and both spike runs landed on 2026-10-22 and 23; what
-   is left is a full eight-hour soak under the revised heap criteria and the
-   spike 4 findings (a write queue, patching restructured pages under local
-   edits, re-anchoring moves).
+   is left is a full eight-hour soak under the revised heap criteria and two
+   spike 4 findings (a write queue, and patching restructured pages under local
+   edits). Moves and inserts now re-anchor in the core.
 3. Close the open stages. Stage 10: filling the Form field from lookup and
    ingestion and exporting it, and State grouping. Stage 7: assessments that
    cite positions and passages. Stage 4: cards from field entries. Each has a
@@ -254,8 +254,11 @@ acknowledged was lost through thirty forced crashes, heaps grow with visited
 pages and the workshop rather than leak, and three Find bugs it exposed are
 fixed.
 
-A full eight-hour run under the revised heap criteria, move re-anchoring and
-agent plans remain.
+A move or insert that names a sibling another writer has moved or deleted is
+placed under its parent instead of refused, so it no longer stays in a window's
+outbox.
+
+A full eight-hour run under the revised heap criteria and agent plans remain.
 
 ## 9. Perspectives
 
