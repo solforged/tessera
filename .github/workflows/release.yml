@@ -29,7 +29,7 @@ jobs:
         run: test "$TAG" = "v$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml)"
 
       - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           version: 2026.10.1
 
@@ -85,7 +85,7 @@ jobs:
           persist-credentials: false
 
       - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           version: 2026.10.1
 
@@ -114,7 +114,7 @@ jobs:
           persist-credentials: false
 
       - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           version: 2026.10.1
 
@@ -158,7 +158,7 @@ jobs:
           persist-credentials: false
 
       - name: Install tools
-        uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           version: 2026.10.1
 
