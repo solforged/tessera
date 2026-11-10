@@ -111,6 +111,10 @@ open.
 [CI](../.github/workflows/ci.yml) runs Rust `lint` and `test` on Linux and
 macOS, plus `web:build`, `demo:lint`, `demo:test`, `android:lint`, `cli:lint`,
 `cli:test`, the prose checks and `commit:lint` over the pull request's commits.
+It does not run `web:test` yet: the document tests time out on its Linux
+runners. `web:test` builds the debug command line first, because those tests
+save through a real service. Set `TESSERA_TEST_BINARY` to test against another
+build.
 Its backend job runs 50,000-row correctness and scaling checks
 with `--sizes 50000 --fail-on scaling`. Absolute budgets are for named devices;
 shared runners report them but gate only on correctness and no-per-row-work
