@@ -171,8 +171,8 @@ list. Core then places the block itself instead of refusing:
 | An ID that never existed        | Nowhere. The request is refused.                                                                |
 
 The receipt lists the page in `reanchored_pages`. A block carries no sibling
-position, so the editor reloads those pages once the command has left its
-queue. Code: `crates/tessera-core/src/operations.rs` (`anchor`, `reanchor`),
+position, so the editor reloads those pages once the command has left its queue.
+Code: `crates/tessera-core/src/operations.rs` (`anchor`, `reanchor`),
 `web/src/document/index.ts` (`reloadReanchored`).
 
 `Notebook::page` fetches live rows once, groups by parent and walks preorder. It
@@ -713,8 +713,8 @@ Moves query no children: the moved descriptor is a source, so moving from a
 The outline repeats the empty-parent check for diagnostics; review omits the
 parent from the source breadcrumb. Migration `034_descriptor_cards.sql` widens
 the `card_units.kind` check and rebuilds `card_units` and `review_events` with
-row IDs, as migration 020 did. The runner rebuilds definitions to derive existing
-`;;` text. Paired devices require schema 34.
+row IDs, as migration 020 did. The runner rebuilds definitions to derive
+existing `;;` text. Paired devices require schema 34.
 
 The operation engine collects changed card sources and derives them once at
 batch end. Before grading/resetting in the same batch, it flushes preceding
@@ -787,12 +787,12 @@ dependency or separate learning-step engine.
   grades use the same policy; unit tests retain official memory-state and
   review-sequence vectors.
 
-Migration 020 replays each card's `review_events` by review timestamp and `rowid`
-through FSRS, respecting resets and same-timestamp reset/grade ordering. Cards
-without history retain new memory state. Existing evidence JSON is unchanged and
-marked `sm-2`; only a historical data variant remains, not its scheduling math.
-New events record `fsrs-6` with the exact before/after state. The migration and
-replay run in one transaction.
+Migration 020 replays each card's `review_events` by review timestamp and
+`rowid` through FSRS, respecting resets and same-timestamp reset/grade ordering.
+Cards without history retain new memory state. Existing evidence JSON is
+unchanged and marked `sm-2`; only a historical data variant remains, not its
+scheduling math. New events record `fsrs-6` with the exact before/after state.
+The migration and replay run in one transaction.
 
 `GradeCard` enforces the [presentation checks](domain-model.md#cards) against
 card revision, definition revision and exact shown front/back, not source-block

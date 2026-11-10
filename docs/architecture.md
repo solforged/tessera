@@ -357,12 +357,12 @@ part of the shell from the start.
 
 A stale operation fails without writing, except a stale position: a move or
 insert after a sibling that has gone is placed under its parent, and the sender
-reloads the page. Clean remote changes merge into the local view block by
-block. When a remote change touches a block with unsent local text, the local
-text is kept and the block shows a conflict with both versions. Nothing is
-merged automatically. Replicas on other devices differ: the hub rebases their
-stale structural changes onto its state and keeps both versions of conflicting
-text; see [sync](sync.md).
+reloads the page. Clean remote changes merge into the local view block by block.
+When a remote change touches a block with unsent local text, the local text is
+kept and the block shows a conflict with both versions. Nothing is merged
+automatically. Replicas on other devices differ: the hub rebases their stale
+structural changes onto its state and keeps both versions of conflicting text;
+see [sync](sync.md).
 
 ## Why not the alternatives
 

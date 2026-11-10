@@ -438,15 +438,15 @@ the block stays the unit of text and the outline model does not change.
      minutes.
    - **Status.** The third round, approved 2026-10-12, replaces the rail's mono
      line with a bare mark beside the Tessera wordmark (`wm-*` mockups in
-     `~/artifacts/tessera/sync-indicator-2026-10-12/`). A filled
-     `--status-done` dot means synced or sending; a hollow `--warning` ring
-     means unreachable or needs review; a `--danger` diamond means version
-     mismatch, forgotten or retired. Shape and color always agree. Pointer hover
-     after 350 ms or keyboard focus shows the state and a short hint in a slip;
-     click or tap opens the short summary under the mark, with the fixing action
-     and a link to Settings › Devices. Touch opens a bottom sheet without a
-     slip. The cover screen has no rail, so a row above the bottom nav shows
-     only waiting or action states, with the same glyph, label and detail.
+     `~/artifacts/tessera/sync-indicator-2026-10-12/`). A filled `--status-done`
+     dot means synced or sending; a hollow `--warning` ring means unreachable or
+     needs review; a `--danger` diamond means version mismatch, forgotten or
+     retired. Shape and color always agree. Pointer hover after 350 ms or
+     keyboard focus shows the state and a short hint in a slip; click or tap
+     opens the short summary under the mark, with the fixing action and a link
+     to Settings › Devices. Touch opens a bottom sheet without a slip. The cover
+     screen has no rail, so a row above the bottom nav shows only waiting or
+     action states, with the same glyph, label and detail.
    - **Devices detail.** Each device in Settings › Devices expands into both
      sides' versions, the fix, the refusal or failure with its attempts, and a
      ledger of recent attempts. Needs review lists kept copies and rejected
