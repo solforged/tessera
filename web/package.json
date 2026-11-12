@@ -27,7 +27,7 @@
     "ulid": "^3.0.2"
   },
   "devDependencies": {
-    "@types/bun": "^1.4.2",
+    "@types/bun": "^1.4.4",
     "fake-indexeddb": "^6.2.5",
     "playwright-core": "^1.63.0",
     "typescript": "^7.0.2",
