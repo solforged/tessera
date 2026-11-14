@@ -29,7 +29,7 @@
   "devDependencies": {
     "@types/bun": "^1.4.2",
     "fake-indexeddb": "^6.2.5",
-    "playwright-core": "^1.63.0",
+    "playwright-core": "^1.65.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.2",
     "vite-plugin-solid": "^2.11.14"
