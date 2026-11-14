@@ -94,12 +94,8 @@ async fn notebook_request(app: AppHandle, request: NotebookRequest) -> Result<Re
     let request = builder
         .body(Body::from(body))
         .map_err(|error| error.to_string())?;
-    let response = host
-        .router
-        .clone()
-        .oneshot(request)
-        .await
-        .map_err(|error| error.to_string())?;
+    // The router's error type is Infallible.
+    let Ok(response) = host.router.clone().oneshot(request).await;
     let status = response.status().as_u16();
     let content_type = response
         .headers()
@@ -201,12 +197,8 @@ async fn upload_opened_file(
         .header("X-Filename", filename)
         .body(Body::from(bytes))
         .map_err(|error| error.to_string())?;
-    let response = host
-        .router
-        .clone()
-        .oneshot(request)
-        .await
-        .map_err(|error| error.to_string())?;
+    // The router's error type is Infallible.
+    let Ok(response) = host.router.clone().oneshot(request).await;
     let status = response.status();
     let body = to_bytes(response.into_body(), usize::MAX)
         .await
