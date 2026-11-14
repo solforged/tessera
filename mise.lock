@@ -84,21 +84,21 @@ checksum = "sha256:0fde04e8b092156b97fe6432e899baf16d9ed6ce52cbb4218d2d9c07a2f82
 url = "https://github.com/oven-sh/bun/releases/download/bun-v1.4.3/bun-darwin-x64-baseline.zip"
 
 [[tools.chromedriver]]
-version = "153.0.8010.12"
+version = "158.0.8127.18"
 backend = "vfox:jdx/vfox-chromedriver"
-specifiers = ["153.0.8010.12"]
+specifiers = ["158.0.8127.18"]
 
 [tools.chromedriver."platforms.linux-arm64"]
-checksum = "sha256:b7d5f7c120f7827f3538b416e08b82418eb702f18b680c183f0411c8d7f2df69"
-url = "https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chromedriver-linux64.zip"
+checksum = "sha256:63af712a4dcb32bc59d4ee221a06505ecea472e7b45e86c46256e69d7677b793"
+url = "https://storage.googleapis.com/chrome-for-testing-public/158.0.8127.18/linux64/chromedriver-linux64.zip"
 
 [tools.chromedriver."platforms.linux-x64"]
-checksum = "sha256:b7d5f7c120f7827f3538b416e08b82418eb702f18b680c183f0411c8d7f2df69"
-url = "https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chromedriver-linux64.zip"
+checksum = "sha256:63af712a4dcb32bc59d4ee221a06505ecea472e7b45e86c46256e69d7677b793"
+url = "https://storage.googleapis.com/chrome-for-testing-public/158.0.8127.18/linux64/chromedriver-linux64.zip"
 
 [tools.chromedriver."platforms.macos-arm64"]
-checksum = "sha256:fe2a4644020a93e79614d547074932b9eb0c00ed34b9fec0e1d87e2ee6d24886"
-url = "https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/mac-arm64/chromedriver-mac-arm64.zip"
+checksum = "sha256:9fd0a5c45717692a52a5fb99b0c9f367d3f3402dad270e71d796bd89eadf75c0"
+url = "https://storage.googleapis.com/chrome-for-testing-public/158.0.8127.18/mac-arm64/chromedriver-mac-arm64.zip"
 
 [[tools."github:WebAssembly/binaryen"]]
 version = "133"

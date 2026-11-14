@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Run the browser demo's wasm tests in headless Chrome for Testing"
-#MISE tools={chromedriver="153.0.8010.12"}
+#MISE tools={chromedriver="158.0.8127.18"}
 # The tests need OPFS in a real browser worker. CHROME_PATH overrides the
 # Chrome for Testing that the locked playwright-core installs, which web/perf
 # also drives, and CHROMEDRIVER overrides the pinned driver; the driver must
