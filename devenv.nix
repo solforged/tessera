@@ -40,8 +40,8 @@ let
   # locked playwright-core installs, which ts-demo-test runs. CI passes the
   # runner's own driver in CHROMEDRIVER.
   chromedriver = pkgs.fetchzip {
-    url = "https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/mac-arm64/chromedriver-mac-arm64.zip";
-    hash = "sha256-kOggEFoRpeWD7B7BBrS4AU5VUAe1VQ8ZbrHmO4kz67E=";
+    url = "https://storage.googleapis.com/chrome-for-testing-public/158.0.8127.18/mac-arm64/chromedriver-mac-arm64.zip";
+    hash = "sha256-ddKAIfEcmCTdX+X43ClLYhZIKYy+P+/ymj5cXO7sU8Y=";
     postFetch = ''
       mkdir -p $out/bin
       mv $out/chromedriver $out/bin/
