@@ -1,0 +1,24 @@
+# Three or more very short sentences in a row, the cadence of a poster or a
+# tagline: "Calm surfaces. Local controls. Room to think." Interface text
+# labels and instructs; a slogan does neither. Runs on the UiCopy view.
+extends: existence
+message: "'%s' reads as a tagline. Say what the screen does, or cut it."
+level: warning
+scope: ui
+nonword: true
+tokens:
+  - '(?:(?:^|(?<=[.!?]\s))[A-Z][^.!?\n]{1,24}[.!?]\s+){2,}[A-Z][^.!?\n]{1,24}[.!?]'
+
+tests:
+  - name: reports a tagline
+    format: .tsx
+    view: UiCopy
+    input: |
+      export const A = () => <p>Calm surfaces. Local controls. Room to think.</p>;
+    contains: Voice.UiCadence
+  - name: leaves two short instructions alone
+    format: .tsx
+    view: UiCopy
+    input: |
+      export const A = () => <p>Saved. Open the atom to edit it.</p>;
+    want: ''

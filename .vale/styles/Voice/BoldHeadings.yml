@@ -1,0 +1,80 @@
+# A paragraph that is only bold text ("**What changed**"), standing in for a
+# heading. A real heading shows in the outline and the table of contents, and
+# a short reply needs neither. The rule reads the raw Markdown and skips
+# fenced code.
+extends: script
+message: "A bold line stands in for a heading. Use a heading, or fold the words into the next sentence."
+level: warning
+scope: raw
+script: |
+  text := import("text")
+  matches := []
+  bold := `^\*\*[^*]+\*\*:?$`
+  fence := ""
+  offset := 0
+  start := true
+  pending := {}
+  for line in text.split(scope, "\n") {
+    trimmed := text.trim_space(line)
+    marker := ""
+    if text.has_prefix(trimmed, "```") {
+      marker = "```"
+    } else if text.has_prefix(trimmed, "~~~") {
+      marker = "~~~"
+    }
+    if pending.begin != undefined {
+      if trimmed == "" || text.re_match(`^[ \t]*(?:[-*+]|[0-9]+[.)])[ \t]+`, line) || marker != "" {
+        matches = append(matches, pending)
+      }
+      pending = {}
+    }
+    if fence != "" {
+      if marker == fence {
+        fence = ""
+      }
+    } else if marker != "" {
+      fence = marker
+    } else if trimmed == "" {
+      start = true
+    } else {
+      if start && text.re_match(bold, line) {
+        pending = {begin: offset, end: offset + len(line)}
+      }
+      start = text.has_prefix(line, "#")
+    }
+    offset += len(line) + 1
+  }
+  if pending.begin != undefined {
+    matches = append(matches, pending)
+  }
+
+tests:
+  - name: reports a bold line above a paragraph
+    input: |
+      Each read hits the index.
+
+      **What changed**
+
+      The index loads lazily.
+    want: |
+      3:1:Voice.BoldHeadings:A bold line stands in for a heading. Use a heading, or fold the words into the next sentence.
+  - name: reports a bold line above a list
+    input: |
+      **Choices to revisit:**
+      - The cache stays on.
+    contains: Voice.BoldHeadings
+  - name: leaves a bold opening phrase alone
+    input: |
+      **Warning:** the migration drops the column.
+    want: ''
+  - name: leaves a real heading alone
+    input: |
+      ## What changed
+
+      The index loads lazily.
+    want: ''
+  - name: leaves a bold line wrapped into a paragraph alone
+    input: |
+      **The cache is cold**
+      after every restart.
+    want: ''

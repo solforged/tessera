@@ -1,8 +1,13 @@
 # Chat sign-offs in a document, from _voices/Closers.yml. A document ends on
-# its last concrete point.
+# its last concrete point. The offers GPT and Claude models close replies
+# with are added; in a document nobody is there to accept them.
 extends: Voice._voices.Closers
 message: "'%s' is a sign-off. End on the last concrete point."
 level: warning
+tokens+:
+  - "if you want, I can"
+  - "if you'd like, I can"
+  - "want me to"
 
 tests:
   - name: reports sign-offs
@@ -10,6 +15,10 @@ tests:
       Run the migration once. I hope this helps!
     want: |
       1:25:Voice.Signoff:'I hope this helps' is a sign-off. End on the last concrete point.
+  - name: reports a closing offer
+    input: |
+      Run the migration once. If you want, I can add a dry-run flag.
+    contains: "'If you want, I can'"
   - name: leaves a closing instruction alone
     input: |
       Run the migration once, then restart the service.

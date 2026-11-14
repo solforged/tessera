@@ -1,0 +1,112 @@
+# List items and paragraphs that open with a bold label ("- **Faster reads:**
+# the index loads lazily"), the most frequent structural habit of model
+# output. A list is reported once, at its first labeled item, when three or
+# more of its items carry a label; one or two are often real terms, such as a
+# pair of platforms. A
+# paragraph opening with a bold label is reported each time. The rule reads
+# the raw Markdown and skips fenced code and block quotations. A glossary,
+# where each label is the term being defined, keeps its labels; disable the
+# rule around it.
+extends: script
+message: "Bold labels open these lines. Write the point as a plain sentence, or use plain list items."
+level: warning
+scope: raw
+script: |
+  text := import("text")
+  matches := []
+  item := `^[ \t]*(?:[-*+]|[0-9]+[.)])[ \t]+`
+  label := `^[ \t]*(?:[-*+]|[0-9]+[.)])[ \t]+\*\*[^*]+\*\*`
+  lead := `^\*\*[^*]+\*\*:?[ \t]*[^ \t:]`
+  fence := ""
+  offset := 0
+  start := true
+  labeled := 0
+  first := {}
+  flush := func() {
+    if labeled >= 3 {
+      matches = append(matches, first)
+    }
+    labeled = 0
+  }
+  for line in text.split(scope, "\n") {
+    trimmed := text.trim_space(line)
+    marker := ""
+    if text.has_prefix(trimmed, "```") {
+      marker = "```"
+    } else if text.has_prefix(trimmed, "~~~") {
+      marker = "~~~"
+    }
+    if fence != "" {
+      if marker == fence {
+        fence = ""
+      }
+    } else if marker != "" {
+      fence = marker
+    } else if trimmed == "" {
+      start = true
+    } else if text.re_match(item, line) {
+      if text.re_match(label, line) {
+        if labeled == 0 {
+          found := text.re_find(label, line, 1)
+          first = {begin: offset + found[0][0].begin, end: offset + found[0][0].end}
+        }
+        labeled += 1
+      }
+      start = false
+    } else if text.has_prefix(line, " ") || text.has_prefix(line, "\t") {
+      start = false
+    } else {
+      flush()
+      if start && text.re_match(lead, line) {
+        found := text.re_find(`^\*\*[^*]+\*\*`, line, 1)
+        matches = append(matches, {begin: offset, end: offset + found[0][0].end})
+      }
+      start = text.has_prefix(line, "#")
+    }
+    offset += len(line) + 1
+  }
+  flush()
+
+tests:
+  - name: reports a list of bold labels once
+    input: |
+      Changes:
+
+      - **Faster reads:** the index loads lazily.
+      - **Safer writes:** every write is atomic.
+      - **Cleaner code:** the dead branches are gone.
+    want: |
+      3:1:Voice.BoldLabels:Bold labels open these lines. Write the point as a plain sentence, or use plain list items.
+  - name: reports a numbered list
+    input: |
+      1. **Strip header.** The header scrolled out of view.
+      2. **Status line.** The line wrapped.
+      3. **Footer.** The footer lost its border.
+    contains: Voice.BoldLabels
+  - name: reports a paragraph opening with a bold label
+    input: |
+      # Sync
+
+      **Verification:** the build passed on both hosts.
+    want: |
+      3:1:Voice.BoldLabels:Bold labels open these lines. Write the point as a plain sentence, or use plain list items.
+  - name: leaves two labeled items alone
+    input: |
+      - **NixOS:** install from the image.
+      - **macOS:** run the bootstrap script.
+      - The sweeper runs at midnight.
+    want: ''
+  - name: leaves bold inside a sentence alone
+    input: |
+      - Run **one** migration at a time.
+      - The writer holds the **only** lock.
+
+      The cache is **cold** after a restart.
+    want: ''
+  - name: leaves fenced code alone
+    input: |
+      ```md
+      - **Faster reads:** the index loads lazily.
+      - **Safer writes:** every write is atomic.
+      ```
+    want: ''

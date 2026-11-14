@@ -1,0 +1,24 @@
+# A semicolon in interface text. Two clauses joined this way are an
+# explanation in a sentence a person scans; split them, or keep the one that
+# tells the reader what to do. Runs on the UiCopy view.
+extends: existence
+message: "Interface text joins clauses with a semicolon. Split the sentence, or keep the one the reader acts on."
+level: warning
+scope: ui
+nonword: true
+tokens:
+  - ';(?=\s)'
+
+tests:
+  - name: reports a semicolon
+    format: .tsx
+    view: UiCopy
+    input: |
+      export const A = () => <p>Changes save automatically; a second pane edits the same originals.</p>;
+    contains: Voice.UiSemicolon
+  - name: leaves code alone
+    format: .tsx
+    view: UiCopy
+    input: |
+      const a = 1; export const A = () => <p>Saved</p>;
+    want: ''

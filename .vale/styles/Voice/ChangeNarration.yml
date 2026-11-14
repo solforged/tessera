@@ -1,0 +1,33 @@
+# A document that narrates its own changes: "the planner now holds the
+# parent", "no longer needs a flag", "has been moved". A reader opening the
+# document wants the current behavior; the history belongs in commit messages
+# and a changelog. Agents carry the habit over from their replies, where "now"
+# reports what they just did: in November 2026, Opus 5.5 wrote "now" about 7
+# times per 1,000 words, GPT models about 1.5. vale.ini turns the rule off
+# for changelogs. "no longer" counts only before a verb of behavior, so
+# "languages no longer spoken" and "casks no longer listed" pass.
+extends: existence
+message: "'%s' narrates a change. Describe the current behavior; the history belongs in the commit message."
+level: warning
+ignorecase: true
+tokens:
+  - 'now (?:also |only )?(?!this\b|thus\b|its\b|less\b|unless\b|is\b|was\b)[a-z]+s'
+  - '(?:is|are) now'
+  - 'can now'
+  - 'no longer (?:needs?|requires?|uses?|has|have|is|are|supports?|runs?|enables?|owns?|works?|shows?|loads?|ships?|includes?|calls?|reads?|writes?)'
+  - '(?:has|have) been (?:added|removed|replaced|renamed|moved|updated|changed|dropped)'
+
+tests:
+  - name: reports change narration
+    input: |
+      The planner now holds the parent pane. The tool no longer needs a flag, and the
+      old cache has been removed.
+    want: |
+      1:13:Voice.ChangeNarration:'now holds' narrates a change. Describe the current behavior; the history belongs in the commit message.
+      1:49:Voice.ChangeNarration:'no longer needs' narrates a change. Describe the current behavior; the history belongs in the commit message.
+      2:11:Voice.ChangeNarration:'has been removed' narrates a change. Describe the current behavior; the history belongs in the commit message.
+  - name: leaves the current state alone
+    input: |
+      The planner holds the parent pane. Run the sync now, unless this is a fresh device.
+      Casks no longer listed are removed.
+    want: ''

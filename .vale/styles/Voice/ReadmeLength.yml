@@ -1,0 +1,95 @@
+# A README past 750 words of prose. A README is an entry point: what the
+# component is, how to install and use it, how to develop it, and links to the
+# guides. Umran's README grew from 1,000 to 3,505 words in three weeks of
+# feature commits, each adding a clause or an item, before the detail moved to
+# docs/. Code blocks, tables and HTML comments are not counted. vale.ini
+# enables the rule for README files only; it reports the first line.
+extends: script
+message: "This README runs past 750 words. Keep the entry point and move detail into guides under docs/."
+level: warning
+scope: raw
+script: |
+  text := import("text")
+  matches := []
+  limit := 750
+  fence := ""
+  comment := false
+  words := 0
+  for line in text.split(scope, "\n") {
+    trimmed := text.trim_space(line)
+    marker := ""
+    if text.has_prefix(trimmed, "```") {
+      marker = "```"
+    } else if text.has_prefix(trimmed, "~~~") {
+      marker = "~~~"
+    }
+    if fence != "" {
+      if marker == fence {
+        fence = ""
+      }
+    } else if marker != "" {
+      fence = marker
+    } else if comment {
+      if text.contains(line, "-->") {
+        comment = false
+      }
+    } else if text.has_prefix(trimmed, "<!--") {
+      comment = !text.contains(line, "-->")
+    } else if !text.has_prefix(trimmed, "|") {
+      words += len(text.fields(line))
+    }
+  }
+  if words > limit {
+    first := text.split(scope, "\n")[0]
+    matches = append(matches, {begin: 0, end: len(first)})
+  }
+
+tests:
+  - name: reports a long README
+    input: |
+      # Sync
+
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+
+      ## Use
+
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+
+      ## Develop
+
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+      word word word word word word word word word word word word word word word word word word word word word word word word word
+    want: |
+      1:1:Voice.ReadmeLength:This README runs past 750 words. Keep the entry point and move detail into guides under docs/.
+  - name: accepts a short README
+    input: |
+      # Sync
+
+      Sync keeps notes in step across devices. Run `sync start` on each one.
+    want: ''

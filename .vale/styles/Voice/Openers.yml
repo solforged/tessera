@@ -1,0 +1,39 @@
+# Chat openers that praise, agree or announce a summary before the content:
+# "Great question!", "You're absolutely right", "Short version:". The rule
+# reads sentence starts only, so "the short answer to the second question"
+# mid-sentence is left alone.
+extends: existence
+message: "'%s' is a chat opener. Start with the content."
+level: warning
+ignorecase: true
+nonword: true
+tokens:
+  - '(?:^|(?<=[.!?:]\s))(?:great|good|excellent|fair) (?:question|catch|point|call)\b'
+  - '(?:^|(?<=[.!?:]\s))you(?:[''’]re| are) (?:absolutely |completely |totally |exactly )?right\b'
+  - '(?:^|(?<=[.!?:]\s))(?:absolutely|certainly)[!,]'
+  - '(?:^|(?<=[.!?:]\s))(?:the )?(?:short|quick) (?:answer|version)\b'
+  - '(?:^|(?<=[.!?:]\s))(?:long story short|tl;?dr|bottom line|the upshot)\b'
+  - '(?:^|(?<=[.!?:]\s))here(?:[''’]s| is) (?:the |a )?(?:short |quick |brief )?(?:version|answer|summary|rundown|breakdown|gist)\b'
+  - '(?:^|(?<=[.!?:]\s))here(?:[''’]s| is) what I (?:found|did|changed|learned)\b'
+
+tests:
+  - name: reports praise and agreement
+    input: |
+      Great question! You're absolutely right about the cache.
+    want: |
+      1:1:Voice.Openers:'Great question' is a chat opener. Start with the content.
+      1:17:Voice.Openers:'You're absolutely right' is a chat opener. Start with the content.
+  - name: reports announced summaries
+    input: |
+      Short version: the cache is cold. Here's what I found in the log.
+    contains:
+      - "'Short version'"
+      - "'Here's what I found'"
+  - name: reports a curly apostrophe
+    input: |
+      Here’s the rundown of the failures.
+    contains: Voice.Openers
+  - name: leaves mid-sentence uses alone
+    input: |
+      The test asks a good question about locking, and the short answer is in the log.
+    want: ''

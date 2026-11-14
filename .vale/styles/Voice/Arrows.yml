@@ -1,0 +1,34 @@
+# Arrows standing in for a verb in prose ("cache miss → slow read"). The word
+# says which relation is meant: causes, becomes, then, maps to. Code spans and
+# code blocks are not prose and are not read. An arrow before a capitalized
+# word or a number is left alone: a menu path ("File → Add to Dock") or a
+# change of value ("40% → 76%"). Tables are skipped, since a before-and-after
+# column is a fair use.
+extends: existence
+message: "Replace '%s' with the word it stands for: 'to', 'then', 'becomes' or 'causes'."
+level: warning
+scope: ~table
+nonword: true
+tokens:
+  - '(?:→|⇒|⟶|⟹)(?=\s*[a-z(`])'
+  - '(?<=\s)(?:->|=>)(?=\s+[a-z(`])'
+
+tests:
+  - name: reports arrows in prose
+    input: |
+      A cache miss → a slow read. The sweeper runs -> the row goes.
+    want: |
+      1:14:Voice.Arrows:Replace '→' with the word it stands for: 'to', 'then', 'becomes' or 'causes'.
+      1:46:Voice.Arrows:Replace '->' with the word it stands for: 'to', 'then', 'becomes' or 'causes'.
+  - name: leaves menu paths, values and tables alone
+    input: |
+      Choose File → Add to Dock. Reads rose from 40% → 76%.
+
+      | Size | Before → after |
+      | --- | --- |
+      | Small | 39 → 54 |
+    want: ''
+  - name: leaves code alone
+    input: |
+      The closure is `x => x + 1`, and the field is `ptr->next`.
+    want: ''

@@ -4,6 +4,9 @@
 # (screen orientation), "in today's" (the Today journal), "showcase" (a named
 # notebook) and "underscore" (the character). "comprehensive" and "seamless"
 # are in Voice.Filler.
+#
+# Added: the intensifiers and framings of later chat models, measured on two
+# weeks of agent replies in November 2026.
 extends: Voice._voices.Tics
 message: "'%s' is a stock phrase. Say the plain thing, or cut it."
 level: warning
@@ -21,6 +24,15 @@ tokens-:
   - "underscore"
   - "underscores"
   - "underscored"
+tokens+:
+  - "honestly"
+  - "genuinely"
+  - "frankly"
+  - "notably"
+  - "under the hood"
+  - "fundamental shift"
+  - "the key insight"
+  - 'the real (?:win|problem|issue|story|question|fix|reason|value)'
 
 tests:
   - name: reports stock phrases
@@ -30,6 +42,14 @@ tests:
       1:6:Voice.Tics:'crucial' is a stock phrase. Say the plain thing, or cut it.
       1:26:Voice.Tics:'testament' is a stock phrase. Say the plain thing, or cut it.
       1:43:Voice.Tics:'holistic' is a stock phrase. Say the plain thing, or cut it.
+  - name: reports chat-model framings
+    input: |
+      Honestly, the real win is speed. Under the hood, the sweeper is genuinely faster.
+    contains:
+      - "'Honestly'"
+      - "'the real win'"
+      - "'Under the hood'"
+      - "'genuinely'"
   - name: leaves literal uses alone
     input: |
       Short landscape screens show tasks written in today's journal. Ask the user
